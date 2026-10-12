@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { checkCode } from '../api';
 import { errorText, t } from '../i18n';
 import { loadPlayer } from '../storage';
+import { useAccount } from '../useAccount';
 
 export function Home() {
   const navigate = useNavigate();
+  const account = useAccount();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,9 +54,20 @@ export function Home() {
           </p>
         )}
       </form>
-      <Link className="quiet-link" to="/quizzes">
-        {t('hostEntry')}
-      </Link>
+      {account.status === 'signed-in' ? (
+        <nav className="toolbar centered">
+          <Link className="quiet-link" to="/quizzes">
+            {t('toQuizzes')}
+          </Link>
+          <Link className="quiet-link" to="/me">
+            {t('myGamesTitle')}
+          </Link>
+        </nav>
+      ) : (
+        <Link className="quiet-link" to="/quizzes">
+          {t('hostEntry')}
+        </Link>
+      )}
     </main>
   );
 }

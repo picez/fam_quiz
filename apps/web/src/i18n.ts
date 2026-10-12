@@ -84,7 +84,7 @@ const uk = {
   phase_leaderboard: 'Рейтинг',
   phase_finished: 'Гру завершено',
   // Акаунт
-  loginTitle: 'Вхід для ведучого',
+  loginTitle: 'Вхід',
   registerTitle: 'Новий акаунт',
   emailLabel: 'Email',
   passwordLabel: 'Пароль',
@@ -164,6 +164,38 @@ const uk = {
   problemNumber: 'Запитання {index}: впишіть правильне число та відхилення (не менше 0).',
   problemLimits: 'Запитання {index}: час має бути від 5 до 120 секунд, бали від 0 до 2000.',
   problemGeneric: 'Запитання {index}: перевірте заповнення.',
+  // Історія
+  historyTitle: 'Історія ігор',
+  historyEmpty: 'Тут з’являться ігри, які ви провели. Запустіть гру зі списку вікторин.',
+  myGamesTitle: 'Мої ігри',
+  myGamesEmpty: 'Тут з’являться ігри, у які ви зіграли, увійшовши в акаунт. Увійдіть перед тим, як вводити код гри.',
+  status_running: 'триває',
+  status_finished: 'завершено',
+  status_aborted: 'перервано',
+  playersCount: 'Гравців: {count}',
+  questionsProgress: 'Запитань зіграно: {played} з {total}',
+  standingsTitle: 'Підсумки',
+  questionsTitle: 'Запитання',
+  noPlayers: 'У цій грі не було гравців.',
+  correctOf: 'правильних: {correct}',
+  answeredStat: 'відповіли {answered}, правильно {accepted}',
+  playedAs: 'ви грали як {nickname}',
+  yourResult: '{score} балів, правильних відповідей: {correct} з {total}',
+  placeOf: '{rank} місце з {total}',
+  noPlace: 'без місця',
+  statGames_one: 'гра',
+  statGames_few: 'гри',
+  statGames_many: 'ігор',
+  statWins_one: 'перемога',
+  statWins_few: 'перемоги',
+  statWins_many: 'перемог',
+  statAccuracy: 'правильних відповідей',
+  toQuizzes: 'Мої вікторини',
+  playingAs: 'Ви увійшли як {name}: гра потрапить у «Мої ігри».',
+  signInToKeep: 'Увійти, щоб гра збереглась у «Мої ігри»',
+  crashTitle: 'Щось зламалося на цій сторінці.',
+  crashHint: 'Спробуйте перезавантажити її. Якщо це повторюється, повідомте, що ви робили перед цим.',
+  reloadPage: 'Перезавантажити сторінку',
   // Помилки
   err_wrong_phase: 'Зараз цього зробити не можна.',
   err_paused: 'Гра на паузі.',
@@ -201,4 +233,14 @@ export function t(key: TextKey, vars: Record<string, string | number> = {}): str
 export function errorText(code: string): string {
   const key = `err_${code}`;
   return key in uk ? t(key as TextKey) : t('err_unknown');
+}
+
+type CountKey = { [K in TextKey]: K extends `${infer Base}_one` ? Base : never }[TextKey];
+
+/** Іменник у формі, якої вимагає число: 1 гра, 2 гри, 5 ігор. */
+export function countText(base: CountKey, count: number): string {
+  const lastTwo = Math.abs(count) % 100;
+  const last = lastTwo % 10;
+  const form = last === 1 && lastTwo !== 11 ? 'one' : last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? 'few' : 'many';
+  return t(`${base}_${form}` as TextKey);
 }

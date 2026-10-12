@@ -6,8 +6,10 @@ import { errorText, t } from '../i18n';
 import { useGame } from '../live/useGame';
 import { PlayerScreen } from '../screens/PlayerScreen';
 import { clearPlayer, loadPlayer, savePlayer } from '../storage';
+import { useAccount } from '../useAccount';
 
 function JoinForm({ code, notice, onJoined }: { code: string; notice: string | null; onJoined: (token: string) => void }) {
+  const account = useAccount();
   const [nickname, setNickname] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(notice);
@@ -49,6 +51,12 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
           </p>
         )}
       </form>
+      {account.status === 'signed-in' && <p className="meta">{t('playingAs', { name: account.account.name })}</p>}
+      {account.status === 'anonymous' && (
+        <Link className="quiet-link" to={`/login?next=${encodeURIComponent(`/play/${code}`)}`}>
+          {t('signInToKeep')}
+        </Link>
+      )}
       <Link className="quiet-link" to="/">
         {t('joinTitle')}
       </Link>

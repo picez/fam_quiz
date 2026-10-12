@@ -52,6 +52,15 @@ export function Quizzes() {
   }, [signedIn, reload]);
 
   if (account.status === 'anonymous' || expired) return <Navigate to={LOGIN} replace />;
+  if (account.status === 'unknown') {
+    return (
+      <main className="app narrow">
+        <p className="error" role="alert">
+          {errorText(account.error)}
+        </p>
+      </main>
+    );
+  }
   if (account.status === 'loading') {
     return (
       <main className="app narrow">
@@ -121,6 +130,12 @@ export function Quizzes() {
         <button type="button" className="btn" disabled={busy} onClick={addDemo}>
           {t('addDemo')}
         </button>
+        <Link className="btn btn-quiet" to="/history">
+          {t('historyTitle')}
+        </Link>
+        <Link className="btn btn-quiet" to="/me">
+          {t('myGamesTitle')}
+        </Link>
       </div>
 
       {error !== null && (

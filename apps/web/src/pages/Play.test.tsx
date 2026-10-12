@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { joinGame } from '../api';
+import { joinGame, me } from '../api';
 import { loadPlayer, savePlayer } from '../storage';
 import { Play } from './Play';
 
@@ -31,11 +31,12 @@ vi.mock('socket.io-client', () => ({
     return socket;
   },
 }));
-vi.mock('../api', () => ({ joinGame: vi.fn() }));
+vi.mock('../api', () => ({ joinGame: vi.fn(), me: vi.fn() }));
 
 beforeEach(() => {
   localStorage.clear();
   sockets.length = 0;
+  vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
 });
 afterEach(cleanup);
 
@@ -94,5 +95,31 @@ describe('Play', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(
       'Ця гра вже почалася, приєднатися до неї не можна. Попросіть ведучого створити нову.',
     );
+  });
+});
+
+describe('Play: whether the game will be kept', () => {
+  it('offers a visitor to sign in without losing the game code', async () => {
+    open();
+    const link = await screen.findByRole('link', { name: 'Увійти, щоб гра збереглась у «Мої ігри»' });
+    expect(link.getAttribute('href')).toBe('/login?next=%2Fplay%2F123456');
+  });
+
+  it('tells a signed-in player that the game will be kept', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+    open();
+    expect(await screen.findByText('Ви увійшли як Олена: гра потрапить у «Мої ігри».')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Увійти, щоб гра збереглась/ })).toBeNull();
+  });
+});
+
+describe('Play: when the session check fails', () => {
+  it('makes no claim about whether the game will be kept', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unknown' });
+    open();
+    await screen.findByLabelText('Ваше ім’я');
+    await settle();
+    expect(screen.queryByRole('link', { name: /Увійти, щоб гра збереглась/ })).toBeNull();
+    expect(screen.queryByText(/гра потрапить у «Мої ігри»/)).toBeNull();
   });
 });

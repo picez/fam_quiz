@@ -155,3 +155,13 @@ describe('Quizzes: a game in progress', () => {
     await waitFor(() => expect(loadLastGame()).toBeNull());
   });
 });
+
+describe('Quizzes: when the session check fails', () => {
+  it('explains the problem instead of sending a signed-in host to sign in', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'offline' });
+    open();
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    expect(screen.queryByText('сторінка входу')).toBeNull();
+    expect(listQuizzes).not.toHaveBeenCalled();
+  });
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Question } from '@quiz/shared';
-import { answerText, correctText } from './format';
+import { answerText, correctText, formatDate } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -48,5 +48,17 @@ describe('correctText with a presented order', () => {
     const presented = [{ id: 'b' }, { id: 'c' }, { id: 'a' }];
     expect(correctText(single, presented)).toBe('A. Київ');
     expect(correctText(multi, presented)).toBe('B. Одеса, C. Львів');
+  });
+});
+
+describe('formatDate', () => {
+  it('shows the day, the month in words and the time', () => {
+    const text = formatDate('2026-10-12T15:30:00.000Z');
+    expect(text).toMatch(/\d{1,2} жовт/);
+    expect(text).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it('returns an empty string for something that is not a date', () => {
+    expect(formatDate('не дата')).toBe('');
   });
 });

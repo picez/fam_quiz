@@ -1,4 +1,4 @@
-import type { Phase, Quiz } from '@quiz/shared';
+import type { GameDetail, GameSummary, Phase, PlayedGame, Quiz } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -95,3 +95,7 @@ export const hostAccess = (code: string) => request<HostTokens>(`${gameUrl(code)
 export const checkCode = (code: string) => request<{ phase: Phase; title: string }>(gameUrl(code));
 export const joinGame = (code: string, nickname: string) =>
   request<{ token: string; playerId: string }>(`${gameUrl(code)}/join`, { body: { nickname } });
+
+export const listGames = () => fetchData<GameSummary[]>('/api/games');
+export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encodeURIComponent(id)}`);
+export const myHistory = () => fetchData<PlayedGame[]>('/api/me/history');
