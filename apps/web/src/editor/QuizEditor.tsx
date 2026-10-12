@@ -1,7 +1,7 @@
 import { LIMITS, type Question, type Quiz } from '@quiz/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
-import { cleaned, firstProblemIndex, newQuestion, problemsOf } from './draft';
+import { cleaned, duplicateQuestion, firstProblemIndex, moveItem, newQuestion, problemsOf } from './draft';
 import { QuestionEditor } from './QuestionEditor';
 
 interface Props {
@@ -16,13 +16,22 @@ interface Props {
   onCancel: () => void;
 }
 
+/**
+ * Редактор «список і сцена»: ліворуч назва, правила й усі запитання, праворуч одне запитання
+ * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
+ */
 export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
-  const [openIndex, setOpenIndex] = useState(0);
+  const [selected, setSelected] = useState(0);
+  const [listOpen, setListOpen] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  /** Запитання, яке зараз перетягують у списку. */
+  const dragged = useRef<number | null>(null);
   const { questions, settings } = quiz;
+  const current = questions[Math.min(selected, questions.length - 1)];
+  const last = questions.length - 1;
 
   // Закриття вкладки чи перезавантаження з незбереженими змінами: браузер перепитає.
   useEffect(() => {
@@ -41,24 +50,37 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const setQuestions = (next: Question[]) => update({ ...quiz, questions: next });
   const setSettings = (patch: Partial<Quiz['settings']>) => update({ ...quiz, settings: { ...settings, ...patch } });
 
-  const move = (index: number, step: -1 | 1) => {
-    const next = [...questions];
-    [next[index], next[index + step]] = [next[index + step], next[index]];
-    setQuestions(next);
-    if (openIndex === index) setOpenIndex(index + step);
-    else if (openIndex === index + step) setOpenIndex(index);
+  const select = (index: number) => {
+    setSelected(index);
+    setListOpen(false);
   };
 
-  const remove = (index: number) => {
-    const hasText = questions[index].text.trim() !== '';
-    if (hasText && !window.confirm(t('removeQuestionConfirm', { index: index + 1 }))) return;
-    setQuestions(questions.filter((_, i) => i !== index));
-    setOpenIndex(Math.max(0, openIndex > index || openIndex === questions.length - 1 ? openIndex - 1 : openIndex));
+  /** Переносить запитання на нове місце; виділення лишається на тому, що було вибране. */
+  const move = (from: number, to: number) => {
+    const next = moveItem(questions, from, to);
+    if (next === questions) return;
+    const picked = questions[selected];
+    setQuestions(next);
+    setSelected(next.indexOf(picked));
+  };
+
+  const remove = () => {
+    const hasText = current.text.trim() !== '';
+    if (hasText && !window.confirm(t('removeQuestionConfirm', { index: selected + 1 }))) return;
+    setQuestions(questions.filter((_, index) => index !== selected));
+    setSelected(Math.max(0, selected === last ? selected - 1 : selected));
   };
 
   const add = () => {
     setQuestions([...questions, newQuestion('single')]);
-    setOpenIndex(questions.length);
+    select(questions.length);
+  };
+
+  const duplicate = () => {
+    const next = [...questions];
+    next.splice(selected + 1, 0, duplicateQuestion(current));
+    setQuestions(next);
+    select(selected + 1);
   };
 
   const cancel = () => {
@@ -70,9 +92,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     const found = problemsOf(quiz);
     setProblems(found);
     if (found.length > 0) {
-      // Розгорнути запитання, яке треба виправити: воно може бути далеко за межами екрана.
+      // Показати запитання, яке треба виправити: воно може бути далеко у списку.
       const broken = firstProblemIndex(quiz);
-      if (broken !== null) setOpenIndex(broken);
+      if (broken !== null) setSelected(broken);
       return;
     }
     setSaving(true);
@@ -92,99 +114,165 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         </p>
       )}
 
-      <section className="panel">
-        <label className="field">
-          <span>{t('quizTitle')}</span>
-          <input value={quiz.title} maxLength={120} onChange={(event) => update({ ...quiz, title: event.target.value })} />
-        </label>
-        <label className="field">
-          <span>{t('quizDescription')}</span>
-          <input
-            value={quiz.description}
-            maxLength={500}
-            onChange={(event) => update({ ...quiz, description: event.target.value })}
-          />
-        </label>
-      </section>
+      <div className="editor-grid">
+        <aside className="editor-side">
+          <label className="field">
+            <span>{t('quizTitle')}</span>
+            <input value={quiz.title} maxLength={120} onChange={(event) => update({ ...quiz, title: event.target.value })} />
+          </label>
 
-      <section className="panel">
-        <h2>{t('settingsTitle')}</h2>
-        <label className="check">
-          <input type="checkbox" checked={settings.speedBonus} onChange={(event) => setSettings({ speedBonus: event.target.checked })} />
-          <span>{t('speedBonus')}</span>
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={settings.shuffleOptions}
-            onChange={(event) => setSettings({ shuffleOptions: event.target.checked })}
-          />
-          <span>{t('shuffleOptions')}</span>
-        </label>
-        <label className="field">
-          <span>{t('leaderboardLabel')}</span>
-          <select
-            value={settings.leaderboard}
-            onChange={(event) => setSettings({ leaderboard: event.target.value === 'end' ? 'end' : 'each' })}
-          >
-            <option value="each">{t('leaderboardEach')}</option>
-            <option value="end">{t('leaderboardEnd')}</option>
-          </select>
-        </label>
-      </section>
+          <details className="rules">
+            <summary>{t('settingsTitle')}</summary>
+            <label className="field">
+              <span>{t('quizDescription')}</span>
+              <input
+                value={quiz.description}
+                maxLength={500}
+                onChange={(event) => update({ ...quiz, description: event.target.value })}
+              />
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.speedBonus}
+                onChange={(event) => setSettings({ speedBonus: event.target.checked })}
+              />
+              <span>{t('speedBonus')}</span>
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.shuffleOptions}
+                onChange={(event) => setSettings({ shuffleOptions: event.target.checked })}
+              />
+              <span>{t('shuffleOptions')}</span>
+            </label>
+            <label className="field">
+              <span>{t('leaderboardLabel')}</span>
+              <select
+                value={settings.leaderboard}
+                onChange={(event) => setSettings({ leaderboard: event.target.value === 'end' ? 'end' : 'each' })}
+              >
+                <option value="each">{t('leaderboardEach')}</option>
+                <option value="end">{t('leaderboardEnd')}</option>
+              </select>
+            </label>
+          </details>
 
-      {questions.map((question, index) => (
-        <section className={index === openIndex ? 'panel qcard is-open' : 'panel qcard'} key={question.id}>
-          <div className="qcard-head">
+          {/* На вузькому екрані список схований; ці кнопки гортають запитання й відкривають його. */}
+          <div className="question-nav">
             <button
               type="button"
-              className="qcard-title"
-              aria-expanded={index === openIndex}
-              onClick={() => setOpenIndex(index)}
+              className="btn btn-icon"
+              aria-label={t('prevQuestion')}
+              disabled={selected === 0}
+              onClick={() => select(selected - 1)}
             >
-              <span className="letter">{t('questionN', { index: index + 1 })}</span>
-              <span className="qcard-text">{question.text.trim() === '' ? t('untitled') : question.text}</span>
+              ‹
+            </button>
+            <button
+              type="button"
+              className="btn question-nav-all"
+              aria-label={t('allQuestions')}
+              aria-expanded={listOpen}
+              onClick={() => setListOpen(!listOpen)}
+            >
+              {`${selected + 1} / ${questions.length}`}
+              <span aria-hidden="true"> ☰</span>
             </button>
             <button
               type="button"
               className="btn btn-icon"
-              aria-label={t('moveQuestionUp', { index: index + 1 })}
-              disabled={index === 0}
-              onClick={() => move(index, -1)}
+              aria-label={t('nextQuestion')}
+              disabled={selected === last}
+              onClick={() => select(selected + 1)}
             >
-              ↑
-            </button>
-            <button
-              type="button"
-              className="btn btn-icon"
-              aria-label={t('moveQuestionDown', { index: index + 1 })}
-              disabled={index === questions.length - 1}
-              onClick={() => move(index, 1)}
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              className="btn btn-icon"
-              aria-label={t('removeQuestion', { index: index + 1 })}
-              disabled={questions.length === 1}
-              onClick={() => remove(index)}
-            >
-              ×
+              ›
             </button>
           </div>
-          {index === openIndex && (
-            <QuestionEditor
-              question={question}
-              onChange={(next) => setQuestions(questions.map((q, i) => (i === index ? next : q)))}
-            />
-          )}
-        </section>
-      ))}
 
-      <button type="button" className="btn" disabled={questions.length >= LIMITS.maxQuestions} onClick={add}>
-        {t('addQuestion')}
-      </button>
+          <ol className={listOpen ? 'question-list is-open' : 'question-list'}>
+            {questions.map((question, index) => {
+              const text = question.text.trim() === '' ? t('untitled') : question.text;
+              return (
+                <li
+                  key={question.id}
+                  className={index === selected ? 'is-on' : undefined}
+                  draggable
+                  onDragStart={() => {
+                    dragged.current = index;
+                  }}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (dragged.current !== null) move(dragged.current, index);
+                    dragged.current = null;
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="question-item"
+                    aria-current={index === selected}
+                    aria-label={`${t('questionN', { index: index + 1 })} ${text}`}
+                    onClick={() => select(index)}
+                  >
+                    <span className="grip" aria-hidden="true">
+                      ⋮⋮
+                    </span>
+                    <span className="letter">{index + 1}</span>
+                    <span className="question-item-text">{text}</span>
+                    <span className="question-item-type">{t(`typeShort_${question.type}`)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+
+          <button type="button" className="btn btn-dashed" disabled={questions.length >= LIMITS.maxQuestions} onClick={add}>
+            {t('addQuestion')}
+          </button>
+        </aside>
+
+        <section className="editor-stage" aria-label={t('questionN', { index: selected + 1 })}>
+          <QuestionEditor
+            key={current.id}
+            question={current}
+            onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
+          />
+          <div className="toolbar">
+            <button type="button" className="btn btn-small" disabled={questions.length >= LIMITS.maxQuestions} onClick={duplicate}>
+              {t('duplicate')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-small"
+              aria-label={t('moveQuestionUp', { index: selected + 1 })}
+              disabled={selected === 0}
+              onClick={() => move(selected, selected - 1)}
+            >
+              {t('moveUpShort')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-small"
+              aria-label={t('moveQuestionDown', { index: selected + 1 })}
+              disabled={selected === last}
+              onClick={() => move(selected, selected + 1)}
+            >
+              {t('moveDownShort')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-small btn-danger"
+              aria-label={t('removeQuestion', { index: selected + 1 })}
+              disabled={questions.length === 1}
+              onClick={remove}
+            >
+              {t('remove')}
+            </button>
+          </div>
+        </section>
+      </div>
 
       {/* Повідомлення живуть у закріпленій панелі: їх видно, хоч би де була прокрутка. */}
       <footer className="actions">

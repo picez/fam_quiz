@@ -1,7 +1,8 @@
 import { LIMITS, type Question } from '@quiz/shared';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { LETTERS } from '../format';
 import { t, type TextKey } from '../i18n';
-import { QUESTION_TYPES, changeType, type QuestionType } from './draft';
+import { QUESTION_TYPES, changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 
 interface Props {
@@ -32,7 +33,7 @@ function NumberField(props: { label: string; value: number; decimal?: boolean; o
   }, [props.value]);
 
   return (
-    <label className="field">
+    <label className="field compact">
       <span>{props.label}</span>
       <input
         inputMode={props.decimal ? 'text' : 'numeric'}
@@ -47,47 +48,105 @@ function NumberField(props: { label: string; value: number; decimal?: boolean; o
   );
 }
 
-/** Список рядків із текстом: варіанти, елементи впорядкування. */
+/**
+ * Рядки з текстом у вигляді, близькому до того, що побачать гравці: варіанти, елементи
+ * впорядкування, допустимі написання. Enter переходить до наступного рядка або додає новий.
+ */
 function Rows(props: {
   rows: Row[];
   min: number;
   max: number;
+  maxLength: number;
   label: TextKey;
   removeLabel: TextKey;
   addLabel: TextKey;
-  mark?: (row: Row, index: number) => ReactNode;
+  rowClass?: (row: Row) => string;
+  lead?: (row: Row, index: number) => ReactNode;
+  tail?: (row: Row, index: number) => ReactNode;
+  makeRow?: () => Row;
   onChange: (rows: Row[]) => void;
 }) {
   const { rows, min, max, onChange } = props;
+  const inputs = useRef<(HTMLInputElement | null)[]>([]);
+  /** Рядок, у який треба поставити курсор після наступного перемалювання. */
+  const focusNext = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (focusNext.current === null) return;
+    inputs.current[focusNext.current]?.focus();
+    focusNext.current = null;
+  });
+
+  const add = () => {
+    focusNext.current = rows.length;
+    onChange([...rows, (props.makeRow ?? newRow)()]);
+  };
+
+  const remove = (index: number) => {
+    focusNext.current = Math.max(0, index - 1);
+    onChange(rows.filter((_, i) => i !== index));
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (index < rows.length - 1) inputs.current[index + 1]?.focus();
+    else if (rows.length < max) add();
+  };
+
   return (
-    <div className="rows-edit">
+    <div className="answer-rows">
       {rows.map((row, index) => (
-        <div className="row-edit" key={row.id}>
-          {props.mark?.(row, index)}
+        <div className={`answer-row ${props.rowClass?.(row) ?? ''}`.trimEnd()} key={row.id}>
+          {props.lead?.(row, index)}
           <input
+            ref={(element) => {
+              inputs.current[index] = element;
+            }}
             aria-label={t(props.label, { index: index + 1 })}
             placeholder={t(props.label, { index: index + 1 })}
             value={row.text}
-            maxLength={LIMITS.optionText}
+            maxLength={props.maxLength}
+            enterKeyHint={index < rows.length - 1 || rows.length < max ? 'next' : 'done'}
+            onKeyDown={(event) => onKeyDown(event, index)}
             onChange={(event) => onChange(rows.map((r) => (r.id === row.id ? { ...r, text: event.target.value } : r)))}
           />
+          {props.tail?.(row, index)}
           <button
             type="button"
-            className="btn btn-icon"
+            className="row-button"
             aria-label={t(props.removeLabel, { index: index + 1 })}
             disabled={rows.length <= min}
-            onClick={() => onChange(rows.filter((r) => r.id !== row.id))}
+            onClick={() => remove(index)}
           >
             ×
           </button>
         </div>
       ))}
-      <button type="button" className="btn btn-small" disabled={rows.length >= max} onClick={() => onChange([...rows, newRow()])}>
+      <button type="button" className="btn btn-dashed" disabled={rows.length >= max} onClick={add}>
         {t(props.addLabel)}
       </button>
     </div>
   );
 }
+
+/** Позначка «цей варіант правильний»: натискання вмикає або вимикає її. */
+function Mark(props: { on: boolean; index: number; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className={props.on ? 'mark is-on' : 'mark'}
+      aria-pressed={props.on}
+      aria-label={t('correctOption', { index: props.index + 1 })}
+      onClick={props.onToggle}
+    >
+      <span aria-hidden="true">{props.on ? '✓' : '○'}</span>
+      <span className="mark-text">{t(props.on ? 'markCorrect' : 'markMake')}</span>
+    </button>
+  );
+}
+
+const letter = (_row: Row, index: number) => <span className="letter">{LETTERS[index]}</span>;
 
 function Body({ question, onChange }: Props) {
   switch (question.type) {
@@ -97,17 +156,14 @@ function Body({ question, onChange }: Props) {
           rows={question.options}
           min={LIMITS.minOptions}
           max={LIMITS.maxOptions}
+          maxLength={LIMITS.optionText}
           label="optionN"
           removeLabel="removeOption"
           addLabel="addOption"
-          mark={(row, index) => (
-            <input
-              type="radio"
-              name={`correct-${question.id}`}
-              aria-label={t('correctOption', { index: index + 1 })}
-              checked={question.correctId === row.id}
-              onChange={() => onChange({ ...question, correctId: row.id })}
-            />
+          rowClass={(row) => (row.id === question.correctId ? 'is-correct' : '')}
+          lead={letter}
+          tail={(row, index) => (
+            <Mark on={row.id === question.correctId} index={index} onToggle={() => onChange({ ...question, correctId: row.id })} />
           )}
           onChange={(options) =>
             onChange({
@@ -125,24 +181,27 @@ function Body({ question, onChange }: Props) {
           rows={question.options}
           min={LIMITS.minOptions}
           max={LIMITS.maxOptions}
+          maxLength={LIMITS.optionText}
           label="optionN"
           removeLabel="removeOption"
           addLabel="addOption"
-          mark={(row, index) => (
-            <input
-              type="checkbox"
-              aria-label={t('correctOption', { index: index + 1 })}
-              checked={question.correctIds.includes(row.id)}
-              onChange={(event) =>
-                onChange({
-                  ...question,
-                  correctIds: event.target.checked
-                    ? [...question.correctIds, row.id]
-                    : question.correctIds.filter((id) => id !== row.id),
-                })
-              }
-            />
-          )}
+          rowClass={(row) => (question.correctIds.includes(row.id) ? 'is-correct' : '')}
+          lead={letter}
+          tail={(row, index) => {
+            const on = question.correctIds.includes(row.id);
+            return (
+              <Mark
+                on={on}
+                index={index}
+                onToggle={() =>
+                  onChange({
+                    ...question,
+                    correctIds: on ? question.correctIds.filter((id) => id !== row.id) : [...question.correctIds, row.id],
+                  })
+                }
+              />
+            );
+          }}
           onChange={(options) =>
             onChange({ ...question, options, correctIds: question.correctIds.filter((id) => options.some((o) => o.id === id)) })
           }
@@ -150,20 +209,25 @@ function Body({ question, onChange }: Props) {
       );
     case 'boolean':
       return (
-        <fieldset className="choice-line">
-          <legend>{t('correctIs')}</legend>
-          {[true, false].map((value) => (
-            <label key={String(value)}>
-              <input
-                type="radio"
-                name={`correct-${question.id}`}
-                checked={question.correct === value}
-                onChange={() => onChange({ ...question, correct: value })}
-              />
-              {t(value ? 'yes' : 'no')}
-            </label>
-          ))}
-        </fieldset>
+        <div className="answer-rows">
+          {[true, false].map((value) => {
+            const word = t(value ? 'yes' : 'no');
+            const on = question.correct === value;
+            return (
+              <button
+                type="button"
+                key={String(value)}
+                className={on ? 'answer-row answer-pick is-correct' : 'answer-row answer-pick'}
+                aria-pressed={on}
+                aria-label={`${t('correctIs')}: ${word}`}
+                onClick={() => onChange({ ...question, correct: value })}
+              >
+                <span className="answer-word">{word}</span>
+                <span className="mark-text">{t(on ? 'markCorrect' : 'markMake')}</span>
+              </button>
+            );
+          })}
+        </div>
       );
     case 'text': {
       // Написання не мають власних id, тому ключем рядка є його позиція.
@@ -174,9 +238,12 @@ function Body({ question, onChange }: Props) {
             rows={rows}
             min={1}
             max={LIMITS.maxAccepted}
+            maxLength={LIMITS.answerText}
             label="spellingN"
             removeLabel="removeSpelling"
             addLabel="addSpelling"
+            rowClass={() => 'is-correct'}
+            makeRow={() => ({ id: String(rows.length), text: '' })}
             onChange={(next) => onChange({ ...question, accepted: next.map((row) => row.text) })}
           />
           <p className="meta">{t('spellingHint')}</p>
@@ -206,49 +273,82 @@ function Body({ question, onChange }: Props) {
     case 'order':
       return (
         <>
-          <p className="meta">{t('orderHint')}</p>
           <Rows
             rows={question.items}
             min={LIMITS.minOrderItems}
             max={LIMITS.maxOrderItems}
+            maxLength={LIMITS.optionText}
             label="itemN"
             removeLabel="removeItem"
             addLabel="addItem"
-            mark={(_row, index) => <span className="letter">{index + 1}</span>}
+            lead={(_row, index) => <span className="letter">{index + 1}</span>}
+            tail={(_row, index) => (
+              <>
+                <button
+                  type="button"
+                  className="row-button"
+                  aria-label={t('moveItemUp', { index: index + 1 })}
+                  disabled={index === 0}
+                  onClick={() => onChange({ ...question, items: moveItem(question.items, index, index - 1) })}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="row-button"
+                  aria-label={t('moveItemDown', { index: index + 1 })}
+                  disabled={index === question.items.length - 1}
+                  onClick={() => onChange({ ...question, items: moveItem(question.items, index, index + 1) })}
+                >
+                  ↓
+                </button>
+              </>
+            )}
             onChange={(items) => onChange({ ...question, items })}
           />
+          <p className="meta">{t('orderHint')}</p>
         </>
       );
   }
 }
 
+/** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
 export function QuestionEditor({ question, onChange }: Props) {
   return (
     <div className="question-edit">
-      <label className="field">
-        <span>{t('questionText')}</span>
-        <textarea
-          rows={2}
-          value={question.text}
-          maxLength={LIMITS.questionText}
-          onChange={(event) => onChange({ ...question, text: event.target.value })}
-        />
-      </label>
-      <div className="pair">
-        <label className="field">
-          <span>{t('questionType')}</span>
-          <select value={question.type} onChange={(event) => onChange(changeType(question, event.target.value as QuestionType))}>
-            {QUESTION_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {t(`type_${type}`)}
-              </option>
-            ))}
-          </select>
+      <div className="type-chips" role="group" aria-label={t('questionType')}>
+        {QUESTION_TYPES.map((type: QuestionType) => (
+          <button
+            type="button"
+            key={type}
+            className={question.type === type ? 'chip is-on' : 'chip'}
+            aria-pressed={question.type === type}
+            title={t(`type_${type}`)}
+            onClick={() => onChange(changeType(question, type))}
+          >
+            {t(`typeShort_${type}`)}
+          </button>
+        ))}
+      </div>
+
+      <div className="stage-card">
+        <label className="field question-field">
+          <span>{t('questionText')}</span>
+          <textarea
+            rows={2}
+            value={question.text}
+            maxLength={LIMITS.questionText}
+            placeholder={t('questionPlaceholder')}
+            onChange={(event) => onChange({ ...question, text: event.target.value })}
+          />
         </label>
+        <Body question={question} onChange={onChange} />
+      </div>
+
+      <div className="pair">
         <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
         <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />
       </div>
-      <Body question={question} onChange={onChange} />
     </div>
   );
 }

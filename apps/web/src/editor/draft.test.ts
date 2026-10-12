@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { quizSchema, type Question, type Quiz } from '@quiz/shared';
-import { QUESTION_TYPES, changeType, cleaned, newQuestion, newQuiz, problemsOf } from './draft';
+import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, moveItem, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -122,5 +122,51 @@ describe('cleaned', () => {
     expect(result.title).toBe('Гра');
     expect(result.description).toBe('опис');
     expect(result.questions[0]).toMatchObject({ text: 'Місто?', accepted: ['Одеса'] });
+  });
+});
+
+describe('duplicateQuestion', () => {
+  it('copies every type with fresh ids and the same correct answers', () => {
+    for (const type of QUESTION_TYPES) {
+      const source = filled(newQuestion(type));
+      const copy = duplicateQuestion(source);
+      expect(copy.id, type).not.toBe(source.id);
+      expect({ ...copy, id: '', options: undefined, items: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
+        ...source,
+        id: '',
+        options: undefined,
+        items: undefined,
+        correctId: undefined,
+        correctIds: undefined,
+      });
+    }
+  });
+
+  it('points the copy at its own options', () => {
+    const single = filled(newQuestion('single'));
+    if (single.type !== 'single') throw new Error('unexpected type');
+    const copy = duplicateQuestion({ ...single, correctId: single.options[1].id });
+    if (copy.type !== 'single') throw new Error('unexpected type');
+    expect(copy.options.map((o) => o.text)).toEqual(single.options.map((o) => o.text));
+    expect(copy.correctId).toBe(copy.options[1].id);
+    expect(single.options.map((o) => o.id)).not.toContain(copy.correctId);
+
+    const multi = filled(newQuestion('multi'));
+    if (multi.type !== 'multi') throw new Error('unexpected type');
+    const multiCopy = duplicateQuestion({ ...multi, correctIds: [multi.options[1].id, multi.options[0].id] });
+    if (multiCopy.type !== 'multi') throw new Error('unexpected type');
+    expect(multiCopy.correctIds).toEqual([multiCopy.options[1].id, multiCopy.options[0].id]);
+  });
+});
+
+describe('moveItem', () => {
+  it('moves an item to a new place and leaves the list alone for impossible moves', () => {
+    const list = ['а', 'б', 'в', 'г'];
+    expect(moveItem(list, 3, 0)).toEqual(['г', 'а', 'б', 'в']);
+    expect(moveItem(list, 0, 2)).toEqual(['б', 'в', 'а', 'г']);
+    expect(moveItem(list, 1, 1)).toBe(list);
+    expect(moveItem(list, -1, 2)).toBe(list);
+    expect(moveItem(list, 1, 9)).toBe(list);
+    expect(list).toEqual(['а', 'б', 'в', 'г']);
   });
 });

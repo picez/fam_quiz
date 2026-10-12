@@ -48,7 +48,7 @@ describe('EditQuiz', () => {
     open('/quizzes/new');
     fireEvent.change(await screen.findByLabelText('Назва вікторини'), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     expect(await screen.findByText('мої вікторини')).toBeTruthy();
     expect(createQuiz).toHaveBeenCalledWith(expect.objectContaining({ title: 'Гра' }));
@@ -60,7 +60,7 @@ describe('EditQuiz', () => {
     open('/quizzes/new');
     fireEvent.change(await screen.findByLabelText('Назва вікторини'), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Немає зв’язку із сервером.'));
     expect((screen.getByLabelText('Назва вікторини') as HTMLInputElement).value).toBe('Гра');
@@ -95,7 +95,7 @@ describe('EditQuiz: unsaved work', () => {
   it('restores an emptied number field as empty, not as a wrong number', async () => {
     open('/quizzes/new');
     await title();
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'numeric' } });
+    fireEvent.click(screen.getByRole('button', { name: 'число' }));
     fireEvent.change(screen.getByLabelText('Правильне число'), { target: { value: '' } });
     cleanup();
 
@@ -109,7 +109,7 @@ describe('EditQuiz: unsaved work', () => {
     open('/quizzes/new');
     fireEvent.change(await title(), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     await screen.findByText('мої вікторини');
     cleanup();
@@ -124,7 +124,7 @@ describe('EditQuiz: unsaved work', () => {
     open('/quizzes/new');
     fireEvent.change(await title(), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     expect(await screen.findByText('сторінка входу')).toBeTruthy();
     cleanup();
