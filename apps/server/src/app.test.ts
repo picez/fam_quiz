@@ -114,3 +114,43 @@ describe('POST /api/games/by-code/:code/join', () => {
     expect(invalid.json()).toEqual({ error: 'invalid_payload' });
   });
 });
+
+describe('limits', () => {
+  it('refuses new games beyond the room cap', async () => {
+    const small = await buildApp({ maxRooms: 2 });
+    const create = () => small.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single]) });
+    expect((await create()).statusCode).toBe(201);
+    expect((await create()).statusCode).toBe(201);
+    const refused = await create();
+    expect(refused.statusCode).toBe(503);
+    expect(refused.json()).toEqual({ error: 'server_busy' });
+    await small.app.close();
+  });
+
+  it('throttles game creation from one address', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 21; i++) statuses.push((await post('/api/games', makeQuiz([single]))).statusCode);
+    expect(statuses.slice(0, 20).every((status) => status === 201)).toBe(true);
+    expect(statuses[20]).toBe(429);
+  });
+
+  it('counts code checks per client address when running behind a proxy', async () => {
+    const proxied = await buildApp({ trustProxy: true });
+    const created = await proxied.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single]) });
+    const { code } = created.json() as { code: string };
+    const check = (address: string) =>
+      proxied.app.inject({
+        method: 'GET',
+        url: `/api/games/by-code/${code}`,
+        headers: { 'x-forwarded-for': address },
+      });
+
+    for (let i = 0; i < 130; i++) expect((await check(`10.0.0.${i}`)).statusCode).toBe(200);
+
+    const sameAddress: number[] = [];
+    for (let i = 0; i < 121; i++) sameAddress.push((await check('10.9.9.9')).statusCode);
+    expect(sameAddress.slice(0, 120).every((status) => status === 200)).toBe(true);
+    expect(sameAddress[120]).toBe(429);
+    await proxied.app.close();
+  });
+});

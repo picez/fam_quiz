@@ -84,6 +84,10 @@ export class RoomManager {
     return this.scheduler.now();
   }
 
+  get size(): number {
+    return this.rooms.size;
+  }
+
   onEvent(listener: RoomListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -251,7 +255,8 @@ export class RoomManager {
     if (phase === 'question' && !paused && endsAt !== null) {
       room.deadline = this.scheduler.setTimeout(() => {
         room.deadline = null;
-        const ticked = tick(room.state, this.now());
+        // Справжній таймер може спрацювати на мілісекунду раніше; цей дедлайн однаково настав.
+        const ticked = tick(room.state, Math.max(this.now(), endsAt));
         if (ticked !== room.state) this.commit(room, ticked);
       }, endsAt - this.now());
     }

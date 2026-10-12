@@ -8,21 +8,31 @@ import { attachSockets } from './socket';
 export interface AppOptions {
   scheduler?: Scheduler;
   rng?: () => number;
+  /** Брати адресу клієнта із заголовка X-Forwarded-For (потрібно за проксі, наприклад на Render). */
+  trustProxy?: boolean;
+  /** Скільки кімнат може існувати одночасно. */
+  maxRooms?: number;
 }
 
+const DEFAULT_MAX_ROOMS = 500;
+const BODY_LIMIT = 512 * 1024;
+
 /** Обмеження для маршрутів, якими можна перебирати коди ігор. */
-const CODE_LIMIT = { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } };
+const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
+const CREATE_LIMIT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
 
 export async function buildApp(options: AppOptions = {}) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng);
-  const app = Fastify();
+  const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
+  const app = Fastify({ trustProxy: options.trustProxy ?? false, bodyLimit: BODY_LIMIT });
   await app.register(rateLimit, { global: false });
 
   app.get('/health', async () => ({ ok: true }));
 
-  app.post('/api/games', async (request, reply) => {
+  app.post('/api/games', CREATE_LIMIT, async (request, reply) => {
     const quiz = quizSchema.safeParse(request.body);
     if (!quiz.success) return reply.code(400).send({ error: 'invalid_payload' });
+    if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
     const room = manager.create(quiz.data);
     return reply.code(201).send({
       gameId: room.id,

@@ -285,3 +285,16 @@ describe('expiry', () => {
     expect(room.state.paused).toBe(false);
   });
 });
+
+describe('timer drift', () => {
+  it('locks the question even when the timer fires a millisecond early', () => {
+    const scheduler = new FakeScheduler(1);
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeQuiz([single]));
+    enter(manager, room, 'Олена');
+    manager.host(room, { type: 'start' });
+
+    scheduler.advance(20_000);
+    expect(room.state.phase).toBe('locked');
+  });
+});
