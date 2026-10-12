@@ -10,7 +10,9 @@
     "typecheck": "tsc -p packages/shared && tsc -p packages/engine && tsc -p apps/server && tsc -p apps/web",
     "build": "pnpm --filter @quiz/web build",
     "dev": "pnpm --parallel --filter @quiz/server --filter @quiz/web dev",
-    "start": "pnpm --filter @quiz/server start"
+    "start": "pnpm --filter @quiz/server start",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

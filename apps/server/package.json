@@ -8,16 +8,23 @@
     "start": "tsx src/main.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.7",
     "@fastify/rate-limit": "^11.2.1",
     "@fastify/static": "^10.1.6",
     "@quiz/engine": "workspace:*",
     "@quiz/shared": "workspace:*",
+    "better-auth": "^1.7.7",
+    "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.5",
+    "pg": "^8.23.1",
     "socket.io": "^4.8.4",
     "tsx": "^4.23.15"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
     "socket.io-client": "^4.8.4"
   }
 }
