@@ -1,0 +1,658 @@
+:root {
+  --stage: #0e1020;
+  --spot: #2a2f5c;
+  --paper: #f5f1e6;
+  --dim: #a9a7b8;
+  --amber: #ffb300;
+  --correct: #3ddcc0;
+  --signal: #ff3d5a;
+  --panel: rgb(255 255 255 / 0.05);
+  --line: rgb(245 241 230 / 0.16);
+  --display: 'Unbounded Variable', system-ui, sans-serif;
+  --body: 'Onest Variable', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--stage);
+  background-image: radial-gradient(120% 70% at 50% -10%, var(--spot) 0%, var(--stage) 60%);
+  background-attachment: fixed;
+  color: var(--paper);
+  font-family: var(--body);
+  font-size: 1.0625rem;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+p,
+ol,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+ol,
+ul {
+  list-style: none;
+}
+
+h2 {
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+a {
+  color: var(--amber);
+}
+
+:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 3px;
+}
+
+/* ---------- Каркас ---------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-height: 100dvh;
+  padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem max(1.5rem, env(safe-area-inset-bottom));
+  margin: 0 auto;
+  max-width: 34rem;
+}
+
+.app.narrow {
+  justify-content: center;
+}
+
+.app.host {
+  max-width: 46rem;
+}
+
+.brand {
+  font-family: var(--display);
+  font-size: clamp(1.75rem, 8vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  color: var(--dim);
+}
+
+.score,
+.code,
+.rank {
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar .score,
+.bar .code {
+  color: var(--amber);
+  font-size: 1.25rem;
+}
+
+.meta {
+  color: var(--dim);
+  font-size: 0.9375rem;
+}
+
+.lead {
+  font-size: 1.25rem;
+}
+
+.question {
+  font-family: var(--display);
+  font-size: clamp(1.375rem, 6vw, 2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.question-image {
+  width: 100%;
+  max-height: 40vh;
+  object-fit: contain;
+  border-radius: 0.75rem;
+}
+
+.question-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+}
+
+.banner {
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--amber);
+  color: var(--stage);
+  font-weight: 700;
+  text-align: center;
+}
+
+.banner.is-offline {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-radius: 0;
+  background: var(--signal);
+  color: var(--paper);
+}
+
+.error {
+  color: var(--signal);
+  font-weight: 600;
+}
+
+.quiet-link {
+  align-self: center;
+  color: var(--dim);
+}
+
+/* ---------- Кнопки й поля ---------- */
+
+.btn {
+  min-height: 3rem;
+  padding: 0.75rem 1.25rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: var(--stage);
+  font-family: var(--display);
+  font-size: 1rem;
+}
+
+.btn-danger {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.btn-small {
+  min-height: 2.5rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.9375rem;
+}
+
+.btn-icon {
+  min-width: 3rem;
+  padding: 0;
+  font-size: 1.25rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.field input:not([type='file']) {
+  min-height: 3.25rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  background: rgb(0 0 0 / 0.25);
+  color: var(--paper);
+  font: inherit;
+  font-size: 1.125rem;
+}
+
+.field input:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+.code-input {
+  font-family: var(--display) !important;
+  font-size: 1.75rem !important;
+  letter-spacing: 0.2em;
+  text-align: center;
+}
+
+.typed {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ---------- Варіанти відповіді ---------- */
+
+.choices {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-height: 3.75rem;
+  padding: 0.875rem 1rem;
+  border: 2px solid var(--amber);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+button.choice {
+  cursor: pointer;
+}
+
+.letter {
+  flex: none;
+  min-width: 1.5rem;
+  color: var(--amber);
+  font-family: var(--display);
+  font-weight: 800;
+}
+
+.choice.is-picked {
+  background: var(--amber);
+  color: var(--stage);
+}
+
+.choice.is-picked .letter {
+  color: var(--stage);
+}
+
+.choice.is-correct {
+  border-color: var(--correct);
+  background: var(--correct);
+  color: var(--stage);
+}
+
+.choice.is-correct .letter {
+  color: var(--stage);
+}
+
+.choice .count {
+  margin-left: auto;
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+}
+
+.order {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.order li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.order-text {
+  flex: 1;
+  font-weight: 600;
+}
+
+/* ---------- Результат ---------- */
+
+.sent,
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  border-left: 4px solid var(--amber);
+  background: var(--panel);
+  border-radius: 0 0.75rem 0.75rem 0;
+}
+
+.result h2 {
+  font-size: 1.5rem;
+}
+
+.result.is-correct {
+  border-color: var(--correct);
+}
+
+.result.is-correct h2 {
+  color: var(--correct);
+}
+
+.result.is-wrong {
+  border-color: var(--signal);
+}
+
+.result.is-wrong h2 {
+  color: var(--signal);
+}
+
+.earned {
+  font-family: var(--display);
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.place {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  color: var(--amber);
+}
+
+/* ---------- Таблиці ---------- */
+
+.standings,
+.rows {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.standings li,
+.rows li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.standings .rank {
+  min-width: 2rem;
+  color: var(--amber);
+  font-weight: 800;
+}
+
+.standings .name,
+.rows .name {
+  flex: 1;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.standings .is-me {
+  background: rgb(255 179 0 / 0.14);
+  border-radius: 0.5rem;
+}
+
+.rows .given {
+  flex: 2;
+  overflow-wrap: anywhere;
+}
+
+.tag {
+  font-size: 0.875rem;
+}
+
+.tag.is-correct {
+  color: var(--correct);
+}
+
+.tag.is-wrong {
+  color: var(--signal);
+}
+
+.answer {
+  color: var(--correct);
+  font-weight: 600;
+}
+
+/* ---------- Пульт ---------- */
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: baseline;
+}
+
+.links .meta {
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding: 1rem 0 0.25rem;
+  background: linear-gradient(transparent, var(--stage) 30%);
+}
+
+.actions .btn-primary {
+  flex: 1 1 12rem;
+  min-height: 3.5rem;
+}
+
+/* ---------- Табло відліку ---------- */
+
+.timer {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.flap {
+  position: relative;
+  min-width: 1.6em;
+  padding: 0.15em 0.2em;
+  border-radius: 0.2em;
+  background: #05060f;
+  color: var(--amber);
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.flap::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 1px;
+  background: var(--stage);
+}
+
+/* ---------- Сцена: читається з 5–10 метрів ---------- */
+
+.app.stage {
+  max-width: none;
+  padding: 4vh 5vw;
+  gap: 3vh;
+  justify-content: center;
+}
+
+.stage .bar,
+.stage .meta {
+  font-size: clamp(1rem, 1.7vw, 1.75rem);
+}
+
+.stage .lead {
+  font-size: clamp(1.25rem, 2.4vw, 2.5rem);
+}
+
+.stage .question {
+  font-size: clamp(1.75rem, 4.3vw, 4.5rem);
+}
+
+.stage-question {
+  display: flex;
+  flex-direction: column;
+  gap: 3vh;
+  flex: 1;
+}
+
+.stage-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4vw;
+  flex: 1;
+}
+
+.stage .flap {
+  font-size: clamp(2.5rem, 7vw, 7rem);
+}
+
+.stage .choices {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5vh 2vw;
+}
+
+.stage .choice {
+  border: 0;
+  border-bottom: 3px solid var(--amber);
+  border-radius: 0;
+  padding: 1.5vh 0.5vw;
+  font-size: clamp(1.125rem, 2.4vw, 2.5rem);
+}
+
+.stage .choice.is-correct {
+  border-radius: 0.5rem;
+  padding-inline: 1.5vw;
+}
+
+.stage-lobby {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4vh 6vw;
+  align-items: center;
+}
+
+.address {
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 4vw, 4rem);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.invite .code {
+  color: var(--amber);
+  font-size: clamp(3rem, 10vw, 10rem);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.qr {
+  padding: 1rem;
+  background: var(--paper);
+  border-radius: 1rem;
+  line-height: 0;
+}
+
+.qr svg {
+  width: min(28vw, 40vh);
+  height: auto;
+}
+
+.roster {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 1.5vh;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.chips li {
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  font-size: clamp(1rem, 1.8vw, 1.75rem);
+  font-weight: 600;
+}
+
+.chips .is-away {
+  opacity: 0.45;
+}
+
+.stage-board {
+  display: grid;
+  gap: 3vh;
+  width: min(100%, 60rem);
+  margin: 0 auto;
+}
+
+.stage .standings li {
+  font-size: clamp(1.25rem, 2.6vw, 2.75rem);
+  padding: 1.2vh 1vw;
+}
+
+.stage-board.is-final li:nth-child(-n + 3) .name {
+  color: var(--amber);
+  font-family: var(--display);
+}
+
+@media (max-width: 700px) {
+  .stage-lobby,
+  .stage .choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Єдиний підкреслений момент: розкриття правильної відповіді. */
+@media (prefers-reduced-motion: no-preference) {
+  .choice.is-correct,
+  .result {
+    animation: reveal 0.5s ease-out both;
+  }
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+}
