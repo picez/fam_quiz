@@ -4,10 +4,12 @@ import './styles.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { EditQuiz } from './pages/EditQuiz';
 import { Home } from './pages/Home';
 import { Host } from './pages/Host';
-import { NewGame } from './pages/NewGame';
+import { Login } from './pages/Login';
 import { Play } from './pages/Play';
+import { Quizzes } from './pages/Quizzes';
 import { Stage } from './pages/Stage';
 
 const root = document.getElementById('root');
@@ -18,7 +20,11 @@ createRoot(root).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/new" element={<NewGame />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/quizzes" element={<Quizzes />} />
+        <Route path="/quizzes/new" element={<EditQuiz />} />
+        <Route path="/quizzes/:id" element={<EditQuiz />} />
+        <Route path="/new" element={<Navigate to="/quizzes" replace />} />
         <Route path="/play/:code" element={<Play />} />
         <Route path="/host/:code" element={<Host />} />
         <Route path="/stage/:code" element={<Stage />} />

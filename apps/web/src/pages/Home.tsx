@@ -52,8 +52,8 @@ export function Home() {
           </p>
         )}
       </form>
-      <Link className="quiet-link" to="/new">
-        {t('hostLink')}
+      <Link className="quiet-link" to="/quizzes">
+        {t('hostEntry')}
       </Link>
     </main>
   );

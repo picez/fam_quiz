@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { secretProblem } from './config';
+import { localOrigins, secretProblem } from './config';
 
 describe('secretProblem', () => {
   it('accepts a long random secret', () => {
@@ -14,5 +14,22 @@ describe('secretProblem', () => {
     expect(secretProblem('abc')).toContain('32');
     expect(secretProblem('x'.repeat(31))).toContain('32');
     expect(secretProblem('x1y2'.repeat(8))).toBeNull();
+  });
+});
+
+describe('localOrigins', () => {
+  it('lists this computer under every address players may use in the local network', () => {
+    const interfaces = {
+      'Wi-Fi': [
+        { address: '192.168.0.10', family: 'IPv4', internal: false },
+        { address: 'fe80::1', family: 'IPv6', internal: false },
+      ],
+      Loopback: [{ address: '127.0.0.1', family: 'IPv4', internal: true }],
+      Ethernet: undefined,
+    };
+    expect(localOrigins(interfaces, 3000)).toEqual({
+      lan: ['http://192.168.0.10:3000'],
+      all: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://192.168.0.10:3000'],
+    });
   });
 });
