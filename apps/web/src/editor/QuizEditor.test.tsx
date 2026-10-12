@@ -55,7 +55,7 @@ describe('QuizEditor', () => {
     open(undefined, 'Немає зв’язку із сервером.');
     fill('Назва вікторини', 'Географія');
     fill('Текст запитання', 'Говерла найвища?');
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     click('Зберегти');
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Немає зв’язку із сервером.'));
   });
@@ -92,7 +92,7 @@ describe('QuizEditor', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Яка висота Говерли?');
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'numeric' } });
+    fireEvent.click(screen.getByRole('button', { name: 'число' }));
     expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Яка висота Говерли?');
     expect(screen.queryByLabelText('Варіант 1')).toBeNull();
 
@@ -107,14 +107,14 @@ describe('QuizEditor', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Місто із замком Паланок?');
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'text' } });
+    fireEvent.click(screen.getByRole('button', { name: 'текст' }));
     fill('Написання 1', 'Мукачево');
     click('Додати написання');
     fill('Написання 2', 'Мукачеве');
 
     click('Додати запитання');
     fill('Текст запитання', 'Із заходу на схід');
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'order' } });
+    fireEvent.click(screen.getByRole('button', { name: 'порядок' }));
     fill('Елемент 1', 'Львів');
     fill('Елемент 2', 'Київ');
     fill('Елемент 3', 'Харків');
@@ -147,7 +147,7 @@ describe('QuizEditor', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     fireEvent.click(screen.getByLabelText(/Бали за швидкість/));
     fireEvent.click(screen.getByLabelText('Перемішувати варіанти відповідей'));
     fireEvent.change(screen.getByLabelText('Показувати рейтинг'), { target: { value: 'end' } });
@@ -183,7 +183,7 @@ describe('QuizEditor: numbers as they are typed', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Число?');
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'numeric' } });
+    fireEvent.click(screen.getByRole('button', { name: 'число' }));
     typeInto('Правильне число', '', '-', '-2', '-2,', '-2,5');
     typeInto('Допустиме відхилення', '', '0', '0,', '0,5');
     typeInto('Час, с', '', '4', '45');
@@ -198,7 +198,7 @@ describe('QuizEditor: numbers as they are typed', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
-    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     typeInto('Час, с', '30', '30x');
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
@@ -263,6 +263,7 @@ describe('QuizEditor: problems and unsaved work', () => {
     expect(screen.queryByRole('button', { name: /Запитання 2/ })).toBeNull();
 
     click('Додати запитання');
+    fireEvent.click(screen.getByRole('button', { name: /Запитання 1/ }));
     click('Видалити запитання 1');
     expect(confirm).toHaveBeenCalledWith('Видалити запитання 1 разом із його текстом?');
     expect(screen.getByRole('button', { name: /Запитання 1.*Важливе запитання/ })).toBeTruthy();
@@ -283,5 +284,179 @@ describe('QuizEditor: problems and unsaved work', () => {
     expect(screen.getByRole('status').textContent).toBe('Відновлено незбережені зміни.');
     fill('Назва вікторини', 'Чернетка');
     expect(onDraft).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Чернетка' }));
+  });
+});
+
+describe('QuizEditor: list and stage', () => {
+  const textarea = () => screen.getByLabelText('Текст запитання') as HTMLTextAreaElement;
+  const item = (pattern: RegExp) => screen.getByRole('button', { name: pattern });
+
+  function threeQuestions() {
+    const result = open();
+    fill('Назва вікторини', 'Гра');
+    for (const [index, text] of ['Перше', 'Друге', 'Третє'].entries()) {
+      if (index > 0) click('Додати запитання');
+      fill('Текст запитання', text);
+    }
+    return result;
+  }
+
+  it('lists every question and shows the one that is picked', () => {
+    threeQuestions();
+    expect(textarea().value).toBe('Третє');
+    fireEvent.click(item(/Запитання 1 Перше/));
+    expect(textarea().value).toBe('Перше');
+    expect(item(/Запитання 1 Перше/).getAttribute('aria-current')).toBe('true');
+    expect(item(/Запитання 3 Третє/).getAttribute('aria-current')).toBe('false');
+  });
+
+  it('shows the type of each question in the list', () => {
+    open();
+    click('число');
+    expect(item(/Запитання 1/).textContent).toContain('число');
+  });
+
+  it('steps to the previous and the next question', () => {
+    threeQuestions();
+    click('Попереднє запитання');
+    expect(textarea().value).toBe('Друге');
+    click('Попереднє запитання');
+    expect((screen.getByRole('button', { name: 'Попереднє запитання' }) as HTMLButtonElement).disabled).toBe(true);
+    click('Наступне запитання');
+    click('Наступне запитання');
+    expect(textarea().value).toBe('Третє');
+    expect((screen.getByRole('button', { name: 'Наступне запитання' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('opens and closes the question list on a phone', () => {
+    threeQuestions();
+    const toggle = screen.getByRole('button', { name: 'Усі запитання' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.textContent).toContain('3 / 3');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(item(/Запитання 2 Друге/));
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('reorders questions by dragging one onto another', async () => {
+    const { onSave } = threeQuestions();
+    const row = (pattern: RegExp) => item(pattern).closest('li') as HTMLElement;
+    fireEvent.dragStart(row(/Запитання 3 Третє/));
+    fireEvent.dragOver(row(/Запитання 1 Перше/));
+    fireEvent.drop(row(/Запитання 1 Перше/));
+    expect(item(/Запитання 1 Третє/)).toBeTruthy();
+    expect(item(/Запитання 2 Перше/)).toBeTruthy();
+    expect(textarea().value).toBe('Третє');
+
+    for (const n of [1, 2, 3]) {
+      fireEvent.click(item(new RegExp(`Запитання ${n} `)));
+      fill('Варіант 1', 'А');
+      fill('Варіант 2', 'Б');
+    }
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).questions.map((q) => q.text)).toEqual(['Третє', 'Перше', 'Друге']);
+  });
+
+  it('duplicates the question with its options and marks, as a separate question', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Столиця?');
+    fill('Варіант 1', 'Львів');
+    fill('Варіант 2', 'Київ');
+    fireEvent.click(screen.getByLabelText('Правильний: варіант 2'));
+    click('Дублювати');
+
+    expect(item(/Запитання 2 Столиця\?/).getAttribute('aria-current')).toBe('true');
+    fill('Текст запитання', 'Столиця України?');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const [first, second] = saved(onSave).questions;
+    expect([first.text, second.text]).toEqual(['Столиця?', 'Столиця України?']);
+    expect(second.id).not.toBe(first.id);
+    if (first.type !== 'single' || second.type !== 'single') throw new Error('unexpected type');
+    expect(second.options.map((o) => o.text)).toEqual(['Львів', 'Київ']);
+    expect(second.correctId).toBe(second.options[1].id);
+    expect(second.options.map((o) => o.id)).not.toEqual(first.options.map((o) => o.id));
+  });
+});
+
+describe('QuizEditor: answers on the stage', () => {
+  const option = (n: number) => screen.getByLabelText(`Варіант ${n}`) as HTMLInputElement;
+
+  it('marks the correct option with one tap and shows it', () => {
+    open();
+    const mark = (n: number) => screen.getByLabelText(`Правильний: варіант ${n}`);
+    expect(mark(1).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(mark(2));
+    expect(mark(2).getAttribute('aria-pressed')).toBe('true');
+    expect(mark(1).getAttribute('aria-pressed')).toBe('false');
+    expect(option(2).closest('.answer-row')?.className).toContain('is-correct');
+  });
+
+  it('lets several options be correct in a multi-choice question', () => {
+    open();
+    click('кілька варіантів');
+    const mark = (n: number) => screen.getByLabelText(`Правильний: варіант ${n}`);
+    fireEvent.click(mark(2));
+    expect([mark(1), mark(2)].map((m) => m.getAttribute('aria-pressed'))).toEqual(['true', 'true']);
+    fireEvent.click(mark(1));
+    expect(mark(1).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('adds the next option on Enter and moves the cursor into it', () => {
+    open();
+    fill('Варіант 1', 'Львів');
+    fireEvent.keyDown(option(1), { key: 'Enter' });
+    expect(document.activeElement).toBe(option(2));
+
+    fill('Варіант 2', 'Київ');
+    fireEvent.keyDown(option(2), { key: 'Enter' });
+    expect(document.activeElement).toBe(option(3));
+    expect(option(3).value).toBe('');
+  });
+
+  it('does not add a seventh option on Enter', () => {
+    open();
+    for (let i = 0; i < 4; i++) click('Додати варіант');
+    fireEvent.keyDown(option(6), { key: 'Enter' });
+    expect(screen.queryByLabelText('Варіант 7')).toBeNull();
+  });
+
+  it('keeps the cursor in the list after an option is removed', () => {
+    open();
+    click('Додати варіант');
+    click('Прибрати варіант 3');
+    expect(document.activeElement).toBe(option(2));
+  });
+
+  it('picks yes or no with one tap', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Земля пласка?');
+    click('так чи ні');
+    fireEvent.click(screen.getByRole('button', { name: 'Правильна відповідь: Ні' }));
+    expect(screen.getByRole('button', { name: 'Правильна відповідь: Ні' }).getAttribute('aria-pressed')).toBe('true');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).questions[0]).toMatchObject({ type: 'boolean', correct: false });
+  });
+
+  it('moves items of an order question up and down', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Із заходу на схід');
+    click('порядок');
+    fill('Елемент 1', 'Київ');
+    fill('Елемент 2', 'Львів');
+    fill('Елемент 3', 'Харків');
+    click('Перемістити елемент 2 вище');
+    expect((screen.getByLabelText('Елемент 1') as HTMLInputElement).value).toBe('Львів');
+    expect((screen.getByRole('button', { name: 'Перемістити елемент 1 вище' }) as HTMLButtonElement).disabled).toBe(true);
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const [question] = saved(onSave).questions;
+    expect(question.type === 'order' && question.items.map((i) => i.text)).toEqual(['Львів', 'Київ', 'Харків']);
   });
 });

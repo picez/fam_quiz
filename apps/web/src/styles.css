@@ -1004,3 +1004,309 @@ a.banner {
 .standings.stacked .score {
   margin-left: auto;
 }
+
+/* ---------- Редактор «список і сцена» ---------- */
+
+.app.editor {
+  max-width: 68rem;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 19rem) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.editor-side,
+.editor-stage {
+  display: grid;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.rules {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 0.25rem 0.875rem;
+}
+
+.rules summary {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rules[open] {
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 0.875rem;
+}
+
+.question-nav {
+  display: none;
+  gap: 0.5rem;
+}
+
+.question-nav-all {
+  flex: 1;
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+}
+
+.question-list {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.question-list li {
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
+}
+
+.question-list li.is-on {
+  border-color: var(--amber);
+  background: rgb(255 179 0 / 0.1);
+}
+
+.question-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.grip {
+  color: var(--dim);
+  letter-spacing: -0.15em;
+  cursor: grab;
+}
+
+.question-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.question-item-type {
+  color: var(--dim);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.btn-dashed {
+  border-style: dashed;
+  color: var(--dim);
+  justify-self: start;
+}
+
+.editor-side > .btn-dashed {
+  justify-self: stretch;
+}
+
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  min-height: 2.5rem;
+  padding: 0.25rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.chip.is-on {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: var(--stage);
+  font-weight: 700;
+}
+
+/* Картка запитання повторює те, що побачать гравці: світло софіта, питання, варіанти. */
+.stage-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: radial-gradient(120% 90% at 50% -10%, rgb(42 47 92 / 0.55), transparent 60%), var(--panel);
+}
+
+.question-field > span {
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.question-field textarea {
+  font-family: var(--display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.answer-rows {
+  display: grid;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.answer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 3.25rem;
+  padding: 0.25rem 0.375rem 0.25rem 0.875rem;
+  border: 2px solid var(--amber);
+  border-radius: 0.75rem;
+  background: rgb(0 0 0 / 0.2);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+}
+
+.answer-row input {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  min-height: 2.5rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.answer-row input::placeholder {
+  color: var(--dim);
+  font-weight: 400;
+}
+
+.answer-row input:focus-visible {
+  outline: none;
+}
+
+.answer-row:focus-within {
+  box-shadow: 0 0 0 3px rgb(255 179 0 / 0.35);
+}
+
+.answer-row.is-correct {
+  border-color: var(--correct);
+  background: var(--correct);
+  color: var(--stage);
+}
+
+.answer-row.is-correct .letter,
+.answer-row.is-correct input::placeholder {
+  color: var(--stage);
+}
+
+.answer-pick {
+  justify-content: space-between;
+  padding-right: 0.875rem;
+  cursor: pointer;
+}
+
+.answer-word {
+  font-size: 1.0625rem;
+}
+
+.mark,
+.row-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.mark {
+  color: var(--dim);
+}
+
+.answer-row.is-correct .mark,
+.answer-row.is-correct .mark-text {
+  color: var(--stage);
+  font-weight: 700;
+}
+
+.mark-text {
+  color: var(--dim);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.row-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.mark:hover,
+.row-button:not(:disabled):hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.field.compact {
+  gap: 0.25rem;
+}
+
+.field.compact > span {
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+@media (max-width: 860px) {
+  .editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .question-nav {
+    display: flex;
+  }
+
+  .question-list:not(.is-open) {
+    display: none;
+  }
+
+  .mark-text {
+    display: none;
+  }
+
+  .answer-pick .mark-text {
+    display: inline;
+  }
+}

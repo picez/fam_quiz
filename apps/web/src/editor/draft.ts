@@ -53,6 +53,40 @@ export function changeType(question: Question, type: QuestionType): Question {
   return build(common, type);
 }
 
+/** Копія запитання з власними ідентифікаторами; правильні відповіді вказують на варіанти копії. */
+export function duplicateQuestion(question: Question): Question {
+  const id = newId();
+  switch (question.type) {
+    case 'single':
+    case 'multi': {
+      const copies = new Map(question.options.map((option) => [option.id, newId()]));
+      const copyOf = (optionId: string) => copies.get(optionId);
+      const options = question.options.map((option) => ({ ...option, id: copyOf(option.id) ?? newId() }));
+      if (question.type === 'single') {
+        return { ...question, id, options, correctId: copyOf(question.correctId) ?? options[0].id };
+      }
+      const correctIds = question.correctIds.map(copyOf).filter((value): value is string => value !== undefined);
+      return { ...question, id, options, correctIds };
+    }
+    case 'order':
+      return { ...question, id, items: question.items.map((item) => ({ ...item, id: newId() })) };
+    case 'text':
+      return { ...question, id, accepted: [...question.accepted] };
+    default:
+      return { ...question, id };
+  }
+}
+
+/** Список, у якому елемент перенесено з одного місця на інше; той самий список, якщо перенести не можна. */
+export function moveItem<T>(items: T[], from: number, to: number): T[] {
+  const inRange = (index: number) => Number.isInteger(index) && index >= 0 && index < items.length;
+  if (from === to || !inRange(from) || !inRange(to)) return items;
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
 export function newQuiz(): Quiz {
   return { title: '', description: '', settings: { ...DEFAULT_SETTINGS }, questions: [newQuestion('single')] };
 }
