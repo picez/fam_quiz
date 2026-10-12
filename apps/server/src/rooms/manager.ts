@@ -38,6 +38,10 @@ export interface Room {
   stageToken: string;
   /** Акаунт ведучого; null для гри, створеної без входу. */
   hostUserId: string | null;
+  /** Збережена вікторина, з якої створено гру; null для гри без акаунта. */
+  quizId: string | null;
+  /** Гравці, які увійшли в акаунт: id гравця → id акаунта. */
+  playerUsers: Map<string, string>;
   state: GameState;
   /** Токен гравця → id гравця. */
   playerTokens: Map<string, string>;
@@ -99,13 +103,15 @@ export class RoomManager {
     return () => this.listeners.delete(listener);
   }
 
-  create(quiz: Quiz, hostUserId: string | null = null): Room {
+  create(quiz: Quiz, hostUserId: string | null = null, quizId: string | null = null): Room {
     const room: Room = {
       id: randomUUID(),
       code: this.newCode(),
       hostToken: newToken(),
       stageToken: newToken(),
       hostUserId,
+      quizId,
+      playerUsers: new Map(),
       state: createGame(quiz),
       playerTokens: new Map(),
       connections: new Map(),
@@ -123,7 +129,7 @@ export class RoomManager {
     return this.rooms.get(code);
   }
 
-  join(code: string, nickname: string): JoinResult {
+  join(code: string, nickname: string, userId: string | null = null): JoinResult {
     const room = this.rooms.get(code);
     if (room === undefined) return { ok: false, error: 'game_not_found' };
     const playerId = randomUUID();
@@ -134,6 +140,7 @@ export class RoomManager {
     if (!offline.ok) return offline;
     const token = newToken();
     room.playerTokens.set(token, playerId);
+    if (userId !== null) room.playerUsers.set(playerId, userId);
     this.commit(room, offline.state);
     return { ok: true, token, playerId };
   }
@@ -226,6 +233,7 @@ export class RoomManager {
       if (id === playerId) room.playerTokens.delete(token);
     }
     room.connections.delete(playerId);
+    room.playerUsers.delete(playerId);
     this.emit(room, { type: 'kicked', playerId });
     this.commit(room, removed.state);
     return { ok: true };

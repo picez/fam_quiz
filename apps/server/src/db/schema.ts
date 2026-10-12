@@ -1,9 +1,11 @@
-import type { Question, QuizSettings } from '@quiz/shared';
-import { boolean, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import type { Answer, GameStatus, Question, Quiz, QuizSettings } from '@quiz/shared';
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+
+const at = (name: string) => timestamp(name, { withTimezone: true });
 
 const stamps = {
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: at('created_at').notNull().defaultNow(),
+  updatedAt: at('updated_at').notNull().defaultNow(),
 };
 
 // Таблиці user, session, account, verification належать Better Auth:
@@ -18,51 +20,119 @@ export const user = pgTable('user', {
   ...stamps,
 });
 
-export const session = pgTable('session', {
-  id: text('id').primaryKey(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  token: text('token').notNull().unique(),
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  ...stamps,
-});
+export const session = pgTable(
+  'session',
+  {
+    id: text('id').primaryKey(),
+    expiresAt: at('expires_at').notNull(),
+    token: text('token').notNull().unique(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    ...stamps,
+  },
+  (table) => [index('session_user_idx').on(table.userId)],
+);
 
-export const account = pgTable('account', {
-  id: text('id').primaryKey(),
-  accountId: text('account_id').notNull(),
-  providerId: text('provider_id').notNull(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  accessToken: text('access_token'),
-  refreshToken: text('refresh_token'),
-  idToken: text('id_token'),
-  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
-  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
-  scope: text('scope'),
-  password: text('password'),
-  ...stamps,
-});
+export const account = pgTable(
+  'account',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: at('access_token_expires_at'),
+    refreshTokenExpiresAt: at('refresh_token_expires_at'),
+    scope: text('scope'),
+    password: text('password'),
+    ...stamps,
+  },
+  (table) => [index('account_user_idx').on(table.userId)],
+);
 
 export const verification = pgTable('verification', {
   id: text('id').primaryKey(),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  expiresAt: at('expires_at').notNull(),
   ...stamps,
 });
 
-export const quiz = pgTable('quiz', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  ownerId: text('owner_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  description: text('description').notNull(),
-  settings: jsonb('settings').$type<QuizSettings>().notNull(),
-  questions: jsonb('questions').$type<Question[]>().notNull(),
-  ...stamps,
-});
+export const quiz = pgTable(
+  'quiz',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    settings: jsonb('settings').$type<QuizSettings>().notNull(),
+    questions: jsonb('questions').$type<Question[]>().notNull(),
+    ...stamps,
+  },
+  (table) => [index('quiz_owner_idx').on(table.ownerId)],
+);
+
+/** Зіграна або поточна гра. id збігається з id кімнати. */
+export const game = pgTable(
+  'game',
+  {
+    id: uuid('id').primaryKey(),
+    // Без зовнішнього ключа: вікторину можуть видалити, а історія спирається на знімок.
+    quizId: uuid('quiz_id'),
+    hostId: text('host_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    code: text('code').notNull(),
+    status: text('status').$type<GameStatus>().notNull(),
+    title: text('title').notNull(),
+    quizSnapshot: jsonb('quiz_snapshot').$type<Quiz>().notNull(),
+    /** Скільки запитань уже закрито. */
+    questionsPlayed: integer('questions_played').notNull().default(0),
+    startedAt: at('started_at').notNull(),
+    finishedAt: at('finished_at'),
+  },
+  (table) => [index('game_host_idx').on(table.hostId)],
+);
+
+/** Гравець у грі. id збігається з id гравця в кімнаті. */
+export const participant = pgTable(
+  'participant',
+  {
+    id: uuid('id').primaryKey(),
+    gameId: uuid('game_id')
+      .notNull()
+      .references(() => game.id, { onDelete: 'cascade' }),
+    nickname: text('nickname').notNull(),
+    /** Акаунт гравця, якщо він увійшов; після видалення акаунта гра лишається в історії ведучого. */
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    score: integer('score').notNull(),
+    totalTimeMs: integer('total_time_ms').notNull(),
+    rank: integer('rank'),
+  },
+  (table) => [index('participant_game_idx').on(table.gameId), index('participant_user_idx').on(table.userId)],
+);
+
+export const answer = pgTable(
+  'answer',
+  {
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participant.id, { onDelete: 'cascade' }),
+    questionIndex: integer('question_index').notNull(),
+    payload: jsonb('payload').$type<Answer>().notNull(),
+    timeMs: integer('time_ms').notNull(),
+    accepted: boolean('accepted').notNull(),
+    points: integer('points').notNull(),
+    overridden: boolean('overridden').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.participantId, table.questionIndex] })],
+);
