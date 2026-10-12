@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { quizSchema } from '@quiz/shared';
 import { createQuiz, deleteQuiz, getQuiz, listQuizzes, updateQuiz } from './quizzes';
 import { fromNodeHeaders } from 'better-auth/node';
@@ -102,5 +103,47 @@ export async function registerAccountRoutes(app: FastifyInstance, deps: AccountD
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const deleted = await deleteQuiz(db, user.id, request.params.id);
     return deleted ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+  });
+
+  const { manager, maxRooms } = deps;
+  const CREATE_LIMIT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
+  const fromSaved = z.object({ quizId: z.string().min(1).max(64) }).strict();
+
+  app.post('/api/games', CREATE_LIMIT, async (request, reply) => {
+    const saved = fromSaved.safeParse(request.body);
+    let quiz;
+    let hostUserId: string | null = null;
+
+    if (saved.success) {
+      const user = await currentUser(request);
+      if (user === null) return reply.code(401).send(UNAUTHORIZED);
+      quiz = await getQuiz(db, user.id, saved.data.quizId);
+      if (quiz === null) return reply.code(404).send(NOT_FOUND);
+      hostUserId = user.id;
+    } else {
+      // Тимчасово: гра без акаунта з вікториною в тілі запиту. Прибирається разом із переходом клієнта на акаунти.
+      const inline = quizSchema.safeParse(request.body);
+      if (!inline.success) return reply.code(400).send(INVALID);
+      quiz = inline.data;
+    }
+
+    if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
+    const room = manager.create(quiz, hostUserId);
+    return reply.code(201).send({
+      gameId: room.id,
+      code: room.code,
+      hostToken: room.hostToken,
+      stageToken: room.stageToken,
+    });
+  });
+
+  app.get<{ Params: { code: string } }>('/api/games/by-code/:code/host-access', async (request, reply) => {
+    const user = await currentUser(request);
+    const room = manager.get(request.params.code);
+    // Однакова відповідь для «немає гри» і «не ваша гра», щоб не підтверджувати існування коду.
+    if (user === null || room === undefined || room.hostUserId !== user.id) {
+      return reply.code(404).send({ error: 'game_not_found' });
+    }
+    return { hostToken: room.hostToken, stageToken: room.stageToken };
   });
 }

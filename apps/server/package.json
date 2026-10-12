@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts"
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "tsx --env-file-if-exists=../../.env src/main.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",
@@ -18,7 +18,8 @@
     "fastify": "^5.12.5",
     "pg": "^8.23.1",
     "socket.io": "^4.8.4",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

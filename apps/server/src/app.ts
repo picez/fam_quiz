@@ -1,6 +1,6 @@
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
-import { joinSchema, quizSchema } from '@quiz/shared';
+import { joinSchema } from '@quiz/shared';
 import Fastify from 'fastify';
 import { registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
@@ -27,7 +27,6 @@ const BODY_LIMIT = 512 * 1024;
 
 /** Обмеження для маршрутів, якими можна перебирати коди ігор. */
 const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
-const CREATE_LIMIT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
 
 export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng);
@@ -38,19 +37,6 @@ export async function buildApp(options: AppOptions) {
   app.get('/health', async () => ({ ok: true }));
 
   await registerAccountRoutes(app, { db: options.db, auth: createAuth(options.db, options.auth), manager, maxRooms });
-
-  app.post('/api/games', CREATE_LIMIT, async (request, reply) => {
-    const quiz = quizSchema.safeParse(request.body);
-    if (!quiz.success) return reply.code(400).send({ error: 'invalid_payload' });
-    if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
-    const room = manager.create(quiz.data);
-    return reply.code(201).send({
-      gameId: room.id,
-      code: room.code,
-      hostToken: room.hostToken,
-      stageToken: room.stageToken,
-    });
-  });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
     const room = manager.get(request.params.code);
