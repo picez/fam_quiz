@@ -36,6 +36,8 @@ export interface Room {
   code: string;
   hostToken: string;
   stageToken: string;
+  /** Акаунт ведучого; null для гри, створеної без входу. */
+  hostUserId: string | null;
   state: GameState;
   /** Токен гравця → id гравця. */
   playerTokens: Map<string, string>;
@@ -97,12 +99,13 @@ export class RoomManager {
     return () => this.listeners.delete(listener);
   }
 
-  create(quiz: Quiz): Room {
+  create(quiz: Quiz, hostUserId: string | null = null): Room {
     const room: Room = {
       id: randomUUID(),
       code: this.newCode(),
       hostToken: newToken(),
       stageToken: newToken(),
+      hostUserId,
       state: createGame(quiz),
       playerTokens: new Map(),
       connections: new Map(),

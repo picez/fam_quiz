@@ -26,7 +26,11 @@
 
 ## Як зіграти локально
 
+Потрібен Docker (для бази даних).
+
+    cp .env.example .env      # і впишіть власний BETTER_AUTH_SECRET
     pnpm install
+    pnpm db:up                # PostgreSQL у Docker на порту 5433
     pnpm build
     pnpm start
 
@@ -37,7 +41,7 @@ http://192.168.0.10:3000) і вводять код гри або скануют�
 якщо сцену відкрито за цією ж адресою.
 
 Під час розробки `pnpm dev` запускає сервер і клієнт із гарячим оновленням
-на http://localhost:5173.
+на http://localhost:5173. Тести (`pnpm test`) бази в Docker не потребують.
 
 ## HTTP API
 
@@ -49,3 +53,11 @@ http://192.168.0.10:3000) і вводять код гри або скануют�
 
 Сокет підключається з `auth: { code, role, token }`, де `role` дорівнює
 `host`, `stage` або `player`.
+
+Акаунти й вікторини (потрібна сесія, крім реєстрації та входу):
+
+- `POST /api/auth/sign-up/email`, `POST /api/auth/sign-in/email`,
+  `POST /api/auth/sign-out`, `GET /api/me`.
+- `GET|POST /api/quizzes`, `GET|PUT|DELETE /api/quizzes/:id`.
+- `POST /api/games` з `{ "quizId": "…" }` створює гру зі збереженої вікторини.
+- `GET /api/games/by-code/:code/host-access` повертає ведучому токени його гри.

@@ -1,14 +1,22 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as joinPath } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { buildApp } from './app';
+import type { Db } from './db/client';
+import { TEST_AUTH } from './testing/accounts';
+import { createTestDb } from './testing/test-db';
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
+let db: Db;
+
+beforeAll(async () => {
+  db = await createTestDb();
+});
 
 beforeEach(async () => {
-  ctx = await buildApp();
+  ctx = await buildApp({ db, auth: TEST_AUTH });
 });
 
 afterEach(async () => {
@@ -120,7 +128,7 @@ describe('POST /api/games/by-code/:code/join', () => {
 
 describe('limits', () => {
   it('refuses new games beyond the room cap', async () => {
-    const small = await buildApp({ maxRooms: 2 });
+    const small = await buildApp({ db, auth: TEST_AUTH, maxRooms: 2 });
     const create = () => small.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single]) });
     expect((await create()).statusCode).toBe(201);
     expect((await create()).statusCode).toBe(201);
@@ -138,7 +146,7 @@ describe('limits', () => {
   });
 
   it('counts code checks per client address when running behind a proxy', async () => {
-    const proxied = await buildApp({ trustProxy: true });
+    const proxied = await buildApp({ db, auth: TEST_AUTH, trustProxy: true });
     const created = await proxied.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single]) });
     const { code } = created.json() as { code: string };
     const check = (address: string) =>
@@ -162,7 +170,7 @@ describe('serving the web client', () => {
   it('serves the client for page routes and JSON 404 for unknown API routes', async () => {
     const webRoot = mkdtempSync(joinPath(tmpdir(), 'quiz-web-'));
     writeFileSync(joinPath(webRoot, 'index.html'), '<!doctype html><title>quiz</title>');
-    const served = await buildApp({ webRoot });
+    const served = await buildApp({ db, auth: TEST_AUTH, webRoot });
 
     const page = await served.app.inject({ method: 'GET', url: '/play/123456' });
     expect(page.statusCode).toBe(200);
