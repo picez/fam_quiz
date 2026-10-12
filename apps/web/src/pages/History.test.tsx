@@ -110,6 +110,8 @@ describe('GameHistory', () => {
     expect(rows[0]).toContain('правильних: 2');
     expect(rows.some((row) => row?.includes('Столиця України?') && row.includes('відповіли 2, правильно 1'))).toBe(true);
     expect(screen.getByRole('link', { name: 'Історія ігор' }).getAttribute('href')).toBe('/history');
+    // Текст запитання й статистика стоять в окремих рядках: інакше на телефоні текст стискається.
+    for (const list of screen.getAllByRole('list')) expect(list.className).toContain('stacked');
   });
 
   it('shows a game without places or players without looking broken', async () => {

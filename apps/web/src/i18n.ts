@@ -183,8 +183,12 @@ const uk = {
   yourResult: '{score} балів, правильних відповідей: {correct} з {total}',
   placeOf: '{rank} місце з {total}',
   noPlace: 'без місця',
-  statGames: 'ігор',
-  statWins: 'перемог',
+  statGames_one: 'гра',
+  statGames_few: 'гри',
+  statGames_many: 'ігор',
+  statWins_one: 'перемога',
+  statWins_few: 'перемоги',
+  statWins_many: 'перемог',
   statAccuracy: 'правильних відповідей',
   toQuizzes: 'Мої вікторини',
   playingAs: 'Ви увійшли як {name}: гра потрапить у «Мої ігри».',
@@ -229,4 +233,14 @@ export function t(key: TextKey, vars: Record<string, string | number> = {}): str
 export function errorText(code: string): string {
   const key = `err_${code}`;
   return key in uk ? t(key as TextKey) : t('err_unknown');
+}
+
+type CountKey = { [K in TextKey]: K extends `${infer Base}_one` ? Base : never }[TextKey];
+
+/** Іменник у формі, якої вимагає число: 1 гра, 2 гри, 5 ігор. */
+export function countText(base: CountKey, count: number): string {
+  const lastTwo = Math.abs(count) % 100;
+  const last = lastTwo % 10;
+  const form = last === 1 && lastTwo !== 11 ? 'one' : last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? 'few' : 'many';
+  return t(`${base}_${form}` as TextKey);
 }

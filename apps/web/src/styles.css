@@ -923,3 +923,70 @@ a.banner {
     max-width: 100%;
   }
 }
+
+/* ---------- Історія та статистика ---------- */
+
+.toolbar.centered {
+  justify-content: center;
+  gap: 0.5rem 1.5rem;
+}
+
+.quiz-list h2 a {
+  color: var(--paper);
+  text-decoration-color: var(--amber);
+  text-underline-offset: 0.2em;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 1rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--panel);
+}
+
+.stat dd {
+  margin: 0;
+  color: var(--amber);
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 7vw, 2.25rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat dt {
+  color: var(--dim);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.rows .rank {
+  min-width: 2rem;
+  color: var(--amber);
+  font-family: var(--display);
+  font-weight: 800;
+}
+
+.standings li,
+.rows li {
+  flex-wrap: wrap;
+}
+
+/* У списках історії назва займає цілий рядок, а подробиці переходять під неї, коли місця мало. */
+.stacked .name {
+  flex: 1 1 14rem;
+}
+
+.stacked .tag {
+  color: var(--dim);
+}

@@ -48,7 +48,7 @@ export function GameHistory() {
         {game.standings.length === 0 ? (
           <p className="meta">{t('noPlayers')}</p>
         ) : (
-          <ol className="standings">
+          <ol className="standings stacked">
             {game.standings.map((row) => (
               <li key={row.participantId}>
                 <span className="rank">{row.rank ?? '–'}</span>
@@ -64,7 +64,7 @@ export function GameHistory() {
       {game.questions.length > 0 && (
         <section className="panel">
           <h2>{t('questionsTitle')}</h2>
-          <ol className="rows">
+          <ol className="rows stacked">
             {game.questions.map((question) => (
               <li key={question.index}>
                 <span className="rank">{question.index + 1}</span>

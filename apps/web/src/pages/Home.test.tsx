@@ -2,13 +2,16 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkCode } from '../api';
+import { checkCode, me } from '../api';
 import { savePlayer } from '../storage';
 import { Home } from './Home';
 
-vi.mock('../api', () => ({ checkCode: vi.fn() }));
+vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn() }));
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+});
 afterEach(cleanup);
 
 function enter(code: string) {
@@ -52,5 +55,33 @@ describe('Home', () => {
     vi.mocked(checkCode).mockResolvedValue({ ok: false, error: 'game_not_found' });
     enter('123456');
     expect((await screen.findByRole('alert')).textContent).toBe('Гру з таким кодом не знайдено. Перевірте код.');
+  });
+});
+
+describe('Home for a signed-in person', () => {
+  it('offers the quiz list and played games instead of the sign-in entry', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect((await screen.findByRole('link', { name: 'Мої вікторини' })).getAttribute('href')).toBe('/quizzes');
+    expect(screen.getByRole('link', { name: 'Мої ігри' }).getAttribute('href')).toBe('/me');
+    expect(screen.queryByRole('link', { name: 'Я ведучий' })).toBeNull();
+  });
+
+  it('keeps the plain entry for a visitor', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect((await screen.findByRole('link', { name: 'Я ведучий' })).getAttribute('href')).toBe('/quizzes');
+    expect(screen.queryByRole('link', { name: 'Мої ігри' })).toBeNull();
   });
 });
