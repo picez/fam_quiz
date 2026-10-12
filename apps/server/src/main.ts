@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { buildApp } from './app';
 import { localOrigins, secretProblem } from './config';
 import { connectDb } from './db/client';
+import { markInterrupted } from './recorder';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -29,6 +30,8 @@ const local = process.env.NODE_ENV === 'production' ? { lan: [], all: [] } : loc
 const configured = (process.env.TRUSTED_ORIGINS ?? '').split(',').map((origin) => origin.trim()).filter(Boolean);
 
 const { db } = await connectDb(databaseUrl);
+// Кімнати живуть у пам'яті: гри, що лишилися «в процесі» з минулого запуску, уже ніхто не дограє.
+await markInterrupted(db);
 const { app } = await buildApp({
   db,
   auth: {

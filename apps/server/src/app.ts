@@ -5,6 +5,7 @@ import Fastify from 'fastify';
 import { registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
 import type { Db } from './db/client';
+import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { attachSockets } from './socket';
@@ -30,6 +31,7 @@ const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } }
 
 export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng);
+  const recorder = attachRecorder(manager, options.db);
   const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
   const app = Fastify({ trustProxy: options.trustProxy ?? false, bodyLimit: BODY_LIMIT });
   await app.register(rateLimit, { global: false });
@@ -80,5 +82,5 @@ export async function buildApp(options: AppOptions) {
     io.disconnectSockets(true);
   });
 
-  return { app, manager, io };
+  return { app, manager, io, recorder };
 }
