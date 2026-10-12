@@ -656,3 +656,43 @@ button.choice {
     }
   }
 }
+
+/* ---------- Довгий текст: слова переносяться, довгі запитання дрібнішають ---------- */
+
+.inputs {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.inputs:disabled {
+  opacity: 0.55;
+}
+
+.question,
+.bar > span,
+.choice > span:not(.letter):not(.count),
+.order-text,
+.chips li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.question.is-long {
+  font-size: clamp(1.125rem, 4.6vw, 1.5rem);
+}
+
+.question.is-xlong {
+  font-size: clamp(1rem, 4vw, 1.25rem);
+}
+
+.stage .question.is-long {
+  font-size: clamp(1.5rem, 3vw, 3.2rem);
+}
+
+.stage .question.is-xlong {
+  font-size: clamp(1.125rem, 2.1vw, 2.25rem);
+}

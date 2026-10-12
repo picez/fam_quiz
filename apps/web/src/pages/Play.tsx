@@ -19,7 +19,7 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
     const result = await joinGame(code, nickname);
     setBusy(false);
     if (result.ok) onJoined(result.token);
-    else setError(errorText(result.error));
+    else setError(errorText(result.error === 'wrong_phase' ? 'game_started' : result.error));
   };
 
   return (

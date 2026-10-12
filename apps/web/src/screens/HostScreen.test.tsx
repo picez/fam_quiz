@@ -159,10 +159,31 @@ describe('HostScreen', () => {
     expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
   });
 
-  it('removes a player', () => {
+  it('removes a player only after confirmation', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const send = show(view());
     fireEvent.click(screen.getAllByRole('button', { name: 'Вилучити' })[1]);
+    expect(send).not.toHaveBeenCalled();
+    expect(confirm).toHaveBeenCalledWith('Вилучити гравця «Тарас» із гри?');
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Вилучити' })[1]);
     expect(send).toHaveBeenCalledWith('host:kick', { playerId: 'p2' });
+  });
+
+  it('ignores a second tap while the first action is still on its way', () => {
+    const send: Send = vi.fn(() => new Promise<never>(() => {}));
+    show(during('locked', single), send);
+    fireEvent.click(button('Показати відповідь'));
+    fireEvent.click(button('Показати відповідь'));
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes a pause obvious and offers to resume as the main action', () => {
+    show(during('question', single, { paused: true }));
+    expect(screen.getByRole('status').textContent).toBe('Пауза');
+    expect(button('Продовжити').className).toContain('btn-primary');
+    expect(screen.queryByRole('button', { name: 'Закрити запитання' })).toBeNull();
   });
 
   it('explains a refused action', async () => {

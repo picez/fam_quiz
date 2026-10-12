@@ -21,9 +21,12 @@ export function useGame(auth: SocketAuth | null) {
   const token = auth?.token;
 
   useEffect(() => {
-    if (code === undefined || role === undefined || token === undefined) return;
+    // Скидається й тоді, коли токена вже немає: інакше «вилучено» з минулої гри
+    // спрацювало б на щойно отриманий новий токен.
+    setView(null);
     setStatus('connecting');
     setClosed(null);
+    if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
 

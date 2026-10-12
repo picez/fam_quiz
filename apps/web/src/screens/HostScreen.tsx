@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ClientToServerEvents, HostView } from '@quiz/shared';
-import { answerText, correctText } from '../format';
+import { answerText, correctText, questionClass } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import type { Send } from '../live/types';
 import { Standings } from './Standings';
@@ -36,8 +36,31 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
     setError(result.ok ? null : errorText(result.error));
   };
 
+  // Кроки гри йдуть по одному: подвійний дотик не має перескочити етап.
+  const [stepping, setStepping] = useState(false);
+  const steppingRef = useRef(false);
+  const step = (event: HostEvent) => {
+    if (steppingRef.current) return;
+    const release = () => {
+      steppingRef.current = false;
+      setStepping(false);
+    };
+    steppingRef.current = true;
+    setStepping(true);
+    // Якщо підтвердження загубилося, кнопка не має лишитися заблокованою назавжди.
+    const fallback = setTimeout(release, 3000);
+    void act(event).finally(() => {
+      clearTimeout(fallback);
+      release();
+    });
+  };
+
   const endGame = () => {
     if (window.confirm(t('endConfirm'))) void act('host:end');
+  };
+
+  const kick = (playerId: string, name: string) => {
+    if (window.confirm(t('kickConfirm', { name }))) void act('host:kick', { playerId });
   };
 
   return (
@@ -47,6 +70,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
         <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>
 
+      {view.paused && (
+        <p className="banner" role="status">
+          {t('paused')}
+        </p>
+      )}
+
       <p className="meta">
         {t(`phase_${phase}`)}
         {view.questionIndex >= 0 && `, ${t('questionOf', { index: view.questionIndex + 1, total: view.total })}`}
@@ -55,8 +84,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
-          <h1 className="question">{view.question.text}</h1>
-          {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct) })}</p>}
+          <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
+          {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
         </section>
       )}
 
@@ -106,7 +135,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
                 <span className="name">{player.nickname}</span>
                 {!player.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
                 <span className="score">{player.score}</span>
-                <button type="button" className="btn btn-small" onClick={() => act('host:kick', { playerId: player.id })}>
+                <button type="button" className="btn btn-small" onClick={() => kick(player.id, player.nickname)}>
                   {t('kick')}
                 </button>
               </li>
@@ -131,20 +160,25 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
       <footer className="actions">
         {live && (
           <>
-            <button type="button" className="btn" onClick={() => act(view.paused ? 'host:resume' : 'host:pause')}>
-              {t(view.paused ? 'resume' : 'pause')}
-            </button>
             <button type="button" className="btn btn-danger" onClick={endGame}>
               {t('end')}
             </button>
+            <button
+              type="button"
+              className={view.paused ? 'btn btn-primary' : 'btn'}
+              disabled={stepping}
+              onClick={() => step(view.paused ? 'host:resume' : 'host:pause')}
+            >
+              {t(view.paused ? 'resume' : 'pause')}
+            </button>
           </>
         )}
-        {main !== undefined && (
+        {main !== undefined && !view.paused && (
           <button
             type="button"
             className="btn btn-primary"
-            disabled={phase === 'lobby' && view.players.length === 0}
-            onClick={() => act(main.event)}
+            disabled={stepping || (phase === 'lobby' && view.players.length === 0)}
+            onClick={() => step(main.event)}
           >
             {t(main.label)}
           </button>

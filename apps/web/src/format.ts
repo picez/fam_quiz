@@ -11,16 +11,26 @@ function choicesOf(question: Question | null): { id: string; text: string }[] {
   return question.type === 'order' ? question.items : [];
 }
 
-/** Правильна відповідь словами, для розкриття та пульта. */
-export function correctText(question: Question): string {
+/** Клас заголовка запитання: довгий текст набирається дрібніше, щоб варіанти лишались на екрані. */
+export function questionClass(text: string): string {
+  if (text.length > 220) return 'question is-xlong';
+  return text.length > 120 ? 'question is-long' : 'question';
+}
+
+/**
+ * Правильна відповідь словами, для розкриття та пульта.
+ * presented — варіанти в порядку показу: літери мають збігатися з тим, що бачать гравці.
+ */
+export function correctText(question: Question, presented?: { id: string }[]): string {
   switch (question.type) {
     case 'single':
     case 'multi': {
-      const ids = question.type === 'single' ? [question.correctId] : question.correctIds;
-      return question.options
-        .map((option, index) => ({ option, letter: LETTERS[index] }))
-        .filter(({ option }) => ids.includes(option.id))
-        .map(({ option, letter }) => `${letter}. ${option.text}`)
+      const correct = question.type === 'single' ? [question.correctId] : question.correctIds;
+      const shown = presented === undefined ? question.options.map((option) => option.id) : presented.map((c) => c.id);
+      return shown
+        .map((id, index) => ({ id, letter: LETTERS[index] }))
+        .filter(({ id }) => correct.includes(id))
+        .map(({ id, letter }) => `${letter}. ${question.options.find((option) => option.id === id)?.text ?? id}`)
         .join(', ');
     }
     case 'boolean':

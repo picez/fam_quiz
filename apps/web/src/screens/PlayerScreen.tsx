@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Answer, PlayerView } from '@quiz/shared';
-import { answerText, correctText } from '../format';
+import { answerText, correctText, questionClass } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
@@ -29,7 +29,7 @@ function Result({ view }: { view: PlayerView }) {
     <section className={`result ${tone}`}>
       <h2>{title}</h2>
       {result !== null && result.points > 0 && <p className="earned">{t('earned', { points: result.points })}</p>}
-      {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal) })}</p>}
+      {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
     </section>
   );
 }
@@ -66,7 +66,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <p className="meta">{t('questionOf', { index: view.questionIndex + 1, total: view.total })}</p>
             <Timer view={view} offsetMs={offsetMs} />
           </div>
-          <h1 className="question">{question.text}</h1>
+          <h1 className={questionClass(question.text)}>{question.text}</h1>
           {question.imageUrl !== null && <img className="question-image" src={question.imageUrl} alt="" />}
           {me.answer !== null ? (
             <section className="sent">
@@ -74,21 +74,24 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <p>{pickedText(me.answer, question.choices)}</p>
             </section>
           ) : (
-            !view.paused && <AnswerInput key={view.questionIndex} question={question} onSubmit={submit} />
+            // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
+            <fieldset className="inputs" disabled={view.paused}>
+              <AnswerInput key={view.questionIndex} question={question} onSubmit={submit} />
+            </fieldset>
           )}
         </>
       )}
 
       {phase === 'locked' && (
         <>
-          <h1 className="question">{question?.text}</h1>
+          <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
           <p className="lead">{t('waitReveal')}</p>
         </>
       )}
 
       {phase === 'reveal' && (
         <>
-          <h1 className="question">{question?.text}</h1>
+          <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
           <Result view={view} />
         </>
       )}

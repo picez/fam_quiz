@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import type { StageView } from '@quiz/shared';
-import { LETTERS, correctText } from '../format';
+import { LETTERS, correctText, questionClass } from '../format';
 import { t } from '../i18n';
 import { Timer } from '../live/Timer';
 import { Standings } from './Standings';
@@ -69,7 +69,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         <span>{t('answeredOf', { answered: view.answeredCount, total: view.playerCount })}</span>
       </header>
       <div className="stage-main">
-        <h1 className="question">{question.text}</h1>
+        <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
       </div>
       {question.imageUrl !== null && <img className="question-image" src={question.imageUrl} alt="" />}
@@ -85,7 +85,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         </ul>
       )}
       {reveal === null && hint !== null && <p className="lead">{hint}</p>}
-      {reveal !== null && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal) })}</p>}
+      {reveal !== null && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }

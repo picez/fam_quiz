@@ -105,6 +105,15 @@ describe('StageScreen', () => {
     expect(screen.getByText('900')).toBeTruthy();
   });
 
+  it('shrinks a long question so the options stay on screen', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: { ...question, text: 'Д'.repeat(130) } }));
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain('is-long');
+    cleanup();
+
+    show(view({ phase: 'question', questionIndex: 0, question: { ...question, text: 'Д'.repeat(250) } }));
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain('is-xlong');
+  });
+
   it('says the game is paused, or that the host is away', () => {
     show(view({ phase: 'question', questionIndex: 0, question, paused: true, remainingMs: 9000 }));
     expect(screen.getByRole('status').textContent).toBe('Пауза');

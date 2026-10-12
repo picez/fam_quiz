@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { checkCode } from '../api';
 import { errorText, t } from '../i18n';
+import { loadPlayer } from '../storage';
 
 export function Home() {
   const navigate = useNavigate();
@@ -15,8 +16,10 @@ export function Home() {
     setBusy(true);
     const result = await checkCode(digits);
     setBusy(false);
-    if (result.ok) navigate(`/play/${digits}`);
-    else setError(errorText(result.error));
+    if (!result.ok) setError(errorText(result.error));
+    // Після старту повернутися може лише той, хто вже був у грі на цьому пристрої.
+    else if (result.phase !== 'lobby' && loadPlayer(digits) === null) setError(errorText('game_started'));
+    else navigate(`/play/${digits}`);
   };
 
   return (

@@ -42,3 +42,11 @@ describe('answerText', () => {
     expect(answerText({ type: 'single', optionId: 'a' }, null)).toBe('a');
   });
 });
+
+describe('correctText with a presented order', () => {
+  it('uses the letters players actually see when options were shuffled', () => {
+    const presented = [{ id: 'b' }, { id: 'c' }, { id: 'a' }];
+    expect(correctText(single, presented)).toBe('A. Київ');
+    expect(correctText(multi, presented)).toBe('B. Одеса, C. Львів');
+  });
+});

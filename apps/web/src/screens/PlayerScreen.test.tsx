@@ -96,9 +96,22 @@ describe('PlayerScreen', () => {
     expect(screen.getByRole('status').textContent).toBe('Чекаємо на ведучого');
   });
 
-  it('hides the input while paused', () => {
-    show(onQuestion({ paused: true, endsAt: null, remainingMs: 12_000 }));
-    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+  it('keeps what the player has entered through a pause, with the input disabled', () => {
+    const textQuestion = { ...publicQuestion, type: 'text' as const, choices: [] };
+    const props = { hostOnline: true, offsetMs: 0, send: vi.fn(async () => ({ ok: true as const })) };
+    const { rerender } = render(<PlayerScreen view={onQuestion({ question: textQuestion })} {...props} />);
+    fireEvent.change(screen.getByLabelText('Ваша відповідь'), { target: { value: 'Мукач' } });
+
+    const pausedView = onQuestion({ question: textQuestion, paused: true, endsAt: null, remainingMs: 9000 });
+    rerender(<PlayerScreen view={pausedView} {...props} />);
+    const paused = screen.getByLabelText('Ваша відповідь') as HTMLInputElement;
+    expect(paused.value).toBe('Мукач');
+    expect(paused.closest('fieldset')?.disabled).toBe(true);
+
+    rerender(<PlayerScreen view={onQuestion({ question: textQuestion })} {...props} />);
+    const resumed = screen.getByLabelText('Ваша відповідь') as HTMLInputElement;
+    expect(resumed.value).toBe('Мукач');
+    expect(resumed.closest('fieldset')?.disabled).toBe(false);
   });
 
   it('waits for the reveal once the question is locked', () => {
