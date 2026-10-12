@@ -39,6 +39,16 @@ export function EditQuiz() {
     return <Navigate to={`/login?next=${encodeURIComponent(here)}`} replace />;
   }
 
+  if (account.status === 'unknown') {
+    return (
+      <main className="app narrow">
+        <p className="error" role="alert">
+          {errorText(account.error)}
+        </p>
+      </main>
+    );
+  }
+
   if (loadError !== null) {
     return (
       <main className="app narrow">

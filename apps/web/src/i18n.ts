@@ -84,7 +84,7 @@ const uk = {
   phase_leaderboard: 'Рейтинг',
   phase_finished: 'Гру завершено',
   // Акаунт
-  loginTitle: 'Вхід для ведучого',
+  loginTitle: 'Вхід',
   registerTitle: 'Новий акаунт',
   emailLabel: 'Email',
   passwordLabel: 'Пароль',

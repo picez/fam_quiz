@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameDetail, GameSummary } from '@quiz/shared';
 import { getGame, listGames, me } from '../api';
@@ -40,6 +40,11 @@ const detail: GameDetail = {
   ],
 };
 
+/** Підставна сторінка входу: показує адресу, на яку людину повернуть після входу. */
+function LoginStub() {
+  return <p>{`сторінка входу ${useLocation().search}`}</p>;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
@@ -52,7 +57,7 @@ const open = (path: string) =>
       <Routes>
         <Route path="/history" element={<History />} />
         <Route path="/history/:id" element={<GameHistory />} />
-        <Route path="/login" element={<p>сторінка входу</p>} />
+        <Route path="/login" element={<LoginStub />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -92,7 +97,7 @@ describe('History', () => {
   it('sends a visitor to sign in and back to the history afterwards', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open('/history');
-    expect(await screen.findByText('сторінка входу')).toBeTruthy();
+    expect(await screen.findByText('сторінка входу ?next=%2Fhistory')).toBeTruthy();
     expect(listGames).not.toHaveBeenCalled();
   });
 });
@@ -145,6 +150,6 @@ describe('GameHistory', () => {
   it('sends the host to sign in when the session has ended', async () => {
     vi.mocked(getGame).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open('/history/g1');
-    expect(await screen.findByText('сторінка входу')).toBeTruthy();
+    expect(await screen.findByText('сторінка входу ?next=%2Fhistory%2Fg1')).toBeTruthy();
   });
 });

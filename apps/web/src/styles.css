@@ -990,3 +990,17 @@ a.banner {
 .stacked .tag {
   color: var(--dim);
 }
+
+/* Довге слово в заголовку сторінки переноситься, а не розсуває її. */
+.brand {
+  overflow-wrap: anywhere;
+}
+
+/* У підсумковій таблиці місце й ім'я стоять в одному рядку навіть на телефоні. */
+.standings.stacked .name {
+  flex-basis: 8rem;
+}
+
+.standings.stacked .score {
+  margin-left: auto;
+}

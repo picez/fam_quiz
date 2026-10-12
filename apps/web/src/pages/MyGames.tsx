@@ -11,7 +11,9 @@ function summarize(games: PlayedGame[]) {
   const correct = games.reduce((sum, game) => sum + game.correct, 0);
   return {
     games: games.length,
-    wins: games.filter((game) => game.status === 'finished' && game.rank === 1).length,
+    // Перемога: перше місце в завершеній грі, де було кого випередити і є хоч якісь бали.
+    // Інакше «перемогою» стала б гра наодинці чи гра, яку закрили до першої відповіді.
+    wins: games.filter((game) => game.status === 'finished' && game.rank === 1 && game.score > 0 && game.playerCount > 1).length,
     accuracy: asked === 0 ? null : Math.round((correct / asked) * 100),
   };
 }

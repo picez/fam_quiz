@@ -34,6 +34,7 @@ export function usePrivateData<T>(load: () => Promise<ApiData<T>>, key = ''): Pr
   }, [signedIn, key]);
 
   if (account.status === 'anonymous') return { status: 'signed-out' };
+  if (account.status === 'unknown') return { status: 'error', message: errorText(account.error) };
   if (account.status === 'loading' || loaded === null || loaded.key !== key) return { status: 'loading' };
   if (loaded.result.ok) return { status: 'ready', data: loaded.result.data, account: account.account };
   return loaded.result.error === 'unauthorized'

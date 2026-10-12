@@ -24,6 +24,12 @@ const open = (entry = '/login') =>
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 describe('Login', () => {
+  it('is titled for hosts and players alike', () => {
+    open('/login?next=%2Fplay%2F123456');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Вхід');
+    expect(screen.queryByText(/для ведучого/)).toBeNull();
+  });
+
   it('signs in and opens the quiz list', async () => {
     vi.mocked(signIn).mockResolvedValue({ ok: true });
     open();

@@ -42,6 +42,14 @@ describe('usePrivateData', () => {
     expect(await screen.findByText('signed-out')).toBeTruthy();
   });
 
+  it('reports a failed session check as an error, not as signed out', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'offline' });
+    const load = vi.fn(async () => ({ ok: true as const, data: [] }));
+    render(<Probe load={load} />);
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    expect(load).not.toHaveBeenCalled();
+  });
+
   it('explains other failures in words', async () => {
     vi.mocked(me).mockResolvedValue(account);
     render(<Probe load={async () => ({ ok: false, error: 'not_found' })} />);

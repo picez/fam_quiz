@@ -52,6 +52,15 @@ export function Quizzes() {
   }, [signedIn, reload]);
 
   if (account.status === 'anonymous' || expired) return <Navigate to={LOGIN} replace />;
+  if (account.status === 'unknown') {
+    return (
+      <main className="app narrow">
+        <p className="error" role="alert">
+          {errorText(account.error)}
+        </p>
+      </main>
+    );
+  }
   if (account.status === 'loading') {
     return (
       <main className="app narrow">

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayedGame } from '@quiz/shared';
 import { me, myHistory } from '../api';
@@ -23,6 +23,11 @@ const played = (over: Partial<PlayedGame>): PlayedGame => ({
   ...over,
 });
 
+/** Підставна сторінка входу: показує адресу, на яку людину повернуть після входу. */
+function LoginStub() {
+  return <p>{`сторінка входу ${useLocation().search}`}</p>;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
@@ -34,7 +39,7 @@ const open = () =>
     <MemoryRouter initialEntries={['/me']}>
       <Routes>
         <Route path="/me" element={<MyGames />} />
-        <Route path="/login" element={<p>сторінка входу</p>} />
+        <Route path="/login" element={<LoginStub />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -79,6 +84,31 @@ describe('MyGames', () => {
   it('sends a visitor to sign in', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open();
-    expect(await screen.findByText('сторінка входу')).toBeTruthy();
+    expect(await screen.findByText('сторінка входу ?next=%2Fme')).toBeTruthy();
+  });
+
+  it('explains a failed session check instead of asking a signed-in person to sign in', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'offline' });
+    open();
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    expect(screen.queryByText(/сторінка входу/)).toBeNull();
+  });
+});
+
+describe('MyGames: what counts as a win', () => {
+  it('does not count first place with no points or with nobody to beat', async () => {
+    vi.mocked(myHistory).mockResolvedValue({
+      ok: true,
+      data: [
+        played({ gameId: 'won', rank: 1, score: 2000, playerCount: 5 }),
+        played({ gameId: 'nobody-scored', rank: 1, score: 0, playerCount: 3, correct: 0 }),
+        played({ gameId: 'alone', rank: 1, score: 900, playerCount: 1 }),
+        played({ gameId: 'running', rank: null, status: 'running', score: 500 }),
+      ],
+    });
+    open();
+    await screen.findAllByRole('heading', { name: 'Географія' });
+    expect(stat('перемога')).toContain('1');
+    expect(stat('гри')).toContain('4');
   });
 });

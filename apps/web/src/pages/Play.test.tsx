@@ -112,3 +112,14 @@ describe('Play: whether the game will be kept', () => {
     expect(screen.queryByRole('link', { name: /Увійти, щоб гра збереглась/ })).toBeNull();
   });
 });
+
+describe('Play: when the session check fails', () => {
+  it('makes no claim about whether the game will be kept', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unknown' });
+    open();
+    await screen.findByLabelText('Ваше ім’я');
+    await settle();
+    expect(screen.queryByRole('link', { name: /Увійти, щоб гра збереглась/ })).toBeNull();
+    expect(screen.queryByText(/гра потрапить у «Мої ігри»/)).toBeNull();
+  });
+});
