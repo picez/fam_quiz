@@ -3,6 +3,7 @@ import { joinSchema, quizSchema } from '@quiz/shared';
 import Fastify from 'fastify';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
+import { attachSockets } from './socket';
 
 export interface AppOptions {
   scheduler?: Scheduler;
@@ -47,5 +48,11 @@ export async function buildApp(options: AppOptions = {}) {
     return reply.code(201).send({ token: joined.token, playerId: joined.playerId });
   });
 
-  return { app, manager };
+  const io = attachSockets(app.server, manager);
+  // Відкриті WebSocket-з'єднання не дали б HTTP-серверу завершитись.
+  app.addHook('preClose', async () => {
+    io.disconnectSockets(true);
+  });
+
+  return { app, manager, io };
 }

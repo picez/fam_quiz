@@ -1,0 +1,205 @@
+import type { AddressInfo } from 'node:net';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { io as connect, type Socket } from 'socket.io-client';
+import { makeQuiz, single, text } from '@quiz/engine/testing';
+import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
+import { buildApp } from './app';
+
+type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
+
+interface Tracked {
+  socket: Client;
+  last: GameView | null;
+  waiters: { test: (view: GameView) => boolean; resolve: (view: GameView) => void }[];
+}
+
+let ctx: Awaited<ReturnType<typeof buildApp>>;
+let url: string;
+let sockets: Client[];
+
+beforeEach(async () => {
+  sockets = [];
+  ctx = await buildApp();
+  await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+  url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
+});
+
+afterEach(async () => {
+  for (const socket of sockets) socket.close();
+  await ctx.app.close();
+});
+
+function open(auth: SocketAuth): Tracked {
+  const socket: Client = connect(url, { auth, transports: ['websocket'], reconnection: false });
+  sockets.push(socket);
+  const tracked: Tracked = { socket, last: null, waiters: [] };
+  socket.on('state', (view) => {
+    tracked.last = view;
+    const ready = tracked.waiters.filter((waiter) => waiter.test(view));
+    tracked.waiters = tracked.waiters.filter((waiter) => !ready.includes(waiter));
+    for (const waiter of ready) waiter.resolve(view);
+  });
+  return tracked;
+}
+
+/** Чекає на зріз стану, що задовольняє умову (або повертає вже отриманий). */
+function until(tracked: Tracked, test: (view: GameView) => boolean): Promise<GameView> {
+  if (tracked.last !== null && test(tracked.last)) return Promise.resolve(tracked.last);
+  return new Promise((resolve) => tracked.waiters.push({ test, resolve }));
+}
+
+function send(tracked: Tracked, event: string, ...args: unknown[]): Promise<AckResult> {
+  // Події різних типів мають різні аргументи; тест перевіряє поведінку, а не типи emit.
+  const emit = tracked.socket.emit.bind(tracked.socket) as (event: string, ...args: unknown[]) => void;
+  return new Promise((resolve) => emit(event, ...args, resolve));
+}
+
+async function createGame() {
+  const response = await ctx.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single, text]) });
+  return response.json() as { code: string; hostToken: string; stageToken: string };
+}
+
+async function join(code: string, nickname: string) {
+  const response = await ctx.app.inject({
+    method: 'POST',
+    url: `/api/games/by-code/${code}/join`,
+    payload: { nickname },
+  });
+  return response.json() as { token: string; playerId: string };
+}
+
+/** Гра з ведучим, сценою і двома підключеними гравцями в лобі. */
+async function lobby() {
+  const game = await createGame();
+  const olenaJoin = await join(game.code, 'Олена');
+  const tarasJoin = await join(game.code, 'Тарас');
+  const host = open({ code: game.code, role: 'host', token: game.hostToken });
+  const stage = open({ code: game.code, role: 'stage', token: game.stageToken });
+  const olena = open({ code: game.code, role: 'player', token: olenaJoin.token });
+  const taras = open({ code: game.code, role: 'player', token: tarasJoin.token });
+  await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 2);
+  return { game, host, stage, olena, taras, olenaJoin, tarasJoin };
+}
+
+const inPhase = (phase: GameView['phase']) => (view: GameView) => view.phase === phase;
+const correct = { type: 'single', optionId: 'b' };
+const wrong = { type: 'single', optionId: 'a' };
+
+describe('connecting', () => {
+  it('refuses a connection with a wrong token', async () => {
+    const game = await createGame();
+    const socket: Client = connect(url, {
+      auth: { code: game.code, role: 'host', token: 'nope' },
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    sockets.push(socket);
+    const error = await new Promise<Error>((resolve) => socket.on('connect_error', resolve));
+    expect(error.message).toBe('unauthorized');
+  });
+
+  it('sends each role its own view right after connecting', async () => {
+    const { host, stage, olena } = await lobby();
+    expect((await until(host, inPhase('lobby'))).role).toBe('host');
+    expect((await until(stage, inPhase('lobby'))).role).toBe('stage');
+    const view = await until(olena, inPhase('lobby'));
+    expect(view.role === 'player' && view.me.nickname).toBe('Олена');
+  });
+});
+
+describe('a round over real sockets', () => {
+  it('plays a question from start to reveal without leaking the answer', async () => {
+    const { host, stage, olena, taras } = await lobby();
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    const question = await until(olena, inPhase('question'));
+    expect(question.question?.text).toBe('Столиця України?');
+    expect(JSON.stringify(question)).not.toContain('correctId');
+    expect(JSON.stringify(await until(stage, inPhase('question')))).not.toContain('correctId');
+
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', wrong)).toEqual({ ok: true });
+
+    const locked = await until(olena, inPhase('locked'));
+    expect(JSON.stringify(locked)).not.toContain('correctId');
+
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const reveal = await until(olena, inPhase('reveal'));
+    expect(reveal.role === 'player' && reveal.me.result?.accepted).toBe(true);
+    const stageReveal = await until(stage, inPhase('reveal'));
+    expect(stageReveal.role === 'stage' && stageReveal.stats).toMatchObject({ answered: 2, accepted: 1 });
+  });
+
+  it('reports engine errors through the acknowledgement', async () => {
+    const { host, olena } = await lobby();
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:next')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});
+
+describe('permissions and bad input', () => {
+  it('forbids host actions to players and the stage, and answers to the host', async () => {
+    const { host, stage, olena } = await lobby();
+    expect(await send(olena, 'host:start')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'host:start')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:kick', { playerId: 'x' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'player:answer', correct)).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('rejects malformed payloads', async () => {
+    const { host, olena } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', { type: 'single' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:kick', { player: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:override', 'x')).toEqual({ ok: false, error: 'invalid_payload' });
+  });
+
+  it('survives events without an acknowledgement or with junk arguments', async () => {
+    const { host, olena } = await lobby();
+    const raw = olena.socket.emit.bind(olena.socket) as (event: string, ...args: unknown[]) => void;
+    raw('player:answer');
+    raw('player:answer', 'junk', 'not a function');
+    raw('host:start', 42);
+    raw('host:kick');
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect((await until(olena, inPhase('question'))).phase).toBe('question');
+  });
+});
+
+describe('reconnecting and kicking', () => {
+  it('lets a player come back with the same token and receive the current state', async () => {
+    const { game, host, olena, olenaJoin } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('question'));
+    await send(olena, 'player:answer', correct);
+
+    olena.socket.close();
+    await until(host, (view) => view.role === 'host' && view.players[0].connected === false);
+
+    const back = open({ code: game.code, role: 'player', token: olenaJoin.token });
+    const view = await until(back, inPhase('question'));
+    expect(view.role === 'player' && view.me.answer).toEqual(correct);
+    await until(host, (hostView) => hostView.role === 'host' && hostView.players[0].connected === true);
+  });
+
+  it('tells a kicked player why and closes their connection', async () => {
+    const { game, host, olena, olenaJoin } = await lobby();
+    const closed = new Promise<string>((resolve) => olena.socket.on('closed', resolve));
+    const disconnected = new Promise<void>((resolve) => olena.socket.on('disconnect', () => resolve()));
+
+    expect(await send(host, 'host:kick', { playerId: olenaJoin.playerId })).toEqual({ ok: true });
+    expect(await closed).toBe('kicked');
+    await disconnected;
+
+    const again: Client = connect(url, {
+      auth: { code: game.code, role: 'player', token: olenaJoin.token },
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    sockets.push(again);
+    const error = await new Promise<Error>((resolve) => again.on('connect_error', resolve));
+    expect(error.message).toBe('unauthorized');
+  });
+});
