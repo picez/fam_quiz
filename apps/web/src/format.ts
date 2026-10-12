@@ -63,3 +63,11 @@ export function answerText(answer: Answer, question: Question | null): string {
       return answer.itemIds.map(name).join(' → ');
   }
 }
+
+const dateFormat = new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+/** Дата й час гри словами; порожній рядок, якщо значення не є датою. */
+export function formatDate(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? '' : dateFormat.format(date);
+}
