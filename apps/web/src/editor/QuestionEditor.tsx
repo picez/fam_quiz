@@ -2,6 +2,7 @@ import { LIMITS, type Question } from '@quiz/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { t, type TextKey } from '../i18n';
 import { QUESTION_TYPES, changeType, type QuestionType } from './draft';
+import { newId } from './new-id';
 
 interface Props {
   question: Question;
@@ -13,7 +14,7 @@ interface Row {
   text: string;
 }
 
-const newRow = (): Row => ({ id: crypto.randomUUID(), text: '' });
+const newRow = (): Row => ({ id: newId(), text: '' });
 const asNumber = (raw: string) => (raw.trim() === '' ? Number.NaN : Number(raw.trim().replace(',', '.')));
 const shown = (value: number) => (Number.isFinite(value) ? String(value) : '');
 const sameNumber = (a: number, b: number) => a === b || (Number.isNaN(a) && Number.isNaN(b));
