@@ -1,3 +1,5 @@
+import { quizSchema } from '@quiz/shared';
+import { createQuiz, deleteQuiz, getQuiz, listQuizzes, updateQuiz } from './quizzes';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Auth } from './auth';
@@ -56,5 +58,49 @@ export async function registerAccountRoutes(app: FastifyInstance, deps: AccountD
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send({ error: 'unauthorized' });
     return user;
+  });
+
+  const { db } = deps;
+  const UNAUTHORIZED = { error: 'unauthorized' };
+  const NOT_FOUND = { error: 'not_found' };
+  const INVALID = { error: 'invalid_payload' };
+  type WithId = { Params: { id: string } };
+
+  app.get('/api/quizzes', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    return listQuizzes(db, user.id);
+  });
+
+  app.post('/api/quizzes', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const parsed = quizSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send(INVALID);
+    return reply.code(201).send({ id: await createQuiz(db, user.id, parsed.data) });
+  });
+
+  app.get<WithId>('/api/quizzes/:id', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const found = await getQuiz(db, user.id, request.params.id);
+    if (found === null) return reply.code(404).send(NOT_FOUND);
+    return { id: request.params.id, ...found };
+  });
+
+  app.put<WithId>('/api/quizzes/:id', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const parsed = quizSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send(INVALID);
+    const updated = await updateQuiz(db, user.id, request.params.id, parsed.data);
+    return updated ? { id: request.params.id } : reply.code(404).send(NOT_FOUND);
+  });
+
+  app.delete<WithId>('/api/quizzes/:id', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const deleted = await deleteQuiz(db, user.id, request.params.id);
+    return deleted ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
   });
 }
