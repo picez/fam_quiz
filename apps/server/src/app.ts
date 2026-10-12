@@ -36,7 +36,14 @@ export async function buildApp(options: AppOptions) {
 
   app.get('/health', async () => ({ ok: true }));
 
-  await registerAccountRoutes(app, { db: options.db, auth: createAuth(options.db, options.auth), manager, maxRooms });
+  await registerAccountRoutes(app, {
+    db: options.db,
+    auth: createAuth(options.db, options.auth),
+    manager,
+    maxRooms,
+    baseURL: options.auth.baseURL,
+    attemptsPerMinute: options.auth.attemptsPerMinute ?? 10,
+  });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
     const room = manager.get(request.params.code);

@@ -4,6 +4,8 @@ import type { AuthOptions } from '../auth';
 export const TEST_AUTH: AuthOptions = {
   secret: 'test-secret-that-is-long-enough-for-signing-sessions',
   baseURL: 'http://localhost:3000',
+  // Тести реєструють багато користувачів з однієї адреси.
+  attemptsPerMinute: 10_000,
 };
 
 /** Заголовок Cookie з відповіді, що встановила сесію. */

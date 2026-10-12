@@ -10,6 +10,8 @@ export interface AuthOptions {
   baseURL: string;
   /** Інші адреси клієнта, з яких дозволено запити (наприклад, сервер розробки). */
   trustedOrigins?: string[];
+  /** Скільки спроб входу чи реєстрації дозволено з однієї адреси за хвилину (типово 10). */
+  attemptsPerMinute?: number;
 }
 
 export function createAuth(db: Db, options: AuthOptions) {
@@ -19,6 +21,9 @@ export function createAuth(db: Db, options: AuthOptions) {
     baseURL: options.baseURL,
     trustedOrigins: options.trustedOrigins ?? [],
     emailAndPassword: { enabled: true, minPasswordLength: 8 },
+    // Власний обмежувач Better Auth не бачить справжньої адреси клієнта за проксі й тоді
+    // рахує всіх разом; частоту обмежує маршрут Fastify, який знає request.ip.
+    rateLimit: { enabled: false },
   });
 }
 

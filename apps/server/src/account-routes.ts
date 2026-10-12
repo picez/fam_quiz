@@ -12,6 +12,9 @@ export interface AccountDeps {
   auth: Auth;
   manager: RoomManager;
   maxRooms: number;
+  /** Адреса застосунку; від неї будуються адреси запитів до Better Auth. */
+  baseURL: string;
+  attemptsPerMinute: number;
 }
 
 export interface CurrentUser {
@@ -34,11 +37,22 @@ export async function registerAccountRoutes(app: FastifyInstance, deps: AccountD
   };
 
   // Better Auth працює зі стандартними Request і Response, тому запит Fastify перекладається туди й назад.
+  const attempts = deps.attemptsPerMinute;
   app.route({
     method: ['GET', 'POST'],
     url: '/api/auth/*',
+    config: {
+      rateLimit: {
+        timeWindow: '1 minute',
+        // Вхід і реєстрація обмежені суворо, решта запитів авторизації вільніше.
+        max: (request: FastifyRequest) => (/\/sign-(in|up)\//.test(request.url) ? attempts : attempts * 6),
+        keyGenerator: (request: FastifyRequest) =>
+          `${request.ip}:${/\/sign-(in|up)\//.test(request.url) ? 'credentials' : 'other'}`,
+      },
+    },
     async handler(request, reply) {
-      const url = new URL(request.url, `http://${request.headers.host ?? 'localhost'}`);
+      // Адреса будується від налаштованої, а не від заголовка Host, який надсилає клієнт.
+      const url = new URL(request.url, deps.baseURL);
       const hasBody = request.method !== 'GET' && request.body !== undefined && request.body !== null;
       const response = await auth.handler(
         new Request(url, {

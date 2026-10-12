@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildApp } from './app';
+import { secretProblem } from './config';
 import { connectDb } from './db/client';
 
 function required(name: string): string {
@@ -14,6 +15,11 @@ function required(name: string): string {
 
 const databaseUrl = required('DATABASE_URL');
 const secret = required('BETTER_AUTH_SECRET');
+const problem = secretProblem(secret);
+if (problem !== null) {
+  console.error(problem);
+  process.exit(1);
+}
 const port = Number(process.env.PORT ?? 3000);
 const built = resolve(import.meta.dirname, '../../web/dist');
 
