@@ -88,6 +88,10 @@ export class RoomManager {
     return this.rooms.size;
   }
 
+  hostOnline(room: Room): boolean {
+    return (room.connections.get('host') ?? 0) > 0;
+  }
+
   onEvent(listener: RoomListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -150,6 +154,7 @@ export class RoomManager {
     if (identity.role === 'host') {
       this.scheduler.clearTimeout(room.absence);
       room.absence = null;
+      if (count === 1) this.emit(room, { type: 'changed' });
     }
     if (identity.playerId !== null && count === 1) {
       this.apply(room, setConnected(room.state, identity.playerId, true));
@@ -169,7 +174,10 @@ export class RoomManager {
       this.apply(room, setConnected(room.state, identity.playerId, false));
       return;
     }
-    if (identity.role === 'host') this.hostLeft(room);
+    if (identity.role === 'host') {
+      this.hostLeft(room);
+      this.emit(room, { type: 'changed' });
+    }
   }
 
   view(room: Room, identity: Identity): GameView | null {

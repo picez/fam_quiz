@@ -47,8 +47,9 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
   });
 
   const push = (socket: GameSocket) => {
-    const view = manager.view(socket.data.room, socket.data.identity);
-    if (view !== null) socket.emit('state', view, manager.now());
+    const { room, identity } = socket.data;
+    const view = manager.view(room, identity);
+    if (view !== null) socket.emit('state', view, { serverNow: manager.now(), hostOnline: manager.hostOnline(room) });
   };
 
   manager.onEvent((room, event) => {

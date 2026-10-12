@@ -36,8 +36,14 @@ export interface ClientToServerEvents {
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
 }
 
+export interface StateMeta {
+  /** Час сервера на момент надсилання, для поправки годинника клієнта. */
+  serverNow: number;
+  hostOnline: boolean;
+}
+
 export interface ServerToClientEvents {
-  /** Повний зріз стану для ролі цього з'єднання та поточний час сервера. */
-  state: (view: GameView, serverNow: number) => void;
+  /** Повний зріз стану для ролі цього з'єднання. */
+  state: (view: GameView, meta: StateMeta) => void;
   closed: (reason: CloseReason) => void;
 }

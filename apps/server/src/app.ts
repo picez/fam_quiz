@@ -1,4 +1,5 @@
 import rateLimit from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 import { joinSchema, quizSchema } from '@quiz/shared';
 import Fastify from 'fastify';
 import { RoomManager } from './rooms/manager';
@@ -12,6 +13,8 @@ export interface AppOptions {
   trustProxy?: boolean;
   /** Скільки кімнат може існувати одночасно. */
   maxRooms?: number;
+  /** Тека зі зібраним web-клієнтом. */
+  webRoot?: string;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -56,6 +59,19 @@ export async function buildApp(options: AppOptions = {}) {
       return reply.code(joined.error === 'game_not_found' ? 404 : 409).send({ error: joined.error });
     }
     return reply.code(201).send({ token: joined.token, playerId: joined.playerId });
+  });
+
+  if (options.webRoot !== undefined) await app.register(fastifyStatic, { root: options.webRoot });
+
+  app.setNotFoundHandler((request, reply) => {
+    const isPage =
+      options.webRoot !== undefined &&
+      request.method === 'GET' &&
+      !request.url.startsWith('/api/') &&
+      !request.url.startsWith('/socket.io/');
+    // Маршрути сторінок обробляє клієнт, тому на них віддається та сама сторінка.
+    if (isPage) return reply.sendFile('index.html');
+    return reply.code(404).send({ error: 'not_found' });
   });
 
   const io = attachSockets(app.server, manager);
