@@ -1,5 +1,5 @@
 import { LIMITS, type Question } from '@quiz/shared';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { t, type TextKey } from '../i18n';
 import { QUESTION_TYPES, changeType, type QuestionType } from './draft';
 
@@ -14,8 +14,37 @@ interface Row {
 }
 
 const newRow = (): Row => ({ id: crypto.randomUUID(), text: '' });
-const asNumber = (raw: string) => (raw.trim() === '' ? Number.NaN : Number(raw.replace(',', '.')));
-const shown = (value: number) => (Number.isNaN(value) ? '' : String(value));
+const asNumber = (raw: string) => (raw.trim() === '' ? Number.NaN : Number(raw.trim().replace(',', '.')));
+const shown = (value: number) => (Number.isFinite(value) ? String(value) : '');
+const sameNumber = (a: number, b: number) => a === b || (Number.isNaN(a) && Number.isNaN(b));
+
+/**
+ * Поле для числа. Показує саме те, що набрано ("-", "2,", "30x"), і віддає назовні число
+ * або NaN: якби поле перемальовувалося з числа, проміжні стани набору зникали б.
+ */
+function NumberField(props: { label: string; value: number; decimal?: boolean; onChange: (value: number) => void }) {
+  const [raw, setRaw] = useState(() => shown(props.value));
+
+  // Значення змінили ззовні (наприклад, відновили чернетку): показати його.
+  useEffect(() => {
+    setRaw((current) => (sameNumber(asNumber(current), props.value) ? current : shown(props.value)));
+  }, [props.value]);
+
+  return (
+    <label className="field">
+      <span>{props.label}</span>
+      <input
+        inputMode={props.decimal ? 'text' : 'numeric'}
+        value={raw}
+        maxLength={24}
+        onChange={(event) => {
+          setRaw(event.target.value);
+          props.onChange(asNumber(event.target.value));
+        }}
+      />
+    </label>
+  );
+}
 
 /** Список рядків із текстом: варіанти, елементи впорядкування. */
 function Rows(props: {
@@ -157,22 +186,18 @@ function Body({ question, onChange }: Props) {
       return (
         <>
           <div className="pair">
-            <label className="field">
-              <span>{t('correctNumber')}</span>
-              <input
-                inputMode="decimal"
-                value={shown(question.correct)}
-                onChange={(event) => onChange({ ...question, correct: asNumber(event.target.value) })}
-              />
-            </label>
-            <label className="field">
-              <span>{t('tolerance')}</span>
-              <input
-                inputMode="decimal"
-                value={shown(question.tolerance)}
-                onChange={(event) => onChange({ ...question, tolerance: asNumber(event.target.value) })}
-              />
-            </label>
+            <NumberField
+              label={t('correctNumber')}
+              value={question.correct}
+              decimal
+              onChange={(correct) => onChange({ ...question, correct })}
+            />
+            <NumberField
+              label={t('tolerance')}
+              value={question.tolerance}
+              decimal
+              onChange={(tolerance) => onChange({ ...question, tolerance })}
+            />
           </div>
           <p className="meta">{t('toleranceHint')}</p>
         </>
@@ -219,22 +244,8 @@ export function QuestionEditor({ question, onChange }: Props) {
             ))}
           </select>
         </label>
-        <label className="field">
-          <span>{t('timeLimit')}</span>
-          <input
-            inputMode="numeric"
-            value={shown(question.timeLimit)}
-            onChange={(event) => onChange({ ...question, timeLimit: asNumber(event.target.value) })}
-          />
-        </label>
-        <label className="field">
-          <span>{t('pointsLabel')}</span>
-          <input
-            inputMode="numeric"
-            value={shown(question.points)}
-            onChange={(event) => onChange({ ...question, points: asNumber(event.target.value) })}
-          />
-        </label>
+        <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
+        <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />
       </div>
       <Body question={question} onChange={onChange} />
     </div>

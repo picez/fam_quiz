@@ -2,12 +2,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createGame, createQuiz, deleteQuiz, listQuizzes, me, signOut } from '../api';
-import { loadHost } from '../storage';
+import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, me, signOut } from '../api';
+import { loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
 import { Quizzes } from './Quizzes';
 
 vi.mock('../api', () => ({
   me: vi.fn(),
+  checkCode: vi.fn(),
   listQuizzes: vi.fn(),
   createQuiz: vi.fn(),
   deleteQuiz: vi.fn(),
@@ -115,5 +116,42 @@ describe('Quizzes', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Вийти' }));
     expect(await screen.findByText('головна')).toBeTruthy();
     expect(signOut).toHaveBeenCalled();
+  });
+});
+
+describe('Quizzes: a game in progress', () => {
+  it('remembers the game it starts', async () => {
+    vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Грати' }));
+    await screen.findByText('пульт');
+    expect(loadLastGame()).toBe('123456');
+  });
+
+  it('offers a way back to a game that is still running', async () => {
+    saveHost('654321', { hostToken: 'h', stageToken: 's' });
+    saveLastGame('654321');
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Географія' });
+    open();
+    const link = await screen.findByRole('link', { name: 'Повернутися до гри 654 321' });
+    expect(link.getAttribute('href')).toBe('/host/654321');
+    expect(checkCode).toHaveBeenCalledWith('654321');
+  });
+
+  it('forgets a game that has ended or no longer exists', async () => {
+    saveHost('654321', { hostToken: 'h', stageToken: 's' });
+    saveLastGame('654321');
+    vi.mocked(checkCode).mockResolvedValue({ ok: false, error: 'game_not_found' });
+    open();
+    await screen.findByText('Географія');
+    await waitFor(() => expect(loadLastGame()).toBeNull());
+    expect(screen.queryByRole('link', { name: /Повернутися до гри/ })).toBeNull();
+
+    saveLastGame('654321');
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'finished', title: 'Географія' });
+    cleanup();
+    open();
+    await screen.findByText('Географія');
+    await waitFor(() => expect(loadLastGame()).toBeNull());
   });
 });

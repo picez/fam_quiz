@@ -34,6 +34,13 @@ describe('api', () => {
     expect(await signUp('Олена', 'nope', 'password1')).toEqual({ ok: false, error: 'bad_email' });
   });
 
+  it('recognises a sign-in refused because the app was opened at another address', async () => {
+    respond(403, { code: 'INVALID_ORIGIN', message: 'Invalid origin' });
+    expect(await signIn('o@example.com', 'password1')).toEqual({ ok: false, error: 'wrong_address' });
+    respond(403, { code: 'MISSING_OR_NULL_ORIGIN', message: 'Missing or null Origin' });
+    expect(await signIn('o@example.com', 'password1')).toEqual({ ok: false, error: 'wrong_address' });
+  });
+
   it('reports too many attempts and a lost connection', async () => {
     respond(429, { error: 'Too Many Requests' });
     expect(await signIn('o@example.com', 'password1')).toEqual({ ok: false, error: 'too_many' });

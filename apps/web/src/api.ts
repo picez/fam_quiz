@@ -29,6 +29,8 @@ const AUTH_CODES: [prefix: string, code: string][] = [
   ['INVALID_EMAIL_OR_PASSWORD', 'bad_credentials'],
   ['PASSWORD_TOO_SHORT', 'password_short'],
   ['INVALID_EMAIL', 'bad_email'],
+  ['INVALID_ORIGIN', 'wrong_address'],
+  ['MISSING_OR_NULL_ORIGIN', 'wrong_address'],
 ];
 
 function errorCode(data: unknown): string {

@@ -10,6 +10,7 @@ vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), u
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
 });
 afterEach(cleanup);
@@ -75,5 +76,81 @@ describe('EditQuiz', () => {
     vi.mocked(getQuiz).mockResolvedValue({ ok: false, error: 'not_found' });
     open('/quizzes/q1');
     expect((await screen.findByRole('alert')).textContent).toBe('Не знайдено.');
+  });
+});
+
+describe('EditQuiz: unsaved work', () => {
+  const title = async () => (await screen.findByLabelText('Назва вікторини')) as HTMLInputElement;
+
+  it('restores an unsaved new quiz after the page is reloaded', async () => {
+    open('/quizzes/new');
+    fireEvent.change(await title(), { target: { value: 'Чернетка' } });
+    cleanup();
+
+    open('/quizzes/new');
+    expect((await title()).value).toBe('Чернетка');
+    expect(screen.getByRole('status').textContent).toBe('Відновлено незбережені зміни.');
+  });
+
+  it('restores an emptied number field as empty, not as a wrong number', async () => {
+    open('/quizzes/new');
+    await title();
+    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'numeric' } });
+    fireEvent.change(screen.getByLabelText('Правильне число'), { target: { value: '' } });
+    cleanup();
+
+    open('/quizzes/new');
+    await title();
+    expect((screen.getByLabelText('Правильне число') as HTMLInputElement).value).toBe('');
+  });
+
+  it('forgets the draft once the quiz is saved', async () => {
+    vi.mocked(createQuiz).mockResolvedValue({ ok: true, id: 'q9' });
+    open('/quizzes/new');
+    fireEvent.change(await title(), { target: { value: 'Гра' } });
+    fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
+    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    await screen.findByText('мої вікторини');
+    cleanup();
+
+    open('/quizzes/new');
+    expect((await title()).value).toBe('');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('keeps the work when the session ends during save and brings it back after signing in', async () => {
+    vi.mocked(createQuiz).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    open('/quizzes/new');
+    fireEvent.change(await title(), { target: { value: 'Гра' } });
+    fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
+    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    expect(await screen.findByText('сторінка входу')).toBeTruthy();
+    cleanup();
+
+    open('/quizzes/new');
+    expect((await title()).value).toBe('Гра');
+    expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Так?');
+  });
+
+  it('restores unsaved changes to a saved quiz instead of the saved version', async () => {
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    open('/quizzes/q1');
+    fireEvent.change(await title(), { target: { value: 'Змінена назва' } });
+    cleanup();
+
+    open('/quizzes/q1');
+    expect((await title()).value).toBe('Змінена назва');
+  });
+
+  it('keeps drafts of different quizzes apart', async () => {
+    open('/quizzes/new');
+    fireEvent.change(await title(), { target: { value: 'Нова чернетка' } });
+    cleanup();
+
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    open('/quizzes/q1');
+    expect((await title()).value).toBe(demoQuiz.title);
   });
 });

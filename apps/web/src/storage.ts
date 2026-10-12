@@ -40,3 +40,10 @@ export function loadHost(code: string): HostTokens | null {
     return null;
   }
 }
+
+const LAST_GAME = 'quiz:last-game';
+
+/** Код гри, яку ведучий запустив останньою з цього пристрою. */
+export const loadLastGame = (): string | null => read(LAST_GAME);
+export const saveLastGame = (code: string): void => write(LAST_GAME, code);
+export const clearLastGame = (): void => write(LAST_GAME, null);

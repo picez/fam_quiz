@@ -5,7 +5,10 @@ import { quizSchema, type Quiz } from '@quiz/shared';
 import { newQuiz } from './draft';
 import { QuizEditor } from './QuizEditor';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function open(initial: Quiz = newQuiz(), result: string | null = null) {
   const onSave = vi.fn(async (_quiz: Quiz) => result);
@@ -124,6 +127,7 @@ describe('QuizEditor', () => {
   });
 
   it('adds, reorders and removes questions but never the last one', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     open();
     expect((screen.getByRole('button', { name: 'Видалити запитання 1' }) as HTMLButtonElement).disabled).toBe(true);
     fill('Текст запитання', 'Перше');
@@ -163,5 +167,121 @@ describe('QuizEditor', () => {
     expect((screen.getByLabelText('Назва вікторини') as HTMLInputElement).value).toBe('Стара назва');
     click('Скасувати');
     expect(onCancel).toHaveBeenCalled();
+  });
+});
+
+describe('QuizEditor: numbers as they are typed', () => {
+  const typeInto = (label: string, ...steps: string[]) => {
+    const input = screen.getByLabelText(label) as HTMLInputElement;
+    for (const value of steps) {
+      fireEvent.change(input, { target: { value } });
+      expect(input.value).toBe(value);
+    }
+  };
+
+  it('keeps a minus sign and a decimal comma while the number is being typed', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Число?');
+    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'numeric' } });
+    typeInto('Правильне число', '', '-', '-2', '-2,', '-2,5');
+    typeInto('Допустиме відхилення', '', '0', '0,', '0,5');
+    typeInto('Час, с', '', '4', '45');
+    typeInto('Бали', '', '5', '50', '500');
+    click('Зберегти');
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).questions[0]).toMatchObject({ correct: -2.5, tolerance: 0.5, timeLimit: 45, points: 500 });
+  });
+
+  it('keeps a mistyped time visible and refuses to save it', () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Так?');
+    fireEvent.change(screen.getByLabelText('Тип запитання'), { target: { value: 'boolean' } });
+    typeInto('Час, с', '30', '30x');
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('Запитання 1: час має бути від 5 до 120 секунд');
+  });
+});
+
+describe('QuizEditor: problems and unsaved work', () => {
+  function twoQuestionsSecondEmpty() {
+    const result = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше');
+    fill('Варіант 1', 'А');
+    fill('Варіант 2', 'Б');
+    click('Додати запитання');
+    fireEvent.click(screen.getByRole('button', { name: /Запитання 1/ }));
+    expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Перше');
+    return result;
+  }
+
+  it('shows what is wrong next to the save button and opens the question that needs attention', () => {
+    const { onSave } = twoQuestionsSecondEmpty();
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('Запитання 2: впишіть текст запитання.');
+    expect(alert.closest('footer')).not.toBeNull();
+    expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('');
+  });
+
+  it('clears the problem list once the person starts fixing it', () => {
+    twoQuestionsSecondEmpty();
+    click('Зберегти');
+    fill('Текст запитання', 'Друге');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('asks before discarding changes on cancel, and does not ask when nothing changed', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onCancel } = open();
+    click('Скасувати');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    fill('Назва вікторини', 'Гра');
+    click('Скасувати');
+    expect(confirm).toHaveBeenCalledWith('Вийти без збереження? Зміни буде втрачено.');
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    confirm.mockReturnValue(true);
+    click('Скасувати');
+    expect(onCancel).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks before deleting a question that already has text', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    open();
+    fill('Текст запитання', 'Важливе запитання');
+    click('Додати запитання');
+    click('Видалити запитання 2');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Запитання 2/ })).toBeNull();
+
+    click('Додати запитання');
+    click('Видалити запитання 1');
+    expect(confirm).toHaveBeenCalledWith('Видалити запитання 1 разом із його текстом?');
+    expect(screen.getByRole('button', { name: /Запитання 1.*Важливе запитання/ })).toBeTruthy();
+  });
+
+  it('reports every change as a draft and shows a notice it was given', () => {
+    const onDraft = vi.fn();
+    render(
+      <QuizEditor
+        initial={newQuiz()}
+        heading="Нова вікторина"
+        notice="Відновлено незбережені зміни."
+        onDraft={onDraft}
+        onSave={async () => null}
+        onCancel={() => {}}
+      />,
+    );
+    expect(screen.getByRole('status').textContent).toBe('Відновлено незбережені зміни.');
+    fill('Назва вікторини', 'Чернетка');
+    expect(onDraft).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Чернетка' }));
   });
 });

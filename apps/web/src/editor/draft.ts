@@ -116,6 +116,12 @@ function problemKey(question: Question): TextKey | null {
   return questionSchema.safeParse(question).success ? null : 'problemGeneric';
 }
 
+/** Номер (з нуля) першого запитання, яке не готове, або null. */
+export function firstProblemIndex(quiz: Quiz): number | null {
+  const index = cleaned(quiz).questions.findIndex((question) => problemKey(question) !== null);
+  return index === -1 ? null : index;
+}
+
 /** Що заважає зберегти вікторину; порожній список означає, що все гаразд. */
 export function problemsOf(quiz: Quiz): string[] {
   const draft = cleaned(quiz);

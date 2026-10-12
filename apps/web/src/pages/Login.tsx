@@ -7,7 +7,10 @@ const MIN_PASSWORD = 8;
 
 /** Адреса повернення має бути шляхом усередині застосунку, а не чужим сайтом. */
 function safeNext(next: string | null): string {
-  return next !== null && next.startsWith('/') && !next.startsWith('//') ? next : '/quizzes';
+  // Один слеш на початку й жодних зворотних слешів чи керівних символів: браузери
+  // трактують "/\\host" і "/<tab>/host" як адресу іншого сайта.
+  const local = next !== null && /^\/(?![/\\])/.test(next) && !/[\\\u0000-\u001f]/.test(next);
+  return local ? next : '/quizzes';
 }
 
 export function Login() {

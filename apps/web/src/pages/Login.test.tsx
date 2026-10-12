@@ -45,11 +45,14 @@ describe('Login', () => {
 
   it('ignores a next address that leads to another site', async () => {
     vi.mocked(signIn).mockResolvedValue({ ok: true });
-    open('/login?next=https%3A%2F%2Fevil.example');
-    fill('Email', 'o@example.com');
-    fill('Пароль', 'password1');
-    fireEvent.click(screen.getByRole('button', { name: 'Увійти' }));
-    expect(await screen.findByText('мої вікторини')).toBeTruthy();
+    for (const next of ['https://evil.example', '//evil.example', '/\\evil.example', '/\t/evil.example', 'quizzes']) {
+      open(`/login?next=${encodeURIComponent(next)}`);
+      fill('Email', 'o@example.com');
+      fill('Пароль', 'password1');
+      fireEvent.click(screen.getByRole('button', { name: 'Увійти' }));
+      expect(await screen.findByText('мої вікторини'), next).toBeTruthy();
+      cleanup();
+    }
   });
 
   it('explains a wrong password in plain words', async () => {

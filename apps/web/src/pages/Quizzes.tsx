@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { createGame, createQuiz, deleteQuiz, listQuizzes, signOut, type QuizSummary } from '../api';
+import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, signOut, type QuizSummary } from '../api';
 import { demoQuiz } from '../demo-quiz';
 import { errorText, t } from '../i18n';
-import { saveHost } from '../storage';
+import { clearLastGame, loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
 import { useAccount } from '../useAccount';
 
 const LOGIN = '/login?next=%2Fquizzes';
@@ -15,7 +15,25 @@ export function Quizzes() {
   const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState<string | null>(null);
   const signedIn = account.status === 'signed-in';
+
+  // Ведучий міг закрити вкладку посеред гри: показати шлях назад до пульта, якщо гра ще триває.
+  useEffect(() => {
+    if (!signedIn) return;
+    const code = loadLastGame();
+    if (code === null || loadHost(code) === null) return;
+    let current = true;
+    void checkCode(code).then((result) => {
+      if (!current) return;
+      if (result.ok && result.phase !== 'finished') setRunning(code);
+      else if (!result.ok && result.error === 'offline') return;
+      else clearLastGame();
+    });
+    return () => {
+      current = false;
+    };
+  }, [signedIn]);
 
   /** Показує помилку; закінчену сесію перетворює на перехід до входу. */
   const fail = useCallback((code: string) => {
@@ -55,6 +73,7 @@ export function Quizzes() {
       const result = await createGame(quiz.id);
       if (!result.ok) return fail(result.error);
       saveHost(result.code, { hostToken: result.hostToken, stageToken: result.stageToken });
+      saveLastGame(result.code);
       navigate(`/host/${result.code}`);
     });
 
@@ -88,6 +107,12 @@ export function Quizzes() {
         </button>
       </header>
       <h1 className="brand">{t('quizzesTitle')}</h1>
+
+      {running !== null && (
+        <Link className="banner" to={`/host/${running}`}>
+          {t('backToGame', { code: `${running.slice(0, 3)} ${running.slice(3)}` })}
+        </Link>
+      )}
 
       <div className="toolbar">
         <Link className="btn btn-primary" to="/quizzes/new">

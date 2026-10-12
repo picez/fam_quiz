@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { createQuiz, getQuiz, updateQuiz } from '../api';
 import { newQuiz } from '../editor/draft';
+import { clearDraft, loadDraft, saveDraft } from '../editor/draft-storage';
 import { QuizEditor } from '../editor/QuizEditor';
 import { errorText, t } from '../i18n';
 import { useAccount } from '../useAccount';
@@ -12,6 +13,8 @@ export function EditQuiz() {
   const navigate = useNavigate();
   const account = useAccount();
   const fresh = useMemo(() => newQuiz(), []);
+  // Чернетка з минулого разу: сторінку перезавантажили, пішли назад або закінчилась сесія.
+  const draft = useMemo(() => loadDraft(id), [id]);
   const [loaded, setLoaded] = useState<Quiz | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
@@ -49,7 +52,7 @@ export function EditQuiz() {
     );
   }
 
-  const initial = id === undefined ? fresh : loaded;
+  const initial = draft ?? (id === undefined ? fresh : loaded);
   if (account.status === 'loading' || initial === null) {
     return (
       <main className="app narrow">
@@ -61,9 +64,11 @@ export function EditQuiz() {
   const save = async (quiz: Quiz): Promise<string | null> => {
     const result = id === undefined ? await createQuiz(quiz) : await updateQuiz(id, quiz);
     if (!result.ok) {
+      // Чернетка лишається у сховищі й повернеться після повторного входу.
       if (result.error === 'unauthorized') setExpired(true);
       return errorText(result.error);
     }
+    clearDraft(id);
     navigate('/quizzes');
     return null;
   };
@@ -72,8 +77,13 @@ export function EditQuiz() {
     <QuizEditor
       initial={initial}
       heading={t(id === undefined ? 'editorNew' : 'editorEdit')}
+      notice={draft === null ? null : t('draftRestored')}
+      onDraft={(quiz) => saveDraft(id, quiz)}
       onSave={save}
-      onCancel={() => navigate('/quizzes')}
+      onCancel={() => {
+        clearDraft(id);
+        navigate('/quizzes');
+      }}
     />
   );
 }
