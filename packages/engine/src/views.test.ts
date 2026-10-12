@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { next, start, submitAnswer } from './game';
-import { makeQuiz, order, single, text } from './testing/fixtures';
+import { makeQuiz, multi, order, single, text } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -119,10 +119,16 @@ describe('after the question is locked', () => {
   });
 
   it('ignores unknown option ids in statistics', () => {
-    const forged = must(submitAnswer(oneAnswered(), 'p2', { type: 'single', optionId: '__proto__' }, T0 + 10_000));
+    const forged = must(submitAnswer(oneAnswered(), 'p2', { type: 'single', optionId: 'zzz' }, T0 + 10_000));
     const stats = stageView(must(next(forged, T0 + 20_000))).stats;
-    expect(Object.keys(stats?.counts ?? {})).toEqual(['b']);
+    expect(stats?.counts).toEqual({ b: 1 });
     expect(stats?.answered).toBe(2);
+  });
+
+  it('ignores unknown option ids of a multi-choice answer in statistics', () => {
+    const open = must(start(lobbyWith(makeQuiz([multi]), 'Олена'), T0));
+    const forged = must(submitAnswer(open, 'p1', { type: 'multi', optionIds: ['a', 'zzz'] }, T0 + 1000));
+    expect(stageView(must(next(forged, T0 + 2000))).stats?.counts).toEqual({ a: 1 });
   });
 });
 

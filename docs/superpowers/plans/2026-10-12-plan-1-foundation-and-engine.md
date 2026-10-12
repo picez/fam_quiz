@@ -625,8 +625,8 @@ describe('checkAnswer', () => {
     expect(checkAnswer(multi, { type: 'multi', optionIds: ['a', 'c', 'zzz'] })).toEqual(REJECTED);
   });
 
-  it('multi: ignores repeated ids in the answer', () => {
-    expect(checkAnswer(multi, { type: 'multi', optionIds: ['a', 'a', 'c'] })).toEqual(FULL);
+  it('multi: rejects repeated ids in the answer', () => {
+    expect(checkAnswer(multi, { type: 'multi', optionIds: ['a', 'a', 'c'] })).toEqual(REJECTED);
   });
 
   it('boolean: compares the value', () => {

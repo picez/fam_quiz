@@ -19,7 +19,10 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
 
   if (question.type === 'multi' && answer.type === 'multi') {
     const chosen = new Set(answer.optionIds);
-    return full(chosen.size === question.correctIds.length && question.correctIds.every((id) => chosen.has(id)));
+    const noRepeats = chosen.size === answer.optionIds.length;
+    return full(
+      noRepeats && chosen.size === question.correctIds.length && question.correctIds.every((id) => chosen.has(id)),
+    );
   }
 
   if (question.type === 'boolean' && answer.type === 'boolean') {
