@@ -7,7 +7,7 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p packages/shared && tsc -p packages/engine"
+    "typecheck": "tsc -p packages/shared && tsc -p packages/engine && tsc -p apps/server"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
