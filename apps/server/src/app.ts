@@ -38,7 +38,7 @@ export async function buildApp(options: AppOptions) {
 
   app.get('/health', async () => ({ ok: true }));
 
-  await registerAccountRoutes(app, {
+  const { currentUser } = await registerAccountRoutes(app, {
     db: options.db,
     auth: createAuth(options.db, options.auth),
     manager,
@@ -56,7 +56,9 @@ export async function buildApp(options: AppOptions) {
   app.post<{ Params: { code: string } }>('/api/games/by-code/:code/join', CODE_LIMIT, async (request, reply) => {
     const body = joinSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
-    const joined = manager.join(request.params.code, body.data.nickname);
+    // Гравець з акаунтом потрапляє у власну історію ігор; без акаунта чи з простроченою сесією грає як гість.
+    const account = await currentUser(request);
+    const joined = manager.join(request.params.code, body.data.nickname, account?.id ?? null);
     if (!joined.ok) {
       return reply.code(joined.error === 'game_not_found' ? 404 : 409).send({ error: joined.error });
     }

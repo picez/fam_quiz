@@ -62,3 +62,5 @@
 - `GET|POST /api/quizzes`, `GET|PUT|DELETE /api/quizzes/:id`.
 - `POST /api/games` з `{ "quizId": "…" }` створює гру зі збереженої вікторини.
 - `GET /api/games/by-code/:code/host-access` повертає ведучому токени його гри.
+- `GET /api/games` і `GET /api/games/:id`: історія ігор ведучого.
+- `GET /api/me/history`: ігри, у яких гравець брав участь, увійшовши в акаунт.
