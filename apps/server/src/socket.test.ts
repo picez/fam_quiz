@@ -1,9 +1,12 @@
 import type { AddressInfo } from 'node:net';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { makeQuiz, single, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
+import type { Db } from './db/client';
+import { TEST_AUTH } from './testing/accounts';
+import { createTestDb } from './testing/test-db';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -14,12 +17,17 @@ interface Tracked {
 }
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
+let db: Db;
+
+beforeAll(async () => {
+  db = await createTestDb();
+});
 let url: string;
 let sockets: Client[];
 
 beforeEach(async () => {
   sockets = [];
-  ctx = await buildApp();
+  ctx = await buildApp({ db, auth: TEST_AUTH });
   await ctx.app.listen({ port: 0, host: '127.0.0.1' });
   url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
 });

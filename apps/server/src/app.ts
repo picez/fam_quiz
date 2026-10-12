@@ -2,11 +2,16 @@ import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { joinSchema, quizSchema } from '@quiz/shared';
 import Fastify from 'fastify';
+import { registerAccountRoutes } from './account-routes';
+import { createAuth, type AuthOptions } from './auth';
+import type { Db } from './db/client';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { attachSockets } from './socket';
 
 export interface AppOptions {
+  db: Db;
+  auth: AuthOptions;
   scheduler?: Scheduler;
   rng?: () => number;
   /** Брати адресу клієнта із заголовка X-Forwarded-For (потрібно за проксі, наприклад на Render). */
@@ -24,13 +29,15 @@ const BODY_LIMIT = 512 * 1024;
 const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
 const CREATE_LIMIT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
 
-export async function buildApp(options: AppOptions = {}) {
+export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng);
   const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
   const app = Fastify({ trustProxy: options.trustProxy ?? false, bodyLimit: BODY_LIMIT });
   await app.register(rateLimit, { global: false });
 
   app.get('/health', async () => ({ ok: true }));
+
+  await registerAccountRoutes(app, { db: options.db, auth: createAuth(options.db, options.auth), manager, maxRooms });
 
   app.post('/api/games', CREATE_LIMIT, async (request, reply) => {
     const quiz = quizSchema.safeParse(request.body);
