@@ -89,7 +89,9 @@ describe('problemsOf', () => {
     if (emptyItem.type === 'order') emptyItem.items = emptyItem.items.map((item, i) => (i === 2 ? { ...item, text: '' } : item));
 
     expect(
-      problemsOf(quizWith(noText, emptyOption, noCorrect as Question, noAccepted, badNumber, badTolerance, badLimits, emptyItem)),
+      problemsOf(
+        quizWith(...([noText, emptyOption, noCorrect, noAccepted, badNumber, badTolerance, badLimits, emptyItem] as Question[])),
+      ),
     ).toEqual([
       'Запитання 1: впишіть текст запитання.',
       'Запитання 2: заповніть усі варіанти або приберіть порожні.',
