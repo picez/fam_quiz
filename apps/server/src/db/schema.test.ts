@@ -37,3 +37,54 @@ describe('database schema', () => {
     await expect(db.insert(user).values({ id: 'u2', name: 'Тарас', email: 'same@example.com' })).rejects.toThrow();
   });
 });
+
+describe('game results schema', () => {
+  it('removes participants and answers together with the game', async () => {
+    const { answer, game, participant } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const gameId = '11111111-1111-4111-8111-111111111111';
+    const playerId = '22222222-2222-4222-8222-222222222222';
+    await db.insert(game).values({
+      id: gameId,
+      quizId: null,
+      hostId: 'u1',
+      code: '123456',
+      status: 'running',
+      title: 'Гра',
+      quizSnapshot: makeQuiz([single]),
+      startedAt: new Date(),
+    });
+    await db.insert(participant).values({ id: playerId, gameId, nickname: 'Тарас', score: 0, totalTimeMs: 0 });
+    await db.insert(answer).values({
+      participantId: playerId,
+      questionIndex: 0,
+      payload: { type: 'single', optionId: 'b' },
+      timeMs: 1000,
+      accepted: true,
+      points: 1000,
+      overridden: false,
+    });
+
+    await db.delete(game).where(eq(game.id, gameId));
+    expect(await db.select().from(participant)).toEqual([]);
+    expect(await db.select().from(answer)).toEqual([]);
+  });
+
+  it('keeps a played game when the player account is deleted', async () => {
+    const { game, participant } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'host', name: 'Ведуча', email: 'host@example.com' },
+      { id: 'player', name: 'Тарас', email: 'taras@example.com' },
+    ]);
+    const gameId = '11111111-1111-4111-8111-111111111111';
+    await db.insert(game).values({ id: gameId, quizId: null, hostId: 'host', code: '123456', status: 'finished', title: 'Гра', quizSnapshot: makeQuiz([single]), startedAt: new Date() });
+    await db.insert(participant).values({ id: '22222222-2222-4222-8222-222222222222', gameId, nickname: 'Тарас', userId: 'player', score: 10, totalTimeMs: 0 });
+
+    await db.delete(user).where(eq(user.id, 'player'));
+    const [row] = await db.select().from(participant);
+    expect(row.userId).toBeNull();
+    expect(row.nickname).toBe('Тарас');
+  });
+});

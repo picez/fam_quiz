@@ -5,6 +5,7 @@ import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Auth } from './auth';
 import type { Db } from './db/client';
+import { hostGame, hostGames, playerHistory } from './history';
 import type { RoomManager } from './rooms/manager';
 
 export interface AccountDeps {
@@ -23,7 +24,10 @@ export interface CurrentUser {
   email: string;
 }
 
-export async function registerAccountRoutes(app: FastifyInstance, deps: AccountDeps): Promise<void> {
+export async function registerAccountRoutes(
+  app: FastifyInstance,
+  deps: AccountDeps,
+): Promise<{ currentUser: (request: FastifyRequest) => Promise<CurrentUser | null> }> {
   const { auth } = deps;
 
   /** Користувач за cookie сесії або null. Зіпсована cookie не є помилкою сервера. */
@@ -142,7 +146,7 @@ export async function registerAccountRoutes(app: FastifyInstance, deps: AccountD
     }
 
     if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
-    const room = manager.create(quiz, hostUserId);
+    const room = manager.create(quiz, hostUserId, saved.success ? saved.data.quizId : null);
     return reply.code(201).send({
       gameId: room.id,
       code: room.code,
@@ -160,4 +164,25 @@ export async function registerAccountRoutes(app: FastifyInstance, deps: AccountD
     }
     return { hostToken: room.hostToken, stageToken: room.stageToken };
   });
+
+  app.get('/api/games', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    return hostGames(db, user.id);
+  });
+
+  app.get<WithId>('/api/games/:id', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const found = await hostGame(db, user.id, request.params.id);
+    return found === null ? reply.code(404).send(NOT_FOUND) : found;
+  });
+
+  app.get('/api/me/history', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    return playerHistory(db, user.id);
+  });
+
+  return { currentUser };
 }

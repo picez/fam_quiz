@@ -5,6 +5,7 @@ import Fastify from 'fastify';
 import { registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
 import type { Db } from './db/client';
+import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { attachSockets } from './socket';
@@ -30,13 +31,14 @@ const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } }
 
 export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng);
+  const recorder = attachRecorder(manager, options.db);
   const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
   const app = Fastify({ trustProxy: options.trustProxy ?? false, bodyLimit: BODY_LIMIT });
   await app.register(rateLimit, { global: false });
 
   app.get('/health', async () => ({ ok: true }));
 
-  await registerAccountRoutes(app, {
+  const { currentUser } = await registerAccountRoutes(app, {
     db: options.db,
     auth: createAuth(options.db, options.auth),
     manager,
@@ -54,7 +56,9 @@ export async function buildApp(options: AppOptions) {
   app.post<{ Params: { code: string } }>('/api/games/by-code/:code/join', CODE_LIMIT, async (request, reply) => {
     const body = joinSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
-    const joined = manager.join(request.params.code, body.data.nickname);
+    // Гравець з акаунтом потрапляє у власну історію ігор; без акаунта чи з простроченою сесією грає як гість.
+    const account = await currentUser(request);
+    const joined = manager.join(request.params.code, body.data.nickname, account?.id ?? null);
     if (!joined.ok) {
       return reply.code(joined.error === 'game_not_found' ? 404 : 409).send({ error: joined.error });
     }
@@ -80,5 +84,5 @@ export async function buildApp(options: AppOptions) {
     io.disconnectSockets(true);
   });
 
-  return { app, manager, io };
+  return { app, manager, io, recorder };
 }

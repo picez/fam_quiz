@@ -1,0 +1,204 @@
+import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
+import { and, eq, notInArray } from 'drizzle-orm';
+import type { Db } from './db/client';
+import { answer, game, participant } from './db/schema';
+import type { Room, RoomManager } from './rooms/manager';
+
+export interface Recorder {
+  /** Завершується, коли всі поставлені в чергу записи виконано. */
+  idle(): Promise<void>;
+}
+
+interface Snapshot {
+  id: string;
+  code: string;
+  hostId: string;
+  quizId: string | null;
+  state: GameState;
+  playerUsers: Map<string, string>;
+  startedAt: Date;
+  /** З якого запитання записувати відповіді: попередні вже збережено. */
+  fromQuestion: number;
+}
+
+/** Скільки запитань уже закрито. */
+function closedQuestions(state: GameState): number {
+  if (state.phase === 'lobby') return 0;
+  return state.phase === 'question' ? state.questionIndex : state.questionIndex + 1;
+}
+
+/** Змінюється лише тоді, коли в грі з'явилося щось варте запису. */
+function signature(state: GameState): string {
+  // Оцінки останнього закритого запитання входять у підпис: ручне рішення ведучого
+  // треба записати, навіть якщо воно не змінило бали.
+  const last = closedQuestions(state) - 1;
+  const grades = state.players.map((player) => {
+    const record = last < 0 ? undefined : recordOf(state, last, player.id);
+    return record === undefined ? null : [record.accepted, record.points, record.overridden];
+  });
+  return JSON.stringify([state.phase, state.questionIndex, state.players.map((p) => [p.id, p.score]), grades]);
+}
+
+async function save(db: Db, snapshot: Snapshot): Promise<void> {
+  const { state } = snapshot;
+  const finished = state.phase === 'finished';
+  const closed = closedQuestions(state);
+  const ranks = new Map(finished ? rankPlayers(state.players).map((row) => [row.participantId, row.rank]) : []);
+  const progress = {
+    status: finished ? ('finished' as const) : ('running' as const),
+    questionsPlayed: closed,
+    finishedAt: finished ? new Date() : null,
+  };
+
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(game)
+      .values({
+        id: snapshot.id,
+        quizId: snapshot.quizId,
+        hostId: snapshot.hostId,
+        code: snapshot.code,
+        title: state.quiz.title,
+        quizSnapshot: state.quiz,
+        startedAt: snapshot.startedAt,
+        ...progress,
+      })
+      .onConflictDoUpdate({ target: game.id, set: progress });
+
+    // Вилучених гравців прибираємо разом з їхніми відповідями (каскадом).
+    const ids = state.players.map((player) => player.id);
+    const inGame = eq(participant.gameId, snapshot.id);
+    await tx.delete(participant).where(ids.length === 0 ? inGame : and(inGame, notInArray(participant.id, ids)));
+
+    for (const player of state.players) {
+      const result = { score: player.score, totalTimeMs: player.totalTimeMs, rank: ranks.get(player.id) ?? null };
+      await tx
+        .insert(participant)
+        .values({
+          id: player.id,
+          gameId: snapshot.id,
+          nickname: player.nickname,
+          userId: snapshot.playerUsers.get(player.id) ?? null,
+          ...result,
+        })
+        .onConflictDoUpdate({ target: participant.id, set: result });
+
+      for (let index = snapshot.fromQuestion; index < closed; index++) {
+        const record = recordOf(state, index, player.id);
+        if (record === undefined) continue;
+        const grade = { accepted: record.accepted, points: record.points, overridden: record.overridden };
+        await tx
+          .insert(answer)
+          .values({ participantId: player.id, questionIndex: index, payload: record.answer, timeMs: record.timeMs, ...grade })
+          .onConflictDoUpdate({ target: [answer.participantId, answer.questionIndex], set: grade });
+      }
+    }
+  });
+}
+
+const MAX_RETRY_DELAY_MS = 60_000;
+
+/**
+ * Записує хід ігор у базу. Збій бази журналюється й не зачіпає саму гру; невдалий запис
+ * повторюється сам (з дедалі довшими паузами), бо після фінішу в кімнаті може більше нічого
+ * не статися, а результат має потрапити в історію.
+ */
+export function attachRecorder(
+  manager: RoomManager,
+  db: Db,
+  onError: (error: unknown) => void = (error) => console.error('Не вдалося зберегти гру:', error),
+  retryMs = 5000,
+  maxRetries = 30,
+): Recorder {
+  const queues = new Map<string, Promise<void>>();
+  const lastSignature = new Map<string, string>();
+  const startedAt = new Map<string, Date>();
+  /** Скільки запитань кімнати вже надійно записано. */
+  const savedQuestions = new Map<string, number>();
+  /** Скільки записів кімнати поспіль не вдалося. */
+  const failures = new Map<string, number>();
+  const closedRooms = new Set<string>();
+
+  const forget = (roomId: string) => {
+    for (const map of [queues, lastSignature, startedAt, savedQuestions, failures]) map.delete(roomId);
+    closedRooms.delete(roomId);
+  };
+
+  const record = (room: Room) => {
+    const { state } = room;
+    const hostId = room.hostUserId;
+    if (hostId === null || state.phase === 'lobby') return;
+    const current = signature(state);
+    if (lastSignature.get(room.id) === current) return;
+    lastSignature.set(room.id, current);
+    if (!startedAt.has(room.id)) startedAt.set(room.id, new Date());
+
+    const closed = closedQuestions(state);
+    const snapshot = {
+      id: room.id,
+      code: room.code,
+      hostId,
+      quizId: room.quizId,
+      state,
+      playerUsers: new Map(room.playerUsers),
+      startedAt: startedAt.get(room.id) ?? new Date(),
+    };
+
+    const job = async () => {
+      // Останнє закрите запитання записується повторно: його оцінки могли змінити вручну.
+      const fromQuestion = Math.max(0, Math.min(savedQuestions.get(room.id) ?? 0, closed - 1));
+      await save(db, { ...snapshot, fromQuestion });
+      savedQuestions.set(room.id, closed);
+      failures.delete(room.id);
+    };
+
+    const queued: Promise<void> = (queues.get(room.id) ?? Promise.resolve())
+      .then(job)
+      .catch((error) => {
+        // Підпис скидається, щоб той самий стан можна було записати ще раз.
+        lastSignature.delete(room.id);
+        onError(error);
+        const attempt = (failures.get(room.id) ?? 0) + 1;
+        failures.set(room.id, attempt);
+        if (attempt > maxRetries) {
+          failures.delete(room.id);
+          return;
+        }
+        const timer = setTimeout(() => record(room), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        timer.unref();
+      })
+      .then(() => {
+        // Кімнату закрито й дописувати більше нічого: звільнити пам'ять.
+        if (closedRooms.has(room.id) && queues.get(room.id) === queued && !failures.has(room.id)) forget(room.id);
+      });
+    queues.set(room.id, queued);
+  };
+
+  manager.onEvent((room, event) => {
+    if (event.type === 'changed') {
+      record(room);
+      return;
+    }
+    if (event.type === 'closed') {
+      closedRooms.add(room.id);
+      // Якщо останній запис не вдався, його повтор ще попереду; пам'ять звільнить він.
+      if (failures.has(room.id)) return;
+      const pending = queues.get(room.id);
+      if (pending === undefined) forget(room.id);
+      else void pending.then(() => {
+        if (queues.get(room.id) === pending && !failures.has(room.id)) forget(room.id);
+      });
+    }
+  });
+
+  return {
+    idle: async () => {
+      await Promise.all(queues.values());
+    },
+  };
+}
+
+/** Ігри, що лишилися «в процесі» після попереднього запуску сервера, уже ніхто не дограє. */
+export async function markInterrupted(db: Db): Promise<void> {
+  await db.update(game).set({ status: 'aborted', finishedAt: new Date() }).where(eq(game.status, 'running'));
+}

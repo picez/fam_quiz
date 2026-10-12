@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Answer } from './answer';
 import type { ErrorCode } from './game';
+import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
 
 export type Role = 'host' | 'stage' | 'player';
@@ -22,7 +23,7 @@ export type SocketAuth = z.infer<typeof socketAuthSchema>;
 const playerId = z.string().min(1).max(64);
 export const overrideSchema = z.object({ playerId, accepted: z.boolean() });
 export const kickSchema = z.object({ playerId });
-export const joinSchema = z.object({ nickname: z.string().max(100) });
+export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
 export interface ClientToServerEvents {
   'player:answer': (answer: Answer, ack: Ack) => void;

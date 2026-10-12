@@ -30,7 +30,12 @@ describe('sign-in throttling', () => {
     expect(attempts).toEqual([401, 401, 401, 429]);
 
     expect((await signIn('10.0.0.1', email, password)).statusCode).toBe(429);
-    expect((await signIn('10.0.0.2', email, password)).statusCode).toBe(200);
+    // Тіло відповіді входить у порівняння: якщо тест колись упаде, буде видно, що саме відповів сервер.
+    const other = await signIn('10.0.0.2', email, password);
+    expect({ status: other.statusCode, body: other.statusCode === 200 ? 'signed in' : other.body }).toEqual({
+      status: 200,
+      body: 'signed in',
+    });
   });
 
   it('limits registrations per client address', async () => {

@@ -314,3 +314,23 @@ describe('host presence', () => {
     expect(events).toContainEqual({ type: 'changed' });
   });
 });
+
+describe('accounts behind a room', () => {
+  it('remembers the quiz and the host account a room was created from', () => {
+    const { manager } = setup();
+    const room = manager.create(makeQuiz([single]), 'host-user', 'quiz-1');
+    expect([room.hostUserId, room.quizId]).toEqual(['host-user', 'quiz-1']);
+    expect(manager.create(makeQuiz([single])).quizId).toBeNull();
+  });
+
+  it('links a player to an account when they join signed in, and forgets it when they are kicked', () => {
+    const { manager, room } = setup();
+    const signedIn = manager.join(room.code, 'Олена', 'user-1');
+    const anonymous = manager.join(room.code, 'Тарас');
+    if (!signedIn.ok || !anonymous.ok) throw new Error('join failed');
+    expect([...room.playerUsers]).toEqual([[signedIn.playerId, 'user-1']]);
+
+    manager.host(room, { type: 'kick', playerId: signedIn.playerId });
+    expect(room.playerUsers.size).toBe(0);
+  });
+});
