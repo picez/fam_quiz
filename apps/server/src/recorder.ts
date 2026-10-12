@@ -29,7 +29,14 @@ function closedQuestions(state: GameState): number {
 
 /** Змінюється лише тоді, коли в грі з'явилося щось варте запису. */
 function signature(state: GameState): string {
-  return JSON.stringify([state.phase, state.questionIndex, state.players.map((p) => [p.id, p.score])]);
+  // Оцінки останнього закритого запитання входять у підпис: ручне рішення ведучого
+  // треба записати, навіть якщо воно не змінило бали.
+  const last = closedQuestions(state) - 1;
+  const grades = state.players.map((player) => {
+    const record = last < 0 ? undefined : recordOf(state, last, player.id);
+    return record === undefined ? null : [record.accepted, record.points, record.overridden];
+  });
+  return JSON.stringify([state.phase, state.questionIndex, state.players.map((p) => [p.id, p.score]), grades]);
 }
 
 async function save(db: Db, snapshot: Snapshot): Promise<void> {
@@ -89,49 +96,81 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
   });
 }
 
-/** Записує хід ігор у базу. Збій бази журналюється й не зачіпає саму гру. */
+const MAX_RETRY_DELAY_MS = 60_000;
+
+/**
+ * Записує хід ігор у базу. Збій бази журналюється й не зачіпає саму гру; невдалий запис
+ * повторюється сам (з дедалі довшими паузами), бо після фінішу в кімнаті може більше нічого
+ * не статися, а результат має потрапити в історію.
+ */
 export function attachRecorder(
   manager: RoomManager,
   db: Db,
   onError: (error: unknown) => void = (error) => console.error('Не вдалося зберегти гру:', error),
+  retryMs = 5000,
+  maxRetries = 30,
 ): Recorder {
   const queues = new Map<string, Promise<void>>();
   const lastSignature = new Map<string, string>();
   const startedAt = new Map<string, Date>();
   /** Скільки запитань кімнати вже надійно записано. */
   const savedQuestions = new Map<string, number>();
+  /** Скільки записів кімнати поспіль не вдалося. */
+  const failures = new Map<string, number>();
+  const closedRooms = new Set<string>();
+
+  const forget = (roomId: string) => {
+    for (const map of [queues, lastSignature, startedAt, savedQuestions, failures]) map.delete(roomId);
+    closedRooms.delete(roomId);
+  };
 
   const record = (room: Room) => {
     const { state } = room;
-    if (room.hostUserId === null || state.phase === 'lobby') return;
+    const hostId = room.hostUserId;
+    if (hostId === null || state.phase === 'lobby') return;
     const current = signature(state);
     if (lastSignature.get(room.id) === current) return;
     lastSignature.set(room.id, current);
     if (!startedAt.has(room.id)) startedAt.set(room.id, new Date());
 
     const closed = closedQuestions(state);
-    const snapshot: Snapshot = {
+    const snapshot = {
       id: room.id,
       code: room.code,
-      hostId: room.hostUserId,
+      hostId,
       quizId: room.quizId,
       state,
       playerUsers: new Map(room.playerUsers),
       startedAt: startedAt.get(room.id) ?? new Date(),
-      // Останнє закрите запитання записується повторно: його оцінки могли змінити вручну.
-      fromQuestion: 0,
     };
 
     const job = async () => {
-      snapshot.fromQuestion = Math.max(0, Math.min(savedQuestions.get(room.id) ?? 0, closed - 1));
-      await save(db, snapshot);
+      // Останнє закрите запитання записується повторно: його оцінки могли змінити вручну.
+      const fromQuestion = Math.max(0, Math.min(savedQuestions.get(room.id) ?? 0, closed - 1));
+      await save(db, { ...snapshot, fromQuestion });
       savedQuestions.set(room.id, closed);
+      failures.delete(room.id);
     };
-    const queued = (queues.get(room.id) ?? Promise.resolve()).then(job).catch((error) => {
-      // Наступна зміна стану має спробувати знову, навіть якщо підпис не зміниться.
-      lastSignature.delete(room.id);
-      onError(error);
-    });
+
+    const queued: Promise<void> = (queues.get(room.id) ?? Promise.resolve())
+      .then(job)
+      .catch((error) => {
+        // Підпис скидається, щоб той самий стан можна було записати ще раз.
+        lastSignature.delete(room.id);
+        onError(error);
+        const attempt = (failures.get(room.id) ?? 0) + 1;
+        failures.set(room.id, attempt);
+        if (attempt > maxRetries) {
+          failures.delete(room.id);
+          return;
+        }
+        const timer = setTimeout(() => record(room), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        timer.unref();
+      })
+      .then(() => {
+        // Кімнату закрито й дописувати більше нічого: звільнити пам'ять.
+        if (closedRooms.has(room.id) && queues.get(room.id) === queued && !failures.has(room.id)) forget(room.id);
+      });
     queues.set(room.id, queued);
   };
 
@@ -141,8 +180,14 @@ export function attachRecorder(
       return;
     }
     if (event.type === 'closed') {
-      for (const map of [lastSignature, startedAt, savedQuestions]) map.delete(room.id);
-      void (queues.get(room.id) ?? Promise.resolve()).then(() => queues.delete(room.id));
+      closedRooms.add(room.id);
+      // Якщо останній запис не вдався, його повтор ще попереду; пам'ять звільнить він.
+      if (failures.has(room.id)) return;
+      const pending = queues.get(room.id);
+      if (pending === undefined) forget(room.id);
+      else void pending.then(() => {
+        if (queues.get(room.id) === pending && !failures.has(room.id)) forget(room.id);
+      });
     }
   });
 

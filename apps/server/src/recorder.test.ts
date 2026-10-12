@@ -4,7 +4,7 @@ import { makeQuiz, single, text } from '@quiz/engine/testing';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
-import { RoomManager, type Room } from './rooms/manager';
+import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { createTestDb } from './testing/test-db';
 
@@ -12,7 +12,7 @@ const HOST = 'host-user';
 const correct = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
 
-async function setup(database?: Db) {
+async function setup(database?: Db, retryMs = 5000, maxRetries = 30) {
   const db = database ?? (await createTestDb());
   if (database === undefined) {
     await db.insert(user).values([
@@ -20,9 +20,10 @@ async function setup(database?: Db) {
       { id: 'olena-user', name: 'Олена', email: 'olena@example.com' },
     ]);
   }
-  const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+  const scheduler = new FakeScheduler();
+  const manager = new RoomManager(scheduler, () => 0.5);
   const errors: unknown[] = [];
-  const recorder = attachRecorder(manager, db, (error) => errors.push(error));
+  const recorder = attachRecorder(manager, db, (error) => errors.push(error), retryMs, maxRetries);
   const room = manager.create(makeQuiz([single, text], { speedBonus: false }), HOST, null);
   const enter = (nickname: string, userId: string | null = null) => {
     const joined = manager.join(room.code, nickname, userId);
@@ -41,7 +42,7 @@ async function setup(database?: Db) {
       answers: await db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.points)),
     };
   };
-  return { db, manager, recorder, room, olena, taras, host, saved, errors };
+  return { db, scheduler, manager, recorder, room, olena, taras, host, saved, errors };
 }
 
 /** Перше запитання: Олена відповідає правильно, Тарас ні; запитання закривається само. */
@@ -195,5 +196,105 @@ describe('markInterrupted', () => {
     expect(running.status).toBe('aborted');
     expect(running.finishedAt).toBeInstanceOf(Date);
     expect(done.status).toBe('finished');
+  });
+});
+
+describe('recorder: when saving fails', () => {
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const down = (db: Db) => vi.spyOn(db, 'transaction');
+
+  it('writes every missed question once the database is back after a longer outage', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    await ctx.recorder.idle();
+
+    const outage = down(ctx.db).mockRejectedValue(new Error('database is down'));
+    playFirstQuestion(ctx);
+    ctx.host('next');
+    ctx.host('next');
+    ctx.host('next');
+    ctx.manager.answer(ctx.room, ctx.olena, { type: 'text', value: 'одеса' });
+    ctx.host('lock');
+    await ctx.recorder.idle();
+    expect(ctx.errors.length).toBeGreaterThan(0);
+    outage.mockRestore();
+
+    ctx.host('next');
+    const { games, answers } = await ctx.saved();
+    expect(games[0].questionsPlayed).toBe(2);
+    expect(answers.map((a) => [a.questionIndex, a.points])).toEqual([
+      [0, 0],
+      [0, 1000],
+      [1, 1000],
+    ]);
+  });
+
+  it('tries again by itself when nothing else happens in the room', async () => {
+    const ctx = await setup(undefined, 10);
+    ctx.host('start');
+    await ctx.recorder.idle();
+
+    down(ctx.db).mockRejectedValueOnce(new Error('database is down'));
+    playFirstQuestion(ctx);
+    await ctx.recorder.idle();
+    expect(ctx.errors).toHaveLength(1);
+    expect((await ctx.saved()).answers).toEqual([]);
+
+    await wait(80);
+    const { games, answers } = await ctx.saved();
+    expect(games[0].questionsPlayed).toBe(1);
+    expect(answers).toHaveLength(2);
+  });
+
+  it('still saves the final result when the last save failed and the room has since closed', async () => {
+    const ctx = await setup(undefined, 10);
+    ctx.host('start');
+    playFirstQuestion(ctx);
+    ctx.host('next');
+    await ctx.recorder.idle();
+
+    down(ctx.db).mockRejectedValueOnce(new Error('database is down'));
+    ctx.host('end');
+    await ctx.recorder.idle();
+    ctx.scheduler.advance(FINISHED_TTL_MS);
+    expect(ctx.manager.get(ctx.room.code)).toBeUndefined();
+
+    await wait(80);
+    const { games, participants } = await ctx.saved();
+    expect(games[0].status).toBe('finished');
+    expect(games[0].finishedAt).toBeInstanceOf(Date);
+    expect(participants.map((p) => [p.nickname, p.rank])).toEqual([
+      ['Олена', 1],
+      ['Тарас', 2],
+    ]);
+  });
+
+  it('gives up quietly after repeated failures instead of retrying forever', async () => {
+    const ctx = await setup(undefined, 1, 4);
+    ctx.host('start');
+    await ctx.recorder.idle();
+    const outage = down(ctx.db).mockRejectedValue(new Error('database is down'));
+    playFirstQuestion(ctx);
+    await wait(200);
+    await ctx.recorder.idle();
+    // Перша спроба й чотири повтори; далі рекордер здається.
+    expect(outage.mock.calls.length).toBe(5);
+    expect(ctx.room.state.phase).toBe('locked');
+  });
+});
+
+describe('recorder: manual decisions', () => {
+  it('saves a decision that leaves the score unchanged', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    playFirstQuestion(ctx);
+    ctx.host('next');
+    await ctx.recorder.idle();
+
+    expect(ctx.manager.host(ctx.room, { type: 'override', playerId: ctx.taras, accepted: false })).toEqual({ ok: true });
+    const { answers } = await ctx.saved();
+    expect(answers.filter((a) => a.participantId === ctx.taras)).toMatchObject([
+      { accepted: false, points: 0, overridden: true },
+    ]);
   });
 });

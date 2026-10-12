@@ -105,6 +105,16 @@ describe('POST /api/games/by-code/:code/join', () => {
     expect(response.json()).toEqual({ error: 'nickname_invalid' });
   });
 
+  it('refuses a nickname the database could not store', async () => {
+    const { code } = await createGame();
+    for (const nickname of ['ab\u0000cd', 'ab\ud800cd']) {
+      const response = await post(`/api/games/by-code/${code}/join`, { nickname });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: 'invalid_payload' });
+    }
+    expect(ctx.manager.get(code)?.state.players).toEqual([]);
+  });
+
   it('answers 409 when the game has already started', async () => {
     const { code } = await createGame();
     await post(`/api/games/by-code/${code}/join`, { nickname: 'Олена' });

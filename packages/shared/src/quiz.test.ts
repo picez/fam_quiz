@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, answerSchema, questionSchema, quizSchema } from './index';
+import { DEFAULT_SETTINGS, answerSchema, joinSchema, questionSchema, quizSchema } from './index';
 
 const single = {
   id: 'q1',
@@ -105,5 +105,31 @@ describe('answerSchema', () => {
 
   it('rejects a text answer longer than 200 characters', () => {
     expect(valid(answerSchema, { type: 'text', value: 'я'.repeat(201) })).toBe(false);
+  });
+});
+
+describe('text that the database cannot store', () => {
+  const NUL = 'ab\u0000cd';
+  const LONE_SURROGATE = 'ab\ud800cd';
+  const quizWith = (patch: object) => ({ title: 'Гра', description: '', settings: DEFAULT_SETTINGS, questions: [single], ...patch });
+
+  it('is refused in nicknames, answers and quiz texts', () => {
+    for (const bad of [NUL, LONE_SURROGATE]) {
+      expect(valid(joinSchema, { nickname: bad })).toBe(false);
+      expect(valid(answerSchema, { type: 'text', value: bad })).toBe(false);
+      expect(valid(answerSchema, { type: 'single', optionId: bad })).toBe(false);
+      expect(valid(answerSchema, { type: 'multi', optionIds: ['a', bad] })).toBe(false);
+      expect(valid(answerSchema, { type: 'order', itemIds: [bad] })).toBe(false);
+      expect(valid(questionSchema, { ...single, text: bad })).toBe(false);
+      expect(valid(questionSchema, { ...single, options: [{ id: 'a', text: bad }, { id: 'b', text: 'Київ' }] })).toBe(false);
+      expect(valid(quizSchema, quizWith({ title: bad }))).toBe(false);
+      expect(valid(quizSchema, quizWith({ description: bad }))).toBe(false);
+    }
+  });
+
+  it('still accepts emoji and letters outside the basic plane', () => {
+    expect(valid(joinSchema, { nickname: 'Оля 🙂' })).toBe(true);
+    expect(valid(answerSchema, { type: 'text', value: 'Київ 🏙️ 𝔘' })).toBe(true);
+    expect(valid(quizSchema, quizWith({ title: 'Гра 🎉' }))).toBe(true);
   });
 });

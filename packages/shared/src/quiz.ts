@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { UNSTORABLE, isStorable } from './text';
 
 export const LIMITS = {
   questionText: 300,
@@ -21,13 +22,13 @@ export const LIMITS = {
 } as const;
 
 const choice = z.object({
-  id: z.string().min(1),
-  text: z.string().trim().min(1).max(LIMITS.optionText),
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  text: z.string().trim().min(1).max(LIMITS.optionText).refine(isStorable, UNSTORABLE),
 });
 
 const base = {
-  id: z.string().min(1),
-  text: z.string().trim().min(1).max(LIMITS.questionText),
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  text: z.string().trim().min(1).max(LIMITS.questionText).refine(isStorable, UNSTORABLE),
   imageUrl: z.string().min(1).nullable(),
   timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
   points: z.number().int().min(0).max(LIMITS.maxPoints),
@@ -45,7 +46,10 @@ export const questionSchema = z
     z.object({
       ...base,
       type: z.literal('text'),
-      accepted: z.array(z.string().trim().min(1).max(LIMITS.answerText)).min(1).max(LIMITS.maxAccepted),
+      accepted: z
+        .array(z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE))
+        .min(1)
+        .max(LIMITS.maxAccepted),
     }),
     z.object({
       ...base,
@@ -93,8 +97,8 @@ export const DEFAULT_SETTINGS: QuizSettings = {
 };
 
 export const quizSchema = z.object({
-  title: z.string().trim().min(1).max(120),
-  description: z.string().max(500),
+  title: z.string().trim().min(1).max(120).refine(isStorable, UNSTORABLE),
+  description: z.string().max(500).refine(isStorable, UNSTORABLE),
   settings: quizSettingsSchema,
   questions: z.array(questionSchema).min(1).max(LIMITS.maxQuestions),
 });

@@ -5,3 +5,4 @@ export * from './game';
 export * from './views';
 export * from './events';
 export * from './history';
+export * from './text';
