@@ -216,3 +216,53 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       return fail('wrong_phase');
   }
 }
+
+export function pause(state: GameState, now: number): Result {
+  if (state.paused) return fail('paused');
+  if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
+  if (state.phase === 'question' && state.endsAt !== null) {
+    const remainingMs = Math.max(0, state.endsAt - now);
+    return ok({ ...state, paused: true, remainingMs, startedAt: null, endsAt: null });
+  }
+  return ok({ ...state, paused: true });
+}
+
+export function resume(state: GameState, now: number): Result {
+  if (!state.paused) return fail('wrong_phase');
+  if (state.phase === 'question' && state.remainingMs !== null) {
+    const limitMs = state.quiz.questions[state.questionIndex].timeLimit * 1000;
+    const endsAt = now + state.remainingMs;
+    // startedAt зсувається так, щоб час відповіді не включав паузу.
+    return ok(autoLock({ ...state, paused: false, remainingMs: null, endsAt, startedAt: endsAt - limitMs }));
+  }
+  return ok({ ...state, paused: false });
+}
+
+/** Ведучий вручну зараховує або відхиляє відповідь на поточне запитання. */
+export function override(state: GameState, playerId: string, accepted: boolean): Result {
+  if (state.phase !== 'reveal') return fail('wrong_phase');
+  const record = recordOf(state, state.questionIndex, playerId);
+  if (record === undefined) return fail('not_found');
+
+  const question = state.quiz.questions[state.questionIndex];
+  const accuracy = accepted ? 1 : 0;
+  const speed = speedFactor(record.timeMs, question.timeLimit * 1000, state.quiz.settings.speedBonus);
+  const updated: AnswerRecord = {
+    ...record,
+    accepted,
+    accuracy,
+    points: scorePoints(question.points, accuracy, speed),
+    overridden: true,
+  };
+  const answers = state.answers.map((byPlayer, index) =>
+    index === state.questionIndex ? { ...byPlayer, [playerId]: updated } : byPlayer,
+  );
+  return ok(withTotals({ ...state, answers }));
+}
+
+export function end(state: GameState): Result {
+  if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
+  return ok(
+    withTotals({ ...state, phase: 'finished', paused: false, startedAt: null, endsAt: null, remainingMs: null }),
+  );
+}
