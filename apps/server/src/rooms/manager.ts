@@ -1,0 +1,289 @@
+import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import {
+  addPlayer,
+  createGame,
+  end,
+  hostView,
+  lock,
+  next,
+  override,
+  pause,
+  playerView,
+  removePlayer,
+  resume,
+  setConnected,
+  stageView,
+  start,
+  submitAnswer,
+  tick,
+  type GameState,
+  type Result,
+} from '@quiz/engine';
+import type { AckResult, Answer, ErrorCode, GameView, Phase, Quiz, Role } from '@quiz/shared';
+import type { Scheduler } from './scheduler';
+
+export const HOST_ABSENCE_MS = 10 * 60_000;
+export const LOBBY_TTL_MS = 2 * 60 * 60_000;
+export const FINISHED_TTL_MS = 30 * 60_000;
+
+export interface Identity {
+  role: Role;
+  playerId: string | null;
+}
+
+export interface Room {
+  id: string;
+  code: string;
+  hostToken: string;
+  stageToken: string;
+  state: GameState;
+  /** Токен гравця → id гравця. */
+  playerTokens: Map<string, string>;
+  /** Кількість відкритих з'єднань: ключ 'host', 'stage' або id гравця. */
+  connections: Map<string, number>;
+  deadline: unknown;
+  absence: unknown;
+  expiry: unknown;
+  expiryPhase: Phase | null;
+}
+
+export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string } | { type: 'closed' };
+export type RoomListener = (room: Room, event: RoomEvent) => void;
+
+export type HostAction =
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end' }
+  | { type: 'override'; playerId: string; accepted: boolean }
+  | { type: 'kick'; playerId: string };
+
+export type JoinResult =
+  | { ok: true; token: string; playerId: string }
+  | { ok: false; error: ErrorCode | 'game_not_found' };
+
+const GONE: AckResult = { ok: false, error: 'game_not_found' };
+
+const newToken = () => randomBytes(24).toString('base64url');
+
+function sameToken(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export class RoomManager {
+  private readonly scheduler: Scheduler;
+  private readonly rng: () => number;
+  private readonly rooms = new Map<string, Room>();
+  private readonly listeners = new Set<RoomListener>();
+
+  constructor(scheduler: Scheduler, rng: () => number = Math.random) {
+    this.scheduler = scheduler;
+    this.rng = rng;
+  }
+
+  now(): number {
+    return this.scheduler.now();
+  }
+
+  get size(): number {
+    return this.rooms.size;
+  }
+
+  onEvent(listener: RoomListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  create(quiz: Quiz): Room {
+    const room: Room = {
+      id: randomUUID(),
+      code: this.newCode(),
+      hostToken: newToken(),
+      stageToken: newToken(),
+      state: createGame(quiz),
+      playerTokens: new Map(),
+      connections: new Map(),
+      deadline: null,
+      absence: null,
+      expiry: null,
+      expiryPhase: null,
+    };
+    this.rooms.set(room.code, room);
+    this.reschedule(room);
+    return room;
+  }
+
+  get(code: string): Room | undefined {
+    return this.rooms.get(code);
+  }
+
+  join(code: string, nickname: string): JoinResult {
+    const room = this.rooms.get(code);
+    if (room === undefined) return { ok: false, error: 'game_not_found' };
+    const playerId = randomUUID();
+    const added = addPlayer(room.state, { id: playerId, nickname });
+    if (!added.ok) return added;
+    // Гравець стає підключеним, коли відкриє сокет.
+    const offline = setConnected(added.state, playerId, false);
+    if (!offline.ok) return offline;
+    const token = newToken();
+    room.playerTokens.set(token, playerId);
+    this.commit(room, offline.state);
+    return { ok: true, token, playerId };
+  }
+
+  identify(code: string, role: Role, token: string): { room: Room; identity: Identity } | null {
+    const room = this.rooms.get(code);
+    if (room === undefined) return null;
+    if (role === 'host' || role === 'stage') {
+      const expected = role === 'host' ? room.hostToken : room.stageToken;
+      return sameToken(token, expected) ? { room, identity: { role, playerId: null } } : null;
+    }
+    const playerId = room.playerTokens.get(token);
+    return playerId === undefined ? null : { room, identity: { role, playerId } };
+  }
+
+  connect(room: Room, identity: Identity): void {
+    if (!this.alive(room)) return;
+    const key = identity.playerId ?? identity.role;
+    const count = (room.connections.get(key) ?? 0) + 1;
+    room.connections.set(key, count);
+    if (identity.role === 'host') {
+      this.scheduler.clearTimeout(room.absence);
+      room.absence = null;
+    }
+    if (identity.playerId !== null && count === 1) {
+      this.apply(room, setConnected(room.state, identity.playerId, true));
+    }
+  }
+
+  disconnect(room: Room, identity: Identity): void {
+    if (!this.alive(room)) return;
+    const key = identity.playerId ?? identity.role;
+    const count = (room.connections.get(key) ?? 0) - 1;
+    if (count > 0) {
+      room.connections.set(key, count);
+      return;
+    }
+    room.connections.delete(key);
+    if (identity.playerId !== null) {
+      this.apply(room, setConnected(room.state, identity.playerId, false));
+      return;
+    }
+    if (identity.role === 'host') this.hostLeft(room);
+  }
+
+  view(room: Room, identity: Identity): GameView | null {
+    if (identity.role === 'host') return hostView(room.state);
+    if (identity.role === 'stage') return stageView(room.state);
+    return identity.playerId === null ? null : playerView(room.state, identity.playerId);
+  }
+
+  answer(room: Room, playerId: string, answer: Answer): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, submitAnswer(room.state, playerId, answer, this.now()));
+  }
+
+  host(room: Room, action: HostAction): AckResult {
+    if (!this.alive(room)) return GONE;
+    const state = room.state;
+    switch (action.type) {
+      case 'start':
+        return this.apply(room, start(state, this.now(), this.rng));
+      case 'lock':
+        return this.apply(room, lock(state));
+      case 'next':
+        return this.apply(room, next(state, this.now(), this.rng));
+      case 'pause':
+        return this.apply(room, pause(state, this.now()));
+      case 'resume':
+        return this.apply(room, resume(state, this.now()));
+      case 'end':
+        return this.apply(room, end(state));
+      case 'override':
+        return this.apply(room, override(state, action.playerId, action.accepted));
+      case 'kick':
+        return this.kick(room, action.playerId);
+    }
+  }
+
+  private kick(room: Room, playerId: string): AckResult {
+    // Після фінішу подіум уже показано; вилучення переписало б результати.
+    if (room.state.phase === 'finished') return { ok: false, error: 'wrong_phase' };
+    const removed = removePlayer(room.state, playerId);
+    if (!removed.ok) return { ok: false, error: removed.error };
+    for (const [token, id] of room.playerTokens) {
+      if (id === playerId) room.playerTokens.delete(token);
+    }
+    room.connections.delete(playerId);
+    this.emit(room, { type: 'kicked', playerId });
+    this.commit(room, removed.state);
+    return { ok: true };
+  }
+
+  private hostLeft(room: Room): void {
+    const { phase, paused } = room.state;
+    if (phase === 'lobby' || phase === 'finished') return;
+    if (!paused) this.apply(room, pause(room.state, this.now()));
+    this.scheduler.clearTimeout(room.absence);
+    room.absence = this.scheduler.setTimeout(() => {
+      room.absence = null;
+      if (this.alive(room)) this.apply(room, end(room.state));
+    }, HOST_ABSENCE_MS);
+  }
+
+  private alive(room: Room): boolean {
+    return this.rooms.get(room.code) === room;
+  }
+
+  private apply(room: Room, result: Result): AckResult {
+    if (!result.ok) return { ok: false, error: result.error };
+    this.commit(room, result.state);
+    return { ok: true };
+  }
+
+  private commit(room: Room, state: GameState): void {
+    room.state = state;
+    this.reschedule(room);
+    this.emit(room, { type: 'changed' });
+  }
+
+  /** Приводить таймери кімнати у відповідність до її стану. */
+  private reschedule(room: Room): void {
+    this.scheduler.clearTimeout(room.deadline);
+    room.deadline = null;
+    const { phase, paused, endsAt } = room.state;
+    if (phase === 'question' && !paused && endsAt !== null) {
+      room.deadline = this.scheduler.setTimeout(() => {
+        room.deadline = null;
+        // Справжній таймер може спрацювати на мілісекунду раніше; цей дедлайн однаково настав.
+        const ticked = tick(room.state, Math.max(this.now(), endsAt));
+        if (ticked !== room.state) this.commit(room, ticked);
+      }, endsAt - this.now());
+    }
+
+    if (room.expiryPhase === phase) return;
+    room.expiryPhase = phase;
+    this.scheduler.clearTimeout(room.expiry);
+    room.expiry = null;
+    const ttl = phase === 'lobby' ? LOBBY_TTL_MS : phase === 'finished' ? FINISHED_TTL_MS : null;
+    if (ttl !== null) room.expiry = this.scheduler.setTimeout(() => this.close(room), ttl);
+  }
+
+  private close(room: Room): void {
+    for (const handle of [room.deadline, room.absence, room.expiry]) this.scheduler.clearTimeout(handle);
+    room.deadline = room.absence = room.expiry = null;
+    this.rooms.delete(room.code);
+    this.emit(room, { type: 'closed' });
+  }
+
+  private emit(room: Room, event: RoomEvent): void {
+    for (const listener of this.listeners) listener(room, event);
+  }
+
+  private newCode(): string {
+    for (;;) {
+      const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+      if (!this.rooms.has(code)) return code;
+    }
+  }
+}
