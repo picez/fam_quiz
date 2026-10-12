@@ -1,12 +1,12 @@
 import { DEFAULT_SETTINGS, LIMITS, questionSchema, quizSchema, type Question, type Quiz } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
+import { newId } from './new-id';
 
 export type QuestionType = Question['type'];
 export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order'] as const;
 
 type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'timeLimit' | 'points'>;
 
-const newId = () => crypto.randomUUID();
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
 
 function build(common: Common, type: QuestionType): Question {
