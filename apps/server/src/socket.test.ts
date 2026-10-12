@@ -203,3 +203,26 @@ describe('reconnecting and kicking', () => {
     expect(error.message).toBe('unauthorized');
   });
 });
+
+describe('host presence', () => {
+  it('tells players when the host arrives and leaves', async () => {
+    const game = await createGame();
+    const joined = await join(game.code, 'Олена');
+    const olena = open({ code: game.code, role: 'player', token: joined.token });
+    const presence = (online: boolean) =>
+      new Promise<void>((resolve) =>
+        olena.socket.on('state', (_view, meta) => {
+          if (meta.hostOnline === online) resolve();
+        }),
+      );
+
+    await presence(false);
+    const arrived = presence(true);
+    const host = open({ code: game.code, role: 'host', token: game.hostToken });
+    await arrived;
+
+    const left = presence(false);
+    host.socket.close();
+    await left;
+  });
+});

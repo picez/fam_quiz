@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as joinPath } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { buildApp } from './app';
@@ -152,5 +155,31 @@ describe('limits', () => {
     expect(sameAddress.slice(0, 120).every((status) => status === 200)).toBe(true);
     expect(sameAddress[120]).toBe(429);
     await proxied.app.close();
+  });
+});
+
+describe('serving the web client', () => {
+  it('serves the client for page routes and JSON 404 for unknown API routes', async () => {
+    const webRoot = mkdtempSync(joinPath(tmpdir(), 'quiz-web-'));
+    writeFileSync(joinPath(webRoot, 'index.html'), '<!doctype html><title>quiz</title>');
+    const served = await buildApp({ webRoot });
+
+    const page = await served.app.inject({ method: 'GET', url: '/play/123456' });
+    expect(page.statusCode).toBe(200);
+    expect(page.headers['content-type']).toContain('text/html');
+    expect(page.body).toContain('<title>quiz</title>');
+
+    const api = await served.app.inject({ method: 'GET', url: '/api/nothing' });
+    expect(api.statusCode).toBe(404);
+    expect(api.json()).toEqual({ error: 'not_found' });
+
+    expect((await served.app.inject({ method: 'GET', url: '/health' })).json()).toEqual({ ok: true });
+    await served.app.close();
+  });
+
+  it('answers JSON 404 for unknown routes when no client is configured', async () => {
+    const response = await ctx.app.inject({ method: 'GET', url: '/play/123456' });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: 'not_found' });
   });
 });

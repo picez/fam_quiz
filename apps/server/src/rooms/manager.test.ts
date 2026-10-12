@@ -298,3 +298,19 @@ describe('timer drift', () => {
     expect(room.state.phase).toBe('locked');
   });
 });
+
+describe('host presence', () => {
+  it('reports whether the host has an open connection and announces changes', () => {
+    const { manager, room, events } = setup();
+    expect(manager.hostOnline(room)).toBe(false);
+
+    manager.connect(room, HOST);
+    expect(manager.hostOnline(room)).toBe(true);
+    expect(events.at(-1)).toEqual({ type: 'changed' });
+
+    events.length = 0;
+    manager.disconnect(room, HOST);
+    expect(manager.hostOnline(room)).toBe(false);
+    expect(events).toContainEqual({ type: 'changed' });
+  });
+});

@@ -1,0 +1,13 @@
+/**
+ * Секунди до кінця запитання. offsetMs — різниця «час сервера мінус час пристрою»,
+ * тож неточний годинник телефона не зсуває відлік.
+ */
+export function secondsLeft(
+  view: { endsAt: number | null; remainingMs: number | null },
+  offsetMs: number,
+  nowMs: number,
+): number | null {
+  if (view.remainingMs !== null) return Math.ceil(view.remainingMs / 1000);
+  if (view.endsAt === null) return null;
+  return Math.max(0, Math.ceil((view.endsAt - (nowMs + offsetMs)) / 1000));
+}
