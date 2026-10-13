@@ -578,3 +578,23 @@ describe('QuizEditor: question image', () => {
     expect(saved(onSave).questions.map((q) => q.imageUrl)).toEqual([IMAGE, IMAGE]);
   });
 });
+
+describe('QuizEditor: cancelled drag', () => {
+  it('forgets a drag that ended without a drop', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    for (const [index, text] of ['Перше', 'Друге', 'Третє'].entries()) {
+      if (index > 0) click('Додати запитання');
+      fill('Текст запитання', text);
+      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    }
+    const rows = () => screen.getAllByRole('listitem').filter((row) => row.getAttribute('draggable') === 'true');
+    fireEvent.dragStart(rows()[2]);
+    fireEvent.dragEnd(rows()[2]);
+    // Пізніше на список кидають щось стороннє: порядок не має змінитися.
+    fireEvent.drop(rows()[0]);
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saved(onSave).questions.map((q) => q.text)).toEqual(['Перше', 'Друге', 'Третє']);
+  });
+});

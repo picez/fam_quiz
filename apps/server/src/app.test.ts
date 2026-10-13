@@ -219,3 +219,23 @@ describe('serving the web client', () => {
     expect(response.json()).toEqual({ error: 'not_found' });
   });
 });
+
+describe('client address behind one proxy', () => {
+  it('ignores addresses the client wrote into X-Forwarded-For itself', async () => {
+    const proxied = await buildApp({ db, auth: TEST_AUTH, trustProxy: 1 });
+    const { code } = (await startGame(proxied.app, makeQuiz([single]))).game;
+    const statuses: number[] = [];
+    for (let i = 0; i < 125; i++) {
+      const response = await proxied.app.inject({
+        method: 'GET',
+        url: `/api/games/by-code/${code}`,
+        // Проксі дописує справжню адресу останньою; усе перед нею вигадав клієнт.
+        headers: { 'x-forwarded-for': `10.9.0.${i}, 203.0.113.7` },
+      });
+      statuses.push(response.statusCode);
+    }
+    await proxied.app.close();
+    expect(statuses.slice(0, 120).every((status) => status === 200)).toBe(true);
+    expect(statuses[124]).toBe(429);
+  });
+});

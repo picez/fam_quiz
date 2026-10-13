@@ -24,8 +24,10 @@ services:
       - key: BETTER_AUTH_SECRET
         generateValue: true
       # Сервіс стоїть за проксі Render: без цього всі клієнти ділили б одне обмеження частоти.
+      # Число означає кількість проксі перед сервісом; адресам, які клієнт сам вписав у
+      # X-Forwarded-For, довіри немає.
       - key: TRUST_PROXY
-        value: "true"
+        value: "1"
       # Власний домен. Якщо не задано, береться адреса, яку Render видає сервісу.
       - key: BETTER_AUTH_URL
         sync: false
@@ -50,4 +52,6 @@ databases:
     databaseName: quiz
     user: quiz
     region: frankfurt
+    # УВАГА: безкоштовну базу Render видаляє приблизно через місяць разом з акаунтами,
+    # вікторинами та історією. Для справжнього використання виберіть платний тариф.
     plan: free

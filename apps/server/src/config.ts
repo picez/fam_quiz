@@ -41,3 +41,13 @@ export function baseUrl(env: Record<string, string | undefined>, port: number): 
   const given = [env.BETTER_AUTH_URL, env.RENDER_EXTERNAL_URL].find((value) => value !== undefined && value !== '');
   return (given ?? `http://localhost:${port}`).replace(/\/+$/, '');
 }
+
+/**
+ * Скільки проксі стоїть перед сервером (значення TRUST_PROXY). Число безпечніше за "true":
+ * тоді адресою клієнта вважається та, яку дописав останній проксі, а не та, яку клієнт
+ * сам вписав у X-Forwarded-For, щоб обійти обмеження частоти.
+ */
+export function proxyTrust(value: string | undefined): boolean | number {
+  if (value === 'true') return true;
+  return value !== undefined && /^[1-9]d?$/.test(value) ? Number(value) : false;
+}

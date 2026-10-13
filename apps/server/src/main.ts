@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import { buildApp } from './app';
-import { baseUrl, localOrigins, secretProblem } from './config';
+import { baseUrl, localOrigins, proxyTrust, secretProblem } from './config';
 import { connectDb } from './db/client';
 import { markInterrupted } from './recorder';
 import { diskStorage, type ImageStorage } from './storage/images';
@@ -75,7 +75,7 @@ if (process.env.NODE_ENV === 'production' && address.startsWith('http://localhos
 const { db, close: closeDb } = await connectDb(databaseUrl);
 // Кімнати живуть у пам'яті: гри, що лишилися «в процесі» з минулого запуску, уже ніхто не дограє.
 await markInterrupted(db);
-const { app } = await buildApp({
+const { app, recorder } = await buildApp({
   db,
   auth: {
     secret,
@@ -83,8 +83,9 @@ const { app } = await buildApp({
     trustedOrigins: [...configured, ...local.all],
     google,
   },
-  // За проксі (наприклад, на Render) задайте TRUST_PROXY=true, інакше всі клієнти ділять одне обмеження частоти.
-  trustProxy: process.env.TRUST_PROXY === 'true',
+  // За проксі (наприклад, на Render) задайте TRUST_PROXY=1 (кількість проксі), інакше всі клієнти
+  // ділять одне обмеження частоти.
+  trustProxy: proxyTrust(process.env.TRUST_PROXY),
   storage,
   webRoot: existsSync(built) ? built : undefined,
 });
@@ -103,6 +104,8 @@ async function stop(signal: string) {
   setTimeout(() => process.exit(1), 10_000).unref();
   try {
     await app.close();
+    // Записи результатів, що вже почалися, мають дійти до бази.
+    await recorder.idle();
     await closeDb();
   } catch (error) {
     console.error('Помилка під час зупинки:', error instanceof Error ? error.message : error);

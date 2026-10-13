@@ -140,6 +140,13 @@ describe('Login with Google', () => {
     expect(leaveTo).not.toHaveBeenCalled();
   });
 
+  it('tells a host with a password account to use the password instead of trying Google again', async () => {
+    open('/login?error=account_not_linked');
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'На цю адресу вже є акаунт із паролем. Увійдіть через email і пароль.',
+    );
+  });
+
   it('explains a sign-in that Google or the server turned down', async () => {
     open('/login?error=access_denied');
     expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося увійти через Google. Спробуйте ще раз.');

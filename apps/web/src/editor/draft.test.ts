@@ -196,7 +196,7 @@ describe('spare empty rows', () => {
     expect(problemsOf(single(['Львів', 'Київ', ''], 2))).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
   });
 
-  it('drops empty options of a multi-choice question together with their marks', () => {
+  it('drops unmarked empty options of a multi-choice question', () => {
     const quiz: Quiz = {
       ...newQuiz(),
       title: 'Гра',
@@ -213,7 +213,7 @@ describe('spare empty rows', () => {
             { id: 'b', text: '' },
             { id: 'c', text: 'Запоріжжя' },
           ],
-          correctIds: ['a', 'b', 'c'],
+          correctIds: ['a', 'c'],
         },
       ],
     };
@@ -225,8 +225,42 @@ describe('spare empty rows', () => {
     ]);
   });
 
-  it('drops empty items of an order question while at least three remain', () => {
-    const items = ['Один', 'Два', '', 'Три'].map((text, index) => ({ id: `i${index}`, text }));
+  it('does not silently drop a marked option of a multi-choice question', () => {
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: 'Гра',
+      questions: [
+        {
+          id: 'q1',
+          type: 'multi',
+          text: 'Питання?',
+          imageUrl: null,
+          timeLimit: 20,
+          points: 1000,
+          options: [
+            { id: 'a', text: 'Київ' },
+            { id: 'b', text: 'Львів' },
+            { id: 'c', text: '' },
+          ],
+          correctIds: ['a', 'c'],
+        },
+      ],
+    };
+    expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+  });
+
+  it('does not close a gap in the middle of an order question on its own', () => {
+    const items = ['Один', '', 'Два', 'Три'].map((text, index) => ({ id: `i${index}`, text }));
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: 'Гра',
+      questions: [{ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items }],
+    };
+    expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+  });
+
+  it('drops empty items at the end of an order question while at least three remain', () => {
+    const items = ['Один', 'Два', 'Три', ''].map((text, index) => ({ id: `i${index}`, text }));
     const quiz: Quiz = {
       ...newQuiz(),
       title: 'Гра',

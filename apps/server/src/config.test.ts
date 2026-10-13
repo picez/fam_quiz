@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseUrl, localOrigins, secretProblem } from './config';
+import { baseUrl, proxyTrust, localOrigins, secretProblem } from './config';
 
 describe('secretProblem', () => {
   it('accepts a long random secret', () => {
@@ -54,5 +54,17 @@ describe('baseUrl', () => {
 
   it('drops a trailing slash, which would break the comparison of origins', () => {
     expect(baseUrl({ BETTER_AUTH_URL: 'https://quiz.example/' }, 3000)).toBe('https://quiz.example');
+  });
+});
+
+describe('proxyTrust', () => {
+  it('reads the number of proxies in front of the server', () => {
+    expect(proxyTrust('1')).toBe(1);
+    expect(proxyTrust('2')).toBe(2);
+  });
+
+  it('keeps the old switch and is off by default or for nonsense', () => {
+    expect(proxyTrust('true')).toBe(true);
+    for (const value of [undefined, '', 'false', '0', '-1', 'yes', '1.5']) expect(proxyTrust(value), String(value)).toBe(false);
   });
 });

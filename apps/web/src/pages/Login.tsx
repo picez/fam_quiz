@@ -23,7 +23,9 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   // Після невдалого входу через Google сервер повертає сюди з параметром error.
-  const [error, setError] = useState<string | null>(params.has('error') ? errorText('google') : null);
+  const [error, setError] = useState<string | null>(
+    params.has('error') ? errorText(params.get('error') === 'account_not_linked' ? 'account_not_linked' : 'google') : null,
+  );
   const [google, setGoogle] = useState(false);
   const next = safeNext(params.get('next'));
 

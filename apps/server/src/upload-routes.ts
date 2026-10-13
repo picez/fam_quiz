@@ -12,10 +12,17 @@ export interface UploadDeps {
 const BAD_IMAGE = { error: 'bad_image' };
 const UNAVAILABLE = { error: 'storage_unavailable' };
 const NOT_FOUND = { error: 'not_found' };
-const UPLOAD_LIMIT = { rateLimit: { max: 20, timeWindow: '1 minute' } };
 
 export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDeps) {
   const { storage, currentUser } = deps;
+  // Рахунок ведеться за акаунтом: зміна адреси не дає завантажити більше.
+  const UPLOAD_LIMIT = {
+    rateLimit: {
+      max: 20,
+      timeWindow: '1 minute',
+      keyGenerator: async (request: FastifyRequest) => `upload:${(await currentUser(request))?.id ?? request.ip}`,
+    },
+  };
 
   // Окрема область: розбір тіла як файлу й власні відповіді на помилки не зачіпають решту маршрутів.
   await app.register(async (scope) => {

@@ -166,3 +166,23 @@ describe('a quiz with an image', () => {
     expect((await save('https://evil.example/track.png')).statusCode).toBe(400);
   });
 });
+
+describe('upload limits behind a proxy', () => {
+  it('counts uploads per account, so changing the address does not lift the limit', async () => {
+    const proxied = await buildApp({ db: await createTestDb(), auth: TEST_AUTH, trustProxy: true });
+    const session = (await signUp(proxied.app, 'Олена')).cookie;
+    const statuses: number[] = [];
+    for (let i = 0; i < 22; i++) {
+      const response = await proxied.app.inject({
+        method: 'POST',
+        url: '/api/uploads',
+        payload: Buffer.from(PNG),
+        headers: { 'content-type': 'image/png', cookie: session, 'x-forwarded-for': `10.1.0.${i}` },
+      });
+      statuses.push(response.statusCode);
+    }
+    await proxied.app.close();
+    expect(statuses.slice(0, 20).every((status) => status === 201)).toBe(true);
+    expect(statuses.slice(20)).toEqual([429, 429]);
+  });
+});

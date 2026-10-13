@@ -95,11 +95,17 @@ export function newQuiz(): Quiz {
 export function cleaned(quiz: Quiz): Quiz {
   const trimAll = <T extends { text: string }>(items: T[]) => items.map((item) => ({ ...item, text: item.text.trim() }));
   // Порожні рядки (наприклад, доданий останнім Enter) просто не зберігаються, якщо без них рядків
-  // досить і жоден із них не позначено єдиною правильною відповіддю. Інакше їх лишаємо: про них скаже перевірка.
+  // досить і жоден із них не позначено правильною відповіддю. Інакше їх лишаємо: про них скаже перевірка.
   const withoutSpare = <T extends { id: string; text: string }>(items: T[], min: number, mustKeep: string[] = []) => {
     const kept = items.filter((item) => item.text !== '');
     const dropsNeeded = items.some((item) => item.text === '' && mustKeep.includes(item.id));
     return kept.length >= min && !dropsNeeded ? kept : items;
+  };
+  // У впорядкуванні місце рядка має значення, тому прибираються лише порожні рядки в кінці.
+  const withoutTrailing = <T extends { text: string }>(items: T[], min: number) => {
+    let end = items.length;
+    while (end > min && items[end - 1].text === '') end -= 1;
+    return items.slice(0, end);
   };
   return {
     ...quiz,
@@ -111,12 +117,12 @@ export function cleaned(quiz: Quiz): Quiz {
         case 'single':
           return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions, [question.correctId]) };
         case 'multi': {
-          const options = withoutSpare(trimAll(question.options), LIMITS.minOptions);
+          const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
           const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
           return { ...question, text, options, correctIds };
         }
         case 'order':
-          return { ...question, text, items: withoutSpare(trimAll(question.items), LIMITS.minOrderItems) };
+          return { ...question, text, items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems) };
         case 'text':
           return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
         default:
