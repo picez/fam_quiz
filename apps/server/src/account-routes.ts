@@ -133,25 +133,16 @@ export async function registerAccountRoutes(
   const fromSaved = z.object({ quizId: z.string().min(1).max(64) }).strict();
 
   app.post('/api/games', CREATE_LIMIT, async (request, reply) => {
+    // Гру веде лише ведучий з акаунтом і лише зі своєї збереженої вікторини.
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const saved = fromSaved.safeParse(request.body);
-    let quiz;
-    let hostUserId: string | null = null;
-
-    if (saved.success) {
-      const user = await currentUser(request);
-      if (user === null) return reply.code(401).send(UNAUTHORIZED);
-      quiz = await getQuiz(db, user.id, saved.data.quizId);
-      if (quiz === null) return reply.code(404).send(NOT_FOUND);
-      hostUserId = user.id;
-    } else {
-      // Тимчасово: гра без акаунта з вікториною в тілі запиту. Прибирається разом із переходом клієнта на акаунти.
-      const inline = quizSchema.safeParse(request.body);
-      if (!inline.success) return reply.code(400).send(INVALID);
-      quiz = inline.data;
-    }
+    if (!saved.success) return reply.code(400).send(INVALID);
+    const quiz = await getQuiz(db, user.id, saved.data.quizId);
+    if (quiz === null) return reply.code(404).send(NOT_FOUND);
 
     if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
-    const room = manager.create(quiz, hostUserId, saved.success ? saved.data.quizId : null);
+    const room = manager.create(quiz, user.id, saved.data.quizId);
     return reply.code(201).send({
       gameId: room.id,
       code: room.code,

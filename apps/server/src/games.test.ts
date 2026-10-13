@@ -68,11 +68,6 @@ describe('starting a game from a saved quiz', () => {
     expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
   });
 
-  it('still accepts a quiz in the request body without a session', async () => {
-    const response = await call('POST', '/api/games', undefined, makeQuiz([single]));
-    expect(response.statusCode).toBe(201);
-    expect(ctx.manager.get((response.json() as { code: string }).code)?.hostUserId).toBeNull();
-  });
 
   it('rejects a body that is neither a quiz id nor a quiz', async () => {
     const { cookie } = await hostWithQuiz();
@@ -111,9 +106,4 @@ describe('host access', () => {
     }
   });
 
-  it('gives nothing for a game created without an account', async () => {
-    const { cookie } = await hostWithQuiz();
-    const { code } = (await call('POST', '/api/games', undefined, makeQuiz([single]))).json() as { code: string };
-    expect((await call('GET', `/api/games/by-code/${code}/host-access`, cookie)).statusCode).toBe(404);
-  });
 });
