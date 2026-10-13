@@ -5,6 +5,7 @@ import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
+import { QuestionImage } from './QuestionImage';
 import { Standings } from './Standings';
 
 interface Props {
@@ -67,7 +68,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <Timer view={view} offsetMs={offsetMs} />
           </div>
           <h1 className={questionClass(question.text)}>{question.text}</h1>
-          {question.imageUrl !== null && <img className="question-image" src={question.imageUrl} alt="" />}
+          <QuestionImage url={question.imageUrl} />
           {me.answer !== null ? (
             <section className="sent">
               <h2>{t('answerSent')}</h2>

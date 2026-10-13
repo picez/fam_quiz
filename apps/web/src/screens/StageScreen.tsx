@@ -3,6 +3,7 @@ import type { StageView } from '@quiz/shared';
 import { LETTERS, correctText, questionClass } from '../format';
 import { t } from '../i18n';
 import { Timer } from '../live/Timer';
+import { QuestionImage } from './QuestionImage';
 import { Standings } from './Standings';
 
 interface Props {
@@ -72,7 +73,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
       </div>
-      {question.imageUrl !== null && <img className="question-image" src={question.imageUrl} alt="" />}
+      <QuestionImage url={question.imageUrl} />
       {showChoices && (
         <ul className="choices">
           {question.choices.map((choice, index) => (

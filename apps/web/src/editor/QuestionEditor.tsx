@@ -2,6 +2,7 @@ import { LIMITS, type Question } from '@quiz/shared';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { LETTERS } from '../format';
 import { t, type TextKey } from '../i18n';
+import { ImageField } from './ImageField';
 import { QUESTION_TYPES, changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 
@@ -314,6 +315,9 @@ function Body({ question, onChange }: Props) {
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
 export function QuestionEditor({ question, onChange }: Props) {
+  // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
+  const latest = useRef({ question, onChange });
+  latest.current = { question, onChange };
   return (
     <div className="question-edit">
       <div className="type-chips" role="group" aria-label={t('questionType')}>
@@ -332,6 +336,7 @@ export function QuestionEditor({ question, onChange }: Props) {
       </div>
 
       <div className="stage-card">
+        <ImageField url={question.imageUrl} onChange={(imageUrl) => latest.current.onChange({ ...latest.current.question, imageUrl })} />
         <label className="field question-field">
           <span>{t('questionText')}</span>
           <textarea

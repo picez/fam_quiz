@@ -170,3 +170,21 @@ describe('PlayerScreen', () => {
     expect(screen.getByText('Ваше місце: 2 з 2')).toBeTruthy();
   });
 });
+
+describe('PlayerScreen: question image', () => {
+  const imageUrl = '/uploads/0123456789abcdef0123456789abcdef.png';
+  const withImage = () =>
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicQuestion, imageUrl }, endsAt: Date.now() + 20_000 }));
+
+  it('shows the image above the answers', () => {
+    withImage();
+    expect(document.querySelector('img.question-image')?.getAttribute('src')).toBe(imageUrl);
+  });
+
+  it('removes the image that failed to load and keeps the answers usable', () => {
+    withImage();
+    fireEvent.error(document.querySelector('img.question-image')!);
+    expect(document.querySelector('.question-image')).toBeNull();
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+});

@@ -3,6 +3,7 @@ import type { ClientToServerEvents, HostView } from '@quiz/shared';
 import { answerText, correctText, questionClass } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import type { Send } from '../live/types';
+import { QuestionImage } from './QuestionImage';
 import { Standings } from './Standings';
 
 interface Props {
@@ -85,6 +86,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
+          <QuestionImage url={view.question.imageUrl} />
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
         </section>
       )}

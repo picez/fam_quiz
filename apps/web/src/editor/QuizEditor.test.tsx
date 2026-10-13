@@ -460,3 +460,121 @@ describe('QuizEditor: answers on the stage', () => {
     expect(question.type === 'order' && question.items.map((i) => i.text)).toEqual(['Львів', 'Київ', 'Харків']);
   });
 });
+
+describe('QuizEditor: question image', () => {
+  const IMAGE = '/uploads/0123456789abcdef0123456789abcdef.png';
+  const file = (type: string, size = 10) => new File([new Uint8Array(size)], 'photo', { type });
+  const choose = (picked: File) => fireEvent.change(screen.getByLabelText('Додати зображення'), { target: { files: [picked] } });
+  const answer = (status: number, body: unknown) => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify(body), { status }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('uploads the chosen file, shows it and saves its address with the question', async () => {
+    const fetchMock = answer(201, { url: IMAGE });
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Що на фото?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    const picked = file('image/png');
+    choose(picked);
+
+    const image = (await screen.findByAltText('Зображення до запитання')) as HTMLImageElement;
+    expect(image.getAttribute('src')).toBe(IMAGE);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/uploads');
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(picked);
+    expect(new Headers(init?.headers).get('content-type')).toBe('image/png');
+
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saved(onSave).questions[0].imageUrl).toBe(IMAGE);
+  });
+
+  it('removes the image', async () => {
+    answer(201, { url: IMAGE });
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Що на фото?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    choose(file('image/png'));
+    await screen.findByAltText('Зображення до запитання');
+    click('Прибрати зображення');
+    expect(screen.queryByAltText('Зображення до запитання')).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saved(onSave).questions[0].imageUrl).toBeNull();
+  });
+
+  it('refuses a wrong format or an oversized file before sending anything', () => {
+    const fetchMock = answer(201, { url: IMAGE });
+    open();
+    choose(file('image/gif'));
+    expect(screen.getByRole('alert').textContent).toBe('Підходять лише зображення JPEG, PNG або WebP.');
+    choose(file('image/png', 2 * 1024 * 1024 + 1));
+    expect(screen.getByRole('alert').textContent).toBe('Зображення завелике: дозволено до 2 МБ.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('says why the server refused the image and keeps the question intact', async () => {
+    answer(400, { error: 'bad_image' });
+    open();
+    fill('Текст запитання', 'Що на фото?');
+    choose(file('image/png'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Підходять лише зображення JPEG, PNG або WebP.'));
+    expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Що на фото?');
+    expect(screen.queryByAltText('Зображення до запитання')).toBeNull();
+  });
+
+  it('keeps what was typed while the image was uploading', async () => {
+    let finish: (response: Response) => void = () => undefined;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => (finish = resolve))));
+    open();
+    fill('Текст запитання', 'Що');
+    choose(file('image/png'));
+    fill('Текст запитання', 'Що на фото?');
+    finish(new Response(JSON.stringify({ url: IMAGE }), { status: 201 }));
+    await screen.findByAltText('Зображення до запитання');
+    expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Що на фото?');
+  });
+
+  it('does not touch another question when the upload ends after the host moved on', async () => {
+    let finish: (response: Response) => void = () => undefined;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => (finish = resolve))));
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    choose(file('image/png'));
+    click('Додати запитання');
+    fill('Текст запитання', 'Друге');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    finish(new Response(JSON.stringify({ url: IMAGE }), { status: 201 }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saved(onSave).questions.map((q) => [q.text, q.imageUrl])).toEqual([
+      ['Перше', null],
+      ['Друге', null],
+    ]);
+  });
+
+  it('keeps the image when the question is duplicated or its type changes', async () => {
+    answer(201, { url: IMAGE });
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Що на фото?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    choose(file('image/png'));
+    await screen.findByAltText('Зображення до запитання');
+    click('Дублювати');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saved(onSave).questions.map((q) => q.imageUrl)).toEqual([IMAGE, IMAGE]);
+  });
+});

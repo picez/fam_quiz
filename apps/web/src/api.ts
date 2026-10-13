@@ -43,14 +43,9 @@ function errorCode(data: unknown): string {
   return typeof error === 'string' ? error : 'unknown';
 }
 
-async function call(url: string, options: Options): Promise<ApiData<unknown>> {
-  const hasBody = options.body !== undefined;
+async function send(url: string, init: RequestInit): Promise<ApiData<unknown>> {
   try {
-    const response = await fetch(url, {
-      method: options.method ?? (hasBody ? 'POST' : 'GET'),
-      headers: hasBody ? { 'content-type': 'application/json' } : undefined,
-      body: hasBody ? JSON.stringify(options.body) : undefined,
-    });
+    const response = await fetch(url, init);
     if (response.status === 429) return { ok: false, error: 'too_many' };
     const data: unknown = response.status === 204 ? {} : await response.json().catch(() => null);
     if (!response.ok || data === null) return { ok: false, error: errorCode(data) };
@@ -58,6 +53,15 @@ async function call(url: string, options: Options): Promise<ApiData<unknown>> {
   } catch {
     return { ok: false, error: 'offline' };
   }
+}
+
+function call(url: string, options: Options): Promise<ApiData<unknown>> {
+  const hasBody = options.body !== undefined;
+  return send(url, {
+    method: options.method ?? (hasBody ? 'POST' : 'GET'),
+    headers: hasBody ? { 'content-type': 'application/json' } : undefined,
+    body: hasBody ? JSON.stringify(options.body) : undefined,
+  });
 }
 
 /** Запит, відповідь якого є об'єктом: його поля лежать поруч з ok. */
@@ -95,6 +99,12 @@ export const hostAccess = (code: string) => request<HostTokens>(`${gameUrl(code)
 export const checkCode = (code: string) => request<{ phase: Phase; title: string }>(gameUrl(code));
 export const joinGame = (code: string, nickname: string) =>
   request<{ token: string; playerId: string }>(`${gameUrl(code)}/join`, { body: { nickname } });
+
+/** Надсилає зображення до запитання; тілом запиту є сам файл. */
+export async function uploadImage(file: File): Promise<ApiResult<{ url: string }>> {
+  const result = await send('/api/uploads', { method: 'POST', headers: { 'content-type': file.type }, body: file });
+  return result.ok ? { ok: true, ...(result.data as { url: string }) } : result;
+}
 
 export const listGames = () => fetchData<GameSummary[]>('/api/games');
 export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encodeURIComponent(id)}`);
