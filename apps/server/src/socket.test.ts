@@ -5,7 +5,7 @@ import { makeQuiz, single, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { TEST_AUTH } from './testing/accounts';
+import { TEST_AUTH, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -62,10 +62,7 @@ function send(tracked: Tracked, event: string, ...args: unknown[]): Promise<AckR
   return new Promise((resolve) => emit(event, ...args, resolve));
 }
 
-async function createGame() {
-  const response = await ctx.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single, text]) });
-  return response.json() as { code: string; hostToken: string; stageToken: string };
-}
+const createGame = async () => (await startGame(ctx.app, makeQuiz([single, text]))).game;
 
 async function join(code: string, nickname: string) {
   const response = await ctx.app.inject({

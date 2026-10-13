@@ -201,3 +201,11 @@ describe('HostScreen', () => {
     expect(screen.queryByRole('button', { name: 'Вилучити' })).toBeNull();
   });
 });
+
+describe('HostScreen: question image', () => {
+  it('shows the image of the current question', () => {
+    const imageUrl = '/uploads/0123456789abcdef0123456789abcdef.png';
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), imageUrl }, correct: single }));
+    expect(document.querySelector('img.question-image')?.getAttribute('src')).toBe(imageUrl);
+  });
+});

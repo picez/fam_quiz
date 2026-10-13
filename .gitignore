@@ -4,3 +4,5 @@ dist/
 .env.*
 !.env.example
 .superpowers/
+apps/server/uploads/
+**/e2e/artifacts/

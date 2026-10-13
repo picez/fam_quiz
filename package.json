@@ -2,6 +2,7 @@
   "name": "quiz",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@12.11.2",
   "engines": {
     "node": ">=22"
   },
@@ -12,7 +13,8 @@
     "dev": "pnpm --parallel --filter @quiz/server --filter @quiz/web dev",
     "start": "pnpm --filter @quiz/server start",
     "db:up": "docker compose up -d --wait",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "e2e": "pnpm build && vitest run --config apps/server/e2e/vitest.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

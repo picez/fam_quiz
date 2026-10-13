@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { TEST_AUTH } from './testing/accounts';
+import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
@@ -25,10 +25,7 @@ afterEach(async () => {
 
 const post = (url: string, payload: unknown) => ctx.app.inject({ method: 'POST', url, payload: payload as object });
 
-async function createGame() {
-  const response = await post('/api/games', makeQuiz([single]));
-  return response.json() as { gameId: string; code: string; hostToken: string; stageToken: string };
-}
+const createGame = async () => (await startGame(ctx.app, makeQuiz([single]))).game;
 
 describe('GET /health', () => {
   it('reports that the server is up', async () => {
@@ -40,7 +37,7 @@ describe('GET /health', () => {
 
 describe('POST /api/games', () => {
   it('creates a room and returns its code and tokens', async () => {
-    const response = await post('/api/games', makeQuiz([single]));
+    const { response } = await startGame(ctx.app, makeQuiz([single]));
     expect(response.statusCode).toBe(201);
     const body = response.json();
     expect(body.code).toMatch(/^\d{6}$/);
@@ -49,10 +46,21 @@ describe('POST /api/games', () => {
     expect(ctx.manager.get(body.code)?.id).toBe(body.gameId);
   });
 
-  it('rejects an invalid quiz', async () => {
-    const response = await post('/api/games', { ...makeQuiz([single]), questions: [] });
+  it('does not start a game for a visitor without an account, whatever the body', async () => {
+    for (const body of [makeQuiz([single]), { quizId: 'abc' }, {}]) {
+      const response = await post('/api/games', body);
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toEqual({ error: 'unauthorized' });
+    }
+    expect(ctx.manager.size).toBe(0);
+  });
+
+  it('does not accept a quiz in the body even from a signed-in host', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const response = await ctx.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single]), headers: { cookie } });
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ error: 'invalid_payload' });
+    expect(ctx.manager.size).toBe(0);
   });
 
   it('rejects a body that is not valid JSON with a 400', async () => {
@@ -139,8 +147,10 @@ describe('POST /api/games/by-code/:code/join', () => {
 describe('limits', () => {
   it('refuses new games beyond the room cap', async () => {
     const small = await buildApp({ db, auth: TEST_AUTH, maxRooms: 2 });
-    const create = () => small.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single]) });
-    expect((await create()).statusCode).toBe(201);
+    const first = await startGame(small.app, makeQuiz([single]));
+    const create = () =>
+      small.app.inject({ method: 'POST', url: '/api/games', payload: { quizId: first.quizId }, headers: { cookie: first.cookie } });
+    expect(first.response.statusCode).toBe(201);
     expect((await create()).statusCode).toBe(201);
     const refused = await create();
     expect(refused.statusCode).toBe(503);
@@ -149,16 +159,24 @@ describe('limits', () => {
   });
 
   it('throttles game creation from one address', async () => {
-    const statuses: number[] = [];
-    for (let i = 0; i < 21; i++) statuses.push((await post('/api/games', makeQuiz([single]))).statusCode);
+    const first = await startGame(ctx.app, makeQuiz([single]));
+    const statuses: number[] = [first.response.statusCode];
+    for (let i = 0; i < 20; i++) {
+      const again = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/games',
+        payload: { quizId: first.quizId },
+        headers: { cookie: first.cookie },
+      });
+      statuses.push(again.statusCode);
+    }
     expect(statuses.slice(0, 20).every((status) => status === 201)).toBe(true);
     expect(statuses[20]).toBe(429);
   });
 
   it('counts code checks per client address when running behind a proxy', async () => {
     const proxied = await buildApp({ db, auth: TEST_AUTH, trustProxy: true });
-    const created = await proxied.app.inject({ method: 'POST', url: '/api/games', payload: makeQuiz([single]) });
-    const { code } = created.json() as { code: string };
+    const { code } = (await startGame(proxied.app, makeQuiz([single]))).game;
     const check = (address: string) =>
       proxied.app.inject({
         method: 'GET',
@@ -199,5 +217,25 @@ describe('serving the web client', () => {
     const response = await ctx.app.inject({ method: 'GET', url: '/play/123456' });
     expect(response.statusCode).toBe(404);
     expect(response.json()).toEqual({ error: 'not_found' });
+  });
+});
+
+describe('client address behind one proxy', () => {
+  it('ignores addresses the client wrote into X-Forwarded-For itself', async () => {
+    const proxied = await buildApp({ db, auth: TEST_AUTH, trustProxy: 1 });
+    const { code } = (await startGame(proxied.app, makeQuiz([single]))).game;
+    const statuses: number[] = [];
+    for (let i = 0; i < 125; i++) {
+      const response = await proxied.app.inject({
+        method: 'GET',
+        url: `/api/games/by-code/${code}`,
+        // Проксі дописує справжню адресу останньою; усе перед нею вигадав клієнт.
+        headers: { 'x-forwarded-for': `10.9.0.${i}, 203.0.113.7` },
+      });
+      statuses.push(response.statusCode);
+    }
+    await proxied.app.close();
+    expect(statuses.slice(0, 120).every((status) => status === 200)).toBe(true);
+    expect(statuses[124]).toBe(429);
   });
 });

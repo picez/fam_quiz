@@ -170,3 +170,104 @@ describe('moveItem', () => {
     expect(list).toEqual(['а', 'б', 'в', 'г']);
   });
 });
+
+describe('spare empty rows', () => {
+  const single = (texts: string[], correct: number): Quiz => {
+    const options = texts.map((text, index) => ({ id: `o${index}`, text }));
+    return {
+      ...newQuiz(),
+      title: 'Гра',
+      questions: [{ id: 'q1', type: 'single', text: 'Питання?', imageUrl: null, timeLimit: 20, points: 1000, options, correctId: `o${correct}` }],
+    };
+  };
+
+  it('drops an empty option left after the last Enter instead of refusing to save', () => {
+    const quiz = single(['Львів', 'Київ', '  '], 1);
+    expect(problemsOf(quiz)).toEqual([]);
+    const [question] = cleaned(quiz).questions;
+    expect(question.type === 'single' && question.options.map((option) => option.text)).toEqual(['Львів', 'Київ']);
+  });
+
+  it('still asks to fill the options when too few are left', () => {
+    expect(problemsOf(single(['Львів', ''], 0))).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+  });
+
+  it('does not silently drop the option that is marked correct', () => {
+    expect(problemsOf(single(['Львів', 'Київ', ''], 2))).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+  });
+
+  it('drops unmarked empty options of a multi-choice question', () => {
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: 'Гра',
+      questions: [
+        {
+          id: 'q1',
+          type: 'multi',
+          text: 'Питання?',
+          imageUrl: null,
+          timeLimit: 20,
+          points: 1000,
+          options: [
+            { id: 'a', text: 'Київ' },
+            { id: 'b', text: '' },
+            { id: 'c', text: 'Запоріжжя' },
+          ],
+          correctIds: ['a', 'c'],
+        },
+      ],
+    };
+    expect(problemsOf(quiz)).toEqual([]);
+    const [question] = cleaned(quiz).questions;
+    expect(question.type === 'multi' && [question.options.map((o) => o.id), question.correctIds]).toEqual([
+      ['a', 'c'],
+      ['a', 'c'],
+    ]);
+  });
+
+  it('does not silently drop a marked option of a multi-choice question', () => {
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: 'Гра',
+      questions: [
+        {
+          id: 'q1',
+          type: 'multi',
+          text: 'Питання?',
+          imageUrl: null,
+          timeLimit: 20,
+          points: 1000,
+          options: [
+            { id: 'a', text: 'Київ' },
+            { id: 'b', text: 'Львів' },
+            { id: 'c', text: '' },
+          ],
+          correctIds: ['a', 'c'],
+        },
+      ],
+    };
+    expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+  });
+
+  it('does not close a gap in the middle of an order question on its own', () => {
+    const items = ['Один', '', 'Два', 'Три'].map((text, index) => ({ id: `i${index}`, text }));
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: 'Гра',
+      questions: [{ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items }],
+    };
+    expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+  });
+
+  it('drops empty items at the end of an order question while at least three remain', () => {
+    const items = ['Один', 'Два', 'Три', ''].map((text, index) => ({ id: `i${index}`, text }));
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: 'Гра',
+      questions: [{ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items }],
+    };
+    expect(problemsOf(quiz)).toEqual([]);
+    const [question] = cleaned(quiz).questions;
+    expect(question.type === 'order' && question.items.map((item) => item.text)).toEqual(['Один', 'Два', 'Три']);
+  });
+});

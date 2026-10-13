@@ -202,6 +202,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                   onDragStart={() => {
                     dragged.current = index;
                   }}
+                  onDragEnd={() => {
+                    dragged.current = null;
+                  }}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => {
                     event.preventDefault();

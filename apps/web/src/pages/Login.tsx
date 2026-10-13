@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { signIn, signUp } from '../api';
+import { authProviders, googleSignIn, signIn, signUp } from '../api';
 import { errorText, t } from '../i18n';
+import { leaveTo } from '../navigation';
 
 const MIN_PASSWORD = 8;
 
@@ -21,7 +22,30 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Після невдалого входу через Google сервер повертає сюди з параметром error.
+  const [error, setError] = useState<string | null>(
+    params.has('error') ? errorText(params.get('error') === 'account_not_linked' ? 'account_not_linked' : 'google') : null,
+  );
+  const [google, setGoogle] = useState(false);
+  const next = safeNext(params.get('next'));
+
+  useEffect(() => {
+    let current = true;
+    void authProviders().then((result) => {
+      if (current && result.ok) setGoogle(result.google);
+    });
+    return () => {
+      current = false;
+    };
+  }, []);
+
+  const withGoogle = async () => {
+    setBusy(true);
+    const result = await googleSignIn(next);
+    if (result.ok) return leaveTo(result.url);
+    setBusy(false);
+    setError(errorText(result.error));
+  };
 
   const ready =
     email.trim() !== '' &&
@@ -32,7 +56,7 @@ export function Login() {
     setBusy(true);
     const result = registering ? await signUp(name.trim(), email.trim(), password) : await signIn(email.trim(), password);
     setBusy(false);
-    if (result.ok) navigate(safeNext(params.get('next')), { replace: true });
+    if (result.ok) navigate(next, { replace: true });
     else setError(errorText(result.error));
   };
 
@@ -81,6 +105,14 @@ export function Login() {
           </p>
         )}
       </form>
+      {google && (
+        <>
+          <p className="divider">{t('orDivider')}</p>
+          <button type="button" className="btn" disabled={busy} onClick={withGoogle}>
+            {t('googleButton')}
+          </button>
+        </>
+      )}
       <button
         type="button"
         className="btn btn-quiet"

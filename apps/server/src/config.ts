@@ -32,3 +32,22 @@ export function localOrigins(
     .map((entry) => `http://${entry.address}:${port}`);
   return { lan, all: [`http://localhost:${port}`, `http://127.0.0.1:${port}`, ...lan] };
 }
+
+/**
+ * Адреса, за якою відкривається застосунок: задана явно, видана сервісу на Render
+ * або цей комп'ютер. Від неї залежать cookie сесії та перевірка походження запитів.
+ */
+export function baseUrl(env: Record<string, string | undefined>, port: number): string {
+  const given = [env.BETTER_AUTH_URL, env.RENDER_EXTERNAL_URL].find((value) => value !== undefined && value !== '');
+  return (given ?? `http://localhost:${port}`).replace(/\/+$/, '');
+}
+
+/**
+ * Скільки проксі стоїть перед сервером (значення TRUST_PROXY). Число безпечніше за "true":
+ * тоді адресою клієнта вважається та, яку дописав останній проксі, а не та, яку клієнт
+ * сам вписав у X-Forwarded-For, щоб обійти обмеження частоти.
+ */
+export function proxyTrust(value: string | undefined): boolean | number {
+  if (value === 'true') return true;
+  return value !== undefined && /^[1-9]d?$/.test(value) ? Number(value) : false;
+}

@@ -9,16 +9,23 @@ import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { attachSockets } from './socket';
+import { memoryStorage, type ImageStorage } from './storage/images';
+import { registerUploadRoutes } from './upload-routes';
 
 export interface AppOptions {
   db: Db;
   auth: AuthOptions;
   scheduler?: Scheduler;
   rng?: () => number;
-  /** Брати адресу клієнта із заголовка X-Forwarded-For (потрібно за проксі, наприклад на Render). */
-  trustProxy?: boolean;
+  /**
+   * Брати адресу клієнта із заголовка X-Forwarded-For (потрібно за проксі, наприклад на Render).
+   * Число означає кількість проксі перед сервером; true довіряє заголовку повністю.
+   */
+  trustProxy?: boolean | number;
   /** Скільки кімнат може існувати одночасно. */
   maxRooms?: number;
+  /** Де лежать зображення до запитань; без нього вони живуть у пам'яті процесу. */
+  storage?: ImageStorage;
   /** Тека зі зібраним web-клієнтом. */
   webRoot?: string;
 }
@@ -33,7 +40,9 @@ export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng);
   const recorder = attachRecorder(manager, options.db);
   const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
-  const app = Fastify({ trustProxy: options.trustProxy ?? false, bodyLimit: BODY_LIMIT });
+  // Fastify приймає й кількість проксі; з об'єднаним типом його оголошення вибирають не той вид сервера.
+  const trustProxy = (options.trustProxy ?? false) as boolean;
+  const app = Fastify({ trustProxy, bodyLimit: BODY_LIMIT });
   await app.register(rateLimit, { global: false });
 
   app.get('/health', async () => ({ ok: true }));
@@ -45,7 +54,10 @@ export async function buildApp(options: AppOptions) {
     maxRooms,
     baseURL: options.auth.baseURL,
     attemptsPerMinute: options.auth.attemptsPerMinute ?? 10,
+    google: options.auth.google !== undefined,
   });
+
+  await registerUploadRoutes(app, { storage: options.storage ?? memoryStorage(), currentUser });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
     const room = manager.get(request.params.code);
