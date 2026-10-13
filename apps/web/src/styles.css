@@ -1050,6 +1050,21 @@ a.banner {
   margin-left: auto;
 }
 
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
 /* ---------- Редактор «список і сцена» ---------- */
 
 .app.editor {

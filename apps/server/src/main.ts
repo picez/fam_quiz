@@ -56,6 +56,18 @@ function imageStorage(): ImageStorage {
 }
 
 const storage = imageStorage();
+/** Вхід через Google вмикається, коли задано обидва ключі. */
+function googleKeys() {
+  const { GOOGLE_CLIENT_ID: clientId, GOOGLE_CLIENT_SECRET: clientSecret } = process.env;
+  const given = [clientId, clientSecret].filter((value) => value !== undefined && value !== '').length;
+  if (given === 1) {
+    console.error('Для входу через Google потрібні обидві змінні: GOOGLE_CLIENT_ID і GOOGLE_CLIENT_SECRET.');
+    process.exit(1);
+  }
+  return given === 2 ? { clientId: clientId!, clientSecret: clientSecret! } : undefined;
+}
+
+const google = googleKeys();
 const { db } = await connectDb(databaseUrl);
 // Кімнати живуть у пам'яті: гри, що лишилися «в процесі» з минулого запуску, уже ніхто не дограє.
 await markInterrupted(db);
@@ -65,6 +77,7 @@ const { app } = await buildApp({
     secret,
     baseURL: process.env.BETTER_AUTH_URL ?? `http://localhost:${port}`,
     trustedOrigins: [...configured, ...local.all],
+    google,
   },
   // За проксі (наприклад, на Render) задайте TRUST_PROXY=true, інакше всі клієнти ділять одне обмеження частоти.
   trustProxy: process.env.TRUST_PROXY === 'true',

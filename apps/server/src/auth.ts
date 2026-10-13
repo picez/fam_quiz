@@ -12,6 +12,8 @@ export interface AuthOptions {
   trustedOrigins?: string[];
   /** Скільки спроб входу чи реєстрації дозволено з однієї адреси за хвилину (типово 10). */
   attemptsPerMinute?: number;
+  /** Ключі застосунку Google; без них входу через Google немає. */
+  google?: { clientId: string; clientSecret: string };
 }
 
 export function createAuth(db: Db, options: AuthOptions) {
@@ -21,6 +23,7 @@ export function createAuth(db: Db, options: AuthOptions) {
     baseURL: options.baseURL,
     trustedOrigins: options.trustedOrigins ?? [],
     emailAndPassword: { enabled: true, minPasswordLength: 8 },
+    socialProviders: options.google === undefined ? {} : { google: options.google },
     // Власний обмежувач Better Auth не бачить справжньої адреси клієнта за проксі й тоді
     // рахує всіх разом; частоту обмежує маршрут Fastify, який знає request.ip.
     rateLimit: { enabled: false },

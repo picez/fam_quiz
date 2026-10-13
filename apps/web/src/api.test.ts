@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { deleteQuiz, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadImage } from './api';
+import { authProviders, deleteQuiz, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -87,5 +87,24 @@ describe('uploadImage', () => {
     respond(413, { error: 'too_large' });
     const file = new File([new Uint8Array(4)], 'a.png', { type: 'image/png' });
     expect(await uploadImage(file)).toEqual({ ok: false, error: 'too_large' });
+  });
+});
+
+describe('sign-in with Google', () => {
+  it('asks the server whether Google is available', async () => {
+    respond(200, { google: true });
+    expect(await authProviders()).toEqual({ ok: true, google: true });
+  });
+
+  it('asks for the Google address with the page to return to and where to report a failure', async () => {
+    const fetchMock = respond(200, { url: 'https://accounts.google.com/x', redirect: true });
+    expect(await googleSignIn('/host/123456')).toMatchObject({ ok: true, url: 'https://accounts.google.com/x' });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/auth/sign-in/social');
+    expect(JSON.parse(String(init.body))).toEqual({
+      provider: 'google',
+      callbackURL: '/host/123456',
+      errorCallbackURL: '/login',
+    });
   });
 });

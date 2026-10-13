@@ -2,10 +2,17 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { signIn, signUp } from '../api';
+import { authProviders, googleSignIn, signIn, signUp } from '../api';
+import { leaveTo } from '../navigation';
 import { Login } from './Login';
 
-vi.mock('../api', () => ({ signIn: vi.fn(), signUp: vi.fn() }));
+vi.mock('../api', () => ({
+  signIn: vi.fn(),
+  signUp: vi.fn(),
+  authProviders: vi.fn(async () => ({ ok: true, google: false })),
+  googleSignIn: vi.fn(),
+}));
+vi.mock('../navigation', () => ({ leaveTo: vi.fn() }));
 
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
@@ -95,5 +102,46 @@ describe('Login', () => {
 
     fill('Пароль', '1234567');
     expect((screen.getByRole('button', { name: 'Зареєструватися' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('Login with Google', () => {
+  const withGoogle = () => vi.mocked(authProviders).mockResolvedValueOnce({ ok: true, google: true });
+
+  it('offers no Google button when the server has no keys for it', async () => {
+    open();
+    await Promise.resolve();
+    expect(screen.queryByRole('button', { name: 'Увійти через Google' })).toBeNull();
+  });
+
+  it('sends the browser to Google and comes back to the page that asked for sign-in', async () => {
+    withGoogle();
+    vi.mocked(googleSignIn).mockResolvedValue({ ok: true, url: 'https://accounts.google.com/o/oauth2/auth?x=1' });
+    open('/login?next=%2Fhost%2F123456');
+    fireEvent.click(await screen.findByRole('button', { name: 'Увійти через Google' }));
+    await vi.waitFor(() => expect(leaveTo).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/auth?x=1'));
+    expect(googleSignIn).toHaveBeenCalledWith('/host/123456');
+  });
+
+  it('does not pass a foreign return address to Google sign-in', async () => {
+    withGoogle();
+    vi.mocked(googleSignIn).mockResolvedValue({ ok: true, url: 'https://accounts.google.com/x' });
+    open('/login?next=https%3A%2F%2Fevil.example');
+    fireEvent.click(await screen.findByRole('button', { name: 'Увійти через Google' }));
+    await vi.waitFor(() => expect(googleSignIn).toHaveBeenCalledWith('/quizzes'));
+  });
+
+  it('explains a failed start and stays on the page', async () => {
+    withGoogle();
+    vi.mocked(googleSignIn).mockResolvedValue({ ok: false, error: 'offline' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Увійти через Google' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    expect(leaveTo).not.toHaveBeenCalled();
+  });
+
+  it('explains a sign-in that Google or the server turned down', async () => {
+    open('/login?error=access_denied');
+    expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося увійти через Google. Спробуйте ще раз.');
   });
 });

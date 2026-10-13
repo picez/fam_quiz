@@ -86,6 +86,12 @@ export const signIn = (email: string, password: string) =>
   request<object>('/api/auth/sign-in/email', { body: { email, password } });
 // Порожнє тіло з типом JSON сервер відхиляє, тому надсилається порожній об'єкт.
 export const signOut = () => request<object>('/api/auth/sign-out', { body: {} });
+export const authProviders = () => request<{ google: boolean }>('/api/auth-providers');
+/** Адреса сторінки входу Google; після входу браузер повернеться на next. */
+export const googleSignIn = (next: string) =>
+  request<{ url: string }>('/api/auth/sign-in/social', {
+    body: { provider: 'google', callbackURL: next, errorCallbackURL: '/login' },
+  });
 
 export const listQuizzes = () => fetchData<QuizSummary[]>('/api/quizzes');
 export const getQuiz = (id: string) => fetchData<Quiz>(quizUrl(id));

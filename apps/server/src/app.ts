@@ -49,6 +49,7 @@ export async function buildApp(options: AppOptions) {
     maxRooms,
     baseURL: options.auth.baseURL,
     attemptsPerMinute: options.auth.attemptsPerMinute ?? 10,
+    google: options.auth.google !== undefined,
   });
 
   await registerUploadRoutes(app, { storage: options.storage ?? memoryStorage(), currentUser });

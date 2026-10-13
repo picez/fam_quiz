@@ -16,6 +16,8 @@ export interface AccountDeps {
   /** Адреса застосунку; від неї будуються адреси запитів до Better Auth. */
   baseURL: string;
   attemptsPerMinute: number;
+  /** Чи налаштовано вхід через Google. */
+  google: boolean;
 }
 
 export interface CurrentUser {
@@ -72,6 +74,9 @@ export async function registerAccountRoutes(
       return reply.send(response.body === null ? null : await response.text());
     },
   });
+
+  // Клієнт показує кнопку Google лише тоді, коли сервер уміє її обслужити.
+  app.get('/api/auth-providers', async () => ({ google: deps.google }));
 
   app.get('/api/me', async (request, reply) => {
     const user = await currentUser(request);
