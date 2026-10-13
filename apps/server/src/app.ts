@@ -9,6 +9,8 @@ import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { attachSockets } from './socket';
+import { memoryStorage, type ImageStorage } from './storage/images';
+import { registerUploadRoutes } from './upload-routes';
 
 export interface AppOptions {
   db: Db;
@@ -19,6 +21,8 @@ export interface AppOptions {
   trustProxy?: boolean;
   /** Скільки кімнат може існувати одночасно. */
   maxRooms?: number;
+  /** Де лежать зображення до запитань; без нього вони живуть у пам'яті процесу. */
+  storage?: ImageStorage;
   /** Тека зі зібраним web-клієнтом. */
   webRoot?: string;
 }
@@ -46,6 +50,8 @@ export async function buildApp(options: AppOptions) {
     baseURL: options.auth.baseURL,
     attemptsPerMinute: options.auth.attemptsPerMinute ?? 10,
   });
+
+  await registerUploadRoutes(app, { storage: options.storage ?? memoryStorage(), currentUser });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
     const room = manager.get(request.params.code);

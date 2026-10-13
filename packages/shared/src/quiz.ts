@@ -21,6 +21,15 @@ export const LIMITS = {
   nicknameMax: 20,
 } as const;
 
+/** Обмеження для зображень у запитаннях. */
+export const IMAGE_LIMITS = {
+  maxBytes: 2 * 1024 * 1024,
+  types: ['image/jpeg', 'image/png', 'image/webp'],
+} as const;
+
+/** Адреса завантаженого зображення: лише власне сховище цього сайту. */
+export const IMAGE_URL = /^\/uploads\/[a-z0-9]{16,64}\.(jpg|png|webp)$/;
+
 const choice = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   text: z.string().trim().min(1).max(LIMITS.optionText).refine(isStorable, UNSTORABLE),
@@ -29,7 +38,7 @@ const choice = z.object({
 const base = {
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   text: z.string().trim().min(1).max(LIMITS.questionText).refine(isStorable, UNSTORABLE),
-  imageUrl: z.string().min(1).nullable(),
+  imageUrl: z.string().regex(IMAGE_URL).nullable(),
   timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
   points: z.number().int().min(0).max(LIMITS.maxPoints),
 };

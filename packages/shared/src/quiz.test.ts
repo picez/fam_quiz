@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, answerSchema, joinSchema, questionSchema, quizSchema } from './index';
+import { DEFAULT_SETTINGS, IMAGE_LIMITS, answerSchema, joinSchema, questionSchema, quizSchema } from './index';
 
 const single = {
   id: 'q1',
@@ -131,5 +131,35 @@ describe('text that the database cannot store', () => {
     expect(valid(joinSchema, { nickname: 'Оля 🙂' })).toBe(true);
     expect(valid(answerSchema, { type: 'text', value: 'Київ 🏙️ 𝔘' })).toBe(true);
     expect(valid(quizSchema, quizWith({ title: 'Гра 🎉' }))).toBe(true);
+  });
+});
+
+describe('question image address', () => {
+  const withImage = (imageUrl: unknown) => questionSchema.safeParse({ ...single, imageUrl }).success;
+
+  it('accepts an address of an uploaded image', () => {
+    expect(withImage('/uploads/0123456789abcdef0123456789abcdef.jpg')).toBe(true);
+    expect(withImage('/uploads/0123456789abcdef.webp')).toBe(true);
+    expect(withImage(null)).toBe(true);
+  });
+
+  it('rejects addresses outside the uploads of this site', () => {
+    for (const address of [
+      'https://example.com/a.png',
+      '//example.com/uploads/0123456789abcdef.png',
+      'javascript:alert(1)',
+      '/uploads/../../etc/passwd',
+      '/uploads/0123456789abcdef.svg',
+      '/uploads/0123456789ABCDEF.png',
+      '/uploads/short.png',
+      '',
+    ]) {
+      expect(withImage(address), address).toBe(false);
+    }
+  });
+
+  it('publishes the limits for uploads', () => {
+    expect(IMAGE_LIMITS.maxBytes).toBe(2 * 1024 * 1024);
+    expect(IMAGE_LIMITS.types).toEqual(['image/jpeg', 'image/png', 'image/webp']);
   });
 });
