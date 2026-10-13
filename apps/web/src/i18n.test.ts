@@ -21,3 +21,20 @@ describe('countText', () => {
     expect([1, 2, 5].map((count) => countText('statWins', count))).toEqual(['перемога', 'перемоги', 'перемог']);
   });
 });
+
+describe('points in words', () => {
+  it('agrees the word with the number', () => {
+    const said = [0, 1, 2, 5, 11, 21, 871, 1000, 1322].map((score) => t('yourResult', { score, points: countText('pointsWord', score), correct: 1, total: 2 }));
+    expect(said.map((line) => line.split(',')[0])).toEqual([
+      '0 балів',
+      '1 бал',
+      '2 бали',
+      '5 балів',
+      '11 балів',
+      '21 бал',
+      '871 бал',
+      '1000 балів',
+      '1322 бали',
+    ]);
+  });
+});

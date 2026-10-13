@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const root = resolve(import.meta.dirname, '..');
+// Файли клієнта перевіряються звідси: у пакеті клієнта немає типів Node.
+const root = resolve(import.meta.dirname, '../../web');
 const read = (path: string) => readFileSync(resolve(root, path));
 
 /** Ширина й висота PNG з його заголовка. */

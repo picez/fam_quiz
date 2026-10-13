@@ -68,7 +68,7 @@ export function MyGames() {
               <p className="place">
                 {game.rank === null ? t('noPlace') : t('placeOf', { rank: game.rank, total: game.playerCount })}
               </p>
-              <p>{t('yourResult', { score: game.score, correct: game.correct, total: game.questionsPlayed })}</p>
+              <p>{t('yourResult', { score: game.score, points: countText('pointsWord', game.score), correct: game.correct, total: game.questionsPlayed })}</p>
             </li>
           ))}
         </ul>
