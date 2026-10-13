@@ -8,9 +8,10 @@ services:
     # Безкоштовний тариф присипляє сервіс після простою; для гри з людьми потрібен платний.
     plan: free
     # NODE_ENV=production діє й під час збирання, тому інструменти збирання ставимо явно.
-    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build
+    buildCommand: (corepack enable || true) && pnpm install --frozen-lockfile --prod=false && pnpm build
     # Міграції бази виконуються під час запуску сервера.
-    startCommand: pnpm start
+    # Один процес без обгортки pnpm: сигнал зупинки від Render доходить до сервера напряму.
+    startCommand: cd apps/server && node --import tsx src/main.ts
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
