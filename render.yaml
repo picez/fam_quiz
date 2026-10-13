@@ -8,9 +8,10 @@ services:
     # Безкоштовний тариф присипляє сервіс після простою; для гри з людьми потрібен платний.
     plan: free
     # NODE_ENV=production діє й під час збирання, тому інструменти збирання ставимо явно.
-    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build
+    buildCommand: (corepack enable || true) && pnpm install --frozen-lockfile --prod=false && pnpm build
     # Міграції бази виконуються під час запуску сервера.
-    startCommand: pnpm start
+    # Один процес без обгортки pnpm: сигнал зупинки від Render доходить до сервера напряму.
+    startCommand: cd apps/server && node --import tsx src/main.ts
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
@@ -28,24 +29,10 @@ services:
       # X-Forwarded-For, довіри немає.
       - key: TRUST_PROXY
         value: "1"
-      # Власний домен. Якщо не задано, береться адреса, яку Render видає сервісу.
-      - key: BETTER_AUTH_URL
-        sync: false
-      # Вхід через Google (необов'язково).
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      # Зображення до запитань у Cloudflare R2. Без них зображення лежать на диску сервісу
-      # і зникають після кожного розгортання.
-      - key: R2_ACCOUNT_ID
-        sync: false
-      - key: R2_BUCKET
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
+      # Необов'язкові змінні додаються пізніше у вкладці Environment сервісу (див. README):
+      # BETTER_AUTH_URL (власний домен), GOOGLE_CLIENT_ID і GOOGLE_CLIENT_SECRET (вхід через Google),
+      # R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (зображення в Cloudflare R2;
+      # без них зображення лежать на диску сервісу і зникають після кожного розгортання).
 
 databases:
   - name: fam-quiz-db

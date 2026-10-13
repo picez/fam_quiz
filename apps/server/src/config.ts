@@ -49,5 +49,5 @@ export function baseUrl(env: Record<string, string | undefined>, port: number): 
  */
 export function proxyTrust(value: string | undefined): boolean | number {
   if (value === 'true') return true;
-  return value !== undefined && /^[1-9]d?$/.test(value) ? Number(value) : false;
+  return value !== undefined && /^[1-9]\d?$/.test(value) ? Number(value) : false;
 }
