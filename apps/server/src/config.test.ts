@@ -61,6 +61,7 @@ describe('proxyTrust', () => {
   it('reads the number of proxies in front of the server', () => {
     expect(proxyTrust('1')).toBe(1);
     expect(proxyTrust('2')).toBe(2);
+    expect(proxyTrust('10')).toBe(10);
   });
 
   it('keeps the old switch and is off by default or for nonsense', () => {
