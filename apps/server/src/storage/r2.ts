@@ -28,7 +28,7 @@ export function r2Storage(settings: R2Settings): ImageStorage {
       const request = await client.sign(urlOf(name), {
         method: 'PUT',
         headers: { 'content-type': contentType },
-        body: bytes as BodyInit,
+        body: Buffer.from(bytes),
       });
       const response = await send(request);
       if (!response.ok) throw new Error(`image storage answered ${response.status}`);
