@@ -94,6 +94,13 @@ export function newQuiz(): Quiz {
 /** Вікторина в тому вигляді, у якому вона піде на сервер. */
 export function cleaned(quiz: Quiz): Quiz {
   const trimAll = <T extends { text: string }>(items: T[]) => items.map((item) => ({ ...item, text: item.text.trim() }));
+  // Порожні рядки (наприклад, доданий останнім Enter) просто не зберігаються, якщо без них рядків
+  // досить і жоден із них не позначено єдиною правильною відповіддю. Інакше їх лишаємо: про них скаже перевірка.
+  const withoutSpare = <T extends { id: string; text: string }>(items: T[], min: number, mustKeep: string[] = []) => {
+    const kept = items.filter((item) => item.text !== '');
+    const dropsNeeded = items.some((item) => item.text === '' && mustKeep.includes(item.id));
+    return kept.length >= min && !dropsNeeded ? kept : items;
+  };
   return {
     ...quiz,
     title: quiz.title.trim(),
@@ -102,10 +109,14 @@ export function cleaned(quiz: Quiz): Quiz {
       const text = question.text.trim();
       switch (question.type) {
         case 'single':
-        case 'multi':
-          return { ...question, text, options: trimAll(question.options) };
+          return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions, [question.correctId]) };
+        case 'multi': {
+          const options = withoutSpare(trimAll(question.options), LIMITS.minOptions);
+          const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
+          return { ...question, text, options, correctIds };
+        }
         case 'order':
-          return { ...question, text, items: trimAll(question.items) };
+          return { ...question, text, items: withoutSpare(trimAll(question.items), LIMITS.minOrderItems) };
         case 'text':
           return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
         default:
