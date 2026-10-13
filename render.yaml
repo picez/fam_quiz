@@ -1,0 +1,53 @@
+# Опис розгортання на Render: один вебсервіс (API, WebSocket і зібраний клієнт) та база.
+# Як користуватися: Render Dashboard → New → Blueprint → вибрати цей репозиторій.
+services:
+  - type: web
+    name: fam-quiz
+    runtime: node
+    region: frankfurt
+    # Безкоштовний тариф присипляє сервіс після простою; для гри з людьми потрібен платний.
+    plan: free
+    # NODE_ENV=production діє й під час збирання, тому інструменти збирання ставимо явно.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build
+    # Міграції бази виконуються під час запуску сервера.
+    startCommand: pnpm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fam-quiz-db
+          property: connectionString
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      # Сервіс стоїть за проксі Render: без цього всі клієнти ділили б одне обмеження частоти.
+      - key: TRUST_PROXY
+        value: "true"
+      # Власний домен. Якщо не задано, береться адреса, яку Render видає сервісу.
+      - key: BETTER_AUTH_URL
+        sync: false
+      # Вхід через Google (необов'язково).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Зображення до запитань у Cloudflare R2. Без них зображення лежать на диску сервісу
+      # і зникають після кожного розгортання.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+
+databases:
+  - name: fam-quiz-db
+    databaseName: quiz
+    user: quiz
+    region: frankfurt
+    plan: free

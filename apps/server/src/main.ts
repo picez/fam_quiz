@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import { buildApp } from './app';
-import { localOrigins, secretProblem } from './config';
+import { baseUrl, localOrigins, secretProblem } from './config';
 import { connectDb } from './db/client';
 import { markInterrupted } from './recorder';
 import { diskStorage, type ImageStorage } from './storage/images';
@@ -68,14 +68,18 @@ function googleKeys() {
 }
 
 const google = googleKeys();
-const { db } = await connectDb(databaseUrl);
+const address = baseUrl(process.env, port);
+if (process.env.NODE_ENV === 'production' && address.startsWith('http://localhost')) {
+  console.warn('Не задано BETTER_AUTH_URL: вхід працюватиме лише за адресою цього комп’ютера.');
+}
+const { db, close: closeDb } = await connectDb(databaseUrl);
 // Кімнати живуть у пам'яті: гри, що лишилися «в процесі» з минулого запуску, уже ніхто не дограє.
 await markInterrupted(db);
 const { app } = await buildApp({
   db,
   auth: {
     secret,
-    baseURL: process.env.BETTER_AUTH_URL ?? `http://localhost:${port}`,
+    baseURL: address,
     trustedOrigins: [...configured, ...local.all],
     google,
   },
@@ -87,3 +91,24 @@ const { app } = await buildApp({
 await app.listen({ port, host: '0.0.0.0' });
 console.log(`Quiz server is listening on port ${port}`);
 for (const origin of local.lan) console.log(`У локальній мережі: ${origin}`);
+
+// Платформа зупиняє сервіс сигналом (нова версія, перезапуск): закриваємо з'єднання й базу,
+// а не обриваємо запити на півдорозі. Ігри, що тривали, наступний запуск позначить перерваними.
+let stopping = false;
+async function stop(signal: string) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`Отримано ${signal}, зупиняюся.`);
+  // Якщо щось зависло, процес усе одно має завершитися.
+  setTimeout(() => process.exit(1), 10_000).unref();
+  try {
+    await app.close();
+    await closeDb();
+  } catch (error) {
+    console.error('Помилка під час зупинки:', error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  }
+  process.exit();
+}
+process.on('SIGTERM', () => void stop('SIGTERM'));
+process.on('SIGINT', () => void stop('SIGINT'));

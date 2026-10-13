@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localOrigins, secretProblem } from './config';
+import { baseUrl, localOrigins, secretProblem } from './config';
 
 describe('secretProblem', () => {
   it('accepts a long random secret', () => {
@@ -31,5 +31,28 @@ describe('localOrigins', () => {
       lan: ['http://192.168.0.10:3000'],
       all: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://192.168.0.10:3000'],
     });
+  });
+});
+
+describe('baseUrl', () => {
+  it('prefers the configured address', () => {
+    expect(baseUrl({ BETTER_AUTH_URL: 'https://quiz.example', RENDER_EXTERNAL_URL: 'https://x.onrender.com' }, 3000)).toBe(
+      'https://quiz.example',
+    );
+  });
+
+  it('falls back to the address Render gives the service', () => {
+    expect(baseUrl({ RENDER_EXTERNAL_URL: 'https://fam-quiz.onrender.com' }, 10000)).toBe('https://fam-quiz.onrender.com');
+    expect(baseUrl({ BETTER_AUTH_URL: '', RENDER_EXTERNAL_URL: 'https://fam-quiz.onrender.com' }, 10000)).toBe(
+      'https://fam-quiz.onrender.com',
+    );
+  });
+
+  it('uses this computer when nothing is configured', () => {
+    expect(baseUrl({}, 3000)).toBe('http://localhost:3000');
+  });
+
+  it('drops a trailing slash, which would break the comparison of origins', () => {
+    expect(baseUrl({ BETTER_AUTH_URL: 'https://quiz.example/' }, 3000)).toBe('https://quiz.example');
   });
 });
