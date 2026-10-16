@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { next, start, submitAnswer } from './game';
-import { makeQuiz, multi, order, single, text } from './testing/fixtures';
+import { DEFAULT_RULES, type Phase } from '@quiz/shared';
+import { lock, next, start, submitAnswer, type GameState } from './game';
+import { bool, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, text } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -22,8 +23,8 @@ describe('lobby views', () => {
     expect(view.phase).toBe('lobby');
     expect(view.question).toBeNull();
     expect(view.players).toEqual([
-      { id: 'p1', nickname: 'Олена', connected: true },
-      { id: 'p2', nickname: 'Тарас', connected: true },
+      { id: 'p1', nickname: 'Олена', connected: true, streak: 0 },
+      { id: 'p2', nickname: 'Тарас', connected: true, streak: 0 },
     ]);
     expect(view.playerCount).toBe(2);
     expect(view.total).toBe(2);
@@ -81,6 +82,8 @@ describe('while a question is open', () => {
         answer: correct,
         timeMs: 10_000,
         accepted: true,
+        grade: 'correct',
+        streakBonus: 0,
         points: 750,
         overridden: false,
       },
@@ -109,9 +112,9 @@ describe('after the question is locked', () => {
   it('reveals the correct answer, the result and the score', () => {
     const view = playerView(reveal(), 'p1');
     expect(view?.reveal).toMatchObject({ correctId: 'b' });
-    expect(view?.me.result).toEqual({ accepted: true, accuracy: 1, points: 750 });
+    expect(view?.me.result).toEqual({ accepted: true, accuracy: 1, grade: 'correct', streakBonus: 0, points: 750 });
     expect(view?.me.score).toBe(750);
-    expect(playerView(reveal(), 'p2')?.me.result).toEqual({ accepted: false, accuracy: 0, points: 0 });
+    expect(playerView(reveal(), 'p2')?.me.result).toEqual({ accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: 0 });
   });
 
   it('gives the stage answer statistics on reveal', () => {
@@ -151,5 +154,88 @@ describe('standings', () => {
   it('are always available to the host', () => {
     expect(hostView(open()).standings).toHaveLength(2);
     expect(hostView(reveal()).players.map((p) => p.score)).toEqual([750, 0]);
+  });
+});
+
+describe('rounds', () => {
+  const rules = { ...DEFAULT_RULES, penalty: 'minus' as const, partial: 0.5 };
+  const twoRounds = () =>
+    makeRoundsQuiz([
+      classicRound('r1', [single, text], { title: 'Розминка' }),
+      classicRound('r2', [single, bool], { title: 'Фінал', rules }),
+    ]);
+  /** Рухає гру далі (закриває відкрите запитання, інакше next), доки не настане потрібний етап. */
+  const goTo = (state: GameState, phase: Phase, round: number) => {
+    let current = state;
+    for (let i = 0; i < 40 && !(current.phase === phase && current.roundIndex === round); i += 1) {
+      current = must(current.phase === 'question' ? lock(current) : next(current, T0));
+    }
+    return current;
+  };
+  const started = () => must(start(lobbyWith(twoRounds(), 'Олена', 'Тарас'), T0));
+  const atIntro2 = () => goTo(started(), 'intro', 1);
+
+  it('has no round in the lobby', () => {
+    expect(stageView(lobbyWith(twoRounds(), 'Олена')).round).toBeNull();
+  });
+
+  it('shows round info and no previous question in the intro of the second round', () => {
+    const state = atIntro2();
+    for (const view of [stageView(state), playerView(state, 'p1'), hostView(state)]) {
+      expect(view?.round).toEqual({ index: 1, total: 2, title: 'Фінал', type: 'classic', partial: true });
+      expect(view?.question).toBeNull();
+      expect(view?.total).toBe(2);
+      expect(view?.answeredCount).toBe(0);
+    }
+    expect(stageView(state).reveal).toBeNull();
+    expect(stageView(state).stats).toBeNull();
+    expect(hostView(state).correct).toBeNull();
+    expect(hostView(state).responses).toEqual([]);
+    expect(playerView(state, 'p1')?.me.answer).toBeNull();
+    expect(playerView(state, 'p1')?.me.result).toBeNull();
+  });
+
+  it('numbers questions within the round', () => {
+    const first = goTo(atIntro2(), 'question', 1);
+    expect(stageView(first).questionIndex).toBe(0);
+    const second = goTo(must(next(must(lock(first)), T0)), 'question', 1);
+    expect(stageView(second).questionIndex).toBe(1);
+    expect(stageView(second).total).toBe(2);
+    expect(stageView(second).round?.partial).toBe(true);
+  });
+
+  it('shows standings on round_end and no question', () => {
+    const state = goTo(started(), 'round_end', 0);
+    expect(stageView(state).standings).toHaveLength(2);
+    expect(playerView(state, 'p1')?.standings).toHaveLength(2);
+    expect(stageView(state).question).toBeNull();
+    expect(stageView(state).reveal).toBeNull();
+    expect(stageView(state).stats).toBeNull();
+    expect(stageView(state).total).toBe(2);
+    expect(hostView(state).round?.index).toBe(0);
+  });
+
+  it('hides penalty and streak bonus of the current question while locked, and exposes grade on reveal', () => {
+    const questions = [0, 1, 2].map((i) => ({ ...single, id: `s${i}` }));
+    const streakQuiz = makeRoundsQuiz([
+      classicRound('r1', questions, { rules: { ...DEFAULT_RULES, penalty: 'minus', streak: { length: 2, bonus: { kind: 'percent', value: 50 } } } }),
+    ]);
+    let state = must(start(lobbyWith(streakQuiz, 'Олена', 'Тарас'), T0));
+    state = must(submitAnswer(state, 'p1', correct, T0));
+    state = must(submitAnswer(state, 'p2', wrong, T0));
+    state = goTo(state, 'question', 0);
+    state = must(submitAnswer(state, 'p1', correct, T0));
+    state = must(submitAnswer(state, 'p2', wrong, T0));
+    expect(state.phase).toBe('locked');
+    const p1 = playerView(state, 'p1');
+    expect(p1?.me.score).toBe(1000);
+    expect(playerView(state, 'p2')?.me.score).toBe(-1000);
+    expect(p1?.me.result).toBeNull();
+    expect(stageView(state).players.map((p) => p.streak)).toEqual([1, 0]);
+    const revealed = must(next(state, T0));
+    expect(playerView(revealed, 'p1')?.me.result).toMatchObject({ grade: 'correct', streakBonus: 500, points: 1500 });
+    expect(playerView(revealed, 'p2')?.me.result).toMatchObject({ grade: 'wrong', streakBonus: 0, points: -1000 });
+    expect(hostView(revealed).responses[0]).toMatchObject({ grade: 'correct', streakBonus: 500 });
+    expect(stageView(revealed).players.map((p) => p.streak)).toEqual([2, 0]);
   });
 });

@@ -4,19 +4,23 @@ import {
   type HostView,
   type Phase,
   type PlayerView,
+  type RoundInfo,
   type PublicQuestion,
   type Question,
   type RevealStats,
   type Standing,
   type StageView,
 } from '@quiz/shared';
-import { recordOf, type GameState } from './game';
+import { currentRound, recordOf, roundQuestionNumber, type GameState, type PlayerState } from './game';
 import { rankPlayers } from './ranking';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
-const WITH_STANDINGS: Phase[] = ['leaderboard', 'finished'];
+const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
+// У цих етапах запитання ще (або вже) немає: журнал показує лише останнє зігране.
+const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'round_end'];
 
 function currentQuestion(state: GameState): Question | null {
+  if (BETWEEN_QUESTIONS.includes(state.phase)) return null;
   return state.plays[state.questionIndex]?.question ?? null;
 }
 
@@ -43,18 +47,58 @@ function publicQuestion(state: GameState): PublicQuestion | null {
   };
 }
 
+function roundInfo(state: GameState): RoundInfo | null {
+  const round = currentRound(state);
+  if (round === null) return null;
+  return {
+    index: state.roundIndex,
+    total: state.quiz.rounds.length,
+    title: round.title,
+    type: round.type,
+    partial: round.rules.partial !== null,
+  };
+}
+
+/** Відповіді на поточне запитання; поза запитанням порожні. */
+function currentAnswers(state: GameState) {
+  return BETWEEN_QUESTIONS.includes(state.phase) ? {} : (state.plays[state.questionIndex]?.answers ?? {});
+}
+
+/** Запис про відповідь гравця на поточне запитання; поза запитанням його немає. */
+function currentRecord(state: GameState, playerId: string) {
+  return BETWEEN_QUESTIONS.includes(state.phase) ? undefined : recordOf(state, state.questionIndex, playerId);
+}
+
+/** Серія гравця для показу: на етапі locked без поточного запитання, щоб не видати правильність. */
+function shownStreak(state: GameState, player: PlayerState): number {
+  return state.phase === 'locked' ? previousStreak(state, player.id) : player.streak;
+}
+
+/** Серія гравця перед поточним запитанням: поспіль правильні відповіді в цьому раунді. */
+function previousStreak(state: GameState, playerId: string): number {
+  if (currentRound(state)?.rules.streak === null) return 0;
+  let count = 0;
+  for (let i = state.questionIndex - 1; i >= 0 && state.plays[i].roundIndex === state.roundIndex; i -= 1) {
+    const record = recordOf(state, i, playerId);
+    if (record === undefined || record.accuracy < 1) break;
+    count += 1;
+  }
+  return count;
+}
+
 function base(state: GameState) {
-  const current = state.plays[state.questionIndex]?.answers ?? {};
+  const round = currentRound(state);
   return {
     phase: state.phase,
     paused: state.paused,
-    questionIndex: state.questionIndex,
-    total: questionsOf(state.quiz).length,
+    round: roundInfo(state),
+    questionIndex: roundQuestionNumber(state),
+    total: round?.questions.length ?? questionsOf(state.quiz).length,
     question: publicQuestion(state),
     endsAt: state.endsAt,
     remainingMs: state.remainingMs,
     playerCount: state.players.length,
-    answeredCount: Object.keys(current).length,
+    answeredCount: Object.keys(currentAnswers(state)).length,
   };
 }
 
@@ -74,7 +118,7 @@ function revealStats(state: GameState, question: Question): RevealStats {
         ? ['true', 'false']
         : [],
   );
-  const records = Object.values(state.plays[state.questionIndex]?.answers ?? {});
+  const records = Object.values(currentAnswers(state));
   const counts: Record<string, number> = {};
   for (const { answer } of records) {
     const keys =
@@ -97,7 +141,7 @@ export function stageView(state: GameState): StageView {
   return {
     ...base(state),
     role: 'stage',
-    players: state.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected })),
+    players: state.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected, streak: shownStreak(state, p) })),
     reveal: revealed,
     stats: revealed !== null ? revealStats(state, revealed) : null,
     standings: publicStandings(state),
@@ -107,7 +151,7 @@ export function stageView(state: GameState): StageView {
 export function playerView(state: GameState, playerId: string): PlayerView | null {
   const player = state.players.find((p) => p.id === playerId);
   if (player === undefined) return null;
-  const record = recordOf(state, state.questionIndex, playerId);
+  const record = currentRecord(state, playerId);
   const revealed = isRevealed(state);
   const standings = publicStandings(state);
   // На етапі locked бали за поточне запитання ще не показуємо: це видало б правильність до розкриття.
@@ -123,7 +167,13 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       answer: record?.answer ?? null,
       result:
         revealed && record !== undefined
-          ? { accepted: record.accepted, accuracy: record.accuracy, points: record.points }
+          ? {
+              accepted: record.accepted,
+              accuracy: record.accuracy,
+              grade: record.grade,
+              streakBonus: record.streakBonus,
+              points: record.points,
+            }
           : null,
     },
     reveal: revealed ? currentQuestion(state) : null,
@@ -133,7 +183,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
 
 export function hostView(state: GameState): HostView {
   const responses = state.players.flatMap((player) => {
-    const record = recordOf(state, state.questionIndex, player.id);
+    const record = currentRecord(state, player.id);
     if (record === undefined) return [];
     return [
       {
@@ -142,6 +192,8 @@ export function hostView(state: GameState): HostView {
         answer: record.answer,
         timeMs: record.timeMs,
         accepted: record.accepted,
+        grade: record.grade,
+        streakBonus: record.streakBonus,
         points: record.points,
         overridden: record.overridden,
       },
@@ -150,7 +202,13 @@ export function hostView(state: GameState): HostView {
   return {
     ...base(state),
     role: 'host',
-    players: state.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected, score: p.score })),
+    players: state.players.map((p) => ({
+      id: p.id,
+      nickname: p.nickname,
+      connected: p.connected,
+      streak: shownStreak(state, p),
+      score: p.score,
+    })),
     correct: currentQuestion(state),
     responses,
     standings: rankPlayers(state.players),
