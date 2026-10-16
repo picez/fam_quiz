@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { bool, classicRound, makeQuiz, makeRoundsQuiz, numeric, single, text } from '@quiz/engine/testing';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
@@ -71,7 +71,8 @@ describe('recorder', () => {
       questionsPlayed: 0,
       finishedAt: null,
     });
-    expect(games[0].quizSnapshot.questions).toHaveLength(2);
+    expect(games[0].quizSnapshot).toEqual(ctx.room.state.quiz);
+    expect(games[0].plays).toEqual([]);
     expect(participants.map((p) => [p.nickname, p.userId, p.score, p.rank])).toEqual([
       ['Олена', 'olena-user', 0, null],
       ['Тарас', null, 0, null],
@@ -108,7 +109,7 @@ describe('recorder', () => {
     ctx.host('start');
     playFirstQuestion(ctx);
     ctx.host('next');
-    expect(ctx.manager.host(ctx.room, { type: 'override', playerId: ctx.taras, accepted: true })).toEqual({ ok: true });
+    expect(ctx.manager.host(ctx.room, { type: 'override', playerId: ctx.taras, grade: 'correct' })).toEqual({ ok: true });
 
     const { participants, answers } = await ctx.saved();
     expect(participants.map((p) => [p.nickname, p.score])).toEqual([
@@ -291,10 +292,76 @@ describe('recorder: manual decisions', () => {
     ctx.host('next');
     await ctx.recorder.idle();
 
-    expect(ctx.manager.host(ctx.room, { type: 'override', playerId: ctx.taras, accepted: false })).toEqual({ ok: true });
+    expect(ctx.manager.host(ctx.room, { type: 'override', playerId: ctx.taras, grade: 'wrong' })).toEqual({ ok: true });
     const { answers } = await ctx.saved();
     expect(answers.filter((a) => a.participantId === ctx.taras)).toMatchObject([
       { accepted: false, points: 0, overridden: true },
+    ]);
+  });
+});
+
+describe('recorder: rounds', () => {
+  it('saves only the questions played, with their rounds, streak bonuses and penalties', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const risky = { penalty: 'minus', partial: null, streak: { length: 2, bonus: { kind: 'fixed', value: 100 } }, multiplier: 1 } as const;
+    const quiz = makeRoundsQuiz([
+      classicRound('r1', [single, text], { speedBonus: false }),
+      classicRound('r2', [bool, numeric], { speedBonus: false, rules: risky }),
+    ]);
+    const room = manager.create(quiz, HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const olena = enter('Олена');
+    const taras = enter('Тарас');
+    const host = (type: 'start' | 'next' | 'end-round') => expect(manager.host(room, { type })).toEqual({ ok: true });
+
+    host('start');
+    host('next');
+    manager.answer(room, olena, correct);
+    manager.answer(room, taras, wrong);
+    // Друге запитання першого раунду так і не зіграно.
+    host('end-round');
+    host('next');
+    host('next');
+    manager.answer(room, olena, { type: 'boolean', value: true });
+    manager.answer(room, taras, { type: 'boolean', value: false });
+    host('next');
+    host('next');
+    host('next');
+    manager.answer(room, olena, { type: 'numeric', value: 2061 });
+    manager.answer(room, taras, { type: 'numeric', value: 1 });
+    host('next');
+    host('next');
+    expect(room.state.phase).toBe('finished');
+    await recorder.idle();
+
+    const [saved] = await db.select().from(game);
+    expect(saved).toMatchObject({ status: 'finished', questionsPlayed: 3 });
+    expect(saved.plays).toEqual([
+      { roundIndex: 0, questionId: single.id },
+      { roundIndex: 1, questionId: bool.id },
+      { roundIndex: 1, questionId: numeric.id },
+    ]);
+    const participants = await db.select().from(participant).orderBy(asc(participant.nickname));
+    expect(participants.map((p) => [p.nickname, p.score, p.rank])).toEqual([
+      ['Олена', 3100, 1],
+      ['Тарас', -2000, 2],
+    ]);
+    const answers = await db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.points));
+    expect(answers.map((a) => [a.questionIndex, a.roundIndex, a.points, a.streakBonus])).toEqual([
+      [0, 0, 0, 0],
+      [0, 0, 1000, 0],
+      [1, 1, -1000, 0],
+      [1, 1, 1000, 0],
+      [2, 1, -1000, 0],
+      [2, 1, 1100, 100],
     ]);
   });
 });

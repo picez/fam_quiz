@@ -171,8 +171,20 @@ describe('playing', () => {
     manager.answer(room, olena.playerId, correct);
     manager.answer(room, taras.playerId, wrong);
     manager.host(room, { type: 'next' });
-    expect(manager.host(room, { type: 'override', playerId: taras.playerId, accepted: true })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'override', playerId: taras.playerId, grade: 'correct' })).toEqual({ ok: true });
     expect(room.state.players[1].score).toBe(1000);
+  });
+
+  it('ends the round on an open question: given answers count, late ones and the timer do not', () => {
+    const { manager, room, scheduler, olena, taras } = playing();
+    manager.answer(room, olena.playerId, correct);
+    expect(manager.host(room, { type: 'end-round' })).toEqual({ ok: true });
+    // Раунд у вікторині один, тож гра закінчується.
+    expect(room.state.phase).toBe('finished');
+    expect(room.state.players[0].score).toBe(1000);
+    expect(manager.answer(room, taras.playerId, correct)).toEqual({ ok: false, error: 'wrong_phase' });
+    scheduler.advance(60_000);
+    expect(room.state.phase).toBe('finished');
   });
 });
 

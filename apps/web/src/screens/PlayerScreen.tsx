@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Answer, PlayerView } from '@quiz/shared';
-import { answerText, correctText, questionClass } from '../format';
+import { answerText, correctText, num, questionClass, questionLabel, roundLabel, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
@@ -20,16 +20,17 @@ function Result({ view }: { view: PlayerView }) {
   const title =
     result === null
       ? t('resultNone')
-      : result.accepted
+      : result.grade === 'correct'
         ? t('resultCorrect')
-        : result.accuracy > 0
+        : result.grade === 'partial'
           ? t('resultPartial')
           : t('resultWrong');
-  const tone = result === null || result.points === 0 ? 'is-wrong' : 'is-correct';
+  const tone = result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
   return (
     <section className={`result ${tone}`}>
       <h2>{title}</h2>
-      {result !== null && result.points > 0 && <p className="earned">{t('earned', { points: result.points })}</p>}
+      {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
+      {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
       {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
     </section>
   );
@@ -50,7 +51,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
     <main className="app player">
       <header className="bar">
         <span>{me.nickname}</span>
-        <strong className="score">{me.score}</strong>
+        <strong className="score">{num(me.score)}</strong>
       </header>
 
       {view.paused && (
@@ -61,10 +62,17 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 
       {phase === 'lobby' && <p className="lead">{t('inLobby')}</p>}
 
+      {phase === 'intro' && view.round !== null && (
+        <>
+          <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
+          <h1 className="question">{roundLabel(view.round.title, view.round.index)}</h1>
+        </>
+      )}
+
       {phase === 'question' && question !== null && (
         <>
           <div className="question-head">
-            <p className="meta">{t('questionOf', { index: view.questionIndex + 1, total: view.total })}</p>
+            <p className="meta">{questionLabel(view.round, view.questionIndex, view.total)}</p>
             <Timer view={view} offsetMs={offsetMs} />
           </div>
           <h1 className={questionClass(question.text)}>{question.text}</h1>
@@ -99,6 +107,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 
       {phase === 'leaderboard' && view.standings !== null && (
         <>
+          {place}
+          <Standings standings={view.standings} highlightId={me.id} limit={5} />
+        </>
+      )}
+
+      {phase === 'round_end' && view.standings !== null && (
+        <>
+          <h1 className="question">{t('roundResults', { index: (view.round?.index ?? 0) + 1 })}</h1>
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
         </>

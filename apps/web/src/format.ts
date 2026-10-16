@@ -1,5 +1,9 @@
-import type { Answer, Question } from '@quiz/shared';
+import type { Answer, LobbyPlayer, Question, RoundInfo } from '@quiz/shared';
 import { t } from './i18n';
+
+/** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N». */
+export const roundLabel = (title: string, index: number): string =>
+  title.trim() === '' ? t('roundN', { index: index + 1 }) : title;
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
@@ -70,4 +74,25 @@ const dateFormat = new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'lo
 export function formatDate(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? '' : dateFormat.format(date);
+}
+
+/** Число зі справжнім мінусом «−», а не дефісом: рахунок може бути від’ємним. */
+export function num(value: number): string {
+  return value < 0 ? `−${Math.abs(value)}` : String(value);
+}
+
+/** Бали запитання зі знаком: «+750», «−1000». */
+export function signed(value: number): string {
+  return value > 0 ? `+${value}` : num(value);
+}
+
+/** Номер запитання в раунді; коли раундів кілька, поруч назва раунду. */
+export function questionLabel(round: RoundInfo | null, index: number, total: number): string {
+  const base = t('questionOf', { index: index + 1, total });
+  return round !== null && round.total > 1 ? `${base}, ${t('roundN', { index: round.index + 1 })}` : base;
+}
+
+/** Серії гравців за id; показуються біля імені від двох правильних відповідей підряд. */
+export function streaksOf(players: LobbyPlayer[]): Record<string, number> {
+  return Object.fromEntries(players.map((player) => [player.id, player.streak]));
 }

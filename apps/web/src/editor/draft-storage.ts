@@ -1,4 +1,4 @@
-import type { Question, Quiz } from '@quiz/shared';
+import { upgradeQuiz, type Question, type Quiz } from '@quiz/shared';
 import { QUESTION_TYPES } from './draft';
 
 const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
@@ -13,24 +13,36 @@ function revive(question: Question): Question {
     : base;
 }
 
+const looksLikeQuestion = (q: unknown) =>
+  typeof q === 'object' &&
+  q !== null &&
+  typeof (q as Question).id === 'string' &&
+  typeof (q as Question).text === 'string' &&
+  (QUESTION_TYPES as readonly string[]).includes((q as Question).type);
+
 function looksLikeQuiz(value: unknown): value is Quiz {
   if (typeof value !== 'object' || value === null) return false;
-  const { title, description, settings, questions } = value as Record<string, unknown>;
+  const { title, description, settings, rounds } = value as Record<string, unknown>;
   return (
     typeof title === 'string' &&
     typeof description === 'string' &&
     typeof settings === 'object' &&
     settings !== null &&
-    Array.isArray(questions) &&
-    questions.length > 0 &&
-    questions.every(
-      (q) =>
-        typeof q === 'object' &&
-        q !== null &&
-        typeof (q as Question).id === 'string' &&
-        typeof (q as Question).text === 'string' &&
-        (QUESTION_TYPES as readonly string[]).includes((q as Question).type),
-    )
+    Array.isArray(rounds) &&
+    rounds.length > 0 &&
+    rounds.every((round) => {
+      if (typeof round !== 'object' || round === null) return false;
+      const { id, title: roundTitle, rules, questions } = round as Record<string, unknown>;
+      return (
+        typeof id === 'string' &&
+        typeof roundTitle === 'string' &&
+        typeof rules === 'object' &&
+        rules !== null &&
+        Array.isArray(questions) &&
+        questions.length > 0 &&
+        questions.every(looksLikeQuestion)
+      );
+    })
   );
 }
 
@@ -39,8 +51,20 @@ export function loadDraft(id: string | undefined): Quiz | null {
   try {
     const raw = sessionStorage.getItem(key(id));
     if (raw === null) return null;
-    const parsed: unknown = JSON.parse(raw);
-    return looksLikeQuiz(parsed) ? { ...parsed, questions: parsed.questions.map(revive) } : null;
+    // Чернетка старого формату (один список запитань) стає вікториною з одним раундом.
+    const parsed = upgradeQuiz(JSON.parse(raw));
+    if (!looksLikeQuiz(parsed)) return null;
+    return {
+      ...parsed,
+      settings: { ...parsed.settings, leaderboard: parsed.settings.leaderboard ?? 'each' },
+      rounds: parsed.rounds.map((round) => ({
+        ...round,
+        // Чернетка старого формату могла не мати цих полів.
+        speedBonus: round.speedBonus ?? true,
+        shuffleOptions: round.shuffleOptions ?? false,
+        questions: round.questions.map(revive),
+      })),
+    };
   } catch {
     return null;
   }

@@ -21,7 +21,7 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<stri
 
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end'] as const;
+const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {

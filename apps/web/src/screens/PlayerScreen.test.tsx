@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerView, Question } from '@quiz/shared';
+import type { PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
 
@@ -36,6 +36,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
   phase: 'lobby',
   paused: false,
+  round: null,
   questionIndex: -1,
   total: 2,
   question: null,
@@ -130,7 +131,7 @@ describe('PlayerScreen', () => {
           ...me,
           score: 750,
           answer: { type: 'single', optionId: 'b' },
-          result: { accepted: true, accuracy: 1, points: 750 },
+          result: { accepted: true, accuracy: 1, grade: 'correct', streakBonus: 0, points: 750 },
         },
       }),
     );
@@ -142,11 +143,11 @@ describe('PlayerScreen', () => {
   it('distinguishes a wrong answer, a partial one and no answer', () => {
     const reveal = { phase: 'reveal' as const, questionIndex: 0, question: publicQuestion, reveal: fullQuestion };
 
-    show(view({ ...reveal, me: { ...me, result: { accepted: false, accuracy: 0, points: 0 } } }));
+    show(view({ ...reveal, me: { ...me, result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: 0 } } }));
     expect(screen.getByText('Неправильно')).toBeTruthy();
     cleanup();
 
-    show(view({ ...reveal, me: { ...me, result: { accepted: false, accuracy: 0.5, points: 500 } } }));
+    show(view({ ...reveal, me: { ...me, result: { accepted: false, accuracy: 0.5, grade: 'partial', streakBonus: 0, points: 500 } } }));
     expect(screen.getByText('Частково правильно')).toBeTruthy();
     expect(screen.getByText('+500')).toBeTruthy();
     cleanup();
@@ -186,5 +187,42 @@ describe('PlayerScreen: question image', () => {
     fireEvent.error(document.querySelector('img.question-image')!);
     expect(document.querySelector('.question-image')).toBeNull();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+});
+
+describe('PlayerScreen: rounds', () => {
+  const round: RoundInfo = { index: 1, total: 3, title: 'Фінальний', type: 'classic', partial: false };
+
+  it('announces the round on the intro', () => {
+    show(view({ phase: 'intro', round }));
+    expect(screen.getByText('Раунд 2 з 3')).toBeTruthy();
+    expect(screen.getByText('Фінальний')).toBeTruthy();
+  });
+
+  it('shows the round results with the place', () => {
+    const standings = [
+      { participantId: 'p2', nickname: 'Тарас', score: 900, totalTimeMs: 1, rank: 1 },
+      { participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 2 },
+    ];
+    show(view({ phase: 'round_end', round, standings, me: { ...me, score: 750, rank: 2 } }));
+    expect(screen.getByText('Підсумки раунду 2')).toBeTruthy();
+    expect(screen.getByText('Ваше місце: 2 з 2')).toBeTruthy();
+  });
+
+  it('shows a negative result with a real minus and the streak bonus on its own line', () => {
+    const reveal = { phase: 'reveal' as const, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round };
+    show(view({ ...reveal, me: { ...me, score: -1000, result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: -1000 } } }));
+    expect(screen.getAllByText('−1000').length).toBeGreaterThan(0);
+    cleanup();
+
+    show(view({ ...reveal, me: { ...me, score: 850, result: { accepted: true, accuracy: 1, grade: 'correct', streakBonus: 100, points: 850 } } }));
+    expect(screen.getByText('+850')).toBeTruthy();
+    expect(screen.getByText('+100 за серію')).toBeTruthy();
+  });
+
+  it('names the round next to the question number when there are several', () => {
+    show(onQuestion({ round, total: 4, questionIndex: 1 }));
+    expect(screen.getByText(/Запитання 2 з 4/)).toBeTruthy();
+    expect(screen.getByText(/Раунд 2/)).toBeTruthy();
   });
 });

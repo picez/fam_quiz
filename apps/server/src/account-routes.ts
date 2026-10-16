@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { quizSchema } from '@quiz/shared';
+import { quizSchema, upgradeQuiz } from '@quiz/shared';
 import { createQuiz, deleteQuiz, getQuiz, listQuizzes, updateQuiz } from './quizzes';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -89,6 +89,8 @@ export async function registerAccountRoutes(
   const NOT_FOUND = { error: 'not_found' };
   const INVALID = { error: 'invalid_payload' };
   type WithId = { Params: { id: string } };
+  // Сторінка редактора, відкрита ще до оновлення сервера, може надіслати вікторину старого формату.
+  const parseQuiz = (body: unknown) => quizSchema.safeParse(upgradeQuiz(body));
 
   app.get('/api/quizzes', async (request, reply) => {
     const user = await currentUser(request);
@@ -99,7 +101,7 @@ export async function registerAccountRoutes(
   app.post('/api/quizzes', async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    const parsed = quizSchema.safeParse(request.body);
+    const parsed = parseQuiz(request.body);
     if (!parsed.success) return reply.code(400).send(INVALID);
     return reply.code(201).send({ id: await createQuiz(db, user.id, parsed.data) });
   });
@@ -115,7 +117,7 @@ export async function registerAccountRoutes(
   app.put<WithId>('/api/quizzes/:id', async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    const parsed = quizSchema.safeParse(request.body);
+    const parsed = parseQuiz(request.body);
     if (!parsed.success) return reply.code(400).send(INVALID);
     const updated = await updateQuiz(db, user.id, request.params.id, parsed.data);
     return updated ? { id: request.params.id } : reply.code(404).send(NOT_FOUND);

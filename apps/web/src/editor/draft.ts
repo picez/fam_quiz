@@ -1,4 +1,15 @@
-import { DEFAULT_SETTINGS, LIMITS, questionSchema, quizSchema, type Question, type Quiz } from '@quiz/shared';
+import {
+  DEFAULT_RULES,
+  DEFAULT_SETTINGS,
+  LIMITS,
+  questionSchema,
+  quizSchema,
+  roundRulesSchema,
+  type ClassicRound,
+  type Question,
+  type Quiz,
+  type RoundRules,
+} from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
 
@@ -87,8 +98,26 @@ export function moveItem<T>(items: T[], from: number, to: number): T[] {
   return next;
 }
 
+/** Правила за замовчуванням, скоповані: редактор змінює їх на місці, а DEFAULT_RULES спільний для всіх. */
+export function defaultRules(): RoundRules {
+  return { ...DEFAULT_RULES, streak: DEFAULT_RULES.streak === null ? null : { ...DEFAULT_RULES.streak } };
+}
+
+/** Новий класичний раунд з одним порожнім запитанням і нинішньою поведінкою гри. */
+export function newClassicRound(): ClassicRound {
+  return {
+    id: newId(),
+    type: 'classic',
+    title: '',
+    speedBonus: true,
+    shuffleOptions: false,
+    rules: defaultRules(),
+    questions: [newQuestion('single')],
+  };
+}
+
 export function newQuiz(): Quiz {
-  return { title: '', description: '', settings: { ...DEFAULT_SETTINGS }, questions: [newQuestion('single')] };
+  return { title: '', description: '', settings: { ...DEFAULT_SETTINGS }, rounds: [newClassicRound()] };
 }
 
 /** Вікторина в тому вигляді, у якому вона піде на сервер. */
@@ -107,28 +136,29 @@ export function cleaned(quiz: Quiz): Quiz {
     while (end > min && items[end - 1].text === '') end -= 1;
     return items.slice(0, end);
   };
+  const cleanQuestion = (question: Question): Question => {
+    const text = question.text.trim();
+    switch (question.type) {
+      case 'single':
+        return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions, [question.correctId]) };
+      case 'multi': {
+        const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
+        const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
+        return { ...question, text, options, correctIds };
+      }
+      case 'order':
+        return { ...question, text, items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems) };
+      case 'text':
+        return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
+      default:
+        return { ...question, text };
+    }
+  };
   return {
     ...quiz,
     title: quiz.title.trim(),
     description: quiz.description.trim(),
-    questions: quiz.questions.map((question): Question => {
-      const text = question.text.trim();
-      switch (question.type) {
-        case 'single':
-          return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions, [question.correctId]) };
-        case 'multi': {
-          const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
-          const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
-          return { ...question, text, options, correctIds };
-        }
-        case 'order':
-          return { ...question, text, items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems) };
-        case 'text':
-          return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
-        default:
-          return { ...question, text };
-      }
-    }),
+    rounds: quiz.rounds.map((round) => ({ ...round, title: round.title.trim(), questions: round.questions.map(cleanQuestion) })),
   };
 }
 
@@ -167,10 +197,14 @@ function problemKey(question: Question): TextKey | null {
   return questionSchema.safeParse(question).success ? null : 'problemGeneric';
 }
 
-/** Номер (з нуля) першого запитання, яке не готове, або null. */
-export function firstProblemIndex(quiz: Quiz): number | null {
-  const index = cleaned(quiz).questions.findIndex((question) => problemKey(question) !== null);
-  return index === -1 ? null : index;
+/** Де (раунд і запитання, з нуля) перша проблема, або null. */
+export function firstProblem(quiz: Quiz): { round: number; question: number } | null {
+  const rounds = cleaned(quiz).rounds;
+  for (let round = 0; round < rounds.length; round += 1) {
+    const question = rounds[round].questions.findIndex((q) => problemKey(q) !== null);
+    if (question !== -1) return { round, question };
+  }
+  return null;
 }
 
 /** Що заважає зберегти вікторину; порожній список означає, що все гаразд. */
@@ -178,9 +212,15 @@ export function problemsOf(quiz: Quiz): string[] {
   const draft = cleaned(quiz);
   const problems: string[] = [];
   if (draft.title === '') problems.push(t('problemTitle'));
-  draft.questions.forEach((question, index) => {
-    const key = problemKey(question);
-    if (key !== null) problems.push(t(key, { index: index + 1 }));
+  const several = draft.rounds.length > 1;
+  draft.rounds.forEach((round, roundIndex) => {
+    // З кількома раундами кожне повідомлення каже, у якому раунді шукати.
+    const where = (text: string) => (several ? `${t('problemRound', { round: roundIndex + 1 })} ${text}` : text);
+    if (!roundRulesSchema.safeParse(round.rules).success) problems.push(where(t('problemRules')));
+    round.questions.forEach((question, index) => {
+      const key = problemKey(question);
+      if (key !== null) problems.push(where(t(key, { index: index + 1 })));
+    });
   });
   // Остання перевірка тією самою схемою, що й на сервері.
   if (problems.length === 0 && !quizSchema.safeParse(draft).success) problems.push(t('problemGeneric', { index: 1 }));

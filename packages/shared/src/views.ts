@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
-import type { Phase } from './game';
-import type { Question } from './quiz';
+import type { Grade, Phase } from './game';
+import type { Question, Round } from './quiz';
 import type { Standing } from './standing';
 
 export interface Choice {
@@ -29,12 +29,30 @@ export interface LobbyPlayer {
   id: string;
   nickname: string;
   connected: boolean;
+  /** Поточна серія правильних відповідей у раунді. */
+  streak: number;
+}
+
+/** Поточний раунд для всіх ролей. */
+export interface RoundInfo {
+  /** 0-базовий номер раунду. */
+  index: number;
+  /** Кількість раундів у вікторині. */
+  total: number;
+  title: string;
+  type: Round['type'];
+  /** Чи ввімкнено ведучому ручну оцінку «частково». */
+  partial: boolean;
 }
 
 interface BaseView {
   phase: Phase;
   paused: boolean;
+  /** Раунд; null у лобі. */
+  round: RoundInfo | null;
+  /** 0-базовий номер запитання в раунді; -1, поки запитання не відкрито. */
   questionIndex: number;
+  /** Кількість запитань у поточному раунді. */
   total: number;
   question: PublicQuestion | null;
   endsAt: number | null;
@@ -54,6 +72,9 @@ export interface StageView extends BaseView {
 export interface PlayerResult {
   accepted: boolean;
   accuracy: number;
+  grade: Grade;
+  /** Бонус за серію; входить у points. */
+  streakBonus: number;
   points: number;
 }
 
@@ -77,6 +98,8 @@ export interface HostResponse {
   answer: Answer;
   timeMs: number;
   accepted: boolean;
+  grade: Grade;
+  streakBonus: number;
   points: number;
   overridden: boolean;
 }

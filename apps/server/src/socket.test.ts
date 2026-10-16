@@ -1,11 +1,11 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { TEST_AUTH, startGame } from './testing/accounts';
+import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -74,8 +74,8 @@ async function join(code: string, nickname: string) {
 }
 
 /** Гра з ведучим, сценою і двома підключеними гравцями в лобі. */
-async function lobby() {
-  const game = await createGame();
+async function lobby(created?: StartedGame) {
+  const game = created ?? (await createGame());
   const olenaJoin = await join(game.code, 'Олена');
   const tarasJoin = await join(game.code, 'Тарас');
   const host = open({ code: game.code, role: 'host', token: game.hostToken });
@@ -133,6 +133,47 @@ describe('a round over real sockets', () => {
     expect(reveal.role === 'player' && reveal.me.result?.accepted).toBe(true);
     const stageReveal = await until(stage, inPhase('reveal'));
     expect(stageReveal.role === 'stage' && stageReveal.stats).toMatchObject({ answered: 2, accepted: 1 });
+  });
+
+  it('lets the host end the round: the last round ends the game', async () => {
+    const { host, olena } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(olena, 'host:end-round')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:end-round')).toEqual({ ok: true });
+    await until(olena, inPhase('finished'));
+  });
+
+  it('shows the round summary when the host ends a round that is not the last', async () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), classicRound('r2', [text])]);
+    const { host, olena } = await lobby((await startGame(ctx.app, quiz)).game);
+    await send(host, 'host:start');
+    await until(olena, inPhase('intro'));
+    expect(await send(host, 'host:end-round')).toEqual({ ok: true });
+    const view = await until(olena, inPhase('round_end'));
+    expect(view.round).toMatchObject({ index: 0, total: 2 });
+  });
+
+  it('refuses a partial grade in a round without partial points', async () => {
+    const { host, olena, taras, tarasJoin } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('question'));
+    await send(olena, 'player:answer', correct);
+    await send(taras, 'player:answer', wrong);
+    await until(host, inPhase('locked'));
+    await send(host, 'host:next');
+    await until(host, inPhase('reveal'));
+    const tarasId = tarasJoin.playerId;
+    expect(await send(host, 'host:override', { playerId: tarasId, grade: 'partial' })).toEqual({
+      ok: false,
+      error: 'partial_disabled',
+    });
+    expect(await send(host, 'host:override', { playerId: tarasId, accepted: true })).toEqual({
+      ok: false,
+      error: 'invalid_payload',
+    });
+    expect(await send(host, 'host:override', { playerId: tarasId, grade: 'correct' })).toEqual({ ok: true });
   });
 
   it('reports engine errors through the acknowledgement', async () => {

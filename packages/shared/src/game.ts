@@ -1,4 +1,7 @@
-export type Phase = 'lobby' | 'question' | 'locked' | 'reveal' | 'leaderboard' | 'finished';
+/** intro — заставка раунду, round_end — підсумки раунду. */
+export type Phase = 'lobby' | 'intro' | 'question' | 'locked' | 'reveal' | 'leaderboard' | 'round_end' | 'finished';
+
+export type Grade = 'correct' | 'partial' | 'wrong';
 
 export type ErrorCode =
   | 'wrong_phase'
@@ -10,4 +13,5 @@ export type ErrorCode =
   | 'nickname_taken'
   | 'already_answered'
   | 'time_over'
-  | 'type_mismatch';
+  | 'type_mismatch'
+  | 'partial_disabled';

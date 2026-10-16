@@ -9,14 +9,17 @@ describe('lobby', () => {
   it('starts empty in the lobby phase', () => {
     const state = createGame(quiz);
     expect(state.phase).toBe('lobby');
+    expect(state.roundIndex).toBe(-1);
     expect(state.questionIndex).toBe(-1);
     expect(state.players).toEqual([]);
-    expect(state.answers).toHaveLength(quiz.questions.length);
+    expect(state.plays).toEqual([]);
   });
 
   it('adds a connected player with a zero score', () => {
     const state = must(addPlayer(createGame(quiz), { id: 'p1', nickname: 'Олена' }));
-    expect(state.players).toEqual([{ id: 'p1', nickname: 'Олена', connected: true, score: 0, totalTimeMs: 0 }]);
+    expect(state.players).toEqual([
+      { id: 'p1', nickname: 'Олена', connected: true, score: 0, totalTimeMs: 0, streak: 0 },
+    ]);
   });
 
   it('does not mutate the previous state', () => {

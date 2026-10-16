@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { quizSchema, type Question, type Quiz } from '@quiz/shared';
-import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, moveItem, newQuestion, newQuiz, problemsOf } from './draft';
+import { loadDraft, saveDraft } from './draft-storage';
+import { DEFAULT_RULES, quizSchema, questionsOf, type Question, type Quiz } from '@quiz/shared';
+import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -18,7 +20,10 @@ function filled(question: Question): Question {
   }
 }
 
-const quizWith = (...questions: Question[]): Quiz => ({ ...newQuiz(), title: 'Гра', questions });
+const quizWith = (...questions: Question[]): Quiz => {
+  const quiz = newQuiz();
+  return { ...quiz, title: 'Гра', rounds: [{ ...quiz.rounds[0], questions }] };
+};
 
 describe('newQuestion', () => {
   it('creates a question of every type that becomes valid once its texts are filled in', () => {
@@ -121,7 +126,7 @@ describe('cleaned', () => {
     const result = cleaned({ ...quizWith(question), title: '  Гра  ', description: '  опис ' });
     expect(result.title).toBe('Гра');
     expect(result.description).toBe('опис');
-    expect(result.questions[0]).toMatchObject({ text: 'Місто?', accepted: ['Одеса'] });
+    expect(questionsOf(result)[0]).toMatchObject({ text: 'Місто?', accepted: ['Одеса'] });
   });
 });
 
@@ -174,17 +179,13 @@ describe('moveItem', () => {
 describe('spare empty rows', () => {
   const single = (texts: string[], correct: number): Quiz => {
     const options = texts.map((text, index) => ({ id: `o${index}`, text }));
-    return {
-      ...newQuiz(),
-      title: 'Гра',
-      questions: [{ id: 'q1', type: 'single', text: 'Питання?', imageUrl: null, timeLimit: 20, points: 1000, options, correctId: `o${correct}` }],
-    };
+    return quizWith({ id: 'q1', type: 'single', text: 'Питання?', imageUrl: null, timeLimit: 20, points: 1000, options, correctId: `o${correct}` });
   };
 
   it('drops an empty option left after the last Enter instead of refusing to save', () => {
     const quiz = single(['Львів', 'Київ', '  '], 1);
     expect(problemsOf(quiz)).toEqual([]);
-    const [question] = cleaned(quiz).questions;
+    const [question] = questionsOf(cleaned(quiz));
     expect(question.type === 'single' && question.options.map((option) => option.text)).toEqual(['Львів', 'Київ']);
   });
 
@@ -197,11 +198,7 @@ describe('spare empty rows', () => {
   });
 
   it('drops unmarked empty options of a multi-choice question', () => {
-    const quiz: Quiz = {
-      ...newQuiz(),
-      title: 'Гра',
-      questions: [
-        {
+    const quiz: Quiz = quizWith({
           id: 'q1',
           type: 'multi',
           text: 'Питання?',
@@ -214,11 +211,9 @@ describe('spare empty rows', () => {
             { id: 'c', text: 'Запоріжжя' },
           ],
           correctIds: ['a', 'c'],
-        },
-      ],
-    };
+        });
     expect(problemsOf(quiz)).toEqual([]);
-    const [question] = cleaned(quiz).questions;
+    const [question] = questionsOf(cleaned(quiz));
     expect(question.type === 'multi' && [question.options.map((o) => o.id), question.correctIds]).toEqual([
       ['a', 'c'],
       ['a', 'c'],
@@ -226,11 +221,7 @@ describe('spare empty rows', () => {
   });
 
   it('does not silently drop a marked option of a multi-choice question', () => {
-    const quiz: Quiz = {
-      ...newQuiz(),
-      title: 'Гра',
-      questions: [
-        {
+    const quiz: Quiz = quizWith({
           id: 'q1',
           type: 'multi',
           text: 'Питання?',
@@ -243,31 +234,116 @@ describe('spare empty rows', () => {
             { id: 'c', text: '' },
           ],
           correctIds: ['a', 'c'],
-        },
-      ],
-    };
+        });
     expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
   });
 
   it('does not close a gap in the middle of an order question on its own', () => {
     const items = ['Один', '', 'Два', 'Три'].map((text, index) => ({ id: `i${index}`, text }));
-    const quiz: Quiz = {
-      ...newQuiz(),
-      title: 'Гра',
-      questions: [{ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items }],
-    };
+    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items });
     expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
   });
 
   it('drops empty items at the end of an order question while at least three remain', () => {
     const items = ['Один', 'Два', 'Три', ''].map((text, index) => ({ id: `i${index}`, text }));
-    const quiz: Quiz = {
-      ...newQuiz(),
-      title: 'Гра',
-      questions: [{ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items }],
-    };
+    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items });
     expect(problemsOf(quiz)).toEqual([]);
-    const [question] = cleaned(quiz).questions;
+    const [question] = questionsOf(cleaned(quiz));
     expect(question.type === 'order' && question.items.map((item) => item.text)).toEqual(['Один', 'Два', 'Три']);
+  });
+});
+
+describe('rounds', () => {
+  it('starts a new quiz with one classic round holding one empty single question', () => {
+    const quiz = newQuiz();
+    expect(quiz.rounds).toHaveLength(1);
+    expect(quiz.rounds[0]).toMatchObject({
+      type: 'classic',
+      title: '',
+      speedBonus: true,
+      shuffleOptions: false,
+      rules: { penalty: 'none', partial: null, streak: null, multiplier: 1 },
+    });
+    expect(quiz.rounds[0].questions).toHaveLength(1);
+    expect(quiz.rounds[0].questions[0].type).toBe('single');
+  });
+
+  it('never shares the default rules object between rounds', () => {
+    const a = newClassicRound();
+    const b = newClassicRound();
+    expect(a.rules).not.toBe(b.rules);
+    expect(a.id).not.toBe(b.id);
+    a.rules.multiplier = 3;
+    expect(newClassicRound().rules.multiplier).toBe(1);
+  });
+
+  it('reports problems of later rounds with the round number', () => {
+    const quiz = quizWith(filled(newQuestion('boolean')));
+    const second = newClassicRound();
+    const withTwo: Quiz = { ...quiz, rounds: [...quiz.rounds, second] };
+    expect(problemsOf(withTwo)).toEqual(['Раунд 2: Запитання 1: впишіть текст запитання.']);
+    expect(firstProblem(withTwo)).toEqual({ round: 1, question: 0 });
+  });
+
+  it('rejects rules outside the allowed ranges', () => {
+    const quiz = quizWith(filled(newQuestion('boolean')));
+    const bad: Quiz = {
+      ...quiz,
+      rounds: [{ ...quiz.rounds[0], rules: { ...quiz.rounds[0].rules, partial: Number.NaN } }],
+    };
+    expect(problemsOf(bad)).toHaveLength(1);
+  });
+});
+
+describe('draft storage', () => {
+  it('opens a draft of the old format as a quiz with one round', () => {
+    sessionStorage.setItem(
+      'quiz:draft:old',
+      JSON.stringify({
+        title: 'Стара',
+        description: '',
+        settings: { speedBonus: false, leaderboard: 'end', shuffleOptions: true },
+        questions: [{ ...filled(newQuestion('boolean')), id: 'q1' }],
+      }),
+    );
+    const quiz = loadDraft('old');
+    expect(quiz?.rounds).toHaveLength(1);
+    expect(quiz?.settings).toEqual({ leaderboard: 'end' });
+    expect(quiz?.rounds[0]).toMatchObject({ speedBonus: false, shuffleOptions: true });
+    expect(quiz?.rounds[0].questions[0].id).toBe('q1');
+  });
+
+  it('does not put the shared DEFAULT_RULES into editor state', () => {
+    sessionStorage.setItem(
+      'quiz:draft:shared',
+      JSON.stringify({ title: 'Стара', description: '', settings: {}, questions: [filled(newQuestion('boolean'))] }),
+    );
+    const rules = loadDraft('shared')?.rounds[0].rules;
+    expect(rules).toEqual(DEFAULT_RULES);
+    expect(rules).not.toBe(DEFAULT_RULES);
+  });
+
+  it('fills in fields that an old draft lacks', () => {
+    sessionStorage.setItem(
+      'quiz:draft:bare',
+      JSON.stringify({ title: 'Стара', description: '', settings: {}, questions: [filled(newQuestion('boolean'))] }),
+    );
+    const quiz = loadDraft('bare');
+    expect(quiz?.settings.leaderboard).toBe('each');
+    expect(quiz?.rounds[0]).toMatchObject({ speedBonus: true, shuffleOptions: false });
+  });
+
+  it('round-trips a draft with rounds and keeps NaN fields editable', () => {
+    const quiz = quizWith({ ...(newQuestion('numeric') as Extract<Question, { type: 'numeric' }>), correct: Number.NaN });
+    saveDraft('new-format', quiz);
+    const back = loadDraft('new-format');
+    expect(back?.rounds[0].questions[0]).toMatchObject({ type: 'numeric' });
+    const question = back?.rounds[0].questions[0];
+    expect(question?.type === 'numeric' && Number.isNaN(question.correct)).toBe(true);
+  });
+
+  it('ignores garbage', () => {
+    sessionStorage.setItem('quiz:draft:junk', JSON.stringify({ title: 1 }));
+    expect(loadDraft('junk')).toBeNull();
   });
 });

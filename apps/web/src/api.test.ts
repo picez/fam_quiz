@@ -63,7 +63,7 @@ describe('api', () => {
 
   it('sends updates with PUT and sign-out with an empty JSON object', async () => {
     const put = respond(200, { id: 'q1' });
-    await updateQuiz('q1', { title: 'Гра', description: '', settings: { speedBonus: true, leaderboard: 'each', shuffleOptions: false }, questions: [] });
+    await updateQuiz('q1', { title: 'Гра', description: '', settings: { leaderboard: 'each' }, rounds: [] });
     expect(put).toHaveBeenCalledWith('/api/quizzes/q1', expect.objectContaining({ method: 'PUT' }));
 
     const out = respond(200, { success: true });

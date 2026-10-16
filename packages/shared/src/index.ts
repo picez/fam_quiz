@@ -1,4 +1,5 @@
 export * from './quiz';
+export * from './upgrade';
 export * from './answer';
 export * from './standing';
 export * from './game';

@@ -157,8 +157,18 @@ describe('a quiz with an image', () => {
     const quiz = (imageUrl: string) => ({
       title: 'З картинкою',
       description: '',
-      settings: { speedBonus: true, leaderboard: 'each', shuffleOptions: false },
-      questions: [{ id: 'q1', type: 'boolean', text: 'Це кіт?', imageUrl, timeLimit: 20, points: 1000, correct: true }],
+      settings: { leaderboard: 'each' },
+      rounds: [
+        {
+          id: 'r1',
+          type: 'classic',
+          title: '',
+          speedBonus: true,
+          shuffleOptions: false,
+          rules: { penalty: 'none', partial: null, streak: null, multiplier: 1 },
+          questions: [{ id: 'q1', type: 'boolean', text: 'Це кіт?', imageUrl, timeLimit: 20, points: 1000, correct: true }],
+        },
+      ],
     });
     const save = (imageUrl: string) =>
       ctx.app.inject({ method: 'POST', url: '/api/quizzes', payload: quiz(imageUrl), headers: { cookie } });

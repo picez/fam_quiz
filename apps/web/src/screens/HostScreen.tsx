@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import type { ClientToServerEvents, HostView } from '@quiz/shared';
-import { answerText, correctText, questionClass } from '../format';
+import type { ClientToServerEvents, Grade, HostView } from '@quiz/shared';
+import { answerText, correctText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import type { Send } from '../live/types';
 import { QuestionImage } from './QuestionImage';
@@ -19,15 +19,22 @@ type HostEvent = keyof ClientToServerEvents;
 /** Єдина головна дія кожного етапу. */
 const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: HostEvent }>> = {
   lobby: { label: 'start', event: 'host:start' },
+  intro: { label: 'startRound', event: 'host:next' },
   question: { label: 'lock', event: 'host:lock' },
   locked: { label: 'reveal', event: 'host:next' },
   reveal: { label: 'next', event: 'host:next' },
   leaderboard: { label: 'nextQuestion', event: 'host:next' },
+  round_end: { label: 'nextRound', event: 'host:next' },
 };
+
+/** Етапи, на яких раунд ще триває й його можна завершити достроково. */
+const IN_ROUND: HostView['phase'][] = ['intro', 'question', 'locked', 'reveal', 'leaderboard'];
 
 export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
   const [error, setError] = useState<string | null>(null);
-  const { phase, correct } = view;
+  const { phase, correct, round } = view;
+  const inRound = round !== null && IN_ROUND.includes(phase);
+  const lastRound = round !== null && round.index === round.total - 1;
   const live = phase !== 'lobby' && phase !== 'finished';
   const main = MAIN_ACTION[phase];
   const canGrade = phase === 'reveal' && correct?.type === 'text';
@@ -60,6 +67,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
     if (window.confirm(t('endConfirm'))) void act('host:end');
   };
 
+  const endRound = () => {
+    // В останньому раунді завершення раунду є завершенням гри.
+    if (window.confirm(t(lastRound ? 'endConfirm' : 'endRoundConfirm'))) void act('host:end-round');
+  };
+
+  const grade = (playerId: string, value: Grade) => void act('host:override', { playerId, grade: value });
+
   const kick = (playerId: string, name: string) => {
     if (window.confirm(t('kickConfirm', { name }))) void act('host:kick', { playerId });
   };
@@ -79,9 +93,17 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
 
       <p className="meta">
         {t(`phase_${phase}`)}
-        {view.questionIndex >= 0 && `, ${t('questionOf', { index: view.questionIndex + 1, total: view.total })}`}
+        {round !== null && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
+        {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && `, ${t('answeredOf', { answered: view.answeredCount, total: view.playerCount })}`}
       </p>
+
+      {phase === 'intro' && round !== null && (
+        <section className="panel">
+          <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>
+          <h1 className="question">{roundLabel(round.title, round.index)}</h1>
+        </section>
+      )}
 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
@@ -102,24 +124,42 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
                 <li key={response.playerId}>
                   <span className="name">{response.nickname}</span>
                   <span className="given">{answerText(response.answer, correct)}</span>
-                  <span className={response.accepted ? 'tag is-correct' : 'tag is-wrong'}>
-                    {t(response.accepted ? 'accepted' : 'rejected')}
+                  <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
+                    {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
                     {response.overridden && `, ${t('changedByHost')}`}
                   </span>
-                  <span className="score">{response.points}</span>
+                  <span className="score">{num(response.points)}</span>
+                  {response.streakBonus > 0 && <span className="streak-bonus">{t('streakBonusLine', { points: response.streakBonus })}</span>}
                   {canGrade && (
-                    <button
-                      type="button"
-                      className="btn btn-small"
-                      onClick={() => act('host:override', { playerId: response.playerId, accepted: !response.accepted })}
-                    >
-                      {t(response.accepted ? 'reject' : 'accept')}
-                    </button>
+                    <>
+                      {response.grade !== 'correct' && (
+                        <button type="button" className="btn btn-small" onClick={() => grade(response.playerId, 'correct')}>
+                          {t('accept')}
+                        </button>
+                      )}
+                      {round?.partial === true && response.grade !== 'partial' && (
+                        <button type="button" className="btn btn-small" onClick={() => grade(response.playerId, 'partial')}>
+                          {t('gradePartial')}
+                        </button>
+                      )}
+                      {response.grade !== 'wrong' && (
+                        <button type="button" className="btn btn-small" onClick={() => grade(response.playerId, 'wrong')}>
+                          {t('reject')}
+                        </button>
+                      )}
+                    </>
                   )}
                 </li>
               ))}
             </ul>
           )}
+        </section>
+      )}
+
+      {phase === 'round_end' && round !== null && (
+        <section className="panel">
+          <h2>{t('roundResults', { index: round.index + 1 })}</h2>
+          <Standings standings={view.standings} streaks={streaksOf(view.players)} />
         </section>
       )}
 
@@ -136,7 +176,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
               <li key={player.id}>
                 <span className="name">{player.nickname}</span>
                 {!player.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
-                <span className="score">{player.score}</span>
+                {player.streak >= 2 && <span className="streak">{t('streakMark', { count: player.streak })}</span>}
+                <span className="score">{num(player.score)}</span>
                 <button type="button" className="btn btn-small" onClick={() => kick(player.id, player.nickname)}>
                   {t('kick')}
                 </button>
@@ -162,7 +203,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
       <footer className="actions">
         {live && (
           <>
-            <button type="button" className="btn btn-danger" onClick={endGame}>
+            {inRound && !lastRound && (
+              <button type="button" className="btn btn-danger" onClick={endRound}>
+                {t('endRound')}
+              </button>
+            )}
+            <button type="button" className="btn btn-danger" onClick={inRound && lastRound ? endRound : endGame}>
               {t('end')}
             </button>
             <button

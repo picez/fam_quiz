@@ -1,4 +1,12 @@
-import { DEFAULT_SETTINGS, type Question, type Quiz, type QuizSettings } from '@quiz/shared';
+import {
+  DEFAULT_RULES,
+  DEFAULT_SETTINGS,
+  type ClassicRound,
+  type Question,
+  type Quiz,
+  type QuizSettings,
+  type Round,
+} from '@quiz/shared';
 
 const base = { imageUrl: null, timeLimit: 20, points: 1000 };
 
@@ -67,14 +75,34 @@ export const order = {
   ],
 } satisfies Question;
 
+export type RoundOptions = Partial<Pick<ClassicRound, 'title' | 'speedBonus' | 'shuffleOptions' | 'rules'>>;
+
+export function classicRound(id: string, questions: Question[], options: RoundOptions = {}): ClassicRound {
+  return {
+    id,
+    type: 'classic',
+    title: '',
+    speedBonus: true,
+    shuffleOptions: false,
+    rules: DEFAULT_RULES,
+    ...options,
+    questions,
+  };
+}
+
+/** Вікторина з одним класичним раундом; налаштування раунду й вікторини в одному об'єкті. */
 export function makeQuiz(
   questions: Question[] = [single, multi, bool, text, numeric, order],
-  settings: Partial<QuizSettings> = {},
+  { leaderboard, ...round }: Partial<QuizSettings> & RoundOptions = {},
 ): Quiz {
+  return makeRoundsQuiz([classicRound('r1', questions, round)], leaderboard ? { leaderboard } : {});
+}
+
+export function makeRoundsQuiz(rounds: Round[], settings: Partial<QuizSettings> = {}): Quiz {
   return {
     title: 'Тестова вікторина',
     description: '',
     settings: { ...DEFAULT_SETTINGS, ...settings },
-    questions,
+    rounds,
   };
 }

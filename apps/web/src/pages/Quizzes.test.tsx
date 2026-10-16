@@ -106,7 +106,7 @@ describe('Quizzes', () => {
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Додати приклад' }));
     await waitFor(() => expect(createQuiz).toHaveBeenCalledTimes(1));
-    expect(vi.mocked(createQuiz).mock.calls[0][0].questions).toHaveLength(6);
+    expect(vi.mocked(createQuiz).mock.calls[0][0].rounds[0].questions).toHaveLength(6);
     await waitFor(() => expect(listQuizzes).toHaveBeenCalledTimes(2));
   });
 

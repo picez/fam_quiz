@@ -1,4 +1,4 @@
-import type { Answer, GameStatus, Question, Quiz, QuizSettings } from '@quiz/shared';
+import type { Answer, GameStatus, QuizSettings, Round } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -75,11 +75,17 @@ export const quiz = pgTable(
     title: text('title').notNull(),
     description: text('description').notNull(),
     settings: jsonb('settings').$type<QuizSettings>().notNull(),
-    questions: jsonb('questions').$type<Question[]>().notNull(),
+    rounds: jsonb('rounds').$type<Round[]>().notNull(),
     ...stamps,
   },
   (table) => [index('quiz_owner_idx').on(table.ownerId)],
 );
+
+/** Зігране запитання гри: раунд і id запитання в ньому. */
+export interface PlayRef {
+  roundIndex: number;
+  questionId: string;
+}
 
 /** Зіграна або поточна гра. id збігається з id кімнати. */
 export const game = pgTable(
@@ -94,7 +100,10 @@ export const game = pgTable(
     code: text('code').notNull(),
     status: text('status').$type<GameStatus>().notNull(),
     title: text('title').notNull(),
-    quizSnapshot: jsonb('quiz_snapshot').$type<Quiz>().notNull(),
+    /** Знімок вікторини; ігри, зіграні до раундів, мають старий формат, тому читати через upgradeQuiz. */
+    quizSnapshot: jsonb('quiz_snapshot').$type<unknown>().notNull(),
+    /** Закриті запитання в порядку гри; у старих іграх порожній. */
+    plays: jsonb('plays').$type<PlayRef[]>().notNull().default([]),
     /** Скільки запитань уже закрито. */
     questionsPlayed: integer('questions_played').notNull().default(0),
     startedAt: at('started_at').notNull(),
@@ -127,11 +136,15 @@ export const answer = pgTable(
     participantId: uuid('participant_id')
       .notNull()
       .references(() => participant.id, { onDelete: 'cascade' }),
+    /** Індекс у game.plays. */
     questionIndex: integer('question_index').notNull(),
+    roundIndex: integer('round_index').notNull().default(0),
     payload: jsonb('payload').$type<Answer>().notNull(),
     timeMs: integer('time_ms').notNull(),
     accepted: boolean('accepted').notNull(),
+    /** Повні бали за відповідь, разом із бонусом серії. */
     points: integer('points').notNull(),
+    streakBonus: integer('streak_bonus').notNull().default(0),
     overridden: boolean('overridden').notNull(),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex] })],

@@ -1,8 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { quizSchema } from '@quiz/shared';
+import { sql } from 'drizzle-orm';
+import { bool, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import { buildApp } from './app';
+import { answer, game, user } from './db/schema';
+import { getQuiz, listQuizzes } from './quizzes';
 import { TEST_AUTH, signUp } from './testing/accounts';
-import { createTestDb } from './testing/test-db';
+import { createTestDb, createTestDbUpTo } from './testing/test-db';
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
 
@@ -77,7 +81,7 @@ describe('quizzes', () => {
   it('rejects an invalid quiz on create and on update', async () => {
     const { cookie } = await signUp(ctx.app, 'Олена');
     const id = await createQuiz(cookie);
-    const invalid = { ...makeQuiz([single]), questions: [] };
+    const invalid = makeRoundsQuiz([]);
     for (const response of [
       await call('POST', '/api/quizzes', cookie, invalid),
       await call('PUT', `/api/quizzes/${id}`, cookie, invalid),
@@ -106,5 +110,85 @@ describe('quizzes', () => {
       expect(response.statusCode).toBe(404);
       expect(response.json()).toEqual({ error: 'not_found' });
     }
+  });
+  it('saves a quiz of two rounds unchanged and counts the questions of both', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const rounds = makeRoundsQuiz([
+      classicRound('r1', [single, text], { title: 'Розминка' }),
+      classicRound('r2', [bool], { title: 'Ризик', rules: { penalty: 'minus', partial: 50, streak: null, multiplier: 2 } }),
+    ]);
+    const created = await call('POST', '/api/quizzes', cookie, rounds);
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json() as { id: string };
+
+    expect((await call('GET', `/api/quizzes/${id}`, cookie)).json()).toEqual({ id, ...rounds });
+    const list = (await call('GET', '/api/quizzes', cookie)).json() as { questionCount: number }[];
+    expect(list.map((item) => item.questionCount)).toEqual([3]);
+  });
+
+  it('accepts a quiz in the old format from a page opened before the update', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const old = {
+      title: 'Тестова вікторина',
+      description: '',
+      settings: { speedBonus: false, leaderboard: 'end', shuffleOptions: true },
+      questions: [single, text],
+    };
+    const created = await call('POST', '/api/quizzes', cookie, old);
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json() as { id: string };
+    const expected = makeQuiz([single, text], { speedBonus: false, leaderboard: 'end', shuffleOptions: true });
+    expect((await call('GET', `/api/quizzes/${id}`, cookie)).json()).toEqual({ id, ...expected });
+    expect((await call('PUT', `/api/quizzes/${id}`, cookie, old)).statusCode).toBe(200);
+  });
+});
+
+describe('moving saved quizzes to rounds (migration 0002)', () => {
+  it('turns every saved quiz into one classic round with the same questions and settings', async () => {
+    const { db, migrateRest } = await createTestDbUpTo('0001_results');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const insertOld = async (id: string, settings: object, questions: object[]) => {
+      await db.execute(sql`
+        INSERT INTO "quiz" ("id", "owner_id", "title", "description", "settings", "questions")
+        VALUES (${id}, 'u1', 'Тестова вікторина', '', ${JSON.stringify(settings)}::jsonb, ${JSON.stringify(questions)}::jsonb)`);
+      return id;
+    };
+    const plain = await insertOld('55555555-5555-4555-8555-555555555555', { speedBonus: true, leaderboard: 'each', shuffleOptions: false }, [
+      single,
+      text,
+    ]);
+    const tuned = await insertOld('66666666-6666-4666-8666-666666666666', { speedBonus: false, leaderboard: 'end', shuffleOptions: true }, [
+      bool,
+    ]);
+
+    // Зіграна гра й відповідь старого формату: знімок лишається як був, нові стовпці отримують типові значення.
+    const snapshot = {
+      title: 'Гра',
+      description: '',
+      settings: { speedBonus: true, leaderboard: 'each', shuffleOptions: false },
+      questions: [single],
+    };
+    await db.execute(sql`
+      INSERT INTO "game" ("id", "host_id", "code", "status", "title", "quiz_snapshot", "questions_played", "started_at")
+      VALUES ('11111111-1111-4111-8111-111111111111', 'u1', '123456', 'finished', 'Гра', ${JSON.stringify(snapshot)}::jsonb, 1, now())`);
+    await db.execute(sql`
+      INSERT INTO "participant" ("id", "game_id", "nickname", "score", "total_time_ms")
+      VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'Тарас', 1000, 3000)`);
+    await db.execute(sql`
+      INSERT INTO "answer" ("participant_id", "question_index", "payload", "time_ms", "accepted", "points", "overridden")
+      VALUES ('22222222-2222-4222-8222-222222222222', 0, '{"type":"single","optionId":"b"}'::jsonb, 3000, true, 1000, false)`);
+
+    await migrateRest();
+
+    expect(await getQuiz(db, 'u1', plain)).toEqual(makeQuiz([single, text]));
+    expect(await getQuiz(db, 'u1', tuned)).toEqual(makeQuiz([bool], { speedBonus: false, leaderboard: 'end', shuffleOptions: true }));
+    expect(quizSchema.safeParse(await getQuiz(db, 'u1', plain)).success).toBe(true);
+    expect((await listQuizzes(db, 'u1')).map((item) => item.questionCount).sort()).toEqual([1, 2]);
+
+    const [played] = await db.select().from(game);
+    expect(played.quizSnapshot).toEqual(snapshot);
+    expect(played.plays).toEqual([]);
+    const [given] = await db.select().from(answer);
+    expect(given).toMatchObject({ questionIndex: 0, roundIndex: 0, streakBonus: 0, points: 1000 });
   });
 });

@@ -21,10 +21,9 @@ interface Snapshot {
   fromQuestion: number;
 }
 
-/** Скільки запитань уже закрито. */
+/** Скільки запитань журналу вже закрито: відкрите запитання завжди останнє. */
 function closedQuestions(state: GameState): number {
-  if (state.phase === 'lobby') return 0;
-  return state.phase === 'question' ? state.questionIndex : state.questionIndex + 1;
+  return state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
 }
 
 /** Змінюється лише тоді, коли в грі з'явилося щось варте запису. */
@@ -36,7 +35,8 @@ function signature(state: GameState): string {
     const record = last < 0 ? undefined : recordOf(state, last, player.id);
     return record === undefined ? null : [record.accepted, record.points, record.overridden];
   });
-  return JSON.stringify([state.phase, state.questionIndex, state.players.map((p) => [p.id, p.score]), grades]);
+  const scores = state.players.map((p) => [p.id, p.score]);
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades]);
 }
 
 async function save(db: Db, snapshot: Snapshot): Promise<void> {
@@ -47,6 +47,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
   const progress = {
     status: finished ? ('finished' as const) : ('running' as const),
     questionsPlayed: closed,
+    plays: state.plays.slice(0, closed).map((play) => ({ roundIndex: play.roundIndex, questionId: play.question.id })),
     finishedAt: finished ? new Date() : null,
   };
 
@@ -86,10 +87,22 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       for (let index = snapshot.fromQuestion; index < closed; index++) {
         const record = recordOf(state, index, player.id);
         if (record === undefined) continue;
-        const grade = { accepted: record.accepted, points: record.points, overridden: record.overridden };
+        const grade = {
+          accepted: record.accepted,
+          points: record.points,
+          streakBonus: record.streakBonus,
+          overridden: record.overridden,
+        };
         await tx
           .insert(answer)
-          .values({ participantId: player.id, questionIndex: index, payload: record.answer, timeMs: record.timeMs, ...grade })
+          .values({
+            participantId: player.id,
+            questionIndex: index,
+            roundIndex: state.plays[index].roundIndex,
+            payload: record.answer,
+            timeMs: record.timeMs,
+            ...grade,
+          })
           .onConflictDoUpdate({ target: [answer.participantId, answer.questionIndex], set: grade });
       }
     }

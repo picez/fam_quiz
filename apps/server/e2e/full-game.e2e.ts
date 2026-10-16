@@ -282,3 +282,134 @@ async function scenario() {
 
   expect(problems).toEqual([]);
 }
+
+/** Відкриває згорнуті «Налаштування раунду», якщо вони ще закриті. */
+async function openRoundSettings(page: Page) {
+  const panel = page.locator('details.round-settings');
+  if ((await panel.getAttribute('open')) === null) await panel.locator('summary').click();
+}
+
+it('a two-round game with an early round end reaches the podium and shows both rounds in the history', async () => {
+  try {
+    await twoRounds();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function twoRounds() {
+  const host = await open('host2', 1280, 900);
+
+  await host.goto(base);
+  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await click(host, 'Створити акаунт');
+  await field(host, 'Ваше ім’я').fill('Ірина Ведуча');
+  await field(host, 'Email').fill('host2@example.com');
+  await field(host, 'Пароль').fill('correct horse battery');
+  await click(host, 'Зареєструватися');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Вікторина з раундами');
+
+  // Раунд 1 «Розминка»: два запитання, правила за замовчуванням.
+  await openRoundSettings(host);
+  await field(host, 'Назва раунду').fill('Розминка');
+  await questionText(host).fill('Столиця України?');
+  await field(host, 'Варіант 1').fill('Львів');
+  await field(host, 'Варіант 2').fill('Київ');
+  await field(host, 'Правильний: варіант 2').click();
+  await click(host, 'Додати запитання');
+  await click(host, 'так чи ні');
+  await questionText(host).fill('Говерла є найвищою горою України?');
+  await click(host, 'Правильна відповідь: Так');
+
+  // Раунд 2 «Фінал»: штраф і серії від двох правильних відповідей підряд.
+  await click(host, '+ Раунд');
+  await openRoundSettings(host);
+  await field(host, 'Назва раунду').fill('Фінал');
+  await field(host, 'Штраф: мінус ціна запитання за хибну відповідь').check();
+  await field(host, 'Серії: бонус за правильні відповіді підряд').check();
+  // Рендериться лише вибраний раунд, тож це налаштування саме другого.
+  await host.locator('details.round-settings .round-streak select').first().selectOption('2');
+  await questionText(host).fill('Найбільша річка України?');
+  await field(host, 'Варіант 1').fill('Дніпро');
+  await field(host, 'Варіант 2').fill('Дунай');
+  await field(host, 'Правильний: варіант 1').click();
+  await click(host, 'Додати запитання');
+  await click(host, 'так чи ні');
+  await questionText(host).fill('Карпати в Україні?');
+  await click(host, 'Правильна відповідь: Так');
+
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Вікторина з раундами' }).waitFor();
+
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage2', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya2', 390, 844);
+  const taras = await open('taras2', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+
+  const reveal = async () => {
+    await click(host, 'Показати відповідь');
+    await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  };
+
+  // Раунд 1: заставка, одне запитання, дострокове завершення.
+  await click(host, 'Почати гру');
+  await stage.getByText('Раунд 1 з 2').first().waitFor();
+  await click(host, 'Почати раунд');
+  await olya.getByRole('button', { name: /Київ/ }).click();
+  await taras.getByRole('button', { name: /Львів/ }).click();
+  await reveal();
+  await olya.getByText('Правильно!').waitFor();
+  await click(host, 'Завершити раунд');
+  await stage.getByText('Підсумки раунду 1').first().waitFor();
+  await olya.getByText('Підсумки раунду 1').waitFor();
+
+  // Раунд 2: перше запитання без серії, але зі штрафом; друге — серія.
+  await click(host, 'Наступний раунд');
+  await stage.getByText('Раунд 2 з 2').first().waitFor();
+  await click(host, 'Почати раунд');
+  await olya.getByRole('button', { name: /Дніпро/ }).click();
+  await taras.getByRole('button', { name: /Дунай/ }).click();
+  await reveal();
+  await olya.getByText('Правильно!').waitFor();
+  await taras.getByText('Неправильно').waitFor();
+  // Штраф: у Тараса не було балів, тож після хибної відповіді рахунок від'ємний.
+  await taras.locator('.bar .score').filter({ hasText: /^−\d/ }).waitFor();
+  // Перша правильна відповідь серії: бонусу ще немає.
+  expect(await olya.getByText(/за серію/).count()).toBe(0);
+  await click(host, 'Далі');
+  await stage.locator('.standings li').filter({ hasText: /Тарас.*−\d/ }).waitFor();
+  await click(host, 'Наступне запитання');
+  await click(olya, 'Так');
+  await click(taras, 'Так');
+  await reveal();
+  await olya.getByText(/за серію/).waitFor();
+  await click(host, 'Далі');
+
+  // Подіум і історія з двома раундами.
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const podium = await stage.locator('.standings li').allTextContents();
+  expect(podium[0]).toContain('Оля');
+  expect(podium[1]).toContain('Тарас');
+  expect(podium[0]).toMatch(/\d/);
+
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Вікторина з раундами/ }).click();
+  await host.getByRole('heading', { name: 'Розминка' }).waitFor();
+  await host.getByRole('heading', { name: 'Фінал' }).waitFor();
+  await host.getByText('Столиця України?').waitFor();
+  await host.getByText('Найбільша річка України?').waitFor();
+  // Незігране запитання першого раунду в історію не потрапляє.
+  expect(await host.getByText('Говерла є найвищою горою України?').count()).toBe(0);
+
+  expect(problems).toEqual([]);
+}

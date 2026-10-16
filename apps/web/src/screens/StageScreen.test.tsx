@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Question, StageView } from '@quiz/shared';
+import type { Question, RoundInfo, StageView } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 
 afterEach(cleanup);
@@ -17,6 +17,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   role: 'stage',
   phase: 'lobby',
   paused: false,
+  round: null,
   questionIndex: -1,
   total: 3,
   question: null,
@@ -49,8 +50,8 @@ describe('StageScreen', () => {
       view({
         playerCount: 2,
         players: [
-          { id: 'p1', nickname: 'Олена', connected: true },
-          { id: 'p2', nickname: 'Тарас', connected: false },
+          { id: 'p1', nickname: 'Олена', connected: true, streak: 0 },
+          { id: 'p2', nickname: 'Тарас', connected: false, streak: 0 },
         ],
       }),
     );
@@ -121,5 +122,34 @@ describe('StageScreen', () => {
 
     show(view({ phase: 'question', questionIndex: 0, question, paused: true, remainingMs: 9000 }), false);
     expect(screen.getByRole('status').textContent).toBe('Чекаємо на ведучого');
+  });
+});
+
+describe('StageScreen: rounds', () => {
+  const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false };
+
+  it('announces the round on the intro', () => {
+    show(view({ phase: 'intro', round }));
+    expect(screen.getByText('Раунд 1 з 2')).toBeTruthy();
+    expect(screen.getByText('Розминка')).toBeTruthy();
+  });
+
+  it('names an untitled round «Раунд N» in the intro heading', () => {
+    show(view({ phase: 'intro', round: { ...round, index: 1, title: '' } }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 2');
+  });
+
+  it('shows the standings under «round results» at the end of a round', () => {
+    const standings = [{ participantId: 'p1', nickname: 'Олена', score: -300, totalTimeMs: 1, rank: 1 }];
+    show(view({ phase: 'round_end', round, standings, players: [{ id: 'p1', nickname: 'Олена', connected: true, streak: 2 }] }));
+    expect(screen.getByText('Підсумки раунду 1')).toBeTruthy();
+    expect(screen.getByText('−300')).toBeTruthy();
+    expect(screen.getByText('🔥 2')).toBeTruthy();
+  });
+
+  it('numbers the question inside the round', () => {
+    show(view({ phase: 'question', round, questionIndex: 1, total: 5, question, endsAt: Date.now() + 20_000 }));
+    expect(screen.getByText(/Запитання 2 з 5/)).toBeTruthy();
+    expect(screen.getByText(/Раунд 1/)).toBeTruthy();
   });
 });
