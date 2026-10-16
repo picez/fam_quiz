@@ -1,3 +1,7 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+# pnpm 11+ блокує скрипти встановлення залежностей; esbuild (для tsx, vite, drizzle-kit) його потребує.
+allowBuilds:
+  esbuild: true
