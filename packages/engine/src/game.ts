@@ -10,7 +10,7 @@ import {
 } from '@quiz/shared';
 import { checkAnswer } from './check';
 import { normalizeText } from './normalize';
-import { scorePoints, speedFactor } from './score';
+import { answerPoints, speedFactor, streakBonus } from './score';
 
 export interface PlayerState {
   id: string;
@@ -197,21 +197,44 @@ function advance(state: GameState, now: number, rng: Rng): GameState {
   return question !== undefined ? openQuestion(state, question, now, rng) : finishRound(state);
 }
 
-/** Перераховує рахунок і сумарний час за всіма вже закритими запитаннями. */
+/** Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями. */
 function withTotals(state: GameState): GameState {
   // Відкрите запитання завжди останнє в журналі.
-  const closed = state.phase === 'question' ? state.plays.slice(0, -1) : state.plays;
+  const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
+  // Серія кожного гравця; на межі раундів скидається.
+  let counters: Record<string, number> = {};
+  let countersRound = -1;
+  const plays = state.plays.map((play, index) => {
+    if (index >= closedCount) return play;
+    if (play.roundIndex !== countersRound) {
+      counters = {};
+      countersRound = play.roundIndex;
+    }
+    const streak = state.quiz.rounds[play.roundIndex].rules.streak;
+    if (streak === null) return play;
+    const answers = { ...play.answers };
+    for (const player of state.players) {
+      const record = Object.hasOwn(answers, player.id) ? answers[player.id] : undefined;
+      counters[player.id] = record !== undefined && record.accuracy >= 1 ? (counters[player.id] ?? 0) + 1 : 0;
+      if (record === undefined) continue;
+      const bonus = counters[player.id] >= streak.length ? streakBonus(record.basePoints, streak.bonus) : 0;
+      answers[player.id] = { ...record, streakBonus: bonus, points: record.basePoints + bonus };
+    }
+    return { ...play, answers };
+  });
+
   const players = state.players.map((player) => {
     let score = 0;
     let totalTimeMs = 0;
-    for (const play of closed) {
+    for (const play of plays.slice(0, closedCount)) {
       const record = Object.hasOwn(play.answers, player.id) ? play.answers[player.id] : undefined;
       score += record ? record.points : 0;
       totalTimeMs += record ? record.timeMs : play.question.timeLimit * 1000;
     }
-    return { ...player, score, totalTimeMs };
+    const streak = countersRound === state.roundIndex ? (counters[player.id] ?? 0) : 0;
+    return { ...player, score, totalTimeMs, streak };
   });
-  return { ...state, players };
+  return { ...state, plays, players };
 }
 
 function lockNow(state: GameState): GameState {
@@ -245,11 +268,18 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
 
   const { question, roundIndex } = state.plays[state.questionIndex];
   if (question.type !== answer.type) return fail('type_mismatch');
+  const round = state.quiz.rounds[roundIndex];
 
   const timeMs = Math.max(0, now - state.startedAt);
   const { accepted, accuracy } = checkAnswer(question, answer);
-  const speed = speedFactor(timeMs, question.timeLimit * 1000, state.quiz.rounds[roundIndex].speedBonus);
-  const points = scorePoints(question.points, accuracy, speed);
+  const speed = speedFactor(timeMs, question.timeLimit * 1000, round.speedBonus);
+  const points = answerPoints({
+    points: question.points,
+    accuracy,
+    speed,
+    multiplier: round.rules.multiplier,
+    penalty: round.rules.penalty,
+  });
   const record: AnswerRecord = {
     answer,
     timeMs,
@@ -289,7 +319,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
     case 'leaderboard':
       return ok(advance(state, now, rng));
     case 'round_end':
-      return ok({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 });
+      // Нова серія в новому раунді починається з нуля.
+      return ok(withTotals({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 }));
     default:
       return fail('wrong_phase');
   }
@@ -326,21 +357,29 @@ export function resume(state: GameState, now: number): Result {
   return ok({ ...state, paused: false });
 }
 
-/** Ведучий вручну зараховує або відхиляє відповідь на поточне запитання. */
-export function override(state: GameState, playerId: string, accepted: boolean): Result {
+/** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
+export function override(state: GameState, playerId: string, grade: Grade): Result {
   if (state.phase !== 'reveal') return fail('wrong_phase');
   const record = recordOf(state, state.questionIndex, playerId);
   if (record === undefined) return fail('not_found');
 
   const { question, roundIndex } = state.plays[state.questionIndex];
-  const accuracy = accepted ? 1 : 0;
-  const speed = speedFactor(record.timeMs, question.timeLimit * 1000, state.quiz.rounds[roundIndex].speedBonus);
-  const points = scorePoints(question.points, accuracy, speed);
+  const round = state.quiz.rounds[roundIndex];
+  if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
+  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
+  const speed = speedFactor(record.timeMs, question.timeLimit * 1000, round.speedBonus);
+  const points = answerPoints({
+    points: question.points,
+    accuracy,
+    speed,
+    multiplier: round.rules.multiplier,
+    penalty: round.rules.penalty,
+  });
   const updated: AnswerRecord = {
     ...record,
-    accepted,
+    accepted: grade === 'correct',
     accuracy,
-    grade: gradeOf(accuracy),
+    grade,
     basePoints: points,
     streakBonus: 0,
     points,

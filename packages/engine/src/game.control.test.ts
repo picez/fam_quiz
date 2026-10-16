@@ -63,7 +63,7 @@ describe('override', () => {
   };
 
   it('accepts a rejected answer and recalculates points with the original time', () => {
-    const state = must(override(onReveal(), 'p2', true));
+    const state = must(override(onReveal(), 'p2', 'correct'));
     expect(recordOf(state, 0, 'p2')).toMatchObject({
       accepted: true,
       accuracy: 1,
@@ -76,7 +76,7 @@ describe('override', () => {
   });
 
   it('rejects an accepted answer and removes its points', () => {
-    const state = must(override(onReveal(), 'p1', false));
+    const state = must(override(onReveal(), 'p1', 'wrong'));
     expect(recordOf(state, 0, 'p1')).toMatchObject({
       accepted: false,
       accuracy: 0,
@@ -90,12 +90,12 @@ describe('override', () => {
 
   it('is allowed only on reveal', () => {
     const locked = must(lock(must(start(lobbyWith(textQuiz, 'Олена'), T0))));
-    expect(override(locked, 'p1', true)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(override(locked, 'p1', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('reports a player who gave no answer', () => {
     const reveal = must(next(must(lock(must(start(lobbyWith(textQuiz, 'Олена'), T0)))), T0));
-    expect(override(reveal, 'p1', true)).toEqual({ ok: false, error: 'not_found' });
+    expect(override(reveal, 'p1', 'correct')).toEqual({ ok: false, error: 'not_found' });
   });
 });
 
