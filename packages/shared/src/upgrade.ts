@@ -22,7 +22,8 @@ export function upgradeQuiz(raw: unknown): unknown {
         title: '',
         speedBonus: old.speedBonus,
         shuffleOptions: old.shuffleOptions,
-        rules: DEFAULT_RULES,
+        // Копія: спільний DEFAULT_RULES не повинен потрапити в чужий стан за посиланням.
+        rules: { ...DEFAULT_RULES, streak: DEFAULT_RULES.streak && { ...DEFAULT_RULES.streak } },
         questions,
       },
     ],

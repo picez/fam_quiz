@@ -55,6 +55,14 @@ describe('upgradeQuiz', () => {
     expect(upgradeQuiz(current)).toBe(current);
   });
 
+  it('gives the upgraded round its own copy of the default rules', () => {
+    const upgraded = upgradeQuiz({ title: 'Гра', description: '', settings: {}, questions: [single] }) as {
+      rounds: { rules: unknown }[];
+    };
+    expect(upgraded.rounds[0].rules).toEqual(DEFAULT_RULES);
+    expect(upgraded.rounds[0].rules).not.toBe(DEFAULT_RULES);
+  });
+
   it('leaves anything that is not a quiz untouched', () => {
     expect(upgradeQuiz(null)).toBeNull();
     expect(upgradeQuiz('quiz')).toBe('quiz');

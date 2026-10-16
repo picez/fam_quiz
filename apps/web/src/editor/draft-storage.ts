@@ -56,7 +56,14 @@ export function loadDraft(id: string | undefined): Quiz | null {
     if (!looksLikeQuiz(parsed)) return null;
     return {
       ...parsed,
-      rounds: parsed.rounds.map((round) => ({ ...round, questions: round.questions.map(revive) })),
+      settings: { ...parsed.settings, leaderboard: parsed.settings.leaderboard ?? 'each' },
+      rounds: parsed.rounds.map((round) => ({
+        ...round,
+        // Чернетка старого формату могла не мати цих полів.
+        speedBonus: round.speedBonus ?? true,
+        shuffleOptions: round.shuffleOptions ?? false,
+        questions: round.questions.map(revive),
+      })),
     };
   } catch {
     return null;

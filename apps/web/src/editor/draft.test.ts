@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { quizSchema, questionsOf, type Question, type Quiz } from '@quiz/shared';
+import { DEFAULT_RULES, quizSchema, questionsOf, type Question, type Quiz } from '@quiz/shared';
 import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
@@ -311,6 +311,26 @@ describe('draft storage', () => {
     expect(quiz?.settings).toEqual({ leaderboard: 'end' });
     expect(quiz?.rounds[0]).toMatchObject({ speedBonus: false, shuffleOptions: true });
     expect(quiz?.rounds[0].questions[0].id).toBe('q1');
+  });
+
+  it('does not put the shared DEFAULT_RULES into editor state', () => {
+    sessionStorage.setItem(
+      'quiz:draft:shared',
+      JSON.stringify({ title: 'Стара', description: '', settings: {}, questions: [filled(newQuestion('boolean'))] }),
+    );
+    const rules = loadDraft('shared')?.rounds[0].rules;
+    expect(rules).toEqual(DEFAULT_RULES);
+    expect(rules).not.toBe(DEFAULT_RULES);
+  });
+
+  it('fills in fields that an old draft lacks', () => {
+    sessionStorage.setItem(
+      'quiz:draft:bare',
+      JSON.stringify({ title: 'Стара', description: '', settings: {}, questions: [filled(newQuestion('boolean'))] }),
+    );
+    const quiz = loadDraft('bare');
+    expect(quiz?.settings.leaderboard).toBe('each');
+    expect(quiz?.rounds[0]).toMatchObject({ speedBonus: true, shuffleOptions: false });
   });
 
   it('round-trips a draft with rounds and keeps NaN fields editable', () => {
