@@ -39,7 +39,7 @@ describe('EditQuiz', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
 
     expect(await screen.findByText('мої вікторини')).toBeTruthy();
-    expect(updateQuiz).toHaveBeenCalledWith('q1', expect.objectContaining({ title: 'Нова назва' }));
+    expect(updateQuiz).toHaveBeenCalledWith('q1', expect.objectContaining({ title: 'Нова назва', rounds: demoQuiz.rounds }));
     expect(createQuiz).not.toHaveBeenCalled();
   });
 
@@ -52,6 +52,8 @@ describe('EditQuiz', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     expect(await screen.findByText('мої вікторини')).toBeTruthy();
     expect(createQuiz).toHaveBeenCalledWith(expect.objectContaining({ title: 'Гра' }));
+    expect(vi.mocked(createQuiz).mock.calls[0][0].rounds).toHaveLength(1);
+    expect(vi.mocked(createQuiz).mock.calls[0][0].rounds[0]).toMatchObject({ type: 'classic', speedBonus: true });
     expect(getQuiz).not.toHaveBeenCalled();
   });
 

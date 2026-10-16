@@ -1,8 +1,10 @@
-import { LIMITS, type Question, type Quiz } from '@quiz/shared';
+import { LIMITS, questionsOf, type ClassicRound, type Question, type Quiz } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
-import { cleaned, duplicateQuestion, firstProblemIndex, moveItem, newQuestion, problemsOf } from './draft';
+import { cleaned, duplicateQuestion, firstProblem, moveItem, newClassicRound, newQuestion, problemsOf } from './draft';
 import { QuestionEditor } from './QuestionEditor';
+import { RoundSettings } from './RoundSettings';
+import { RoundStrip } from './RoundStrip';
 
 interface Props {
   initial: Quiz;
@@ -23,13 +25,17 @@ interface Props {
 export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
+  const [roundIndex, setRoundIndex] = useState(0);
   const [selected, setSelected] = useState(0);
   const [listOpen, setListOpen] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   /** Запитання, яке зараз перетягують у списку. */
   const dragged = useRef<number | null>(null);
-  const { questions, settings } = quiz;
+  const { rounds, settings } = quiz;
+  const ri = Math.min(roundIndex, rounds.length - 1);
+  const round = rounds[ri];
+  const { questions } = round;
   const current = questions[Math.min(selected, questions.length - 1)];
   const last = questions.length - 1;
 
@@ -47,7 +53,12 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     setProblems([]);
     onDraft?.(next);
   };
-  const setQuestions = (next: Question[]) => update({ ...quiz, questions: next });
+  const setRounds = (next: Quiz['rounds']) => update({ ...quiz, rounds: next });
+  const setRound = (next: ClassicRound) => setRounds(rounds.map((r, index) => (index === ri ? next : r)));
+  const setQuestions = (next: Question[]) => setRound({ ...round, questions: next });
+  /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
+  const total = questionsOf(quiz).length;
+  const roomForMore = questions.length < LIMITS.maxQuestions && total < LIMITS.maxQuizQuestions;
   const setSettings = (patch: Partial<Quiz['settings']>) => update({ ...quiz, settings: { ...settings, ...patch } });
 
   const select = (index: number) => {
@@ -83,6 +94,40 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     select(selected + 1);
   };
 
+  const selectRound = (index: number) => {
+    setRoundIndex(index);
+    setSelected(0);
+    setListOpen(false);
+  };
+
+  const addRound = () => {
+    setRounds([...rounds, newClassicRound()]);
+    selectRound(rounds.length);
+  };
+
+  const renameRound = (index: number) => {
+    const title = window.prompt(t('roundNamePrompt', { index: index + 1 }), rounds[index].title);
+    if (title === null) return;
+    setRounds(rounds.map((r, i) => (i === index ? { ...r, title: title.slice(0, LIMITS.roundTitle) } : r)));
+  };
+
+  /** Переносить раунд; вибраним лишається той самий раунд. */
+  const moveRound = (from: number, to: number) => {
+    const next = moveItem(rounds, from, to);
+    if (next === rounds) return;
+    setRounds(next);
+    setRoundIndex(next.indexOf(rounds[ri]));
+  };
+
+  const removeRound = (index: number) => {
+    if (rounds.length === 1) return;
+    const target = rounds[index];
+    const hasText = target.questions.some((q) => q.text.trim() !== '');
+    if (hasText && !window.confirm(t('removeRoundConfirm', { index: index + 1, count: target.questions.length }))) return;
+    setRounds(rounds.filter((_, i) => i !== index));
+    selectRound(Math.max(0, index === rounds.length - 1 ? index - 1 : index));
+  };
+
   const cancel = () => {
     if (dirty && !window.confirm(t('discardConfirm'))) return;
     onCancel();
@@ -93,8 +138,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     setProblems(found);
     if (found.length > 0) {
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
-      const broken = firstProblemIndex(quiz);
-      if (broken !== null) setSelected(broken);
+      const broken = firstProblem(quiz);
+      if (broken !== null) {
+        setRoundIndex(broken.round);
+        setSelected(broken.question);
+      }
       return;
     }
     setSaving(true);
@@ -114,6 +162,17 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         </p>
       )}
 
+      <RoundStrip
+        rounds={rounds}
+        selected={ri}
+        onSelect={selectRound}
+        onAdd={addRound}
+        onRename={renameRound}
+        onMove={moveRound}
+        onRemove={removeRound}
+      />
+      <RoundSettings round={round} index={ri + 1} onChange={setRound} />
+
       <div className="editor-grid">
         <aside className="editor-side">
           <label className="field">
@@ -130,22 +189,6 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 maxLength={500}
                 onChange={(event) => update({ ...quiz, description: event.target.value })}
               />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={settings.speedBonus}
-                onChange={(event) => setSettings({ speedBonus: event.target.checked })}
-              />
-              <span>{t('speedBonus')}</span>
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={settings.shuffleOptions}
-                onChange={(event) => setSettings({ shuffleOptions: event.target.checked })}
-              />
-              <span>{t('shuffleOptions')}</span>
             </label>
             <label className="field">
               <span>{t('leaderboardLabel')}</span>
@@ -231,7 +274,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             })}
           </ol>
 
-          <button type="button" className="btn btn-dashed" disabled={questions.length >= LIMITS.maxQuestions} onClick={add}>
+          <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={add}>
             {t('addQuestion')}
           </button>
         </aside>
@@ -243,7 +286,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
           />
           <div className="toolbar">
-            <button type="button" className="btn btn-small" disabled={questions.length >= LIMITS.maxQuestions} onClick={duplicate}>
+            <button type="button" className="btn btn-small" disabled={!roomForMore} onClick={duplicate}>
               {t('duplicate')}
             </button>
             <button

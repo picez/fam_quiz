@@ -1260,3 +1260,38 @@ a.banner {
     display: inline;
   }
 }
+
+/* Смуга раундів над редактором: з одним раундом лише кнопка «+ Раунд». */
+.round-strip {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.round-tabs {
+  display: flex;
+  gap: 0.375rem;
+  overflow-x: auto;
+}
+
+.round-tab {
+  flex: none;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.round-tab.is-on {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.round-settings {
+  margin-bottom: 0.75rem;
+}
+
+.round-streak {
+  display: grid;
+  gap: 0.75rem;
+}
