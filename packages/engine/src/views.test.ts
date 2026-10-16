@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Phase } from '@quiz/shared';
-import { lock, next, start, submitAnswer, type GameState } from './game';
+import { endRound, lock, next, start, submitAnswer, type GameState } from './game';
 import { bool, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, text } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
@@ -193,6 +193,27 @@ describe('rounds', () => {
     expect(hostView(state).responses).toEqual([]);
     expect(playerView(state, 'p1')?.me.answer).toBeNull();
     expect(playerView(state, 'p1')?.me.result).toBeNull();
+  });
+
+  it('shows no question, reveal or stats when the game ends from the intro of the last round', () => {
+    const state = must(endRound(atIntro2(), T0));
+    expect(state.phase).toBe('finished');
+    for (const view of [stageView(state), playerView(state, 'p1'), hostView(state)]) {
+      expect(view?.question).toBeNull();
+      expect(view?.answeredCount).toBe(0);
+    }
+    expect(stageView(state).reveal).toBeNull();
+    expect(stageView(state).stats).toBeNull();
+    expect(playerView(state, 'p1')?.reveal).toBeNull();
+    expect(playerView(state, 'p1')?.me.result).toBeNull();
+    expect(hostView(state).correct).toBeNull();
+    expect(stageView(state).standings).toHaveLength(2);
+  });
+
+  it('keeps the last question at finished when the game ends within its round', () => {
+    const state = must(endRound(goTo(started(), 'reveal', 1), T0));
+    expect(state.phase).toBe('finished');
+    expect(stageView(state).reveal).not.toBeNull();
   });
 
   it('numbers questions within the round', () => {

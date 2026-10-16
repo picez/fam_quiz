@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ClientToServerEvents, Grade, HostView } from '@quiz/shared';
-import { answerText, correctText, num, questionClass, questionLabel, streaksOf } from '../format';
+import { answerText, correctText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import type { Send } from '../live/types';
 import { QuestionImage } from './QuestionImage';
@@ -101,7 +101,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
       {phase === 'intro' && round !== null && (
         <section className="panel">
           <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>
-          <h1 className="question">{round.title}</h1>
+          <h1 className="question">{roundLabel(round.title, round.index)}</h1>
         </section>
       )}
 

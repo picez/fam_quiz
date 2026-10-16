@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Answer, PlayerView } from '@quiz/shared';
-import { answerText, correctText, num, questionClass, questionLabel, signed } from '../format';
+import { answerText, correctText, num, questionClass, questionLabel, roundLabel, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
@@ -65,7 +65,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'intro' && view.round !== null && (
         <>
           <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
-          <h1 className="question">{view.round.title}</h1>
+          <h1 className="question">{roundLabel(view.round.title, view.round.index)}</h1>
         </>
       )}
 

@@ -197,32 +197,48 @@ function advance(state: GameState, now: number, rng: Rng): GameState {
   return question !== undefined ? openQuestion(state, question, now, rng) : finishRound(state);
 }
 
+/**
+ * Серія кожного гравця після перших upTo запитань журналу: поспіль правильні відповіді в раунді
+ * останнього з них. Без відповіді серія перервана; на межі раундів вона скидається;
+ * якщо правил серії в тому раунді немає, серій немає.
+ */
+export function streakCounts(state: GameState, upTo: number): Record<string, number> {
+  const last = state.plays[upTo - 1];
+  if (last === undefined || state.quiz.rounds[last.roundIndex].rules.streak === null) return {};
+  const counts: Record<string, number> = {};
+  for (const player of state.players) {
+    let count = 0;
+    for (let i = upTo - 1; i >= 0 && state.plays[i].roundIndex === last.roundIndex; i -= 1) {
+      const record = recordOf(state, i, player.id);
+      if (record === undefined || record.accuracy < 1) break;
+      count += 1;
+    }
+    counts[player.id] = count;
+  }
+  return counts;
+}
+
 /** Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями. */
 function withTotals(state: GameState): GameState {
   // Відкрите запитання завжди останнє в журналі.
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
-  // Серія кожного гравця; на межі раундів скидається.
-  let counters: Record<string, number> = {};
-  let countersRound = -1;
   const plays = state.plays.map((play, index) => {
     if (index >= closedCount) return play;
-    if (play.roundIndex !== countersRound) {
-      counters = {};
-      countersRound = play.roundIndex;
-    }
     const streak = state.quiz.rounds[play.roundIndex].rules.streak;
     if (streak === null) return play;
+    // Серія враховує і саме це запитання.
+    const counters = streakCounts(state, index + 1);
     const answers = { ...play.answers };
     for (const player of state.players) {
       const record = Object.hasOwn(answers, player.id) ? answers[player.id] : undefined;
-      counters[player.id] = record !== undefined && record.accuracy >= 1 ? (counters[player.id] ?? 0) + 1 : 0;
       if (record === undefined) continue;
-      const bonus = counters[player.id] >= streak.length ? streakBonus(record.basePoints, streak.bonus) : 0;
+      const bonus = (counters[player.id] ?? 0) >= streak.length ? streakBonus(record.basePoints, streak.bonus) : 0;
       answers[player.id] = { ...record, streakBonus: bonus, points: record.basePoints + bonus };
     }
     return { ...play, answers };
   });
 
+  const counters = state.plays[closedCount - 1]?.roundIndex === state.roundIndex ? streakCounts(state, closedCount) : {};
   const players = state.players.map((player) => {
     let score = 0;
     let totalTimeMs = 0;
@@ -231,8 +247,7 @@ function withTotals(state: GameState): GameState {
       score += record ? record.points : 0;
       totalTimeMs += record ? record.timeMs : play.question.timeLimit * 1000;
     }
-    const streak = countersRound === state.roundIndex ? (counters[player.id] ?? 0) : 0;
-    return { ...player, score, totalTimeMs, streak };
+    return { ...player, score, totalTimeMs, streak: counters[player.id] ?? 0 };
   });
   return { ...state, plays, players };
 }

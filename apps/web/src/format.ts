@@ -1,6 +1,10 @@
 import type { Answer, LobbyPlayer, Question, RoundInfo } from '@quiz/shared';
 import { t } from './i18n';
 
+/** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N». */
+export const roundLabel = (title: string, index: number): string =>
+  title.trim() === '' ? t('roundN', { index: index + 1 }) : title;
+
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 const yesNo = (value: boolean) => t(value ? 'yes' : 'no');

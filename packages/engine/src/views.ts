@@ -11,7 +11,7 @@ import {
   type Standing,
   type StageView,
 } from '@quiz/shared';
-import { currentRound, recordOf, roundQuestionNumber, type GameState, type PlayerState } from './game';
+import { currentRound, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
 import { rankPlayers } from './ranking';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
@@ -19,8 +19,14 @@ const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
 // У цих етапах запитання ще (або вже) немає: журнал показує лише останнє зігране.
 const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'round_end'];
 
+/** Чи є поточне запитання. На finished останнє зігране показуємо, лише якщо воно з поточного раунду (інакше гру завершено з intro). */
+function inQuestion(state: GameState): boolean {
+  if (BETWEEN_QUESTIONS.includes(state.phase)) return false;
+  return state.phase !== 'finished' || state.plays[state.questionIndex]?.roundIndex === state.roundIndex;
+}
+
 function currentQuestion(state: GameState): Question | null {
-  if (BETWEEN_QUESTIONS.includes(state.phase)) return null;
+  if (!inQuestion(state)) return null;
   return state.plays[state.questionIndex]?.question ?? null;
 }
 
@@ -61,12 +67,12 @@ function roundInfo(state: GameState): RoundInfo | null {
 
 /** Відповіді на поточне запитання; поза запитанням порожні. */
 function currentAnswers(state: GameState) {
-  return BETWEEN_QUESTIONS.includes(state.phase) ? {} : (state.plays[state.questionIndex]?.answers ?? {});
+  return !inQuestion(state) ? {} : (state.plays[state.questionIndex]?.answers ?? {});
 }
 
 /** Запис про відповідь гравця на поточне запитання; поза запитанням його немає. */
 function currentRecord(state: GameState, playerId: string) {
-  return BETWEEN_QUESTIONS.includes(state.phase) ? undefined : recordOf(state, state.questionIndex, playerId);
+  return !inQuestion(state) ? undefined : recordOf(state, state.questionIndex, playerId);
 }
 
 /** Серія гравця для показу: на етапі locked без поточного запитання, щоб не видати правильність. */
@@ -76,14 +82,8 @@ function shownStreak(state: GameState, player: PlayerState): number {
 
 /** Серія гравця перед поточним запитанням: поспіль правильні відповіді в цьому раунді. */
 function previousStreak(state: GameState, playerId: string): number {
-  if (currentRound(state)?.rules.streak === null) return 0;
-  let count = 0;
-  for (let i = state.questionIndex - 1; i >= 0 && state.plays[i].roundIndex === state.roundIndex; i -= 1) {
-    const record = recordOf(state, i, playerId);
-    if (record === undefined || record.accuracy < 1) break;
-    count += 1;
-  }
-  return count;
+  if (state.plays[state.questionIndex - 1]?.roundIndex !== state.roundIndex) return 0;
+  return streakCounts(state, state.questionIndex)[playerId] ?? 0;
 }
 
 function base(state: GameState) {
@@ -103,7 +103,7 @@ function base(state: GameState) {
 }
 
 function isRevealed(state: GameState): boolean {
-  return state.questionIndex >= 0 && REVEALED.includes(state.phase);
+  return state.questionIndex >= 0 && inQuestion(state) && REVEALED.includes(state.phase);
 }
 
 function publicStandings(state: GameState): Standing[] | null {

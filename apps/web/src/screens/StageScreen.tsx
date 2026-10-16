@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import type { StageView } from '@quiz/shared';
-import { LETTERS, correctText, questionClass, questionLabel, streaksOf } from '../format';
+import { LETTERS, correctText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { Timer } from '../live/Timer';
 import { QuestionImage } from './QuestionImage';
@@ -96,7 +96,7 @@ function Intro({ view }: { view: StageView }) {
   return (
     <div className="stage-board">
       <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
-      <h1 className="question">{view.round.title}</h1>
+      <h1 className="question">{roundLabel(view.round.title, view.round.index)}</h1>
     </div>
   );
 }

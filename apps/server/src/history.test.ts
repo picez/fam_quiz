@@ -204,6 +204,50 @@ describe('host history: rounds', () => {
   });
 });
 
+describe('host history: broken snapshot', () => {
+  it('does not fail the whole history because of one snapshot that no longer passes the schema', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const base = { hostId: account.id, quizId: null, status: 'finished' as const, questionsPlayed: 0, finishedAt: new Date() };
+    const goodId = '55555555-5555-4555-8555-555555555555';
+    const badId = '66666666-6666-4666-8666-666666666666';
+    await db.insert(game).values({
+      ...base,
+      id: goodId,
+      code: '111222',
+      title: 'Добра',
+      quizSnapshot: makeRoundsQuiz([classicRound('r1', [single, text])]),
+      startedAt: new Date(2026, 0, 2),
+    });
+    // Знімок, якого сьогоднішня схема не приймає: у запитань немає потрібних полів.
+    await db.insert(game).values({
+      ...base,
+      id: badId,
+      code: '333444',
+      title: 'Зіпсована',
+      quizSnapshot: { title: 'Зіпсована', rounds: [{ id: 'r1', questions: [{}, {}, {}] }] },
+      startedAt: new Date(2026, 0, 1),
+    });
+    await db.insert(participant).values({ id: '77777777-7777-4777-8777-777777777777', gameId: badId, nickname: 'Тарас', score: 5, totalTimeMs: 0, rank: 1 });
+
+    const listed = await get('/api/games', host.cookie);
+    expect(listed.statusCode).toBe(200);
+    const list = listed.json() as Record<string, unknown>[];
+    expect(list.map((g) => [g.id, g.questionCount])).toEqual([
+      [goodId, 2],
+      [badId, 3],
+    ]);
+
+    const detail = await get(`/api/games/${badId}`, host.cookie);
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json()).toMatchObject({
+      rounds: [],
+      questions: [],
+      standings: [{ nickname: 'Тарас', score: 5, rank: 1 }],
+    });
+  });
+});
+
 describe('player history', () => {
   it('lists the games a signed-in player took part in', async () => {
     const { olena, host, gameId } = await playedGame();

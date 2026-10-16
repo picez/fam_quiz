@@ -1,4 +1,5 @@
 import { LIMITS, type Round } from '@quiz/shared';
+import { roundLabel } from '../format';
 import { t } from '../i18n';
 
 interface Props {
@@ -17,7 +18,7 @@ interface Props {
  */
 export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove, onRemove }: Props) {
   const several = rounds.length > 1;
-  const nameOf = (round: Round, index: number) => (round.title.trim() === '' ? t('roundN', { index: index + 1 }) : round.title);
+  const nameOf = (round: Round, index: number) => roundLabel(round.title, index);
 
   return (
     <div className="round-strip" role="group" aria-label={t('roundsLabel')}>

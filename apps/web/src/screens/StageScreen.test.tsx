@@ -134,6 +134,11 @@ describe('StageScreen: rounds', () => {
     expect(screen.getByText('Розминка')).toBeTruthy();
   });
 
+  it('names an untitled round «Раунд N» in the intro heading', () => {
+    show(view({ phase: 'intro', round: { ...round, index: 1, title: '' } }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 2');
+  });
+
   it('shows the standings under «round results» at the end of a round', () => {
     const standings = [{ participantId: 'p1', nickname: 'Олена', score: -300, totalTimeMs: 1, rank: 1 }];
     show(view({ phase: 'round_end', round, standings, players: [{ id: 'p1', nickname: 'Олена', connected: true, streak: 2 }] }));

@@ -14,8 +14,30 @@ import { answer, game, participant, type PlayRef } from './db/schema';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIMIT = 100;
 
-/** Знімок вікторини гри: ігри, зіграні до появи раундів, зберегли його в старому форматі. */
-const snapshotOf = (raw: unknown): Quiz => quizSchema.parse(upgradeQuiz(raw));
+/**
+ * Знімок вікторини гри: ігри, зіграні до появи раундів, зберегли його в старому форматі.
+ * Знімки не змінюються, а схема змінюється, тож старий знімок може її не пройти: тоді null.
+ */
+function snapshotOf(raw: unknown): Quiz | null {
+  const parsed = quizSchema.safeParse(upgradeQuiz(raw));
+  return parsed.success ? parsed.data : null;
+}
+
+/** Кількість запитань у знімку без повної валідації: зіпсований знімок рахуємо за сирою структурою. */
+function questionCountOf(raw: unknown): number {
+  const quiz = snapshotOf(raw);
+  if (quiz !== null) return questionsOf(quiz).length;
+  const upgraded = upgradeQuiz(raw);
+  if (typeof upgraded !== 'object' || upgraded === null) return 0;
+  const { rounds, questions } = upgraded as { rounds?: unknown; questions?: unknown };
+  if (Array.isArray(rounds)) {
+    return rounds.reduce((sum: number, round: unknown) => {
+      const list = typeof round === 'object' && round !== null ? (round as { questions?: unknown }).questions : undefined;
+      return sum + (Array.isArray(list) ? list.length : 0);
+    }, 0);
+  }
+  return Array.isArray(questions) ? questions.length : 0;
+}
 
 /** Закриті запитання гри в порядку гри; індекс у масиві відповідає answer.question_index. */
 function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) {
@@ -57,7 +79,7 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
     finishedAt: row.finishedAt?.toISOString() ?? null,
     playerCount: players.get(row.id) ?? 0,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionsOf(snapshotOf(row.quizSnapshot)).length,
+    questionCount: questionCountOf(row.quizSnapshot),
   }));
 }
 
@@ -95,7 +117,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || b.score - a.score || a.nickname.localeCompare(b.nickname));
 
   const quiz = snapshotOf(row.quizSnapshot);
-  const questions = playedQuestions(quiz, row.plays, row.questionsPlayed).flatMap(({ roundIndex, question }, index) => {
+  // Зіпсований знімок не валить деталі: турнірна таблиця є, запитань і раундів немає.
+  const questions = (quiz === null ? [] : playedQuestions(quiz, row.plays, row.questionsPlayed)).flatMap(({ roundIndex, question }, index) => {
     // Знімок не змінюється, тож запитання з журналу в ньому є; перевірка лише від зіпсованого рядка.
     if (question === undefined) return [];
     const given = answers.filter((a) => a.questionIndex === index);
@@ -119,8 +142,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     startedAt: row.startedAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionsOf(quiz).length,
-    rounds: quiz.rounds.map((round) => ({ title: round.title, type: round.type })),
+    questionCount: questionCountOf(row.quizSnapshot),
+    rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
     questions,
   };

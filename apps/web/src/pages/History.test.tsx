@@ -177,6 +177,28 @@ describe('GameHistory: rounds', () => {
     expect(screen.getByText('Перлина біля моря?')).toBeTruthy();
   });
 
+  it('names untitled rounds «Раунд N» and numbers the questions inside each round', async () => {
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        rounds: [
+          { title: '', type: 'classic' },
+          { title: '', type: 'classic' },
+        ],
+        questions: [
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
+          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1 },
+        ],
+      },
+    });
+    const { container } = open('/history/g1');
+    expect(await screen.findByText('Раунд 1')).toBeTruthy();
+    expect(screen.getByText('Раунд 2')).toBeTruthy();
+    const numbers = [...container.querySelectorAll('.round-group .rank')].map((el) => el.textContent);
+    expect(numbers).toEqual(['1', '1']);
+  });
+
   it('looks as before for a game of a single round', async () => {
     vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
     open('/history/g1');

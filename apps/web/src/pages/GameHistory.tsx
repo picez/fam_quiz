@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getGame } from '../api';
-import { formatDate, num } from '../format';
+import { formatDate, num, roundLabel } from '../format';
 import { t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
 
@@ -64,17 +64,17 @@ export function GameHistory() {
       {game.questions.length > 0 && (
         <section className="panel">
           <h2>{t('questionsTitle')}</h2>
-          {/* Гра з одним раундом виглядає, як раніше: без заголовка раунду. */}
+          {/* Гра з одним раундом виглядає, як раніше: без заголовка раунду; запитання нумеруються в межах раунду, як на живих екранах. */}
           {game.rounds.map((round, roundIndex) => {
             const questions = game.questions.filter((question) => question.roundIndex === roundIndex);
             if (questions.length === 0) return null;
             return (
               <div key={roundIndex} className="round-group">
-                {game.rounds.length > 1 && <h3 className="round-title">{round.title}</h3>}
+                {game.rounds.length > 1 && <h3 className="round-title">{roundLabel(round.title, roundIndex)}</h3>}
                 <ol className="rows stacked">
-                  {questions.map((question) => (
+                  {questions.map((question, position) => (
                     <li key={question.index}>
-                      <span className="rank">{question.index + 1}</span>
+                      <span className="rank">{position + 1}</span>
                       <span className="name">{question.text}</span>
                       <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
                     </li>
