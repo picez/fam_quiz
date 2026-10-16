@@ -1,4 +1,4 @@
-import type { Question } from './quiz';
+import type { Question, Round } from './quiz';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
 
@@ -12,6 +12,7 @@ export interface GameSummary {
   finishedAt: string | null;
   playerCount: number;
   questionsPlayed: number;
+  /** Усі запитання вікторини в усіх раундах. */
   questionCount: number;
 }
 
@@ -25,7 +26,9 @@ export interface GameStanding {
 }
 
 export interface GameQuestionResult {
+  /** Порядковий номер запитання в грі. */
   index: number;
+  roundIndex: number;
   text: string;
   type: Question['type'];
   answered: number;
@@ -34,6 +37,7 @@ export interface GameQuestionResult {
 
 /** Зіграна гра очима ведучого. */
 export interface GameDetail extends Omit<GameSummary, 'playerCount'> {
+  rounds: { title: string; type: Round['type'] }[];
   standings: GameStanding[];
   questions: GameQuestionResult[];
 }

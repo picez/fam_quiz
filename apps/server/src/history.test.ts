@@ -1,13 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { eq } from 'drizzle-orm';
+import { bool, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import { buildApp } from './app';
+import type { Db } from './db/client';
+import { answer, game, participant, user } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
+let db: Db;
 
 beforeAll(async () => {
-  ctx = await buildApp({ db: await createTestDb(), auth: TEST_AUTH });
+  db = await createTestDb();
+  ctx = await buildApp({ db, auth: TEST_AUTH });
 });
 
 afterAll(async () => {
@@ -74,16 +79,18 @@ describe('host history', () => {
   it('shows the standings and how each question went', async () => {
     const { host, gameId } = await playedGame();
     const detail = (await get(`/api/games/${gameId}`, host.cookie)).json() as {
+      rounds: Record<string, unknown>[];
       standings: Record<string, unknown>[];
       questions: Record<string, unknown>[];
     };
+    expect(detail.rounds).toEqual([{ title: '', type: 'classic' }]);
     expect(detail.standings.map((s) => [s.nickname, s.rank, s.score, s.correct])).toEqual([
       ['Олена', 1, 2000, 2],
       ['Тарас', 2, 0, 0],
     ]);
     expect(detail.questions).toEqual([
-      { index: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
-      { index: 1, text: 'Яке місто називають перлиною біля моря?', type: 'text', answered: 1, accepted: 1 },
+      { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
+      { index: 1, roundIndex: 0, text: 'Яке місто називають перлиною біля моря?', type: 'text', answered: 1, accepted: 1 },
     ]);
     expect(JSON.stringify(detail)).not.toContain('correctId');
   });
@@ -110,6 +117,90 @@ describe('host history', () => {
     for (const url of ['/api/games', `/api/games/${gameId}`, '/api/me/history']) {
       expect((await get(url)).statusCode).toBe(401);
     }
+  });
+});
+
+describe('host history: rounds', () => {
+  it('shows the rounds and which round each played question belongs to', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const quiz = makeRoundsQuiz([
+      classicRound('r1', [single, text], { title: 'Розминка' }),
+      classicRound('r2', [bool], { title: 'Фінал' }),
+    ]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: 'Олена' })).json() as {
+      playerId: string;
+    };
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    ctx.manager.connect(room, { role: 'player', playerId });
+    const step = (type: 'start' | 'next' | 'end-round') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+
+    step('start');
+    step('next');
+    ctx.manager.answer(room, playerId, { type: 'single', optionId: 'b' });
+    step('end-round');
+    step('next');
+    step('next');
+    ctx.manager.answer(room, playerId, { type: 'boolean', value: true });
+    step('next');
+    step('next');
+    await ctx.recorder.idle();
+
+    const [summary] = (await get('/api/games', host.cookie)).json() as Record<string, unknown>[];
+    expect(summary).toMatchObject({ status: 'finished', questionsPlayed: 2, questionCount: 3 });
+    const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as Record<string, unknown>;
+    expect(detail.rounds).toEqual([
+      { title: 'Розминка', type: 'classic' },
+      { title: 'Фінал', type: 'classic' },
+    ]);
+    expect(detail.questions).toEqual([
+      { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1 },
+      { index: 1, roundIndex: 1, text: bool.text, type: 'boolean', answered: 1, accepted: 1 },
+    ]);
+  });
+
+  it('shows a game played before rounds existed as one classic round', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const gameId = '33333333-3333-4333-8333-333333333333';
+    const playerId = '44444444-4444-4444-8444-444444444444';
+    // Рядок, яким його записав старий сервер: знімок без раундів і без журналу запитань.
+    const oldSnapshot = {
+      title: 'Стара гра',
+      description: '',
+      settings: { speedBonus: false, leaderboard: 'each', shuffleOptions: false },
+      questions: [single, text, bool],
+    };
+    await db.insert(game).values({
+      id: gameId,
+      quizId: null,
+      hostId: account.id,
+      code: '654321',
+      status: 'finished',
+      title: 'Стара гра',
+      quizSnapshot: oldSnapshot,
+      questionsPlayed: 2,
+      startedAt: new Date(),
+      finishedAt: new Date(),
+    });
+    await db.insert(participant).values({ id: playerId, gameId, nickname: 'Тарас', score: 1000, totalTimeMs: 0, rank: 1 });
+    const given = { participantId: playerId, timeMs: 1000, overridden: false };
+    await db.insert(answer).values([
+      { ...given, questionIndex: 0, payload: { type: 'single', optionId: 'b' }, accepted: true, points: 1000 },
+      { ...given, questionIndex: 1, payload: { type: 'text', value: 'Львів' }, accepted: false, points: 0 },
+    ]);
+
+    const [summary] = (await get('/api/games', host.cookie)).json() as Record<string, unknown>[];
+    expect(summary).toMatchObject({ id: gameId, questionsPlayed: 2, questionCount: 3 });
+    const detail = (await get(`/api/games/${gameId}`, host.cookie)).json() as Record<string, unknown>;
+    expect(detail.rounds).toEqual([{ title: '', type: 'classic' }]);
+    expect(detail.standings).toMatchObject([{ nickname: 'Тарас', score: 1000, rank: 1, correct: 1 }]);
+    expect(detail.questions).toEqual([
+      { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1 },
+      { index: 1, roundIndex: 0, text: text.text, type: 'text', answered: 1, accepted: 0 },
+    ]);
   });
 });
 

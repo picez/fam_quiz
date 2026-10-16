@@ -1,4 +1,4 @@
-import type { Quiz } from '@quiz/shared';
+import { questionsOf, type Quiz } from '@quiz/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { quiz } from './db/schema';
@@ -22,7 +22,7 @@ export async function listQuizzes(db: Db, ownerId: string): Promise<QuizSummary[
     id: row.id,
     title: row.title,
     description: row.description,
-    questionCount: row.questions.length,
+    questionCount: questionsOf(row).length,
     updatedAt: row.updatedAt.toISOString(),
   }));
 }
@@ -32,13 +32,13 @@ export async function getQuiz(db: Db, ownerId: string, id: string): Promise<Quiz
   if (where === null) return null;
   const [row] = await db.select().from(quiz).where(where);
   if (row === undefined) return null;
-  return { title: row.title, description: row.description, settings: row.settings, questions: row.questions };
+  return { title: row.title, description: row.description, settings: row.settings, rounds: row.rounds };
 }
 
 export async function createQuiz(db: Db, ownerId: string, data: Quiz): Promise<string> {
   const [row] = await db
     .insert(quiz)
-    .values({ ownerId, title: data.title, description: data.description, settings: data.settings, questions: data.questions })
+    .values({ ownerId, title: data.title, description: data.description, settings: data.settings, rounds: data.rounds })
     .returning({ id: quiz.id });
   return row.id;
 }
@@ -48,7 +48,7 @@ export async function updateQuiz(db: Db, ownerId: string, id: string, data: Quiz
   if (where === null) return false;
   const rows = await db
     .update(quiz)
-    .set({ title: data.title, description: data.description, settings: data.settings, questions: data.questions, updatedAt: new Date() })
+    .set({ title: data.title, description: data.description, settings: data.settings, rounds: data.rounds, updatedAt: new Date() })
     .where(where)
     .returning({ id: quiz.id });
   return rows.length > 0;

@@ -1,10 +1,35 @@
-import type { GameDetail, GameSummary, PlayedGame } from '@quiz/shared';
+import {
+  questionsOf,
+  quizSchema,
+  upgradeQuiz,
+  type GameDetail,
+  type GameSummary,
+  type PlayedGame,
+  type Quiz,
+} from '@quiz/shared';
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, game, participant } from './db/schema';
+import { answer, game, participant, type PlayRef } from './db/schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIMIT = 100;
+
+/** Знімок вікторини гри: ігри, зіграні до появи раундів, зберегли його в старому форматі. */
+const snapshotOf = (raw: unknown): Quiz => quizSchema.parse(upgradeQuiz(raw));
+
+/** Закриті запитання гри в порядку гри; індекс у масиві відповідає answer.question_index. */
+function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) {
+  // Старі ігри не мають журналу: вони йшли одним списком, тож зіграно перші questionsPlayed запитань.
+  if (plays.length === 0) {
+    return questionsOf(quiz)
+      .slice(0, questionsPlayed)
+      .map((question) => ({ roundIndex: 0, question }));
+  }
+  return plays.slice(0, questionsPlayed).map(({ roundIndex, questionId }) => ({
+    roundIndex,
+    question: quiz.rounds[roundIndex]?.questions.find((q) => q.id === questionId),
+  }));
+}
 
 /** Кількість учасників у кожній із заданих ігор. */
 async function playerCounts(db: Db, gameIds: string[]): Promise<Map<string, number>> {
@@ -32,7 +57,7 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
     finishedAt: row.finishedAt?.toISOString() ?? null,
     playerCount: players.get(row.id) ?? 0,
     questionsPlayed: row.questionsPlayed,
-    questionCount: row.quizSnapshot.questions.length,
+    questionCount: questionsOf(snapshotOf(row.quizSnapshot)).length,
   }));
 }
 
@@ -69,15 +94,21 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     // Спершу за місцем; до фінішу місць немає, тоді за балами.
     .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || b.score - a.score || a.nickname.localeCompare(b.nickname));
 
-  const questions = row.quizSnapshot.questions.slice(0, row.questionsPlayed).map((question, index) => {
+  const quiz = snapshotOf(row.quizSnapshot);
+  const questions = playedQuestions(quiz, row.plays, row.questionsPlayed).flatMap(({ roundIndex, question }, index) => {
+    // Знімок не змінюється, тож запитання з журналу в ньому є; перевірка лише від зіпсованого рядка.
+    if (question === undefined) return [];
     const given = answers.filter((a) => a.questionIndex === index);
-    return {
-      index,
-      text: question.text,
-      type: question.type,
-      answered: given.length,
-      accepted: given.filter((a) => a.accepted).length,
-    };
+    return [
+      {
+        index,
+        roundIndex,
+        text: question.text,
+        type: question.type,
+        answered: given.length,
+        accepted: given.filter((a) => a.accepted).length,
+      },
+    ];
   });
 
   return {
@@ -88,7 +119,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     startedAt: row.startedAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     questionsPlayed: row.questionsPlayed,
-    questionCount: row.quizSnapshot.questions.length,
+    questionCount: questionsOf(quiz).length,
+    rounds: quiz.rounds.map((round) => ({ title: round.title, type: round.type })),
     standings,
     questions,
   };

@@ -3,6 +3,7 @@ import {
   addPlayer,
   createGame,
   end,
+  endRound,
   hostView,
   lock,
   next,
@@ -19,7 +20,7 @@ import {
   type GameState,
   type Result,
 } from '@quiz/engine';
-import type { AckResult, Answer, ErrorCode, GameView, Phase, Quiz, Role } from '@quiz/shared';
+import type { AckResult, Answer, ErrorCode, GameView, Grade, Phase, Quiz, Role } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -57,8 +58,8 @@ export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end' }
-  | { type: 'override'; playerId: string; accepted: boolean }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' }
+  | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string };
 
 export type JoinResult =
@@ -215,10 +216,12 @@ export class RoomManager {
         return this.apply(room, pause(state, this.now()));
       case 'resume':
         return this.apply(room, resume(state, this.now()));
+      case 'end-round':
+        return this.apply(room, endRound(state, this.now()));
       case 'end':
         return this.apply(room, end(state));
       case 'override':
-        return this.apply(room, override(state, action.playerId, action.accepted));
+        return this.apply(room, override(state, action.playerId, action.grade));
       case 'kick':
         return this.kick(room, action.playerId);
     }

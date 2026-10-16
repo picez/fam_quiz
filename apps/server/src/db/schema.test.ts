@@ -5,19 +5,19 @@ import { createTestDb } from '../testing/test-db';
 import { quiz, user } from './schema';
 
 describe('database schema', () => {
-  it('stores a quiz with its questions and settings and returns them unchanged', async () => {
+  it('stores a quiz with its rounds and settings and returns them unchanged', async () => {
     const db = await createTestDb();
     await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
     const source = makeQuiz([single]);
 
     const [created] = await db
       .insert(quiz)
-      .values({ ownerId: 'u1', title: source.title, description: '', settings: source.settings, questions: source.questions })
+      .values({ ownerId: 'u1', title: source.title, description: '', settings: source.settings, rounds: source.rounds })
       .returning();
 
     expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
     const [loaded] = await db.select().from(quiz).where(eq(quiz.id, created.id));
-    expect(loaded.questions).toEqual(source.questions);
+    expect(loaded.rounds).toEqual(source.rounds);
     expect(loaded.settings).toEqual(source.settings);
   });
 
@@ -25,7 +25,7 @@ describe('database schema', () => {
     const db = await createTestDb();
     await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
     const source = makeQuiz([single]);
-    await db.insert(quiz).values({ ownerId: 'u1', title: 'T', description: '', settings: source.settings, questions: source.questions });
+    await db.insert(quiz).values({ ownerId: 'u1', title: 'T', description: '', settings: source.settings, rounds: source.rounds });
 
     await db.delete(user).where(eq(user.id, 'u1'));
     expect(await db.select().from(quiz)).toEqual([]);
