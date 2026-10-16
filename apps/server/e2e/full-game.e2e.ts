@@ -329,7 +329,8 @@ async function twoRounds() {
   await field(host, 'Назва раунду').fill('Фінал');
   await field(host, 'Штраф: мінус ціна запитання за хибну відповідь').check();
   await field(host, 'Серії: бонус за правильні відповіді підряд').check();
-  await host.locator('.round-streak select').first().selectOption('2');
+  // Рендериться лише вибраний раунд, тож це налаштування саме другого.
+  await host.locator('details.round-settings .round-streak select').first().selectOption('2');
   await questionText(host).fill('Найбільша річка України?');
   await field(host, 'Варіант 1').fill('Дніпро');
   await field(host, 'Варіант 2').fill('Дунай');
@@ -381,7 +382,12 @@ async function twoRounds() {
   await reveal();
   await olya.getByText('Правильно!').waitFor();
   await taras.getByText('Неправильно').waitFor();
+  // Штраф: у Тараса не було балів, тож після хибної відповіді рахунок від'ємний.
+  await taras.locator('.bar .score').filter({ hasText: /^−\d/ }).waitFor();
+  // Перша правильна відповідь серії: бонусу ще немає.
+  expect(await olya.getByText(/за серію/).count()).toBe(0);
   await click(host, 'Далі');
+  await stage.locator('.standings li').filter({ hasText: /Тарас.*−\d/ }).waitFor();
   await click(host, 'Наступне запитання');
   await click(olya, 'Так');
   await click(taras, 'Так');
@@ -394,6 +400,7 @@ async function twoRounds() {
   const podium = await stage.locator('.standings li').allTextContents();
   expect(podium[0]).toContain('Оля');
   expect(podium[1]).toContain('Тарас');
+  expect(podium[0]).toMatch(/\d/);
 
   await host.goto(`${base}/history`);
   await host.getByRole('link', { name: /Вікторина з раундами/ }).click();
@@ -401,6 +408,8 @@ async function twoRounds() {
   await host.getByRole('heading', { name: 'Фінал' }).waitFor();
   await host.getByText('Столиця України?').waitFor();
   await host.getByText('Найбільша річка України?').waitFor();
+  // Незігране запитання першого раунду в історію не потрапляє.
+  expect(await host.getByText('Говерла є найвищою горою України?').count()).toBe(0);
 
   expect(problems).toEqual([]);
 }
