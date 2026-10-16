@@ -30,13 +30,14 @@ const detail: GameDetail = {
   finishedAt: summary.finishedAt,
   questionsPlayed: 2,
   questionCount: 2,
+  rounds: [{ title: 'Раунд 1', type: 'classic' }],
   standings: [
     { participantId: 'p1', nickname: 'Олена', score: 2000, rank: 1, correct: 2 },
     { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0 },
   ],
   questions: [
-    { index: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
-    { index: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1 },
+    { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
+    { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1 },
   ],
 };
 
@@ -151,5 +152,35 @@ describe('GameHistory', () => {
     vi.mocked(getGame).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open('/history/g1');
     expect(await screen.findByText('сторінка входу ?next=%2Fhistory%2Fg1')).toBeTruthy();
+  });
+});
+
+describe('GameHistory: rounds', () => {
+  it('groups the questions under the round titles', async () => {
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        rounds: [
+          { title: 'Розминка', type: 'classic' },
+          { title: 'Бліц', type: 'classic' },
+        ],
+        questions: [
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
+          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1 },
+        ],
+      },
+    });
+    open('/history/g1');
+    expect(await screen.findByText('Розминка')).toBeTruthy();
+    expect(screen.getByText('Бліц')).toBeTruthy();
+    expect(screen.getByText('Перлина біля моря?')).toBeTruthy();
+  });
+
+  it('looks as before for a game of a single round', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+    open('/history/g1');
+    expect(await screen.findByText('Столиця України?')).toBeTruthy();
+    expect(screen.queryByText('Раунд 1')).toBeNull();
   });
 });

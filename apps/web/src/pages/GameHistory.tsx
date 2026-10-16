@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getGame } from '../api';
-import { formatDate } from '../format';
+import { formatDate, num } from '../format';
 import { t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
 
@@ -54,7 +54,7 @@ export function GameHistory() {
                 <span className="rank">{row.rank ?? '–'}</span>
                 <span className="name">{row.nickname}</span>
                 <span className="tag">{t('correctOf', { correct: row.correct })}</span>
-                <span className="score">{row.score}</span>
+                <span className="score">{num(row.score)}</span>
               </li>
             ))}
           </ol>
@@ -64,15 +64,25 @@ export function GameHistory() {
       {game.questions.length > 0 && (
         <section className="panel">
           <h2>{t('questionsTitle')}</h2>
-          <ol className="rows stacked">
-            {game.questions.map((question) => (
-              <li key={question.index}>
-                <span className="rank">{question.index + 1}</span>
-                <span className="name">{question.text}</span>
-                <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
-              </li>
-            ))}
-          </ol>
+          {/* Гра з одним раундом виглядає, як раніше: без заголовка раунду. */}
+          {game.rounds.map((round, roundIndex) => {
+            const questions = game.questions.filter((question) => question.roundIndex === roundIndex);
+            if (questions.length === 0) return null;
+            return (
+              <div key={roundIndex} className="round-group">
+                {game.rounds.length > 1 && <h3 className="round-title">{round.title}</h3>}
+                <ol className="rows stacked">
+                  {questions.map((question) => (
+                    <li key={question.index}>
+                      <span className="rank">{question.index + 1}</span>
+                      <span className="name">{question.text}</span>
+                      <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            );
+          })}
         </section>
       )}
     </main>

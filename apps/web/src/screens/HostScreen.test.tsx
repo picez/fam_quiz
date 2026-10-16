@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostView, Question } from '@quiz/shared';
+import type { HostView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
 
@@ -19,14 +19,15 @@ const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина �
 const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [] });
 
 const players = [
-  { id: 'p1', nickname: 'Олена', connected: true, score: 750 },
-  { id: 'p2', nickname: 'Тарас', connected: false, score: 0 },
+  { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0 },
+  { id: 'p2', nickname: 'Тарас', connected: false, score: 0, streak: 0 },
 ];
 
 const view = (over: Partial<HostView> = {}): HostView => ({
   role: 'host',
   phase: 'lobby',
   paused: false,
+  round: null,
   questionIndex: -1,
   total: 2,
   question: null,
@@ -124,7 +125,7 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, points: 900, overridden: false },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false },
         ],
       }),
     );
@@ -136,19 +137,19 @@ describe('HostScreen', () => {
 
   it('lets the host accept or reject text answers on reveal', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, points: 0, overridden: false },
-      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Одеса' }, timeMs: 5000, accepted: true, points: 875, overridden: false },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false },
+      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Одеса' }, timeMs: 5000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 875, overridden: false },
     ];
     const send = show(during('reveal', textQuestion, { responses }));
     fireEvent.click(button('Зарахувати'));
-    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', accepted: true });
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' });
     fireEvent.click(button('Відхилити'));
-    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p2', accepted: false });
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p2', grade: 'wrong' });
   });
 
   it('does not offer manual grading for choice questions or before reveal', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, timeMs: 4000, accepted: false, points: 0, overridden: false },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false },
     ];
     show(during('reveal', single, { responses }));
     expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
@@ -207,5 +208,82 @@ describe('HostScreen: question image', () => {
     const imageUrl = '/uploads/0123456789abcdef0123456789abcdef.png';
     show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), imageUrl }, correct: single }));
     expect(document.querySelector('img.question-image')?.getAttribute('src')).toBe(imageUrl);
+  });
+});
+
+describe('HostScreen: rounds', () => {
+  const round = (over: Partial<RoundInfo> = {}): RoundInfo => ({ index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, ...over });
+
+  it('shows the round intro with a «start round» main action', () => {
+    const send = show(view({ phase: 'intro', round: round() }));
+    expect(screen.getAllByText(/Раунд 1 з 2/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Розминка/).length).toBeGreaterThan(0);
+    fireEvent.click(button('Почати раунд'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+  });
+
+  it('offers «next round» after the round results', () => {
+    const send = show(view({ phase: 'round_end', round: round(), questionIndex: 1 }));
+    fireEvent.click(button('Наступний раунд'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+  });
+
+  it('numbers the question inside the round and names the round when there are several', () => {
+    show(during('question', single, { round: round(), total: 5, questionIndex: 1 }));
+    expect(screen.getByText(/Запитання 2 з 5/)).toBeTruthy();
+    expect(screen.getByText(/Раунд 1/)).toBeTruthy();
+    cleanup();
+    show(during('question', single, { round: round({ total: 1 }), total: 5, questionIndex: 1 }));
+    expect(screen.queryByText(/Раунд 1/)).toBeNull();
+  });
+
+  it('ends the round only after confirmation', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const send = show(during('question', single, { round: round() }));
+    fireEvent.click(button('Завершити раунд'));
+    expect(send).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    fireEvent.click(button('Завершити раунд'));
+    expect(send).toHaveBeenCalledWith('host:end-round', undefined);
+  });
+
+  it('calls the end-round action «finish the game» in the last round', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const send = show(during('question', single, { round: round({ index: 1 }) }));
+    expect(screen.queryByRole('button', { name: 'Завершити раунд' })).toBeNull();
+    fireEvent.click(button('Завершити гру'));
+    expect(send).toHaveBeenCalledWith('host:end-round', undefined);
+  });
+
+  it('does not offer to end the round in the lobby or at the round results', () => {
+    show(view({ round: round() }));
+    expect(screen.queryByRole('button', { name: 'Завершити раунд' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'round_end', round: round() }));
+    expect(screen.queryByRole('button', { name: 'Завершити раунд' })).toBeNull();
+  });
+
+  it('offers «partially» only when the round allows it', () => {
+    const responses = [
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false },
+    ];
+    show(during('reveal', textQuestion, { responses, round: round() }));
+    expect(screen.queryByRole('button', { name: 'Частково' })).toBeNull();
+    cleanup();
+
+    const send = show(during('reveal', textQuestion, { responses, round: round({ partial: true }) }));
+    fireEvent.click(button('Частково'));
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'partial' });
+  });
+
+  it('marks a streak of two or more next to the nickname and prints negative points with a minus', () => {
+    const hot = [
+      { id: 'p1', nickname: 'Олена', connected: true, score: -500, streak: 3 },
+      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 1 },
+    ];
+    show(view({ phase: 'leaderboard', round: round(), questionIndex: 0, players: hot }));
+    expect(screen.getByText('🔥 3')).toBeTruthy();
+    expect(screen.queryByText('🔥 1')).toBeNull();
+    expect(screen.getByText('−500')).toBeTruthy();
   });
 });

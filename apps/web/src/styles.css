@@ -1295,3 +1295,22 @@ a.banner {
   display: grid;
   gap: 0.75rem;
 }
+
+/* Раунди: серія, бонус за серію, групи запитань в історії */
+.standings .streak,
+.rows .streak {
+  color: var(--amber);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.streak-bonus {
+  color: var(--amber);
+  font-size: 0.875rem;
+}
+
+.round-title {
+  margin: 1rem 0 0.5rem;
+  color: var(--dim);
+  font-size: 1rem;
+}
