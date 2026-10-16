@@ -15,7 +15,11 @@ export const LIMITS = {
   minOrderItems: 3,
   maxOrderItems: 6,
   maxAccepted: 10,
+  /** Запитань в одному раунді. */
   maxQuestions: 100,
+  maxQuizQuestions: 200,
+  maxRounds: 10,
+  roundTitle: 60,
   maxPlayers: 50,
   nicknameMin: 2,
   nicknameMax: 20,
@@ -91,25 +95,69 @@ export const questionSchema = z
 
 export type Question = z.infer<typeof questionSchema>;
 
-export const quizSettingsSchema = z.object({
+export const roundRulesSchema = z.object({
+  penalty: z.enum(['none', 'minus']),
+  /** Частка балів за «частково», у відсотках; null — кнопки «частково» немає. */
+  partial: z.number().int().min(10).max(90).nullable(),
+  streak: z
+    .object({
+      length: z.number().int().min(2).max(10),
+      bonus: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('percent'), value: z.number().int().min(1).max(200) }),
+        z.object({ kind: z.literal('fixed'), value: z.number().int().min(1).max(LIMITS.maxPoints) }),
+      ]),
+    })
+    .nullable(),
+  multiplier: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+});
+
+export type RoundRules = z.infer<typeof roundRulesSchema>;
+
+export const DEFAULT_RULES: RoundRules = { penalty: 'none', partial: null, streak: null, multiplier: 1 };
+
+export const classicRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('classic'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
   speedBonus: z.boolean(),
-  leaderboard: z.enum(['each', 'end']),
   shuffleOptions: z.boolean(),
+  rules: roundRulesSchema,
+  questions: z.array(questionSchema).min(1).max(LIMITS.maxQuestions),
+});
+
+export type ClassicRound = z.infer<typeof classicRoundSchema>;
+
+export const roundSchema = z.discriminatedUnion('type', [classicRoundSchema]);
+
+export type Round = z.infer<typeof roundSchema>;
+
+export const quizSettingsSchema = z.object({
+  leaderboard: z.enum(['each', 'end']),
 });
 
 export type QuizSettings = z.infer<typeof quizSettingsSchema>;
 
 export const DEFAULT_SETTINGS: QuizSettings = {
-  speedBonus: true,
   leaderboard: 'each',
-  shuffleOptions: false,
 };
 
-export const quizSchema = z.object({
-  title: z.string().trim().min(1).max(120).refine(isStorable, UNSTORABLE),
-  description: z.string().max(500).refine(isStorable, UNSTORABLE),
-  settings: quizSettingsSchema,
-  questions: z.array(questionSchema).min(1).max(LIMITS.maxQuestions),
-});
+export const quizSchema = z
+  .object({
+    title: z.string().trim().min(1).max(120).refine(isStorable, UNSTORABLE),
+    description: z.string().max(500).refine(isStorable, UNSTORABLE),
+    settings: quizSettingsSchema,
+    rounds: z.array(roundSchema).min(1).max(LIMITS.maxRounds),
+  })
+  .superRefine((quiz, ctx) => {
+    const questions = quiz.rounds.flatMap((round) => round.questions);
+    if (questions.length > LIMITS.maxQuizQuestions) ctx.addIssue({ code: 'custom', message: 'too_many_questions' });
+    if (hasDuplicates(questions.map((q) => q.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_question_ids' });
+    if (hasDuplicates(quiz.rounds.map((r) => r.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_round_ids' });
+  });
 
 export type Quiz = z.infer<typeof quizSchema>;
+
+/** Усі запитання вікторини в порядку раундів. */
+export function questionsOf(quiz: Quiz): Question[] {
+  return quiz.rounds.flatMap((round) => round.questions);
+}

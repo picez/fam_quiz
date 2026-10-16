@@ -21,7 +21,7 @@ export const socketAuthSchema = z.object({
 export type SocketAuth = z.infer<typeof socketAuthSchema>;
 
 const playerId = z.string().min(1).max(64);
-export const overrideSchema = z.object({ playerId, accepted: z.boolean() });
+export const overrideSchema = z.object({ playerId, grade: z.enum(['correct', 'partial', 'wrong']) });
 export const kickSchema = z.object({ playerId });
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
@@ -32,6 +32,7 @@ export interface ClientToServerEvents {
   'host:next': (ack: Ack) => void;
   'host:pause': (ack: Ack) => void;
   'host:resume': (ack: Ack) => void;
+  'host:end-round': (ack: Ack) => void;
   'host:end': (ack: Ack) => void;
   'host:override': (payload: z.infer<typeof overrideSchema>, ack: Ack) => void;
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;

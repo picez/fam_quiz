@@ -1,4 +1,13 @@
-import { LIMITS, type Answer, type ErrorCode, type Phase, type Question, type Quiz } from '@quiz/shared';
+import {
+  LIMITS,
+  type Answer,
+  type ErrorCode,
+  type Grade,
+  type Phase,
+  type Question,
+  type Quiz,
+  type Round,
+} from '@quiz/shared';
 import { checkAnswer } from './check';
 import { normalizeText } from './normalize';
 import { scorePoints, speedFactor } from './score';
@@ -9,6 +18,8 @@ export interface PlayerState {
   connected: boolean;
   score: number;
   totalTimeMs: number;
+  /** Поточна серія правильних відповідей у поточному раунді. */
+  streak: number;
 }
 
 export interface AnswerRecord {
@@ -16,18 +27,32 @@ export interface AnswerRecord {
   timeMs: number;
   accepted: boolean;
   accuracy: number;
+  grade: Grade;
+  /** Бали за відповідь без бонусу серії, зі штрафом. */
+  basePoints: number;
+  streakBonus: number;
+  /** basePoints + streakBonus. */
   points: number;
   overridden: boolean;
+}
+
+/** Одне зігране запитання; ключ answers є id гравця. */
+export interface Play {
+  roundIndex: number;
+  question: Question;
+  answers: Record<string, AnswerRecord>;
 }
 
 export interface GameState {
   quiz: Quiz;
   phase: Phase;
   /** -1 у лобі. */
+  roundIndex: number;
+  /** Індекс у plays: поточне або останнє зігране запитання; -1 до першого. */
   questionIndex: number;
   players: PlayerState[];
-  /** Індекс масиву дорівнює індексу запитання; ключ об'єкта є id гравця. */
-  answers: Record<string, AnswerRecord>[];
+  /** Журнал запитань у порядку гри. */
+  plays: Play[];
   /** Порядок варіантів або елементів поточного запитання, однаковий для всіх. */
   presented: string[];
   startedAt: number | null;
@@ -46,9 +71,10 @@ export function createGame(quiz: Quiz): GameState {
   return {
     quiz,
     phase: 'lobby',
+    roundIndex: -1,
     questionIndex: -1,
     players: [],
-    answers: quiz.questions.map(() => ({})),
+    plays: [],
     presented: [],
     startedAt: null,
     endsAt: null,
@@ -57,9 +83,32 @@ export function createGame(quiz: Quiz): GameState {
   };
 }
 
-export function recordOf(state: GameState, questionIndex: number, playerId: string): AnswerRecord | undefined {
-  const byPlayer = state.answers[questionIndex];
+export function recordOf(state: GameState, playIndex: number, playerId: string): AnswerRecord | undefined {
+  const byPlayer = state.plays[playIndex]?.answers;
   return byPlayer !== undefined && Object.hasOwn(byPlayer, playerId) ? byPlayer[playerId] : undefined;
+}
+
+export function currentRound(state: GameState): Round | null {
+  return state.quiz.rounds[state.roundIndex] ?? null;
+}
+
+/** 0-базовий номер поточного запитання в раунді; -1, поки в раунді не було запитань. */
+export function roundQuestionNumber(state: GameState): number {
+  const upToCurrent = state.plays.slice(0, state.questionIndex + 1);
+  return upToCurrent.filter((play) => play.roundIndex === state.roundIndex).length - 1;
+}
+
+/** Оцінка відповіді за точністю автоматичної перевірки. */
+function gradeOf(accuracy: number): Grade {
+  return accuracy >= 1 ? 'correct' : accuracy <= 0 ? 'wrong' : 'partial';
+}
+
+/** Записує відповідь гравця в поточне запитання. */
+function withRecord(state: GameState, playerId: string, record: AnswerRecord): GameState {
+  const plays = state.plays.map((play, index) =>
+    index === state.questionIndex ? { ...play, answers: { ...play.answers, [playerId]: record } } : play,
+  );
+  return { ...state, plays };
 }
 
 export function addPlayer(state: GameState, player: { id: string; nickname: string }): Result {
@@ -69,17 +118,17 @@ export function addPlayer(state: GameState, player: { id: string; nickname: stri
   if (state.players.length >= LIMITS.maxPlayers) return fail('room_full');
   const key = normalizeText(nickname);
   if (state.players.some((p) => normalizeText(p.nickname) === key)) return fail('nickname_taken');
-  const added: PlayerState = { id: player.id, nickname, connected: true, score: 0, totalTimeMs: 0 };
+  const added: PlayerState = { id: player.id, nickname, connected: true, score: 0, totalTimeMs: 0, streak: 0 };
   return ok({ ...state, players: [...state.players, added] });
 }
 
 export function removePlayer(state: GameState, playerId: string): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
-  const answers = state.answers.map((byPlayer) => {
-    const { [playerId]: _removed, ...rest } = byPlayer;
-    return rest;
+  const plays = state.plays.map((play) => {
+    const { [playerId]: _removed, ...rest } = play.answers;
+    return { ...play, answers: rest };
   });
-  return ok(autoLock({ ...state, players: state.players.filter((p) => p.id !== playerId), answers }));
+  return ok(autoLock({ ...state, players: state.players.filter((p) => p.id !== playerId), plays }));
 }
 
 export function setConnected(state: GameState, playerId: string, connected: boolean): Result {
@@ -113,30 +162,52 @@ function present(question: Question, shuffleOptions: boolean, rng: Rng): string[
   return [];
 }
 
-function openQuestion(state: GameState, index: number, now: number, rng: Rng): GameState {
-  const question = state.quiz.questions[index];
+/** Наступне запитання поточного раунду: перше за порядком, якого ще немає в журналі цього раунду. */
+function nextQuestion(state: GameState): Question | undefined {
+  const round = currentRound(state);
+  if (round === null) return undefined;
+  const played = new Set(state.plays.filter((p) => p.roundIndex === state.roundIndex).map((p) => p.question.id));
+  return round.questions.find((question) => !played.has(question.id));
+}
+
+function openQuestion(state: GameState, question: Question, now: number, rng: Rng): GameState {
+  const round = state.quiz.rounds[state.roundIndex];
+  const play: Play = { roundIndex: state.roundIndex, question, answers: {} };
   return {
     ...state,
     phase: 'question',
-    questionIndex: index,
-    presented: present(question, state.quiz.settings.shuffleOptions, rng),
+    questionIndex: state.plays.length,
+    plays: [...state.plays, play],
+    presented: present(question, round.shuffleOptions, rng),
     startedAt: now,
     endsAt: now + question.timeLimit * 1000,
     remainingMs: null,
   };
 }
 
+/** Після останнього раунду гра закінчується, інакше показуються підсумки раунду. */
+function finishRound(state: GameState): GameState {
+  const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
+  return { ...state, phase: isLastRound ? 'finished' : 'round_end' };
+}
+
+/** Відкриває наступне запитання раунду, а коли їх не лишилося, завершує раунд. */
+function advance(state: GameState, now: number, rng: Rng): GameState {
+  const question = nextQuestion(state);
+  return question !== undefined ? openQuestion(state, question, now, rng) : finishRound(state);
+}
+
 /** Перераховує рахунок і сумарний час за всіма вже закритими запитаннями. */
 function withTotals(state: GameState): GameState {
-  const open = state.phase === 'lobby' || state.phase === 'question';
-  const lastClosed = open ? state.questionIndex - 1 : state.questionIndex;
+  // Відкрите запитання завжди останнє в журналі.
+  const closed = state.phase === 'question' ? state.plays.slice(0, -1) : state.plays;
   const players = state.players.map((player) => {
     let score = 0;
     let totalTimeMs = 0;
-    for (let index = 0; index <= lastClosed; index++) {
-      const record = recordOf(state, index, player.id);
+    for (const play of closed) {
+      const record = Object.hasOwn(play.answers, player.id) ? play.answers[player.id] : undefined;
       score += record ? record.points : 0;
-      totalTimeMs += record ? record.timeMs : state.quiz.questions[index].timeLimit * 1000;
+      totalTimeMs += record ? record.timeMs : play.question.timeLimit * 1000;
     }
     return { ...player, score, totalTimeMs };
   });
@@ -159,7 +230,10 @@ function autoLock(state: GameState): GameState {
 export function start(state: GameState, now: number, rng: Rng = Math.random): Result {
   if (state.phase !== 'lobby') return fail('wrong_phase');
   if (state.players.length === 0) return fail('no_players');
-  return ok(openQuestion(state, 0, now, rng));
+  const first = { ...state, roundIndex: 0 };
+  // Вікторина з одним раундом обходиться без заставки, як і раніше.
+  if (state.quiz.rounds.length > 1) return ok({ ...first, phase: 'intro' });
+  return ok(advance(first, now, rng));
 }
 
 export function submitAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
@@ -169,24 +243,25 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
 
-  const question = state.quiz.questions[state.questionIndex];
+  const { question, roundIndex } = state.plays[state.questionIndex];
   if (question.type !== answer.type) return fail('type_mismatch');
 
   const timeMs = Math.max(0, now - state.startedAt);
   const { accepted, accuracy } = checkAnswer(question, answer);
-  const speed = speedFactor(timeMs, question.timeLimit * 1000, state.quiz.settings.speedBonus);
+  const speed = speedFactor(timeMs, question.timeLimit * 1000, state.quiz.rounds[roundIndex].speedBonus);
+  const points = scorePoints(question.points, accuracy, speed);
   const record: AnswerRecord = {
     answer,
     timeMs,
     accepted,
     accuracy,
-    points: scorePoints(question.points, accuracy, speed),
+    grade: gradeOf(accuracy),
+    basePoints: points,
+    streakBonus: 0,
+    points,
     overridden: false,
   };
-  const answers = state.answers.map((byPlayer, index) =>
-    index === state.questionIndex ? { ...byPlayer, [playerId]: record } : byPlayer,
-  );
-  return ok(autoLock({ ...state, answers }));
+  return ok(autoLock(withRecord(state, playerId, record)));
 }
 
 export function lock(state: GameState): Result {
@@ -202,19 +277,32 @@ export function tick(state: GameState, now: number): GameState {
 
 export function next(state: GameState, now: number, rng: Rng = Math.random): Result {
   if (state.paused) return fail('paused');
-  const isLast = state.questionIndex === state.quiz.questions.length - 1;
   switch (state.phase) {
+    case 'intro':
+      return ok(advance(state, now, rng));
     case 'locked':
       return ok({ ...state, phase: 'reveal' });
     case 'reveal':
-      if (isLast) return ok({ ...state, phase: 'finished' });
+      if (nextQuestion(state) === undefined) return ok(finishRound(state));
       if (state.quiz.settings.leaderboard === 'each') return ok({ ...state, phase: 'leaderboard' });
-      return ok(openQuestion(state, state.questionIndex + 1, now, rng));
+      return ok(advance(state, now, rng));
     case 'leaderboard':
-      return ok(openQuestion(state, state.questionIndex + 1, now, rng));
+      return ok(advance(state, now, rng));
+    case 'round_end':
+      return ok({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 });
     default:
       return fail('wrong_phase');
   }
+}
+
+const IN_ROUND: Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard'];
+
+/** Ведучий завершує раунд достроково; незіграні запитання раунду так і лишаються незіграними. */
+export function endRound(state: GameState, now: number): Result {
+  if (!IN_ROUND.includes(state.phase)) return fail('wrong_phase');
+  // Відкрите запитання спершу закривається й оцінюється, як при lock.
+  const closed = state.phase === 'question' ? lockNow(state) : state;
+  return ok(finishRound({ ...closed, paused: false, startedAt: null, endsAt: null, remainingMs: null }));
 }
 
 export function pause(state: GameState, now: number): Result {
@@ -230,7 +318,7 @@ export function pause(state: GameState, now: number): Result {
 export function resume(state: GameState, now: number): Result {
   if (!state.paused) return fail('wrong_phase');
   if (state.phase === 'question' && state.remainingMs !== null) {
-    const limitMs = state.quiz.questions[state.questionIndex].timeLimit * 1000;
+    const limitMs = state.plays[state.questionIndex].question.timeLimit * 1000;
     const endsAt = now + state.remainingMs;
     // startedAt зсувається так, щоб час відповіді не включав паузу.
     return ok(autoLock({ ...state, paused: false, remainingMs: null, endsAt, startedAt: endsAt - limitMs }));
@@ -244,20 +332,21 @@ export function override(state: GameState, playerId: string, accepted: boolean):
   const record = recordOf(state, state.questionIndex, playerId);
   if (record === undefined) return fail('not_found');
 
-  const question = state.quiz.questions[state.questionIndex];
+  const { question, roundIndex } = state.plays[state.questionIndex];
   const accuracy = accepted ? 1 : 0;
-  const speed = speedFactor(record.timeMs, question.timeLimit * 1000, state.quiz.settings.speedBonus);
+  const speed = speedFactor(record.timeMs, question.timeLimit * 1000, state.quiz.rounds[roundIndex].speedBonus);
+  const points = scorePoints(question.points, accuracy, speed);
   const updated: AnswerRecord = {
     ...record,
     accepted,
     accuracy,
-    points: scorePoints(question.points, accuracy, speed),
+    grade: gradeOf(accuracy),
+    basePoints: points,
+    streakBonus: 0,
+    points,
     overridden: true,
   };
-  const answers = state.answers.map((byPlayer, index) =>
-    index === state.questionIndex ? { ...byPlayer, [playerId]: updated } : byPlayer,
-  );
-  return ok(withTotals({ ...state, answers }));
+  return ok(withTotals(withRecord(state, playerId, updated)));
 }
 
 export function end(state: GameState): Result {

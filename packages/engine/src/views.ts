@@ -1,13 +1,14 @@
-import type {
-  Choice,
-  HostView,
-  Phase,
-  PlayerView,
-  PublicQuestion,
-  Question,
-  RevealStats,
-  Standing,
-  StageView,
+import {
+  questionsOf,
+  type Choice,
+  type HostView,
+  type Phase,
+  type PlayerView,
+  type PublicQuestion,
+  type Question,
+  type RevealStats,
+  type Standing,
+  type StageView,
 } from '@quiz/shared';
 import { recordOf, type GameState } from './game';
 import { rankPlayers } from './ranking';
@@ -16,7 +17,7 @@ const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'finished'];
 
 function currentQuestion(state: GameState): Question | null {
-  return state.questionIndex >= 0 ? state.quiz.questions[state.questionIndex] : null;
+  return state.plays[state.questionIndex]?.question ?? null;
 }
 
 function publicQuestion(state: GameState): PublicQuestion | null {
@@ -43,12 +44,12 @@ function publicQuestion(state: GameState): PublicQuestion | null {
 }
 
 function base(state: GameState) {
-  const current = state.answers[state.questionIndex] ?? {};
+  const current = state.plays[state.questionIndex]?.answers ?? {};
   return {
     phase: state.phase,
     paused: state.paused,
     questionIndex: state.questionIndex,
-    total: state.quiz.questions.length,
+    total: questionsOf(state.quiz).length,
     question: publicQuestion(state),
     endsAt: state.endsAt,
     remainingMs: state.remainingMs,
@@ -73,7 +74,7 @@ function revealStats(state: GameState, question: Question): RevealStats {
         ? ['true', 'false']
         : [],
   );
-  const records = Object.values(state.answers[state.questionIndex] ?? {});
+  const records = Object.values(state.plays[state.questionIndex]?.answers ?? {});
   const counts: Record<string, number> = {};
   for (const { answer } of records) {
     const keys =

@@ -11,7 +11,7 @@ import {
   submitAnswer,
   tick,
 } from './game';
-import { makeQuiz, order, single, text } from './testing/fixtures';
+import { makeQuiz, numeric, order, single, text } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const T0 = 1_000_000;
@@ -54,11 +54,24 @@ describe('submitAnswer', () => {
       timeMs: 10_000,
       accepted: true,
       accuracy: 1,
+      grade: 'correct',
+      basePoints: 750,
+      streakBonus: 0,
       points: 750,
       overridden: false,
     });
     expect(state.phase).toBe('question');
     expect(state.players[0].score).toBe(0);
+  });
+
+  it('grades an answer by its accuracy', () => {
+    const quizOfNumbers = makeQuiz([numeric], { speedBonus: false });
+    let state = must(start(lobbyWith(quizOfNumbers, 'Олена', 'Тарас', 'Ірина'), T0));
+    state = must(submitAnswer(state, 'p1', { type: 'numeric', value: 2061 }, T0 + 1000));
+    state = must(submitAnswer(state, 'p2', { type: 'numeric', value: 2111 }, T0 + 1000));
+    state = must(submitAnswer(state, 'p3', { type: 'numeric', value: 1 }, T0 + 1000));
+    expect(['p1', 'p2', 'p3'].map((id) => recordOf(state, 0, id)?.grade)).toEqual(['correct', 'partial', 'wrong']);
+    expect(recordOf(state, 0, 'p2')).toMatchObject({ basePoints: 750, streakBonus: 0, points: 750 });
   });
 
   it('gives full points regardless of time when the speed bonus is off', () => {

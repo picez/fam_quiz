@@ -64,13 +64,27 @@ describe('override', () => {
 
   it('accepts a rejected answer and recalculates points with the original time', () => {
     const state = must(override(onReveal(), 'p2', true));
-    expect(recordOf(state, 0, 'p2')).toMatchObject({ accepted: true, accuracy: 1, points: 750, overridden: true });
+    expect(recordOf(state, 0, 'p2')).toMatchObject({
+      accepted: true,
+      accuracy: 1,
+      grade: 'correct',
+      basePoints: 750,
+      points: 750,
+      overridden: true,
+    });
     expect(state.players.map((p) => p.score)).toEqual([750, 750]);
   });
 
   it('rejects an accepted answer and removes its points', () => {
     const state = must(override(onReveal(), 'p1', false));
-    expect(recordOf(state, 0, 'p1')).toMatchObject({ accepted: false, accuracy: 0, points: 0, overridden: true });
+    expect(recordOf(state, 0, 'p1')).toMatchObject({
+      accepted: false,
+      accuracy: 0,
+      grade: 'wrong',
+      basePoints: 0,
+      points: 0,
+      overridden: true,
+    });
     expect(state.players.map((p) => p.score)).toEqual([0, 0]);
   });
 
