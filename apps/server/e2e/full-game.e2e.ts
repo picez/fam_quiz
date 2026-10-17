@@ -325,6 +325,7 @@ async function twoRounds() {
 
   // Раунд 2 «Фінал»: штраф і серії від двох правильних відповідей підряд.
   await click(host, '+ Раунд');
+  await click(host, 'Класичний');
   await openRoundSettings(host);
   await field(host, 'Назва раунду').fill('Фінал');
   await field(host, 'Штраф: мінус ціна запитання за хибну відповідь').check();
@@ -410,6 +411,107 @@ async function twoRounds() {
   await host.getByText('Найбільша річка України?').waitFor();
   // Незігране запитання першого раунду в історію не потрапляє.
   expect(await host.getByText('Говерла є найвищою горою України?').count()).toBe(0);
+
+  expect(problems).toEqual([]);
+}
+
+it('a blitz round: the queue decides, a wrong attempt costs points, the podium shows it', async () => {
+  try {
+    await blitzGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function blitzGame() {
+  const host = await open('host3', 1280, 900);
+
+  await host.goto(base);
+  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await click(host, 'Створити акаунт');
+  await field(host, 'Ваше ім’я').fill('Марія Ведуча');
+  await field(host, 'Email').fill('host3@example.com');
+  await field(host, 'Пароль').fill('correct horse battery');
+  await click(host, 'Зареєструватися');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Бліц-вікторина');
+
+  // Додаємо бліц, а початковий класичний раунд видаляємо: лишається один раунд бліцу.
+  await click(host, '+ Раунд');
+  await click(host, 'Бліц');
+  await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
+  await click(host, 'Видалити раунд');
+
+  await openRoundSettings(host);
+  await field(host, 'Штраф: мінус ціна запитання за хибну відповідь').check();
+  await host.locator('label.field', { hasText: 'Спроб на запитання' }).locator('select').selectOption('1');
+  await host.locator('label.field', { hasText: 'Перевірка' }).locator('select').selectOption('auto');
+
+  await questionText(host).fill('Столиця України?');
+  await field(host, 'Варіант 1').fill('Львів');
+  await field(host, 'Варіант 2').fill('Київ');
+  await field(host, 'Правильний: варіант 2').click();
+  await click(host, 'Додати запитання');
+  await click(host, 'один варіант');
+  await questionText(host).fill('Найбільша річка України?');
+  await field(host, 'Варіант 1').fill('Дніпро');
+  await field(host, 'Варіант 2').fill('Дунай');
+  await field(host, 'Правильний: варіант 1').click();
+
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Бліц-вікторина' }).waitFor();
+
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage3', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const anna = await open('anna3', 390, 844);
+  const boris = await open('boris3', 360, 740);
+  await join(anna, code, 'Анна', false);
+  await join(boris, code, 'Борис', false);
+  await stage.getByText('Борис').waitFor();
+
+  await click(host, 'Почати гру');
+
+  // Запитання 1: Анна натискає першою й помиляється, Борис відповідає правильно.
+  await click(anna, 'Відповісти');
+  await anna.getByText('Ви 1-й у черзі').waitFor();
+  await click(boris, 'Відповісти');
+  await boris.getByText('Ви 2-й у черзі').waitFor();
+  await anna.getByRole('button', { name: /Львів/ }).click();
+  await boris.getByRole('button', { name: /Київ/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await stage.getByText('Першим правильно відповів: Борис').waitFor();
+  await click(host, 'Далі');
+  await click(host, 'Наступне запитання');
+
+  // Запитання 2: ніхто не натискає, ведучий закриває запитання.
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await stage.getByText('Ніхто не відповів правильно').waitFor();
+  await click(host, 'Далі');
+
+  // Подіум: Борис отримав ціну запитання, Анна втратила її.
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const podium = await stage.locator('.standings li').allTextContents();
+  expect(podium[0]).toMatch(/Борис.*1000/);
+  expect(podium[1]).toMatch(/Анна.*−1000/);
+
+  // Історія: два зіграні запитання й ті самі бали.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Бліц-вікторина/ }).click();
+  await host.getByText('Столиця України?').waitFor();
+  await host.getByText('Найбільша річка України?').waitFor();
+  const rows = host.locator('.standings li');
+  await rows.first().waitFor();
+  expect(await rows.nth(0).textContent()).toMatch(/Борис.*1000/);
+  expect(await rows.nth(1).textContent()).toMatch(/Анна.*−1000/);
 
   expect(problems).toEqual([]);
 }
