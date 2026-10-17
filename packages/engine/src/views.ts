@@ -1,5 +1,6 @@
 import {
   questionsOf,
+  type Answer,
   type BlitzInfo,
   type BlitzPlayer,
   type Choice,
@@ -216,10 +217,16 @@ export function stageView(state: GameState): StageView {
   };
 }
 
+function blitzAnswer(state: GameState, playerId: string): Answer | null | undefined {
+  const entry = currentBlitz(state)?.blitz.queue.find((e) => e.playerId === playerId);
+  return entry === undefined ? undefined : entry.answer;
+}
+
 export function playerView(state: GameState, playerId: string): PlayerView | null {
   const player = state.players.find((p) => p.id === playerId);
   if (player === undefined) return null;
   const record = currentRecord(state, playerId);
+  const queued = blitzAnswer(state, playerId);
   const revealed = isRevealed(state);
   const standings = publicStandings(state);
   // На етапі locked бали за поточне запитання ще не показуємо: це видало б правильність до розкриття.
@@ -232,9 +239,9 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       nickname: player.nickname,
       score: player.score - hidden,
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
-      // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули.
-      answer:
-        currentBlitz(state)?.blitz.queue.find((entry) => entry.playerId === playerId)?.answer ?? record?.answer ?? null,
+      // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули;
+      // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
+      answer: queued === undefined ? (record?.answer ?? null) : queued,
       result:
         revealed && record !== undefined
           ? {

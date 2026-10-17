@@ -283,6 +283,15 @@ describe('blitz views', () => {
     expect(playerView(state, 'p3')?.blitz?.winner?.nickname).toBe('Богдан');
   });
 
+  it('a re-buzzed player sees an empty answer, not the previous wrong attempt', () => {
+    let state = must(buzz(blitzGame({ attempts: 2 }), 'p1', 1000));
+    state = must(submitAnswer(state, 'p1', wrong, 1500));
+    state = must(buzz(state, 'p1', 2000));
+    const me = playerView(state, 'p1')?.me;
+    expect(me?.answer).toBeNull();
+    expect(me?.blitz?.position).toBe(1);
+  });
+
   it('the player sees their place, attempts and whether they can buzz', () => {
     let state = must(buzz(blitzGame({ attempts: 2, answerWindow: 15 }), 'p2', 1000));
     state = must(buzz(state, 'p1', 1500));
