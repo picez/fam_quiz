@@ -65,7 +65,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'intro' && view.round !== null && (
         <>
           <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
-          <h1 className="question">{roundLabel(view.round.title, view.round.index)}</h1>
+          <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
         </>
       )}
 

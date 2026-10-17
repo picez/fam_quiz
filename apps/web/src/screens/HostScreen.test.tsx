@@ -27,6 +27,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   role: 'host',
   phase: 'lobby',
   paused: false,
+  blitz: null,
   round: null,
   questionIndex: -1,
   total: 2,

@@ -101,7 +101,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
       {phase === 'intro' && round !== null && (
         <section className="panel">
           <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>
-          <h1 className="question">{roundLabel(round.title, round.index)}</h1>
+          <h1 className="question">{roundLabel(round.title, round.index, round.type)}</h1>
         </section>
       )}
 

@@ -30,12 +30,13 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
   phase: 'lobby',
   paused: false,
+  blitz: null,
   round: null,
   questionIndex: -1,
   total: 2,

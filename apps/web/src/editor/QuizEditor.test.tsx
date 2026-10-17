@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, type Quiz } from '@quiz/shared';
+import { t } from '../i18n';
 import { newQuiz } from './draft';
 import { QuizEditor } from './QuizEditor';
 
@@ -19,6 +20,10 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+const addRound = (type: 'Класичний' | 'Бліц') => {
+  click('+ Раунд');
+  click(type);
+};
 const saved = (onSave: ReturnType<typeof open>['onSave']) => onSave.mock.calls[0][0];
 
 describe('QuizEditor', () => {
@@ -616,7 +621,7 @@ describe('QuizEditor: cancelled drag', () => {
       const { onSave } = open();
       fill('Назва вікторини', 'Гра');
       fill('Текст запитання', 'Перше?');
-      click('+ Раунд');
+      addRound('Класичний');
       expect(roundButton('Раунд 1')).toBeTruthy();
       expect(roundButton('Раунд 2')).toBeTruthy();
       // Після додавання відкривається новий раунд з порожнім запитанням.
@@ -637,10 +642,45 @@ describe('QuizEditor: cancelled drag', () => {
       expect(quiz.rounds.map((r) => r.questions[0].text)).toEqual(['Перше?', 'Друге?']);
     });
 
+    it('adds a blitz round and saves its settings', async () => {
+      const { onSave } = open();
+      fill('Назва вікторини', 'Гра');
+      fill('Текст запитання', 'Перше?');
+      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      addRound('Бліц');
+      expect(roundButton('Бліц')).toBeTruthy();
+      fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
+      fill('Вікно відповіді', '30');
+      fill('Спроб на запитання', '2');
+      fill('Перевірка', 'manual');
+      fill('Текст запитання', 'Друге?');
+      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      click('Зберегти');
+      await waitFor(() => expect(onSave).toHaveBeenCalled());
+      const quiz = saved(onSave);
+      expect(quizSchema.safeParse(quiz).success).toBe(true);
+      const blitz = quiz.rounds[1];
+      expect(blitz.type).toBe('blitz');
+      if (blitz.type === 'blitz') {
+        expect(blitz.answerWindow).toBe(30);
+        expect(blitz.attempts).toBe(2);
+        expect(blitz.check).toBe('manual');
+      }
+    });
+
+    it('blitz settings hide the speed bonus and partial credit', () => {
+      open();
+      expect(screen.queryByLabelText(t('speedBonus'))).toBeTruthy();
+      addRound('Бліц');
+      expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
+      expect(screen.queryByLabelText(t('rulePartial'))).toBeNull();
+      expect(screen.queryByLabelText('Вікно відповіді')).toBeTruthy();
+    });
+
     it('never removes the only round, but removes one of several', () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true);
       open();
-      click('+ Раунд');
+      addRound('Класичний');
       click('Видалити раунд');
       expect(roundButton('Раунд 2')).toBeNull();
       expect(roundButton('Раунд 1')).toBeNull();
@@ -650,7 +690,7 @@ describe('QuizEditor: cancelled drag', () => {
     it('reorders rounds', () => {
       open();
       fill('Текст запитання', 'Перше?');
-      click('+ Раунд');
+      addRound('Класичний');
       fill('Текст запитання', 'Друге?');
       click('Раунд 2 вище');
       click('Раунд 1');
@@ -659,7 +699,7 @@ describe('QuizEditor: cancelled drag', () => {
 
     it('limits the number of rounds', () => {
       open();
-      for (let i = 1; i < 10; i++) click('+ Раунд');
+      for (let i = 1; i < 10; i++) addRound('Класичний');
       expect((screen.getByRole('button', { name: '+ Раунд' }) as HTMLButtonElement).disabled).toBe(true);
     });
 
@@ -668,7 +708,7 @@ describe('QuizEditor: cancelled drag', () => {
       fill('Назва вікторини', 'Гра');
       fill('Текст запитання', 'Перше?');
       fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
-      click('+ Раунд');
+      addRound('Класичний');
       click('Раунд 1');
       click('Зберегти');
       expect(screen.getByRole('alert').textContent).toContain('Раунд 2: Запитання 1: впишіть текст запитання.');

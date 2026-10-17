@@ -1,10 +1,12 @@
 import {
+  DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   LIMITS,
   questionSchema,
   quizSchema,
   roundRulesSchema,
+  type BlitzRound,
   type ClassicRound,
   type Question,
   type Quiz,
@@ -112,6 +114,21 @@ export function newClassicRound(): ClassicRound {
     speedBonus: true,
     shuffleOptions: false,
     rules: defaultRules(),
+    questions: [newQuestion('single')],
+  };
+}
+
+/** Новий раунд бліцу: вікно відповіді за замовчуванням, одна спроба, автоматична перевірка. */
+export function newBlitzRound(): BlitzRound {
+  return {
+    id: newId(),
+    type: 'blitz',
+    title: '',
+    shuffleOptions: false,
+    answerWindow: DEFAULT_ANSWER_WINDOW,
+    attempts: 1,
+    check: 'auto',
+    rules: { ...defaultRules(), partial: null },
     questions: [newQuestion('single')],
   };
 }
