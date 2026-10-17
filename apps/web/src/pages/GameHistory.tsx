@@ -70,7 +70,7 @@ export function GameHistory() {
             if (questions.length === 0) return null;
             return (
               <div key={roundIndex} className="round-group">
-                {game.rounds.length > 1 && <h3 className="round-title">{roundLabel(round.title, roundIndex)}</h3>}
+                {game.rounds.length > 1 && <h3 className="round-title">{roundLabel(round.title, roundIndex, round.type)}</h3>}
                 <ol className="rows stacked">
                   {questions.map((question, position) => (
                     <li key={question.index}>

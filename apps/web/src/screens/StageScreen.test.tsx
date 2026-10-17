@@ -154,3 +154,26 @@ describe('StageScreen: rounds', () => {
     expect(screen.getByText(/Раунд 1/)).toBeTruthy();
   });
 });
+
+describe('StageScreen: blitz', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
+  const queue = [
+    { playerId: 'p1', nickname: 'Олена' },
+    { playerId: 'p2', nickname: 'Тарас' },
+  ];
+
+  it('shows the blitz queue and the winner at the reveal', () => {
+    show(view({ phase: 'question', round, questionIndex: 0, question, blitz: { queue, winner: null } }));
+    expect(screen.getByText('Олена')).toBeTruthy();
+    expect(screen.getByText('Тарас')).toBeTruthy();
+    expect(screen.getByText('Перевіряємо')).toBeTruthy();
+    cleanup();
+
+    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: queue[1] } }));
+    expect(screen.getByText('Першим правильно відповів: Тарас')).toBeTruthy();
+    cleanup();
+
+    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: null } }));
+    expect(screen.getByText('Ніхто не відповів правильно')).toBeTruthy();
+  });
+});
