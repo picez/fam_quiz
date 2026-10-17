@@ -1,6 +1,10 @@
 import {
   questionsOf,
+  type BlitzInfo,
+  type BlitzPlayer,
   type Choice,
+  type HostBlitz,
+  type PlayerBlitz,
   type HostView,
   type Phase,
   type PlayerView,
@@ -12,6 +16,7 @@ import {
   type StageView,
 } from '@quiz/shared';
 import { currentRound, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
+import { attemptsUsed } from './blitz';
 import { rankPlayers } from './ranking';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
@@ -86,6 +91,66 @@ function previousStreak(state: GameState, playerId: string): number {
   return streakCounts(state, state.questionIndex)[playerId] ?? 0;
 }
 
+/** Поточне запитання бліцу з його раундом; null поза запитанням або в класичному раунді. */
+function currentBlitz(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  const round = play === undefined ? undefined : state.quiz.rounds[play.roundIndex];
+  return round?.type === 'blitz' && play?.blitz !== undefined ? { play, blitz: play.blitz, round } : null;
+}
+
+function blitzPlayer(state: GameState, playerId: string): BlitzPlayer {
+  return { playerId, nickname: state.players.find((p) => p.id === playerId)?.nickname ?? '' };
+}
+
+function blitzWinner(state: GameState, attempts: { playerId: string; grade: string }[]): BlitzPlayer | null {
+  const won = attempts.find((attempt) => attempt.grade === 'correct');
+  return won === undefined ? null : blitzPlayer(state, won.playerId);
+}
+
+/** Черга й переможець для сцени й гравців: без відповідей, переможець лише після розкриття. */
+function blitzInfo(state: GameState): BlitzInfo | null {
+  const open = currentBlitz(state);
+  if (open === null) return null;
+  return {
+    queue: open.blitz.queue.map((entry) => blitzPlayer(state, entry.playerId)),
+    winner: isRevealed(state) ? blitzWinner(state, open.blitz.attempts) : null,
+  };
+}
+
+function playerBlitz(state: GameState, playerId: string): PlayerBlitz | null {
+  const open = currentBlitz(state);
+  if (open === null) return null;
+  const { play, blitz, round } = open;
+  const index = blitz.queue.findIndex((entry) => entry.playerId === playerId);
+  const used = attemptsUsed(play, playerId);
+  const left = round.attempts === null ? null : Math.max(0, round.attempts - used);
+  return {
+    position: index < 0 ? null : index + 1,
+    attemptsUsed: used,
+    attemptsLeft: left,
+    canBuzz: state.phase === 'question' && !state.paused && index < 0 && (left === null || left > 0),
+    deadline: index < 0 ? null : blitz.queue[index].deadline,
+  };
+}
+
+function hostBlitz(state: GameState): HostBlitz | null {
+  const open = currentBlitz(state);
+  if (open === null) return null;
+  const { blitz, round } = open;
+  return {
+    manual: round.check === 'manual',
+    winner: blitzWinner(state, blitz.attempts),
+    queue: blitz.queue.map((e) => ({ ...blitzPlayer(state, e.playerId), answer: e.answer, deadline: e.deadline })),
+    attempts: blitz.attempts.map((a) => ({
+      ...blitzPlayer(state, a.playerId),
+      answer: a.answer,
+      grade: a.grade,
+      points: a.points,
+    })),
+  };
+}
+
 function base(state: GameState) {
   const round = currentRound(state);
   return {
@@ -99,6 +164,7 @@ function base(state: GameState) {
     remainingMs: state.remainingMs,
     playerCount: state.players.length,
     answeredCount: Object.keys(currentAnswers(state)).length,
+    blitz: blitzInfo(state),
   };
 }
 
@@ -166,7 +232,9 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       nickname: player.nickname,
       score: player.score - hidden,
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
-      answer: record?.answer ?? null,
+      // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули.
+      answer:
+        currentBlitz(state)?.blitz.queue.find((entry) => entry.playerId === playerId)?.answer ?? record?.answer ?? null,
       result:
         revealed && record !== undefined
           ? {
@@ -177,6 +245,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
               points: record.points,
             }
           : null,
+      blitz: playerBlitz(state, playerId),
     },
     reveal: revealed ? currentQuestion(state) : null,
     standings,
@@ -213,6 +282,7 @@ export function hostView(state: GameState): HostView {
     })),
     correct: currentQuestion(state),
     responses,
+    blitz: hostBlitz(state),
     standings: rankPlayers(state.players),
   };
 }
