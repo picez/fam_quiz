@@ -251,6 +251,15 @@ describe('PlayerScreen: blitz', () => {
     expect(document.querySelector('.btn-buzz')).toBeNull();
   });
 
+  it('hides the answer-window countdown during a pause', () => {
+    const queued = blitzMe({ position: 1, deadline: Date.now() + 5000 });
+    show(inBlitz(queued));
+    expect(screen.getAllByRole('timer')).toHaveLength(2);
+    cleanup();
+    show({ ...inBlitz(queued), paused: true, endsAt: null, remainingMs: 9000 });
+    expect(screen.getAllByRole('timer').map((timer) => timer.getAttribute('aria-label'))).toEqual(['9']);
+  });
+
   it('confirms a sent answer with the place in the queue', () => {
     show(inBlitz(blitzMe({ position: 1 }, { answer: { type: 'text', value: 'Одеса' } })));
     expect(screen.getByText('Відповідь надіслано, ви 1-й у черзі')).toBeTruthy();

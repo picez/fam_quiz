@@ -1,14 +1,14 @@
 import type { BlitzRound, ErrorCode } from '@quiz/shared';
 import { checkAnswer } from './check';
 // З game.ts лише типи: game.ts сам викликає цей файл, цикл під час виконання не потрібен.
-import type { AnswerRecord, Attempt, BuzzEntry, GameState, Play, Result } from './game';
+import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
 import { answerPoints } from './score';
 
 const refuse = (error: ErrorCode): Result => ({ ok: false, error });
 
 interface OpenBlitz {
   play: Play;
-  blitz: { queue: BuzzEntry[]; attempts: Attempt[] };
+  blitz: BlitzPlay;
   round: BlitzRound;
 }
 
@@ -49,7 +49,8 @@ export function buzz(state: GameState, playerId: string, now: number): Result {
     deadline: round.answerWindow === null ? null : now + round.answerWindow * 1000,
     answer: null,
   };
-  return { ok: true, state: withPlay(state, { ...play, blitz: { ...blitz, queue: [...blitz.queue, entry] } }) };
+  const buzzed = blitz.buzzed.includes(playerId) ? blitz.buzzed : [...blitz.buzzed, playerId];
+  return { ok: true, state: withPlay(state, { ...play, blitz: { ...blitz, queue: [...blitz.queue, entry], buzzed } }) };
 }
 
 /** Підсумок усіх спроб гравця на запитання як звичайна відповідь. */
@@ -122,7 +123,7 @@ function settle(state: GameState, now: number | null, verdict?: boolean): GameSt
   for (const playerId of new Set(attempts.slice(blitz.attempts.length).map((a) => a.playerId))) {
     answers[playerId] = summaryOf(attempts.filter((attempt) => attempt.playerId === playerId));
   }
-  return withPlay(state, { ...play, answers, blitz: { queue, attempts } });
+  return withPlay(state, { ...play, answers, blitz: { ...blitz, queue, attempts } });
 }
 
 export function settleQueue(state: GameState, now: number | null): GameState {

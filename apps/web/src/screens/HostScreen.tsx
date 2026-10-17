@@ -120,31 +120,34 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
 
       {view.question !== null && live && blitz !== null && (
         <>
-          <section className="panel">
-            <h2>{t('blitzQueue')}</h2>
-            {blitz.queue.length === 0 ? (
-              <p className="meta">{t('noResponses')}</p>
-            ) : (
-              <ul className="rows">
-                {blitz.queue.map((entry, index) => (
-                  <li key={entry.playerId}>
-                    <span className="name">{entry.nickname}</span>
-                    <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct)}</span>
-                    {blitz.manual && index === 0 && entry.answer !== null && (
-                      <>
-                        <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, true)}>
-                          {t('judgeCorrect')}
-                        </button>
-                        <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, false)}>
-                          {t('judgeWrong')}
-                        </button>
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {/* Після закриття запитання черги вже немає: лишаються тільки спроби. */}
+          {phase === 'question' && (
+            <section className="panel">
+              <h2>{t('blitzQueue')}</h2>
+              {blitz.queue.length === 0 ? (
+                <p className="meta">{t('noResponses')}</p>
+              ) : (
+                <ul className="rows">
+                  {blitz.queue.map((entry, index) => (
+                    <li key={entry.playerId}>
+                      <span className="name">{entry.nickname}</span>
+                      <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct)}</span>
+                      {blitz.manual && index === 0 && entry.answer !== null && (
+                        <>
+                          <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, true)}>
+                            {t('judgeCorrect')}
+                          </button>
+                          <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, false)}>
+                            {t('judgeWrong')}
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
           {blitz.attempts.length > 0 && (
             <section className="panel">
               <h2>{t('blitzAttemptsTitle')}</h2>

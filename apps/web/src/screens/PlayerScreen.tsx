@@ -180,7 +180,8 @@ function BlitzTurn({
     return (
       <>
         <p className="blitz-place">{t('blitzPlace', { position: blitz.position })}</p>
-        {blitz.deadline !== null && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
+        {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
+        {blitz.deadline !== null && !view.paused && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
         <fieldset className="inputs" disabled={view.paused}>
           <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={question} onSubmit={onSubmit} />
         </fieldset>

@@ -252,7 +252,10 @@ export class RoomManager {
     room.connections.delete(playerId);
     room.playerUsers.delete(playerId);
     this.emit(room, { type: 'kicked', playerId });
-    this.commit(room, removed.state);
+    // Новою головою черги може стати гравець, чиє вікно вже сплило, поки чекали на ведучого;
+    // таймер його вже минув, тож доводимо стан до поточної миті тут.
+    room.tickedTo = Math.max(room.tickedTo, this.now());
+    this.commit(room, tick(removed.state, room.tickedTo));
     return { ok: true };
   }
 

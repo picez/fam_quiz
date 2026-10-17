@@ -330,4 +330,11 @@ describe('HostScreen: blitz', () => {
     );
     expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
   });
+
+  it('hides the queue once the question is closed', () => {
+    show(during('reveal', textQuestion, { round, blitz: blitz({ queue: [] }) }));
+    expect(screen.queryByText('Черга')).toBeNull();
+    expect(screen.queryByText('Ще ніхто не відповів')).toBeNull();
+    expect(screen.getByText('не встиг')).toBeTruthy();
+  });
 });

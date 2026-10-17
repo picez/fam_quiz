@@ -128,7 +128,7 @@ describe('blitz queue', () => {
     let state = must(buzz(open({ rules: rules({ penalty: 'minus' }) }), 'p1', 1000));
     state = must(submitAnswer(must(buzz(state, 'p2', 1500)), 'p2', right, 1600));
     state = must(lock(state));
-    expect(state.plays[0].blitz).toEqual({ queue: [], attempts: [] });
+    expect(state.plays[0].blitz).toEqual({ queue: [], attempts: [], buzzed: ['p1', 'p2'] });
     expect(state.plays[0].answers).toEqual({});
     expect(state.players.map((p) => p.score)).toEqual([0, 0, 0]);
   });
@@ -145,6 +145,30 @@ describe('blitz scoring', () => {
     expect(state.plays.map((play) => play.answers.p2?.streakBonus)).toEqual([undefined, 0, undefined]);
     expect(score(state, 'p1')).toBe(2300);
     expect(score(state, 'p2')).toBe(1000);
+  });
+
+  it('a buzz dropped after another player wins breaks the streak', () => {
+    const streak = { length: 2, bonus: { kind: 'fixed', value: 300 } } as const;
+    let state = open({ rules: rules({ streak }) }, copies('q1', 'q2', 'q3'));
+    state = toQuestion(buzzAndAnswer(state, 'p1', right, 1000));
+    state = must(buzz(state, 'p2', 1000));
+    state = must(buzz(state, 'p1', 1100));
+    state = must(submitAnswer(state, 'p2', right, 1200));
+    expect(state.phase).toBe('locked');
+    expect(state.players.find((p) => p.id === 'p1')?.streak).toBe(0);
+    state = buzzAndAnswer(toQuestion(state), 'p1', right, 1000);
+    expect(state.plays[2].answers.p1?.streakBonus).toBe(0);
+    expect(score(state, 'p1')).toBe(2000);
+  });
+
+  it('a buzz dropped when the host locks the question breaks the streak', () => {
+    const streak = { length: 2, bonus: { kind: 'fixed', value: 300 } } as const;
+    let state = open({ rules: rules({ streak }) }, copies('q1', 'q2', 'q3'));
+    state = toQuestion(buzzAndAnswer(state, 'p1', right, 1000));
+    state = must(lock(must(buzz(state, 'p1', 1000))));
+    expect(state.players.find((p) => p.id === 'p1')?.streak).toBe(0);
+    state = buzzAndAnswer(toQuestion(state), 'p1', right, 1000);
+    expect(state.plays[2].answers.p1?.streakBonus).toBe(0);
   });
 
   it('the streak bonus percent is taken from the winning attempt, not from earlier penalties', () => {
@@ -239,6 +263,19 @@ describe('blitz manual check, pause, kick and deadlines', () => {
     expect(state.phase).toBe('locked');
   });
 
+  it('a kick during a pause checks the next answer only after the resume', () => {
+    let state = must(buzz(open(), 'p1', 1000));
+    state = must(submitAnswer(must(buzz(state, 'p2', 1500)), 'p2', right, 1600));
+    state = must(removePlayer(must(pause(state, 2000)), 'p1'));
+    expect(state.plays[0].blitz?.attempts).toEqual([]);
+    expect(state.phase).toBe('question');
+    state = must(resume(state, 5000));
+    expect(state.plays[0].blitz?.attempts).toEqual([
+      { playerId: 'p2', answer: right, timeMs: 1500, grade: 'correct', points: 1000 },
+    ]);
+    expect(state.phase).toBe('locked');
+  });
+
   it('kicking a player removes their attempts from earlier questions', () => {
     let state = toQuestion(must(lock(buzzAndAnswer(open({ attempts: 2 }, copies('q1', 'q2')), 'p1', wrong, 1000))));
     state = must(buzz(state, 'p2', 1000));
@@ -275,7 +312,7 @@ describe('blitz manual check, pause, kick and deadlines', () => {
     let state = must(buzz(open(), 'p1', 1000));
     state = must(end(state));
     expect(state.phase).toBe('finished');
-    expect(state.plays[0].blitz).toEqual({ queue: [], attempts: [] });
+    expect(state.plays[0].blitz).toEqual({ queue: [], attempts: [], buzzed: ['p1'] });
   });
 
   it('the question closes when the last player who could still buzz disconnects', () => {

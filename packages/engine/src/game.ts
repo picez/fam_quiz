@@ -68,7 +68,15 @@ export interface Play {
   roundIndex: number;
   question: Question;
   answers: Record<string, AnswerRecord>;
-  blitz?: { queue: BuzzEntry[]; attempts: Attempt[] };
+  blitz?: BlitzPlay;
+}
+
+/** Бліц у межах одного запитання. */
+export interface BlitzPlay {
+  queue: BuzzEntry[];
+  attempts: Attempt[];
+  /** Хто натискав на цьому запитанні, без повторів; потрібне для серій, бо скинуті натискання зникають. */
+  buzzed: string[];
 }
 
 export interface GameState {
@@ -161,12 +169,13 @@ export function removePlayer(state: GameState, playerId: string): Result {
     const blitz = {
       queue: play.blitz.queue.filter((e) => e.playerId !== playerId),
       attempts: play.blitz.attempts.filter((a) => a.playerId !== playerId),
+      buzzed: play.blitz.buzzed.filter((id) => id !== playerId),
     };
     return { ...play, answers: rest, blitz };
   });
   const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays };
-  // Наступний у черзі, який уже відповів, перевіряється одразу.
-  return ok(autoLock(settleQueue(kicked, null)));
+  // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
+  return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
 
 export function setConnected(state: GameState, playerId: string, connected: boolean): Result {
@@ -214,7 +223,7 @@ function openQuestion(state: GameState, question: Question, now: number, rng: Rn
     roundIndex: state.roundIndex,
     question,
     answers: {},
-    ...(round.type === 'blitz' ? { blitz: { queue: [], attempts: [] } } : {}),
+    ...(round.type === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
   };
   return {
     ...state,
@@ -243,7 +252,7 @@ function advance(state: GameState, now: number, rng: Rng): GameState {
 /**
  * Серія кожного гравця після перших upTo запитань журналу: поспіль правильні відповіді в раунді
  * останнього з них. Без відповіді серія перервана, але в бліці запитання, де гравець не натискав,
- * серію не обриває й не продовжує; на межі раундів вона скидається;
+ * серію не обриває й не продовжує (натискання без правильної спроби обриває); на межі раундів вона скидається;
  * якщо правил серії в тому раунді немає, серій немає.
  */
 export function streakCounts(state: GameState, upTo: number): Record<string, number> {
@@ -256,7 +265,8 @@ export function streakCounts(state: GameState, upTo: number): Record<string, num
     let count = 0;
     for (let i = upTo - 1; i >= 0 && state.plays[i].roundIndex === last.roundIndex; i -= 1) {
       const record = recordOf(state, i, player.id);
-      if (record === undefined && round.type === 'blitz') continue;
+      const blitz = state.plays[i].blitz;
+      if (record === undefined && blitz !== undefined && !blitz.buzzed.includes(player.id)) continue;
       if (record === undefined || record.accuracy < 1) break;
       count += 1;
     }
@@ -472,7 +482,8 @@ export function resume(state: GameState, now: number): Result {
     const endsAt = now + state.remainingMs;
     // startedAt зсувається так, щоб час відповіді не включав паузу.
     const resumed = { ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs };
-    return ok(autoLock(shiftQueue(resumed, now - (state.pausedAt ?? now))));
+    // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
+    return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now)));
   }
   return ok({ ...state, paused: false, pausedAt: null });
 }
