@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -199,6 +199,23 @@ describe('permissions and bad input', () => {
     expect(await send(olena, 'player:answer', { type: 'single' })).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(host, 'host:kick', { player: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(host, 'host:override', 'x')).toEqual({ ok: false, error: 'invalid_payload' });
+  });
+
+  it('player:buzz and host:judge are accepted only from their roles', async () => {
+    const game = (await startGame(ctx.app, makeRoundsQuiz([blitzRound('b1', [single], { check: 'manual' })]))).game;
+    const { host, stage, olena, olenaJoin } = await lobby(game);
+    await send(host, 'host:start');
+    await until(olena, inPhase('question'));
+
+    expect(await send(host, 'player:buzz')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:buzz')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:judge', { playerId: olenaJoin.playerId, correct: true })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:judge', { playerId: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
+
+    expect(await send(olena, 'player:buzz')).toEqual({ ok: true });
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(host, 'host:judge', { playerId: olenaJoin.playerId, correct: true })).toEqual({ ok: true });
+    expect((await until(olena, inPhase('locked'))).phase).toBe('locked');
   });
 
   it('survives events without an acknowledgement or with junk arguments', async () => {

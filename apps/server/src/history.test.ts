@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { bool, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
@@ -201,6 +201,46 @@ describe('host history: rounds', () => {
       { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1 },
       { index: 1, roundIndex: 0, text: text.text, type: 'text', answered: 1, accepted: 0 },
     ]);
+  });
+});
+
+describe('history: blitz attempts', () => {
+  it('history counts a player with two blitz attempts once', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const olena = await signUp(ctx.app, 'Олена');
+    const quiz = makeRoundsQuiz([blitzRound('b1', [single], { attempts: 2 })]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const joinAs = async (nickname: string, cookie?: string) =>
+      ((await post(`/api/games/by-code/${created.code}/join`, { nickname }, cookie)).json() as { playerId: string }).playerId;
+    const olenaId = await joinAs('Олена', olena.cookie);
+    const tarasId = await joinAs('Тарас');
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    for (const playerId of [olenaId, tarasId]) ctx.manager.connect(room, { role: 'player', playerId });
+    const attempt = (playerId: string, optionId: string) => {
+      expect(ctx.manager.buzz(room, playerId)).toEqual({ ok: true });
+      expect(ctx.manager.answer(room, playerId, { type: 'single', optionId })).toEqual({ ok: true });
+    };
+
+    expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    attempt(olenaId, 'a');
+    attempt(tarasId, 'c');
+    attempt(olenaId, 'b');
+    expect(room.state.phase).toBe('locked');
+    await ctx.recorder.idle();
+
+    const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
+      standings: Record<string, unknown>[];
+      questions: Record<string, unknown>[];
+    };
+    expect(detail.questions).toMatchObject([{ index: 0, answered: 2, accepted: 1 }]);
+    expect(detail.standings.map((s) => [s.nickname, s.correct])).toEqual([
+      ['Олена', 1],
+      ['Тарас', 0],
+    ]);
+    const [played] = (await get('/api/me/history', olena.cookie)).json() as Record<string, unknown>[];
+    expect(played).toMatchObject({ gameId: created.gameId, answered: 1, correct: 1 });
   });
 });
 

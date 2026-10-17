@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { bool, classicRound, makeQuiz, makeRoundsQuiz, numeric, single, text } from '@quiz/engine/testing';
+import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, numeric, single, text } from '@quiz/engine/testing';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
@@ -362,6 +362,77 @@ describe('recorder: rounds', () => {
       [1, 1, 1000, 0],
       [2, 1, -1000, 0],
       [2, 1, 1100, 100],
+    ]);
+  });
+});
+
+describe('recorder: blitz', () => {
+  async function blitzSetup(options: Parameters<typeof blitzRound>[2]) {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const room = manager.create(makeRoundsQuiz([blitzRound('b1', [single, text], options)]), HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const olena = enter('Олена');
+    enter('Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    const answers = async () => {
+      await recorder.idle();
+      return db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.attempt));
+    };
+    return { scheduler, manager, room, olena, answers };
+  }
+
+  it('each blitz attempt is stored as its own row', async () => {
+    const risky = { penalty: 'minus', partial: null, streak: null, multiplier: 1 } as const;
+    const { manager, room, olena, answers } = await blitzSetup({ attempts: 2, rules: risky });
+    expect(manager.buzz(room, olena)).toEqual({ ok: true });
+    expect(manager.answer(room, olena, wrong)).toEqual({ ok: true });
+    expect(manager.buzz(room, olena)).toEqual({ ok: true });
+    expect(manager.answer(room, olena, correct)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+
+    const rows = await answers();
+    expect(rows.map((a) => [a.participantId, a.questionIndex, a.attempt, a.payload, a.accepted, a.points, a.streakBonus, a.overridden])).toEqual([
+      [olena, 0, 0, wrong, false, -1000, 0, false],
+      [olena, 0, 1, correct, true, 1000, 0, false],
+    ]);
+  });
+
+  it('a missed blitz window is stored with an empty payload', async () => {
+    const { scheduler, manager, room, olena, answers } = await blitzSetup({ answerWindow: 5 });
+    expect(manager.buzz(room, olena)).toEqual({ ok: true });
+    scheduler.advance(5000);
+    expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
+
+    const rows = await answers();
+    expect(rows.map((a) => [a.participantId, a.attempt, a.payload, a.accepted, a.points])).toEqual([[olena, 0, null, false, 0]]);
+  });
+
+  it('adds the streak bonus to the winning attempt only', async () => {
+    const streaky = { penalty: 'minus', partial: null, streak: { length: 2, bonus: { kind: 'fixed', value: 100 } }, multiplier: 1 } as const;
+    const { manager, room, olena, answers } = await blitzSetup({ attempts: 2, rules: streaky });
+    manager.buzz(room, olena);
+    manager.answer(room, olena, correct);
+    while (room.state.phase !== 'question') expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    manager.buzz(room, olena);
+    manager.answer(room, olena, { type: 'text', value: 'Львів' });
+    manager.buzz(room, olena);
+    manager.answer(room, olena, { type: 'text', value: 'Одеса' });
+    expect(room.state.phase).toBe('locked');
+
+    const rows = await answers();
+    expect(rows.map((a) => [a.questionIndex, a.attempt, a.accepted, a.points, a.streakBonus])).toEqual([
+      [0, 0, true, 1000, 0],
+      [1, 0, false, -1000, 0],
+      [1, 1, true, 1100, 100],
     ]);
   });
 });
