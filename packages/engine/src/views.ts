@@ -121,6 +121,8 @@ function revealStats(state: GameState, question: Question): RevealStats {
   const records = Object.values(currentAnswers(state));
   const counts: Record<string, number> = {};
   for (const { answer } of records) {
+    // У бліці гравець міг натиснути й не встигнути відповісти.
+    if (answer === null) continue;
     const keys =
       answer.type === 'single'
         ? [answer.optionId]

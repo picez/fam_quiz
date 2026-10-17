@@ -95,7 +95,8 @@ export interface PlayerView extends BaseView {
 export interface HostResponse {
   playerId: string;
   nickname: string;
-  answer: Answer;
+  /** null — бліц, гравець натиснув, але не встиг відповісти. */
+  answer: Answer | null;
   timeMs: number;
   accepted: boolean;
   grade: Grade;

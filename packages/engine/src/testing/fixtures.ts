@@ -1,6 +1,7 @@
 import {
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
+  type BlitzRound,
   type ClassicRound,
   type Question,
   type Quiz,
@@ -85,6 +86,25 @@ export function classicRound(id: string, questions: Question[], options: RoundOp
     speedBonus: true,
     shuffleOptions: false,
     rules: DEFAULT_RULES,
+    ...options,
+    questions,
+  };
+}
+
+export function blitzRound(
+  id: string,
+  questions: Question[],
+  options: Partial<Omit<BlitzRound, 'id' | 'type' | 'questions'>> = {},
+): BlitzRound {
+  return {
+    id,
+    type: 'blitz',
+    title: '',
+    shuffleOptions: false,
+    answerWindow: 15,
+    attempts: 1,
+    check: 'auto',
+    rules: { ...DEFAULT_RULES, partial: null },
     ...options,
     questions,
   };
