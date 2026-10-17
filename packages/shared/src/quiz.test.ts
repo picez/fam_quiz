@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   IMAGE_LIMITS,
@@ -155,6 +156,33 @@ describe('quizSchema', () => {
 
   it('rejects a round title longer than 60 characters', () => {
     expect(valid(quizSchema, { ...quiz, rounds: [round('r1', [single], { title: 'я'.repeat(61) })] })).toBe(false);
+  });
+
+  describe('blitz round', () => {
+    const blitz = (patch: object = {}) => ({
+      id: 'b1',
+      type: 'blitz',
+      title: 'Бліц',
+      shuffleOptions: false,
+      answerWindow: DEFAULT_ANSWER_WINDOW,
+      attempts: 1,
+      check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null },
+      questions: [{ ...single, id: 'q2' }],
+      ...patch,
+    });
+    const withBlitz = (patch: object = {}) => ({ ...quiz, rounds: [round('r1', [single]), blitz(patch)] });
+
+    it('is accepted next to a classic round', () => {
+      expect(valid(quizSchema, withBlitz())).toBe(true);
+      expect(valid(quizSchema, withBlitz({ answerWindow: null, attempts: null, check: 'manual' }))).toBe(true);
+    });
+
+    it('rejects a window under five seconds, four attempts and partial points', () => {
+      expect(valid(quizSchema, withBlitz({ answerWindow: 4 }))).toBe(false);
+      expect(valid(quizSchema, withBlitz({ attempts: 4 }))).toBe(false);
+      expect(valid(quizSchema, withBlitz({ rules: { ...DEFAULT_RULES, partial: 50 } }))).toBe(false);
+    });
   });
 
   it('lists every question in the order of rounds', () => {

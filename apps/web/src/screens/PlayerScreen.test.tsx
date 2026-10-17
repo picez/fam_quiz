@@ -30,12 +30,13 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
   phase: 'lobby',
   paused: false,
+  blitz: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -224,5 +225,71 @@ describe('PlayerScreen: rounds', () => {
     show(onQuestion({ round, total: 4, questionIndex: 1 }));
     expect(screen.getByText(/Запитання 2 з 4/)).toBeTruthy();
     expect(screen.getByText(/Раунд 2/)).toBeTruthy();
+  });
+});
+
+describe('PlayerScreen: blitz', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
+  const blitzMe = (blitz: Partial<NonNullable<PlayerView['me']['blitz']>>, over: Partial<PlayerView['me']> = {}) => ({
+    ...me,
+    ...over,
+    blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, ...blitz },
+  });
+  const inBlitz = (meState: PlayerView['me']) =>
+    onQuestion({ round, question: { ...publicQuestion, type: 'text', choices: [] }, blitz: { queue: [], winner: null }, me: meState });
+
+  it('shows the buzz button and sends player:buzz', async () => {
+    const send = show(inBlitz(blitzMe({ canBuzz: true })));
+    fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:buzz'));
+  });
+
+  it('shows the place in the queue and the answer input after buzzing', () => {
+    show(inBlitz(blitzMe({ position: 2 })));
+    expect(screen.getByText('Ви 2-й у черзі')).toBeTruthy();
+    expect(screen.getByRole('textbox')).toBeTruthy();
+    expect(document.querySelector('.btn-buzz')).toBeNull();
+  });
+
+  it('hides the answer-window countdown during a pause', () => {
+    const queued = blitzMe({ position: 1, deadline: Date.now() + 5000 });
+    show(inBlitz(queued));
+    expect(screen.getAllByRole('timer')).toHaveLength(2);
+    cleanup();
+    show({ ...inBlitz(queued), paused: true, endsAt: null, remainingMs: 9000 });
+    expect(screen.getAllByRole('timer').map((timer) => timer.getAttribute('aria-label'))).toEqual(['9']);
+  });
+
+  it('confirms a sent answer with the place in the queue', () => {
+    show(inBlitz(blitzMe({ position: 1 }, { answer: { type: 'text', value: 'Одеса' } })));
+    expect(screen.getByText('Відповідь надіслано, ви 1-й у черзі')).toBeTruthy();
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('says when attempts are used up', () => {
+    show(inBlitz(blitzMe({ attemptsUsed: 1, attemptsLeft: 0 })));
+    expect(screen.getByText('Спроби вичерпано')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Відповісти' })).toBeNull();
+  });
+
+  it('says a wrong attempt over the button when tries remain', () => {
+    show(inBlitz(blitzMe({ attemptsUsed: 1, attemptsLeft: 1, canBuzz: true })));
+    expect(screen.getByText('Неправильно, спробуйте ще')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Відповісти' })).toBeTruthy();
+  });
+
+  it('shows the winner line at the reveal', () => {
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        round,
+        question: publicQuestion,
+        reveal: fullQuestion,
+        blitz: { queue: [], winner: { playerId: 'p2', nickname: 'Тарас' } },
+        me: blitzMe({}),
+      }),
+    );
+    expect(screen.getByText('Першим правильно відповів: Тарас')).toBeTruthy();
   });
 });

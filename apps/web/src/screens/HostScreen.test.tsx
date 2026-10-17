@@ -27,6 +27,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   role: 'host',
   phase: 'lobby',
   paused: false,
+  blitz: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -285,5 +286,55 @@ describe('HostScreen: rounds', () => {
     expect(screen.getByText('🔥 3')).toBeTruthy();
     expect(screen.queryByText('🔥 1')).toBeNull();
     expect(screen.getByText('−500')).toBeTruthy();
+  });
+});
+
+describe('HostScreen: blitz', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
+  const blitz = (over: Partial<NonNullable<HostView['blitz']>> = {}): NonNullable<HostView['blitz']> => ({
+    manual: true,
+    winner: null,
+    queue: [
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Одеса' }, deadline: null },
+      { playerId: 'p2', nickname: 'Тарас', answer: null, deadline: null },
+    ],
+    attempts: [{ playerId: 'p2', nickname: 'Тарас', answer: null, grade: 'wrong', points: -1000 }],
+    ...over,
+  });
+
+  it('judges the head of the queue in a manual blitz round', async () => {
+    const send = show(during('question', textQuestion, { round, blitz: blitz() }));
+    expect(screen.getByText('пише…')).toBeTruthy();
+    expect(screen.getByText('не встиг')).toBeTruthy();
+    expect(screen.getByText(/у черзі: 2/)).toBeTruthy();
+    fireEvent.click(button('Правильно'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:judge', { playerId: 'p1', correct: true }));
+    fireEvent.click(button('Неправильно'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:judge', { playerId: 'p1', correct: false }));
+  });
+
+  it('has no judge buttons in an automatic blitz round', () => {
+    show(during('question', textQuestion, { round, blitz: blitz({ manual: false }) }));
+    expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+  });
+
+  it('does not offer grade changes after a blitz reveal', () => {
+    show(
+      during('reveal', textQuestion, {
+        round,
+        blitz: blitz({ queue: [] }),
+        responses: [
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Київ' }, timeMs: 1, accepted: false, grade: 'wrong', streakBonus: 0, points: -1000, overridden: false },
+        ],
+      }),
+    );
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+  });
+
+  it('hides the queue once the question is closed', () => {
+    show(during('reveal', textQuestion, { round, blitz: blitz({ queue: [] }) }));
+    expect(screen.queryByText('Черга')).toBeNull();
+    expect(screen.queryByText('Ще ніхто не відповів')).toBeNull();
+    expect(screen.getByText('не встиг')).toBeTruthy();
   });
 });

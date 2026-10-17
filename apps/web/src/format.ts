@@ -1,9 +1,11 @@
-import type { Answer, LobbyPlayer, Question, RoundInfo } from '@quiz/shared';
+import type { Answer, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
 import { t } from './i18n';
 
-/** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N». */
-export const roundLabel = (title: string, index: number): string =>
-  title.trim() === '' ? t('roundN', { index: index + 1 }) : title;
+/** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці — «Бліц». */
+export const roundLabel = (title: string, index: number, type?: Round['type']): string => {
+  if (title.trim() !== '') return title;
+  return type === 'blitz' ? t('blitzLabel') : t('roundN', { index: index + 1 });
+};
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
@@ -49,7 +51,8 @@ export function correctText(question: Question, presented?: { id: string }[]): s
 }
 
 /** Відповідь гравця словами. */
-export function answerText(answer: Answer, question: Question | null): string {
+export function answerText(answer: Answer | null, question: Question | null): string {
+  if (answer === null) return '—';
   const choices = choicesOf(question);
   const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
   switch (answer.type) {

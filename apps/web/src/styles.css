@@ -1314,3 +1314,31 @@ a.banner {
   color: var(--dim);
   font-size: 1rem;
 }
+
+/* ---------- Бліц ---------- */
+
+.btn-buzz {
+  width: 100%;
+  min-height: 40vh;
+  font-family: var(--display);
+  font-size: 2.5rem;
+}
+
+.blitz-place,
+.blitz-note {
+  font-weight: 600;
+  text-align: center;
+}
+
+.blitz-note {
+  color: var(--signal);
+}
+
+.blitz-queue {
+  margin-top: 1rem;
+}
+
+.winner {
+  color: var(--amber);
+  font-weight: 600;
+}

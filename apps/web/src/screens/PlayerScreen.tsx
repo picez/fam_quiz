@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Answer, PlayerView } from '@quiz/shared';
+import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
 import { answerText, correctText, num, questionClass, questionLabel, roundLabel, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
@@ -32,6 +32,11 @@ function Result({ view }: { view: PlayerView }) {
       {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
       {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
       {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
+      {view.round?.type === 'blitz' && view.blitz !== null && (
+        <p className="winner">
+          {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}
+        </p>
+      )}
     </section>
   );
 }
@@ -65,7 +70,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'intro' && view.round !== null && (
         <>
           <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
-          <h1 className="question">{roundLabel(view.round.title, view.round.index)}</h1>
+          <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
         </>
       )}
 
@@ -77,7 +82,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           </div>
           <h1 className={questionClass(question.text)}>{question.text}</h1>
           <QuestionImage url={question.imageUrl} />
-          {me.answer !== null ? (
+          {me.blitz !== null ? (
+            <BlitzTurn view={view} blitz={me.blitz} offsetMs={offsetMs} onSubmit={submit} send={send} onError={setError} />
+          ) : me.answer !== null ? (
             <section className="sent">
               <h2>{t('answerSent')}</h2>
               <p>{pickedText(me.answer, question.choices)}</p>
@@ -134,6 +141,64 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         </p>
       )}
     </main>
+  );
+}
+
+/** Хід гравця в запитанні бліцу: кнопка, місце в черзі й поле відповіді. */
+function BlitzTurn({
+  view,
+  blitz,
+  offsetMs,
+  onSubmit,
+  send,
+  onError,
+}: {
+  view: PlayerView;
+  blitz: PlayerBlitz;
+  offsetMs: number;
+  onSubmit: (answer: Answer) => void;
+  send: Send;
+  onError: (message: string | null) => void;
+}) {
+  const { me, question } = view;
+  if (question === null) return null;
+
+  const buzz = async () => {
+    const result = await send('player:buzz');
+    onError(result.ok ? null : errorText(result.error));
+  };
+
+  if (blitz.position !== null) {
+    if (me.answer !== null) {
+      return (
+        <section className="sent">
+          <h2>{t('blitzSent', { position: blitz.position })}</h2>
+          <p>{pickedText(me.answer, question.choices)}</p>
+        </section>
+      );
+    }
+    return (
+      <>
+        <p className="blitz-place">{t('blitzPlace', { position: blitz.position })}</p>
+        {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
+        {blitz.deadline !== null && !view.paused && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
+        <fieldset className="inputs" disabled={view.paused}>
+          <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={question} onSubmit={onSubmit} />
+        </fieldset>
+      </>
+    );
+  }
+
+  const out = blitz.attemptsLeft === 0;
+  return (
+    <>
+      {(out || blitz.attemptsUsed > 0) && <p className="blitz-note">{t(out ? 'blitzOut' : 'blitzRetry')}</p>}
+      {!out && (
+        <button type="button" className="btn btn-primary btn-buzz" disabled={!blitz.canBuzz} onClick={() => void buzz()}>
+          {t('buzz')}
+        </button>
+      )}
+    </>
   );
 }
 

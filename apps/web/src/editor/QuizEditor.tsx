@@ -1,7 +1,7 @@
-import { LIMITS, questionsOf, type ClassicRound, type Question, type Quiz } from '@quiz/shared';
+import { LIMITS, questionsOf, type Question, type Quiz, type Round } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
-import { cleaned, duplicateQuestion, firstProblem, moveItem, newClassicRound, newQuestion, problemsOf } from './draft';
+import { cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newClassicRound, newQuestion, problemsOf } from './draft';
 import { QuestionEditor } from './QuestionEditor';
 import { RoundSettings } from './RoundSettings';
 import { RoundStrip } from './RoundStrip';
@@ -54,7 +54,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     onDraft?.(next);
   };
   const setRounds = (next: Quiz['rounds']) => update({ ...quiz, rounds: next });
-  const setRound = (next: ClassicRound) => setRounds(rounds.map((r, index) => (index === ri ? next : r)));
+  const setRound = (next: Round) => setRounds(rounds.map((r, index) => (index === ri ? next : r)));
   const setQuestions = (next: Question[]) => setRound({ ...round, questions: next });
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
   const total = questionsOf(quiz).length;
@@ -100,8 +100,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     setListOpen(false);
   };
 
-  const addRound = () => {
-    setRounds([...rounds, newClassicRound()]);
+  const addRound = (type: Round['type']) => {
+    setRounds([...rounds, type === 'blitz' ? newBlitzRound() : newClassicRound()]);
     selectRound(rounds.length);
   };
 

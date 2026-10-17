@@ -67,7 +67,11 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
     <div className="stage-question">
       <header className="bar">
         <span>{questionLabel(view.round, view.questionIndex, view.total)}</span>
-        <span>{t('answeredOf', { answered: view.answeredCount, total: view.playerCount })}</span>
+        <span>
+          {view.blitz === null
+            ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
+            : t('blitzQueued', { count: view.blitz.queue.length })}
+        </span>
       </header>
       <div className="stage-main">
         <h1 className={questionClass(question.text)}>{question.text}</h1>
@@ -85,6 +89,22 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           ))}
         </ul>
       )}
+      {view.blitz !== null && view.phase !== 'reveal' && view.blitz.queue.length > 0 && (
+        <ol className="rows blitz-queue">
+          {view.blitz.queue.map((entry, index) => (
+            <li key={entry.playerId}>
+              <span className="rank">{index + 1}</span>
+              <span className="name">{entry.nickname}</span>
+              {index === 0 && <span className="tag">{t('blitzChecking')}</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+      {view.blitz !== null && view.phase === 'reveal' && (
+        <p className="lead winner">
+          {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}
+        </p>
+      )}
       {reveal === null && hint !== null && <p className="lead">{hint}</p>}
       {reveal !== null && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
@@ -96,7 +116,7 @@ function Intro({ view }: { view: StageView }) {
   return (
     <div className="stage-board">
       <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
-      <h1 className="question">{roundLabel(view.round.title, view.round.index)}</h1>
+      <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
     </div>
   );
 }

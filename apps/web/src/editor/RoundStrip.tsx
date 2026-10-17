@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { LIMITS, type Round } from '@quiz/shared';
 import { roundLabel } from '../format';
 import { t } from '../i18n';
@@ -6,7 +7,7 @@ interface Props {
   rounds: Round[];
   selected: number;
   onSelect: (index: number) => void;
-  onAdd: () => void;
+  onAdd: (type: Round['type']) => void;
   onRename: (index: number) => void;
   onMove: (from: number, to: number) => void;
   onRemove: (index: number) => void;
@@ -18,7 +19,12 @@ interface Props {
  */
 export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove, onRemove }: Props) {
   const several = rounds.length > 1;
-  const nameOf = (round: Round, index: number) => roundLabel(round.title, index);
+  const [choosing, setChoosing] = useState(false);
+  const add = (type: Round['type']) => {
+    setChoosing(false);
+    onAdd(type);
+  };
+  const nameOf = (round: Round, index: number) => roundLabel(round.title, index, round.type);
 
   return (
     <div className="round-strip" role="group" aria-label={t('roundsLabel')}>
@@ -38,9 +44,19 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
         </div>
       )}
       <div className="toolbar">
-        <button type="button" className="btn btn-small" disabled={rounds.length >= LIMITS.maxRounds} onClick={onAdd}>
+        <button type="button" className="btn btn-small" disabled={rounds.length >= LIMITS.maxRounds} onClick={() => setChoosing(!choosing)}>
           {t('addRound')}
         </button>
+        {choosing && rounds.length < LIMITS.maxRounds && (
+          <>
+            <button type="button" className="btn btn-small" onClick={() => add('classic')}>
+              {t('roundTypeClassic')}
+            </button>
+            <button type="button" className="btn btn-small" onClick={() => add('blitz')}>
+              {t('roundTypeBlitz')}
+            </button>
+          </>
+        )}
         {several && (
           <>
             <button type="button" className="btn btn-small" onClick={() => onRename(selected)}>

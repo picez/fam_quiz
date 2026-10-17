@@ -1,12 +1,15 @@
 import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   addPlayer,
+  buzz,
   createGame,
   end,
   endRound,
   hostView,
+  judge,
   lock,
   next,
+  nextDeadline,
   override,
   pause,
   playerView,
@@ -49,6 +52,8 @@ export interface Room {
   /** Кількість відкритих з'єднань: ключ 'host', 'stage' або id гравця. */
   connections: Map<string, number>;
   deadline: unknown;
+  /** Мить, до якої стан уже доведено таймером; дедлайни після неї ще належить обробити. */
+  tickedTo: number;
   absence: unknown;
   expiry: unknown;
   expiryPhase: Phase | null;
@@ -60,7 +65,8 @@ export type RoomListener = (room: Room, event: RoomEvent) => void;
 export type HostAction =
   | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' }
   | { type: 'override'; playerId: string; grade: Grade }
-  | { type: 'kick'; playerId: string };
+  | { type: 'kick'; playerId: string }
+  | { type: 'judge'; playerId: string; correct: boolean };
 
 export type JoinResult =
   | { ok: true; token: string; playerId: string }
@@ -117,6 +123,7 @@ export class RoomManager {
       playerTokens: new Map(),
       connections: new Map(),
       deadline: null,
+      tickedTo: 0,
       absence: null,
       expiry: null,
       expiryPhase: null,
@@ -202,6 +209,11 @@ export class RoomManager {
     return this.apply(room, submitAnswer(room.state, playerId, answer, this.now()));
   }
 
+  buzz(room: Room, playerId: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, buzz(room.state, playerId, this.now()));
+  }
+
   host(room: Room, action: HostAction): AckResult {
     if (!this.alive(room)) return GONE;
     const state = room.state;
@@ -224,6 +236,8 @@ export class RoomManager {
         return this.apply(room, override(state, action.playerId, action.grade));
       case 'kick':
         return this.kick(room, action.playerId);
+      case 'judge':
+        return this.apply(room, judge(state, action.playerId, action.correct, this.now()));
     }
   }
 
@@ -238,7 +252,10 @@ export class RoomManager {
     room.connections.delete(playerId);
     room.playerUsers.delete(playerId);
     this.emit(room, { type: 'kicked', playerId });
-    this.commit(room, removed.state);
+    // Новою головою черги може стати гравець, чиє вікно вже сплило, поки чекали на ведучого;
+    // таймер його вже минув, тож доводимо стан до поточної миті тут.
+    room.tickedTo = Math.max(room.tickedTo, this.now());
+    this.commit(room, tick(removed.state, room.tickedTo));
     return { ok: true };
   }
 
@@ -273,14 +290,20 @@ export class RoomManager {
   private reschedule(room: Room): void {
     this.scheduler.clearTimeout(room.deadline);
     room.deadline = null;
-    const { phase, paused, endsAt } = room.state;
-    if (phase === 'question' && !paused && endsAt !== null) {
+    const { phase } = room.state;
+    // Крім кінця запитання, у бліці спливають вікна відповіді. Мить, яка вже минула, але до якої
+    // таймер ще не доходив, обробляється одразу: інакше її пропустила б зміна стану перед таймером.
+    const at = nextDeadline(room.state, room.tickedTo);
+    if (at !== null) {
       room.deadline = this.scheduler.setTimeout(() => {
         room.deadline = null;
         // Справжній таймер може спрацювати на мілісекунду раніше; цей дедлайн однаково настав.
-        const ticked = tick(room.state, Math.max(this.now(), endsAt));
+        room.tickedTo = Math.max(this.now(), at);
+        const ticked = tick(room.state, room.tickedTo);
+        // Навіть без змін стану (відповідь у черзі чекає на ведучого) таймер ставиться на наступну мить.
         if (ticked !== room.state) this.commit(room, ticked);
-      }, endsAt - this.now());
+        else this.reschedule(room);
+      }, Math.max(0, at - this.now()));
     }
 
     if (room.expiryPhase === phase) return;

@@ -23,10 +23,12 @@ export type SocketAuth = z.infer<typeof socketAuthSchema>;
 const playerId = z.string().min(1).max(64);
 export const overrideSchema = z.object({ playerId, grade: z.enum(['correct', 'partial', 'wrong']) });
 export const kickSchema = z.object({ playerId });
+export const judgeSchema = z.object({ playerId, correct: z.boolean() });
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
 export interface ClientToServerEvents {
   'player:answer': (answer: Answer, ack: Ack) => void;
+  'player:buzz': (ack: Ack) => void;
   'host:start': (ack: Ack) => void;
   'host:lock': (ack: Ack) => void;
   'host:next': (ack: Ack) => void;
@@ -36,6 +38,7 @@ export interface ClientToServerEvents {
   'host:end': (ack: Ack) => void;
   'host:override': (payload: z.infer<typeof overrideSchema>, ack: Ack) => void;
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
+  'host:judge': (payload: z.infer<typeof judgeSchema>, ack: Ack) => void;
 }
 
 export interface StateMeta {

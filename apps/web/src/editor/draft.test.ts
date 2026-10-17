@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, quizSchema, questionsOf, type Question, type Quiz } from '@quiz/shared';
-import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
+import { DEFAULT_RULES, quizSchema, roundSchema, questionsOf, type Question, type Quiz } from '@quiz/shared';
+import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -289,7 +289,7 @@ describe('rounds', () => {
     const quiz = quizWith(filled(newQuestion('boolean')));
     const bad: Quiz = {
       ...quiz,
-      rounds: [{ ...quiz.rounds[0], rules: { ...quiz.rounds[0].rules, partial: Number.NaN } }],
+      rounds: [{ ...newClassicRound(), questions: quiz.rounds[0].questions, rules: { ...DEFAULT_RULES, partial: Number.NaN } }],
     };
     expect(problemsOf(bad)).toHaveLength(1);
   });
@@ -345,5 +345,19 @@ describe('draft storage', () => {
   it('ignores garbage', () => {
     sessionStorage.setItem('quiz:draft:junk', JSON.stringify({ title: 1 }));
     expect(loadDraft('junk')).toBeNull();
+  });
+});
+
+describe('blitz drafts', () => {
+  it('newBlitzRound passes the round schema', () => {
+    // Як і в класичного, порожні тексти запитання мають бути заповнені.
+    const round = newBlitzRound();
+    expect(roundSchema.safeParse({ ...round, questions: round.questions.map(filled) }).success).toBe(true);
+  });
+
+  it('a saved blitz draft comes back unchanged', () => {
+    const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [newClassicRound(), newBlitzRound()] };
+    saveDraft(undefined, quiz);
+    expect(loadDraft(undefined)).toEqual(quiz);
   });
 });

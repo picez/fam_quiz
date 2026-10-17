@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import {
   answerSchema,
+  judgeSchema,
   kickSchema,
   overrideSchema,
   socketAuthSchema,
@@ -87,6 +88,11 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       return answer.success ? manager.answer(room, identity.playerId, answer.data) : INVALID;
     });
 
+    on('player:buzz', () => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      return manager.buzz(room, identity.playerId);
+    });
+
     for (const type of SIMPLE_HOST_ACTIONS) {
       on(`host:${type}`, () => (isHost ? manager.host(room, { type }) : FORBIDDEN));
     }
@@ -101,6 +107,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (!isHost) return FORBIDDEN;
       const payload = kickSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'kick', ...payload.data }) : INVALID;
+    });
+
+    on('host:judge', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = judgeSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'judge', ...payload.data }) : INVALID;
     });
   });
 

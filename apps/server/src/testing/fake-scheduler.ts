@@ -28,6 +28,11 @@ export class FakeScheduler implements Scheduler {
     this.timers.delete(handle as number);
   }
 
+  /** Через скільки мілісекунд від поточної миті спрацює кожен запланований таймер, за зростанням. */
+  pending(): number[] {
+    return [...this.timers.values()].map((timer) => timer.at - this.time).sort((a, b) => a - b);
+  }
+
   advance(ms: number): void {
     const target = this.time + ms;
     for (;;) {

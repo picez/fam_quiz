@@ -1,4 +1,4 @@
-import { upgradeQuiz, type Question, type Quiz } from '@quiz/shared';
+import { upgradeQuiz, type Question, type Quiz, type Round } from '@quiz/shared';
 import { QUESTION_TYPES } from './draft';
 
 const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
@@ -57,13 +57,17 @@ export function loadDraft(id: string | undefined): Quiz | null {
     return {
       ...parsed,
       settings: { ...parsed.settings, leaderboard: parsed.settings.leaderboard ?? 'each' },
-      rounds: parsed.rounds.map((round) => ({
-        ...round,
-        // Чернетка старого формату могла не мати цих полів.
-        speedBonus: round.speedBonus ?? true,
-        shuffleOptions: round.shuffleOptions ?? false,
-        questions: round.questions.map(revive),
-      })),
+      rounds: parsed.rounds.map((round): Round => {
+        const questions = round.questions.map(revive);
+        if (round.type === 'blitz') return { ...round, questions };
+        return {
+          ...round,
+          // Чернетка старого формату могла не мати цих полів.
+          speedBonus: round.speedBonus ?? true,
+          shuffleOptions: round.shuffleOptions ?? false,
+          questions,
+        };
+      }),
     };
   } catch {
     return null;

@@ -138,8 +138,11 @@ export const answer = pgTable(
       .references(() => participant.id, { onDelete: 'cascade' }),
     /** Індекс у game.plays. */
     questionIndex: integer('question_index').notNull(),
+    /** Номер спроби гравця на запитання з нуля: у бліці спроб може бути кілька, в інших раундах лише 0. */
+    attempt: integer('attempt').notNull().default(0),
     roundIndex: integer('round_index').notNull().default(0),
-    payload: jsonb('payload').$type<Answer>().notNull(),
+    /** null — спроба бліцу, у якій гравець не встиг відповісти. */
+    payload: jsonb('payload').$type<Answer>(),
     timeMs: integer('time_ms').notNull(),
     accepted: boolean('accepted').notNull(),
     /** Повні бали за відповідь, разом із бонусом серії. */
@@ -147,5 +150,5 @@ export const answer = pgTable(
     streakBonus: integer('streak_bonus').notNull().default(0),
     overridden: boolean('overridden').notNull(),
   },
-  (table) => [primaryKey({ columns: [table.participantId, table.questionIndex] })],
+  (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
 );

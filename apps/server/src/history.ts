@@ -53,6 +53,9 @@ function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) 
   }));
 }
 
+/** Кількість різних значень: у бліці гравець може мати кілька рядків-спроб на одне запитання. */
+const distinct = (values: unknown[]) => new Set(values).size;
+
 /** Кількість учасників у кожній із заданих ігор. */
 async function playerCounts(db: Db, gameIds: string[]): Promise<Map<string, number>> {
   if (gameIds.length === 0) return new Map();
@@ -111,7 +114,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
       nickname: p.nickname,
       score: p.score,
       rank: p.rank,
-      correct: answers.filter((a) => a.participantId === p.id && a.accepted).length,
+      correct: distinct(answers.filter((a) => a.participantId === p.id && a.accepted).map((a) => a.questionIndex)),
     }))
     // Спершу за місцем; до фінішу місць немає, тоді за балами.
     .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || b.score - a.score || a.nickname.localeCompare(b.nickname));
@@ -128,8 +131,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         roundIndex,
         text: question.text,
         type: question.type,
-        answered: given.length,
-        accepted: given.filter((a) => a.accepted).length,
+        answered: distinct(given.map((a) => a.participantId)),
+        accepted: distinct(given.filter((a) => a.accepted).map((a) => a.participantId)),
       },
     ];
   });
@@ -164,7 +167,7 @@ export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[
     rows.map((row) => row.game.id),
   );
   const answers = await db
-    .select({ participantId: answer.participantId, accepted: answer.accepted })
+    .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted })
     .from(answer)
     .where(
       inArray(
@@ -184,8 +187,8 @@ export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[
       score: row.participant.score,
       rank: row.participant.rank,
       playerCount: players.get(row.game.id) ?? 0,
-      correct: mine.filter((a) => a.accepted).length,
-      answered: mine.length,
+      correct: distinct(mine.filter((a) => a.accepted).map((a) => a.questionIndex)),
+      answered: distinct(mine.map((a) => a.questionIndex)),
       questionsPlayed: row.game.questionsPlayed,
     };
   });

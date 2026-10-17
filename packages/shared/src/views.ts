@@ -45,6 +45,37 @@ export interface RoundInfo {
   partial: boolean;
 }
 
+export interface BlitzPlayer {
+  playerId: string;
+  nickname: string;
+}
+
+export interface BlitzInfo {
+  /** Нерозглянуті натискання по черзі; перший — той, чию відповідь зараз перевіряють. */
+  queue: BlitzPlayer[];
+  /** Переможець запитання; для сцени й гравців null до reveal. */
+  winner: BlitzPlayer | null;
+}
+
+/** Стан бліцу для самого гравця. */
+export interface PlayerBlitz {
+  /** 1-базове місце в черзі; null — не в черзі. */
+  position: number | null;
+  attemptsUsed: number;
+  /** null — без обмежень. */
+  attemptsLeft: number | null;
+  /** Етап question, не пауза, не в черзі, спроби лишилися; час клієнт не перевіряє. */
+  canBuzz: boolean;
+  /** Кінець власного вікна відповіді, якщо гравець у черзі. */
+  deadline: number | null;
+}
+
+export interface HostBlitz extends BlitzInfo {
+  manual: boolean;
+  queue: (BlitzPlayer & { answer: Answer | null; deadline: number | null })[];
+  attempts: (BlitzPlayer & { answer: Answer | null; grade: 'correct' | 'wrong'; points: number })[];
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -59,6 +90,8 @@ interface BaseView {
   remainingMs: number | null;
   playerCount: number;
   answeredCount: number;
+  /** Черга бліцу; null поза запитанням раунду бліцу. */
+  blitz: BlitzInfo | null;
 }
 
 export interface StageView extends BaseView {
@@ -87,6 +120,7 @@ export interface PlayerView extends BaseView {
     rank: number | null;
     answer: Answer | null;
     result: PlayerResult | null;
+    blitz: PlayerBlitz | null;
   };
   reveal: Question | null;
   standings: Standing[] | null;
@@ -95,7 +129,8 @@ export interface PlayerView extends BaseView {
 export interface HostResponse {
   playerId: string;
   nickname: string;
-  answer: Answer;
+  /** null — бліц, гравець натиснув, але не встиг відповісти. */
+  answer: Answer | null;
   timeMs: number;
   accepted: boolean;
   grade: Grade;
@@ -109,6 +144,7 @@ export interface HostView extends BaseView {
   players: (LobbyPlayer & { score: number })[];
   correct: Question | null;
   responses: HostResponse[];
+  blitz: HostBlitz | null;
   standings: Standing[];
 }
 

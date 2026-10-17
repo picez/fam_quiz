@@ -1,4 +1,5 @@
 import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
+import type { Answer } from '@quiz/shared';
 import { and, eq, notInArray } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant } from './db/schema';
@@ -37,6 +38,40 @@ function signature(state: GameState): string {
   });
   const scores = state.players.map((p) => [p.id, p.score]);
   return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades]);
+}
+
+interface AnswerRow {
+  attempt: number;
+  payload: Answer | null;
+  timeMs: number;
+  accepted: boolean;
+  points: number;
+  streakBonus: number;
+  overridden: boolean;
+}
+
+/** Рядки таблиці answer для гравця на запитання: у бліці по рядку на спробу, інакше один. */
+function answerRows(state: GameState, index: number, playerId: string): AnswerRow[] {
+  const record = recordOf(state, index, playerId);
+  if (record === undefined) return [];
+  const attempts = state.plays[index].blitz?.attempts.filter((a) => a.playerId === playerId);
+  if (attempts === undefined) {
+    const { answer: payload, timeMs, accepted, points, streakBonus, overridden } = record;
+    return [{ attempt: 0, payload, timeMs, accepted, points, streakBonus, overridden }];
+  }
+  return attempts.map((attempt, number) => {
+    // Бонус серії належить виграшній спробі; бали спроби в журналі бліцу його не містять.
+    const streakBonus = attempt.grade === 'correct' ? record.streakBonus : 0;
+    return {
+      attempt: number,
+      payload: attempt.answer,
+      timeMs: attempt.timeMs,
+      accepted: attempt.grade === 'correct',
+      points: attempt.points + streakBonus,
+      streakBonus,
+      overridden: false,
+    };
+  });
 }
 
 async function save(db: Db, snapshot: Snapshot): Promise<void> {
@@ -85,25 +120,21 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         .onConflictDoUpdate({ target: participant.id, set: result });
 
       for (let index = snapshot.fromQuestion; index < closed; index++) {
-        const record = recordOf(state, index, player.id);
-        if (record === undefined) continue;
-        const grade = {
-          accepted: record.accepted,
-          points: record.points,
-          streakBonus: record.streakBonus,
-          overridden: record.overridden,
-        };
-        await tx
-          .insert(answer)
-          .values({
-            participantId: player.id,
-            questionIndex: index,
-            roundIndex: state.plays[index].roundIndex,
-            payload: record.answer,
-            timeMs: record.timeMs,
-            ...grade,
-          })
-          .onConflictDoUpdate({ target: [answer.participantId, answer.questionIndex], set: grade });
+        for (const row of answerRows(state, index, player.id)) {
+          const { attempt, payload, timeMs, ...grade } = row;
+          await tx
+            .insert(answer)
+            .values({
+              participantId: player.id,
+              questionIndex: index,
+              attempt,
+              roundIndex: state.plays[index].roundIndex,
+              payload,
+              timeMs,
+              ...grade,
+            })
+            .onConflictDoUpdate({ target: [answer.participantId, answer.questionIndex, answer.attempt], set: grade });
+        }
       }
     }
   });

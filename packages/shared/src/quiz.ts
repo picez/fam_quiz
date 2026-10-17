@@ -127,7 +127,28 @@ export const classicRoundSchema = z.object({
 
 export type ClassicRound = z.infer<typeof classicRoundSchema>;
 
-export const roundSchema = z.discriminatedUnion('type', [classicRoundSchema]);
+/** Типове вікно відповіді в бліці, секунди. */
+export const DEFAULT_ANSWER_WINDOW = 15;
+
+/** Бліц: гравці натискають «Відповісти» й відповідають по черзі; бали отримує перший правильний. */
+export const blitzRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('blitz'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  shuffleOptions: z.boolean(),
+  /** Секунди на відповідь після натискання; null — до кінця таймера запитання. */
+  answerWindow: z.number().int().min(5).max(120).nullable(),
+  /** Спроб на запитання; null — без обмежень. */
+  attempts: z.union([z.literal(1), z.literal(2), z.literal(3)]).nullable(),
+  check: z.enum(['auto', 'manual']),
+  // Часткових балів у бліці немає.
+  rules: roundRulesSchema.extend({ partial: z.null() }),
+  questions: z.array(questionSchema).min(1).max(LIMITS.maxQuestions),
+});
+
+export type BlitzRound = z.infer<typeof blitzRoundSchema>;
+
+export const roundSchema = z.discriminatedUnion('type', [classicRoundSchema, blitzRoundSchema]);
 
 export type Round = z.infer<typeof roundSchema>;
 

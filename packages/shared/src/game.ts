@@ -14,4 +14,7 @@ export type ErrorCode =
   | 'already_answered'
   | 'time_over'
   | 'type_mismatch'
-  | 'partial_disabled';
+  | 'partial_disabled'
+  | 'not_in_queue'
+  | 'already_queued'
+  | 'no_attempts';

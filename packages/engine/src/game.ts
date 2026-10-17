@@ -8,6 +8,7 @@ import {
   type Quiz,
   type Round,
 } from '@quiz/shared';
+import { applyVerdict, blitzDone, settleQueue, withPlay } from './blitz';
 import { checkAnswer } from './check';
 import { normalizeText } from './normalize';
 import { answerPoints, speedFactor, streakBonus } from './score';
@@ -23,7 +24,8 @@ export interface PlayerState {
 }
 
 export interface AnswerRecord {
-  answer: Answer;
+  /** null — бліц, гравець натиснув, але не встиг відповісти. */
+  answer: Answer | null;
   timeMs: number;
   accepted: boolean;
   accuracy: number;
@@ -36,11 +38,45 @@ export interface AnswerRecord {
   overridden: boolean;
 }
 
-/** Одне зігране запитання; ключ answers є id гравця. */
+/** Натискання «Відповісти» в бліці. */
+export interface BuzzEntry {
+  playerId: string;
+  /** Час натискання. */
+  at: number;
+  /** Кінець вікна відповіді; null — до кінця таймера запитання. */
+  deadline: number | null;
+  answer: Answer | null;
+}
+
+/** Розглянута спроба в бліці. */
+export interface Attempt {
+  playerId: string;
+  /** null — не встиг відповісти. */
+  answer: Answer | null;
+  /** Від відкриття запитання до натискання. */
+  timeMs: number;
+  grade: 'correct' | 'wrong';
+  /** round(P × множник) за правильну, штраф або 0 за неправильну; без бонусу серії. */
+  points: number;
+}
+
+/**
+ * Одне зігране запитання; ключ answers є id гравця. У бліці answers містить підсумок усіх спроб
+ * гравця, а blitz — чергу натискань і розглянуті спроби.
+ */
 export interface Play {
   roundIndex: number;
   question: Question;
   answers: Record<string, AnswerRecord>;
+  blitz?: BlitzPlay;
+}
+
+/** Бліц у межах одного запитання. */
+export interface BlitzPlay {
+  queue: BuzzEntry[];
+  attempts: Attempt[];
+  /** Хто натискав на цьому запитанні, без повторів; потрібне для серій, бо скинуті натискання зникають. */
+  buzzed: string[];
 }
 
 export interface GameState {
@@ -60,6 +96,8 @@ export interface GameState {
   paused: boolean;
   /** Залишок часу запитання під час паузи. */
   remainingMs: number | null;
+  /** Момент, коли гру поставили на паузу; null без паузи. */
+  pausedAt: number | null;
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -80,6 +118,7 @@ export function createGame(quiz: Quiz): GameState {
     endsAt: null,
     paused: false,
     remainingMs: null,
+    pausedAt: null,
   };
 }
 
@@ -124,11 +163,19 @@ export function addPlayer(state: GameState, player: { id: string; nickname: stri
 
 export function removePlayer(state: GameState, playerId: string): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
-  const plays = state.plays.map((play) => {
+  const plays = state.plays.map((play): Play => {
     const { [playerId]: _removed, ...rest } = play.answers;
-    return { ...play, answers: rest };
+    if (play.blitz === undefined) return { ...play, answers: rest };
+    const blitz = {
+      queue: play.blitz.queue.filter((e) => e.playerId !== playerId),
+      attempts: play.blitz.attempts.filter((a) => a.playerId !== playerId),
+      buzzed: play.blitz.buzzed.filter((id) => id !== playerId),
+    };
+    return { ...play, answers: rest, blitz };
   });
-  return ok(autoLock({ ...state, players: state.players.filter((p) => p.id !== playerId), plays }));
+  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays };
+  // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
+  return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
 
 export function setConnected(state: GameState, playerId: string, connected: boolean): Result {
@@ -172,7 +219,12 @@ function nextQuestion(state: GameState): Question | undefined {
 
 function openQuestion(state: GameState, question: Question, now: number, rng: Rng): GameState {
   const round = state.quiz.rounds[state.roundIndex];
-  const play: Play = { roundIndex: state.roundIndex, question, answers: {} };
+  const play: Play = {
+    roundIndex: state.roundIndex,
+    question,
+    answers: {},
+    ...(round.type === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
+  };
   return {
     ...state,
     phase: 'question',
@@ -199,23 +251,34 @@ function advance(state: GameState, now: number, rng: Rng): GameState {
 
 /**
  * Серія кожного гравця після перших upTo запитань журналу: поспіль правильні відповіді в раунді
- * останнього з них. Без відповіді серія перервана; на межі раундів вона скидається;
+ * останнього з них. Без відповіді серія перервана, але в бліці запитання, де гравець не натискав,
+ * серію не обриває й не продовжує (натискання без правильної спроби обриває); на межі раундів вона скидається;
  * якщо правил серії в тому раунді немає, серій немає.
  */
 export function streakCounts(state: GameState, upTo: number): Record<string, number> {
   const last = state.plays[upTo - 1];
-  if (last === undefined || state.quiz.rounds[last.roundIndex].rules.streak === null) return {};
+  if (last === undefined) return {};
+  const round = state.quiz.rounds[last.roundIndex];
+  if (round.rules.streak === null) return {};
   const counts: Record<string, number> = {};
   for (const player of state.players) {
     let count = 0;
     for (let i = upTo - 1; i >= 0 && state.plays[i].roundIndex === last.roundIndex; i -= 1) {
       const record = recordOf(state, i, player.id);
+      const blitz = state.plays[i].blitz;
+      if (record === undefined && blitz !== undefined && !blitz.buzzed.includes(player.id)) continue;
       if (record === undefined || record.accuracy < 1) break;
       count += 1;
     }
     counts[player.id] = count;
   }
   return counts;
+}
+
+/** Від чого рахується бонус серії: у бліці від виграшної спроби, бо basePoints містить і штрафи. */
+function streakBase(play: Play, playerId: string, record: AnswerRecord): number {
+  if (play.blitz === undefined) return record.basePoints;
+  return play.blitz.attempts.find((a) => a.playerId === playerId && a.grade === 'correct')?.points ?? 0;
 }
 
 /** Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями. */
@@ -232,7 +295,7 @@ function withTotals(state: GameState): GameState {
     for (const player of state.players) {
       const record = Object.hasOwn(answers, player.id) ? answers[player.id] : undefined;
       if (record === undefined) continue;
-      const bonus = (counters[player.id] ?? 0) >= streak.length ? streakBonus(record.basePoints, streak.bonus) : 0;
+      const bonus = (counters[player.id] ?? 0) >= streak.length ? streakBonus(streakBase(play, player.id, record), streak.bonus) : 0;
       answers[player.id] = { ...record, streakBonus: bonus, points: record.basePoints + bonus };
     }
     return { ...play, answers };
@@ -245,6 +308,8 @@ function withTotals(state: GameState): GameState {
     for (const play of plays.slice(0, closedCount)) {
       const record = Object.hasOwn(play.answers, player.id) ? play.answers[player.id] : undefined;
       score += record ? record.points : 0;
+      // Час для рівного рахунку йде лише за класичні раунди.
+      if (state.quiz.rounds[play.roundIndex].type !== 'classic') continue;
       totalTimeMs += record ? record.timeMs : play.question.timeLimit * 1000;
     }
     return { ...player, score, totalTimeMs, streak: counters[player.id] ?? 0 };
@@ -252,13 +317,22 @@ function withTotals(state: GameState): GameState {
   return { ...state, plays, players };
 }
 
-function lockNow(state: GameState): GameState {
-  return withTotals({ ...state, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null });
+/** Нерозглянуті натискання бліцу зникають без балів і штрафу. */
+function dropQueue(state: GameState): GameState {
+  const play = state.plays[state.questionIndex];
+  if (play?.blitz === undefined || play.blitz.queue.length === 0) return state;
+  const closed: Play = { ...play, blitz: { ...play.blitz, queue: [] } };
+  return withPlay(state, closed);
 }
 
-/** Закриває запитання, якщо відповіли всі підключені гравці. */
+function lockNow(state: GameState): GameState {
+  return withTotals({ ...dropQueue(state), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null });
+}
+
+/** Закриває запитання, якщо відповіли всі підключені гравці (у бліці: якщо запитання вже вирішене). */
 function autoLock(state: GameState): GameState {
   if (state.phase !== 'question' || state.paused) return state;
+  if (currentRound(state)?.type === 'blitz') return blitzDone(state, null) ? lockNow(state) : state;
   const connected = state.players.filter((p) => p.connected);
   if (connected.length === 0) return state;
   const everyoneAnswered = connected.every((p) => recordOf(state, state.questionIndex, p.id) !== undefined);
@@ -278,12 +352,12 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (state.phase !== 'question') return fail('wrong_phase');
   if (state.paused) return fail('paused');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
+  const { question, roundIndex } = state.plays[state.questionIndex];
+  const round = state.quiz.rounds[roundIndex];
+  if (round.type === 'blitz') return submitBlitzAnswer(state, playerId, answer, now);
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
-
-  const { question, roundIndex } = state.plays[state.questionIndex];
   if (question.type !== answer.type) return fail('type_mismatch');
-  const round = state.quiz.rounds[roundIndex];
 
   const timeMs = Math.max(0, now - state.startedAt);
   const { accepted, accuracy } = checkAnswer(question, answer);
@@ -309,14 +383,42 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   return ok(autoLock(withRecord(state, playerId, record)));
 }
 
+/** Відповідь у бліці записується в чергу; перевіряється, коли гравець стане першим. */
+function submitBlitzAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
+  const play = state.plays[state.questionIndex];
+  const entry = play.blitz?.queue.find((e) => e.playerId === playerId);
+  if (play.blitz === undefined || entry === undefined) return fail('not_in_queue');
+  if (entry.answer !== null) return fail('already_answered');
+  const limit = entry.deadline ?? state.endsAt;
+  if (limit === null || now > limit) return fail('time_over');
+  if (play.question.type !== answer.type) return fail('type_mismatch');
+
+  const queue = play.blitz.queue.map((e) => (e === entry ? { ...e, answer } : e));
+  const answered: Play = { ...play, blitz: { ...play.blitz, queue } };
+  const settled = settleQueue(withPlay(state, answered), now);
+  return ok(blitzDone(settled, now) ? lockNow(settled) : settled);
+}
+
+/** Ведучий оцінює відповідь голови черги в бліці з ручною перевіркою. */
+export function judge(state: GameState, playerId: string, correct: boolean, now: number): Result {
+  const judged = applyVerdict(state, playerId, correct, now);
+  if (!judged.ok) return judged;
+  return ok(blitzDone(judged.state, now) ? lockNow(judged.state) : judged.state);
+}
+
 export function lock(state: GameState): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
   return ok(lockNow(state));
 }
 
-/** Сервер викликає періодично; закриває запитання, коли сплив час. */
+/** Сервер викликає періодично; закриває запитання, коли сплив час. У бліці також згоряють вікна відповіді. */
 export function tick(state: GameState, now: number): GameState {
-  const expired = state.phase === 'question' && !state.paused && state.endsAt !== null && now >= state.endsAt;
+  if (state.phase !== 'question' || state.paused) return state;
+  if (currentRound(state)?.type === 'blitz') {
+    const settled = settleQueue(state, now);
+    return blitzDone(settled, now) ? lockNow(settled) : settled;
+  }
+  const expired = state.endsAt !== null && now >= state.endsAt;
   return expired ? lockNow(state) : state;
 }
 
@@ -356,9 +458,21 @@ export function pause(state: GameState, now: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   if (state.phase === 'question' && state.endsAt !== null) {
     const remainingMs = Math.max(0, state.endsAt - now);
-    return ok({ ...state, paused: true, remainingMs, startedAt: null, endsAt: null });
+    return ok({ ...state, paused: true, pausedAt: now, remainingMs, startedAt: null, endsAt: null });
   }
-  return ok({ ...state, paused: true });
+  return ok({ ...state, paused: true, pausedAt: now });
+}
+
+/** Зсуває натискання черги бліцу на довжину паузи: вікна відповіді й час натискань не включають паузу. */
+function shiftQueue(state: GameState, shiftMs: number): GameState {
+  const play = state.plays[state.questionIndex];
+  if (play?.blitz === undefined || shiftMs === 0) return state;
+  const queue = play.blitz.queue.map((e) => ({
+    ...e,
+    at: e.at + shiftMs,
+    deadline: e.deadline === null ? null : e.deadline + shiftMs,
+  }));
+  return withPlay(state, { ...play, blitz: { ...play.blitz, queue } });
 }
 
 export function resume(state: GameState, now: number): Result {
@@ -367,19 +481,22 @@ export function resume(state: GameState, now: number): Result {
     const limitMs = state.plays[state.questionIndex].question.timeLimit * 1000;
     const endsAt = now + state.remainingMs;
     // startedAt зсувається так, щоб час відповіді не включав паузу.
-    return ok(autoLock({ ...state, paused: false, remainingMs: null, endsAt, startedAt: endsAt - limitMs }));
+    const resumed = { ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs };
+    // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
+    return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now)));
   }
-  return ok({ ...state, paused: false });
+  return ok({ ...state, paused: false, pausedAt: null });
 }
 
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade): Result {
   if (state.phase !== 'reveal') return fail('wrong_phase');
-  const record = recordOf(state, state.questionIndex, playerId);
-  if (record === undefined) return fail('not_found');
-
   const { question, roundIndex } = state.plays[state.questionIndex];
   const round = state.quiz.rounds[roundIndex];
+  // Оцінка в бліці остаточна, навіть для гравця без запису.
+  if (round.type === 'blitz') return fail('wrong_phase');
+  const record = recordOf(state, state.questionIndex, playerId);
+  if (record === undefined) return fail('not_found');
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
   const speed = speedFactor(record.timeMs, question.timeLimit * 1000, round.speedBonus);
@@ -406,6 +523,6 @@ export function override(state: GameState, playerId: string, grade: Grade): Resu
 export function end(state: GameState): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   return ok(
-    withTotals({ ...state, phase: 'finished', paused: false, startedAt: null, endsAt: null, remainingMs: null }),
+    withTotals({ ...dropQueue(state), phase: 'finished', paused: false, startedAt: null, endsAt: null, remainingMs: null }),
   );
 }

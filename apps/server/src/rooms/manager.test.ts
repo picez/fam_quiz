@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
   FINISHED_TTL_MS,
@@ -185,6 +185,98 @@ describe('playing', () => {
     expect(manager.answer(room, taras.playerId, correct)).toEqual({ ok: false, error: 'wrong_phase' });
     scheduler.advance(60_000);
     expect(room.state.phase).toBe('finished');
+  });
+});
+
+/** Кімната з ведучим і двома гравцями на першому запитанні бліцу. */
+function blitzPlaying(options: Parameters<typeof blitzRound>[2] = {}) {
+  const scheduler = new FakeScheduler();
+  const manager = new RoomManager(scheduler, () => 0.5);
+  const room = manager.create(makeRoundsQuiz([blitzRound('b1', [single, text], options)]));
+  manager.connect(room, HOST);
+  const olena = enter(manager, room, 'Олена');
+  const taras = enter(manager, room, 'Тарас');
+  expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+  expect(room.state.phase).toBe('question');
+  return { scheduler, manager, room, olena, taras };
+}
+
+describe('blitz', () => {
+  it('a blitz window expiry is scheduled and burns the attempt', () => {
+    const { manager, room, scheduler, olena } = blitzPlaying({ answerWindow: 5, attempts: 2 });
+    expect(manager.buzz(room, olena.playerId)).toEqual({ ok: true });
+    expect(scheduler.pending()).toEqual([5000]);
+
+    scheduler.advance(4999);
+    expect(room.state.plays[0].blitz?.attempts).toEqual([]);
+    scheduler.advance(1);
+    expect(room.state.plays[0].blitz?.attempts).toMatchObject([{ playerId: olena.playerId, answer: null, grade: 'wrong' }]);
+    expect(room.state.plays[0].blitz?.queue).toEqual([]);
+    expect(room.state.phase).toBe('question');
+    expect(scheduler.pending()).toEqual([15_000]);
+  });
+
+  it('host judge goes through the manager', () => {
+    const { manager, room, olena } = blitzPlaying({ check: 'manual' });
+    expect(manager.buzz(room, olena.playerId)).toEqual({ ok: true });
+    expect(manager.answer(room, olena.playerId, wrong)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'judge', playerId: olena.playerId, correct: true })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+    expect(room.state.players.find((p) => p.id === olena.playerId)?.score).toBe(1000);
+  });
+
+  it('keeps waking up for later windows while the head waits for the host', () => {
+    const { manager, room, scheduler, olena, taras } = blitzPlaying({ check: 'manual', answerWindow: 5 });
+    manager.buzz(room, olena.playerId);
+    manager.answer(room, olena.playerId, correct);
+    scheduler.advance(1000);
+    manager.buzz(room, taras.playerId);
+    expect(scheduler.pending()).toEqual([4000]);
+
+    // Вікно Олени сплило, але її відповідь чекає на ведучого: стан той самий, а таймер ставиться на наступну мить.
+    scheduler.advance(4000);
+    expect(room.state.plays[0].blitz?.queue).toHaveLength(2);
+    expect(scheduler.pending()).toEqual([1000]);
+    scheduler.advance(1000);
+    expect(scheduler.pending()).toEqual([14_000]);
+    scheduler.advance(14_000);
+    expect(room.state.phase).toBe('question');
+    expect(scheduler.pending()).toEqual([]);
+
+    // Олену відхилено вже після таймера: вікно Тараса давно минуло, і запитання закривається.
+    expect(manager.host(room, { type: 'judge', playerId: olena.playerId, correct: false })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('a kick burns at once the next head whose window has already passed', () => {
+    const { manager, room, scheduler, olena, taras } = blitzPlaying({ check: 'manual', answerWindow: 5, attempts: 2 });
+    manager.buzz(room, olena.playerId);
+    manager.answer(room, olena.playerId, correct);
+    scheduler.advance(1000);
+    manager.buzz(room, taras.playerId);
+    // Вікно Тараса сплило, поки голова черги чекала на ведучого.
+    scheduler.advance(6000);
+    expect(room.state.plays[0].blitz?.attempts).toEqual([]);
+
+    expect(manager.host(room, { type: 'kick', playerId: olena.playerId })).toEqual({ ok: true });
+    expect(room.state.plays[0].blitz?.attempts).toMatchObject([{ playerId: taras.playerId, answer: null, grade: 'wrong' }]);
+    expect(room.state.plays[0].blitz?.queue).toEqual([]);
+    expect(room.state.phase).toBe('question');
+    expect(scheduler.pending()).toEqual([13_000]);
+  });
+
+  it('does not spin on a window timer that fires a millisecond early', () => {
+    const scheduler = new FakeScheduler(1);
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([blitzRound('b1', [single], { check: 'manual', answerWindow: 5 })]));
+    const olena = enter(manager, room, 'Олена');
+    manager.host(room, { type: 'start' });
+    manager.buzz(room, olena.playerId);
+    manager.answer(room, olena.playerId, correct);
+
+    scheduler.advance(20_000);
+    expect(room.state.phase).toBe('question');
+    expect(scheduler.pending()).toEqual([]);
   });
 });
 
