@@ -21,7 +21,8 @@ function openBlitz(state: GameState): OpenBlitz | null {
   return round?.type === 'blitz' && blitz !== undefined ? { play, blitz, round } : null;
 }
 
-function withPlay(state: GameState, play: Play): GameState {
+/** Замінює поточне запитання в журналі. */
+export function withPlay(state: GameState, play: Play): GameState {
   return { ...state, plays: state.plays.map((p, index) => (index === state.questionIndex ? play : p)) };
 }
 
@@ -68,7 +69,11 @@ function summaryOf(attempts: Attempt[]): AnswerRecord {
   };
 }
 
-export function settleQueue(state: GameState, now: number | null): GameState {
+/**
+ * Розглядає чергу з голови. verdict — оцінка ведучого для голови з відповіддю в ручному режимі;
+ * вона діє лише на першу ітерацію.
+ */
+function settle(state: GameState, now: number | null, verdict?: boolean): GameState {
   const open = openBlitz(state);
   if (open === null) return state;
   const { play, blitz, round } = open;
@@ -82,13 +87,19 @@ export function settleQueue(state: GameState, now: number | null): GameState {
     });
 
   let { queue, attempts } = blitz;
+  let pending = verdict;
   while (queue.length > 0 && !attempts.some((attempt) => attempt.grade === 'correct')) {
     const [head, ...rest] = queue;
     let correct: boolean;
     if (head.answer !== null) {
       // Ручну перевірку робить ведучий.
-      if (round.check === 'manual') break;
-      correct = checkAnswer(play.question, head.answer).accuracy === 1;
+      if (round.check === 'manual') {
+        if (pending === undefined) break;
+        correct = pending;
+        pending = undefined;
+      } else {
+        correct = checkAnswer(play.question, head.answer).accuracy === 1;
+      }
     } else {
       const limit = head.deadline ?? state.endsAt;
       if (now === null || limit === null || now < limit) break;
@@ -112,6 +123,28 @@ export function settleQueue(state: GameState, now: number | null): GameState {
     answers[playerId] = summaryOf(attempts.filter((attempt) => attempt.playerId === playerId));
   }
   return withPlay(state, { ...play, answers, blitz: { queue, attempts } });
+}
+
+export function settleQueue(state: GameState, now: number | null): GameState {
+  return settle(state, now);
+}
+
+/** Ведучий оцінює голову черги з відповіддю. Закриття запитання лишається за викликачем (judge у game.ts). */
+export function applyVerdict(state: GameState, playerId: string, correct: boolean, now: number): Result {
+  const open = openBlitz(state);
+  if (open === null || open.round.check !== 'manual') return refuse('wrong_phase');
+  if (state.paused) return refuse('paused');
+  const head = open.blitz.queue[0];
+  if (head === undefined || head.playerId !== playerId || head.answer === null) return refuse('not_found');
+  return { ok: true, state: settle(state, now, correct) };
+}
+
+/** Найближча мить після now, коли tick може змінити стан; null — чекати нічого. */
+export function nextDeadline(state: GameState, now: number): number | null {
+  if (state.phase !== 'question' || state.paused || state.endsAt === null) return null;
+  const times = [state.endsAt, ...(state.plays[state.questionIndex]?.blitz?.queue.map((e) => e.deadline) ?? [])];
+  const upcoming = times.filter((time): time is number => time !== null && time > now);
+  return upcoming.length === 0 ? null : Math.min(...upcoming);
 }
 
 export function blitzDone(state: GameState, now: number | null): boolean {

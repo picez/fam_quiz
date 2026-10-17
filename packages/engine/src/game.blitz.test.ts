@@ -1,8 +1,8 @@
 import { DEFAULT_RULES, type BlitzRound, type RoundRules } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { buzz } from './blitz';
-import { lock, next, override, start, submitAnswer, tick, type GameState } from './game';
-import { blitzRound, makeRoundsQuiz, single, text } from './testing/fixtures';
+import { buzz, nextDeadline } from './blitz';
+import { end, judge, lock, next, override, pause, removePlayer, resume, setConnected, start, submitAnswer, tick, type GameState } from './game';
+import { classicRound, blitzRound, makeRoundsQuiz, single, text } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const right = { type: 'single', optionId: 'b' } as const;
@@ -170,5 +170,127 @@ describe('blitz scoring', () => {
     const revealed = must(next(buzzAndAnswer(open(), 'p2', right, 1000), 0));
     expect(revealed.phase).toBe('reveal');
     expect(override(revealed, 'p2', 'wrong')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});
+
+describe('blitz manual check, pause, kick and deadlines', () => {
+  const manual = (extra: Options = {}) => open({ check: 'manual', ...extra });
+
+  it('manual check waits for the host and judges the head of the queue', () => {
+    let state = must(buzz(manual(), 'p1', 1000));
+    state = must(submitAnswer(state, 'p1', wrong, 1100));
+    state = must(submitAnswer(must(buzz(state, 'p2', 1200)), 'p2', right, 1300));
+    expect(state.phase).toBe('question');
+    expect(state.plays[0].blitz?.attempts).toEqual([]);
+    expect(judge(state, 'p2', true, 2000)).toEqual({ ok: false, error: 'not_found' });
+    state = must(judge(state, 'p1', false, 2000));
+    expect(state.plays[0].blitz?.attempts.map((a) => [a.playerId, a.grade])).toEqual([['p1', 'wrong']]);
+    expect(state.phase).toBe('question');
+    state = must(judge(state, 'p2', true, 2100));
+    expect(state.phase).toBe('locked');
+    expect(state.plays[0].blitz?.attempts.map((a) => [a.playerId, a.grade])).toEqual([
+      ['p1', 'wrong'],
+      ['p2', 'correct'],
+    ]);
+    expect(score(state, 'p2')).toBe(1000);
+  });
+
+  it('manual check still waits after the window and the timer', () => {
+    let state = must(buzz(manual({ answerWindow: 5 }), 'p1', 1000));
+    state = must(submitAnswer(state, 'p1', right, 2000));
+    state = tick(state, 30000);
+    expect(state.phase).toBe('question');
+    expect(state.plays[0].blitz?.attempts).toEqual([]);
+  });
+
+  it('judge is refused in an automatic blitz round', () => {
+    const state = must(submitAnswer(must(buzz(open(), 'p1', 1000)), 'p1', wrong, 1500));
+    expect(judge(state, 'p1', true, 2000)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('judge is refused on pause and in a classic round', () => {
+    let state = must(submitAnswer(must(buzz(manual(), 'p1', 1000)), 'p1', right, 1500));
+    expect(judge(must(pause(state, 2000)), 'p1', true, 2100)).toEqual({ ok: false, error: 'paused' });
+    state = must(start(lobbyWith(makeRoundsQuiz([classicRound('c1', [single])]), 'Анна'), 0));
+    expect(judge(state, 'p1', true, 100)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('pause freezes answer windows', () => {
+    let state = must(buzz(open({ answerWindow: 10 }), 'p1', 1000));
+    state = must(pause(state, 5000));
+    expect(state.pausedAt).toBe(5000);
+    expect(buzz(state, 'p2', 6000)).toEqual({ ok: false, error: 'paused' });
+    state = must(resume(state, 65000));
+    expect(state.pausedAt).toBeNull();
+    expect(state.plays[0].blitz?.queue[0]).toMatchObject({ at: 61000, deadline: 71000 });
+    expect(tick(state, 70999)).toBe(state);
+    state = tick(state, 71000);
+    expect(state.plays[0].blitz?.attempts).toEqual([
+      { playerId: 'p1', answer: null, timeMs: 1000, grade: 'wrong', points: 0 },
+    ]);
+  });
+
+  it('kicking the head of the queue checks the next answer at once', () => {
+    let state = must(buzz(open(), 'p1', 1000));
+    state = must(submitAnswer(must(buzz(state, 'p2', 1500)), 'p2', right, 1600));
+    expect(state.phase).toBe('question');
+    state = must(removePlayer(state, 'p1'));
+    expect(state.plays[0].blitz?.attempts.map((a) => [a.playerId, a.grade])).toEqual([['p2', 'correct']]);
+    expect(state.phase).toBe('locked');
+  });
+
+  it('kicking a player removes their attempts from earlier questions', () => {
+    let state = toQuestion(must(lock(buzzAndAnswer(open({ attempts: 2 }, copies('q1', 'q2')), 'p1', wrong, 1000))));
+    state = must(buzz(state, 'p2', 1000));
+    state = must(removePlayer(state, 'p1'));
+    expect(state.plays[0].blitz?.attempts).toEqual([]);
+    expect(state.plays[1].blitz?.queue.map((e) => e.playerId)).toEqual(['p2']);
+  });
+
+  it('a disconnected head of the queue burns out when the window ends', () => {
+    let state = must(buzz(open({ answerWindow: 5 }), 'p1', 1000));
+    state = must(setConnected(state, 'p1', false));
+    expect(state.phase).toBe('question');
+    state = tick(state, 6000);
+    expect(state.plays[0].blitz?.attempts).toMatchObject([{ playerId: 'p1', answer: null, grade: 'wrong' }]);
+  });
+
+  it('nextDeadline returns the nearest window or the question end', () => {
+    expect(nextDeadline(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single])]), 'Анна'), 0)).toBeNull();
+    let state = must(buzz(open({ answerWindow: 5 }), 'p1', 1000));
+    expect(nextDeadline(state, 1000)).toBe(6000);
+    expect(nextDeadline(state, 6000)).toBe(20000);
+    expect(nextDeadline(state, 20000)).toBeNull();
+    expect(nextDeadline(must(pause(state, 2000)), 2000)).toBeNull();
+    state = must(start(lobbyWith(makeRoundsQuiz([classicRound('c1', [single])]), 'Анна'), 0));
+    expect(nextDeadline(state, 0)).toBe(20000);
+  });
+
+  it('the host cannot override a blitz grade even for a player without a record', () => {
+    const revealed = must(next(buzzAndAnswer(open(), 'p2', right, 1000), 0));
+    expect(override(revealed, 'p1', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('end drops the unchecked queue', () => {
+    let state = must(buzz(open(), 'p1', 1000));
+    state = must(end(state));
+    expect(state.phase).toBe('finished');
+    expect(state.plays[0].blitz).toEqual({ queue: [], attempts: [] });
+  });
+
+  it('the question closes when the last player who could still buzz disconnects', () => {
+    let state = open({ attempts: 1 });
+    state = buzzAndAnswer(state, 'p1', wrong, 1000);
+    state = buzzAndAnswer(state, 'p2', wrong, 2000);
+    state = must(setConnected(state, 'p3', false));
+    expect(state.phase).toBe('locked');
+  });
+
+  it('with nobody connected the question does not close before the timer', () => {
+    let state = open();
+    for (const id of ['p1', 'p2', 'p3']) state = must(setConnected(state, id, false));
+    expect(state.phase).toBe('question');
+    expect(tick(state, 19999).phase).toBe('question');
+    expect(tick(state, 20000).phase).toBe('locked');
   });
 });
