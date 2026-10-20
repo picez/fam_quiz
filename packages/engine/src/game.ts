@@ -9,6 +9,7 @@ import {
   type Round,
 } from '@quiz/shared';
 import { applyVerdict, blitzDone, settleQueue, withPlay } from './blitz';
+import { enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { checkAnswer } from './check';
 import { normalizeText } from './normalize';
 import { answerPoints, speedFactor, streakBonus } from './score';
@@ -69,6 +70,33 @@ export interface Play {
   question: Question;
   answers: Record<string, AnswerRecord>;
   blitz?: BlitzPlay;
+  /** Клітинка поля, з якої відкрито запитання. */
+  board?: BoardPlay;
+}
+
+/** Стан ходів у раунді поля. */
+export interface BoardState {
+  /** Порядок поточного кола. */
+  circle: string[];
+  /** Скільки гравців поточного кола вже походили (вибрали клітинку або пропустили хід). */
+  done: number;
+  /** Скільки разів у раунді кидали кубик; сцена показує анімацію, коли число змінилося. */
+  rolls: number;
+  /** Відколи гравець, чий хід, відключений; null — на місці, пауза або не етап board. */
+  awaySince: number | null;
+}
+
+/** Запитання, відкрите з клітинки поля. */
+export interface BoardPlay {
+  cellId: string;
+  /** Хто вибрав клітинку; відповідає лише він. */
+  chooserId: string;
+  /** points запитання. */
+  price: number;
+  /** Множник клітинки: x2 → 2, x3 → 3, інакше 1. */
+  multiplier: 1 | 2 | 3;
+  /** Відповідь з телефону, що чекає на оцінку ведучого (check 'manual'); інакше null. */
+  answer: Answer | null;
 }
 
 /** Бліц у межах одного запитання. */
@@ -98,6 +126,8 @@ export interface GameState {
   remainingMs: number | null;
   /** Момент, коли гру поставили на паузу; null без паузи. */
   pausedAt: number | null;
+  /** Ходи раунду поля; null поза раундом поля. */
+  board: BoardState | null;
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -119,6 +149,7 @@ export function createGame(quiz: Quiz): GameState {
     paused: false,
     remainingMs: null,
     pausedAt: null,
+    board: null,
   };
 }
 
@@ -186,7 +217,7 @@ export function setConnected(state: GameState, playerId: string, connected: bool
 
 export type Rng = () => number;
 
-function shuffle<T>(items: T[], rng: Rng): T[] {
+export function shuffle<T>(items: T[], rng: Rng): T[] {
   const result = [...items];
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -217,12 +248,13 @@ function nextQuestion(state: GameState): Question | undefined {
   return round.questions.find((question) => !played.has(question.id));
 }
 
-function openQuestion(state: GameState, question: Question, now: number, rng: Rng): GameState {
+export function openQuestion(state: GameState, question: Question, now: number, rng: Rng, board?: BoardPlay): GameState {
   const round = state.quiz.rounds[state.roundIndex];
   const play: Play = {
     roundIndex: state.roundIndex,
     question,
     answers: {},
+    ...(board !== undefined ? { board } : {}),
     ...(round.type === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
   };
   return {
@@ -342,9 +374,10 @@ function autoLock(state: GameState): GameState {
 export function start(state: GameState, now: number, rng: Rng = Math.random): Result {
   if (state.phase !== 'lobby') return fail('wrong_phase');
   if (state.players.length === 0) return fail('no_players');
-  const first = { ...state, roundIndex: 0 };
-  // Вікторина з одним раундом обходиться без заставки, як і раніше.
-  if (state.quiz.rounds.length > 1) return ok({ ...first, phase: 'intro' });
+  const isBoard = state.quiz.rounds[0]?.type === 'board';
+  const first = { ...state, roundIndex: 0, board: isBoard ? initBoard(state) : null };
+  // Вікторина з одним раундом обходиться без заставки, як і раніше; раунд поля завжди з заставкою.
+  if (state.quiz.rounds.length > 1 || isBoard) return ok({ ...first, phase: 'intro' });
   return ok(advance(first, now, rng));
 }
 
@@ -422,28 +455,39 @@ export function tick(state: GameState, now: number): GameState {
   return expired ? lockNow(state) : state;
 }
 
+/** Ходи раунду поля починаються з нуля. */
+function enterRound(state: GameState): GameState {
+  return { ...state, board: state.quiz.rounds[state.roundIndex]?.type === 'board' ? initBoard(state) : null };
+}
+
 export function next(state: GameState, now: number, rng: Rng = Math.random): Result {
   if (state.paused) return fail('paused');
   switch (state.phase) {
     case 'intro':
+      if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
       return ok(advance(state, now, rng));
     case 'locked':
       return ok({ ...state, phase: 'reveal' });
     case 'reveal':
+      if (currentRound(state)?.type === 'board') {
+        if (!hasActiveCells(state)) return ok(finishRound(state));
+        return ok(state.quiz.settings.leaderboard === 'each' ? { ...state, phase: 'leaderboard' } : enterBoard(state, now));
+      }
       if (nextQuestion(state) === undefined) return ok(finishRound(state));
       if (state.quiz.settings.leaderboard === 'each') return ok({ ...state, phase: 'leaderboard' });
       return ok(advance(state, now, rng));
     case 'leaderboard':
+      if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
       return ok(advance(state, now, rng));
     case 'round_end':
       // Нова серія в новому раунді починається з нуля.
-      return ok(withTotals({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 }));
+      return ok(withTotals(enterRound({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 })));
     default:
       return fail('wrong_phase');
   }
 }
 
-const IN_ROUND: Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard'];
+const IN_ROUND: Phase[] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
 /** Ведучий завершує раунд достроково; незіграні запитання раунду так і лишаються незіграними. */
 export function endRound(state: GameState, now: number): Result {
