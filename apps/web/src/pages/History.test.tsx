@@ -36,8 +36,8 @@ const detail: GameDetail = {
     { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0 },
   ],
   questions: [
-    { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
-    { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1 },
+    { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null },
+    { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null },
   ],
 };
 
@@ -166,8 +166,8 @@ describe('GameHistory: rounds', () => {
           { title: 'Бліц', type: 'classic' },
         ],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
-          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1 },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null },
+          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null },
         ],
       },
     });
@@ -187,8 +187,8 @@ describe('GameHistory: rounds', () => {
           { title: '', type: 'classic' },
         ],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
-          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1 },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null },
+          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null },
         ],
       },
     });

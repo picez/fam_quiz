@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { roundQuestions } from '@quiz/shared';
 import { newQuestion, newQuiz } from './draft';
 import { newId } from './new-id';
 
@@ -31,7 +32,7 @@ describe('newId', () => {
 describe('the editor without crypto.randomUUID', () => {
   it('still creates a new quiz and questions of every type', () => {
     removeRandomUuid();
-    expect(newQuiz().rounds[0].questions).toHaveLength(1);
+    expect(roundQuestions(newQuiz().rounds[0])).toHaveLength(1);
     for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order'] as const) {
       expect(newQuestion(type).type).toBe(type);
     }

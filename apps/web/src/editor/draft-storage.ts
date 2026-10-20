@@ -1,4 +1,4 @@
-import { upgradeQuiz, type Question, type Quiz, type Round } from '@quiz/shared';
+import { CELL_MARKS, upgradeQuiz, type BoardCategory, type Question, type Quiz, type Round } from '@quiz/shared';
 import { QUESTION_TYPES } from './draft';
 
 const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
@@ -20,6 +20,29 @@ const looksLikeQuestion = (q: unknown) =>
   typeof (q as Question).text === 'string' &&
   (QUESTION_TYPES as readonly string[]).includes((q as Question).type);
 
+const looksLikeCategory = (category: unknown) => {
+  if (typeof category !== 'object' || category === null) return false;
+  const { id, title, cells } = category as Record<string, unknown>;
+  return (
+    typeof id === 'string' &&
+    typeof title === 'string' &&
+    Array.isArray(cells) &&
+    cells.length > 0 &&
+    cells.every((cell) => typeof cell === 'object' && cell !== null && looksLikeQuestion((cell as { question?: unknown }).question))
+  );
+};
+
+function reviveCategory(category: BoardCategory): BoardCategory {
+  return {
+    ...category,
+    cells: category.cells.map((cell) => ({
+      // Невідома позначка не повинна ламати поле.
+      mark: (CELL_MARKS as readonly string[]).includes(cell.mark) ? cell.mark : 'none',
+      question: revive(cell.question),
+    })),
+  };
+}
+
 function looksLikeQuiz(value: unknown): value is Quiz {
   if (typeof value !== 'object' || value === null) return false;
   const { title, description, settings, rounds } = value as Record<string, unknown>;
@@ -32,16 +55,10 @@ function looksLikeQuiz(value: unknown): value is Quiz {
     rounds.length > 0 &&
     rounds.every((round) => {
       if (typeof round !== 'object' || round === null) return false;
-      const { id, title: roundTitle, rules, questions } = round as Record<string, unknown>;
-      return (
-        typeof id === 'string' &&
-        typeof roundTitle === 'string' &&
-        typeof rules === 'object' &&
-        rules !== null &&
-        Array.isArray(questions) &&
-        questions.length > 0 &&
-        questions.every(looksLikeQuestion)
-      );
+      const { id, type, title: roundTitle, rules, questions, categories } = round as Record<string, unknown>;
+      const common = typeof id === 'string' && typeof roundTitle === 'string' && typeof rules === 'object' && rules !== null;
+      if (type === 'board') return common && Array.isArray(categories) && categories.length > 0 && categories.every(looksLikeCategory);
+      return common && Array.isArray(questions) && questions.length > 0 && questions.every(looksLikeQuestion);
     })
   );
 }
@@ -58,6 +75,10 @@ export function loadDraft(id: string | undefined): Quiz | null {
       ...parsed,
       settings: { ...parsed.settings, leaderboard: parsed.settings.leaderboard ?? 'each' },
       rounds: parsed.rounds.map((round): Round => {
+        if (round.type === 'board') {
+          const { categories, ...rest } = round;
+          return { ...rest, categories: categories.map(reviveCategory) };
+        }
         const questions = round.questions.map(revive);
         if (round.type === 'blitz') return { ...round, questions };
         return {

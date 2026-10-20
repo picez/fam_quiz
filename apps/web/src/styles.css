@@ -1342,3 +1342,82 @@ a.banner {
   color: var(--amber);
   font-weight: 600;
 }
+
+/* Редактор ігрового поля: стовпці-категорії, що прокручуються всередині власної рамки. */
+.board-editor {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.board-frame {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+
+.board-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: max-content;
+  min-width: 100%;
+}
+
+.board-column {
+  display: grid;
+  gap: 0.5rem;
+  width: 9.5rem;
+  flex: none;
+}
+
+.board-title {
+  min-height: 2.75rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+}
+
+.board-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.board-cell.is-on {
+  border-color: var(--amber);
+  background: rgb(255 179 0 / 0.1);
+  color: var(--amber);
+}
+
+.board-mark {
+  font-size: 0.8125rem;
+  color: var(--amber);
+}
+
+.board-add-category {
+  flex: none;
+  align-self: stretch;
+  min-width: 7rem;
+}
+
+.board-panel {
+  display: grid;
+  gap: 0.875rem;
+}

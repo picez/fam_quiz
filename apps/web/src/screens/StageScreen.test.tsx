@@ -18,6 +18,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   phase: 'lobby',
   paused: false,
   blitz: null,
+  board: null,
   round: null,
   questionIndex: -1,
   total: 3,

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { quizSchema, type Quiz } from '@quiz/shared';
+import { quizSchema, roundQuestions, type BoardRound, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
 import { newQuiz } from './draft';
 import { QuizEditor } from './QuizEditor';
@@ -40,7 +40,7 @@ describe('QuizEditor', () => {
     const quiz = saved(onSave);
     expect(quizSchema.safeParse(quiz).success).toBe(true);
     expect(quiz.title).toBe('Географія');
-    const [question] = quiz.rounds[0].questions;
+    const [question] = roundQuestions(quiz.rounds[0]);
     expect(question).toMatchObject({ type: 'single', text: 'Столиця України?' });
     if (question.type === 'single') {
       expect(question.options.map((o) => o.text)).toEqual(['Львів', 'Київ']);
@@ -89,7 +89,7 @@ describe('QuizEditor', () => {
     click('Прибрати варіант 3');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    const [question] = saved(onSave).rounds[0].questions;
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
     if (question.type === 'single') expect(question.options.map((o) => o.id)).toContain(question.correctId);
   });
 
@@ -105,7 +105,7 @@ describe('QuizEditor', () => {
     fill('Допустиме відхилення', '100');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    expect(saved(onSave).rounds[0].questions[0]).toMatchObject({ type: 'numeric', correct: 2061, tolerance: 100 });
+    expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ type: 'numeric', correct: 2061, tolerance: 100 });
   });
 
   it('edits a text question with several spellings and an order question', async () => {
@@ -126,7 +126,7 @@ describe('QuizEditor', () => {
     click('Зберегти');
 
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    const [first, second] = saved(onSave).rounds[0].questions;
+    const [first, second] = roundQuestions(saved(onSave).rounds[0]);
     expect(first).toMatchObject({ type: 'text', accepted: ['Мукачево', 'Мукачеве'] });
     expect(second.type === 'order' && second.items.map((i) => i.text)).toEqual(['Львів', 'Київ', 'Харків']);
   });
@@ -164,7 +164,7 @@ describe('QuizEditor', () => {
     const quiz = saved(onSave);
     expect(quiz.settings).toEqual({ leaderboard: 'end' });
     expect(quiz.rounds[0]).toMatchObject({ speedBonus: false, shuffleOptions: true });
-    expect(quiz.rounds[0].questions[0]).toMatchObject({ timeLimit: 45, points: 500, correct: true });
+    expect(roundQuestions(quiz.rounds[0])[0]).toMatchObject({ timeLimit: 45, points: 500, correct: true });
   });
 
   it('opens an existing quiz for editing and cancels', () => {
@@ -197,7 +197,7 @@ describe('QuizEditor: numbers as they are typed', () => {
     click('Зберегти');
 
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    expect(saved(onSave).rounds[0].questions[0]).toMatchObject({ correct: -2.5, tolerance: 0.5, timeLimit: 45, points: 500 });
+    expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ correct: -2.5, tolerance: 0.5, timeLimit: 45, points: 500 });
   });
 
   it('keeps a mistyped time visible and refuses to save it', () => {
@@ -362,7 +362,7 @@ describe('QuizEditor: list and stage', () => {
     }
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    expect(saved(onSave).rounds[0].questions.map((q) => q.text)).toEqual(['Третє', 'Перше', 'Друге']);
+    expect(roundQuestions(saved(onSave).rounds[0]).map((q) => q.text)).toEqual(['Третє', 'Перше', 'Друге']);
   });
 
   it('duplicates the question with its options and marks, as a separate question', async () => {
@@ -378,7 +378,7 @@ describe('QuizEditor: list and stage', () => {
     fill('Текст запитання', 'Столиця України?');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    const [first, second] = saved(onSave).rounds[0].questions;
+    const [first, second] = roundQuestions(saved(onSave).rounds[0]);
     expect([first.text, second.text]).toEqual(['Столиця?', 'Столиця України?']);
     expect(second.id).not.toBe(first.id);
     if (first.type !== 'single' || second.type !== 'single') throw new Error('unexpected type');
@@ -446,7 +446,7 @@ describe('QuizEditor: answers on the stage', () => {
     expect(screen.getByRole('button', { name: 'Правильна відповідь: Ні' }).getAttribute('aria-pressed')).toBe('true');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    expect(saved(onSave).rounds[0].questions[0]).toMatchObject({ type: 'boolean', correct: false });
+    expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ type: 'boolean', correct: false });
   });
 
   it('moves items of an order question up and down', async () => {
@@ -462,7 +462,7 @@ describe('QuizEditor: answers on the stage', () => {
     expect((screen.getByRole('button', { name: 'Перемістити елемент 1 вище' }) as HTMLButtonElement).disabled).toBe(true);
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    const [question] = saved(onSave).rounds[0].questions;
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
     expect(question.type === 'order' && question.items.map((i) => i.text)).toEqual(['Львів', 'Київ', 'Харків']);
   });
 });
@@ -499,7 +499,7 @@ describe('QuizEditor: question image', () => {
 
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(saved(onSave).rounds[0].questions[0].imageUrl).toBe(IMAGE);
+    expect(roundQuestions(saved(onSave).rounds[0])[0].imageUrl).toBe(IMAGE);
   });
 
   it('removes the image', async () => {
@@ -514,7 +514,7 @@ describe('QuizEditor: question image', () => {
     expect(screen.queryByAltText('Зображення до запитання')).toBeNull();
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(saved(onSave).rounds[0].questions[0].imageUrl).toBeNull();
+    expect(roundQuestions(saved(onSave).rounds[0])[0].imageUrl).toBeNull();
   });
 
   it('refuses a wrong format or an oversized file before sending anything', () => {
@@ -564,7 +564,7 @@ describe('QuizEditor: question image', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(saved(onSave).rounds[0].questions.map((q) => [q.text, q.imageUrl])).toEqual([
+    expect(roundQuestions(saved(onSave).rounds[0]).map((q) => [q.text, q.imageUrl])).toEqual([
       ['Перше', null],
       ['Друге', null],
     ]);
@@ -581,7 +581,7 @@ describe('QuizEditor: question image', () => {
     click('Дублювати');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(saved(onSave).rounds[0].questions.map((q) => q.imageUrl)).toEqual([IMAGE, IMAGE]);
+    expect(roundQuestions(saved(onSave).rounds[0]).map((q) => q.imageUrl)).toEqual([IMAGE, IMAGE]);
   });
 });
 
@@ -601,7 +601,7 @@ describe('QuizEditor: cancelled drag', () => {
     fireEvent.drop(rows()[0]);
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(saved(onSave).rounds[0].questions.map((q) => q.text)).toEqual(['Перше', 'Друге', 'Третє']);
+    expect(roundQuestions(saved(onSave).rounds[0]).map((q) => q.text)).toEqual(['Перше', 'Друге', 'Третє']);
   });
 
   describe('rounds', () => {
@@ -639,7 +639,7 @@ describe('QuizEditor: cancelled drag', () => {
       await waitFor(() => expect(onSave).toHaveBeenCalled());
       const quiz = saved(onSave);
       expect(quizSchema.safeParse(quiz).success).toBe(true);
-      expect(quiz.rounds.map((r) => r.questions[0].text)).toEqual(['Перше?', 'Друге?']);
+      expect(quiz.rounds.map((r) => roundQuestions(r)[0].text)).toEqual(['Перше?', 'Друге?']);
     });
 
     it('adds a blitz round and saves its settings', async () => {
@@ -752,5 +752,94 @@ describe('QuizEditor: cancelled drag', () => {
       await waitFor(() => expect(onSave).toHaveBeenCalled());
       expect(saved(onSave).rounds[0].rules).toEqual({ penalty: 'none', partial: null, streak: null, multiplier: 1 });
     });
+  });
+});
+
+describe('QuizEditor board rounds', () => {
+  const cell = (category: number, index: number) => screen.getByRole('button', { name: new RegExp(`^Категорія ${category}, клітинка ${index}:`) });
+  const fillQuestion = () => {
+    fill('Текст запитання', 'Питання?');
+    fill('Варіант 1', 'Так');
+    fill('Варіант 2', 'Ні');
+  };
+  const addBoard = () => {
+    click('+ Раунд');
+    click('Ігрове поле');
+  };
+
+  it('adds a board round, edits points and marks, and saves', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fillQuestion();
+    addBoard();
+    [1, 2, 3].forEach((n) => fill(`Назва категорії ${n}`, `Тема ${n}`));
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Запитання' })[0]);
+    expect(screen.getAllByRole('button', { name: /^Категорія 1, клітинка \d+:/ })).toHaveLength(4);
+    expect(cell(1, 4).textContent).toContain('400');
+    fillQuestion();
+    fireEvent.click(cell(1, 2));
+    fireEvent.change(screen.getByLabelText('Позначка'), { target: { value: 'x2' } });
+    fill('Бали', '250');
+    for (const [category, count] of [[1, 4], [2, 3], [3, 3]]) {
+      for (let index = 1; index <= count; index += 1) {
+        fireEvent.click(cell(category, index));
+        fillQuestion();
+      }
+    }
+    fireEvent.click(cell(1, 2));
+    expect(cell(1, 2).textContent).toContain('×2');
+    click('Зберегти');
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    const board = quiz.rounds[1] as BoardRound;
+    expect(board.type).toBe('board');
+    expect(board.categories[0].cells).toHaveLength(4);
+    expect(board.categories[0].cells[1]).toMatchObject({ mark: 'x2', question: { points: 250 } });
+    expect(board.categories.map((c) => c.title)).toEqual(['Тема 1', 'Тема 2', 'Тема 3']);
+  });
+
+  it('board limits show in the editor', () => {
+    open();
+    addBoard();
+    expect(screen.queryByRole('button', { name: 'Прибрати категорію' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Прибрати запитання' })).toBeNull();
+    for (let i = 0; i < 5; i += 1) click('+ Категорія');
+    expect(screen.queryByRole('button', { name: '+ Категорія' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Прибрати категорію' })).toHaveLength(8);
+    for (let i = 0; i < 7; i += 1) fireEvent.click(screen.getAllByRole('button', { name: '+ Запитання' })[0]);
+    expect(screen.getAllByRole('button', { name: '+ Запитання' })).toHaveLength(7);
+    expect(screen.getByRole('button', { name: 'Прибрати запитання' })).toBeTruthy();
+  });
+
+  it('removes a category and a cell', () => {
+    open();
+    addBoard();
+    click('+ Категорія');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Прибрати категорію' })[3]);
+    expect(screen.getAllByLabelText(/^Назва категорії/)).toHaveLength(3);
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Запитання' })[0]);
+    click('Прибрати запитання');
+    expect(screen.getAllByRole('button', { name: /^Категорія 1, клітинка \d+:/ })).toHaveLength(3);
+  });
+
+  it('board settings offer answer mode and hide the check for voice', () => {
+    open();
+    addBoard();
+    expect(screen.getByLabelText(t('blitzCheck'))).toBeTruthy();
+    expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
+    fireEvent.change(screen.getByLabelText('Спосіб відповіді'), { target: { value: 'voice' } });
+    expect(screen.queryByLabelText(t('blitzCheck'))).toBeNull();
+    expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
+  });
+
+  it('hides the question list for a board and opens the broken cell on save', () => {
+    open();
+    addBoard();
+    expect(screen.queryByRole('button', { name: 'Додати запитання' })).toBeNull();
+    fill('Назва вікторини', 'Гра');
+    click('Зберегти');
+    expect(screen.getByRole('alert').textContent).toContain('Категорія 1: немає назви.');
   });
 });

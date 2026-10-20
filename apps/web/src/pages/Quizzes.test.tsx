@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { roundQuestions } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, me, signOut } from '../api';
 import { loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
@@ -106,7 +107,7 @@ describe('Quizzes', () => {
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Додати приклад' }));
     await waitFor(() => expect(createQuiz).toHaveBeenCalledTimes(1));
-    expect(vi.mocked(createQuiz).mock.calls[0][0].rounds[0].questions).toHaveLength(6);
+    expect(roundQuestions(vi.mocked(createQuiz).mock.calls[0][0].rounds[0])).toHaveLength(6);
     await waitFor(() => expect(listQuizzes).toHaveBeenCalledTimes(2));
   });
 

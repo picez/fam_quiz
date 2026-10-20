@@ -1,10 +1,11 @@
 import type { Answer, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
 import { t } from './i18n';
 
-/** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці — «Бліц». */
+/** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
 export const roundLabel = (title: string, index: number, type?: Round['type']): string => {
   if (title.trim() !== '') return title;
-  return type === 'blitz' ? t('blitzLabel') : t('roundN', { index: index + 1 });
+  if (type === 'blitz') return t('blitzLabel');
+  return type === 'board' ? t('boardLabel') : t('roundN', { index: index + 1 });
 };
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
