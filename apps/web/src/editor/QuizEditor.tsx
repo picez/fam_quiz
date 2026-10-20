@@ -113,6 +113,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const selectRound = (index: number) => {
     setRoundIndex(index);
     setSelected(0);
+    setBoardFocus(null);
     setListOpen(false);
   };
 
@@ -303,7 +304,14 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
         {round.type === 'board' ? (
           <section className="editor-stage">
-            <BoardEditor round={round} focus={boardFocus} roomForMore={total < LIMITS.maxQuizQuestions} onChange={setRound} />
+            <BoardEditor
+              key={round.id}
+              round={round}
+              focus={boardFocus}
+              roomForMore={total < LIMITS.maxQuizQuestions}
+              roomForCategory={total + LIMITS.minCategoryQuestions <= LIMITS.maxQuizQuestions}
+              onChange={setRound}
+            />
           </section>
         ) : (
           <section className="editor-stage" aria-label={t('questionN', { index: selected + 1 })}>

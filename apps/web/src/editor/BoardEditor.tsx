@@ -11,6 +11,8 @@ interface Props {
   focus?: { category: number; index: number } | null;
   /** Чи є місце для нових запитань у всій вікторині (ліміт діє на всі раунди разом). */
   roomForMore?: boolean;
+  /** Чи вміститься в вікторині нова категорія з трьома запитаннями. */
+  roomForCategory?: boolean;
 }
 
 const markText = (mark: CellMark) => (mark === 'x2' ? t('boardMarkX2') : mark === 'x3' ? t('boardMarkX3') : '');
@@ -20,7 +22,7 @@ const toMark = (value: string): CellMark => (value === 'x2' ? 'x2' : value === '
  * Редактор поля: стовпці-категорії з клітинками, під ними кнопка нового запитання;
  * вибрана клітинка відкривається внизу з позначкою й звичайним редактором запитання.
  */
-export function BoardEditor({ round, onChange, focus = null, roomForMore = true }: Props) {
+export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true }: Props) {
   const { categories } = round;
   const [picked, setPicked] = useState({ category: 0, index: 0 });
   useEffect(() => {
@@ -91,7 +93,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true 
               )}
               {column.cells.map((cell, cellIndex) => {
                 const on = columnIndex === category && cellIndex === index;
-                const points = Number.isNaN(cell.question.points) ? '…' : String(cell.question.points);
+                const points = Number.isNaN(cell.question.points) ? t('boardPointsBlank') : String(cell.question.points);
                 const mark = markText(cell.mark);
                 return (
                   <button
@@ -120,7 +122,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true 
             </div>
           ))}
           {categories.length < LIMITS.maxCategories && (
-            <button type="button" className="btn btn-dashed board-add-category" onClick={addCategory}>
+            <button type="button" className="btn btn-dashed board-add-category" disabled={!roomForCategory} onClick={addCategory}>
               {t('boardAddCategory')}
             </button>
           )}
@@ -139,7 +141,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true 
         <QuestionEditor key={current.question.id} question={current.question} onChange={(question) => setCell({ question })} />
         <div className="toolbar">
           <button type="button" className="btn btn-small" aria-label={t('boardCellUp')} disabled={index === 0} onClick={() => moveCell(index - 1)}>
-            ↑
+            {t('moveUpShort')}
           </button>
           <button
             type="button"
@@ -148,7 +150,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true 
             disabled={index === cells.length - 1}
             onClick={() => moveCell(index + 1)}
           >
-            ↓
+            {t('moveDownShort')}
           </button>
           {cells.length > LIMITS.minCategoryQuestions && (
             <button type="button" className="btn btn-small btn-danger" onClick={removeCell}>

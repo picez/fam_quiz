@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, roundQuestions, type BoardRound, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { newQuiz } from './draft';
+import { newBoardRound, newClassicRound, newQuestion, newQuiz } from './draft';
 import { QuizEditor } from './QuizEditor';
 
 afterEach(() => {
@@ -841,5 +841,47 @@ describe('QuizEditor board rounds', () => {
     fill('Назва вікторини', 'Гра');
     click('Зберегти');
     expect(screen.getByRole('alert').textContent).toContain('Категорія 1: немає назви.');
+  });
+});
+
+describe('QuizEditor board focus and limits', () => {
+  const brokenBoard = (): Quiz => {
+    const board = newBoardRound();
+    board.categories.forEach((category, ci) => {
+      category.title = `Тема ${ci + 1}`;
+      category.cells.forEach((cell, i) => {
+        const q = cell.question;
+        if (q.type !== 'single') return;
+        cell.question = { ...q, text: `Питання ${ci}${i}`, options: q.options.map((o, k) => ({ ...o, text: `В${k}` })) };
+      });
+    });
+    board.categories[1].cells[2].question = { ...board.categories[1].cells[2].question, text: '' };
+    return { ...newQuiz(), title: 'Гра', rounds: [board, newClassicRound()] };
+  };
+
+  it('opens the broken board cell after a failed save', () => {
+    open(brokenBoard());
+    click('Зберегти');
+    const broken = screen.getByRole('button', { name: /^Категорія 2, клітинка 3:/ });
+    expect(broken.getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('region', { name: 'Клітинка 3 категорії 2' })).toBeTruthy();
+  });
+
+  it('does not jump back to the old problem cell after switching rounds', () => {
+    open(brokenBoard());
+    click('Зберегти');
+    fireEvent.click(screen.getByRole('button', { name: 'Раунд 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ігрове поле' }));
+    expect(screen.getByRole('region', { name: 'Клітинка 1 категорії 1' })).toBeTruthy();
+  });
+
+  it('disables a new category when three more questions would pass the quiz limit', () => {
+    const board = newBoardRound();
+    const classic = newClassicRound();
+    const extra = Array.from({ length: 100 }, () => newQuestion('single'));
+    const second = { ...newClassicRound(), questions: extra };
+    const third = { ...newClassicRound(), questions: extra.map((q) => ({ ...q, id: `${q.id}-b` })).slice(0, 89) };
+    open({ ...newQuiz(), rounds: [board, second, { ...third, id: 'r3' }, classic] });
+    expect(screen.getByRole('button', { name: '+ Категорія' })).toHaveProperty('disabled', true);
   });
 });

@@ -160,6 +160,7 @@ const uk = {
   boardAddCell: '+ Запитання',
   boardCellLabel: 'Категорія {category}, клітинка {index}: {points}{mark}',
   boardCellPanel: 'Клітинка {index} категорії {category}',
+  boardPointsBlank: '…',
   boardMark: 'Позначка',
   boardMarkNone: 'Без позначки',
   boardMarkX2: '×2',
