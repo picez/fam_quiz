@@ -1,5 +1,5 @@
 /** intro — заставка раунду, round_end — підсумки раунду. */
-export type Phase = 'lobby' | 'intro' | 'question' | 'locked' | 'reveal' | 'leaderboard' | 'round_end' | 'finished';
+export type Phase = 'lobby' | 'intro' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished';
 
 export type Grade = 'correct' | 'partial' | 'wrong';
 
@@ -17,4 +17,6 @@ export type ErrorCode =
   | 'partial_disabled'
   | 'not_in_queue'
   | 'already_queued'
-  | 'no_attempts';
+  | 'no_attempts'
+  | 'not_your_turn'
+  | 'cell_closed';

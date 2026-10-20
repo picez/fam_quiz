@@ -9,6 +9,10 @@ import {
   questionSchema,
   questionsOf,
   quizSchema,
+  boardRoundIssues,
+  roundQuestions,
+  roundSchema,
+  type Quiz,
 } from './index';
 
 const single = {
@@ -271,5 +275,100 @@ describe('question image address', () => {
   it('publishes the limits for uploads', () => {
     expect(IMAGE_LIMITS.maxBytes).toBe(2 * 1024 * 1024);
     expect(IMAGE_LIMITS.types).toEqual(['image/jpeg', 'image/png', 'image/webp']);
+  });
+});
+
+describe('board round', () => {
+  /** Категорія з count запитань; points різні, щоб бачити порядок. */
+  const category = (id: string, count: number, patch: object = {}) => ({
+    id,
+    title: `Категорія ${id}`,
+    cells: Array.from({ length: count }, (_, i) => ({
+      mark: 'none',
+      question: { ...single, id: `q-${id}-${i}`, points: 100 * (i + 1) },
+    })),
+    ...patch,
+  });
+  const board = (categories: object[], patch: object = {}) => ({
+    id: 'b1',
+    type: 'board',
+    title: '',
+    shuffleOptions: false,
+    categories,
+    answerMode: 'phone',
+    check: 'auto',
+    rules: DEFAULT_RULES,
+    ...patch,
+  });
+  const boardQuiz = (rounds: object[]) => ({ title: 'Поле', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const threeCategories = () => [category('c1', 3), category('c2', 4), category('c3', 10)];
+
+  it('a quiz with a board round passes the schema', () => {
+    const categories = threeCategories();
+    (categories[1].cells[2] as { mark: string }).mark = 'x2';
+    expect(valid(quizSchema, boardQuiz([board(categories)]))).toBe(true);
+  });
+
+  it('board limits: 2 or 9 categories, 2 or 11 questions in a category are refused', () => {
+    const quizOf = (categories: object[]) => valid(quizSchema, boardQuiz([board(categories)]));
+    expect(quizOf([category('c1', 3), category('c2', 3)])).toBe(false);
+    expect(quizOf(Array.from({ length: 8 }, (_, i) => category(`c${i}`, 3)))).toBe(true);
+    expect(quizOf(Array.from({ length: 9 }, (_, i) => category(`c${i}`, 3)))).toBe(false);
+    expect(quizOf([category('c1', 2), category('c2', 3), category('c3', 3)])).toBe(false);
+    expect(quizOf([category('c1', 11), category('c2', 3), category('c3', 3)])).toBe(false);
+  });
+
+  it('an empty category title is refused', () => {
+    const categories = [category('c1', 3, { title: '  ' }), category('c2', 3), category('c3', 3)];
+    expect(valid(quizSchema, boardQuiz([board(categories)]))).toBe(false);
+  });
+
+  it('question ids must be unique across board cells', () => {
+    const categories = threeCategories();
+    categories[1].cells[0].question.id = categories[0].cells[0].question.id;
+    const result = quizSchema.safeParse(boardQuiz([board(categories)]));
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toContain('duplicate_question_ids');
+  });
+
+  it('category ids must be unique within a round', () => {
+    const categories = [category('c1', 3), category('c1', 3), category('c3', 3)];
+    categories[1].cells.forEach((cell, i) => (cell.question.id = `other-${i}`));
+    const result = quizSchema.safeParse(boardQuiz([board(categories)]));
+    expect(result.error?.issues.map((issue) => issue.message)).toContain('duplicate_ids');
+  });
+
+  it('a bet mark is not a cell mark', () => {
+    const categories = threeCategories();
+    (categories[0].cells[0] as { mark: string }).mark = 'bet';
+    expect(valid(roundSchema, board(categories))).toBe(false);
+  });
+
+  it('roundQuestions lists board questions by category in cell order', () => {
+    const parsed = roundSchema.parse(board([category('c1', 3), category('c2', 3), category('c3', 3)]));
+    expect(roundQuestions(parsed).map((q) => q.id)).toEqual([
+      'q-c1-0', 'q-c1-1', 'q-c1-2', 'q-c2-0', 'q-c2-1', 'q-c2-2', 'q-c3-0', 'q-c3-1', 'q-c3-2',
+    ]);
+    const classic = roundSchema.parse(round('r1', many('a', 2)));
+    expect(roundQuestions(classic).map((q) => q.id)).toEqual(['q-a-0', 'q-a-1']);
+  });
+
+  it('questionsOf counts board questions towards the 200 limit', () => {
+    // 8 категорій по 10 = 80 запитань у полі + 100 + 21 класичних = 201.
+    const categories = Array.from({ length: 8 }, (_, i) => category(`c${i}`, 10));
+    const rounds = [board(categories), round('r1', many('a', 100)), round('r2', many('b', 21))];
+    const result = quizSchema.safeParse(boardQuiz(rounds));
+    expect(result.error?.issues.map((issue) => issue.message)).toContain('too_many_questions');
+    const ok = boardQuiz(rounds.slice(0, 2)) as unknown as Quiz;
+    expect(questionsOf(quizSchema.parse(ok))).toHaveLength(180);
+  });
+
+  it('a board round may not hold more than 100 questions', () => {
+    // 8×10 = 80 допустимо за формою, тому перевіряємо через boardRoundIssues напряму.
+    const parsed = roundSchema.parse(board(Array.from({ length: 8 }, (_, i) => category(`c${i}`, 10))));
+    if (parsed.type !== 'board') throw new Error('expected a board round');
+    expect(boardRoundIssues(parsed)).toEqual([]);
+    const big = { ...parsed, categories: [...parsed.categories, ...parsed.categories.map((c, i) => ({ ...c, id: `d${i}` }))] };
+    expect(boardRoundIssues(big)).toContain('too_many_questions');
   });
 });

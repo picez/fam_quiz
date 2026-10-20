@@ -1,5 +1,6 @@
 import {
   questionsOf,
+  roundQuestions,
   type Answer,
   type BlitzInfo,
   type BlitzPlayer,
@@ -159,7 +160,7 @@ function base(state: GameState) {
     paused: state.paused,
     round: roundInfo(state),
     questionIndex: roundQuestionNumber(state),
-    total: round?.questions.length ?? questionsOf(state.quiz).length,
+    total: round ? roundQuestions(round).length : questionsOf(state.quiz).length,
     question: publicQuestion(state),
     endsAt: state.endsAt,
     remainingMs: state.remainingMs,

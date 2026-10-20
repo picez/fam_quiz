@@ -20,6 +20,11 @@ export const LIMITS = {
   maxQuizQuestions: 200,
   maxRounds: 10,
   roundTitle: 60,
+  minCategories: 3,
+  maxCategories: 8,
+  minCategoryQuestions: 3,
+  maxCategoryQuestions: 10,
+  categoryTitle: 40,
   maxPlayers: 50,
   nicknameMin: 2,
   nicknameMax: 20,
@@ -148,7 +153,36 @@ export const blitzRoundSchema = z.object({
 
 export type BlitzRound = z.infer<typeof blitzRoundSchema>;
 
-export const roundSchema = z.discriminatedUnion('type', [classicRoundSchema, blitzRoundSchema]);
+export const CELL_MARKS = ['none', 'x2', 'x3'] as const;
+export type CellMark = (typeof CELL_MARKS)[number];
+
+/** Клітинка — одне запитання; її ціна — question.points, її id — question.id. */
+export const boardCellSchema = z.object({ mark: z.enum(CELL_MARKS), question: questionSchema });
+
+export const boardCategorySchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  title: z.string().trim().min(1).max(LIMITS.categoryTitle).refine(isStorable, UNSTORABLE),
+  cells: z.array(boardCellSchema).min(LIMITS.minCategoryQuestions).max(LIMITS.maxCategoryQuestions),
+});
+
+/** Ігрове поле: категорії клітинок-запитань, гравці по черзі вибирають клітинку. */
+export const boardRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('board'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  shuffleOptions: z.boolean(),
+  categories: z.array(boardCategorySchema).min(LIMITS.minCategories).max(LIMITS.maxCategories),
+  answerMode: z.enum(['phone', 'voice']),
+  /** Лише для answerMode 'phone'; при 'voice' оцінює ведучий завжди. */
+  check: z.enum(['auto', 'manual']),
+  rules: roundRulesSchema,
+});
+
+export type BoardCell = z.infer<typeof boardCellSchema>;
+export type BoardCategory = z.infer<typeof boardCategorySchema>;
+export type BoardRound = z.infer<typeof boardRoundSchema>;
+
+export const roundSchema = z.discriminatedUnion('type', [classicRoundSchema, blitzRoundSchema, boardRoundSchema]);
 
 export type Round = z.infer<typeof roundSchema>;
 
@@ -170,15 +204,52 @@ export const quizSchema = z
     rounds: z.array(roundSchema).min(1).max(LIMITS.maxRounds),
   })
   .superRefine((quiz, ctx) => {
-    const questions = quiz.rounds.flatMap((round) => round.questions);
+    const questions = quiz.rounds.flatMap(roundQuestions);
     if (questions.length > LIMITS.maxQuizQuestions) ctx.addIssue({ code: 'custom', message: 'too_many_questions' });
     if (hasDuplicates(questions.map((q) => q.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_question_ids' });
     if (hasDuplicates(quiz.rounds.map((r) => r.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_round_ids' });
+    for (const round of quiz.rounds) {
+      if (round.type === 'board') {
+        for (const message of boardRoundIssues(round)) ctx.addIssue({ code: 'custom', message });
+      }
+    }
   });
 
 export type Quiz = z.infer<typeof quizSchema>;
 
 /** Усі запитання вікторини в порядку раундів. */
 export function questionsOf(quiz: Quiz): Question[] {
-  return quiz.rounds.flatMap((round) => round.questions);
+  return quiz.rounds.flatMap(roundQuestions);
+}
+
+/** Усі запитання раунду: у полі — по категоріях, у порядку клітинок. */
+export function roundQuestions(round: Round): Question[] {
+  return round.type === 'board' ? boardCells(round).map(({ cell }) => cell.question) : round.questions;
+}
+
+export interface CellRef {
+  categoryIndex: number;
+  index: number;
+  category: BoardCategory;
+  cell: BoardCell;
+}
+
+/** Клітинки поля по категоріях, у порядку клітинок. */
+export function boardCells(round: BoardRound): CellRef[] {
+  return round.categories.flatMap((category, categoryIndex) =>
+    category.cells.map((cell, index) => ({ categoryIndex, index, category, cell })),
+  );
+}
+
+/** Клітинка за id; id клітинки — це id її запитання. */
+export function findCell(round: BoardRound, cellId: string): CellRef | undefined {
+  return boardCells(round).find(({ cell }) => cell.question.id === cellId);
+}
+
+/** Перевірки поля, які схема форми не бачить. */
+export function boardRoundIssues(round: BoardRound): string[] {
+  const issues: string[] = [];
+  if (hasDuplicates(round.categories.map((c) => c.id))) issues.push('duplicate_ids');
+  if (boardCells(round).length > LIMITS.maxQuestions) issues.push('too_many_questions');
+  return issues;
 }

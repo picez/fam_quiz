@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { roundQuestions } from '@quiz/shared';
 import { buildApp } from './app';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -34,7 +35,7 @@ describe('starting a game from a saved quiz', () => {
 
     const room = ctx.manager.get(body.code);
     expect(room?.state.quiz.title).toBe('Тестова вікторина');
-    expect(room?.state.quiz.rounds[0].questions).toHaveLength(2);
+    expect(roundQuestions(room!.state.quiz.rounds[0])).toHaveLength(2);
     expect(room?.hostUserId).toEqual(expect.any(String));
   });
 
@@ -61,7 +62,7 @@ describe('starting a game from a saved quiz', () => {
     expect((await call('DELETE', `/api/quizzes/${quizId}`, cookie)).statusCode).toBe(204);
 
     const room = ctx.manager.get(code);
-    expect(room?.state.quiz.rounds[0].questions).toHaveLength(2);
+    expect(roundQuestions(room!.state.quiz.rounds[0])).toHaveLength(2);
     const joined = await call('POST', `/api/games/by-code/${code}/join`, undefined, { nickname: 'Гравець' });
     expect(joined.statusCode).toBe(201);
     if (room === undefined) throw new Error('room missing');

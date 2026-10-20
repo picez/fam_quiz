@@ -212,7 +212,7 @@ function present(question: Question, shuffleOptions: boolean, rng: Rng): string[
 /** Наступне запитання поточного раунду: перше за порядком, якого ще немає в журналі цього раунду. */
 function nextQuestion(state: GameState): Question | undefined {
   const round = currentRound(state);
-  if (round === null) return undefined;
+  if (round === null || round.type === 'board') return undefined;
   const played = new Set(state.plays.filter((p) => p.roundIndex === state.roundIndex).map((p) => p.question.id));
   return round.questions.find((question) => !played.has(question.id));
 }
@@ -361,7 +361,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
 
   const timeMs = Math.max(0, now - state.startedAt);
   const { accepted, accuracy } = checkAnswer(question, answer);
-  const speed = speedFactor(timeMs, question.timeLimit * 1000, round.speedBonus);
+  const speed = speedFactor(timeMs, question.timeLimit * 1000, round.type === 'classic' && round.speedBonus);
   const points = answerPoints({
     points: question.points,
     accuracy,
@@ -499,7 +499,7 @@ export function override(state: GameState, playerId: string, grade: Grade): Resu
   if (record === undefined) return fail('not_found');
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
-  const speed = speedFactor(record.timeMs, question.timeLimit * 1000, round.speedBonus);
+  const speed = speedFactor(record.timeMs, question.timeLimit * 1000, round.type === 'classic' && round.speedBonus);
   const points = answerPoints({
     points: question.points,
     accuracy,

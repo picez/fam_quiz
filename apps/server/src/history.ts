@@ -1,10 +1,12 @@
 import {
   questionsOf,
+  roundQuestions,
   quizSchema,
   upgradeQuiz,
   type GameDetail,
   type GameSummary,
   type PlayedGame,
+  type Question,
   type Quiz,
 } from '@quiz/shared';
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
@@ -39,6 +41,11 @@ function questionCountOf(raw: unknown): number {
   return Array.isArray(questions) ? questions.length : 0;
 }
 
+function roundQuestionsAt(quiz: Quiz, roundIndex: number): Question[] {
+  const round = quiz.rounds[roundIndex];
+  return round ? roundQuestions(round) : [];
+}
+
 /** Закриті запитання гри в порядку гри; індекс у масиві відповідає answer.question_index. */
 function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) {
   // Старі ігри не мають журналу: вони йшли одним списком, тож зіграно перші questionsPlayed запитань.
@@ -49,7 +56,7 @@ function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) 
   }
   return plays.slice(0, questionsPlayed).map(({ roundIndex, questionId }) => ({
     roundIndex,
-    question: quiz.rounds[roundIndex]?.questions.find((q) => q.id === questionId),
+    question: roundQuestionsAt(quiz, roundIndex).find((q) => q.id === questionId),
   }));
 }
 

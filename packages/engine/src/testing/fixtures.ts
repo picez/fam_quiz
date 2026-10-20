@@ -2,6 +2,8 @@ import {
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   type BlitzRound,
+  type BoardRound,
+  type CellMark,
   type ClassicRound,
   type Question,
   type Quiz,
@@ -107,6 +109,35 @@ export function blitzRound(
     rules: { ...DEFAULT_RULES, partial: null },
     ...options,
     questions,
+  };
+}
+
+/** Копія запитання з іншим id: поле збирають з однакових запитань. */
+export const withId = (question: Question, id: string): Question => ({ ...question, id });
+
+/** Копія запитання з іншою ціною. */
+export const withPoints = (question: Question, points: number): Question => ({ ...question, points });
+
+/** Фікстура схему не перевіряє: тести рушія можуть будувати поле менше за 3×3. */
+export function boardRound(
+  id: string,
+  categories: { title: string; cells: (Question | { mark: CellMark; question: Question })[] }[],
+  options: Partial<Omit<BoardRound, 'id' | 'type' | 'categories'>> = {},
+): BoardRound {
+  return {
+    id,
+    type: 'board',
+    title: '',
+    shuffleOptions: false,
+    answerMode: 'phone',
+    check: 'auto',
+    rules: DEFAULT_RULES,
+    ...options,
+    categories: categories.map(({ title, cells }, index) => ({
+      id: `c${index + 1}`,
+      title,
+      cells: cells.map((cell) => ('question' in cell ? cell : { mark: 'none' as const, question: cell })),
+    })),
   };
 }
 
