@@ -33,6 +33,16 @@ export interface GameQuestionResult {
   type: Question['type'];
   answered: number;
   accepted: number;
+  /** Клітинка поля, з якої відкрито запитання; null поза раундом поля. */
+  cell: {
+    category: string;
+    price: number;
+    multiplier: 1 | 2 | 3;
+    /** Нікнейм того, хто вибрав клітинку; null, якщо його вилучили. */
+    chooser: string | null;
+    /** Бали вибравшого за це запитання; null, якщо запису немає. */
+    points: number | null;
+  } | null;
 }
 
 /** Зіграна гра очима ведучого. */

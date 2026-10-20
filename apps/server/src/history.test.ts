@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
@@ -89,8 +89,8 @@ describe('host history', () => {
       ['Тарас', 2, 0, 0],
     ]);
     expect(detail.questions).toEqual([
-      { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1 },
-      { index: 1, roundIndex: 0, text: 'Яке місто називають перлиною біля моря?', type: 'text', answered: 1, accepted: 1 },
+      { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null },
+      { index: 1, roundIndex: 0, text: 'Яке місто називають перлиною біля моря?', type: 'text', answered: 1, accepted: 1, cell: null },
     ]);
     expect(JSON.stringify(detail)).not.toContain('correctId');
   });
@@ -156,8 +156,8 @@ describe('host history: rounds', () => {
       { title: 'Фінал', type: 'classic' },
     ]);
     expect(detail.questions).toEqual([
-      { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1 },
-      { index: 1, roundIndex: 1, text: bool.text, type: 'boolean', answered: 1, accepted: 1 },
+      { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1, cell: null },
+      { index: 1, roundIndex: 1, text: bool.text, type: 'boolean', answered: 1, accepted: 1, cell: null },
     ]);
   });
 
@@ -198,8 +198,8 @@ describe('host history: rounds', () => {
     expect(detail.rounds).toEqual([{ title: '', type: 'classic' }]);
     expect(detail.standings).toMatchObject([{ nickname: 'Тарас', score: 1000, rank: 1, correct: 1 }]);
     expect(detail.questions).toEqual([
-      { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1 },
-      { index: 1, roundIndex: 0, text: text.text, type: 'text', answered: 1, accepted: 0 },
+      { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1, cell: null },
+      { index: 1, roundIndex: 0, text: text.text, type: 'text', answered: 1, accepted: 0, cell: null },
     ]);
   });
 });
@@ -318,5 +318,61 @@ describe('player history', () => {
     const response = await post(`/api/games/by-code/${code}/join`, { nickname: 'Гість' }, 'better-auth.session_token=garbage');
     expect(response.statusCode).toBe(201);
     expect(ctx.manager.get(code)?.playerUsers.size).toBe(0);
+  });
+});
+
+describe('host history: board', () => {
+  it('history shows board questions by cell with the chooser and points', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const cell = (id: string, points: number) => ({ ...withId(single, id), points });
+    const quiz = makeRoundsQuiz([
+      boardRound('g1', [
+        { title: 'Міста', cells: [cell('c11', 100), cell('c12', 200), cell('c13', 300)] },
+        { title: 'Річки', cells: [cell('c21', 100), cell('c22', 200), cell('c23', 300)] },
+        { title: 'Гори', cells: [cell('c31', 100), cell('c32', 200), cell('c33', 300)] },
+      ]),
+      classicRound('r2', [bool]),
+    ]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const joined = (await post(`/api/games/by-code/${created.code}/join`, { nickname: 'Анна' })).json() as { playerId: string };
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    ctx.manager.connect(room, { role: 'player', playerId: joined.playerId });
+    const step = (type: 'start' | 'next' | 'lock' | 'end-round') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+
+    step('start');
+    step('next');
+    expect(ctx.manager.pick(room, joined.playerId, 'c11')).toEqual({ ok: true });
+    expect(ctx.manager.answer(room, joined.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    while (room.state.phase !== 'board') step('next');
+    step('end-round');
+    while ((room.state.phase as string) !== 'question') step('next');
+    step('lock');
+    while ((room.state.phase as string) !== 'finished') step('next');
+    await ctx.recorder.idle();
+
+    const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as { questions: Record<string, unknown>[] };
+    expect(detail.questions[0].cell).toEqual({ category: 'Міста', price: 100, multiplier: 1, chooser: 'Анна', points: 100 });
+    expect(detail.questions.at(-1)?.cell).toBeNull();
+  });
+
+  it('counts the cells of a board round in a snapshot that no longer passes the schema', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    await db.insert(game).values({
+      hostId: account.id,
+      quizId: null,
+      status: 'finished',
+      questionsPlayed: 0,
+      finishedAt: new Date(),
+      id: '88888888-8888-4888-8888-888888888888',
+      code: '555666',
+      title: 'Поле',
+      quizSnapshot: { title: 'Поле', rounds: [{ id: 'g1', type: 'board', categories: [{ cells: [{}, {}] }, { cells: [{}, {}, {}] }] }] },
+      startedAt: new Date(2026, 0, 3),
+    });
+    const list = (await get('/api/games', host.cookie)).json() as Record<string, unknown>[];
+    expect(list.map((g) => g.questionCount)).toEqual([5]);
   });
 });

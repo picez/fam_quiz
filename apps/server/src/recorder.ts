@@ -82,7 +82,11 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
   const progress = {
     status: finished ? ('finished' as const) : ('running' as const),
     questionsPlayed: closed,
-    plays: state.plays.slice(0, closed).map((play) => ({ roundIndex: play.roundIndex, questionId: play.question.id })),
+    plays: state.plays.slice(0, closed).map((play) => ({
+      roundIndex: play.roundIndex,
+      questionId: play.question.id,
+      ...(play.board === undefined ? {} : { cell: { cellId: play.board.cellId, chooserId: play.board.chooserId } }),
+    })),
     finishedAt: finished ? new Date() : null,
   };
 

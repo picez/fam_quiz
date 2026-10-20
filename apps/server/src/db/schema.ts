@@ -85,6 +85,8 @@ export const quiz = pgTable(
 export interface PlayRef {
   roundIndex: number;
   questionId: string;
+  /** Клітинка поля й той, хто її вибрав; лише для запитань раунду поля. */
+  cell?: { cellId: string; chooserId: string };
 }
 
 /** Зіграна або поточна гра. id збігається з id кімнати. */

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Answer } from './answer';
 import type { ErrorCode } from './game';
+import { LIMITS } from './quiz';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
 
@@ -24,11 +25,14 @@ const playerId = z.string().min(1).max(64);
 export const overrideSchema = z.object({ playerId, grade: z.enum(['correct', 'partial', 'wrong']) });
 export const kickSchema = z.object({ playerId });
 export const judgeSchema = z.object({ playerId, correct: z.boolean() });
+export const pickSchema = z.object({ cellId: z.string().min(1).max(64) });
+export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.maxPlayers) });
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
 export interface ClientToServerEvents {
   'player:answer': (answer: Answer, ack: Ack) => void;
   'player:buzz': (ack: Ack) => void;
+  'player:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   'host:start': (ack: Ack) => void;
   'host:lock': (ack: Ack) => void;
   'host:next': (ack: Ack) => void;
@@ -39,6 +43,10 @@ export interface ClientToServerEvents {
   'host:override': (payload: z.infer<typeof overrideSchema>, ack: Ack) => void;
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
   'host:judge': (payload: z.infer<typeof judgeSchema>, ack: Ack) => void;
+  'host:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
+  'host:order': (payload: z.infer<typeof orderSchema>, ack: Ack) => void;
+  'host:roll': (ack: Ack) => void;
+  'host:skip': (ack: Ack) => void;
 }
 
 export interface StateMeta {

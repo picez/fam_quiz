@@ -218,6 +218,20 @@ describe('permissions and bad input', () => {
     expect((await until(olena, inPhase('locked'))).phase).toBe('locked');
   });
 
+  it('board events are accepted only from their roles and with valid payloads', async () => {
+    const { host, stage, olena } = await lobby();
+    expect(await send(host, 'player:pick', { cellId: 'c11' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:pick', { cellId: 'c11' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:skip')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:roll')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:pick', { cellId: 'c11' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:order', { playerIds: [] })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:pick', { cellId: '' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:pick', { cellId: 5 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:order', { playerIds: 'x' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:skip')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
   it('survives events without an acknowledgement or with junk arguments', async () => {
     const { host, olena } = await lobby();
     const raw = olena.socket.emit.bind(olena.socket) as (event: string, ...args: unknown[]) => void;

@@ -1,9 +1,11 @@
 import {
   questionsOf,
+  findCell,
   roundQuestions,
   quizSchema,
   upgradeQuiz,
   type GameDetail,
+  type GameQuestionResult,
   type GameSummary,
   type PlayedGame,
   type Question,
@@ -34,8 +36,16 @@ function questionCountOf(raw: unknown): number {
   const { rounds, questions } = upgraded as { rounds?: unknown; questions?: unknown };
   if (Array.isArray(rounds)) {
     return rounds.reduce((sum: number, round: unknown) => {
-      const list = typeof round === 'object' && round !== null ? (round as { questions?: unknown }).questions : undefined;
-      return sum + (Array.isArray(list) ? list.length : 0);
+      const { questions: list, categories } =
+        typeof round === 'object' && round !== null ? (round as { questions?: unknown; categories?: unknown }) : {};
+      // У раунді поля запитання лежать у клітинках категорій.
+      const cells = Array.isArray(categories)
+        ? categories.reduce((n: number, category: unknown) => {
+            const own = typeof category === 'object' && category !== null ? (category as { cells?: unknown }).cells : undefined;
+            return n + (Array.isArray(own) ? own.length : 0);
+          }, 0)
+        : 0;
+      return sum + (Array.isArray(list) ? list.length : 0) + cells;
     }, 0);
   }
   return Array.isArray(questions) ? questions.length : 0;
@@ -52,12 +62,35 @@ function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) 
   if (plays.length === 0) {
     return questionsOf(quiz)
       .slice(0, questionsPlayed)
-      .map((question) => ({ roundIndex: 0, question }));
+      .map((question) => ({ roundIndex: 0, question, ref: undefined }));
   }
-  return plays.slice(0, questionsPlayed).map(({ roundIndex, questionId }) => ({
-    roundIndex,
-    question: roundQuestionsAt(quiz, roundIndex).find((q) => q.id === questionId),
+  return plays.slice(0, questionsPlayed).map((ref) => ({
+    roundIndex: ref.roundIndex,
+    question: roundQuestionsAt(quiz, ref.roundIndex).find((q) => q.id === ref.questionId),
+    ref,
   }));
+}
+
+/** Клітинка запитання для історії: категорія, ціна й множник зі знімка, вибравший і його бали. */
+function cellResult(
+  quiz: Quiz,
+  ref: PlayRef | undefined,
+  nicknames: Map<string, string>,
+  given: { participantId: string; points: number }[],
+): GameQuestionResult['cell'] {
+  if (ref?.cell === undefined) return null;
+  const round = quiz.rounds[ref.roundIndex];
+  const found = round?.type === 'board' ? findCell(round, ref.cell.cellId) : undefined;
+  if (found === undefined) return null;
+  const { chooserId } = ref.cell;
+  const own = given.filter((a) => a.participantId === chooserId);
+  return {
+    category: found.category.title,
+    price: found.cell.question.points,
+    multiplier: found.cell.mark === 'x2' ? 2 : found.cell.mark === 'x3' ? 3 : 1,
+    chooser: nicknames.get(chooserId) ?? null,
+    points: own.length === 0 ? null : own.reduce((sum, a) => sum + a.points, 0),
+  };
 }
 
 /** Кількість різних значень: у бліці гравець може мати кілька рядків-спроб на одне запитання. */
@@ -106,7 +139,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     participants.length === 0
       ? []
       : await db
-          .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted })
+          .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted, points: answer.points })
           .from(answer)
           .where(
             inArray(
@@ -127,8 +160,9 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || b.score - a.score || a.nickname.localeCompare(b.nickname));
 
   const quiz = snapshotOf(row.quizSnapshot);
+  const nicknames = new Map(participants.map((p) => [p.id, p.nickname]));
   // Зіпсований знімок не валить деталі: турнірна таблиця є, запитань і раундів немає.
-  const questions = (quiz === null ? [] : playedQuestions(quiz, row.plays, row.questionsPlayed)).flatMap(({ roundIndex, question }, index) => {
+  const questions = (quiz === null ? [] : playedQuestions(quiz, row.plays, row.questionsPlayed)).flatMap(({ roundIndex, question, ref }, index) => {
     // Знімок не змінюється, тож запитання з журналу в ньому є; перевірка лише від зіпсованого рядка.
     if (question === undefined) return [];
     const given = answers.filter((a) => a.questionIndex === index);
@@ -140,6 +174,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         type: question.type,
         answered: distinct(given.map((a) => a.participantId)),
         accepted: distinct(given.filter((a) => a.accepted).map((a) => a.participantId)),
+        cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given),
       },
     ];
   });
