@@ -1,8 +1,10 @@
+import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import type { StageView } from '@quiz/shared';
-import { LETTERS, correctText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
+import type { BoardInfo, StageView } from '@quiz/shared';
+import { LETTERS, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { Timer } from '../live/Timer';
+import { Board } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { Standings } from './Standings';
 
@@ -61,18 +63,28 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           ? reveal.correctIds
           : [];
   const showChoices = question.type === 'single' || question.type === 'multi';
-  const hint = question.type === 'order' ? t('orderOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const voice = view.board?.answerMode === 'voice';
+  const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question">
       <header className="bar">
         <span>{questionLabel(view.round, view.questionIndex, view.total)}</span>
-        <span>
-          {view.blitz === null
-            ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
-            : t('blitzQueued', { count: view.blitz.queue.length })}
-        </span>
+        {view.board === null && (
+          <span>
+            {view.blitz === null
+              ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
+              : t('blitzQueued', { count: view.blitz.queue.length })}
+          </span>
+        )}
       </header>
+      {view.board !== null && view.board.cell !== null && (
+        <p className="lead cell-head">
+          <span>{t('cellTitle', { category: view.board.cell.category, price: view.board.cell.price })}</span>
+          <span className="mark">{markText(view.board.cell.mark)}</span>
+          {view.board.turn !== null && <span>{t('boardAnswering', { name: view.board.turn.nickname })}</span>}
+        </p>
+      )}
       <div className="stage-main">
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
@@ -111,12 +123,67 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   );
 }
 
+const DICE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+const ROLL_MS = 1500;
+
+/** Порядок ходів; коли ведучий кидає кубик, спершу 1,5 с крутиться кубик. */
+function Order({ board }: { board: BoardInfo }) {
+  const seen = useRef(board.rolls);
+  const [rolling, setRolling] = useState(false);
+  const [face, setFace] = useState(5);
+
+  useEffect(() => {
+    if (board.rolls === seen.current) return;
+    seen.current = board.rolls;
+    setRolling(true);
+    const spin = setInterval(() => setFace(Math.floor(Math.random() * DICE.length)), 120);
+    const stop = setTimeout(() => setRolling(false), ROLL_MS);
+    return () => {
+      clearInterval(spin);
+      clearTimeout(stop);
+    };
+  }, [board.rolls]);
+
+  if (rolling) {
+    return (
+      <p className="dice is-rolling" role="img" aria-label={t('diceLabel')}>
+        {DICE[face]}
+      </p>
+    );
+  }
+  return (
+    <ol className="order">
+      {board.order.map((entry) => (
+        <li key={entry.playerId} className={entry.playerId === board.turn?.playerId ? 'is-turn' : undefined}>
+          {entry.nickname}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function Intro({ view }: { view: StageView }) {
   if (view.round === null) return null;
   return (
     <div className="stage-board">
       <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
+      {view.board !== null && (
+        <>
+          <p className="meta">{t('boardOrder')}</p>
+          <Order board={view.board} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function BoardStage({ board }: { board: BoardInfo }) {
+  return (
+    <div className="stage-board">
+      <Board board={board} />
+      <Order board={board} />
+      {board.turn !== null && <p className="lead">{t('boardChooser', { name: board.turn.nickname })}</p>}
     </div>
   );
 }
@@ -133,6 +200,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} />}
       {phase === 'intro' && <Intro view={view} />}
+      {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && (
         <div className={phase === 'finished' ? 'stage-board is-final' : 'stage-board'}>
           <h1 className="question">

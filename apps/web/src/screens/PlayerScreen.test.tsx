@@ -293,4 +293,63 @@ describe('PlayerScreen: blitz', () => {
     );
     expect(screen.getByText('Першим правильно відповів: Тарас')).toBeTruthy();
   });
+
+  describe('board round', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const boardOf = (turn: string, over: Partial<NonNullable<PlayerView['board']>> = {}): NonNullable<PlayerView['board']> => ({
+      categories: [
+        {
+          id: 'k1',
+          title: 'Міста',
+          cells: [
+            { id: 'c1', price: 100, played: false, mark: null },
+            { id: 'c2', price: 200, played: true, mark: null },
+          ],
+        },
+      ],
+      order: [
+        { playerId: 'p1', nickname: 'Олена' },
+        { playerId: 'p2', nickname: 'Анна' },
+      ],
+      turn: { playerId: turn, nickname: turn === 'p1' ? 'Олена' : 'Анна' },
+      cell: null,
+      answerMode: 'phone',
+      rolls: 0,
+      skipAt: null,
+      ...over,
+    });
+    const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const };
+
+    it('lets the chooser pick a cell and others wait', async () => {
+      const send = show(view({ phase: 'board', round, board: boardOf('p1') }));
+      expect(screen.getByText('Ваш хід: виберіть клітинку')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Міста, 100' }));
+      expect(send).toHaveBeenCalledWith('player:pick', { cellId: 'c1' });
+      cleanup();
+
+      show(view({ phase: 'board', round, board: boardOf('p2') }));
+      expect(screen.getByText('Вибирає Анна')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Міста, 100' })).toBeNull();
+    });
+
+    it('only the chooser gets the answer input', () => {
+      show(onQuestion({ round, board: boardOf('p2', { cell }) }));
+      expect(screen.getByText('Відповідає Анна')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+      cleanup();
+
+      show(onQuestion({ round, board: boardOf('p1', { cell, answerMode: 'voice' }) }));
+      expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+      cleanup();
+
+      show(onQuestion({ round, board: boardOf('p1', { cell }) }));
+      expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+    });
+
+    it('tells the others who answered and shows the correct answer', () => {
+      show(view({ phase: 'reveal', round, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, board: boardOf('p2', { cell }) }));
+      expect(screen.getByText('Відповідав Анна')).toBeTruthy();
+      expect(screen.getByText(/Київ/)).toBeTruthy();
+    });
+  });
 });

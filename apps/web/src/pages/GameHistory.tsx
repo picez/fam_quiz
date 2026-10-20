@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getGame } from '../api';
-import { formatDate, num, roundLabel } from '../format';
+import { formatDate, markText, num, roundLabel, signed } from '../format';
 import { t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
 
@@ -76,6 +76,19 @@ export function GameHistory() {
                     <li key={question.index}>
                       <span className="rank">{position + 1}</span>
                       <span className="name">{question.text}</span>
+                      {question.cell !== null && (
+                        <>
+                          <span className="tag">{t('cellTitle', { category: question.cell.category, price: question.cell.price })}</span>
+                          {question.cell.multiplier > 1 && <span className="tag">{markText(question.cell.multiplier === 2 ? 'x2' : 'x3')}</span>}
+                          <span className="meta">
+                            {question.cell.chooser === null
+                              ? t('cellRemoved')
+                              : question.cell.points === null
+                                ? question.cell.chooser
+                                : `${question.cell.chooser}: ${signed(question.cell.points)}`}
+                          </span>
+                        </>
+                      )}
                       <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
                     </li>
                   ))}

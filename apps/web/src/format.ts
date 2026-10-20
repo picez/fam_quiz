@@ -1,4 +1,4 @@
-import type { Answer, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
+import type { Answer, CellMark, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
 import { t } from './i18n';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
@@ -99,4 +99,9 @@ export function questionLabel(round: RoundInfo | null, index: number, total: num
 /** Серії гравців за id; показуються біля імені від двох правильних відповідей підряд. */
 export function streaksOf(players: LobbyPlayer[]): Record<string, number> {
   return Object.fromEntries(players.map((player) => [player.id, player.streak]));
+}
+
+/** Позначка клітинки поля: «×2», «×3». */
+export function markText(mark: CellMark): string {
+  return mark === 'x2' ? '×2' : '×3';
 }
