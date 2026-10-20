@@ -1,11 +1,17 @@
 import {
+  boardCells,
+  findCell,
   questionsOf,
   roundQuestions,
   type Answer,
   type BlitzInfo,
   type BlitzPlayer,
+  type BoardCellView,
+  type BoardInfo,
+  type CellMark,
   type Choice,
   type HostBlitz,
+  type HostBoard,
   type PlayerBlitz,
   type HostView,
   type Phase,
@@ -19,12 +25,13 @@ import {
 } from '@quiz/shared';
 import { currentRound, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
 import { attemptsUsed } from './blitz';
+import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
 import { rankPlayers } from './ranking';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
 // У цих етапах запитання ще (або вже) немає: журнал показує лише останнє зігране.
-const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'round_end'];
+const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'board', 'round_end'];
 
 /** Чи є поточне запитання. На finished останнє зігране показуємо, лише якщо воно з поточного раунду (інакше гру завершено з intro). */
 function inQuestion(state: GameState): boolean {
@@ -153,6 +160,57 @@ function hostBlitz(state: GameState): HostBlitz | null {
   };
 }
 
+/** Поточне запитання поля з його раундом; null поза запитанням або поза раундом поля. */
+function currentBoardPlay(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  const round = play === undefined ? undefined : state.quiz.rounds[play.roundIndex];
+  return round?.type === 'board' && play?.board !== undefined ? { board: play.board, round } : null;
+}
+
+const BOARD_PHASES: Phase[] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
+
+/** Поле для всіх ролей; showAll відкриває позначки всіх клітинок (ведучий). */
+function boardInfo(state: GameState, showAll: boolean): BoardInfo | null {
+  const round = currentRound(state);
+  if (round?.type !== 'board' || state.board === null || !BOARD_PHASES.includes(state.phase)) return null;
+  const open = currentBoardPlay(state);
+  const turnId = state.phase === 'board' ? chooserOf(state) : (open?.board.chooserId ?? null);
+  const cell = open === null ? undefined : findCell(round, open.board.cellId);
+  const markOf = (id: string, mark: CellMark, played: boolean): CellMark | null =>
+    showAll || played || id === open?.board.cellId ? mark : null;
+  return {
+    categories: round.categories.map((category) => ({
+      id: category.id,
+      title: category.title,
+      cells: category.cells.map(({ mark, question }): BoardCellView => {
+        const played = cellPlayed(state, question.id);
+        return { id: question.id, price: question.points, played, mark: markOf(question.id, mark, played) };
+      }),
+    })),
+    order: state.board.circle.map((id) => blitzPlayer(state, id)),
+    turn: turnId === null ? null : blitzPlayer(state, turnId),
+    cell:
+      open === null || cell === undefined
+        ? null
+        : { id: open.board.cellId, category: cell.category.title, price: open.board.price, mark: cell.cell.mark },
+    answerMode: round.answerMode,
+    rolls: state.board.rolls,
+    skipAt: state.board.awaySince === null ? null : state.board.awaySince + BOARD_AWAY_MS,
+  };
+}
+
+function hostBoard(state: GameState): HostBoard | null {
+  const info = boardInfo(state, true);
+  const round = currentRound(state);
+  if (info === null || round?.type !== 'board') return null;
+  return {
+    ...info,
+    manual: round.answerMode === 'voice' || round.check === 'manual',
+    answer: currentBoardPlay(state)?.board.answer ?? null,
+  };
+}
+
 function base(state: GameState) {
   const round = currentRound(state);
   return {
@@ -167,6 +225,7 @@ function base(state: GameState) {
     playerCount: state.players.length,
     answeredCount: Object.keys(currentAnswers(state)).length,
     blitz: blitzInfo(state),
+    board: boardInfo(state, false),
   };
 }
 
@@ -228,6 +287,8 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   if (player === undefined) return null;
   const record = currentRecord(state, playerId);
   const queued = blitzAnswer(state, playerId);
+  const open = currentBoardPlay(state);
+  const pending = open?.board.chooserId === playerId ? open.board.answer : null;
   const revealed = isRevealed(state);
   const standings = publicStandings(state);
   // На етапі locked бали за поточне запитання ще не показуємо: це видало б правильність до розкриття.
@@ -242,7 +303,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
       // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули;
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
-      answer: queued === undefined ? (record?.answer ?? null) : queued,
+      answer: queued === undefined ? (record?.answer ?? pending) : queued,
       result:
         revealed && record !== undefined
           ? {
@@ -291,6 +352,7 @@ export function hostView(state: GameState): HostView {
     correct: currentQuestion(state),
     responses,
     blitz: hostBlitz(state),
+    board: hostBoard(state),
     standings: rankPlayers(state.players),
   };
 }

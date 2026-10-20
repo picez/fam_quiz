@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Phase } from '@quiz/shared';
 import { buzz } from './blitz';
-import { endRound, judge, lock, next, pause, start, submitAnswer, type GameState } from './game';
-import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, text } from './testing/fixtures';
+import { pickCell } from './board';
+import { endRound, judge, lock, next, pause, setConnected, start, submitAnswer, type GameState } from './game';
+import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, text, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -350,5 +351,89 @@ describe('blitz views', () => {
     expect(stageView(state).blitz).toBeNull();
     expect(playerView(state, 'p1')?.me.blitz).toBeNull();
     expect(hostView(state).blitz).toBeNull();
+  });
+});
+
+describe('board views', () => {
+  const q = (id: string, points: number) => withPoints(withId(single, id), points);
+  const field = (options = {}) =>
+    boardRound(
+      'g1',
+      [
+        { title: 'Міста', cells: [q('c11', 100), { mark: 'x2', question: q('c12', 200) }] },
+        { title: 'Річки', cells: [q('c21', 100), q('c22', 200), { mark: 'x3', question: q('c23', 300) }] },
+      ],
+      options,
+    );
+  const onBoard = (options = {}): GameState => {
+    const intro = must(start(lobbyWith(makeRoundsQuiz([field(options)]), 'Анна', 'Богдан', 'Віра'), 0));
+    return must(next(intro, 0));
+  };
+  const picked = (cell: string, options = {}) => must(pickCell(onBoard(options), null, cell, 0, Math.random));
+
+  it('stage and player views never carry hidden marks or cell questions', () => {
+    const state = onBoard();
+    const stage = stageView(state);
+    const player = playerView(state, 'p2');
+    for (const json of [JSON.stringify(stage), JSON.stringify(player)]) {
+      expect(json).not.toContain('x2');
+      expect(json).not.toContain('x3');
+      expect(json).not.toContain(single.text);
+      expect(json).not.toContain('correctId');
+    }
+    expect(stage.board?.categories.flatMap((c) => c.cells).every((cell) => cell.mark === null)).toBe(true);
+    expect(player?.board?.categories.flatMap((c) => c.cells).every((cell) => cell.mark === null)).toBe(true);
+    expect(hostView(state).board?.categories[0].cells[1].mark).toBe('x2');
+    expect(hostView(state).board?.categories[1].cells[2].mark).toBe('x3');
+  });
+
+  it('a chosen cell shows its mark to everyone and stays shown', () => {
+    const state = picked('c12');
+    expect(stageView(state).board?.cell).toMatchObject({ id: 'c12', mark: 'x2', price: 200 });
+    expect(playerView(state, 'p2')?.board?.cell).toMatchObject({ mark: 'x2', price: 200 });
+    expect(stageView(state).board?.categories[1].cells.every((cell) => cell.mark === null)).toBe(true);
+    const revealed = must(next(must(lock(state)), 0));
+    expect(stageView(revealed).board?.categories[0].cells[1]).toMatchObject({ mark: 'x2', played: true });
+    const done = must(next(must(next(revealed, 0)), 0));
+    expect(done.phase).toBe('board');
+    const view = stageView(done).board;
+    expect(view?.cell).toBeNull();
+    expect(view?.categories[0].cells[1]).toMatchObject({ id: 'c12', mark: 'x2', played: true });
+    expect(view?.categories[0].cells[0]).toMatchObject({ mark: null, played: false });
+  });
+
+  it('the board view shows the order, whose turn it is and categories of different length', () => {
+    const view = stageView(onBoard()).board;
+    expect(view?.order.map((p) => p.nickname)).toEqual(['Анна', 'Богдан', 'Віра']);
+    expect(view?.turn?.nickname).toBe('Анна');
+    expect(view?.categories.map((c) => c.cells.length)).toEqual([2, 3]);
+    expect(view?.categories.map((c) => c.cells.map((cell) => cell.price))).toEqual([[100, 200], [100, 200, 300]]);
+    expect(stageView(onBoard()).question).toBeNull();
+    expect(stageView(picked('c11')).board?.turn?.nickname).toBe('Анна');
+  });
+
+  it('the host sees a phone answer waiting for a grade', () => {
+    const state = must(submitAnswer(picked('c11', { check: 'manual' }), 'p1', { type: 'single', optionId: 'b' }, 0));
+    const host = hostView(state).board;
+    expect(host?.manual).toBe(true);
+    expect(host?.answer).toEqual({ type: 'single', optionId: 'b' });
+    expect(playerView(state, 'p1')?.me.answer).toEqual({ type: 'single', optionId: 'b' });
+    expect(hostView(picked('c11')).board).toMatchObject({ manual: false, answer: null });
+    expect(hostView(picked('c11', { answerMode: 'voice' })).board?.manual).toBe(true);
+  });
+
+  it('the absent chooser has a skip time that a pause removes', () => {
+    const state = must(setConnected(onBoard(), 'p1', false, 1000));
+    expect(stageView(state).board?.skipAt).toBe(31_000);
+    expect(stageView(must(pause(state, 2000))).board?.skipAt).toBeNull();
+    expect(stageView(onBoard()).board?.skipAt).toBeNull();
+  });
+
+  it('classic and blitz views carry no board data', () => {
+    expect(stageView(open()).board).toBeNull();
+    expect(playerView(open(), 'p1')?.board).toBeNull();
+    expect(hostView(open()).board).toBeNull();
+    const blitz = must(start(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single])]), 'Анна'), 0));
+    expect(stageView(blitz).board).toBeNull();
   });
 });
