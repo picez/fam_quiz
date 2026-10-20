@@ -1,4 +1,5 @@
 import type { BlitzRound, ErrorCode } from '@quiz/shared';
+import { BOARD_AWAY_MS } from './board-turns';
 import { checkAnswer } from './check';
 // З game.ts лише типи: game.ts сам викликає цей файл, цикл під час виконання не потрібен.
 import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
@@ -142,6 +143,11 @@ export function applyVerdict(state: GameState, playerId: string, correct: boolea
 
 /** Найближча мить після now, коли tick може змінити стан; null — чекати нічого. */
 export function nextDeadline(state: GameState, now: number): number | null {
+  if (state.phase === 'board') {
+    const since = state.board?.awaySince ?? null;
+    if (state.paused || since === null) return null;
+    return since + BOARD_AWAY_MS > now ? since + BOARD_AWAY_MS : null;
+  }
   if (state.phase !== 'question' || state.paused || state.endsAt === null) return null;
   const times = [state.endsAt, ...(state.plays[state.questionIndex]?.blitz?.queue.map((e) => e.deadline) ?? [])];
   const upcoming = times.filter((time): time is number => time !== null && time > now);

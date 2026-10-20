@@ -24,6 +24,17 @@ export function advanceTurn(board: BoardState): BoardState {
   return { ...board, circle: first === undefined ? [] : [...rest, first], done: 0 };
 }
 
+/** Гравця вилучено: коло скорочується, ходи, що вже відбулися, зберігаються. */
+export function dropFromCircle(board: BoardState, playerId: string): BoardState {
+  const index = board.circle.indexOf(playerId);
+  if (index === -1) return board;
+  const circle = board.circle.filter((id) => id !== playerId);
+  const done = index < board.done ? board.done - 1 : board.done;
+  if (circle.length === 0 || done < circle.length) return { ...board, circle, done };
+  const [first, ...rest] = circle;
+  return { ...board, circle: [...rest, first], done: 0 };
+}
+
 /** Клітинка вже зіграна в поточному раунді. */
 export function cellPlayed(state: GameState, cellId: string): boolean {
   return state.plays.some((play) => play.roundIndex === state.roundIndex && play.question.id === cellId);

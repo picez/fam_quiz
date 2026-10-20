@@ -144,7 +144,7 @@ export class RoomManager {
     const added = addPlayer(room.state, { id: playerId, nickname });
     if (!added.ok) return added;
     // Гравець стає підключеним, коли відкриє сокет.
-    const offline = setConnected(added.state, playerId, false);
+    const offline = setConnected(added.state, playerId, false, this.now());
     if (!offline.ok) return offline;
     const token = newToken();
     room.playerTokens.set(token, playerId);
@@ -175,7 +175,7 @@ export class RoomManager {
       if (count === 1) this.emit(room, { type: 'changed' });
     }
     if (identity.playerId !== null && count === 1) {
-      this.apply(room, setConnected(room.state, identity.playerId, true));
+      this.apply(room, setConnected(room.state, identity.playerId, true, this.now()));
     }
   }
 
@@ -189,7 +189,7 @@ export class RoomManager {
     }
     room.connections.delete(key);
     if (identity.playerId !== null) {
-      this.apply(room, setConnected(room.state, identity.playerId, false));
+      this.apply(room, setConnected(room.state, identity.playerId, false, this.now()));
       return;
     }
     if (identity.role === 'host') {

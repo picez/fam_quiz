@@ -286,7 +286,7 @@ describe('blitz manual check, pause, kick and deadlines', () => {
 
   it('a disconnected head of the queue burns out when the window ends', () => {
     let state = must(buzz(open({ answerWindow: 5 }), 'p1', 1000));
-    state = must(setConnected(state, 'p1', false));
+    state = must(setConnected(state, 'p1', false, 0));
     expect(state.phase).toBe('question');
     state = tick(state, 6000);
     expect(state.plays[0].blitz?.attempts).toMatchObject([{ playerId: 'p1', answer: null, grade: 'wrong' }]);
@@ -319,13 +319,13 @@ describe('blitz manual check, pause, kick and deadlines', () => {
     let state = open({ attempts: 1 });
     state = buzzAndAnswer(state, 'p1', wrong, 1000);
     state = buzzAndAnswer(state, 'p2', wrong, 2000);
-    state = must(setConnected(state, 'p3', false));
+    state = must(setConnected(state, 'p3', false, 0));
     expect(state.phase).toBe('locked');
   });
 
   it('with nobody connected the question does not close before the timer', () => {
     let state = open();
-    for (const id of ['p1', 'p2', 'p3']) state = must(setConnected(state, id, false));
+    for (const id of ['p1', 'p2', 'p3']) state = must(setConnected(state, id, false, 0));
     expect(state.phase).toBe('question');
     expect(tick(state, 19999).phase).toBe('question');
     expect(tick(state, 20000).phase).toBe('locked');

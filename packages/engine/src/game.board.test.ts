@@ -1,7 +1,8 @@
 import type { Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell, rollOrder, setOrder, skipTurn } from './board';
-import { end, endRound, lock, next, override, pause, setConnected, start, submitAnswer, tick, type GameState } from './game';
+import { nextDeadline } from './blitz';
+import { end, endRound, lock, next, override, pause, removePlayer, resume, setConnected, start, submitAnswer, tick, type GameState } from './game';
 import { boardRound, classicRound, makeRoundsQuiz, order, single, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
@@ -142,7 +143,7 @@ describe('board turns', () => {
   it('awaySince is cleared when the turn is picked or the round ends', () => {
     const quiz = makeRoundsQuiz([field(), classicRound('r2', [single])]);
     const lobby = lobbyWith(quiz, 'Анна', 'Богдан', 'Віра');
-    const intro = must(start(must(setConnected(lobby, 'p1', false)), 0));
+    const intro = must(start(must(setConnected(lobby, 'p1', false, 0)), 0));
     const away = must(next(intro, 5000));
     expect(away.board?.awaySince).toBe(5000);
     expect(must(pickCell(away, null, 'c11', 6000, Math.random)).board?.awaySince).toBeNull();
@@ -274,3 +275,65 @@ describe('board answers and points', () => {
     expect(score(state, 'p1')).toBe(500);
   });
 });
+
+describe('absent chooser, kicks and pause', () => {
+  it('an absent chooser loses the turn after thirty seconds', () => {
+    const state = must(setConnected(onBoard(), 'p1', false, 1000));
+    expect(state.board?.awaySince).toBe(1000);
+    expect(nextDeadline(state, 1000)).toBe(31000);
+    expect(tick(state, 30999)).toBe(state);
+    const skipped = tick(state, 31000);
+    expect(skipped.board?.awaySince).toBeNull();
+    expect(skipped.board?.circle[skipped.board.done]).toBe('p2');
+    expect(skipped.board?.circle).toEqual(['p1', 'p2', 'p3']);
+    expect(skipped.board?.done).toBe(1);
+  });
+
+  it('a chooser who comes back keeps the turn', () => {
+    const away = must(setConnected(onBoard(), 'p1', false, 1000));
+    const back = must(setConnected(away, 'p1', true, 5000));
+    expect(back.board?.awaySince).toBeNull();
+    expect(tick(back, 31000)).toBe(back);
+  });
+
+  it('a pause stops the absence clock', () => {
+    const away = must(setConnected(onBoard(), 'p1', false, 1000));
+    const paused = must(pause(away, 20000));
+    expect(paused.board?.awaySince).toBeNull();
+    expect(nextDeadline(paused, 20000)).toBeNull();
+    expect(tick(paused, 10_000_000)).toBe(paused);
+    expect(pickCell(paused, null, 'c11', 0, Math.random)).toEqual({ ok: false, error: 'paused' });
+    expect(skipTurn(paused, 0)).toEqual({ ok: false, error: 'paused' });
+    const resumed = must(resume(paused, 10_000_000));
+    expect(resumed.board?.awaySince).toBe(10_000_000);
+    expect(tick(resumed, 10_029_999)).toBe(resumed);
+    expect(chooserOfCircle(tick(resumed, 10_030_000))).toBe('p2');
+  });
+
+  it('kicking the chooser passes the turn on', () => {
+    const state = must(skipTurn(onBoard(), 0));
+    expect(chooserOfCircle(state)).toBe('p2');
+    const kicked = must(removePlayer(state, 'p2'));
+    expect(kicked.board?.circle).toEqual(['p1', 'p3']);
+    expect(chooserOfCircle(kicked)).toBe('p3');
+  });
+
+  it('kicking a player who already moved keeps the rest of the circle', () => {
+    const state = must(skipTurn(must(skipTurn(onBoard(), 0)), 0));
+    expect(chooserOfCircle(state)).toBe('p3');
+    const kicked = must(removePlayer(state, 'p1'));
+    expect(kicked.board?.circle).toEqual(['p2', 'p3']);
+    expect(kicked.board?.done).toBe(1);
+    expect(chooserOfCircle(kicked)).toBe('p3');
+  });
+
+  it('a disconnected next chooser after a kick gets the absence clock from tick', () => {
+    const state = must(setConnected(must(skipTurn(onBoard(), 0)), 'p3', false, 500));
+    expect(state.board?.awaySince).toBeNull();
+    const kicked = must(removePlayer(state, 'p2'));
+    expect(kicked.board?.awaySince).toBeNull();
+    expect(tick(kicked, 7000).board?.awaySince).toBe(7000);
+  });
+});
+
+const chooserOfCircle = (state: GameState) => state.board?.circle[state.board.done];

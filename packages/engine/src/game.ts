@@ -10,7 +10,7 @@ import {
   type Round,
 } from '@quiz/shared';
 import { applyVerdict, blitzDone, settleQueue, withPlay } from './blitz';
-import { boardPoints, enterBoard, hasActiveCells, initBoard } from './board-turns';
+import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { checkAnswer } from './check';
 import { normalizeText } from './normalize';
 import { answerPoints, speedFactor, streakBonus } from './score';
@@ -205,15 +205,22 @@ export function removePlayer(state: GameState, playerId: string): Result {
     };
     return { ...play, answers: rest, blitz };
   });
-  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays };
+  // Гравець зникає з кола; відлік відсутності скидається, його заново ставить tick.
+  const board = state.board === null ? null : { ...dropFromCircle(state.board, playerId), awaySince: null };
+  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board };
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
 
-export function setConnected(state: GameState, playerId: string, connected: boolean): Result {
+export function setConnected(state: GameState, playerId: string, connected: boolean, now: number): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const players = state.players.map((p) => (p.id === playerId ? { ...p, connected } : p));
-  return ok(autoLock({ ...state, players }));
+  const changed = { ...state, players };
+  // Відлік 30 секунд іде лише для гравця, чий хід, і не на паузі.
+  if (state.phase === 'board' && state.board !== null && !state.paused && chooserOf(state) === playerId) {
+    return ok({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } });
+  }
+  return ok(autoLock(changed));
 }
 
 export type Rng = () => number;
@@ -493,6 +500,7 @@ export function lock(state: GameState): Result {
 
 /** Сервер викликає періодично; закриває запитання, коли сплив час. У бліці також згоряють вікна відповіді. */
 export function tick(state: GameState, now: number): GameState {
+  if (state.phase === 'board' && state.board !== null) return state.paused ? state : tickBoard(state, state.board, now);
   if (state.phase !== 'question' || state.paused) return state;
   if (currentRound(state)?.type === 'blitz') {
     const settled = settleQueue(state, now);
@@ -500,6 +508,15 @@ export function tick(state: GameState, now: number): GameState {
   }
   const expired = state.endsAt !== null && now >= state.endsAt;
   return expired ? lockNow(state) : state;
+}
+
+/** Етап вибору клітинки: стартує відлік для відключеного гравця й пропускає хід, коли 30 секунд сплило. */
+function tickBoard(state: GameState, board: BoardState, now: number): GameState {
+  const chooser = chooserOf(state);
+  const away = chooser !== null && state.players.some((p) => p.id === chooser && !p.connected);
+  if (board.awaySince === null) return away ? { ...state, board: { ...board, awaySince: now } } : state;
+  if (now < board.awaySince + BOARD_AWAY_MS) return state;
+  return enterBoard({ ...state, board: advanceTurn(board) }, now);
 }
 
 /** Під час розкриття гравець, чий хід, без оцінки отримує «неправильно» (зі штрафом, якщо він увімкнений). */
@@ -572,7 +589,7 @@ export function pause(state: GameState, now: number): Result {
     const remainingMs = Math.max(0, state.endsAt - now);
     return ok({ ...state, paused: true, pausedAt: now, remainingMs, startedAt: null, endsAt: null });
   }
-  return ok({ ...state, paused: true, pausedAt: now });
+  return ok({ ...state, paused: true, pausedAt: now, board: clearAway(state.board) });
 }
 
 /** Зсуває натискання черги бліцу на довжину паузи: вікна відповіді й час натискань не включають паузу. */
@@ -597,7 +614,9 @@ export function resume(state: GameState, now: number): Result {
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
     return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now)));
   }
-  return ok({ ...state, paused: false, pausedAt: null });
+  const resumed = { ...state, paused: false, pausedAt: null };
+  // Після паузи відсутній гравець знову має повні 30 секунд.
+  return ok(resumed.phase === 'board' ? enterBoard(resumed, now) : resumed);
 }
 
 /** Оцінка ведучого на полі: у питанні (голос або ручна перевірка після відповіді), після закриття й на розкритті. */
