@@ -633,8 +633,8 @@ async function boardGame() {
   await click(host, 'Завершити гру');
   await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
   const podium = await stage.locator('.standings li').allTextContents();
-  expect(podium[0]).toMatch(/Богдан.*400/);
-  expect(podium[1]).toMatch(/Алла.*100/);
+  expect(podium[0]).toMatch(/^\d+Богдан400$/);
+  expect(podium[1]).toMatch(/^\d+Алла100$/);
 
   // Історія: три зіграні клітинки з балами, решта поля не показана.
   await host.goto(`${base}/history`);
@@ -642,9 +642,9 @@ async function boardGame() {
   const played = host.locator('.rows.stacked li');
   await played.first().waitFor();
   expect(await played.count()).toBe(3);
-  expect(await played.nth(0).textContent()).toMatch(/Міста · 100.*Алла: \+100/);
-  expect(await played.nth(1).textContent()).toMatch(/Міста · 200.*×2.*Богдан: \+400/);
-  expect(await played.nth(2).textContent()).toMatch(/Річки · 100.*Богдан: 0/);
+  expect(await played.nth(0).textContent()).toMatch(/Міста · 100.*Алла: \+100(?!\d)/);
+  expect(await played.nth(1).textContent()).toMatch(/Міста · 200.*×2.*Богдан: \+400(?!\d)/);
+  expect(await played.nth(2).textContent()).toMatch(/Річки · 100.*Богдан: 0(?!\d)/);
 
   expect(problems).toEqual([]);
 }

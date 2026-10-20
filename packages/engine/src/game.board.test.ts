@@ -336,4 +336,12 @@ describe('absent chooser, kicks and pause', () => {
   });
 });
 
+describe('kicked chooser during a question', () => {
+  it('cannot be graded any more and leaves no record', () => {
+    const kicked = must(removePlayer(picked('c11', boardRound('g1', [{ title: 'A', cells: [c11, c12] }], { answerMode: 'voice' })), 'p1'));
+    expect(override(kicked, 'p1', 'correct', 1000)).toEqual({ ok: false, error: 'not_found' });
+    expect(kicked.plays.at(-1)?.answers.p1).toBeUndefined();
+  });
+});
+
 const chooserOfCircle = (state: GameState) => state.board?.circle[state.board.done];

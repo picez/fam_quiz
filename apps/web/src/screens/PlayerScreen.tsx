@@ -87,7 +87,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'board' && board !== null && (
         <>
           <p className="lead">{chooserIsMe ? t('yourPick') : t('boardChooser', { name: chooserName })}</p>
-          <Board board={board} onPick={chooserIsMe ? (cellId) => void pick(cellId) : undefined} />
+          <Board board={board} onPick={chooserIsMe ? (cellId) => void pick(cellId) : undefined} disabled={view.paused} />
         </>
       )}
 
@@ -100,7 +100,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
-              <span className="mark">{markText(board.cell.mark)}</span>
+              {board.cell.mark !== 'none' && <span className="mark">{markText(board.cell.mark)}</span>}
             </p>
           )}
           <h1 className={questionClass(question.text)}>{question.text}</h1>

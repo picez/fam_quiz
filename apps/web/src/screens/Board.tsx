@@ -6,10 +6,12 @@ interface Props {
   board: BoardInfo;
   /** З обробником незіграні клітинки стають кнопками. */
   onPick?: (cellId: string) => void;
+  /** Кнопки вимкнені (наприклад, на паузі). */
+  disabled?: boolean;
 }
 
 /** Спільне поле для пульта, телефона й сцени: стовпці — категорії, клітинки згори вниз. */
-export function Board({ board, onPick }: Props) {
+export function Board({ board, onPick, disabled = false }: Props) {
   return (
     <div className="board" style={{ gridTemplateColumns: `repeat(${board.categories.length}, minmax(0, 1fr))` }}>
       {board.categories.map((category) => (
@@ -20,7 +22,7 @@ export function Board({ board, onPick }: Props) {
             const content = (
               <>
                 <span className="price">{cell.price}</span>
-                {cell.mark !== null && <span className="mark">{markText(cell.mark)}</span>}
+                {cell.mark !== null && cell.mark !== 'none' && <span className="mark">{markText(cell.mark)}</span>}
               </>
             );
             return onPick === undefined ? (
@@ -33,6 +35,7 @@ export function Board({ board, onPick }: Props) {
                 type="button"
                 className="board-cell is-open"
                 aria-label={t('cellAria', { category: category.title, price: cell.price })}
+                disabled={disabled}
                 onClick={() => onPick(cell.id)}
               >
                 {content}

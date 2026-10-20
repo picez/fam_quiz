@@ -112,11 +112,28 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const grade = (playerId: string, value: Grade) => void act('host:override', { playerId, grade: value });
 
   // Порядок кола: позиції міняються місцями, ведучий бачить результат одразу.
+  // Поки відповідь не прийшла, кнопки вимкнені: інакше другий дотик піде зі старого порядку.
+  const [ordering, setOrdering] = useState(false);
+  const orderingRef = useRef(false);
+  const reorder = (event: HostEvent, payload?: unknown) => {
+    if (orderingRef.current) return;
+    const release = () => {
+      orderingRef.current = false;
+      setOrdering(false);
+    };
+    orderingRef.current = true;
+    setOrdering(true);
+    const fallback = setTimeout(release, 3000);
+    void act(event, payload).finally(() => {
+      clearTimeout(fallback);
+      release();
+    });
+  };
   const move = (from: number, to: number) => {
     if (board === null) return;
     const ids = board.order.map((entry) => entry.playerId);
     [ids[from], ids[to]] = [ids[to], ids[from]];
-    void act('host:order', { playerIds: ids });
+    reorder('host:order', { playerIds: ids });
   };
 
   const kick = (playerId: string, name: string) => {
@@ -139,7 +156,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       <p className="meta">
         {t(`phase_${phase}`)}
         {round !== null && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
-        {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
+        {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&
           `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
       </p>
@@ -163,7 +180,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   type="button"
                   className="btn btn-small btn-icon"
                   aria-label={t('turnUp', { name: entry.nickname })}
-                  disabled={index === 0}
+                  disabled={ordering || index === 0}
                   onClick={() => move(index, index - 1)}
                 >
                   ↑
@@ -172,7 +189,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   type="button"
                   className="btn btn-small btn-icon"
                   aria-label={t('turnDown', { name: entry.nickname })}
-                  disabled={index === board.order.length - 1}
+                  disabled={ordering || index === board.order.length - 1}
                   onClick={() => move(index, index + 1)}
                 >
                   ↓
@@ -181,13 +198,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
             ))}
           </ol>
           <div className="actions">
-            <button type="button" className="btn" onClick={() => void act('host:roll')}>
+            <button type="button" className="btn" disabled={ordering} onClick={() => reorder('host:roll')}>
               {t('rollDice')}
             </button>
             <button
               type="button"
               className="btn"
-              onClick={() => void act('host:order', { playerIds: view.players.map((player) => player.id) })}
+              disabled={ordering}
+              onClick={() => reorder('host:order', { playerIds: view.players.map((player) => player.id) })}
             >
               {t('orderByJoin')}
             </button>
@@ -213,7 +231,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
-              <span className="mark">{markText(board.cell.mark)}</span>
+              {board.cell.mark !== 'none' && <span className="mark">{markText(board.cell.mark)}</span>}
             </p>
           )}
           {board !== null && board.turn !== null && <p className="lead">{t('boardAnswering', { name: board.turn.nickname })}</p>}

@@ -332,6 +332,17 @@ describe('PlayerScreen: blitz', () => {
       expect(screen.queryByRole('button', { name: 'Міста, 100' })).toBeNull();
     });
 
+    it('renders no multiplier for an unmarked cell', () => {
+      show(onQuestion({ round, board: boardOf('p2', { cell: { ...cell, mark: 'none' } }) }));
+      expect(screen.getByText('Відповідає Анна')).toBeTruthy();
+      expect(document.body.textContent).not.toContain('×');
+    });
+
+    it('disables the chooser board while the game is paused', () => {
+      show(view({ phase: 'board', round, paused: true, board: boardOf('p1') }));
+      expect((screen.getByRole('button', { name: 'Міста, 100' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
     it('only the chooser gets the answer input', () => {
       show(onQuestion({ round, board: boardOf('p2', { cell }) }));
       expect(screen.getByText('Відповідає Анна')).toBeTruthy();

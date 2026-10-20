@@ -101,7 +101,7 @@ export function streaksOf(players: LobbyPlayer[]): Record<string, number> {
   return Object.fromEntries(players.map((player) => [player.id, player.streak]));
 }
 
-/** Позначка клітинки поля: «×2», «×3». */
+/** Позначка клітинки поля: «×2», «×3»; для клітинки без позначки порожньо. */
 export function markText(mark: CellMark): string {
-  return mark === 'x2' ? '×2' : '×3';
+  return mark === 'x2' ? '×2' : mark === 'x3' ? '×3' : '';
 }

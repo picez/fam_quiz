@@ -377,8 +377,11 @@ describe('HostScreen: blitz', () => {
       // порядок у панелі береться з board.order: Іра, Олена, Тарас
       fireEvent.click(button('Опустити Іра'));
       expect(send).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p3', 'p2'] });
+      // кнопки розблоковуються, коли відповідь на попередню дію прийшла
+      await waitFor(() => expect((button('Кинути кубик') as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(button('Кинути кубик'));
       expect(send).toHaveBeenCalledWith('host:roll', undefined);
+      await waitFor(() => expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(button('За порядком приєднання'));
       expect(send).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p2', 'p3'] });
     });
@@ -425,6 +428,36 @@ describe('HostScreen: blitz', () => {
       cleanup();
       show(during('question', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }) }));
       expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+    });
+
+    it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
+      const unmarked = boardOf().categories[0].cells.map((cell) => ({ ...cell, mark: 'none' as const }));
+      show(onBoard({}, boardOf({ categories: [{ id: 'k1', title: 'Міста', cells: unmarked }] })));
+      expect(document.body.textContent).not.toContain('×');
+      cleanup();
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const };
+      show(during('question', single, { round: boardRound, players: three, board: boardOf({ cell }) }));
+      expect(screen.getByText('Відповідає Олена')).toBeTruthy();
+      expect(document.body.textContent).not.toContain('×');
+    });
+
+    it('does not show a stale question number in the board phase', () => {
+      show(onBoard({ questionIndex: 0 }));
+      expect(document.body.textContent).not.toMatch(/Запитання \d/);
+    });
+
+    it('disables the order buttons while an order send is pending', async () => {
+      let done: () => void = () => {};
+      const send: Send = vi.fn(() => new Promise<{ ok: true }>((resolve) => (done = () => resolve({ ok: true }))));
+      const order = three.map((p) => ({ playerId: p.id, nickname: p.nickname }));
+      show(view({ phase: 'intro', round: boardRound, players: three, playerCount: 3, board: boardOf({ turn: null, order }) }), send);
+      fireEvent.click(button('Опустити Олена'));
+      expect((button('Опустити Тарас') as HTMLButtonElement).disabled).toBe(true);
+      expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(button('Опустити Тарас'));
+      expect(send).toHaveBeenCalledTimes(1);
+      done();
+      await waitFor(() => expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(false));
     });
   });
 });

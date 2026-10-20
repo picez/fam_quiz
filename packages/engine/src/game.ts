@@ -626,7 +626,7 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   const phase = state.phase;
   if (board === undefined || (phase !== 'question' && phase !== 'locked' && phase !== 'reveal')) return fail('wrong_phase');
   if (phase === 'question' && round.answerMode !== 'voice' && board.answer === null) return fail('wrong_phase');
-  if (playerId !== board.chooserId) return fail('not_found');
+  if (playerId !== board.chooserId || !state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
   const existing = recordOf(state, state.questionIndex, playerId);

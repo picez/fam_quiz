@@ -189,7 +189,8 @@ function boardInfo(state: GameState, showAll: boolean): BoardInfo | null {
       }),
     })),
     order: state.board.circle.map((id) => blitzPlayer(state, id)),
-    turn: turnId === null ? null : blitzPlayer(state, turnId),
+    // Ведучого гравця могли вилучити під час запитання.
+    turn: turnId === null || !state.players.some((p) => p.id === turnId) ? null : blitzPlayer(state, turnId),
     cell:
       open === null || cell === undefined
         ? null

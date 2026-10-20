@@ -232,6 +232,21 @@ describe('StageScreen: blitz', () => {
       expect(screen.getByText('×3')).toBeTruthy();
     });
 
+    it('renders no multiplier for an unmarked cell', () => {
+      show(
+        view({
+          phase: 'question',
+          round,
+          questionIndex: 0,
+          question,
+          endsAt: Date.now() + 20_000,
+          board: boardOf({ cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' } }),
+        }),
+      );
+      expect(screen.getByText('Відповідає Анна')).toBeTruthy();
+      expect(document.body.textContent).not.toContain('×');
+    });
+
     it('rolls the dice when the roll counter changes', () => {
       const intro = (rolls: number) => (
         <StageScreen

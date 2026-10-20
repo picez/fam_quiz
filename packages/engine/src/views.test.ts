@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Phase } from '@quiz/shared';
 import { buzz } from './blitz';
 import { pickCell } from './board';
-import { endRound, judge, lock, next, pause, setConnected, start, submitAnswer, type GameState } from './game';
+import { endRound, judge, lock, next, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
 import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, text, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
@@ -410,6 +410,12 @@ describe('board views', () => {
     expect(view?.categories.map((c) => c.cells.map((cell) => cell.price))).toEqual([[100, 200], [100, 200, 300]]);
     expect(stageView(onBoard()).question).toBeNull();
     expect(stageView(picked('c11')).board?.turn?.nickname).toBe('Анна');
+  });
+
+  it('the turn is null when the chooser was kicked during the question', () => {
+    const kicked = must(removePlayer(picked('c11'), 'p1'));
+    expect(stageView(kicked).board?.turn).toBeNull();
+    expect(playerView(kicked, 'p2')?.board?.turn).toBeNull();
   });
 
   it('the host sees a phone answer waiting for a grade', () => {
