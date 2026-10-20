@@ -1,5 +1,6 @@
-import { boardCells, type CellMark } from '@quiz/shared';
-import type { BoardState, GameState } from './game';
+import { boardCells, type BoardRound, type CellMark } from '@quiz/shared';
+import type { BoardPlay, BoardState, GameState } from './game';
+import { answerPoints } from './score';
 
 /** Скільки гравець, чий хід, може бути відключеним, поки хід не пропущено. */
 export const BOARD_AWAY_MS = 30_000;
@@ -46,4 +47,15 @@ export function enterBoard(state: GameState, now: number): GameState {
   const away = chooser !== null && state.players.some((p) => p.id === chooser && !p.connected);
   const board = entered.board ?? initBoard(entered);
   return { ...entered, board: { ...board, awaySince: away && !state.paused ? now : null } };
+}
+
+/** Бали за оцінку на полі; accuracy вже з урахуванням правил часткових балів. Бонусу за швидкість на полі немає. */
+export function boardPoints(round: BoardRound, board: BoardPlay, accuracy: number): number {
+  return answerPoints({
+    points: board.price,
+    accuracy,
+    speed: 1,
+    multiplier: round.rules.multiplier * board.multiplier,
+    penalty: round.rules.penalty,
+  });
 }

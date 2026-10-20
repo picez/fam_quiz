@@ -1,7 +1,8 @@
+import type { Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell, rollOrder, setOrder, skipTurn } from './board';
-import { end, endRound, lock, next, pause, setConnected, start, type GameState } from './game';
-import { boardRound, classicRound, makeRoundsQuiz, single, withId, withPoints } from './testing/fixtures';
+import { end, endRound, lock, next, override, pause, setConnected, start, submitAnswer, tick, type GameState } from './game';
+import { boardRound, classicRound, makeRoundsQuiz, order, single, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const q = (id: string, points: number) => withPoints(withId(single, id), points);
@@ -156,5 +157,120 @@ describe('board turns', () => {
     const quiz = makeRoundsQuiz([field()]);
     const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0));
     expect(setOrder(intro, ['p1', 'p1', 'p2'])).toEqual({ ok: false, error: 'not_found' });
+  });
+});
+
+const right = { type: 'single', optionId: 'b' } as const;
+const wrong = { type: 'single', optionId: 'a' } as const;
+
+/** Гра, де p1 вибрав клітинку й відкрито запитання. */
+function picked(cellId: string, round = field(), settings = {}): GameState {
+  return must(pickCell(onBoard(round, settings), null, cellId, 0, Math.random));
+}
+
+const score = (state: GameState, id: string) => state.players.find((p) => p.id === id)?.score;
+
+describe('board answers and points', () => {
+  it('only the chooser answers and a correct answer earns the question points', () => {
+    const state = picked('c12');
+    expect(submitAnswer(state, 'p2', right, 1000)).toEqual({ ok: false, error: 'not_your_turn' });
+    const done = must(submitAnswer(state, 'p1', right, 1000));
+    expect(done.phase).toBe('locked');
+    expect(done.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'correct', points: 200 });
+    expect(score(done, 'p1')).toBe(200);
+    expect(submitAnswer(done, 'p1', right, 1000)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(submitAnswer(state, 'p1', { type: 'boolean', value: true }, 1000)).toEqual({ ok: false, error: 'type_mismatch' });
+    expect(submitAnswer(state, 'p1', right, 99_000)).toEqual({ ok: false, error: 'time_over' });
+  });
+
+  it('round and cell multipliers multiply, and so does the penalty', () => {
+    const round = boardRound('g1', [{ title: 'A', cells: [c11, { mark: 'x3', question: c12 }] }], {
+      rules: { penalty: 'minus', partial: null, streak: null, multiplier: 2 },
+    });
+    expect(score(must(submitAnswer(picked('c12', round), 'p1', right, 1000)), 'p1')).toBe(1200);
+    expect(score(must(submitAnswer(picked('c12', round), 'p1', wrong, 1000)), 'p1')).toBe(-1200);
+  });
+
+  it('partial accuracy pays a share only with partial credit on', () => {
+    const o = withPoints(withId(order, 'o1'), 200);
+    const half: Answer = { type: 'order', itemIds: ['u', 'l', 'h', 'k'] };
+    const cells = [{ title: 'A', cells: [o] }];
+    const off = must(submitAnswer(picked('o1', boardRound('g1', cells)), 'p1', half, 1000));
+    expect(off.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', accuracy: 0, points: 0 });
+    const on = boardRound('g1', cells, { rules: { penalty: 'none', partial: 50, streak: null, multiplier: 1 } });
+    const partial = must(submitAnswer(picked('o1', on), 'p1', half, 1000));
+    expect(partial.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'partial', accuracy: 0.5, points: 100 });
+  });
+
+  it('a missing answer is wrong at the reveal and the penalty applies', () => {
+    const round = boardRound('g1', [{ title: 'A', cells: [c11, c12] }], {
+      rules: { penalty: 'minus', partial: null, streak: null, multiplier: 1 },
+    });
+    const state = picked('c11', round);
+    const locked = tick(state, state.endsAt ?? 0);
+    expect(locked.phase).toBe('locked');
+    expect(locked.plays.at(-1)?.answers.p1).toBeUndefined();
+    const reveal = must(next(locked, 0));
+    expect(reveal.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', answer: null, points: -100 });
+    expect(score(reveal, 'p1')).toBe(-100);
+  });
+
+  it('without a penalty a wrong answer earns nothing', () => {
+    const done = must(submitAnswer(picked('c12'), 'p1', wrong, 1000));
+    expect(done.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', points: 0 });
+    expect(score(done, 'p1')).toBe(0);
+  });
+
+  it('voice mode: the host grades during the question, partial included', () => {
+    const round = boardRound('g1', [{ title: 'A', cells: [c11, c12] }], {
+      answerMode: 'voice',
+      rules: { penalty: 'none', partial: 50, streak: null, multiplier: 1 },
+    });
+    const state = picked('c12', round);
+    expect(submitAnswer(state, 'p1', right, 1000)).toEqual({ ok: false, error: 'wrong_phase' });
+    const graded = must(override(state, 'p1', 'partial', 1000));
+    expect(graded.phase).toBe('locked');
+    expect(graded.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'partial', points: 100, timeMs: 1000, overridden: false });
+    expect(score(graded, 'p1')).toBe(100);
+    expect(override(state, 'p2', 'correct', 1000)).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('manual check waits for the host after the phone answer', () => {
+    const state = picked('c12', boardRound('g1', [{ title: 'A', cells: [c11, c12] }], { check: 'manual' }));
+    expect(override(state, 'p1', 'correct', 1000)).toEqual({ ok: false, error: 'wrong_phase' });
+    const locked = must(submitAnswer(state, 'p1', right, 1000));
+    expect(locked.phase).toBe('locked');
+    expect(locked.plays.at(-1)?.answers.p1).toBeUndefined();
+    expect(locked.plays.at(-1)?.board?.answer).toEqual(right);
+    const graded = must(override(locked, 'p1', 'correct', 2000));
+    expect(graded.plays.at(-1)?.answers.p1).toMatchObject({ answer: right, grade: 'correct', points: 200, overridden: false });
+  });
+
+  it('the host can change a board grade at the reveal and points follow', () => {
+    const reveal = must(next(must(submitAnswer(picked('c12'), 'p1', right, 1000)), 0));
+    expect(score(reveal, 'p1')).toBe(200);
+    const changed = must(override(reveal, 'p1', 'wrong', 2000));
+    expect(changed.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', points: 0, overridden: true });
+    expect(score(changed, 'p1')).toBe(0);
+    expect(override(reveal, 'p1', 'partial', 2000)).toEqual({ ok: false, error: 'partial_disabled' });
+  });
+
+  it("a board streak counts only the player's own turns", () => {
+    const cells = ['a', 'b', 'c', 'd'].map((id) => q(id, 100));
+    const round = boardRound('g1', [{ title: 'A', cells }], {
+      rules: { penalty: 'none', partial: null, streak: { length: 2, bonus: { kind: 'fixed', value: 300 } }, multiplier: 1 },
+    });
+    let state = onBoard(round, { leaderboard: 'end' });
+    const answers = [right, wrong, right, right];
+    const turns = ['p1', 'p2', 'p3', 'p1'];
+    for (const [i, id] of ['a', 'b', 'c', 'd'].entries()) {
+      // Після кола ротація віддає хід p2; ведучий пропускає його, щоб знову ходив p1.
+      while (i === 3 && state.board?.circle[state.board.done] !== 'p1') state = must(skipTurn(state, 0));
+      state = must(submitAnswer(must(pickCell(state, null, id, 0, Math.random)), turns[i], answers[i], 1000));
+      while (i < 3 && state.phase !== 'board') state = must(next(state, 0));
+    }
+    expect(state.plays[3].answers.p1).toMatchObject({ streakBonus: 300, points: 400 });
+    expect(state.plays[2].answers.p3?.streakBonus).toBe(0);
+    expect(score(state, 'p1')).toBe(500);
   });
 });
