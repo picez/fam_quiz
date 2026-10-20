@@ -139,7 +139,7 @@ describe('locking', () => {
 
   it('locks when the last player who has not answered disconnects', () => {
     const state = must(submitAnswer(started(), 'p1', correct, T0 + 1000));
-    expect(must(setConnected(state, 'p2', false)).phase).toBe('locked');
+    expect(must(setConnected(state, 'p2', false, 0)).phase).toBe('locked');
   });
 
   it('locks when the last player who has not answered is removed', () => {
@@ -148,7 +148,7 @@ describe('locking', () => {
   });
 
   it('keeps waiting for the timer when everyone disconnects without answering', () => {
-    const state = must(setConnected(must(setConnected(started(), 'p1', false)), 'p2', false));
+    const state = must(setConnected(must(setConnected(started(), 'p1', false, 0)), 'p2', false, 0));
     expect(state.phase).toBe('question');
   });
 });

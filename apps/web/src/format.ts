@@ -1,10 +1,11 @@
-import type { Answer, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
+import type { Answer, CellMark, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
 import { t } from './i18n';
 
-/** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці — «Бліц». */
+/** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
 export const roundLabel = (title: string, index: number, type?: Round['type']): string => {
   if (title.trim() !== '') return title;
-  return type === 'blitz' ? t('blitzLabel') : t('roundN', { index: index + 1 });
+  if (type === 'blitz') return t('blitzLabel');
+  return type === 'board' ? t('boardLabel') : t('roundN', { index: index + 1 });
 };
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
@@ -98,4 +99,9 @@ export function questionLabel(round: RoundInfo | null, index: number, total: num
 /** Серії гравців за id; показуються біля імені від двох правильних відповідей підряд. */
 export function streaksOf(players: LobbyPlayer[]): Record<string, number> {
   return Object.fromEntries(players.map((player) => [player.id, player.streak]));
+}
+
+/** Позначка клітинки поля: «×2», «×3»; для клітинки без позначки порожньо. */
+export function markText(mark: CellMark): string {
+  return mark === 'x2' ? '×2' : mark === 'x3' ? '×3' : '';
 }

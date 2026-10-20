@@ -28,6 +28,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   phase: 'lobby',
   paused: false,
   blitz: null,
+  board: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -336,5 +337,127 @@ describe('HostScreen: blitz', () => {
     expect(screen.queryByText('Черга')).toBeNull();
     expect(screen.queryByText('Ще ніхто не відповів')).toBeNull();
     expect(screen.getByText('не встиг')).toBeTruthy();
+  });
+
+  describe('board round', () => {
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true };
+    const three = [
+      { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0 },
+      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 0 },
+      { id: 'p3', nickname: 'Іра', connected: true, score: 0, streak: 0 },
+    ];
+    const boardOf = (over: Partial<NonNullable<HostView['board']>> = {}): NonNullable<HostView['board']> => ({
+      categories: [
+        {
+          id: 'k1',
+          title: 'Міста',
+          cells: [
+            { id: 'c1', price: 100, played: false, mark: 'x2' },
+            { id: 'c2', price: 200, played: true, mark: null },
+          ],
+        },
+      ],
+      order: three.map((p) => ({ playerId: p.id, nickname: p.nickname })),
+      turn: { playerId: 'p1', nickname: 'Олена' },
+      cell: null,
+      answerMode: 'phone',
+      rolls: 0,
+      skipAt: null,
+      manual: false,
+      answer: null,
+      ...over,
+    });
+    const onBoard = (over: Partial<HostView> = {}, board = boardOf()) =>
+      view({ phase: 'board', round: boardRound, players: three, playerCount: 3, board, ...over });
+
+    it('sets the board order with arrows, dice and join order', async () => {
+      const order = [three[2], three[0], three[1]].map((p) => ({ playerId: p.id, nickname: p.nickname }));
+      const send = show(view({ phase: 'intro', round: boardRound, players: three, playerCount: 3, board: boardOf({ turn: null, order }) }));
+      expect(screen.getByText('Порядок ходів')).toBeTruthy();
+      // порядок у панелі береться з board.order: Іра, Олена, Тарас
+      fireEvent.click(button('Опустити Іра'));
+      expect(send).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p3', 'p2'] });
+      // кнопки розблоковуються, коли відповідь на попередню дію прийшла
+      await waitFor(() => expect((button('Кинути кубик') as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button('Кинути кубик'));
+      expect(send).toHaveBeenCalledWith('host:roll', undefined);
+      await waitFor(() => expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button('За порядком приєднання'));
+      expect(send).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p2', 'p3'] });
+    });
+
+    it('picks a cell for the chooser and skips a turn', async () => {
+      const send = show(onBoard());
+      expect(screen.getByText('Вибирає Олена')).toBeTruthy();
+      fireEvent.click(button('Міста, 100'));
+      expect(send).toHaveBeenCalledWith('host:pick', { cellId: 'c1' });
+      fireEvent.click(button('Пропустити хід'));
+      expect(send).toHaveBeenCalledWith('host:skip', undefined);
+    });
+
+    it('shows the countdown for an absent chooser and a waiting turn on pause', () => {
+      const away = three.map((p) => (p.id === 'p1' ? { ...p, connected: false } : p));
+      show(onBoard({ players: away }, boardOf({ skipAt: Date.now() + 20_000 })));
+      expect(screen.getByText(/Олена відключений, хід пропуститься через 20 с/)).toBeTruthy();
+      cleanup();
+      show(onBoard({ players: away, paused: true }, boardOf({ skipAt: null })));
+      expect(screen.getByText('Олена відключений, гра на паузі, хід чекає')).toBeTruthy();
+    });
+
+    it('grades a voice answer during the question', async () => {
+      const send = show(
+        during('question', single, {
+          round: boardRound,
+          players: three,
+          board: boardOf({ answerMode: 'voice', manual: true, cell: { id: 'c1', category: 'Міста', price: 100, mark: 'x2' } }),
+        }),
+      );
+      expect(screen.getByText('Відповідає Олена')).toBeTruthy();
+      expect(screen.getByText('×2')).toBeTruthy();
+      expect(screen.queryByText(/відповіли/)).toBeNull();
+      fireEvent.click(button('Зарахувати'));
+      expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' });
+      expect(button('Частково')).toBeTruthy();
+    });
+
+    it('shows a phone answer awaiting a grade and hides grading without one', () => {
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const };
+      show(during('question', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell, answer: { type: 'text', value: 'Одеса' } }) }));
+      expect(screen.getByText('Одеса')).toBeTruthy();
+      expect(button('Не зараховувати')).toBeTruthy();
+      cleanup();
+      show(during('question', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }) }));
+      expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+    });
+
+    it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
+      const unmarked = boardOf().categories[0].cells.map((cell) => ({ ...cell, mark: 'none' as const }));
+      show(onBoard({}, boardOf({ categories: [{ id: 'k1', title: 'Міста', cells: unmarked }] })));
+      expect(document.body.textContent).not.toContain('×');
+      cleanup();
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const };
+      show(during('question', single, { round: boardRound, players: three, board: boardOf({ cell }) }));
+      expect(screen.getByText('Відповідає Олена')).toBeTruthy();
+      expect(document.body.textContent).not.toContain('×');
+    });
+
+    it('does not show a stale question number in the board phase', () => {
+      show(onBoard({ questionIndex: 0 }));
+      expect(document.body.textContent).not.toMatch(/Запитання \d/);
+    });
+
+    it('disables the order buttons while an order send is pending', async () => {
+      let done: () => void = () => {};
+      const send: Send = vi.fn(() => new Promise<{ ok: true }>((resolve) => (done = () => resolve({ ok: true }))));
+      const order = three.map((p) => ({ playerId: p.id, nickname: p.nickname }));
+      show(view({ phase: 'intro', round: boardRound, players: three, playerCount: 3, board: boardOf({ turn: null, order }) }), send);
+      fireEvent.click(button('Опустити Олена'));
+      expect((button('Опустити Тарас') as HTMLButtonElement).disabled).toBe(true);
+      expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(button('Опустити Тарас'));
+      expect(send).toHaveBeenCalledTimes(1);
+      done();
+      await waitFor(() => expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(false));
+    });
   });
 });

@@ -19,16 +19,16 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
 
 /**
  * Налаштування одного раунду: назва, перемішування варіантів і правила підрахунку (штраф, серії, множник);
- * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки. Згорнуті, доки їх не відкриють.
+ * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». Згорнуті, доки їх не відкриють.
  */
 export function RoundSettings({ round, index, onChange }: Props) {
   const { rules } = round;
   const { streak } = rules;
-  // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд.
+  // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
   const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) =>
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   const setPartial = (partial: number | null) => {
-    if (round.type === 'classic') onChange({ ...round, rules: { ...round.rules, partial } });
+    if (round.type !== 'blitz') onChange({ ...round, rules: { ...round.rules, partial } });
   };
 
   return (
@@ -57,6 +57,26 @@ export function RoundSettings({ round, index, onChange }: Props) {
         />
         <span>{t('shuffleOptions')}</span>
       </label>
+      {round.type === 'board' && (
+        <>
+          <label className="field">
+            <span>{t('boardAnswerMode')}</span>
+            <select value={round.answerMode} onChange={(event) => onChange({ ...round, answerMode: event.target.value === 'voice' ? 'voice' : 'phone' })}>
+              <option value="phone">{t('boardAnswerPhone')}</option>
+              <option value="voice">{t('boardAnswerVoice')}</option>
+            </select>
+          </label>
+          {round.answerMode === 'phone' && (
+            <label className="field">
+              <span>{t('blitzCheck')}</span>
+              <select value={round.check} onChange={(event) => onChange({ ...round, check: event.target.value === 'manual' ? 'manual' : 'auto' })}>
+                <option value="auto">{t('blitzCheckAuto')}</option>
+                <option value="manual">{t('blitzCheckManual')}</option>
+              </select>
+            </label>
+          )}
+        </>
+      )}
       {round.type === 'blitz' && (
         <>
           <label className="field">
@@ -99,7 +119,7 @@ export function RoundSettings({ round, index, onChange }: Props) {
         <span>{t('ruleMinus')}</span>
       </label>
 
-      {round.type === 'classic' && (
+      {round.type !== 'blitz' && (
         <>
         <label className="check">
           <input

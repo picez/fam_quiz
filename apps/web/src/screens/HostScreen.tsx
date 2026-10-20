@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react';
-import type { ClientToServerEvents, Grade, HostView } from '@quiz/shared';
-import { answerText, correctText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
+import { useEffect, useRef, useState } from 'react';
+import type { ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/shared';
+import { secondsLeft } from '../clock';
+import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import type { Send } from '../live/types';
+import { Board } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { Standings } from './Standings';
 
@@ -12,6 +14,8 @@ interface Props {
   stageUrl: string;
   joinUrl: string;
   send: Send;
+  /** Різниця «час сервера мінус час пристрою» для відліку до пропуску ходу. */
+  offsetMs?: number;
 }
 
 type HostEvent = keyof ClientToServerEvents;
@@ -28,9 +32,30 @@ const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: Ho
 };
 
 /** Етапи, на яких раунд ще триває й його можна завершити достроково. */
-const IN_ROUND: HostView['phase'][] = ['intro', 'question', 'locked', 'reveal', 'leaderboard'];
+const IN_ROUND: HostView['phase'][] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
+/** Відлік до автоматичного пропуску ходу відсутнього гравця. */
+function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView; offsetMs: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  const running = board.skipAt !== null;
+  useEffect(() => {
+    if (!running) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [running, board.skipAt]);
+
+  const chooser = board.turn === null ? undefined : view.players.find((player) => player.id === board.turn?.playerId);
+  if (chooser === undefined || chooser.connected) return null;
+  const name = chooser.nickname;
+  if (board.skipAt !== null) {
+    const seconds = secondsLeft({ endsAt: board.skipAt, remainingMs: null }, offsetMs, now) ?? 0;
+    return <p className="banner is-away">{t('chooserAwaySkip', { name, seconds })}</p>;
+  }
+  return view.paused ? <p className="banner is-away">{t('chooserAwayPaused', { name })}</p> : null;
+}
+
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const inRound = round !== null && IN_ROUND.includes(phase);
@@ -38,6 +63,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
   const live = phase !== 'lobby' && phase !== 'finished';
   const main = MAIN_ACTION[phase];
   const blitz = view.blitz;
+  const board = view.board;
+  const chooserId = board?.turn?.playerId ?? null;
+  // У полі оцінка йде одразу після відповіді вибравшого: у запитанні лише коли ведучий оцінює вручну.
+  const canGradeBoard =
+    board !== null &&
+    view.question !== null &&
+    chooserId !== null &&
+    ((phase === 'question' && board.manual && (board.answerMode === 'voice' || board.answer !== null)) || phase === 'locked' || phase === 'reveal');
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
   const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz';
 
@@ -78,6 +111,31 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
 
   const grade = (playerId: string, value: Grade) => void act('host:override', { playerId, grade: value });
 
+  // Порядок кола: позиції міняються місцями, ведучий бачить результат одразу.
+  // Поки відповідь не прийшла, кнопки вимкнені: інакше другий дотик піде зі старого порядку.
+  const [ordering, setOrdering] = useState(false);
+  const orderingRef = useRef(false);
+  const reorder = (event: HostEvent, payload?: unknown) => {
+    if (orderingRef.current) return;
+    const release = () => {
+      orderingRef.current = false;
+      setOrdering(false);
+    };
+    orderingRef.current = true;
+    setOrdering(true);
+    const fallback = setTimeout(release, 3000);
+    void act(event, payload).finally(() => {
+      clearTimeout(fallback);
+      release();
+    });
+  };
+  const move = (from: number, to: number) => {
+    if (board === null) return;
+    const ids = board.order.map((entry) => entry.playerId);
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    reorder('host:order', { playerIds: ids });
+  };
+
   const kick = (playerId: string, name: string) => {
     if (window.confirm(t('kickConfirm', { name }))) void act('host:kick', { playerId });
   };
@@ -98,8 +156,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
       <p className="meta">
         {t(`phase_${phase}`)}
         {round !== null && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
-        {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
-        {phase === 'question' &&
+        {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
+        {phase === 'question' && board === null &&
           `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
       </p>
 
@@ -110,8 +168,73 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
         </section>
       )}
 
+      {phase === 'intro' && board !== null && (
+        <section className="panel">
+          <h2>{t('boardOrder')}</h2>
+          <ol className="rows">
+            {board.order.map((entry, index) => (
+              <li key={entry.playerId}>
+                <span className="rank">{index + 1}</span>
+                <span className="name">{entry.nickname}</span>
+                <button
+                  type="button"
+                  className="btn btn-small btn-icon"
+                  aria-label={t('turnUp', { name: entry.nickname })}
+                  disabled={ordering || index === 0}
+                  onClick={() => move(index, index - 1)}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-small btn-icon"
+                  aria-label={t('turnDown', { name: entry.nickname })}
+                  disabled={ordering || index === board.order.length - 1}
+                  onClick={() => move(index, index + 1)}
+                >
+                  ↓
+                </button>
+              </li>
+            ))}
+          </ol>
+          <div className="actions">
+            <button type="button" className="btn" disabled={ordering} onClick={() => reorder('host:roll')}>
+              {t('rollDice')}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={ordering}
+              onClick={() => reorder('host:order', { playerIds: view.players.map((player) => player.id) })}
+            >
+              {t('orderByJoin')}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {phase === 'board' && board !== null && (
+        <section className="panel">
+          {board.turn !== null && <p className="lead">{t('boardChooser', { name: board.turn.nickname })}</p>}
+          <SkipNote board={board} view={view} offsetMs={offsetMs} />
+          <Board board={board} onPick={(cellId) => void act('host:pick', { cellId })} />
+          <div className="actions">
+            <button type="button" className="btn" onClick={() => void act('host:skip')}>
+              {t('skipTurn')}
+            </button>
+          </div>
+        </section>
+      )}
+
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
+          {board !== null && board.cell !== null && (
+            <p className="meta">
+              {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
+              {board.cell.mark !== 'none' && <span className="mark">{markText(board.cell.mark)}</span>}
+            </p>
+          )}
+          {board !== null && board.turn !== null && <p className="lead">{t('boardAnswering', { name: board.turn.nickname })}</p>}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
           <QuestionImage url={view.question.imageUrl} />
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
@@ -168,7 +291,54 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send }: Props) {
         </>
       )}
 
-      {view.question !== null && live && blitz === null && (
+      {view.question !== null && live && board !== null && (
+        <section className="panel">
+          <h2>{t('responses')}</h2>
+          <ul className="rows">
+            {board.turn !== null && (
+              <li>
+                <span className="name">{board.turn.nickname}</span>
+                {(() => {
+                  const response = view.responses.find((entry) => entry.playerId === chooserId);
+                  const given = response?.answer ?? board.answer;
+                  return (
+                    <>
+                      <span className="given">
+                        {given !== null ? answerText(given, correct) : board.answerMode === 'voice' ? t('answeredAloud') : '—'}
+                      </span>
+                      {response !== undefined && (
+                        <>
+                          <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
+                            {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
+                          </span>
+                          <span className="score">{num(response.points)}</span>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
+              </li>
+            )}
+          </ul>
+          {canGradeBoard && chooserId !== null && (
+            <div className="actions">
+              <button type="button" className="btn btn-small" onClick={() => grade(chooserId, 'correct')}>
+                {t('accept')}
+              </button>
+              {round?.partial === true && (
+                <button type="button" className="btn btn-small" onClick={() => grade(chooserId, 'partial')}>
+                  {t('gradePartial')}
+                </button>
+              )}
+              <button type="button" className="btn btn-small" onClick={() => grade(chooserId, 'wrong')}>
+                {t('gradeWrong')}
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {view.question !== null && live && blitz === null && board === null && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 ? (

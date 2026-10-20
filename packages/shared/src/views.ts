@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { Grade, Phase } from './game';
-import type { Question, Round } from './quiz';
+import type { CellMark, Question, Round } from './quiz';
 import type { Standing } from './standing';
 
 export interface Choice {
@@ -76,6 +76,35 @@ export interface HostBlitz extends BlitzInfo {
   attempts: (BlitzPlayer & { answer: Answer | null; grade: 'correct' | 'wrong'; points: number })[];
 }
 
+export interface BoardCellView {
+  id: string;
+  price: number;
+  played: boolean;
+  /** null — позначку приховано (сцена й гравці, поки клітинку не вибрали). */
+  mark: CellMark | null;
+}
+
+export interface BoardInfo {
+  categories: { id: string; title: string; cells: BoardCellView[] }[];
+  /** Порядок поточного кола. */
+  order: BlitzPlayer[];
+  /** Чий хід: хто вибирає (board) або відповідає (question…reveal). */
+  turn: BlitzPlayer | null;
+  /** Вибрана клітинка поточного запитання (category — назва категорії); її позначку видно всім. */
+  cell: { id: string; category: string; price: number; mark: CellMark } | null;
+  answerMode: 'phone' | 'voice';
+  rolls: number;
+  /** Мить автоматичного пропуску ходу відсутнього гравця; null — гравець на місці або пауза. */
+  skipAt: number | null;
+}
+
+export interface HostBoard extends BoardInfo {
+  /** answerMode 'voice' або check 'manual'. */
+  manual: boolean;
+  /** Відповідь з телефону, що чекає на оцінку. */
+  answer: Answer | null;
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -92,6 +121,8 @@ interface BaseView {
   answeredCount: number;
   /** Черга бліцу; null поза запитанням раунду бліцу. */
   blitz: BlitzInfo | null;
+  /** Поле й ходи; null поза раундом поля та в етапах lobby, round_end, finished. */
+  board: BoardInfo | null;
 }
 
 export interface StageView extends BaseView {
@@ -145,6 +176,8 @@ export interface HostView extends BaseView {
   correct: Question | null;
   responses: HostResponse[];
   blitz: HostBlitz | null;
+  /** Як у BaseView, але позначки всіх клітинок видно завжди. */
+  board: HostBoard | null;
   standings: Standing[];
 }
 

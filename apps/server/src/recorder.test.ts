@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, numeric, single, text } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
@@ -434,5 +434,60 @@ describe('recorder: blitz', () => {
       [1, 0, false, -1000, 0],
       [1, 1, true, 1100, 100],
     ]);
+  });
+});
+
+describe('recorder: board', () => {
+  const cell = (id: string, points: number, timeLimit = 30) => ({ ...withId(single, id), points, timeLimit });
+
+  async function boardSetup(round: ReturnType<typeof boardRound>) {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const room = manager.create(makeRoundsQuiz([round]), HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const olena = enter('Олена');
+    enter('Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const saved = async () => {
+      await recorder.idle();
+      return { games: await db.select().from(game), answers: await db.select().from(answer).orderBy(asc(answer.questionIndex)) };
+    };
+    return { scheduler, manager, room, olena, saved };
+  }
+
+  it('a board question is stored with its cell and chooser', async () => {
+    const round = boardRound('g1', [{ title: 'Міста', cells: [{ mark: 'x2', question: cell('c11', 100) }, cell('c12', 200)] }]);
+    const { manager, room, olena, saved } = await boardSetup(round);
+    expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
+    expect(manager.answer(room, olena, correct)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+
+    const { games, answers } = await saved();
+    expect(games[0].plays).toEqual([{ roundIndex: 0, questionId: 'c11', cell: { cellId: 'c11', chooserId: olena } }]);
+    expect(answers.map((a) => [a.participantId, a.questionIndex, a.attempt, a.accepted, a.points])).toEqual([[olena, 0, 0, true, 200]]);
+  });
+
+  it('a grade given at the reveal of a board question is saved', async () => {
+    const minus = { penalty: 'minus', partial: null, streak: null, multiplier: 1 } as const;
+    const round = boardRound('g1', [{ title: 'Міста', cells: [cell('c11', 100, 10), cell('c12', 200)] }], { rules: minus });
+    const { scheduler, manager, room, olena, saved } = await boardSetup(round);
+    expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
+    scheduler.advance(10_000);
+    expect(room.state.phase).toBe('locked');
+    expect((await saved()).answers).toEqual([]);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+
+    const { answers } = await saved();
+    expect(answers.map((a) => [a.participantId, a.accepted, a.points])).toEqual([[olena, false, -100]]);
   });
 });

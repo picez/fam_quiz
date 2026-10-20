@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
-import { answerText, correctText, num, questionClass, questionLabel, roundLabel, signed } from '../format';
+import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
+import { Board } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { Standings } from './Standings';
 
@@ -50,6 +51,15 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
     setError(result.ok ? null : errorText(result.error));
   };
 
+  const board = view.board;
+  const chooserIsMe = board?.turn?.playerId === me.id;
+  const chooserName = board?.turn?.nickname ?? '';
+
+  const pick = async (cellId: string) => {
+    const result = await send('player:pick', { cellId });
+    setError(result.ok ? null : errorText(result.error));
+  };
+
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
 
   return (
@@ -74,15 +84,32 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         </>
       )}
 
+      {phase === 'board' && board !== null && (
+        <>
+          <p className="lead">{chooserIsMe ? t('yourPick') : t('boardChooser', { name: chooserName })}</p>
+          <Board board={board} onPick={chooserIsMe ? (cellId) => void pick(cellId) : undefined} disabled={view.paused} />
+        </>
+      )}
+
       {phase === 'question' && question !== null && (
         <>
           <div className="question-head">
             <p className="meta">{questionLabel(view.round, view.questionIndex, view.total)}</p>
             <Timer view={view} offsetMs={offsetMs} />
           </div>
+          {board !== null && board.cell !== null && (
+            <p className="meta">
+              {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
+              {board.cell.mark !== 'none' && <span className="mark">{markText(board.cell.mark)}</span>}
+            </p>
+          )}
           <h1 className={questionClass(question.text)}>{question.text}</h1>
           <QuestionImage url={question.imageUrl} />
-          {me.blitz !== null ? (
+          {board !== null && !chooserIsMe ? (
+            <p className="lead">{t('boardAnswering', { name: chooserName })}</p>
+          ) : board !== null && board.answerMode === 'voice' && me.answer === null ? (
+            <p className="lead">{t('answerAloud')}</p>
+          ) : me.blitz !== null ? (
             <BlitzTurn view={view} blitz={me.blitz} offsetMs={offsetMs} onSubmit={submit} send={send} onError={setError} />
           ) : me.answer !== null ? (
             <section className="sent">
@@ -108,7 +135,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'reveal' && (
         <>
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
-          <Result view={view} />
+          {board !== null && !chooserIsMe ? (
+            <section className="result">
+              <h2>{t('boardAnswered', { name: chooserName })}</h2>
+              {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+            </section>
+          ) : (
+            <Result view={view} />
+          )}
         </>
       )}
 

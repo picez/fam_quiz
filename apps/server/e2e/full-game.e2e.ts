@@ -515,3 +515,136 @@ async function blitzGame() {
 
   expect(problems).toEqual([]);
 }
+
+it('a board round: order, a doubled cell and an early end', async () => {
+  try {
+    await boardGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function boardGame() {
+  const host = await open('host4', 1280, 900);
+
+  await host.goto(base);
+  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await click(host, 'Створити акаунт');
+  await field(host, 'Ваше ім’я').fill('Катерина Ведуча');
+  await field(host, 'Email').fill('host4@example.com');
+  await field(host, 'Пароль').fill('correct horse battery');
+  await click(host, 'Зареєструватися');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Вікторина-поле');
+
+  // Додаємо поле, а початковий класичний раунд видаляємо: лишається один раунд поля.
+  await click(host, '+ Раунд');
+  await click(host, 'Ігрове поле');
+  await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
+  await click(host, 'Видалити раунд');
+
+  await openRoundSettings(host);
+  await host.locator('label.field', { hasText: 'Спосіб відповіді' }).locator('select').selectOption('phone');
+  await host.locator('label.field', { hasText: 'Перевірка' }).locator('select').selectOption('auto');
+
+  // Поле 3×3: категорії «Міста», «Річки», «Гори»; ціни 100, 200, 300 редактор ставить сам.
+  const categories = ['Міста', 'Річки', 'Гори'];
+  for (const [column, title] of categories.entries()) {
+    await field(host, `Назва категорії ${column + 1}`).fill(title);
+    for (const row of [0, 1, 2]) {
+      const price = (row + 1) * 100;
+      await host.getByRole('button', { name: new RegExp(`^Категорія ${column + 1}, клітинка ${row + 1}: ${price}`) }).click();
+      await questionText(host).fill(`${title} ${price}?`);
+      await field(host, 'Варіант 1').fill('Так');
+      await field(host, 'Варіант 2').fill('Ні');
+      await field(host, 'Правильний: варіант 1').click();
+    }
+  }
+  // Клітинка «Міста, 200» подвоює бали.
+  await host.getByRole('button', { name: /^Категорія 1, клітинка 2: 200/ }).click();
+  await host.locator('label.field', { hasText: 'Позначка' }).locator('select').selectOption('x2');
+  await host.getByRole('button', { name: 'Категорія 1, клітинка 2: 200 ×2', ...exact }).waitFor();
+
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Вікторина-поле' }).waitFor();
+
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage4', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const alla = await open('alla4', 390, 844);
+  const bohdan = await open('bohdan4', 360, 740);
+  await join(alla, code, 'Алла', false);
+  await join(bohdan, code, 'Богдан', false);
+  await stage.getByText('Богдан').waitFor();
+
+  // Заставка: кубик на сцені, порядок за приєднанням, старт раунду.
+  await click(host, 'Почати гру');
+  await click(host, 'Кинути кубик');
+  await stage.locator('.dice.is-rolling').waitFor();
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+
+  const cell = (page: Page, category: string, price: number) =>
+    page.getByRole('button', { name: `${category}, ${price}`, ...exact });
+  const toBoard = async () => {
+    await click(host, 'Далі');
+    // Після кожного запитання може з'явитися рейтинг; тоді рухаємося далі.
+    const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+    const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+    await Promise.race([next.waitFor(), picking.waitFor()]);
+    if (await next.isVisible()) await next.click();
+    await picking.waitFor();
+  };
+
+  // Хід 1: Алла вибирає «Міста, 100» і відповідає правильно.
+  await alla.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(alla, 'Міста', 100).click();
+  await alla.getByRole('button', { name: /Так/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await alla.getByText('Правильно!').waitFor();
+  await toBoard();
+
+  // Хід 2: Богдан вибирає подвоєну клітинку «Міста, 200» і відповідає правильно.
+  await bohdan.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(bohdan, 'Міста', 200).click();
+  await bohdan.getByRole('button', { name: /Так/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await bohdan.getByText('Правильно!').waitFor();
+  await toBoard();
+
+  // Коло 2 починає Богдан: «Річки, 100» і хибна відповідь.
+  await bohdan.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(bohdan, 'Річки', 100).click();
+  await bohdan.getByRole('button', { name: /Ні/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await bohdan.getByText('Неправильно').waitFor();
+  await toBoard();
+
+  // Хід Алли: ведучий завершує гру.
+  await alla.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const podium = await stage.locator('.standings li').allTextContents();
+  expect(podium[0]).toMatch(/^\d+Богдан400$/);
+  expect(podium[1]).toMatch(/^\d+Алла100$/);
+
+  // Історія: три зіграні клітинки з балами, решта поля не показана.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Вікторина-поле/ }).click();
+  const played = host.locator('.rows.stacked li');
+  await played.first().waitFor();
+  expect(await played.count()).toBe(3);
+  expect(await played.nth(0).textContent()).toMatch(/Міста · 100.*Алла: \+100(?!\d)/);
+  expect(await played.nth(1).textContent()).toMatch(/Міста · 200.*×2.*Богдан: \+400(?!\d)/);
+  expect(await played.nth(2).textContent()).toMatch(/Річки · 100.*Богдан: 0(?!\d)/);
+
+  expect(problems).toEqual([]);
+}

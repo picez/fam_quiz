@@ -18,6 +18,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   phase: 'lobby',
   paused: false,
   blitz: null,
+  board: null,
   round: null,
   questionIndex: -1,
   total: 3,
@@ -175,5 +176,92 @@ describe('StageScreen: blitz', () => {
 
     show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: null } }));
     expect(screen.getByText('Ніхто не відповів правильно')).toBeTruthy();
+  });
+
+  describe('board round', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const boardOf = (over: Partial<NonNullable<StageView['board']>> = {}): NonNullable<StageView['board']> => ({
+      categories: [
+        {
+          id: 'k1',
+          title: 'Міста',
+          cells: [
+            { id: 'c1', price: 100, played: false, mark: null },
+            { id: 'c2', price: 200, played: true, mark: null },
+          ],
+        },
+        { id: 'k2', title: 'Ріки', cells: [{ id: 'c3', price: 100, played: false, mark: null }] },
+      ],
+      order: [
+        { playerId: 'p1', nickname: 'Олена' },
+        { playerId: 'p2', nickname: 'Анна' },
+      ],
+      turn: { playerId: 'p2', nickname: 'Анна' },
+      cell: null,
+      answerMode: 'phone',
+      rolls: 0,
+      skipAt: null,
+      ...over,
+    });
+
+    it('shows the board with hidden marks, played cells and whose turn it is', () => {
+      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
+      expect(screen.getByText('Міста')).toBeTruthy();
+      expect(screen.getByText('Ріки')).toBeTruthy();
+      expect(screen.getAllByText('100')).toHaveLength(2);
+      // зіграна клітинка порожня
+      expect(screen.queryByText('200')).toBeNull();
+      expect(container.textContent).not.toMatch(/×[23]/);
+      expect(screen.getAllByText('Вибирає Анна').length).toBeGreaterThan(0);
+      expect(container.querySelector('.is-turn')?.textContent).toContain('Анна');
+    });
+
+    it('shows the cell and the chooser above the question', () => {
+      show(
+        view({
+          phase: 'question',
+          round,
+          questionIndex: 0,
+          question,
+          endsAt: Date.now() + 20_000,
+          board: boardOf({ cell: { id: 'c1', category: 'Міста', price: 100, mark: 'x3' } }),
+        }),
+      );
+      expect(screen.getByText('Міста · 100')).toBeTruthy();
+      expect(screen.getByText('Відповідає Анна')).toBeTruthy();
+      expect(screen.getByText('×3')).toBeTruthy();
+    });
+
+    it('renders no multiplier for an unmarked cell', () => {
+      show(
+        view({
+          phase: 'question',
+          round,
+          questionIndex: 0,
+          question,
+          endsAt: Date.now() + 20_000,
+          board: boardOf({ cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' } }),
+        }),
+      );
+      expect(screen.getByText('Відповідає Анна')).toBeTruthy();
+      expect(document.body.textContent).not.toContain('×');
+    });
+
+    it('rolls the dice when the roll counter changes', () => {
+      const intro = (rolls: number) => (
+        <StageScreen
+          view={view({ phase: 'intro', round, board: boardOf({ turn: null, rolls }) })}
+          code="123456"
+          joinUrl="http://quiz.test/play/123456"
+          offsetMs={0}
+          hostOnline
+        />
+      );
+      const { container, rerender } = render(intro(0));
+      expect(container.querySelector('.is-rolling')).toBeNull();
+      expect(screen.getByText('Олена')).toBeTruthy();
+      rerender(intro(1));
+      expect(container.querySelector('.is-rolling')).not.toBeNull();
+    });
   });
 });

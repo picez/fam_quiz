@@ -91,6 +91,7 @@ export function Host() {
         stageUrl={`${origin}/stage/${code}#${tokens.stageToken}`}
         joinUrl={`${origin}/play/${code}`}
         send={game.send}
+        offsetMs={game.offsetMs}
       />
     </>
   );

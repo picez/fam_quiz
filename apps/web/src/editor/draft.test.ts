@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, quizSchema, roundSchema, questionsOf, type Question, type Quiz } from '@quiz/shared';
-import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
+import { DEFAULT_RULES, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
+import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardQuestion, newBoardRound, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -22,7 +22,7 @@ function filled(question: Question): Question {
 
 const quizWith = (...questions: Question[]): Quiz => {
   const quiz = newQuiz();
-  return { ...quiz, title: 'Гра', rounds: [{ ...quiz.rounds[0], questions }] };
+  return { ...quiz, title: 'Гра', rounds: [{ ...newClassicRound(), questions }] };
 };
 
 describe('newQuestion', () => {
@@ -264,8 +264,8 @@ describe('rounds', () => {
       shuffleOptions: false,
       rules: { penalty: 'none', partial: null, streak: null, multiplier: 1 },
     });
-    expect(quiz.rounds[0].questions).toHaveLength(1);
-    expect(quiz.rounds[0].questions[0].type).toBe('single');
+    expect(roundQuestions(quiz.rounds[0])).toHaveLength(1);
+    expect(roundQuestions(quiz.rounds[0])[0].type).toBe('single');
   });
 
   it('never shares the default rules object between rounds', () => {
@@ -282,14 +282,14 @@ describe('rounds', () => {
     const second = newClassicRound();
     const withTwo: Quiz = { ...quiz, rounds: [...quiz.rounds, second] };
     expect(problemsOf(withTwo)).toEqual(['Раунд 2: Запитання 1: впишіть текст запитання.']);
-    expect(firstProblem(withTwo)).toEqual({ round: 1, question: 0 });
+    expect(firstProblem(withTwo)).toEqual({ round: 1, question: 0, cell: null });
   });
 
   it('rejects rules outside the allowed ranges', () => {
     const quiz = quizWith(filled(newQuestion('boolean')));
     const bad: Quiz = {
       ...quiz,
-      rounds: [{ ...newClassicRound(), questions: quiz.rounds[0].questions, rules: { ...DEFAULT_RULES, partial: Number.NaN } }],
+      rounds: [{ ...newClassicRound(), questions: roundQuestions(quiz.rounds[0]), rules: { ...DEFAULT_RULES, partial: Number.NaN } }],
     };
     expect(problemsOf(bad)).toHaveLength(1);
   });
@@ -310,7 +310,7 @@ describe('draft storage', () => {
     expect(quiz?.rounds).toHaveLength(1);
     expect(quiz?.settings).toEqual({ leaderboard: 'end' });
     expect(quiz?.rounds[0]).toMatchObject({ speedBonus: false, shuffleOptions: true });
-    expect(quiz?.rounds[0].questions[0].id).toBe('q1');
+    expect(roundQuestions(quiz!.rounds[0])[0].id).toBe('q1');
   });
 
   it('does not put the shared DEFAULT_RULES into editor state', () => {
@@ -337,8 +337,8 @@ describe('draft storage', () => {
     const quiz = quizWith({ ...(newQuestion('numeric') as Extract<Question, { type: 'numeric' }>), correct: Number.NaN });
     saveDraft('new-format', quiz);
     const back = loadDraft('new-format');
-    expect(back?.rounds[0].questions[0]).toMatchObject({ type: 'numeric' });
-    const question = back?.rounds[0].questions[0];
+    expect(roundQuestions(back!.rounds[0])[0]).toMatchObject({ type: 'numeric' });
+    const question = roundQuestions(back!.rounds[0])[0];
     expect(question?.type === 'numeric' && Number.isNaN(question.correct)).toBe(true);
   });
 
@@ -361,3 +361,98 @@ describe('blitz drafts', () => {
     expect(loadDraft(undefined)).toEqual(quiz);
   });
 });
+
+/** Заповнює порожнє поле так, як це зробив би користувач. */
+const filledBoard = (round: BoardRound = newBoardRound()): BoardRound => ({
+  ...round,
+  categories: round.categories.map((category, ci) => ({
+    ...category,
+    title: `Категорія ${ci + 1}`,
+    cells: category.cells.map((cell) => ({ ...cell, question: filled(cell.question) })),
+  })),
+});
+const boardQuiz = (round: BoardRound): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [round] });
+
+describe('board rounds', () => {
+  it('newBoardRound is a 3 by 3 board that passes the schema once filled', () => {
+    const round = newBoardRound();
+    expect(round.categories).toHaveLength(3);
+    for (const category of round.categories) {
+      expect(category.cells.map((cell) => cell.question.points)).toEqual([100, 200, 300]);
+      expect(category.cells.every((cell) => cell.mark === 'none' && cell.question.type === 'single')).toBe(true);
+    }
+    expect(round).toMatchObject({ answerMode: 'phone', check: 'auto', shuffleOptions: false });
+    expect(round.rules).toEqual(DEFAULT_RULES);
+    expect(roundSchema.safeParse(round).success).toBe(false);
+    expect(roundSchema.safeParse(filledBoard(round)).success).toBe(true);
+  });
+
+  it('newBoardQuestion continues the points and stops at the maximum', () => {
+    const at = (points: number): Question => ({ ...newQuestion('single'), points });
+    expect(newBoardQuestion(at(300)).points).toBe(400);
+    expect(newBoardQuestion(at(2000)).points).toBe(2000);
+    expect(newBoardQuestion(at(1950)).points).toBe(2000);
+    expect(newBoardQuestion(undefined).points).toBe(100);
+  });
+
+  it('a saved board draft comes back unchanged', () => {
+    const round = filledBoard();
+    round.categories[0].cells[1].mark = 'x3';
+    const quiz = boardQuiz(round);
+    saveDraft('board', quiz);
+    expect(loadDraft('board')).toEqual(quiz);
+  });
+
+  it('a board draft with a bad mark or a blank number is repaired on load', () => {
+    const round = filledBoard();
+    const quiz = boardQuiz(round);
+    const raw = JSON.parse(JSON.stringify(quiz));
+    raw.rounds[0].categories[0].cells[0].mark = 'x9';
+    raw.rounds[0].categories[0].cells[0].question.points = null;
+    sessionStorage.setItem('quiz:draft:broken', JSON.stringify(raw));
+    const loaded = loadDraft('broken');
+    const [cell] = (loaded?.rounds[0] as BoardRound).categories[0].cells;
+    expect(cell.mark).toBe('none');
+    expect(cell.question.points).toBeNaN();
+    expect(loaded?.rounds[0]).not.toHaveProperty('questions');
+  });
+
+  it('problemsOf names the category and question of a broken board cell', () => {
+    const round = filledBoard();
+    round.categories[1].cells[2].question = { ...round.categories[1].cells[2].question, text: '' };
+    const problems = problemsOf(boardQuiz(round));
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('Категорія 2');
+    expect(problems[0]).toContain('запитання 3');
+  });
+
+  it('problemsOf reports a category without a name', () => {
+    const round = filledBoard();
+    round.categories[0].title = '  ';
+    expect(problemsOf(boardQuiz(round))).toEqual(['Категорія 1: немає назви.']);
+  });
+
+  it('cleaned trims category titles', () => {
+    const round = filledBoard();
+    round.categories[0].title = '  Історія ';
+    const [round0] = cleaned(boardQuiz(round)).rounds;
+    expect((round0 as BoardRound).categories[0].title).toBe('Історія');
+  });
+
+  it('firstProblem points at the board cell', () => {
+    const round = filledBoard();
+    round.categories[1].cells[2].question = { ...round.categories[1].cells[2].question, text: '' };
+    const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [filled0(), round] };
+    expect(firstProblem(quiz)).toEqual({ round: 1, question: 5, cell: { category: 1, index: 2 } });
+    expect(roundQuestions(round)[5].text).toBe('');
+  });
+
+  it('firstProblem on a classic round has no cell', () => {
+    expect(firstProblem(newQuiz())).toEqual({ round: 0, question: 0, cell: null });
+  });
+});
+
+function filled0() {
+  const round = newClassicRound();
+  return { ...round, questions: round.questions.map(filled) };
+}

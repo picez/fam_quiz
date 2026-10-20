@@ -5,8 +5,11 @@ import {
   LIMITS,
   questionSchema,
   quizSchema,
+  boardRoundIssues,
   roundRulesSchema,
   type BlitzRound,
+  type BoardCategory,
+  type BoardRound,
   type ClassicRound,
   type Question,
   type Quiz,
@@ -133,6 +136,35 @@ export function newBlitzRound(): BlitzRound {
   };
 }
 
+/** Нова клітинка поля: порожнє запитання, ціна на сотню вища за попередню (не більше максимуму). */
+export function newBoardQuestion(after: Question | undefined): Question {
+  const points = after === undefined ? 100 : Math.min(LIMITS.maxPoints, after.points + 100);
+  return { ...newQuestion('single'), points };
+}
+
+/** Нова категорія поля: порожня назва й три порожні запитання за 100, 200, 300. */
+export function newBoardCategory(): BoardCategory {
+  return {
+    id: newId(),
+    title: '',
+    cells: [100, 200, 300].map((points) => ({ mark: 'none', question: { ...newQuestion('single'), points } })),
+  };
+}
+
+/** Нове поле: три порожні категорії, відповідь на телефоні з автоматичною перевіркою. */
+export function newBoardRound(): BoardRound {
+  return {
+    id: newId(),
+    type: 'board',
+    title: '',
+    shuffleOptions: false,
+    categories: [newBoardCategory(), newBoardCategory(), newBoardCategory()],
+    answerMode: 'phone',
+    check: 'auto',
+    rules: defaultRules(),
+  };
+}
+
 export function newQuiz(): Quiz {
   return { title: '', description: '', settings: { ...DEFAULT_SETTINGS }, rounds: [newClassicRound()] };
 }
@@ -175,7 +207,19 @@ export function cleaned(quiz: Quiz): Quiz {
     ...quiz,
     title: quiz.title.trim(),
     description: quiz.description.trim(),
-    rounds: quiz.rounds.map((round) => ({ ...round, title: round.title.trim(), questions: round.questions.map(cleanQuestion) })),
+    rounds: quiz.rounds.map((round) => {
+      const title = round.title.trim();
+      if (round.type !== 'board') return { ...round, title, questions: round.questions.map(cleanQuestion) };
+      return {
+        ...round,
+        title,
+        categories: round.categories.map((category) => ({
+          ...category,
+          title: category.title.trim(),
+          cells: category.cells.map((cell) => ({ ...cell, question: cleanQuestion(cell.question) })),
+        })),
+      };
+    }),
   };
 }
 
@@ -214,14 +258,41 @@ function problemKey(question: Question): TextKey | null {
   return questionSchema.safeParse(question).success ? null : 'problemGeneric';
 }
 
+export interface ProblemPlace {
+  round: number;
+  /** Номер запитання в раунді (для поля — у порядку клітинок). */
+  question: number;
+  /** Клітинка поля; null у класичному раунді та бліці. */
+  cell: { category: number; index: number } | null;
+}
+
 /** Де (раунд і запитання, з нуля) перша проблема, або null. */
-export function firstProblem(quiz: Quiz): { round: number; question: number } | null {
+export function firstProblem(quiz: Quiz): ProblemPlace | null {
   const rounds = cleaned(quiz).rounds;
   for (let round = 0; round < rounds.length; round += 1) {
-    const question = rounds[round].questions.findIndex((q) => problemKey(q) !== null);
-    if (question !== -1) return { round, question };
+    const current = rounds[round];
+    if (current.type === 'board') {
+      let question = 0;
+      for (let category = 0; category < current.categories.length; category += 1) {
+        const { title, cells } = current.categories[category];
+        if (title === '') return { round, question, cell: { category, index: 0 } };
+        for (let index = 0; index < cells.length; index += 1) {
+          if (problemKey(cells[index].question) !== null) return { round, question: question + index, cell: { category, index } };
+        }
+        question += cells.length;
+      }
+      continue;
+    }
+    const question = current.questions.findIndex((q) => problemKey(q) !== null);
+    if (question !== -1) return { round, question, cell: null };
   }
   return null;
+}
+
+/** Повідомлення про проблему клітинки: те саме, що для запитання, але з категорією. */
+function cellProblem(category: number, index: number, key: TextKey): string {
+  const text = t(key, { index });
+  return t('problemCell', { category, problem: text.charAt(0).toLowerCase() + text.slice(1) });
 }
 
 /** Що заважає зберегти вікторину; порожній список означає, що все гаразд. */
@@ -234,6 +305,19 @@ export function problemsOf(quiz: Quiz): string[] {
     // З кількома раундами кожне повідомлення каже, у якому раунді шукати.
     const where = (text: string) => (several ? `${t('problemRound', { round: roundIndex + 1 })} ${text}` : text);
     if (!roundRulesSchema.safeParse(round.rules).success) problems.push(where(t('problemRules')));
+    if (round.type === 'board') {
+      round.categories.forEach((category, categoryIndex) => {
+        if (category.title === '') problems.push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })));
+        category.cells.forEach((cell, index) => {
+          const key = problemKey(cell.question);
+          if (key !== null) problems.push(where(cellProblem(categoryIndex + 1, index + 1, key)));
+        });
+      });
+      for (const issue of boardRoundIssues(round)) {
+        problems.push(where(t(issue === 'too_many_questions' ? 'problemBoardTooMany' : 'problemGeneric', { index: 1 })));
+      }
+      return;
+    }
     round.questions.forEach((question, index) => {
       const key = problemKey(question);
       if (key !== null) problems.push(where(t(key, { index: index + 1 })));

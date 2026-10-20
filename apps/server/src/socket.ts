@@ -3,7 +3,9 @@ import {
   answerSchema,
   judgeSchema,
   kickSchema,
+  orderSchema,
   overrideSchema,
+  pickSchema,
   socketAuthSchema,
   type AckResult,
   type ClientToServerEvents,
@@ -22,7 +24,7 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<stri
 
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end'] as const;
+const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'roll', 'skip'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
@@ -93,6 +95,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       return manager.buzz(room, identity.playerId);
     });
 
+    on('player:pick', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = pickSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.pick(room, identity.playerId, payload.data.cellId) : INVALID;
+    });
+
     for (const type of SIMPLE_HOST_ACTIONS) {
       on(`host:${type}`, () => (isHost ? manager.host(room, { type }) : FORBIDDEN));
     }
@@ -101,6 +109,18 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (!isHost) return FORBIDDEN;
       const payload = overrideSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'override', ...payload.data }) : INVALID;
+    });
+
+    on('host:pick', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = pickSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'pick', ...payload.data }) : INVALID;
+    });
+
+    on('host:order', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = orderSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'order', ...payload.data }) : INVALID;
     });
 
     on('host:kick', (args) => {

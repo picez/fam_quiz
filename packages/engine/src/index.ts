@@ -5,3 +5,5 @@ export * from './ranking';
 export * from './game';
 export * from './blitz';
 export * from './views';
+export * from './board';
+export * from './board-turns';

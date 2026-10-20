@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, boardRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
   FINISHED_TTL_MS,
@@ -436,5 +436,69 @@ describe('accounts behind a room', () => {
 
     manager.host(room, { type: 'kick', playerId: signedIn.playerId });
     expect(room.playerUsers.size).toBe(0);
+  });
+});
+
+describe('board rounds', () => {
+  const cell = (id: string, points: number) => ({ ...withId(single, id), points });
+  const field = () =>
+    makeRoundsQuiz([
+      boardRound('g1', [
+        { title: 'Міста', cells: [cell('c11', 100), cell('c12', 200)] },
+        { title: 'Річки', cells: [cell('c21', 100), cell('c22', 200)] },
+      ]),
+    ]);
+
+  /** Кімната з ведучим і двома гравцями, що чекає на заставці раунду поля. */
+  function boardRoom() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(field());
+    manager.connect(room, HOST);
+    const anna = enter(manager, room, 'Анна');
+    const bohdan = enter(manager, room, 'Богдан');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    return { scheduler, manager, room, anna, bohdan };
+  }
+
+  it('an absent chooser is skipped by the room timer after thirty seconds', () => {
+    const { scheduler, manager, room, anna, bohdan } = boardRoom();
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('board');
+    manager.disconnect(room, anna.identity);
+    expect(scheduler.pending()).toEqual([30_000]);
+    scheduler.advance(30_000);
+    expect(room.state.phase).toBe('board');
+    expect(manager.pick(room, anna.playerId, 'c11')).toEqual({ ok: false, error: 'not_your_turn' });
+    expect(manager.pick(room, bohdan.playerId, 'c11')).toEqual({ ok: true });
+  });
+
+  it('a paused room keeps the absent chooser turn', () => {
+    const { scheduler, manager, room, anna, bohdan } = boardRoom();
+    manager.host(room, { type: 'next' });
+    manager.disconnect(room, anna.identity);
+    expect(manager.host(room, { type: 'pause' })).toEqual({ ok: true });
+    expect(scheduler.pending()).toEqual([]);
+    scheduler.advance(10 * 60_000);
+    expect(manager.host(room, { type: 'resume' })).toEqual({ ok: true });
+    expect(scheduler.pending()).toEqual([30_000]);
+    scheduler.advance(30_000);
+    expect(manager.pick(room, bohdan.playerId, 'c11')).toEqual({ ok: true });
+  });
+
+  it('board actions go through the manager', () => {
+    const { manager, room, anna, bohdan } = boardRoom();
+    expect(manager.host(room, { type: 'roll' })).toEqual({ ok: true });
+    expect(room.state.board?.rolls).toBe(1);
+    expect(manager.host(room, { type: 'order', playerIds: [bohdan.playerId, anna.playerId] })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.pick(room, anna.playerId, 'c11')).toEqual({ ok: false, error: 'not_your_turn' });
+    expect(manager.pick(room, bohdan.playerId, 'c11')).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
+    while (room.state.phase !== 'board') expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'skip' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'pick', cellId: 'c21' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
   });
 });

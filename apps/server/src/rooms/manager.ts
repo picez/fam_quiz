@@ -12,10 +12,14 @@ import {
   nextDeadline,
   override,
   pause,
+  pickCell,
   playerView,
   removePlayer,
   resume,
+  rollOrder,
   setConnected,
+  setOrder,
+  skipTurn,
   stageView,
   start,
   submitAnswer,
@@ -63,10 +67,12 @@ export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'roll' | 'skip' }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
-  | { type: 'judge'; playerId: string; correct: boolean };
+  | { type: 'judge'; playerId: string; correct: boolean }
+  | { type: 'pick'; cellId: string }
+  | { type: 'order'; playerIds: string[] };
 
 export type JoinResult =
   | { ok: true; token: string; playerId: string }
@@ -144,7 +150,7 @@ export class RoomManager {
     const added = addPlayer(room.state, { id: playerId, nickname });
     if (!added.ok) return added;
     // Гравець стає підключеним, коли відкриє сокет.
-    const offline = setConnected(added.state, playerId, false);
+    const offline = setConnected(added.state, playerId, false, this.now());
     if (!offline.ok) return offline;
     const token = newToken();
     room.playerTokens.set(token, playerId);
@@ -175,7 +181,7 @@ export class RoomManager {
       if (count === 1) this.emit(room, { type: 'changed' });
     }
     if (identity.playerId !== null && count === 1) {
-      this.apply(room, setConnected(room.state, identity.playerId, true));
+      this.apply(room, setConnected(room.state, identity.playerId, true, this.now()));
     }
   }
 
@@ -189,7 +195,7 @@ export class RoomManager {
     }
     room.connections.delete(key);
     if (identity.playerId !== null) {
-      this.apply(room, setConnected(room.state, identity.playerId, false));
+      this.apply(room, setConnected(room.state, identity.playerId, false, this.now()));
       return;
     }
     if (identity.role === 'host') {
@@ -214,6 +220,11 @@ export class RoomManager {
     return this.apply(room, buzz(room.state, playerId, this.now()));
   }
 
+  pick(room: Room, playerId: string, cellId: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, pickCell(room.state, playerId, cellId, this.now(), this.rng));
+  }
+
   host(room: Room, action: HostAction): AckResult {
     if (!this.alive(room)) return GONE;
     const state = room.state;
@@ -233,7 +244,15 @@ export class RoomManager {
       case 'end':
         return this.apply(room, end(state));
       case 'override':
-        return this.apply(room, override(state, action.playerId, action.grade));
+        return this.apply(room, override(state, action.playerId, action.grade, this.now()));
+      case 'roll':
+        return this.apply(room, rollOrder(state, this.rng));
+      case 'skip':
+        return this.apply(room, skipTurn(state, this.now()));
+      case 'pick':
+        return this.apply(room, pickCell(state, null, action.cellId, this.now(), this.rng));
+      case 'order':
+        return this.apply(room, setOrder(state, action.playerIds));
       case 'kick':
         return this.kick(room, action.playerId);
       case 'judge':

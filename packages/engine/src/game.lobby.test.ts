@@ -60,12 +60,12 @@ describe('lobby', () => {
   it('reports an unknown player on remove and on connection change', () => {
     const state = lobbyWith(quiz, 'Олена');
     expect(removePlayer(state, 'nobody')).toEqual({ ok: false, error: 'not_found' });
-    expect(setConnected(state, 'nobody', false)).toEqual({ ok: false, error: 'not_found' });
+    expect(setConnected(state, 'nobody', false, 0)).toEqual({ ok: false, error: 'not_found' });
   });
 
   it('marks a player as disconnected and connected again', () => {
-    const offline = must(setConnected(lobbyWith(quiz, 'Олена'), 'p1', false));
+    const offline = must(setConnected(lobbyWith(quiz, 'Олена'), 'p1', false, 0));
     expect(offline.players[0].connected).toBe(false);
-    expect(must(setConnected(offline, 'p1', true)).players[0].connected).toBe(true);
+    expect(must(setConnected(offline, 'p1', true, 0)).players[0].connected).toBe(true);
   });
 });
