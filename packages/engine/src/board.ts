@@ -37,7 +37,7 @@ export function pickCell(state: GameState, by: string | null, cellId: string, no
   if (found === undefined) return fail('not_found');
   if (cellPlayed(state, cellId)) return fail('cell_closed');
   const { question } = found.cell;
-  const turned = { ...state, board: advanceTurn(state.board) };
+  const turned = { ...state, board: { ...advanceTurn(state.board), awaySince: null } };
   return ok(
     openQuestion(turned, question, now, rng, {
       cellId,

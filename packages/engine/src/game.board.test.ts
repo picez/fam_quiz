@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pickCell, rollOrder, setOrder, skipTurn } from './board';
-import { end, endRound, lock, next, start, type GameState } from './game';
+import { end, endRound, lock, next, pause, setConnected, start, type GameState } from './game';
 import { boardRound, classicRound, makeRoundsQuiz, single, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
@@ -136,5 +136,25 @@ describe('board turns', () => {
     expect(classic.phase).toBe('intro');
     expect(classic.board).toBeNull();
     expect(must(end(choosing)).phase).toBe('finished');
+  });
+
+  it('awaySince is cleared when the turn is picked or the round ends', () => {
+    const quiz = makeRoundsQuiz([field(), classicRound('r2', [single])]);
+    const lobby = lobbyWith(quiz, 'Анна', 'Богдан', 'Віра');
+    const intro = must(start(must(setConnected(lobby, 'p1', false)), 0));
+    const away = must(next(intro, 5000));
+    expect(away.board?.awaySince).toBe(5000);
+    expect(must(pickCell(away, null, 'c11', 6000, Math.random)).board?.awaySince).toBeNull();
+    expect(must(endRound(away, 6000)).board?.awaySince).toBeNull();
+    expect(must(end(away)).board?.awaySince).toBeNull();
+  });
+
+  it('pick and skip are refused on pause, and the order needs unique ids', () => {
+    const paused = must(pause(onBoard(), 0));
+    expect(pickCell(paused, null, 'c11', 0, Math.random)).toEqual({ ok: false, error: 'paused' });
+    expect(skipTurn(paused, 0)).toEqual({ ok: false, error: 'paused' });
+    const quiz = makeRoundsQuiz([field()]);
+    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0));
+    expect(setOrder(intro, ['p1', 'p1', 'p2'])).toEqual({ ok: false, error: 'not_found' });
   });
 });

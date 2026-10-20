@@ -269,10 +269,15 @@ export function openQuestion(state: GameState, question: Question, now: number, 
   };
 }
 
+/** Відлік відсутності має сенс лише на етапі board. */
+function clearAway(board: BoardState | null): BoardState | null {
+  return board === null ? null : { ...board, awaySince: null };
+}
+
 /** Після останнього раунду гра закінчується, інакше показуються підсумки раунду. */
 function finishRound(state: GameState): GameState {
   const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
-  return { ...state, phase: isLastRound ? 'finished' : 'round_end' };
+  return { ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) };
 }
 
 /** Відкриває наступне запитання раунду, а коли їх не лишилося, завершує раунд. */
@@ -567,6 +572,6 @@ export function override(state: GameState, playerId: string, grade: Grade): Resu
 export function end(state: GameState): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   return ok(
-    withTotals({ ...dropQueue(state), phase: 'finished', paused: false, startedAt: null, endsAt: null, remainingMs: null }),
+    withTotals({ ...dropQueue(state), phase: 'finished', board: clearAway(state.board), paused: false, startedAt: null, endsAt: null, remainingMs: null }),
   );
 }
