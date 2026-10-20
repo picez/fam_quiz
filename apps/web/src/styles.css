@@ -1367,12 +1367,15 @@ a.banner {
 
 .board-column {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
   width: 9.5rem;
   flex: none;
 }
 
-.board-title {
+.board-edit-title {
+  width: 100%;
+  min-width: 0;
   min-height: 2.75rem;
   padding: 0 0.625rem;
   border: 1px solid var(--line);
@@ -1383,11 +1386,13 @@ a.banner {
   font-weight: 600;
 }
 
-.board-cell {
+.board-edit-cell {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.375rem;
+  width: 100%;
+  min-width: 0;
   min-height: 2.75rem;
   padding: 0 0.75rem;
   border: 1px solid var(--line);
@@ -1400,7 +1405,7 @@ a.banner {
   cursor: pointer;
 }
 
-.board-cell.is-on {
+.board-edit-cell.is-on {
   border-color: var(--amber);
   background: rgb(255 179 0 / 0.1);
   color: var(--amber);
@@ -1423,86 +1428,150 @@ a.banner {
 }
 
 /* Ігрове поле на пульті, телефоні й сцені: стовпці-категорії однакової ширини, без горизонтальної прокрутки. */
-.board {
+.gb {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.375rem;
   min-width: 0;
   width: 100%;
   align-items: start;
 }
 
-.board-col {
+.gb-col {
   display: grid;
-  gap: 0.25rem;
+  grid-template-columns: minmax(0, 1fr);
+  /* Рядок назв однакової висоти в усіх стовпцях, тож клітинки стоять рівними рядами. */
+  grid-template-rows: 2.75rem;
+  grid-auto-rows: 2.75rem;
+  gap: 0.375rem;
   min-width: 0;
 }
 
-.board-title {
+.gb-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
   margin: 0;
-  padding: 0.25rem;
-  font-family: var(--display);
-  font-size: 0.6875rem;
-  line-height: 1.2;
-  text-align: center;
+  padding: 0 0.125rem 0.25rem;
+  overflow: hidden;
+  border-bottom: 2px solid var(--amber);
   color: var(--amber);
+  font-family: var(--display);
+  font-size: 0.625rem;
+  line-height: 1.1;
+  text-align: center;
+  /* Вузький стовпець на телефоні: спершу перенос за складами, розрив слова — лише в крайньому разі. */
+  hyphens: auto;
   overflow-wrap: anywhere;
 }
 
-.board-cell {
+.gb-cell {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 2.75rem;
-  padding: 0.25rem 0;
+  min-width: 0;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: 0.375rem;
   background: var(--panel);
   color: var(--paper);
   font-family: var(--display);
   font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.board-cell.is-played {
+.gb-cell.is-played {
   background: none;
   border-style: dashed;
   opacity: 0.35;
 }
 
-.board-cell.is-open {
+.gb-cell.is-open {
   cursor: pointer;
 }
 
-.board-cell.is-open:focus-visible {
+.gb-cell.is-open:not(:disabled):hover {
+  border-color: var(--amber);
+}
+
+.gb-cell.is-open:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.gb-cell.is-open:focus-visible {
   outline: 3px solid var(--amber);
 }
 
-.board-cell .mark,
-.mark {
-  margin-left: 0.375rem;
+/* Позначка в куті клітинки: висота клітинки від неї не змінюється. */
+.gb-mark {
+  position: absolute;
+  top: 0.125rem;
+  right: 0.25rem;
+  color: var(--amber);
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.stage .gb {
+  gap: 0.625rem;
+}
+
+.stage .gb-col {
+  grid-template-rows: 3.5rem;
+  grid-auto-rows: 4.5rem;
+  gap: 0.625rem;
+}
+
+.stage .gb-title {
+  font-size: 1.125rem;
+}
+
+.stage .gb-cell {
+  border-radius: 0.625rem;
+  font-size: 1.75rem;
+}
+
+.stage .gb-mark {
+  top: 0.375rem;
+  right: 0.5rem;
+  font-size: 1rem;
+}
+
+.cell-mark {
+  margin-left: 0.5rem;
   color: var(--amber);
   font-family: var(--display);
   font-weight: 600;
 }
 
-.board-cell .mark {
-  margin-left: 0;
-  font-size: 0.6875rem;
+.cell-tag {
+  color: var(--amber);
+  font-family: var(--display);
 }
 
-.stage .board-title {
-  font-size: 1rem;
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }
 
-.stage .board-cell {
-  min-height: 4rem;
-  font-size: 1.5rem;
+@media (min-width: 600px) {
+  .gb-title {
+    font-size: 0.8125rem;
+  }
+
+  .gb-cell {
+    font-size: 1rem;
+  }
 }
 
 .cell-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.5rem 1.5rem;
   align-items: baseline;
   justify-content: center;
 }

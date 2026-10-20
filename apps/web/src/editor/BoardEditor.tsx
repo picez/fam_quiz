@@ -79,7 +79,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           {categories.map((column, columnIndex) => (
             <div className="board-column" key={column.id}>
               <input
-                className="board-title"
+                className="board-edit-title"
                 aria-label={t('boardCategoryTitle', { index: columnIndex + 1 })}
                 placeholder={t('boardCategoryPlaceholder', { index: columnIndex + 1 })}
                 value={column.title}
@@ -99,7 +99,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
                   <button
                     key={cell.question.id}
                     type="button"
-                    className={on ? 'board-cell is-on' : 'board-cell'}
+                    className={on ? 'board-edit-cell is-on' : 'board-edit-cell'}
                     aria-current={on}
                     aria-label={t('boardCellLabel', {
                       category: columnIndex + 1,

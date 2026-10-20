@@ -218,7 +218,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           {board.turn !== null && <p className="lead">{t('boardChooser', { name: board.turn.nickname })}</p>}
           <SkipNote board={board} view={view} offsetMs={offsetMs} />
           <Board board={board} onPick={(cellId) => void act('host:pick', { cellId })} />
-          <div className="actions">
+          <div className="panel-actions">
             <button type="button" className="btn" onClick={() => void act('host:skip')}>
               {t('skipTurn')}
             </button>
@@ -231,7 +231,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
-              {board.cell.mark !== 'none' && <span className="mark">{markText(board.cell.mark)}</span>}
+              {board.cell.mark !== 'none' && <span className="cell-mark">{markText(board.cell.mark)}</span>}
             </p>
           )}
           {board !== null && board.turn !== null && <p className="lead">{t('boardAnswering', { name: board.turn.nickname })}</p>}

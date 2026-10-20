@@ -80,8 +80,8 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
       </header>
       {view.board !== null && view.board.cell !== null && (
         <p className="lead cell-head">
-          <span>{t('cellTitle', { category: view.board.cell.category, price: view.board.cell.price })}</span>
-          {view.board.cell.mark !== 'none' && <span className="mark">{markText(view.board.cell.mark)}</span>}
+          <span className="cell-tag">{t('cellTitle', { category: view.board.cell.category, price: view.board.cell.price })}</span>
+          {view.board.cell.mark !== 'none' && <span className="cell-mark">{markText(view.board.cell.mark)}</span>}
           {view.board.turn !== null && <span>{t('boardAnswering', { name: view.board.turn.nickname })}</span>}
         </p>
       )}

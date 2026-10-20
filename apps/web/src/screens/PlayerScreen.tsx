@@ -100,7 +100,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
-              {board.cell.mark !== 'none' && <span className="mark">{markText(board.cell.mark)}</span>}
+              {board.cell.mark !== 'none' && <span className="cell-mark">{markText(board.cell.mark)}</span>}
             </p>
           )}
           <h1 className={questionClass(question.text)}>{question.text}</h1>

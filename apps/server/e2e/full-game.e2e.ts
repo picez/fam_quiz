@@ -40,6 +40,13 @@ async function snapshot() {
   }
 }
 
+/** Знімок екрана для перевірки дизайну: лише з E2E_SHOTS=1, у звичайному прогоні нічого не робить. */
+async function shot(page: Page, name: string) {
+  if (process.env.E2E_SHOTS !== '1') return;
+  mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
+  await page.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`), fullPage: true });
+}
+
 function freePort(): Promise<number> {
   return new Promise((done, fail) => {
     const probe = createServer();
@@ -565,6 +572,16 @@ async function boardGame() {
   await host.getByRole('button', { name: /^Категорія 1, клітинка 2: 200/ }).click();
   await host.locator('label.field', { hasText: 'Позначка' }).locator('select').selectOption('x2');
   await host.getByRole('button', { name: 'Категорія 1, клітинка 2: 200 ×2', ...exact }).waitFor();
+  await shot(host, 'editor-desktop');
+  await host.setViewportSize({ width: 390, height: 844 });
+  await shot(host, 'editor-phone');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  if (process.env.E2E_SHOTS === '1') {
+    // Повне поле на 8 категорій для перевірки дизайну, потім повертаємо 3.
+    for (let i = 0; i < 5; i++) await click(host, '+ Категорія');
+    await shot(host, 'editor-8-desktop');
+    for (let i = 0; i < 5; i++) await host.getByRole('button', { name: 'Прибрати категорію' }).last().click();
+  }
 
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Вікторина-поле' }).waitFor();
@@ -603,7 +620,16 @@ async function boardGame() {
 
   // Хід 1: Алла вибирає «Міста, 100» і відповідає правильно.
   await alla.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await shot(host, 'board-host');
+  await shot(stage, 'board-stage');
+  await shot(alla, 'board-phone-chooser');
+  await shot(bohdan, 'board-phone-other');
   await cell(alla, 'Міста', 100).click();
+  await alla.getByRole('button', { name: /Так/ }).waitFor();
+  await shot(host, 'question-host');
+  await shot(stage, 'question-stage');
+  await shot(alla, 'question-phone-chooser');
+  await shot(bohdan, 'question-phone-other');
   await alla.getByRole('button', { name: /Так/ }).click();
   await click(host, 'Показати відповідь');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
@@ -621,6 +647,9 @@ async function boardGame() {
 
   // Коло 2 починає Богдан: «Річки, 100» і хибна відповідь.
   await bohdan.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await shot(host, 'board2-host');
+  await shot(stage, 'board2-stage');
+  await shot(bohdan, 'board2-phone-chooser');
   await cell(bohdan, 'Річки', 100).click();
   await bohdan.getByRole('button', { name: /Ні/ }).click();
   await click(host, 'Показати відповідь');
@@ -641,6 +670,7 @@ async function boardGame() {
   await host.getByRole('link', { name: /Вікторина-поле/ }).click();
   const played = host.locator('.rows.stacked li');
   await played.first().waitFor();
+  await shot(host, 'history');
   expect(await played.count()).toBe(3);
   expect(await played.nth(0).textContent()).toMatch(/Міста · 100.*Алла: \+100(?!\d)/);
   expect(await played.nth(1).textContent()).toMatch(/Міста · 200.*×2.*Богдан: \+400(?!\d)/);
