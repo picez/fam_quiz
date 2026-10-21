@@ -90,6 +90,11 @@ const click = (page: Page, name: string) => page.getByRole('button', { name, ...
 const field = (page: Page, label: string) => page.getByLabel(label, exact);
 const questionText = (page: Page) => page.locator('.question-field textarea');
 
+/** Залишок часу запитання в секундах із таймера на екрані. */
+async function seconds(page: Page): Promise<number> {
+  return Number(await page.getByRole('timer').first().getAttribute('aria-label'));
+}
+
 /** Розставляє елементи впорядкування на телефоні гравця в потрібному порядку. */
 async function arrange(page: Page, wanted: string[]) {
   for (const [target, text] of wanted.entries()) {
@@ -422,7 +427,7 @@ async function twoRounds() {
   expect(problems).toEqual([]);
 }
 
-it('a blitz round: the queue decides, a wrong attempt costs points, the podium shows it', async () => {
+it('a blitz round: pending answers with re-pick, the queue decides, −15 s, the podium shows it', async () => {
   try {
     await blitzGame();
   } catch (error) {
@@ -487,17 +492,40 @@ async function blitzGame() {
   // Запитання 1: Анна натискає першою й помиляється, Борис відповідає правильно.
   await click(anna, 'Відповісти');
   await anna.getByText('Ви 1-й у черзі').waitFor();
+  await anna.getByRole('button', { name: /Львів/ }).click();
+  // Помаранчевий стан: відповідь Анни бачить уся кімната, ведучий вирішує.
+  await stage.getByText('Відповідає Анна').waitFor();
+  await stage.locator('.choice.is-pending', { hasText: 'Львів' }).waitFor();
+  await host.getByRole('button', { name: 'Прийняти', ...exact }).waitFor();
+  await host.getByRole('button', { name: 'Перевибрати', ...exact }).waitFor();
+  await shot(host, 'blitz-pending-host');
+  await shot(stage, 'blitz-pending-stage');
   await click(boris, 'Відповісти');
   await boris.getByText('Ви 2-й у черзі').waitFor();
+  await boris.getByText('Відповідає Анна').waitFor();
+  await shot(boris, 'blitz-pending-phone-other');
+  // Перевибір: Анна знову вибирає, Борис відповідає зі своєї черги.
+  await click(host, 'Перевибрати');
   await anna.getByRole('button', { name: /Львів/ }).click();
+  await stage.locator('.choice.is-pending', { hasText: 'Львів' }).waitFor();
+  await click(host, 'Прийняти');
+  // Помилка Анни світиться червоним, правильного варіанта ще немає. Борис ще не відповів, тож наступним помаранчевим буде лише його вибір.
+  await stage.locator('.choice.is-wrong', { hasText: 'Львів' }).waitFor();
+  expect(await stage.locator('.choice.is-correct').count()).toBe(0);
+  await shot(stage, 'blitz-wrong-stage');
   await boris.getByRole('button', { name: /Київ/ }).click();
+  await stage.locator('.choice.is-pending', { hasText: 'Київ' }).waitFor();
+  await click(host, 'Прийняти');
   await click(host, 'Показати відповідь');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
   await stage.getByText('Першим правильно відповів: Борис').waitFor();
   await click(host, 'Далі');
   await click(host, 'Наступне запитання');
 
-  // Запитання 2: ніхто не натискає, ведучий закриває запитання.
+  // Запитання 2: «−15 с» скорочує таймер, далі ніхто не натискає, ведучий закриває запитання.
+  await click(host, '−15 с');
+  await expect.poll(() => seconds(stage)).toBeLessThanOrEqual(15);
+  await shot(host, 'blitz-time-host');
   await click(host, 'Закрити запитання');
   await click(host, 'Показати відповідь');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
@@ -523,7 +551,7 @@ async function blitzGame() {
   expect(problems).toEqual([]);
 }
 
-it('a board round: order, a doubled cell and an early end', async () => {
+it('a board round: order, a doubled cell, pending answers with re-pick, ±15 s and an early end', async () => {
   try {
     await boardGame();
   } catch (error) {
@@ -555,6 +583,10 @@ async function boardGame() {
   await host.locator('label.field', { hasText: 'Спосіб відповіді' }).locator('select').selectOption('phone');
   await host.locator('label.field', { hasText: 'Перевірка' }).locator('select').selectOption('auto');
 
+  // Однаковий час для всіх запитань раунду.
+  await field(host, 'Секунд').fill('40');
+  await click(host, 'Застосувати');
+
   // Поле 3×3: категорії «Міста», «Річки», «Гори»; ціни 100, 200, 300 редактор ставить сам.
   const categories = ['Міста', 'Річки', 'Гори'];
   for (const [column, title] of categories.entries()) {
@@ -568,6 +600,8 @@ async function boardGame() {
       await field(host, 'Правильний: варіант 1').click();
     }
   }
+  await host.getByRole('button', { name: /^Категорія 1, клітинка 1: 100/ }).click();
+  expect(await field(host, 'Час, с').inputValue()).toBe('40');
   // Клітинка «Міста, 200» подвоює бали.
   await host.getByRole('button', { name: /^Категорія 1, клітинка 2: 200/ }).click();
   await host.locator('label.field', { hasText: 'Позначка' }).locator('select').selectOption('x2');
@@ -630,17 +664,40 @@ async function boardGame() {
   await shot(stage, 'question-stage');
   await shot(alla, 'question-phone-chooser');
   await shot(bohdan, 'question-phone-other');
+  expect(await seconds(stage)).toBeLessThanOrEqual(40);
+  await click(host, '+15 с');
+  await expect.poll(() => seconds(stage)).toBeGreaterThan(40);
+  await expect.poll(() => seconds(bohdan)).toBeGreaterThan(40);
+  await shot(host, 'board-time-host');
+  // Алла відповідає «Ні»: помаранчева відповідь, таймер стоїть.
+  await alla.getByRole('button', { name: /Ні/ }).click();
+  await stage.locator('.choice.is-pending', { hasText: 'Ні' }).waitFor();
+  expect(await stage.locator('.choice.is-correct').count()).toBe(0);
+  await bohdan.getByText('Відповідає Алла').waitFor();
+  await bohdan.locator('.choice.is-pending').waitFor();
+  await host.getByRole('button', { name: 'Прийняти', ...exact }).waitFor();
+  await shot(host, 'board-pending-host');
+  await shot(stage, 'board-pending-stage');
+  await shot(bohdan, 'board-pending-phone-other');
+  const frozen = await seconds(stage);
+  await stage.waitForTimeout(1500);
+  expect(await seconds(stage)).toBe(frozen);
+  // Перевибір: Алла бачить варіанти знову й відповідає правильно.
+  await click(host, 'Перевибрати');
+  await alla.getByRole('button', { name: /Так/ }).waitFor();
   await alla.getByRole('button', { name: /Так/ }).click();
-  await click(host, 'Показати відповідь');
-  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await stage.locator('.choice.is-pending', { hasText: 'Так' }).waitFor();
+  await click(host, 'Прийняти');
+  await stage.locator('.choice.is-correct', { hasText: 'Так' }).waitFor();
   await alla.getByText('Правильно!').waitFor();
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
   await toBoard();
 
   // Хід 2: Богдан вибирає подвоєну клітинку «Міста, 200» і відповідає правильно.
   await bohdan.getByText('Ваш хід: виберіть клітинку').waitFor();
   await cell(bohdan, 'Міста', 200).click();
   await bohdan.getByRole('button', { name: /Так/ }).click();
-  await click(host, 'Показати відповідь');
+  await click(host, 'Прийняти');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
   await bohdan.getByText('Правильно!').waitFor();
   await toBoard();
@@ -652,9 +709,12 @@ async function boardGame() {
   await shot(bohdan, 'board2-phone-chooser');
   await cell(bohdan, 'Річки', 100).click();
   await bohdan.getByRole('button', { name: /Ні/ }).click();
-  await click(host, 'Показати відповідь');
+  await click(host, 'Прийняти');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
   await bohdan.getByText('Неправильно').waitFor();
+  await stage.locator('.choice.is-wrong', { hasText: 'Ні' }).waitFor();
+  await stage.locator('.choice.is-correct', { hasText: 'Так' }).waitFor();
+  await shot(stage, 'board-wrong-stage');
   await toBoard();
 
   // Хід Алли: ведучий завершує гру.
