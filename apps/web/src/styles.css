@@ -1735,6 +1735,7 @@ a.banner {
   font-weight: 600;
   text-align: left;
   overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 button.match-item {
@@ -1790,6 +1791,7 @@ button.match-item {
   border-radius: 0.75rem;
   font-weight: 600;
   overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .match-row.is-pending {

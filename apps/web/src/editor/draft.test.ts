@@ -527,6 +527,6 @@ describe('match questions', () => {
 
   it('a match pair with an empty side is a problem', () => {
     const question = withPairs([['а', 'б'], ['в', ''], ['д', 'е']]);
-    expect(problemsOf(quizWith(question))).toContain(t('problemEmptyOption', { index: 1 }));
+    expect(problemsOf(quizWith(question))).toContain(t('problemEmptyPair', { index: 1 }));
   });
 });

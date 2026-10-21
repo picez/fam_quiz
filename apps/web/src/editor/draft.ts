@@ -281,7 +281,7 @@ function problemKey(question: Question): TextKey | null {
       if (question.items.some((item) => item.text === '')) return 'problemEmptyOption';
       break;
     case 'match':
-      if (question.pairs.some((pair) => pair.left.text === '' || pair.right.text === '')) return 'problemEmptyOption';
+      if (question.pairs.some((pair) => pair.left.text === '' || pair.right.text === '')) return 'problemEmptyPair';
       break;
     case 'text':
       if (question.accepted.length === 0) return 'problemNoAccepted';
