@@ -1,5 +1,5 @@
 import type { Answer } from './answer';
-import type { Question, Round } from './quiz';
+import type { CellKind, Question, Round } from './quiz';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
 
@@ -51,6 +51,9 @@ export interface GameQuestionResult {
     chooser: string | null;
     /** Бали вибравшого за це запитання; null, якщо запису немає. */
     points: number | null;
+    kind: CellKind;
+    /** Бліц-клітинка: сума балів кожного учасника з рядками за це запитання (за турнірною таблицею); [] для звичайної. */
+    scores: { nickname: string; points: number }[];
   } | null;
   /** Знімок запитання з правильною відповіддю: історію бачить лише ведучий. */
   question: Question;

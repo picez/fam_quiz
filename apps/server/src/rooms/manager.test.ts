@@ -537,6 +537,25 @@ describe('board rounds', () => {
     expect(room.state.phase).toBe('question');
   });
 
+  it('a blitz cell runs through the room: buzz from any player, accept, close', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(
+      makeRoundsQuiz([boardRound('g1', [{ title: 'Міста', cells: [{ question: cell('c11', 100), kind: 'blitz' }, cell('c12', 200)] }])]),
+    );
+    manager.connect(room, HOST);
+    const anna = enter(manager, room, 'Анна');
+    const bohdan = enter(manager, room, 'Богдан');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.pick(room, anna.playerId, 'c11')).toEqual({ ok: true });
+    expect(manager.buzz(room, bohdan.playerId)).toEqual({ ok: true });
+    expect(manager.answer(room, bohdan.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept', playerId: bohdan.playerId })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+    expect(room.state.players.find((p) => p.id === bohdan.playerId)?.score).toBe(100);
+  });
+
   it('a pending board answer stops the room timer until the host re-picks', () => {
     const { scheduler, manager, room, anna } = boardRoom();
     manager.host(room, { type: 'next' });

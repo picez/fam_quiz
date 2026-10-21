@@ -459,14 +459,14 @@ describe('recorder: board', () => {
       return joined.playerId;
     };
     const olena = enter('Олена');
-    enter('Тарас');
+    const taras = enter('Тарас');
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     const saved = async () => {
       await recorder.idle();
       return { games: await db.select().from(game), answers: await db.select().from(answer).orderBy(asc(answer.questionIndex)) };
     };
-    return { scheduler, manager, room, olena, saved };
+    return { scheduler, manager, room, olena, taras, saved };
   }
 
   it('a board question is stored with its cell and chooser', async () => {
@@ -495,5 +495,28 @@ describe('recorder: board', () => {
 
     const { answers } = await saved();
     expect(answers.map((a) => [a.participantId, a.accepted, a.points])).toEqual([[olena, false, -100]]);
+  });
+
+  it('a blitz cell records every attempt and one penalty row', async () => {
+    const round = boardRound('g1', [{ title: 'Міста', cells: [{ question: cell('c11', 100), kind: 'blitz', mark: 'x2', penalty: 'all' }, cell('c12', 200)] }]);
+    const { manager, room, olena, taras, saved } = await boardSetup(round);
+    expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
+    // Тарас відповідає неправильно, потім правильно; Олена, що вибрала, лише платить.
+    for (const answerGiven of [wrong, correct]) {
+      expect(manager.buzz(room, taras)).toEqual({ ok: true });
+      expect(manager.answer(room, taras, answerGiven)).toEqual({ ok: true });
+      expect(manager.host(room, { type: 'accept', playerId: taras })).toEqual({ ok: true });
+    }
+    expect(room.state.phase).toBe('locked');
+
+    const { answers } = await saved();
+    expect(answers.map((a) => [a.participantId === taras ? 'taras' : 'olena', a.attempt, a.accepted, a.points])).toEqual(
+      expect.arrayContaining([
+        ['taras', 0, false, 0],
+        ['taras', 1, true, 200],
+        ['olena', -1, false, -200],
+      ]),
+    );
+    expect(answers).toHaveLength(3);
   });
 });

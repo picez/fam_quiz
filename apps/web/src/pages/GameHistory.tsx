@@ -81,12 +81,15 @@ export function GameHistory() {
                         <>
                           <span className="tag">{t('cellTitle', { category: question.cell.category, price: question.cell.price })}</span>
                           {question.cell.multiplier > 1 && <span className="tag">{markText(question.cell.multiplier === 2 ? 'x2' : 'x3')}</span>}
+                          {question.cell.kind === 'blitz' && <span className="tag">{t('cellBlitz')}</span>}
                           <span className="meta">
-                            {question.cell.chooser === null
-                              ? t('cellRemoved')
-                              : question.cell.points === null
-                                ? question.cell.chooser
-                                : `${question.cell.chooser}: ${signed(question.cell.points)}`}
+                            {question.cell.kind === 'blitz'
+                              ? question.cell.scores.map((score) => `${score.nickname}: ${signed(score.points)}`).join(', ')
+                              : question.cell.chooser === null
+                                ? t('cellRemoved')
+                                : question.cell.points === null
+                                  ? question.cell.chooser
+                                  : `${question.cell.chooser}: ${signed(question.cell.points)}`}
                           </span>
                         </>
                       )}

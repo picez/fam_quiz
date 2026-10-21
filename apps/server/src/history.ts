@@ -15,7 +15,7 @@ import {
 } from '@quiz/shared';
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, game, participant, type PlayRef } from './db/schema';
+import { answer, game, participant, PENALTY_ATTEMPT, type PlayRef } from './db/schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIMIT = 100;
@@ -79,6 +79,7 @@ function cellResult(
   ref: PlayRef | undefined,
   nicknames: Map<string, string>,
   given: { participantId: string; points: number }[],
+  standings: { participantId: string; nickname: string }[],
 ): GameQuestionResult['cell'] {
   if (ref?.cell === undefined) return null;
   const round = quiz.rounds[ref.roundIndex];
@@ -86,7 +87,15 @@ function cellResult(
   if (found === undefined) return null;
   const { chooserId } = ref.cell;
   const own = given.filter((a) => a.participantId === chooserId);
+  const blitz = found.cell.kind === 'blitz';
   return {
+    kind: found.cell.kind,
+    scores: blitz
+      ? standings.flatMap(({ participantId, nickname }) => {
+          const rows = given.filter((a) => a.participantId === participantId);
+          return rows.length === 0 ? [] : [{ nickname, points: rows.reduce((sum, a) => sum + a.points, 0) }];
+        })
+      : [],
     category: found.category.title,
     price: found.cell.question.points,
     multiplier: found.cell.mark === 'x2' ? 2 : found.cell.mark === 'x3' ? 3 : 1,
@@ -102,7 +111,8 @@ function responsesOf(
 ): GameResponse[] {
   return standings.flatMap(({ participantId, nickname }) =>
     given
-      .filter((a) => a.participantId === participantId)
+      // Штрафний рядок бліц-клітинки не є відповіддю.
+      .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
       .sort((a, b) => a.attempt - b.attempt)
       .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted })),
   );
@@ -196,7 +206,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         type: question.type,
         answered: distinct(given.map((a) => a.participantId)),
         accepted: distinct(given.filter((a) => a.accepted).map((a) => a.participantId)),
-        cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given),
+        cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
         responses: responsesOf(given, standings),
       },

@@ -132,6 +132,9 @@ export const participant = pgTable(
   (table) => [index('participant_game_idx').on(table.gameId), index('participant_user_idx').on(table.userId)],
 );
 
+/** Номер рядка answer зі штрафом бліц-клітинки; спроби мають номери 0…n. */
+export const PENALTY_ATTEMPT = -1;
+
 export const answer = pgTable(
   'answer',
   {

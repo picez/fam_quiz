@@ -137,6 +137,7 @@ const uk = {
   cellAria: '{category}, {price}',
   cellTitle: '{category} · {price}',
   cellRemoved: 'гравця вилучено',
+  cellBlitz: 'Бліц',
   diceLabel: 'Кубик',
   phase_leaderboard: 'Рейтинг',
   phase_finished: 'Гру завершено',
