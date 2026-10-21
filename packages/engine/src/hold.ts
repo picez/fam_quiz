@@ -13,9 +13,9 @@ export function pendingOf(state: GameState): Pending | null {
   if (state.phase !== 'question') return null;
   const play = state.plays[state.questionIndex];
   const round = play === undefined ? undefined : state.quiz.rounds[play.roundIndex];
-  // У бліці чекає відповідь голови черги.
-  if (round?.type === 'blitz') {
-    const head = play?.blitz?.queue[0];
+  // У бліці й на бліц-клітинці чекає відповідь голови черги; усна голова без відповіді не чекає.
+  if (play?.blitz !== undefined) {
+    const head = play.blitz.queue[0];
     return head === undefined || head.answer === null ? null : { playerId: head.playerId, answer: head.answer };
   }
   const board = play?.board;

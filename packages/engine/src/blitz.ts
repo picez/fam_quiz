@@ -1,4 +1,5 @@
-import type { BlitzRound, ErrorCode } from '@quiz/shared';
+import type { ErrorCode } from '@quiz/shared';
+import { cellBlitzRules } from './board-cells';
 import { BOARD_AWAY_MS } from './board-turns';
 // З game.ts лише типи: game.ts сам викликає цей файл, цикл під час виконання не потрібен.
 import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
@@ -7,19 +8,47 @@ import { answerPoints } from './score';
 
 const refuse = (error: ErrorCode): Result => ({ ok: false, error });
 
+/** Правила черги одного запитання: бліц-раунд або бліц-клітинка. */
+export interface BlitzRules {
+  /** Секунди вікна після натискання; null — без вікна. */
+  answerWindow: number | null;
+  attempts: 1 | 2 | 3 | null;
+  /** 'voice' — відповідь уголос: голову черги оцінює лише ведучий, без утримання й без автоматичного відкидання. */
+  check: 'auto' | 'manual' | 'voice';
+  /** Бали спроби (без серії). */
+  points(playerId: string, correct: boolean): number;
+}
+
+/** Правила черги запитання: з бліц-раунду або з бліц-клітинки; null — запитання без черги. */
+export function blitzRulesOf(state: GameState, play: Play): BlitzRules | null {
+  const round = state.quiz.rounds[play.roundIndex];
+  if (round?.type === 'blitz') {
+    const { multiplier, penalty } = round.rules;
+    return {
+      answerWindow: round.answerWindow,
+      attempts: round.attempts,
+      check: round.check,
+      points: (_playerId, correct) =>
+        answerPoints({ points: play.question.points, accuracy: correct ? 1 : 0, speed: 1, multiplier, penalty }),
+    };
+  }
+  if (round?.type === 'board' && play.board?.kind === 'blitz') return cellBlitzRules(round, play.board);
+  return null;
+}
+
 interface OpenBlitz {
   play: Play;
   blitz: BlitzPlay;
-  round: BlitzRound;
+  rules: BlitzRules;
 }
 
-/** Поточне запитання бліцу разом з його раундом; null поза етапом question або в класичному раунді. */
+/** Поточне запитання з чергою разом з її правилами; null поза етапом question або без черги. */
 function openBlitz(state: GameState): OpenBlitz | null {
   if (state.phase !== 'question') return null;
   const play = state.plays[state.questionIndex];
   const blitz = play?.blitz;
-  const round = play === undefined ? undefined : state.quiz.rounds[play.roundIndex];
-  return round?.type === 'blitz' && blitz !== undefined ? { play, blitz, round } : null;
+  const rules = blitz === undefined ? null : blitzRulesOf(state, play);
+  return blitz !== undefined && rules !== null ? { play, blitz, rules } : null;
 }
 
 /** Замінює поточне запитання в журналі. */
@@ -31,8 +60,8 @@ export function attemptsUsed(play: Play, playerId: string): number {
   return play.blitz?.attempts.filter((attempt) => attempt.playerId === playerId).length ?? 0;
 }
 
-function hasAttemptsLeft(round: BlitzRound, play: Play, playerId: string): boolean {
-  return round.attempts === null || attemptsUsed(play, playerId) < round.attempts;
+function hasAttemptsLeft(rules: BlitzRules, play: Play, playerId: string): boolean {
+  return rules.attempts === null || attemptsUsed(play, playerId) < rules.attempts;
 }
 
 export function buzz(state: GameState, playerId: string, now: number): Result {
@@ -43,13 +72,13 @@ export function buzz(state: GameState, playerId: string, now: number): Result {
   // Під час утримання натискання стає в чергу за замороженим годинником: його вікно піде після зняття утримання.
   const clock = clockOf(state, now);
   if (state.endsAt === null || clock > state.endsAt) return refuse('time_over');
-  const { play, blitz, round } = open;
+  const { play, blitz, rules } = open;
   if (blitz.queue.some((entry) => entry.playerId === playerId)) return refuse('already_queued');
-  if (!hasAttemptsLeft(round, play, playerId)) return refuse('no_attempts');
+  if (!hasAttemptsLeft(rules, play, playerId)) return refuse('no_attempts');
   const entry: BuzzEntry = {
     playerId,
     at: clock,
-    deadline: round.answerWindow === null ? null : clock + round.answerWindow * 1000,
+    deadline: rules.answerWindow === null ? null : clock + rules.answerWindow * 1000,
     answer: null,
   };
   const buzzed = blitz.buzzed.includes(playerId) ? blitz.buzzed : [...blitz.buzzed, playerId];
@@ -74,29 +103,21 @@ function summaryOf(attempts: Attempt[]): AnswerRecord {
 }
 
 /**
- * Розглядає чергу з голови. Голова з відповіддю чекає на рішення ведучого (за будь-якої перевірки):
- * verdict — це рішення, воно діє лише на першу ітерацію. Коли черга зупинилася на такій голові,
- * а now відомий, годинник запитання стає (heldAt).
+ * Розглядає чергу з голови. Голова з відповіддю чекає на рішення ведучого (за будь-якої перевірки),
+ * за усної відповіді голова чекає на нього завжди: verdict — це рішення, воно діє лише на першу ітерацію.
+ * Коли черга зупинилася на голові з відповіддю, а now відомий, годинник запитання стає (heldAt).
  */
 function settle(state: GameState, now: number | null, verdict?: boolean): GameState {
   const open = openBlitz(state);
   if (open === null) return state;
-  const { play, blitz, round } = open;
-  const price = (accuracy: number) =>
-    answerPoints({
-      points: play.question.points,
-      accuracy,
-      speed: 1,
-      multiplier: round.rules.multiplier,
-      penalty: round.rules.penalty,
-    });
+  const { play, blitz, rules } = open;
 
   let { queue, attempts } = blitz;
   let pending = verdict;
   while (queue.length > 0 && !attempts.some((attempt) => attempt.grade === 'correct')) {
     const [head, ...rest] = queue;
     let correct: boolean;
-    if (head.answer !== null) {
+    if (head.answer !== null || rules.check === 'voice') {
       if (pending === undefined) break;
       correct = pending;
       pending = undefined;
@@ -110,7 +131,7 @@ function settle(state: GameState, now: number | null, verdict?: boolean): GameSt
       answer: head.answer,
       timeMs: Math.max(0, head.at - (state.startedAt ?? head.at)),
       grade: correct ? 'correct' : 'wrong',
-      points: price(correct ? 1 : 0),
+      points: rules.points(head.playerId, correct),
     };
     attempts = [...attempts, attempt];
     // Після переможця решта натискань просто зникає, без штрафу.
@@ -140,7 +161,8 @@ export function applyVerdict(state: GameState, playerId: string, correct: boolea
   if (open === null) return refuse('wrong_phase');
   if (state.paused) return refuse('paused');
   const head = open.blitz.queue[0];
-  if (head === undefined || head.playerId !== playerId || head.answer === null) return refuse('not_found');
+  if (head === undefined || head.playerId !== playerId) return refuse('not_found');
+  if (head.answer === null && open.rules.check !== 'voice') return refuse('not_found');
   return { ok: true, state: settle(thaw(state, now), now, correct) };
 }
 
@@ -161,10 +183,10 @@ export function nextDeadline(state: GameState, now: number): number | null {
 export function blitzDone(state: GameState, now: number | null): boolean {
   const open = openBlitz(state);
   if (open === null) return false;
-  const { play, blitz, round } = open;
+  const { play, blitz, rules } = open;
   if (blitz.attempts.some((attempt) => attempt.grade === 'correct')) return true;
   if (blitz.queue.length > 0) return false;
   if (now !== null && state.endsAt !== null && now >= state.endsAt) return true;
   const connected = state.players.filter((p) => p.connected);
-  return connected.length > 0 && connected.every((p) => !hasAttemptsLeft(round, play, p.id));
+  return connected.length > 0 && connected.every((p) => !hasAttemptsLeft(rules, play, p.id));
 }

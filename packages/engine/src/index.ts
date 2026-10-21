@@ -9,3 +9,4 @@ export * from './blitz';
 export * from './views';
 export * from './board';
 export * from './board-turns';
+export * from './board-cells';
