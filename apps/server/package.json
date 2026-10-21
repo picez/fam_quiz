@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
-    "start": "tsx --env-file-if-exists=../../.env src/main.ts"
+    "start": "tsx --env-file-if-exists=../../.env src/main.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",
