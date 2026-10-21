@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type Phase } from '@quiz/shared';
+import { DEFAULT_RULES, type Answer, type Phase, type Question } from '@quiz/shared';
 import { buzz } from './blitz';
 import { pickCell } from './board';
-import { endRound, judge, lock, next, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
+import { acceptAnswer, endRound, judge, lock, next, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
 import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, text, withId, withPoints } from './testing/fixtures';
 import { acceptAll, lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
@@ -327,10 +327,11 @@ describe('blitz views', () => {
     state = must(buzz(state, 'p1', 1000));
     state = must(buzz(state, 'p2', 1100));
     state = must(submitAnswer(state, 'p1', correct, 1200));
-    state = must(submitAnswer(state, 'p2', correct, 1300));
-    expect(JSON.stringify(stageView(state))).not.toContain('optionId');
-    expect(JSON.stringify(playerView(state, 'p3'))).not.toContain('optionId');
-    expect(playerView(state, 'p2')?.me.answer).toEqual(correct);
+    state = must(submitAnswer(state, 'p2', wrong, 1300));
+    // Усім видно лише відповідь голови черги (spotlight); відповідь p2 в черзі нікому, крім нього.
+    expect(JSON.stringify(stageView(state))).not.toContain('"optionId":"a"');
+    expect(JSON.stringify(playerView(state, 'p3'))).not.toContain('"optionId":"a"');
+    expect(playerView(state, 'p2')?.me.answer).toEqual(wrong);
   });
 
   it('the host sees queued answers and checked attempts', () => {
@@ -441,5 +442,97 @@ describe('board views', () => {
     expect(hostView(open()).board).toBeNull();
     const blitz = must(start(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single])]), 'Анна'), 0));
     expect(stageView(blitz).board).toBeNull();
+  });
+});
+
+describe('spotlight views', () => {
+  const field = (options = {}, question: Question = single) =>
+    boardRound('g1', [{ title: 'Міста', cells: [withId(question, 'c11')] }], options);
+  const picked = (options = {}, question: Question = single) => {
+    const intro = must(start(lobbyWith(makeRoundsQuiz([field(options, question)]), 'Анна', 'Богдан', 'Віра'), 0));
+    return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
+  };
+  const answered = (options = {}, answer: Answer = wrong, question: Question = single) =>
+    must(submitAnswer(picked(options, question), 'p1', answer, 5000));
+  const blitzGame = (options: Parameters<typeof blitzRound>[2] = {}) =>
+    must(start(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single, text], options)]), 'Анна', 'Богдан', 'Віра'), 0));
+
+  it('everyone sees the pending board answer in orange and the stopped timer', () => {
+    const state = answered();
+    const views = [stageView(state), playerView(state, 'p2'), hostView(state)];
+    for (const view of views) {
+      expect(view?.spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: wrong, grade: null });
+      expect(view?.endsAt).toBeNull();
+      expect(view?.remainingMs).toBe(15_000);
+    }
+  });
+
+  it('a hold under a host pause still shows the frozen remainder', () => {
+    const state = must(pause(answered(), 9000));
+    expect(stageView(state).remainingMs).toBe(15_000);
+    expect(stageView(state).endsAt).toBeNull();
+    expect(stageView(state).spotlight?.grade).toBeNull();
+  });
+
+  it('after accept everyone sees the verdict and the correct answer at the reveal', () => {
+    const state = must(acceptAnswer(answered(), 6000));
+    expect(state.phase).toBe('reveal');
+    expect(stageView(state).spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: wrong, grade: 'wrong' });
+    expect(playerView(state, 'p2')?.spotlight?.grade).toBe('wrong');
+    expect(stageView(state).reveal).toMatchObject({ correctId: 'b' });
+  });
+
+  it('a locked phone answer stays orange with no verdict', () => {
+    const state = must(lock(answered({ check: 'manual' })));
+    expect(state.phase).toBe('locked');
+    expect(stageView(state).spotlight).toMatchObject({ playerId: 'p1', grade: null });
+    expect(stageView(must(lock(picked()))).spotlight).toBeNull();
+  });
+
+  it('stage and player views never carry the correct answer before the reveal', () => {
+    const typed: Answer = { type: 'text', value: 'Одеса' };
+    const state = answered({}, typed, text);
+    for (const json of [JSON.stringify(stageView(state)), JSON.stringify(playerView(state, 'p2'))]) {
+      expect(json).not.toContain('accepted');
+      expect(json).not.toContain('"correct"');
+      expect(json).toContain('Одеса');
+    }
+    let blitz = must(buzz(blitzGame({ attempts: 2 }), 'p1', 1000));
+    blitz = acceptAll(must(submitAnswer(blitz, 'p1', wrong, 2000)), 2000);
+    for (const view of [stageView(blitz), playerView(blitz, 'p2')]) {
+      expect(view?.spotlight?.grade).toBe('wrong');
+      expect(view?.reveal).toBeNull();
+      expect(JSON.stringify(view)).not.toContain('correctId');
+    }
+  });
+
+  it('the blitz spotlight shows the pending head, then the last attempt', () => {
+    let state = must(buzz(blitzGame({ attempts: 2 }), 'p1', 1000));
+    state = must(submitAnswer(state, 'p1', wrong, 2000));
+    expect(stageView(state).spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: wrong, grade: null });
+    state = must(acceptAnswer(state, 3000));
+    expect(stageView(state).spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: wrong, grade: 'wrong' });
+    state = must(buzz(state, 'p2', 4000));
+    state = must(submitAnswer(state, 'p2', correct, 4500));
+    expect(playerView(state, 'p3')?.spotlight).toEqual({ playerId: 'p2', nickname: 'Богдан', answer: correct, grade: null });
+    expect(stageView(blitzGame()).spotlight).toBeNull();
+  });
+
+  it('the blitz window is hidden from the player while an answer is pending', () => {
+    let state = must(buzz(blitzGame({ answerWindow: 15, attempts: 2 }), 'p1', 1000));
+    state = must(buzz(state, 'p2', 1500));
+    expect(playerView(state, 'p2')?.me.blitz?.deadline).toBe(16_500);
+    state = must(submitAnswer(state, 'p1', wrong, 2000));
+    expect(playerView(state, 'p2')?.me.blitz?.deadline).toBeNull();
+    expect(playerView(state, 'p3')?.me.blitz?.canBuzz).toBe(true);
+    expect(stageView(state).endsAt).toBeNull();
+  });
+
+  it('voice board, classic and lobby views have no spotlight', () => {
+    expect(stageView(picked({ answerMode: 'voice' })).spotlight).toBeNull();
+    expect(hostView(picked({ answerMode: 'voice' })).spotlight).toBeNull();
+    expect(stageView(open()).spotlight).toBeNull();
+    expect(playerView(reveal(), 'p1')?.spotlight).toBeNull();
+    expect(hostView(lobby()).spotlight).toBeNull();
   });
 });

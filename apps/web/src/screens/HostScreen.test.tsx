@@ -29,6 +29,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   paused: false,
   blitz: null,
   board: null,
+  spotlight: null,
   round: null,
   questionIndex: -1,
   total: 2,
