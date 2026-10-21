@@ -282,6 +282,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     startedAt: now,
     endsAt: now + question.timeLimit * 1000,
     remainingMs: null,
+    heldAt: null,
   };
 }
 
@@ -468,6 +469,11 @@ export function acceptAnswer(state: GameState, now: number): Result {
   if (state.paused) return fail('paused');
   const play = state.plays[state.questionIndex];
   const round = state.quiz.rounds[play.roundIndex];
+  if (round.type === 'blitz') {
+    if (round.check === 'manual') return fail('wrong_phase');
+    const correct = checkAnswer(play.question, pending.answer).accuracy === 1;
+    return closeIfDone(applyVerdict(state, pending.playerId, correct, now), now);
+  }
   if (round.type !== 'board' || play.board === undefined || round.check === 'manual') return fail('wrong_phase');
 
   const checked = checkAnswer(play.question, pending.answer);
@@ -488,11 +494,16 @@ export function acceptAnswer(state: GameState, now: number): Result {
   return ok(revealNow(withRecord(state, pending.playerId, record)));
 }
 
-/** «Перевибрати»: відповідь знято, годинник іде з того самого залишку. */
+/** «Перевибрати»: відповідь знято, годинник (у бліці й вікно голови черги) іде з того самого залишку. */
 export function repick(state: GameState, now: number): Result {
   if (pendingOf(state) === null) return fail('wrong_phase');
   if (state.paused) return fail('paused');
-  const board = state.plays[state.questionIndex].board;
+  const play = state.plays[state.questionIndex];
+  if (play.blitz !== undefined) {
+    const queue = play.blitz.queue.map((e, index) => (index === 0 ? { ...e, answer: null } : e));
+    return ok(thaw(withPlay(state, { ...play, blitz: { ...play.blitz, queue } }), now));
+  }
+  const board = play.board;
   if (board === undefined) return fail('wrong_phase');
   return ok(thaw(withBoard(state, { ...board, answer: null }), now));
 }
@@ -503,27 +514,36 @@ function withBoard(state: GameState, board: BoardPlay): GameState {
   return { ...state, plays };
 }
 
-/** Відповідь у бліці записується в чергу; перевіряється, коли гравець стане першим. */
+/**
+ * Відповідь у бліці записується в чергу. Коли гравець стане першим, вона чекає на ведучого,
+ * а годинник запитання стоїть. Під час утримання вікно перевіряється за замороженим годинником.
+ */
 function submitBlitzAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
   const play = state.plays[state.questionIndex];
   const entry = play.blitz?.queue.find((e) => e.playerId === playerId);
   if (play.blitz === undefined || entry === undefined) return fail('not_in_queue');
   if (entry.answer !== null) return fail('already_answered');
+  const clock = clockOf(state, now);
   const limit = entry.deadline ?? state.endsAt;
-  if (limit === null || now > limit) return fail('time_over');
+  if (limit === null || clock > limit) return fail('time_over');
   if (play.question.type !== answer.type) return fail('type_mismatch');
 
   const queue = play.blitz.queue.map((e) => (e === entry ? { ...e, answer } : e));
   const answered: Play = { ...play, blitz: { ...play.blitz, queue } };
-  const settled = settleQueue(withPlay(state, answered), now);
-  return ok(blitzDone(settled, now) ? lockNow(settled) : settled);
+  return ok(settleQueue(withPlay(state, answered), clock));
+}
+
+/** Після рішення щодо голови черги бліцу запитання закривається, якщо воно вже вирішене. */
+function closeIfDone(result: Result, now: number): Result {
+  if (!result.ok) return result;
+  return ok(blitzDone(result.state, now) ? lockNow(result.state) : result.state);
 }
 
 /** Ведучий оцінює відповідь голови черги в бліці з ручною перевіркою. */
 export function judge(state: GameState, playerId: string, correct: boolean, now: number): Result {
-  const judged = applyVerdict(state, playerId, correct, now);
-  if (!judged.ok) return judged;
-  return ok(blitzDone(judged.state, now) ? lockNow(judged.state) : judged.state);
+  const round = currentRound(state);
+  if (round?.type !== 'blitz' || round.check !== 'manual') return fail('wrong_phase');
+  return closeIfDone(applyVerdict(state, playerId, correct, now), now);
 }
 
 export function lock(state: GameState): Result {

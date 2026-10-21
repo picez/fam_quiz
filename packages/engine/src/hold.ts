@@ -1,5 +1,4 @@
 import type { Answer } from '@quiz/shared';
-import { withPlay } from './blitz';
 // З game.ts лише типи: game.ts сам викликає цей файл, цикл під час виконання не потрібен.
 import type { GameState } from './game';
 
@@ -14,6 +13,11 @@ export function pendingOf(state: GameState): Pending | null {
   if (state.phase !== 'question') return null;
   const play = state.plays[state.questionIndex];
   const round = play === undefined ? undefined : state.quiz.rounds[play.roundIndex];
+  // У бліці чекає відповідь голови черги.
+  if (round?.type === 'blitz') {
+    const head = play?.blitz?.queue[0];
+    return head === undefined || head.answer === null ? null : { playerId: head.playerId, answer: head.answer };
+  }
   const board = play?.board;
   if (round?.type !== 'board' || round.answerMode !== 'phone' || board === undefined || board.answer === null) return null;
   return state.players.some((p) => p.id === board.chooserId) ? { playerId: board.chooserId, answer: board.answer } : null;
@@ -38,7 +42,9 @@ export function shiftQueue(state: GameState, shiftMs: number): GameState {
     at: e.at + shiftMs,
     deadline: e.deadline === null ? null : e.deadline + shiftMs,
   }));
-  return withPlay(state, { ...play, blitz: { ...play.blitz, queue } });
+  // Без withPlay: blitz.ts сам імпортує цей файл.
+  const shifted = { ...play, blitz: { ...play.blitz, queue } };
+  return { ...state, plays: state.plays.map((p, index) => (index === state.questionIndex ? shifted : p)) };
 }
 
 /** Знімає утримання: startedAt, endsAt і черга бліцу (at, deadline) зсуваються на now − heldAt; heldAt = null. */

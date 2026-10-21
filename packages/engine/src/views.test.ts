@@ -4,7 +4,7 @@ import { buzz } from './blitz';
 import { pickCell } from './board';
 import { endRound, judge, lock, next, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
 import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, text, withId, withPoints } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { acceptAll, lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
 const T0 = 1_000_000;
@@ -273,7 +273,7 @@ describe('blitz views', () => {
     state = must(buzz(state, 'p2', 1500));
     expect(nicknames(stageView(state).blitz?.queue)).toEqual(['Анна', 'Богдан']);
     state = must(submitAnswer(state, 'p1', wrong, 2000));
-    state = must(submitAnswer(state, 'p2', correct, 2500));
+    state = acceptAll(must(submitAnswer(state, 'p2', correct, 2500)), 2500);
     expect(state.phase).toBe('locked');
     expect(stageView(state).blitz?.winner).toBeNull();
     expect(playerView(state, 'p3')?.blitz?.winner).toBeNull();
@@ -286,7 +286,7 @@ describe('blitz views', () => {
 
   it('a re-buzzed player sees an empty answer, not the previous wrong attempt', () => {
     let state = must(buzz(blitzGame({ attempts: 2 }), 'p1', 1000));
-    state = must(submitAnswer(state, 'p1', wrong, 1500));
+    state = acceptAll(must(submitAnswer(state, 'p1', wrong, 1500)), 1500);
     state = must(buzz(state, 'p1', 2000));
     const me = playerView(state, 'p1')?.me;
     expect(me?.answer).toBeNull();
@@ -304,7 +304,7 @@ describe('blitz views', () => {
       deadline: 16500,
     });
     expect(playerView(state, 'p3')?.me.blitz?.canBuzz).toBe(true);
-    state = must(submitAnswer(state, 'p2', wrong, 2000));
+    state = acceptAll(must(submitAnswer(state, 'p2', wrong, 2000)), 2000);
     expect(playerView(state, 'p2')?.me.blitz).toEqual({
       position: null,
       attemptsUsed: 1,
@@ -316,7 +316,7 @@ describe('blitz views', () => {
 
   it('canBuzz is false when paused or when no attempts are left', () => {
     let state = must(buzz(blitzGame({ attempts: 1 }), 'p1', 1000));
-    state = must(submitAnswer(state, 'p1', wrong, 2000));
+    state = acceptAll(must(submitAnswer(state, 'p1', wrong, 2000)), 2000);
     expect(playerView(state, 'p1')?.me.blitz).toMatchObject({ attemptsLeft: 0, canBuzz: false });
     const paused = must(pause(blitzGame(), 1000));
     expect(playerView(paused, 'p1')?.me.blitz?.canBuzz).toBe(false);

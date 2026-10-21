@@ -221,6 +221,7 @@ describe('history: blitz attempts', () => {
     const attempt = (playerId: string, optionId: string) => {
       expect(ctx.manager.buzz(room, playerId)).toEqual({ ok: true });
       expect(ctx.manager.answer(room, playerId, { type: 'single', optionId })).toEqual({ ok: true });
+      expect(ctx.manager.host(room, { type: 'accept' })).toEqual({ ok: true });
     };
 
     expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
