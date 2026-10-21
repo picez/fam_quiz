@@ -372,3 +372,51 @@ describe('board round', () => {
     expect(boardRoundIssues(big)).toContain('too_many_questions');
   });
 });
+
+describe('match question', () => {
+  const pair = (l: string, r: string, i: number) => ({ left: { id: `a${i}`, text: l }, right: { id: `z${i}`, text: r } });
+  const matchQ = (n: number) => ({
+    id: 'm',
+    type: 'match',
+    text: 'З’єднайте',
+    imageUrl: null,
+    timeLimit: 30,
+    points: 1000,
+    pairs: Array.from({ length: n }, (_, i) => pair(`Л${i}`, `П${i}`, i)),
+  });
+  const withRight = (i: number, text: string) => {
+    const q = matchQ(3);
+    q.pairs[i] = { ...q.pairs[i], right: { ...q.pairs[i].right, text } };
+    return q;
+  };
+
+  it('accepts a match question with 3 to 6 pairs', () => {
+    expect(valid(questionSchema, matchQ(3))).toBe(true);
+    expect(valid(questionSchema, matchQ(6))).toBe(true);
+    expect(valid(questionSchema, matchQ(2))).toBe(false);
+    expect(valid(questionSchema, matchQ(7))).toBe(false);
+  });
+
+  it('refuses a match pair text longer than 120 characters or empty', () => {
+    expect(valid(questionSchema, withRight(0, 'x'.repeat(121)))).toBe(false);
+    expect(valid(questionSchema, withRight(0, 'x'.repeat(120)))).toBe(true);
+    expect(valid(questionSchema, withRight(0, '  '))).toBe(false);
+  });
+
+  it('refuses a match question whose ids repeat across both columns', () => {
+    const q = matchQ(3);
+    q.pairs[1] = { ...q.pairs[1], right: { ...q.pairs[1].right, id: q.pairs[0].left.id } };
+    const result = questionSchema.safeParse(q);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain('duplicate_ids');
+  });
+
+  it('answerSchema accepts match links and refuses more than six', () => {
+    const link = (i: number) => ({ left: `a${i}`, right: `z${i}` });
+    expect(valid(answerSchema, { type: 'match', links: [link(0)] })).toBe(true);
+    expect(valid(answerSchema, { type: 'match', links: Array.from({ length: 6 }, (_, i) => link(i)) })).toBe(true);
+    expect(valid(answerSchema, { type: 'match', links: Array.from({ length: 7 }, (_, i) => link(i)) })).toBe(false);
+    expect(valid(answerSchema, { type: 'match', links: [{ left: '', right: 'z0' }] })).toBe(false);
+    expect(valid(answerSchema, { type: 'match', links: [{ left: 'a0', right: 'z\u0000' }] })).toBe(false);
+  });
+});
