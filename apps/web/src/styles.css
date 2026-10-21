@@ -1483,6 +1483,11 @@ a.banner {
   color: var(--amber);
 }
 
+.board-edit-badge {
+  font-size: 0.75rem;
+  color: var(--amber);
+}
+
 .board-add-category {
   flex: none;
   align-self: stretch;
