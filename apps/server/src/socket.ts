@@ -7,6 +7,7 @@ import {
   overrideSchema,
   pickSchema,
   socketAuthSchema,
+  timeSchema,
   type AckResult,
   type ClientToServerEvents,
   type ServerToClientEvents,
@@ -133,6 +134,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (!isHost) return FORBIDDEN;
       const payload = judgeSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'judge', ...payload.data }) : INVALID;
+    });
+
+    on('host:time', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = timeSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'time', ...payload.data }) : INVALID;
     });
   });
 

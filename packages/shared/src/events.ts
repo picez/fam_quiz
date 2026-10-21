@@ -25,6 +25,7 @@ const playerId = z.string().min(1).max(64);
 export const overrideSchema = z.object({ playerId, grade: z.enum(['correct', 'partial', 'wrong']) });
 export const kickSchema = z.object({ playerId });
 export const judgeSchema = z.object({ playerId, correct: z.boolean() });
+export const timeSchema = z.object({ seconds: z.union([z.literal(-15), z.literal(15)]) });
 export const pickSchema = z.object({ cellId: z.string().min(1).max(64) });
 export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.maxPlayers) });
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
@@ -43,6 +44,7 @@ export interface ClientToServerEvents {
   'host:override': (payload: z.infer<typeof overrideSchema>, ack: Ack) => void;
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
   'host:judge': (payload: z.infer<typeof judgeSchema>, ack: Ack) => void;
+  'host:time': (payload: z.infer<typeof timeSchema>, ack: Ack) => void;
   'host:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   'host:order': (payload: z.infer<typeof orderSchema>, ack: Ack) => void;
   'host:roll': (ack: Ack) => void;

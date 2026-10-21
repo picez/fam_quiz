@@ -152,6 +152,15 @@ describe('playing', () => {
     expect(room.state.phase).toBe('locked');
   });
 
+  it('host time moves the room timer', () => {
+    const { manager, room, scheduler } = playing();
+    expect(manager.host(room, { type: 'time', seconds: 15 })).toEqual({ ok: true });
+    scheduler.advance(34_999);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('locked');
+  });
+
   it('stops the timer on pause and continues with the same remaining time', () => {
     const { manager, room, scheduler } = playing();
     scheduler.advance(5000);

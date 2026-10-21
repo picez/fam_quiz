@@ -14,6 +14,7 @@ import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, ent
 import { checkAnswer } from './check';
 import { normalizeText } from './normalize';
 import { answerPoints, speedFactor, streakBonus } from './score';
+import { limitMsOf } from './timing';
 
 export interface PlayerState {
   id: string;
@@ -71,6 +72,8 @@ export interface Play {
   question: Question;
   answers: Record<string, AnswerRecord>;
   blitz?: BlitzPlay;
+  /** Сума змін часу ведучим («±15 с»), мс. */
+  extraMs: number;
   /** Клітинка поля, з якої відкрито запитання. */
   board?: BoardPlay;
 }
@@ -262,6 +265,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     roundIndex: state.roundIndex,
     question,
     answers: {},
+    extraMs: 0,
     ...(board !== undefined ? { board } : {}),
     ...(round.type === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
   };
@@ -358,7 +362,7 @@ function withTotals(state: GameState): GameState {
       score += record ? record.points : 0;
       // Час для рівного рахунку йде лише за класичні раунди.
       if (state.quiz.rounds[play.roundIndex].type !== 'classic') continue;
-      totalTimeMs += record ? record.timeMs : play.question.timeLimit * 1000;
+      totalTimeMs += record ? record.timeMs : limitMsOf(play);
     }
     return { ...player, score, totalTimeMs, streak: counters[player.id] ?? 0 };
   });
@@ -403,7 +407,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (state.phase !== 'question') return fail('wrong_phase');
   if (state.paused) return fail('paused');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
-  const { question, roundIndex } = state.plays[state.questionIndex];
+  const play = state.plays[state.questionIndex];
+  const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
   if (round.type === 'blitz') return submitBlitzAnswer(state, playerId, answer, now);
   if (round.type === 'board') return submitBoardAnswer(state, round, playerId, answer, now);
@@ -413,7 +418,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
 
   const timeMs = Math.max(0, now - state.startedAt);
   const { accepted, accuracy } = checkAnswer(question, answer);
-  const speed = speedFactor(timeMs, question.timeLimit * 1000, round.type === 'classic' && round.speedBonus);
+  const speed = speedFactor(timeMs, limitMsOf(play), round.type === 'classic' && round.speedBonus);
   const points = answerPoints({
     points: question.points,
     accuracy,
@@ -529,7 +534,7 @@ function unansweredIsWrong(state: GameState): GameState {
   const points = boardPoints(round, play.board, 0);
   return withRecord(state, chooserId, {
     answer: play.board.answer,
-    timeMs: play.question.timeLimit * 1000,
+    timeMs: limitMsOf(play),
     accepted: false,
     accuracy: 0,
     grade: 'wrong',
@@ -607,7 +612,7 @@ function shiftQueue(state: GameState, shiftMs: number): GameState {
 export function resume(state: GameState, now: number): Result {
   if (!state.paused) return fail('wrong_phase');
   if (state.phase === 'question' && state.remainingMs !== null) {
-    const limitMs = state.plays[state.questionIndex].question.timeLimit * 1000;
+    const limitMs = limitMsOf(state.plays[state.questionIndex]);
     const endsAt = now + state.remainingMs;
     // startedAt зсувається так, щоб час відповіді не включав паузу.
     const resumed = { ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs };
@@ -630,7 +635,7 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
   const existing = recordOf(state, state.questionIndex, playerId);
-  const limitMs = play.question.timeLimit * 1000;
+  const limitMs = limitMsOf(play);
   const spentMs = phase === 'question' && now !== undefined && state.startedAt !== null ? Math.max(0, now - state.startedAt) : limitMs;
   const points = boardPoints(round, board, accuracy);
   const record: AnswerRecord = {
@@ -653,7 +658,8 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
   if (state.phase !== 'reveal') return fail('wrong_phase');
-  const { question, roundIndex } = state.plays[state.questionIndex];
+  const play = state.plays[state.questionIndex];
+  const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
   // Оцінка в бліці остаточна, навіть для гравця без запису.
   if (round.type === 'blitz') return fail('wrong_phase');
@@ -661,7 +667,7 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   if (record === undefined) return fail('not_found');
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
-  const speed = speedFactor(record.timeMs, question.timeLimit * 1000, round.type === 'classic' && round.speedBonus);
+  const speed = speedFactor(record.timeMs, limitMsOf(play), round.type === 'classic' && round.speedBonus);
   const points = answerPoints({
     points: question.points,
     accuracy,
