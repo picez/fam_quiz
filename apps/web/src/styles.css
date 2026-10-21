@@ -6,6 +6,7 @@
   --amber: #ffb300;
   --correct: #3ddcc0;
   --signal: #ff3d5a;
+  --pending: #ff7a1a;
   --panel: rgb(255 255 255 / 0.05);
   --line: rgb(245 241 230 / 0.16);
   --display: 'Unbounded Variable', system-ui, sans-serif;
@@ -362,6 +363,51 @@ button.choice {
   color: var(--stage);
 }
 
+.choice.is-pending {
+  border-color: var(--pending);
+  background: var(--pending);
+  color: var(--stage);
+}
+
+.choice.is-wrong {
+  border-color: var(--signal);
+  background: var(--signal);
+  color: var(--stage);
+}
+
+.choice.is-pending .letter,
+.choice.is-wrong .letter {
+  color: var(--stage);
+}
+
+.spotlight-answer {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.spotlight-answer.is-pending {
+  border-color: var(--pending);
+  background: var(--pending);
+  color: var(--stage);
+}
+
+.spotlight-answer.is-correct {
+  border-color: var(--correct);
+  background: var(--correct);
+  color: var(--stage);
+}
+
+.spotlight-answer.is-wrong {
+  border-color: var(--signal);
+  background: var(--signal);
+  color: var(--stage);
+}
+
 .choice .count {
   margin-left: auto;
   font-family: var(--display);
@@ -478,6 +524,10 @@ button.choice {
 
 .tag.is-correct {
   color: var(--correct);
+}
+
+.tag.is-pending {
+  color: var(--pending);
 }
 
 .tag.is-wrong {

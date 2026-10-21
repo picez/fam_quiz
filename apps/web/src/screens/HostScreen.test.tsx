@@ -305,7 +305,8 @@ describe('HostScreen: blitz', () => {
   });
 
   it('judges the head of the queue in a manual blitz round', async () => {
-    const send = show(during('question', textQuestion, { round, blitz: blitz() }));
+    const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Одеса' }, grade: null };
+    const send = show(during('question', textQuestion, { round, blitz: blitz(), spotlight }));
     expect(screen.getByText('пише…')).toBeTruthy();
     expect(screen.getByText('не встиг')).toBeTruthy();
     expect(screen.getByText(/у черзі: 2/)).toBeTruthy();
@@ -423,12 +424,27 @@ describe('HostScreen: blitz', () => {
 
     it('shows a phone answer awaiting a grade and hides grading without one', () => {
       const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const };
-      show(during('question', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell, answer: { type: 'text', value: 'Одеса' } }) }));
-      expect(screen.getByText('Одеса')).toBeTruthy();
-      expect(button('Не зараховувати')).toBeTruthy();
+      const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Одеса' }, grade: null };
+      show(during('question', textQuestion, { round: boardRound, players: three, spotlight, board: boardOf({ manual: true, cell, answer: spotlight.answer }) }));
+      expect(screen.getAllByText('Одеса').length).toBeGreaterThan(0);
+      expect(button('Неправильно')).toBeTruthy();
       cleanup();
       show(during('question', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }) }));
-      expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+    });
+
+    it('grades a pending board answer by hand and can still re-pick', () => {
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const };
+      const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Одеса' }, grade: null };
+      const send = show(
+        during('question', textQuestion, { round: boardRound, players: three, spotlight, board: boardOf({ manual: true, cell, answer: spotlight.answer }) }),
+      );
+      fireEvent.click(button('Правильно'));
+      expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' });
+      fireEvent.click(button('Частково'));
+      expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'partial' });
+      fireEvent.click(button('Перевибрати'));
+      expect(send).toHaveBeenCalledWith('host:repick', undefined);
     });
 
     it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
@@ -459,6 +475,56 @@ describe('HostScreen: blitz', () => {
       expect(send).toHaveBeenCalledTimes(1);
       done();
       await waitFor(() => expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(false));
+    });
+  });
+
+
+  describe('timing and pending answers', () => {
+    const pendingSpot = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, grade: null };
+
+    it('adds or removes 15 seconds while the timer runs and respects the limits', () => {
+      const send = show(during('question', single, { endsAt: Date.now() + 20_000 }));
+      fireEvent.click(button('+15 с'));
+      expect(send).toHaveBeenCalledWith('host:time', { seconds: 15 });
+      fireEvent.click(button('−15 с'));
+      expect(send).toHaveBeenCalledWith('host:time', { seconds: -15 });
+      cleanup();
+      show(during('question', single, { endsAt: Date.now() + 5_000 }));
+      expect(button('−15 с').disabled).toBe(true);
+      expect(button('+15 с').disabled).toBe(false);
+      cleanup();
+      show(during('question', single, { endsAt: null, remainingMs: 120_000, paused: true }));
+      expect(button('+15 с').disabled).toBe(true);
+      expect(button('−15 с').disabled).toBe(false);
+      cleanup();
+      show(during('reveal', single));
+      expect(screen.queryByRole('button', { name: '+15 с' })).toBeNull();
+    });
+
+    it('accepts or re-picks a pending answer in an automatic round', () => {
+      const send = show(during('question', single, { endsAt: Date.now() + 20_000, spotlight: pendingSpot }));
+      expect(screen.getByRole('heading', { name: 'Відповідь чекає на рішення' })).toBeTruthy();
+      fireEvent.click(button('Прийняти'));
+      expect(send).toHaveBeenCalledWith('host:accept', undefined);
+      fireEvent.click(button('Перевибрати'));
+      expect(send).toHaveBeenCalledWith('host:repick', undefined);
+    });
+
+    it('judges a pending blitz head by hand', () => {
+      const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
+      const head = { playerId: 'p1', nickname: 'Олена', answer: pendingSpot.answer, deadline: null };
+      const send = show(
+        during('question', single, {
+          round: blitzRound,
+          endsAt: Date.now() + 20_000,
+          spotlight: pendingSpot,
+          blitz: { manual: true, queue: [head], winner: null, attempts: [] },
+        }),
+      );
+      expect(screen.getAllByRole('button', { name: 'Неправильно' })).toHaveLength(1);
+      fireEvent.click(button('Неправильно'));
+      expect(send).toHaveBeenCalledWith('host:judge', { playerId: 'p1', correct: false });
+      expect(button('Перевибрати')).toBeTruthy();
     });
   });
 });

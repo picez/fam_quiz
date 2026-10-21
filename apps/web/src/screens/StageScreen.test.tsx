@@ -266,3 +266,28 @@ describe('StageScreen: blitz', () => {
     });
   });
 });
+
+describe('StageScreen: spotlight', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+  const board = {
+    categories: [],
+    order: [{ playerId: 'p2', nickname: 'Анна' }],
+    turn: { playerId: 'p2', nickname: 'Анна' },
+    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const },
+    answerMode: 'phone' as const,
+    rolls: 0,
+    skipAt: null,
+  };
+  const picked = { playerId: 'p2', nickname: 'Анна', answer: { type: 'single' as const, optionId: 'a' } };
+  const cls = (text: string) => screen.getByText(text).closest('.choice')?.className ?? '';
+
+  it('colours the pending answer, then the verdict with the correct option at the reveal', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, round, board, endsAt: Date.now() + 20_000, spotlight: { ...picked, grade: null } }));
+    expect(cls('Львів')).toContain('is-pending');
+    expect(document.querySelector('.is-correct')).toBeNull();
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question, round, board, reveal: full, spotlight: { ...picked, grade: 'wrong' } }));
+    expect(cls('Львів')).toContain('is-wrong');
+    expect(cls('Київ')).toContain('is-correct');
+  });
+});
