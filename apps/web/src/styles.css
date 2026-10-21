@@ -1646,6 +1646,14 @@ a.banner {
   margin-top: 1rem;
 }
 
+/* Кнопки оцінки в рядку черги. */
+.row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
 @media (min-width: 600px) {
   .gb-title {
     font-size: 0.8125rem;

@@ -343,7 +343,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                     <li key={entry.playerId}>
                       <span className="name">{entry.nickname}</span>
                       {blitz.voice && index === 0 ? (
-                        <span className="actions">
+                        <span className="row-actions">
                           <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, true)}>
                             {t('judgeCorrect')}
                           </button>
