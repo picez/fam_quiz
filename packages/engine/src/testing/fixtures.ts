@@ -3,7 +3,7 @@ import {
   DEFAULT_SETTINGS,
   type BlitzRound,
   type BoardRound,
-  type CellMark,
+  type BoardCell,
   type ClassicRound,
   type Question,
   type Quiz,
@@ -133,7 +133,7 @@ export const withPoints = (question: Question, points: number): Question => ({ .
 /** Фікстура схему не перевіряє: тести рушія можуть будувати поле менше за 3×3. */
 export function boardRound(
   id: string,
-  categories: { title: string; cells: (Question | { mark: CellMark; question: Question })[] }[],
+  categories: { title: string; cells: (Question | (Partial<BoardCell> & { question: Question }))[] }[],
   options: Partial<Omit<BoardRound, 'id' | 'type' | 'categories'>> = {},
 ): BoardRound {
   return {
@@ -148,7 +148,14 @@ export function boardRound(
     categories: categories.map(({ title, cells }, index) => ({
       id: `c${index + 1}`,
       title,
-      cells: cells.map((cell) => ('question' in cell ? cell : { mark: 'none' as const, question: cell })),
+      cells: cells.map(
+        (cell): BoardCell => ({
+          mark: 'none',
+          kind: 'normal',
+          penalty: 'none',
+          ...('question' in cell ? cell : { question: cell }),
+        }),
+      ),
     })),
   };
 }

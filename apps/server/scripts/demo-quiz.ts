@@ -59,7 +59,12 @@ export const match = (text: string, pairs: [string, string][], points?: number, 
 };
 
 export const rules = (patch: Partial<RoundRules>): RoundRules => ({ ...DEFAULT_RULES, ...patch });
-export const cell = (question: Question, mark: 'none' | 'x2' | 'x3' = 'none') => ({ mark, question });
+export const cell = (question: Question, mark: 'none' | 'x2' | 'x3' = 'none') => ({
+  mark,
+  kind: 'normal' as const,
+  penalty: 'none' as const,
+  question,
+});
 
 export const demoQuiz: Quiz = {
   title: 'Демо: усі можливості',

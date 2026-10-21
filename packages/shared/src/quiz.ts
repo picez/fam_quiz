@@ -167,7 +167,22 @@ export const CELL_MARKS = ['none', 'x2', 'x3'] as const;
 export type CellMark = (typeof CELL_MARKS)[number];
 
 /** Клітинка — одне запитання; її ціна — question.points, її id — question.id. */
-export const boardCellSchema = z.object({ mark: z.enum(CELL_MARKS), question: questionSchema });
+export const CELL_KINDS = ['normal', 'blitz'] as const;
+export type CellKind = (typeof CELL_KINDS)[number];
+export const ANSWER_MODES = ['phone', 'voice'] as const;
+export type AnswerMode = (typeof ANSWER_MODES)[number];
+export const CELL_PENALTIES = ['none', 'all'] as const;
+export type CellPenalty = (typeof CELL_PENALTIES)[number];
+
+export const boardCellSchema = z.object({
+  mark: z.enum(CELL_MARKS),
+  kind: z.enum(CELL_KINDS).default('normal'),
+  /** Немає — спосіб раунду (старі вікторини). */
+  answerMode: z.enum(ANSWER_MODES).optional(),
+  /** Лише для kind 'blitz'. */
+  penalty: z.enum(CELL_PENALTIES).default('none'),
+  question: questionSchema,
+});
 
 export const boardCategorySchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
@@ -182,8 +197,9 @@ export const boardRoundSchema = z.object({
   title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
   shuffleOptions: z.boolean(),
   categories: z.array(boardCategorySchema).min(LIMITS.minCategories).max(LIMITS.maxCategories),
-  answerMode: z.enum(['phone', 'voice']),
-  /** Лише для answerMode 'phone'; при 'voice' оцінює ведучий завжди. */
+  /** Типовий спосіб для нових клітинок і для клітинок без власного. */
+  answerMode: z.enum(ANSWER_MODES),
+  /** Для клітинок з телефона; усну клітинку оцінює ведучий завжди. */
   check: z.enum(['auto', 'manual']),
   rules: roundRulesSchema,
 });
@@ -191,6 +207,11 @@ export const boardRoundSchema = z.object({
 export type BoardCell = z.infer<typeof boardCellSchema>;
 export type BoardCategory = z.infer<typeof boardCategorySchema>;
 export type BoardRound = z.infer<typeof boardRoundSchema>;
+
+/** Спосіб відповіді клітинки: власний або, якщо його немає, раунду. */
+export function cellAnswerMode(round: BoardRound, cell: BoardCell): AnswerMode {
+  return cell.answerMode ?? round.answerMode;
+}
 
 export const roundSchema = z.discriminatedUnion('type', [classicRoundSchema, blitzRoundSchema, boardRoundSchema]);
 

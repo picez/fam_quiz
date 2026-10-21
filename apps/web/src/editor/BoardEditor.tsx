@@ -57,7 +57,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
 
   const addCell = (at: number) => {
     const column = categories[at].cells;
-    setCells(at, [...column, { mark: 'none', question: newBoardQuestion(column[column.length - 1]?.question) }]);
+    setCells(at, [...column, { mark: 'none', kind: 'normal', penalty: 'none', question: newBoardQuestion(column[column.length - 1]?.question) }]);
     setPicked({ category: at, index: column.length });
   };
 

@@ -1,4 +1,14 @@
-import { CELL_MARKS, upgradeQuiz, type BoardCategory, type Question, type Quiz, type Round } from '@quiz/shared';
+import {
+  ANSWER_MODES,
+  CELL_KINDS,
+  CELL_MARKS,
+  CELL_PENALTIES,
+  upgradeQuiz,
+  type BoardCategory,
+  type Question,
+  type Quiz,
+  type Round,
+} from '@quiz/shared';
 import { QUESTION_TYPES } from './draft';
 
 const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
@@ -38,6 +48,10 @@ function reviveCategory(category: BoardCategory): BoardCategory {
     cells: category.cells.map((cell) => ({
       // Невідома позначка не повинна ламати поле.
       mark: (CELL_MARKS as readonly string[]).includes(cell.mark) ? cell.mark : 'none',
+      // Чернетка зі старої версії не має нових полів.
+      kind: (CELL_KINDS as readonly string[]).includes(cell.kind) ? cell.kind : 'normal',
+      ...((ANSWER_MODES as readonly string[]).includes(cell.answerMode as string) ? { answerMode: cell.answerMode } : {}),
+      penalty: (CELL_PENALTIES as readonly string[]).includes(cell.penalty) ? cell.penalty : 'none',
       question: revive(cell.question),
     })),
   };

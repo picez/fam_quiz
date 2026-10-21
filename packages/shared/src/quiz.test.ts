@@ -10,8 +10,10 @@ import {
   questionsOf,
   quizSchema,
   boardRoundIssues,
+  cellAnswerMode,
   roundQuestions,
   roundSchema,
+  type BoardRound,
   type Quiz,
 } from './index';
 
@@ -302,6 +304,32 @@ describe('board round', () => {
   });
   const boardQuiz = (rounds: object[]) => ({ title: 'Поле', description: '', settings: DEFAULT_SETTINGS, rounds });
   const threeCategories = () => [category('c1', 3), category('c2', 4), category('c3', 10)];
+
+  it('an old board cell reads as a normal cell with the round answer mode', () => {
+    const round = roundSchema.parse(board(threeCategories(), { answerMode: 'voice' })) as BoardRound;
+    const cell = round.categories[0]!.cells[0]!;
+    expect(cell.kind).toBe('normal');
+    expect(cell.penalty).toBe('none');
+    expect(cell.answerMode).toBeUndefined();
+    expect(cellAnswerMode(round, cell)).toBe('voice');
+  });
+
+  it('a cell may have its own kind, answer mode and penalty', () => {
+    const categories = threeCategories();
+    Object.assign(categories[0]!.cells[0]!, { mark: 'x2', kind: 'blitz', answerMode: 'phone', penalty: 'all' });
+    const round = roundSchema.parse(board(categories, { answerMode: 'voice' })) as BoardRound;
+    const cell = round.categories[0]!.cells[0]!;
+    expect(cell).toMatchObject({ kind: 'blitz', answerMode: 'phone', penalty: 'all' });
+    expect(cellAnswerMode(round, cell)).toBe('phone');
+  });
+
+  it('an unknown cell kind, answer mode or penalty is refused', () => {
+    for (const patch of [{ kind: 'mega' }, { answerMode: 'radio' }, { penalty: 'half' }]) {
+      const categories = threeCategories();
+      Object.assign(categories[0]!.cells[0]!, patch);
+      expect(valid(roundSchema, board(categories))).toBe(false);
+    }
+  });
 
   it('a quiz with a board round passes the schema', () => {
     const categories = threeCategories();

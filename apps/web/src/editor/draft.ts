@@ -176,7 +176,12 @@ export function newBoardCategory(): BoardCategory {
   return {
     id: newId(),
     title: '',
-    cells: [100, 200, 300].map((points) => ({ mark: 'none', question: { ...newQuestion('single'), points } })),
+    cells: [100, 200, 300].map((points) => ({
+      mark: 'none',
+      kind: 'normal',
+      penalty: 'none',
+      question: { ...newQuestion('single'), points },
+    })),
   };
 }
 
