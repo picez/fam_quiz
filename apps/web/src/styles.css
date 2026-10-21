@@ -1809,3 +1809,53 @@ button.match-item {
   background: var(--signal);
   color: var(--stage);
 }
+
+/* Відповіді гравців у історії: згорнутий блок на всю ширину під запитанням. */
+.responses {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.responses summary {
+  cursor: pointer;
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.responses ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows .responses li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  border-bottom: 0;
+  border-left: 3px solid var(--line);
+}
+
+.rows .responses li.is-correct {
+  border-left-color: var(--correct);
+}
+
+.rows .responses li.is-wrong {
+  border-left-color: var(--signal);
+}
+
+.responses-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.responses-answer {
+  overflow-wrap: anywhere;
+}
+
+.responses .match-row {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}

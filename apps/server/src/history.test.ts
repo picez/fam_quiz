@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
+import type { Answer } from '@quiz/shared';
+import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, match, single, text, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
+import { FakeScheduler } from './testing/fake-scheduler';
 import { createTestDb } from './testing/test-db';
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
@@ -88,11 +90,10 @@ describe('host history', () => {
       ['Олена', 1, 2000, 2],
       ['Тарас', 2, 0, 0],
     ]);
-    expect(detail.questions).toEqual([
+    expect(detail.questions).toMatchObject([
       { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null },
       { index: 1, roundIndex: 0, text: 'Яке місто називають перлиною біля моря?', type: 'text', answered: 1, accepted: 1, cell: null },
     ]);
-    expect(JSON.stringify(detail)).not.toContain('correctId');
   });
 
   it('keeps the history after the quiz is deleted', async () => {
@@ -155,7 +156,7 @@ describe('host history: rounds', () => {
       { title: 'Розминка', type: 'classic' },
       { title: 'Фінал', type: 'classic' },
     ]);
-    expect(detail.questions).toEqual([
+    expect(detail.questions).toMatchObject([
       { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1, cell: null },
       { index: 1, roundIndex: 1, text: bool.text, type: 'boolean', answered: 1, accepted: 1, cell: null },
     ]);
@@ -197,7 +198,7 @@ describe('host history: rounds', () => {
     const detail = (await get(`/api/games/${gameId}`, host.cookie)).json() as Record<string, unknown>;
     expect(detail.rounds).toEqual([{ title: '', type: 'classic' }]);
     expect(detail.standings).toMatchObject([{ nickname: 'Тарас', score: 1000, rank: 1, correct: 1 }]);
-    expect(detail.questions).toEqual([
+    expect(detail.questions).toMatchObject([
       { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1, cell: null },
       { index: 1, roundIndex: 0, text: text.text, type: 'text', answered: 1, accepted: 0, cell: null },
     ]);
@@ -376,5 +377,64 @@ describe('host history: board', () => {
     });
     const list = (await get('/api/games', host.cookie)).json() as Record<string, unknown>[];
     expect(list.map((g) => g.questionCount)).toEqual([5]);
+  });
+});
+
+describe('host history: answers', () => {
+  async function start(quiz: object, scheduler?: FakeScheduler) {
+    const local = await buildApp({ db: await createTestDb(), auth: TEST_AUTH, ...(scheduler === undefined ? {} : { scheduler }) });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const enter = async (nickname: string) => {
+      const playerId = ((await send(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId });
+      return playerId;
+    };
+    const detail = async () => {
+      await local.recorder.idle();
+      return (await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })).json() as {
+        questions: { question: { type: string }; responses: unknown[] }[];
+      };
+    };
+    return { local, room, enter, detail };
+  }
+
+  it('history returns each player answer with the question snapshot, a match answer as links', async () => {
+    const { local, room, enter, detail } = await start(makeQuiz([match], { speedBonus: false }));
+    const olena = await enter('Олена');
+    const taras = await enter('Тарас');
+    const right: Answer = { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] };
+    const swapped: Answer = { type: 'match', links: [{ left: 'a', right: 'y' }, { left: 'b', right: 'x' }, { left: 'c', right: 'z' }] };
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    local.manager.answer(room, olena, right);
+    local.manager.answer(room, taras, swapped);
+    step('next');
+    step('next');
+    const result = await detail();
+    expect(result.questions[0].question.type).toBe('match');
+    expect(result.questions[0].responses).toEqual([
+      { nickname: 'Олена', answer: right, accepted: true },
+      { nickname: 'Тарас', answer: swapped, accepted: false },
+    ]);
+    await local.app.close();
+  });
+
+  it('history lists a missed blitz attempt with a null answer', async () => {
+    const scheduler = new FakeScheduler();
+    const { local, room, enter, detail } = await start(makeRoundsQuiz([blitzRound('b1', [single], { answerWindow: 5 })]), scheduler);
+    const olena = await enter('Олена');
+    expect(local.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(local.manager.buzz(room, olena)).toEqual({ ok: true });
+    scheduler.advance(5000);
+    expect(room.state.phase).toBe('locked');
+    const result = await detail();
+    expect(result.questions[0].responses).toEqual([{ nickname: 'Олена', answer: null, accepted: false }]);
+    await local.app.close();
   });
 });

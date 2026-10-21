@@ -1,7 +1,8 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getGame } from '../api';
-import { formatDate, markText, num, roundLabel, signed } from '../format';
+import { answerText, choicesOf, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { t } from '../i18n';
+import { PairList } from '../screens/MatchView';
 import { usePrivateData } from '../usePrivateData';
 
 export function GameHistory() {
@@ -90,6 +91,23 @@ export function GameHistory() {
                         </>
                       )}
                       <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
+                      {question.responses.length > 0 && (
+                        <details className="responses">
+                          <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
+                          <ul>
+                            {question.responses.map((response, at) => (
+                              <li key={at} className={response.accepted ? 'is-correct' : 'is-wrong'}>
+                                <span className="responses-name">{response.nickname}</span>
+                                {response.answer?.type === 'match' ? (
+                                  <PairList pairs={pairTexts(response.answer.links, choicesOf(question.question))} tone="" />
+                                ) : (
+                                  <span className="responses-answer">{answerText(response.answer, question.question)}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
                     </li>
                   ))}
                 </ol>

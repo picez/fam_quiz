@@ -329,6 +329,7 @@ const uk = {
   questionsTitle: 'Запитання',
   noPlayers: 'У цій грі не було гравців.',
   correctOf: 'правильних: {correct}',
+  responsesTitle: 'Відповіді ({count})',
   answeredStat: 'відповіли {answered}, правильно {accepted}',
   playedAs: 'ви грали як {nickname}',
   pointsWord_one: 'бал',

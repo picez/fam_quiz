@@ -1,3 +1,4 @@
+import type { Answer } from './answer';
 import type { Question, Round } from './quiz';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
@@ -25,6 +26,14 @@ export interface GameStanding {
   correct: number;
 }
 
+/** Відповідь одного гравця на запитання в історії. */
+export interface GameResponse {
+  nickname: string;
+  /** null — спроба бліцу без відповіді. */
+  answer: Answer | null;
+  accepted: boolean;
+}
+
 export interface GameQuestionResult {
   /** Порядковий номер запитання в грі. */
   index: number;
@@ -43,6 +52,10 @@ export interface GameQuestionResult {
     /** Бали вибравшого за це запитання; null, якщо запису немає. */
     points: number | null;
   } | null;
+  /** Знімок запитання з правильною відповіддю: історію бачить лише ведучий. */
+  question: Question;
+  /** Відповіді в порядку: учасник за турнірною таблицею, потім номер спроби. */
+  responses: GameResponse[];
 }
 
 /** Зіграна гра очима ведучого. */
