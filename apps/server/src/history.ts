@@ -204,7 +204,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         roundIndex,
         text: question.text,
         type: question.type,
-        answered: distinct(given.map((a) => a.participantId)),
+        answered: distinct(given.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
         accepted: distinct(given.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
@@ -243,7 +243,7 @@ export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[
     rows.map((row) => row.game.id),
   );
   const answers = await db
-    .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted })
+    .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted, attempt: answer.attempt })
     .from(answer)
     .where(
       inArray(
@@ -264,7 +264,7 @@ export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[
       rank: row.participant.rank,
       playerCount: players.get(row.game.id) ?? 0,
       correct: distinct(mine.filter((a) => a.accepted).map((a) => a.questionIndex)),
-      answered: distinct(mine.map((a) => a.questionIndex)),
+      answered: distinct(mine.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.questionIndex)),
       questionsPlayed: row.game.questionsPlayed,
     };
   });

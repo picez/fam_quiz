@@ -366,7 +366,8 @@ function withTotals(state: GameState): GameState {
     const answers = { ...play.answers };
     for (const player of state.players) {
       const record = Object.hasOwn(answers, player.id) ? answers[player.id] : undefined;
-      if (record === undefined) continue;
+      // Серія на полі лише за власні клітинки: на чужій бліц-клітинці бонусу немає.
+      if (record === undefined || (play.board !== undefined && play.board.chooserId !== player.id)) continue;
       const bonus = (counters[player.id] ?? 0) >= streak.length ? streakBonus(streakBase(play, player.id, record), streak.bonus) : 0;
       answers[player.id] = { ...record, streakBonus: bonus, points: record.basePoints + bonus };
     }

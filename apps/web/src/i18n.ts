@@ -85,6 +85,7 @@ const uk = {
   // Бліц у грі
   buzz: 'Відповісти',
   blitzPlace: 'Ви {position}-й у черзі',
+  blitzYourAnswer: 'Ваша відповідь',
   blitzSent: 'Відповідь надіслано, ви {position}-й у черзі',
   blitzOut: 'Спроби вичерпано',
   blitzRetry: 'Неправильно, спробуйте ще',

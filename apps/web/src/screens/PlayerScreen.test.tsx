@@ -412,6 +412,23 @@ describe('PlayerScreen: blitz cell', () => {
     expect(document.querySelector('.inputs')).toBeNull();
   });
 
+  it('a queued non-head on a voice blitz cell is not told to answer aloud', () => {
+    const second = { ...canBuzz, position: 2, canBuzz: false };
+    show(onQuestion({ round, board: blitzBoard({ answerMode: 'voice' }), me: blitzMe(second) }));
+    expect(screen.queryByText('Відповідайте вголос')).toBeNull();
+    expect(screen.getByText('Ви 2-й у черзі')).toBeTruthy();
+  });
+
+  it('labels own input only when the head answer is shown above it', () => {
+    const spotlight = { playerId: 'p3', nickname: 'Віра', answer: { type: 'single' as const, optionId: 'a' }, grade: null };
+    const second = { ...canBuzz, position: 2, canBuzz: false };
+    show(onQuestion({ round, board: blitzBoard(), spotlight, me: blitzMe(second) }));
+    expect(screen.getByText('Ваша відповідь')).toBeTruthy();
+    cleanup();
+    show(onQuestion({ round, board: blitzBoard(), me: blitzMe(second) }));
+    expect(screen.queryByText('Ваша відповідь')).toBeNull();
+  });
+
   it('the blitz cell reveal shows own points and the winner', () => {
     show(
       view({

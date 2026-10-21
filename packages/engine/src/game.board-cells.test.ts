@@ -285,3 +285,34 @@ describe('blitz cell penalty', () => {
     expect(scores(locked)).toEqual([-200, -200]);
   });
 });
+
+describe('streak bonus on a blitz cell of another player', () => {
+  /** p1 answers own c11 right, then p2 opens blitz c12 (penalty all); p1 and p2 get the streak of one. */
+  function afterOwnWin(bonus: { kind: 'fixed'; value: number } | { kind: 'percent'; value: number }): GameState {
+    const round = boardRound('g1', [{ title: 'A', cells: [c11, { question: c12, kind: 'blitz', penalty: 'all' }] }], {
+      rules: { ...DEFAULT_RULES, streak: { length: 1, bonus } },
+    });
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0));
+    let state = must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
+    state = must(acceptAnswer(must(submitAnswer(state, 'p1', b, 1000)), 'p1', 1000));
+    while (state.phase !== 'board') state = must(next(state, 2000));
+    expect(chooserOf(state)).toBe('p2');
+    return must(pickCell(state, null, 'c12', 3000, Math.random));
+  }
+
+  it('a wrong answer with penalty all costs exactly the price, no fixed bonus', () => {
+    let state = answered(afterOwnWin({ kind: 'fixed', value: 50 }), 'p1', a, 4000);
+    state = must(lock(state));
+    expect(state.plays[1].answers.p1).toMatchObject({ basePoints: -200, streakBonus: 0, points: -200 });
+  });
+
+  it('winning an opponent cell gives the plain price, no percent bonus', () => {
+    const state = answered(afterOwnWin({ kind: 'percent', value: 50 }), 'p1', b, 4000);
+    expect(state.plays[1].answers.p1).toMatchObject({ streakBonus: 0, points: 200 });
+  });
+
+  it('winning an opponent cell gives the plain price, no fixed bonus', () => {
+    const state = answered(afterOwnWin({ kind: 'fixed', value: 50 }), 'p1', b, 4000);
+    expect(state.plays[1].answers.p1).toMatchObject({ streakBonus: 0, points: 200 });
+  });
+});

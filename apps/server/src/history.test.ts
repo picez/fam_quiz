@@ -394,8 +394,10 @@ describe('host history: board', () => {
     await ctx.recorder.idle();
 
     const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
-      questions: { cell: Record<string, unknown>; responses: { nickname: string; answer: unknown; accepted: boolean }[] }[];
+      questions: { answered: number; cell: Record<string, unknown>; responses: { nickname: string; answer: unknown; accepted: boolean }[] }[];
     };
+    // Віра лише отримала «Мінус для всіх»: вона не відповідала.
+    expect(detail.questions[0].answered).toBe(2);
     expect(detail.questions[0].cell).toMatchObject({ kind: 'blitz', chooser: 'Анна', multiplier: 2 });
     expect(detail.questions[0].cell.scores).toEqual([
       { nickname: 'Богдан', points: 200 },

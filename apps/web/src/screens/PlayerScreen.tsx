@@ -130,6 +130,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               )}
               <BlitzTurn
                 view={view}
+                labelled={spotlight !== null && spotlight.playerId !== me.id}
                 blitz={me.blitz}
                 voice={board?.cell?.answerMode === 'voice'}
                 offsetMs={offsetMs}
@@ -215,6 +216,7 @@ function BlitzTurn({
   view,
   blitz,
   voice,
+  labelled,
   offsetMs,
   onSubmit,
   send,
@@ -223,6 +225,8 @@ function BlitzTurn({
   view: PlayerView;
   blitz: PlayerBlitz;
   voice: boolean;
+  /** Над полем стоїть відповідь голови черги: власне поле підписуємо. */
+  labelled: boolean;
   offsetMs: number;
   onSubmit: (answer: Answer) => void;
   send: Send;
@@ -251,11 +255,14 @@ function BlitzTurn({
         {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
         {blitz.deadline !== null && !view.paused && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
         {voice ? (
-          <p className="lead">{t('answerAloud')}</p>
+          blitz.position === 1 ? <p className="lead">{t('answerAloud')}</p> : null
         ) : (
-          <fieldset className="inputs" disabled={view.paused}>
-            <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={question} onSubmit={onSubmit} />
-          </fieldset>
+          <>
+            {labelled && <h2 className="meta">{t('blitzYourAnswer')}</h2>}
+            <fieldset className="inputs" disabled={view.paused}>
+              <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={question} onSubmit={onSubmit} />
+            </fieldset>
+          </>
         )}
       </>
     );
