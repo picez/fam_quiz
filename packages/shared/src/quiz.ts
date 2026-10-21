@@ -7,7 +7,7 @@ export const LIMITS = {
   answerText: 200,
   minTime: 5,
   maxTime: 120,
-  defaultTime: 20,
+  defaultTime: 30,
   maxPoints: 2000,
   defaultPoints: 1000,
   minOptions: 2,

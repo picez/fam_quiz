@@ -19,4 +19,5 @@ export type ErrorCode =
   | 'already_queued'
   | 'no_attempts'
   | 'not_your_turn'
-  | 'cell_closed';
+  | 'cell_closed'
+  | 'time_limit';

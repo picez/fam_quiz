@@ -3,6 +3,8 @@ export * from './check';
 export * from './score';
 export * from './ranking';
 export * from './game';
+export * from './timing';
+export * from './hold';
 export * from './blitz';
 export * from './views';
 export * from './board';

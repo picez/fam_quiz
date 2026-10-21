@@ -6,6 +6,7 @@ import { t } from '../i18n';
 import { Timer } from '../live/Timer';
 import { Board } from './Board';
 import { QuestionImage } from './QuestionImage';
+import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
 
 interface Props {
@@ -64,6 +65,11 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           : [];
   const showChoices = question.type === 'single' || question.type === 'multi';
   const voice = view.board?.answerMode === 'voice';
+  // Поле з телефонами й бліц показують відповідь одного гравця кольором.
+  const spotlit = view.blitz !== null || (view.board !== null && !voice);
+  // Червона відповідь бліцу вже минула: відповідає голова черги, а не її автор.
+  const pendingSpot = view.spotlight?.grade === null ? view.spotlight : null;
+  const answering = pendingSpot ?? view.board?.turn ?? view.blitz?.queue[0] ?? null;
   const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
@@ -85,21 +91,26 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           {view.board.turn !== null && <span>{t('boardAnswering', { name: view.board.turn.nickname })}</span>}
         </p>
       )}
+      {view.board === null && answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
       <div className="stage-main">
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
       </div>
       <QuestionImage url={question.imageUrl} />
-      {showChoices && (
-        <ul className="choices">
-          {question.choices.map((choice, index) => (
-            <li key={choice.id} className={correctIds.includes(choice.id) ? 'choice is-correct' : 'choice'}>
-              <span className="letter">{LETTERS[index]}</span>
-              <span>{choice.text}</span>
-              {stats !== null && <span className="count">{stats.counts[choice.id] ?? 0}</span>}
-            </li>
-          ))}
-        </ul>
+      {spotlit ? (
+        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} />
+      ) : (
+        showChoices && (
+          <ul className="choices">
+            {question.choices.map((choice, index) => (
+              <li key={choice.id} className={correctIds.includes(choice.id) ? 'choice is-correct' : 'choice'}>
+                <span className="letter">{LETTERS[index]}</span>
+                <span>{choice.text}</span>
+                {stats !== null && <span className="count">{stats.counts[choice.id] ?? 0}</span>}
+              </li>
+            ))}
+          </ul>
+        )
       )}
       {view.blitz !== null && view.phase !== 'reveal' && view.blitz.queue.length > 0 && (
         <ol className="rows blitz-queue">

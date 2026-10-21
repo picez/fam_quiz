@@ -20,13 +20,16 @@ import {
   type PublicQuestion,
   type Question,
   type RevealStats,
+  type Spotlight,
   type Standing,
   type StageView,
 } from '@quiz/shared';
 import { currentRound, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
 import { attemptsUsed } from './blitz';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
+import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
+import { remainingOf } from './timing';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
@@ -139,7 +142,8 @@ function playerBlitz(state: GameState, playerId: string): PlayerBlitz | null {
     attemptsUsed: used,
     attemptsLeft: left,
     canBuzz: state.phase === 'question' && !state.paused && index < 0 && (left === null || left > 0),
-    deadline: index < 0 ? null : blitz.queue[index].deadline,
+    // Під час утримання вікно не йде.
+    deadline: index < 0 || state.heldAt !== null ? null : blitz.queue[index].deadline,
   };
 }
 
@@ -212,7 +216,34 @@ function hostBoard(state: GameState): HostBoard | null {
   };
 }
 
+/** Відповідь одного гравця для всіх ролей: поле з телефонами й бліц. Правильної відповіді тут немає. */
+function spotlightOf(state: GameState): Spotlight | null {
+  const pending = pendingOf(state);
+  if (pending !== null) return { ...blitzPlayer(state, pending.playerId), answer: pending.answer, grade: null };
+  const blitz = currentBlitz(state);
+  if (blitz !== null) {
+    const last = blitz.blitz.attempts[blitz.blitz.attempts.length - 1];
+    return last === undefined ? null : { ...blitzPlayer(state, last.playerId), answer: last.answer, grade: last.grade };
+  }
+  const open = currentBoardPlay(state);
+  if (open === null || open.round.answerMode !== 'phone') return null;
+  // Закрите запитання: відповідь без оцінки лишається помаранчевою, вердикт видно лише на розкритті.
+  // Вилученого гравця вже немає: його відповідь не показуємо.
+  if (state.phase === 'locked') {
+    const { answer, chooserId } = open.board;
+    if (answer === null || !state.players.some((p) => p.id === chooserId)) return null;
+    return { ...blitzPlayer(state, chooserId), answer, grade: null };
+  }
+  if (state.phase !== 'reveal') return null;
+  const record = currentRecord(state, open.board.chooserId);
+  if (record === undefined || !state.players.some((p) => p.id === open.board.chooserId)) return null;
+  return { ...blitzPlayer(state, open.board.chooserId), answer: record.answer, grade: record.grade };
+}
+
 function base(state: GameState) {
+  // Під час утримання годинник стоїть: клієнти не рахують від endsAt.
+  const held = state.heldAt !== null;
+  const remainingMs = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.remainingMs;
   const round = currentRound(state);
   return {
     phase: state.phase,
@@ -221,12 +252,13 @@ function base(state: GameState) {
     questionIndex: roundQuestionNumber(state),
     total: round ? roundQuestions(round).length : questionsOf(state.quiz).length,
     question: publicQuestion(state),
-    endsAt: state.endsAt,
-    remainingMs: state.remainingMs,
+    endsAt: held ? null : state.endsAt,
+    remainingMs,
     playerCount: state.players.length,
     answeredCount: Object.keys(currentAnswers(state)).length,
     blitz: blitzInfo(state),
     board: boardInfo(state, false),
+    spotlight: spotlightOf(state),
   };
 }
 

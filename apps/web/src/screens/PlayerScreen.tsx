@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
-import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, signed } from '../format';
+import { correctText, markText, pickedText, num, questionClass, questionLabel, roundLabel, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 import { Board } from './Board';
 import { QuestionImage } from './QuestionImage';
+import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
 
 interface Props {
@@ -54,6 +55,12 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const board = view.board;
   const chooserIsMe = board?.turn?.playerId === me.id;
   const chooserName = board?.turn?.nickname ?? '';
+  const { spotlight } = view;
+  // Хто відповідає: власник помаранчевої відповіді, інакше вибравший на полі чи голова черги бліцу.
+  // Червона відповідь бліцу вже минула, тож її автор не «відповідає».
+  const answering = (spotlight?.grade === null ? spotlight : null) ?? board?.turn ?? view.blitz?.queue[0] ?? null;
+  const othersAnswer = answering !== null && answering.playerId !== me.id;
+  const myPending = spotlight !== null && spotlight.grade === null && spotlight.playerId === me.id;
 
   const pick = async (cellId: string) => {
     const result = await send('player:pick', { cellId });
@@ -103,14 +110,25 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {board.cell.mark !== 'none' && <span className="cell-mark">{markText(board.cell.mark)}</span>}
             </p>
           )}
+          {othersAnswer && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           <h1 className={questionClass(question.text)}>{question.text}</h1>
           <QuestionImage url={question.imageUrl} />
-          {board !== null && !chooserIsMe ? (
-            <p className="lead">{t('boardAnswering', { name: chooserName })}</p>
+          {myPending ? (
+            <section className="sent">
+              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
+              <p className="lead">{t('pendingWait')}</p>
+            </section>
+          ) : board !== null && !chooserIsMe ? (
+            <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
           ) : board !== null && board.answerMode === 'voice' && me.answer === null ? (
             <p className="lead">{t('answerAloud')}</p>
           ) : me.blitz !== null ? (
-            <BlitzTurn view={view} blitz={me.blitz} offsetMs={offsetMs} onSubmit={submit} send={send} onError={setError} />
+            <>
+              {(me.blitz.position === null || (spotlight !== null && spotlight.playerId !== me.id)) && (
+                <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
+              )}
+              <BlitzTurn view={view} blitz={me.blitz} offsetMs={offsetMs} onSubmit={submit} send={send} onError={setError} />
+            </>
           ) : me.answer !== null ? (
             <section className="sent">
               <h2>{t('answerSent')}</h2>
@@ -137,6 +155,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
           {board !== null && !chooserIsMe ? (
             <section className="result">
+              {question !== null && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} />}
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
               {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
@@ -234,19 +253,4 @@ function BlitzTurn({
       )}
     </>
   );
-}
-
-/** Власна відповідь словами: назви варіантів беруться з показаного запитання. */
-function pickedText(answer: Answer, choices: { id: string; text: string }[]): string {
-  const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
-  switch (answer.type) {
-    case 'single':
-      return name(answer.optionId);
-    case 'multi':
-      return answer.optionIds.map(name).join(', ');
-    case 'order':
-      return answer.itemIds.map(name).join(' → ');
-    default:
-      return answerText(answer, null);
-  }
 }

@@ -38,6 +38,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   paused: false,
   blitz: null,
   board: null,
+  spotlight: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -279,6 +280,19 @@ describe('PlayerScreen: blitz', () => {
     expect(screen.getByRole('button', { name: 'Відповісти' })).toBeTruthy();
   });
 
+  it('names the current head, not the last wrong answer, as answering', () => {
+    const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
+    const head = { playerId: 'p1', nickname: 'Олена' };
+    show(onQuestion({ round, spotlight, blitz: { queue: [head], winner: null }, me: blitzMe({ position: 1 }) }));
+    expect(screen.queryByText(/Відповідає/)).toBeNull();
+    cleanup();
+    show(onQuestion({ round, spotlight, blitz: { queue: [{ playerId: 'p3', nickname: 'Віра' }], winner: null }, me: blitzMe({}) }));
+    expect(screen.getByText('Відповідає Віра')).toBeTruthy();
+    cleanup();
+    show(onQuestion({ round, spotlight, blitz: { queue: [], winner: null }, me: blitzMe({}) }));
+    expect(screen.queryByText(/Відповідає/)).toBeNull();
+  });
+
   it('shows the winner line at the reveal', () => {
     show(
       view({
@@ -360,7 +374,48 @@ describe('PlayerScreen: blitz', () => {
     it('tells the others who answered and shows the correct answer', () => {
       show(view({ phase: 'reveal', round, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, board: boardOf('p2', { cell }) }));
       expect(screen.getByText('Відповідав Анна')).toBeTruthy();
-      expect(screen.getByText(/Київ/)).toBeTruthy();
+      expect(screen.getByText(/Правильна відповідь: B. Київ/)).toBeTruthy();
     });
+  });
+});
+
+describe('PlayerScreen: spotlight', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+  const boardOf = (turn: { playerId: string; nickname: string }): NonNullable<PlayerView['board']> => ({
+    categories: [],
+    order: [turn],
+    turn,
+    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' },
+    answerMode: 'phone',
+    rolls: 0,
+    skipAt: null,
+  });
+  const anna = { playerId: 'p2', nickname: 'Анна' };
+
+  it('shows the full question with the pending answer to a player who is not answering', () => {
+    const spotlight = { ...anna, answer: { type: 'single' as const, optionId: 'a' }, grade: null };
+    show(onQuestion({ round, board: boardOf(anna), spotlight }));
+    const lead = screen.getByText('Відповідає Анна');
+    const title = screen.getByRole('heading', { name: 'Столиця України?' });
+    expect(lead.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-pending');
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(document.querySelector('.inputs')).toBeNull();
+  });
+
+  it('the answering player sees their own pending answer and a waiting note', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const spotlight = { ...mine, answer: { type: 'single' as const, optionId: 'a' }, grade: null };
+    show(onQuestion({ round, board: boardOf(mine), spotlight, me: { ...me, answer: spotlight.answer } }));
+    expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-pending');
+    expect(screen.getByText('Чекаємо на рішення ведучого')).toBeTruthy();
+    expect(screen.queryByText(/Відповідає/)).toBeNull();
+  });
+
+  it('shows the verdict colours with the correct option at the reveal to a bystander', () => {
+    const spotlight = { ...anna, answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round, board: boardOf(anna), spotlight }));
+    expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-wrong');
+    expect(screen.getByText('Київ').closest('.choice')?.className).toContain('is-correct');
   });
 });

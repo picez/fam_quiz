@@ -19,6 +19,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   paused: false,
   blitz: null,
   board: null,
+  spotlight: null,
   round: null,
   questionIndex: -1,
   total: 3,
@@ -178,6 +179,16 @@ describe('StageScreen: blitz', () => {
     expect(screen.getByText('Ніхто не відповів правильно')).toBeTruthy();
   });
 
+  it('names the current head, not the last wrong answer, as answering', () => {
+    const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
+    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [queue[0]], winner: null } }));
+    expect(screen.getByText('Відповідає Олена')).toBeTruthy();
+    expect(screen.queryByText('Відповідає Тарас')).toBeNull();
+    cleanup();
+    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [], winner: null } }));
+    expect(screen.queryByText(/Відповідає/)).toBeNull();
+  });
+
   describe('board round', () => {
     const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
     const boardOf = (over: Partial<NonNullable<StageView['board']>> = {}): NonNullable<StageView['board']> => ({
@@ -263,5 +274,30 @@ describe('StageScreen: blitz', () => {
       rerender(intro(1));
       expect(container.querySelector('.is-rolling')).not.toBeNull();
     });
+  });
+});
+
+describe('StageScreen: spotlight', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+  const board = {
+    categories: [],
+    order: [{ playerId: 'p2', nickname: 'Анна' }],
+    turn: { playerId: 'p2', nickname: 'Анна' },
+    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const },
+    answerMode: 'phone' as const,
+    rolls: 0,
+    skipAt: null,
+  };
+  const picked = { playerId: 'p2', nickname: 'Анна', answer: { type: 'single' as const, optionId: 'a' } };
+  const cls = (text: string) => screen.getByText(text).closest('.choice')?.className ?? '';
+
+  it('colours the pending answer, then the verdict with the correct option at the reveal', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, round, board, endsAt: Date.now() + 20_000, spotlight: { ...picked, grade: null } }));
+    expect(cls('Львів')).toContain('is-pending');
+    expect(document.querySelector('.is-correct')).toBeNull();
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question, round, board, reveal: full, spotlight: { ...picked, grade: 'wrong' } }));
+    expect(cls('Львів')).toContain('is-wrong');
+    expect(cls('Київ')).toContain('is-correct');
   });
 });

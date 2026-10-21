@@ -1,6 +1,8 @@
 import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
+  acceptAnswer,
   addPlayer,
+  adjustTime,
   buzz,
   createGame,
   end,
@@ -15,6 +17,7 @@ import {
   pickCell,
   playerView,
   removePlayer,
+  repick,
   resume,
   rollOrder,
   setConnected,
@@ -68,11 +71,13 @@ export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
   | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'roll' | 'skip' }
+  | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
   | { type: 'judge'; playerId: string; correct: boolean }
   | { type: 'pick'; cellId: string }
-  | { type: 'order'; playerIds: string[] };
+  | { type: 'order'; playerIds: string[] }
+  | { type: 'time'; seconds: -15 | 15 };
 
 export type JoinResult =
   | { ok: true; token: string; playerId: string }
@@ -255,8 +260,14 @@ export class RoomManager {
         return this.apply(room, setOrder(state, action.playerIds));
       case 'kick':
         return this.kick(room, action.playerId);
+      case 'time':
+        return this.apply(room, adjustTime(state, action.seconds, this.now()));
       case 'judge':
         return this.apply(room, judge(state, action.playerId, action.correct, this.now()));
+      case 'accept':
+        return this.apply(room, acceptAnswer(state, action.playerId, this.now()));
+      case 'repick':
+        return this.apply(room, repick(state, action.playerId, this.now()));
     }
   }
 

@@ -2,9 +2,26 @@ import type { Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell, rollOrder, setOrder, skipTurn } from './board';
 import { nextDeadline } from './blitz';
-import { end, endRound, lock, next, override, pause, removePlayer, resume, setConnected, start, submitAnswer, tick, type GameState } from './game';
+import {
+  acceptAnswer,
+  end,
+  endRound,
+  lock,
+  next,
+  override,
+  pause,
+  removePlayer,
+  repick,
+  resume,
+  setConnected,
+  start,
+  submitAnswer,
+  tick,
+  type GameState,
+} from './game';
+import { adjustTime, remainingOf } from './timing';
 import { boardRound, classicRound, makeRoundsQuiz, order, single, withId, withPoints } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { acceptAll, lobbyWith, must } from './testing/helpers';
 
 const q = (id: string, points: number) => withPoints(withId(single, id), points);
 const c11 = q('c11', 100);
@@ -175,8 +192,8 @@ describe('board answers and points', () => {
   it('only the chooser answers and a correct answer earns the question points', () => {
     const state = picked('c12');
     expect(submitAnswer(state, 'p2', right, 1000)).toEqual({ ok: false, error: 'not_your_turn' });
-    const done = must(submitAnswer(state, 'p1', right, 1000));
-    expect(done.phase).toBe('locked');
+    const done = acceptAll(must(submitAnswer(state, 'p1', right, 1000)), 1000);
+    expect(done.phase).toBe('reveal');
     expect(done.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'correct', points: 200 });
     expect(score(done, 'p1')).toBe(200);
     expect(submitAnswer(done, 'p1', right, 1000)).toEqual({ ok: false, error: 'wrong_phase' });
@@ -188,18 +205,18 @@ describe('board answers and points', () => {
     const round = boardRound('g1', [{ title: 'A', cells: [c11, { mark: 'x3', question: c12 }] }], {
       rules: { penalty: 'minus', partial: null, streak: null, multiplier: 2 },
     });
-    expect(score(must(submitAnswer(picked('c12', round), 'p1', right, 1000)), 'p1')).toBe(1200);
-    expect(score(must(submitAnswer(picked('c12', round), 'p1', wrong, 1000)), 'p1')).toBe(-1200);
+    expect(score(acceptAll(must(submitAnswer(picked('c12', round), 'p1', right, 1000)), 1000), 'p1')).toBe(1200);
+    expect(score(acceptAll(must(submitAnswer(picked('c12', round), 'p1', wrong, 1000)), 1000), 'p1')).toBe(-1200);
   });
 
   it('partial accuracy pays a share only with partial credit on', () => {
     const o = withPoints(withId(order, 'o1'), 200);
     const half: Answer = { type: 'order', itemIds: ['u', 'l', 'h', 'k'] };
     const cells = [{ title: 'A', cells: [o] }];
-    const off = must(submitAnswer(picked('o1', boardRound('g1', cells)), 'p1', half, 1000));
+    const off = acceptAll(must(submitAnswer(picked('o1', boardRound('g1', cells)), 'p1', half, 1000)), 1000);
     expect(off.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', accuracy: 0, points: 0 });
     const on = boardRound('g1', cells, { rules: { penalty: 'none', partial: 50, streak: null, multiplier: 1 } });
-    const partial = must(submitAnswer(picked('o1', on), 'p1', half, 1000));
+    const partial = acceptAll(must(submitAnswer(picked('o1', on), 'p1', half, 1000)), 1000);
     expect(partial.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'partial', accuracy: 0.5, points: 100 });
   });
 
@@ -217,7 +234,7 @@ describe('board answers and points', () => {
   });
 
   it('without a penalty a wrong answer earns nothing', () => {
-    const done = must(submitAnswer(picked('c12'), 'p1', wrong, 1000));
+    const done = acceptAll(must(submitAnswer(picked('c12'), 'p1', wrong, 1000)), 1000);
     expect(done.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', points: 0 });
     expect(score(done, 'p1')).toBe(0);
   });
@@ -239,16 +256,18 @@ describe('board answers and points', () => {
   it('manual check waits for the host after the phone answer', () => {
     const state = picked('c12', boardRound('g1', [{ title: 'A', cells: [c11, c12] }], { check: 'manual' }));
     expect(override(state, 'p1', 'correct', 1000)).toEqual({ ok: false, error: 'wrong_phase' });
-    const locked = must(submitAnswer(state, 'p1', right, 1000));
-    expect(locked.phase).toBe('locked');
-    expect(locked.plays.at(-1)?.answers.p1).toBeUndefined();
-    expect(locked.plays.at(-1)?.board?.answer).toEqual(right);
-    const graded = must(override(locked, 'p1', 'correct', 2000));
+    const pending = must(submitAnswer(state, 'p1', right, 1000));
+    expect(pending.phase).toBe('question');
+    expect(pending.heldAt).toBe(1000);
+    expect(pending.plays.at(-1)?.answers.p1).toBeUndefined();
+    expect(pending.plays.at(-1)?.board?.answer).toEqual(right);
+    const graded = must(override(pending, 'p1', 'correct', 2000));
+    expect(graded.phase).toBe('reveal');
     expect(graded.plays.at(-1)?.answers.p1).toMatchObject({ answer: right, grade: 'correct', points: 200, overridden: false });
   });
 
   it('the host can change a board grade at the reveal and points follow', () => {
-    const reveal = must(next(must(submitAnswer(picked('c12'), 'p1', right, 1000)), 0));
+    const reveal = acceptAll(must(submitAnswer(picked('c12'), 'p1', right, 1000)), 1000);
     expect(score(reveal, 'p1')).toBe(200);
     const changed = must(override(reveal, 'p1', 'wrong', 2000));
     expect(changed.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', points: 0, overridden: true });
@@ -267,7 +286,7 @@ describe('board answers and points', () => {
     for (const [i, id] of ['a', 'b', 'c', 'd'].entries()) {
       // Після кола ротація віддає хід p2; ведучий пропускає його, щоб знову ходив p1.
       while (i === 3 && state.board?.circle[state.board.done] !== 'p1') state = must(skipTurn(state, 0));
-      state = must(submitAnswer(must(pickCell(state, null, id, 0, Math.random)), turns[i], answers[i], 1000));
+      state = acceptAll(must(submitAnswer(must(pickCell(state, null, id, 0, Math.random)), turns[i], answers[i], 1000)), 1000);
       while (i < 3 && state.phase !== 'board') state = must(next(state, 0));
     }
     expect(state.plays[3].answers.p1).toMatchObject({ streakBonus: 300, points: 400 });
@@ -345,3 +364,129 @@ describe('kicked chooser during a question', () => {
 });
 
 const chooserOfCircle = (state: GameState) => state.board?.circle[state.board.done];
+
+describe('a phone answer waits for the host', () => {
+  const t = 5000;
+  const manual = (rules = {}) =>
+    boardRound('g1', [{ title: 'A', cells: [c11, c12] }], {
+      check: 'manual',
+      rules: { penalty: 'none', partial: 50, streak: null, multiplier: 1, ...rules },
+    });
+
+  it('a phone answer waits for the host and stops the question timer', () => {
+    const state = must(submitAnswer(picked('c12'), 'p1', wrong, t));
+    expect(state.phase).toBe('question');
+    expect(state.heldAt).toBe(t);
+    expect(state.plays.at(-1)?.board?.answer).toEqual(wrong);
+    expect(state.plays.at(-1)?.answers).toEqual({});
+    expect(remainingOf(state, 60000)).toBe(15000);
+    expect(tick(state, 60000)).toBe(state);
+    expect(nextDeadline(state, 60000)).toBeNull();
+  });
+
+  it('accept grades the answer and goes straight to the reveal', () => {
+    const accepted = must(acceptAnswer(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 'p1', 9000));
+    expect(accepted.phase).toBe('reveal');
+    expect(accepted.heldAt).toBeNull();
+    expect(accepted.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', timeMs: 5000, points: 0 });
+    const won = must(acceptAnswer(must(submitAnswer(picked('c12'), 'p1', right, t)), 'p1', 9000));
+    expect(won.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'correct', points: 200 });
+    expect(score(won, 'p1')).toBe(200);
+  });
+
+  it('repick clears the answer and resumes from the same remainder, as often as needed', () => {
+    let state = must(repick(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 'p1', 50000));
+    expect(state.plays.at(-1)?.board?.answer).toBeNull();
+    expect(state.heldAt).toBeNull();
+    expect(state.endsAt).toBe(65000);
+    expect(state.startedAt).toBe(45000);
+    state = must(repick(must(submitAnswer(state, 'p1', wrong, 52000)), 'p1', 60000));
+    expect(state.endsAt).toBe(73000);
+    expect(state.startedAt).toBe(53000);
+    const accepted = must(acceptAnswer(must(submitAnswer(state, 'p1', right, 61000)), 'p1', 62000));
+    expect(accepted.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'correct', timeMs: 8000 });
+  });
+
+  it('manual check: the host grades the pending answer, partial included, and repick stays', () => {
+    const pending = must(submitAnswer(picked('c12', manual()), 'p1', wrong, t));
+    expect(acceptAnswer(pending, 'p1', 8000)).toEqual({ ok: false, error: 'wrong_phase' });
+    const graded = must(override(pending, 'p1', 'partial', 8000));
+    expect(graded.phase).toBe('reveal');
+    expect(graded.heldAt).toBeNull();
+    expect(graded.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'partial', points: 100, timeMs: 5000, overridden: false });
+    expect(score(graded, 'p1')).toBe(100);
+    const repicked = must(repick(must(submitAnswer(picked('c12', manual()), 'p1', wrong, t)), 'p1', 50000));
+    expect(repicked.plays.at(-1)?.board?.answer).toBeNull();
+    expect(repicked.endsAt).toBe(65000);
+  });
+
+  it('a pause over a pending answer changes nothing', () => {
+    const paused = must(pause(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 6000));
+    expect(paused.paused).toBe(true);
+    expect(paused.endsAt).toBe(20000);
+    expect(paused.remainingMs).toBeNull();
+    expect(remainingOf(paused, 6000)).toBe(15000);
+    const resumed = must(resume(paused, 900000));
+    expect(resumed.heldAt).toBe(t);
+    expect(resumed.phase).toBe('question');
+    expect(resumed.paused).toBe(false);
+    expect(must(repick(resumed, 'p1', 900000)).endsAt).toBe(915000);
+  });
+
+  it('±15 on a pending answer works on the stored remainder', () => {
+    const added = must(adjustTime(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 15, 40000));
+    expect(remainingOf(added, 40000)).toBe(30000);
+    expect(must(repick(added, 'p1', 50000)).endsAt).toBe(80000);
+  });
+
+  it('a disconnected pending player can still be accepted or re-picked', () => {
+    const away = must(setConnected(must(submitAnswer(picked('c12'), 'p1', right, t)), 'p1', false, 6000));
+    expect(must(acceptAnswer(away, 'p1', 7000)).plays.at(-1)?.answers.p1?.grade).toBe('correct');
+    const awayAgain = must(setConnected(must(submitAnswer(picked('c12'), 'p1', right, t)), 'p1', false, 6000));
+    const repicked = must(repick(awayAgain, 'p1', 7000));
+    expect(tick(repicked, repicked.endsAt ?? 0).phase).toBe('locked');
+  });
+
+  it('kicking the pending chooser lets the timer run again', () => {
+    const kicked = must(removePlayer(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 'p1'));
+    const running = tick(kicked, 30000);
+    expect(running.heldAt).toBeNull();
+    expect(running.endsAt).toBe(45000);
+    expect(running.phase).toBe('question');
+    expect(tick(running, 45000).phase).toBe('locked');
+  });
+
+  it('voice mode has no pending step', () => {
+    const state = picked('c12', boardRound('g1', [{ title: 'A', cells: [c11, c12] }], { answerMode: 'voice' }));
+    expect(submitAnswer(state, 'p1', right, t)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(acceptAnswer(state, 'p1', t)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(must(override(state, 'p1', 'correct', t)).phase).toBe('locked');
+  });
+
+  it('accept and repick refuse a player who is not the pending one', () => {
+    const state = must(submitAnswer(picked('c12'), 'p1', wrong, t));
+    expect(acceptAnswer(state, 'p2', 7000)).toEqual({ ok: false, error: 'not_found' });
+    expect(repick(state, 'p2', 7000)).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('closing the question or ending the round during a pending answer leaves the game movable', () => {
+    const pending = must(submitAnswer(picked('c12'), 'p1', right, t));
+    const locked = must(lock(pending));
+    expect(locked.heldAt).toBeNull();
+    const revealed = must(next(locked, 7000));
+    expect(revealed.phase).toBe('reveal');
+    expect(revealed.plays.at(-1)?.answers.p1?.grade).toBe('wrong');
+    const ended = must(endRound(pending, 7000));
+    expect(ended.heldAt).toBeNull();
+    expect(ended.phase).not.toBe('question');
+  });
+
+  it('accept and repick are refused without a pending answer or on pause', () => {
+    const state = picked('c12');
+    expect(acceptAnswer(state, 'p1', t)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(repick(state, 'p1', t)).toEqual({ ok: false, error: 'wrong_phase' });
+    const paused = must(pause(must(submitAnswer(state, 'p1', wrong, t)), 6000));
+    expect(acceptAnswer(paused, 'p1', 7000)).toEqual({ ok: false, error: 'paused' });
+    expect(repick(paused, 'p1', 7000)).toEqual({ ok: false, error: 'paused' });
+  });
+});

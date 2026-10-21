@@ -66,7 +66,7 @@ export interface PlayerBlitz {
   attemptsLeft: number | null;
   /** Етап question, не пауза, не в черзі, спроби лишилися; час клієнт не перевіряє. */
   canBuzz: boolean;
-  /** Кінець власного вікна відповіді, якщо гравець у черзі. */
+  /** Кінець власного вікна відповіді, якщо гравець у черзі; null і під час утримання. */
   deadline: number | null;
 }
 
@@ -105,6 +105,16 @@ export interface HostBoard extends BoardInfo {
   answer: Answer | null;
 }
 
+/** Відповідь одного гравця, яку бачать усі («Мільйонер»). Правильної відповіді тут немає ніколи. */
+export interface Spotlight {
+  playerId: string;
+  nickname: string;
+  /** null — у бліці гравець не встиг відповісти у вікно. */
+  answer: Answer | null;
+  /** null — чекає на рішення ведучого (помаранчевий); інакше вердикт. */
+  grade: Grade | null;
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -123,6 +133,8 @@ interface BaseView {
   blitz: BlitzInfo | null;
   /** Поле й ходи; null поза раундом поля та в етапах lobby, round_end, finished. */
   board: BoardInfo | null;
+  /** Відповідь одного гравця для всіх ролей (поле з телефонами, бліц); null — немає. */
+  spotlight: Spotlight | null;
 }
 
 export interface StageView extends BaseView {

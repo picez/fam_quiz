@@ -604,6 +604,43 @@ describe('QuizEditor: cancelled drag', () => {
     expect(roundQuestions(saved(onSave).rounds[0]).map((q) => q.text)).toEqual(['Перше', 'Друге', 'Третє']);
   });
 
+  describe('same time for the round', () => {
+    const twoQuestions = (): Quiz => ({
+      ...newQuiz(),
+      title: 'Гра',
+      rounds: [
+        {
+          ...newClassicRound(),
+          questions: [20, 45].map((timeLimit, i) => ({
+            ...newQuestion('boolean'),
+            text: `Питання ${i + 1}?`,
+            timeLimit,
+          })),
+        },
+      ],
+    });
+
+    it('applies one time to all questions of the round', async () => {
+      const { onSave } = open(twoQuestions());
+      fireEvent.click(screen.getByText('Налаштування раунду'));
+      fill('Секунд', '40');
+      click('Застосувати');
+      click('Зберегти');
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+      expect(roundQuestions(saved(onSave).rounds[0]).map((q) => q.timeLimit)).toEqual([40, 40]);
+    });
+
+    it('the apply button is disabled outside 5–120 seconds', () => {
+      open(twoQuestions());
+      fireEvent.click(screen.getByText('Налаштування раунду'));
+      const apply = screen.getByRole('button', { name: 'Застосувати' }) as HTMLButtonElement;
+      for (const [value, disabled] of [['4', true], ['121', true], ['120', false], ['5', false], ['7.5', true]] as const) {
+        fill('Секунд', value);
+        expect(apply.disabled, value).toBe(disabled);
+      }
+    });
+  });
+
   describe('rounds', () => {
     const roundButton = (name: string) => screen.queryByRole('button', { name });
 

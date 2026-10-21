@@ -1,4 +1,4 @@
-import type { Answer, CellMark, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
+import type { Answer, CellMark, Choice, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
 import { t } from './i18n';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
@@ -104,4 +104,19 @@ export function streaksOf(players: LobbyPlayer[]): Record<string, number> {
 /** Позначка клітинки поля: «×2», «×3»; для клітинки без позначки порожньо. */
 export function markText(mark: CellMark): string {
   return mark === 'x2' ? '×2' : mark === 'x3' ? '×3' : '';
+}
+
+/** Відповідь словами за показаними варіантами: назви беруться з запитання, яке бачить гравець. */
+export function pickedText(answer: Answer, choices: Choice[]): string {
+  const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
+  switch (answer.type) {
+    case 'single':
+      return name(answer.optionId);
+    case 'multi':
+      return answer.optionIds.map(name).join(', ');
+    case 'order':
+      return answer.itemIds.map(name).join(' → ');
+    default:
+      return answerText(answer, null);
+  }
 }

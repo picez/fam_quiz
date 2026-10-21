@@ -395,8 +395,10 @@ describe('recorder: blitz', () => {
     const { manager, room, olena, answers } = await blitzSetup({ attempts: 2, rules: risky });
     expect(manager.buzz(room, olena)).toEqual({ ok: true });
     expect(manager.answer(room, olena, wrong)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept', playerId: olena })).toEqual({ ok: true });
     expect(manager.buzz(room, olena)).toEqual({ ok: true });
     expect(manager.answer(room, olena, correct)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept', playerId: olena })).toEqual({ ok: true });
     expect(room.state.phase).toBe('locked');
 
     const rows = await answers();
@@ -421,11 +423,14 @@ describe('recorder: blitz', () => {
     const { manager, room, olena, answers } = await blitzSetup({ attempts: 2, rules: streaky });
     manager.buzz(room, olena);
     manager.answer(room, olena, correct);
+    manager.host(room, { type: 'accept', playerId: olena });
     while (room.state.phase !== 'question') expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     manager.buzz(room, olena);
     manager.answer(room, olena, { type: 'text', value: 'Львів' });
+    manager.host(room, { type: 'accept', playerId: olena });
     manager.buzz(room, olena);
     manager.answer(room, olena, { type: 'text', value: 'Одеса' });
+    manager.host(room, { type: 'accept', playerId: olena });
     expect(room.state.phase).toBe('locked');
 
     const rows = await answers();
@@ -469,7 +474,8 @@ describe('recorder: board', () => {
     const { manager, room, olena, saved } = await boardSetup(round);
     expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
     expect(manager.answer(room, olena, correct)).toEqual({ ok: true });
-    expect(room.state.phase).toBe('locked');
+    expect(manager.host(room, { type: 'accept', playerId: olena })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
 
     const { games, answers } = await saved();
     expect(games[0].plays).toEqual([{ roundIndex: 0, questionId: 'c11', cell: { cellId: 'c11', chooserId: olena } }]);

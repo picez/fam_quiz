@@ -70,7 +70,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
     board !== null &&
     view.question !== null &&
     chooserId !== null &&
-    ((phase === 'question' && board.manual && (board.answerMode === 'voice' || board.answer !== null)) || phase === 'locked' || phase === 'reveal');
+    ((phase === 'question' && board.manual && board.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
+  // Відповідь з телефона, що чекає на рішення ведучого (помаранчева).
+  const pending = phase === 'question' && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
+  const manualPending = pending !== null && ((board !== null && board.manual) || (blitz !== null && blitz.manual));
+  const secondsNow = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
+  const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
   const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz';
 
@@ -109,6 +114,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
   const judge = (playerId: string, correct: boolean) => void act('host:judge', { playerId, correct });
 
+  const adjust = (seconds: number) => void act('host:time', { seconds });
+
   const grade = (playerId: string, value: Grade) => void act('host:override', { playerId, grade: value });
 
   // Порядок кола: позиції міняються місцями, ведучий бачить результат одразу.
@@ -129,6 +136,25 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       release();
     });
   };
+  // «Прийняти» й «Перевибрати» називають гравця й ідуть по одному: поки підтвердження не прийшло,
+  // другий дотик не має зачепити наступну відповідь черги бліцу.
+  const [deciding, setDeciding] = useState(false);
+  const decidingRef = useRef(false);
+  const decide = (event: 'host:accept' | 'host:repick', playerId: string) => {
+    if (decidingRef.current) return;
+    const release = () => {
+      decidingRef.current = false;
+      setDeciding(false);
+    };
+    decidingRef.current = true;
+    setDeciding(true);
+    const fallback = setTimeout(release, 3000);
+    void act(event, { playerId }).finally(() => {
+      clearTimeout(fallback);
+      release();
+    });
+  };
+
   const move = (from: number, to: number) => {
     if (board === null) return;
     const ids = board.order.map((entry) => entry.playerId);
@@ -241,6 +267,63 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
+      {timeShown && (
+        <div className="panel-actions">
+          <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
+            {t('timeMinus')}
+          </button>
+          <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow >= 120} onClick={() => adjust(15)}>
+            {t('timePlus')}
+          </button>
+        </div>
+      )}
+
+      {pending !== null && (
+        <section className="panel">
+          <h2>{t('pendingTitle')}</h2>
+          <ul className="rows">
+            <li>
+              <span className="name">{pending.nickname}</span>
+              <span className="given">{answerText(pending.answer, correct)}</span>
+              <span className="tag is-pending">{t('pendingTitle')}</span>
+            </li>
+          </ul>
+          <div className="actions">
+            {!manualPending && (
+              <button type="button" className="btn btn-small" disabled={deciding} onClick={() => decide('host:accept', pending.playerId)}>
+                {t('acceptAnswer')}
+              </button>
+            )}
+            {manualPending && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={() => (board !== null ? grade(pending.playerId, 'correct') : judge(pending.playerId, true))}
+                >
+                  {t('judgeCorrect')}
+                </button>
+                {board !== null && round?.partial === true && (
+                  <button type="button" className="btn btn-small" onClick={() => grade(pending.playerId, 'partial')}>
+                    {t('gradePartial')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={() => (board !== null ? grade(pending.playerId, 'wrong') : judge(pending.playerId, false))}
+                >
+                  {t('judgeWrong')}
+                </button>
+              </>
+            )}
+            <button type="button" className="btn btn-small" disabled={deciding} onClick={() => decide('host:repick', pending.playerId)}>
+              {t('repick')}
+            </button>
+          </div>
+        </section>
+      )}
+
       {view.question !== null && live && blitz !== null && (
         <>
           {/* Після закриття запитання черги вже немає: лишаються тільки спроби. */}
@@ -251,20 +334,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 <p className="meta">{t('noResponses')}</p>
               ) : (
                 <ul className="rows">
-                  {blitz.queue.map((entry, index) => (
+                  {blitz.queue.map((entry) => (
                     <li key={entry.playerId}>
                       <span className="name">{entry.nickname}</span>
                       <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct)}</span>
-                      {blitz.manual && index === 0 && entry.answer !== null && (
-                        <>
-                          <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, true)}>
-                            {t('judgeCorrect')}
-                          </button>
-                          <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, false)}>
-                            {t('judgeWrong')}
-                          </button>
-                        </>
-                      )}
                     </li>
                   ))}
                 </ul>
