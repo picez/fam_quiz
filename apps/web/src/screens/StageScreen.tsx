@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, StageView } from '@quiz/shared';
-import { LETTERS, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
+import { LETTERS, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
+import { MatchColumns, PairList } from './MatchView';
 import { Timer } from '../live/Timer';
 import { Board } from './Board';
 import { QuestionImage } from './QuestionImage';
@@ -70,7 +71,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   // Червона відповідь бліцу вже минула: відповідає голова черги, а не її автор.
   const pendingSpot = view.spotlight?.grade === null ? view.spotlight : null;
   const answering = pendingSpot ?? view.board?.turn ?? view.blitz?.queue[0] ?? null;
-  const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question">
@@ -99,6 +100,15 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
       <QuestionImage url={question.imageUrl} />
       {spotlit ? (
         <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} />
+      ) : question.type === 'match' ? (
+        reveal === null ? (
+          <MatchColumns left={question.choices} right={question.right} />
+        ) : (
+          <>
+            <h2 className="match-heading">{t('correctPairs')}</h2>
+            <PairList pairs={correctPairs(reveal)} tone="is-correct" />
+          </>
+        )
       ) : (
         showChoices && (
           <ul className="choices">
@@ -129,7 +139,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         </p>
       )}
       {reveal === null && hint !== null && <p className="lead">{hint}</p>}
-      {reveal !== null && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {reveal !== null && question.type !== 'match' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }

@@ -11,7 +11,7 @@ import {
   submitAnswer,
   tick,
 } from './game';
-import { makeQuiz, numeric, order, single, text } from './testing/fixtures';
+import { makeQuiz, match, numeric, order, single, text } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const T0 = 1_000_000;
@@ -197,6 +197,17 @@ describe('presented order', () => {
     const identity = () => 0.999;
     const state = must(start(lobbyWith(makeQuiz([order]), 'Олена'), T0, identity));
     expect(state.presented).toEqual(['l', 'k', 'h', 'u']);
+  });
+
+  it('presents the right column of a match question shuffled even without shuffleOptions', () => {
+    const rolls = [0.5, 0];
+    const state = must(start(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => rolls.shift() ?? 0));
+    expect(state.presented).toEqual(['z', 'x', 'y']);
+  });
+
+  it('never shows the right column in the author order', () => {
+    const state = must(start(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => 0.999));
+    expect(state.presented).toEqual(['y', 'z', 'x']);
   });
 
   it('shuffles options when the quiz asks for it', () => {

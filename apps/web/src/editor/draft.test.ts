@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
+import { t } from '../i18n';
 import { QUESTION_TYPES, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardQuestion, newBoardRound, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
@@ -13,6 +14,15 @@ function filled(question: Question): Question {
       return { ...question, text, options: question.options.map((o, i) => ({ ...o, text: `Варіант ${i + 1}` })) };
     case 'order':
       return { ...question, text, items: question.items.map((o, i) => ({ ...o, text: `Елемент ${i + 1}` })) };
+    case 'match':
+      return {
+        ...question,
+        text,
+        pairs: question.pairs.map((pair, i) => ({
+          left: { ...pair.left, text: `Ліве ${i + 1}` },
+          right: { ...pair.right, text: `Праве ${i + 1}` },
+        })),
+      };
     case 'text':
       return { ...question, text, accepted: ['Відповідь'] };
     default:
@@ -136,11 +146,12 @@ describe('duplicateQuestion', () => {
       const source = filled(newQuestion(type));
       const copy = duplicateQuestion(source);
       expect(copy.id, type).not.toBe(source.id);
-      expect({ ...copy, id: '', options: undefined, items: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
+      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
         ...source,
         id: '',
         options: undefined,
         items: undefined,
+        pairs: undefined,
         correctId: undefined,
         correctIds: undefined,
       });
@@ -471,5 +482,51 @@ describe('applyRoundTime', () => {
     expect(boardCells(after).map((c) => [c.cell.mark, c.cell.question.points])).toEqual(
       boardCells(board).map((c) => [c.cell.mark, c.cell.question.points]),
     );
+  });
+});
+
+describe('match questions', () => {
+  const pairsOf = (question: Question) => {
+    if (question.type !== 'match') throw new Error('unexpected type');
+    return question.pairs;
+  };
+  let n = 0;
+  const withPairs = (texts: [string, string][]): Question => {
+    const base = newQuestion('match');
+    const pairs = texts.map(([l, r]) => ({ left: { id: `l${++n}`, text: l }, right: { id: `r${++n}`, text: r } }));
+    return { ...base, text: 'Запитання?', pairs } as Question;
+  };
+
+  it('a new match question has three empty pairs with distinct ids', () => {
+    const pairs = pairsOf(newQuestion('match'));
+    expect(pairs).toHaveLength(3);
+    expect(new Set(pairs.flatMap((p) => [p.left.id, p.right.id])).size).toBe(6);
+    expect(pairs.every((p) => p.left.text === '' && p.right.text === '')).toBe(true);
+  });
+
+  it('a duplicated match question gets new ids for both columns', () => {
+    const source = filled(newQuestion('match'));
+    const copy = duplicateQuestion(source);
+    const before = pairsOf(source).flatMap((p) => [p.left.id, p.right.id]);
+    const after = pairsOf(copy).flatMap((p) => [p.left.id, p.right.id]);
+    expect(new Set(after).size).toBe(6);
+    expect(after.filter((id) => before.includes(id))).toEqual([]);
+    expect(pairsOf(copy).map((p) => [p.left.text, p.right.text])).toEqual(pairsOf(source).map((p) => [p.left.text, p.right.text]));
+  });
+
+  it('cleaned drops trailing empty pairs but keeps three', () => {
+    const five = withPairs([['а', 'б'], ['в', 'г'], ['д', 'е'], ['', ''], ['', '']]);
+    expect(pairsOf(questionsOf(cleaned(quizWith(five)))[0])).toHaveLength(3);
+    const emptyThird = withPairs([[' а ', 'б'], ['в', 'г'], ['', '']]);
+    const result = pairsOf(questionsOf(cleaned(quizWith(emptyThird)))[0]);
+    expect(result).toHaveLength(3);
+    expect(result[0].left.text).toBe('а');
+    const halfEmpty = withPairs([['а', 'б'], ['в', 'г'], ['д', 'е'], ['ж', '']]);
+    expect(pairsOf(questionsOf(cleaned(quizWith(halfEmpty)))[0])).toHaveLength(4);
+  });
+
+  it('a match pair with an empty side is a problem', () => {
+    const question = withPairs([['а', 'б'], ['в', ''], ['д', 'е']]);
+    expect(problemsOf(quizWith(question))).toContain(t('problemEmptyPair', { index: 1 }));
   });
 });

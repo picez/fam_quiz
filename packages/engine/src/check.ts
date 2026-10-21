@@ -52,5 +52,17 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
     return { accepted: inPlace === ids.length, accuracy: inPlace / ids.length };
   }
 
+  if (question.type === 'match' && answer.type === 'match') {
+    const { pairs } = question;
+    const lefts = answer.links.map((link) => link.left);
+    const rights = answer.links.map((link) => link.right);
+    return full(
+      answer.links.length === pairs.length &&
+        new Set(lefts).size === pairs.length &&
+        new Set(rights).size === pairs.length &&
+        answer.links.every((link) => pairs.some((pair) => pair.left.id === link.left && pair.right.id === link.right)),
+    );
+  }
+
   return REJECTED;
 }

@@ -13,6 +13,7 @@ const publicQuestion = {
   imageUrl: null,
   timeLimit: 20,
   points: 1000,
+  right: [],
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },
@@ -417,5 +418,16 @@ describe('PlayerScreen: spotlight', () => {
     show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round, board: boardOf(anna), spotlight }));
     expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-wrong');
     expect(screen.getByText('Київ').closest('.choice')?.className).toContain('is-correct');
+  });
+
+  it('shows a sent match answer with the right column names', () => {
+    const matchQ = {
+      ...publicQuestion,
+      type: 'match' as const,
+      choices: [{ id: 'a', text: 'Київ' }],
+      right: [{ id: 'x', text: 'Дніпро' }],
+    };
+    show(onQuestion({ question: matchQ, me: { ...me, answer: { type: 'match', links: [{ left: 'a', right: 'x' }] } } }));
+    expect(screen.getByText('Київ — Дніпро')).toBeTruthy();
   });
 });

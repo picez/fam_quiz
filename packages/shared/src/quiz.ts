@@ -14,6 +14,8 @@ export const LIMITS = {
   maxOptions: 6,
   minOrderItems: 3,
   maxOrderItems: 6,
+  minPairs: 3,
+  maxPairs: 6,
   maxAccepted: 10,
   /** Запитань в одному раунді. */
   maxQuestions: 100,
@@ -81,6 +83,12 @@ export const questionSchema = z
       // Елементи зберігаються в правильному порядку.
       items: z.array(choice).min(LIMITS.minOrderItems).max(LIMITS.maxOrderItems),
     }),
+    z.object({
+      ...base,
+      type: z.literal('match'),
+      // Пари зберігаються правильними.
+      pairs: z.array(z.object({ left: choice, right: choice })).min(LIMITS.minPairs).max(LIMITS.maxPairs),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
@@ -88,7 +96,9 @@ export const questionSchema = z
         ? q.options.map((o) => o.id)
         : q.type === 'order'
           ? q.items.map((i) => i.id)
-          : [];
+          : q.type === 'match'
+            ? q.pairs.flatMap((p) => [p.left.id, p.right.id])
+            : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
     if (q.type === 'single' && !ids.includes(q.correctId)) {
       ctx.addIssue({ code: 'custom', message: 'unknown_correct_id' });

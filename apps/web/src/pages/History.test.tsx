@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GameDetail, GameSummary } from '@quiz/shared';
+import type { GameDetail, GameSummary, Question } from '@quiz/shared';
 import { getGame, listGames, me } from '../api';
 import { GameHistory } from './GameHistory';
 import { History } from './History';
@@ -21,6 +21,31 @@ const summary: GameSummary = {
   questionCount: 6,
 };
 
+const base = { imageUrl: null, timeLimit: 20, points: 1000 };
+const singleQ: Question = {
+  ...base,
+  id: 'q1',
+  type: 'single',
+  text: 'Столиця України?',
+  options: [
+    { id: 'a', text: 'Львів' },
+    { id: 'b', text: 'Київ' },
+  ],
+  correctId: 'b',
+};
+const textQ: Question = { ...base, id: 'q2', type: 'text', text: 'Перлина біля моря?', accepted: ['Одеса'] };
+const matchQ: Question = {
+  ...base,
+  id: 'q3',
+  type: 'match',
+  text: 'З’єднайте місто з річкою',
+  pairs: [
+    { left: { id: 'a', text: 'Київ' }, right: { id: 'x', text: 'Дніпро' } },
+    { left: { id: 'b', text: 'Львів' }, right: { id: 'y', text: 'Полтва' } },
+    { left: { id: 'c', text: 'Ужгород' }, right: { id: 'z', text: 'Уж' } },
+  ],
+};
+
 const detail: GameDetail = {
   id: 'g1',
   title: 'Географія',
@@ -36,8 +61,8 @@ const detail: GameDetail = {
     { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0 },
   ],
   questions: [
-    { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null },
-    { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null },
+    { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [] },
+    { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [] },
   ],
 };
 
@@ -155,6 +180,64 @@ describe('GameHistory', () => {
   });
 });
 
+describe('GameHistory: answers', () => {
+  const answered: GameDetail = {
+    ...detail,
+    questions: [
+      {
+        index: 0,
+        roundIndex: 0,
+        text: matchQ.text,
+        type: 'match',
+        answered: 2,
+        accepted: 1,
+        cell: null,
+        question: matchQ,
+        responses: [
+          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true },
+          { nickname: 'Тарас', answer: null, accepted: false },
+        ],
+      },
+      {
+        index: 1,
+        roundIndex: 0,
+        text: singleQ.text,
+        type: 'single',
+        answered: 1,
+        accepted: 0,
+        cell: null,
+        question: singleQ,
+        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false }],
+      },
+    ],
+  };
+
+  it("shows each player's answer, a match answer as pairs and a missed attempt as a dash", async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: answered });
+    const { container } = open('/history/g1');
+    const [matchBlock, singleBlock] = await screen.findAllByText(/^Відповіді \(\d\)$/);
+    expect(matchBlock.textContent).toBe('Відповіді (2)');
+    expect(singleBlock.textContent).toBe('Відповіді (1)');
+    fireEvent.click(matchBlock);
+    const details = container.querySelectorAll('details.responses');
+    const rows = [...details[0].querySelectorAll('li.is-correct, li.is-wrong')];
+    expect(rows[0].textContent).toContain('Олена');
+    expect([...rows[0].querySelectorAll('li.match-row')].map((li) => li.textContent)).toEqual(['Київ — Дніпро', 'Львів — Полтва', 'Ужгород — Уж']);
+    expect(rows[0].className).toContain('is-correct');
+    expect(rows[1].textContent).toBe('Тарас—');
+    expect(rows[1].className).toContain('is-wrong');
+    expect(details[1].textContent).toContain('Віра');
+    expect(details[1].textContent).toContain('Львів');
+  });
+
+  it('shows no answers block for a question nobody answered', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+    const { container } = open('/history/g1');
+    expect(await screen.findByText('Столиця України?')).toBeTruthy();
+    expect(container.querySelector('details.responses')).toBeNull();
+  });
+});
+
 describe('GameHistory: rounds', () => {
   it('groups the questions under the round titles', async () => {
     vi.mocked(getGame).mockResolvedValue({
@@ -166,8 +249,8 @@ describe('GameHistory: rounds', () => {
           { title: 'Бліц', type: 'classic' },
         ],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null },
-          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [] },
+          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [] },
         ],
       },
     });
@@ -187,8 +270,8 @@ describe('GameHistory: rounds', () => {
           { title: '', type: 'classic' },
         ],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null },
-          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [] },
+          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [] },
         ],
       },
     });
@@ -213,8 +296,8 @@ describe('GameHistory: rounds', () => {
         ...detail,
         rounds: [{ title: 'Поле', type: 'board' }],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 1, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: 100 } },
-          { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 0, cell: { category: 'Ріки', price: 200, multiplier: 1, chooser: null, points: null } },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 1, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: 100 }, question: singleQ, responses: [] },
+          { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 0, cell: { category: 'Ріки', price: 200, multiplier: 1, chooser: null, points: null }, question: textQ, responses: [] },
         ],
       },
     });

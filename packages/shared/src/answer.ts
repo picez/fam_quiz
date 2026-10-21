@@ -11,6 +11,10 @@ export const answerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('numeric'), value: z.number().finite() }),
   z.object({ type: z.literal('order'), itemIds: z.array(id).max(LIMITS.maxOrderItems) }),
+  z.object({
+    type: z.literal('match'),
+    links: z.array(z.object({ left: id, right: id })).max(LIMITS.maxPairs),
+  }),
 ]);
 
 export type Answer = z.infer<typeof answerSchema>;

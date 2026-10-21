@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { Answer, Choice, PublicQuestion } from '@quiz/shared';
 import { LETTERS } from '../format';
 import { t } from '../i18n';
+import { MatchInput } from './MatchView';
 
 interface Props {
   question: PublicQuestion;
@@ -163,5 +164,7 @@ export function AnswerInput({ question, onSubmit }: Props) {
       return <TypedInput question={question} onSubmit={onSubmit} />;
     case 'order':
       return <OrderInput question={question} onSubmit={onSubmit} />;
+    case 'match':
+      return <MatchInput question={question} onSubmit={onSubmit} />;
   }
 }

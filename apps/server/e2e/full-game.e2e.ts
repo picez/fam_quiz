@@ -90,6 +90,16 @@ const click = (page: Page, name: string) => page.getByRole('button', { name, ...
 const field = (page: Page, label: string) => page.getByLabel(label, exact);
 const questionText = (page: Page) => page.locator('.question-field textarea');
 
+const LONG_RIGHT = 'Уж — річка, що тече через Ужгород і впадає в Лаборець на території Словаччини, довжина 133 км';
+
+/** З'єднує пари на телефоні: дотик ліворуч, потім праворуч. */
+async function connect(page: Page, pairs: [string, string][]): Promise<void> {
+  for (const [l, r] of pairs) {
+    await page.locator('.match-left', { hasText: l }).click();
+    await page.locator('.match-right', { hasText: r }).click();
+  }
+}
+
 /** Залишок часу запитання в секундах із таймера на екрані. */
 async function seconds(page: Page): Promise<number> {
   return Number(await page.getByRole('timer').first().getAttribute('aria-label'));
@@ -119,7 +129,7 @@ async function join(page: Page, code: string, nickname: string, viaHome: boolean
   await page.getByText('Ви в грі. Чекаємо на старт.').waitFor();
 }
 
-it('a host and two players go from sign-up to the podium and the history', async () => {
+it('a host and two players go from sign-up to the podium and the history with every question type', async () => {
   try {
     await scenario();
   } catch (error) {
@@ -185,6 +195,14 @@ async function scenario() {
   await click(host, 'порядок');
   await questionText(host).fill('Розставте від найменшого до найбільшого');
   for (const [index, item] of ['Один', 'Два', 'Три'].entries()) await field(host, `Елемент ${index + 1}`).fill(item);
+
+  await click(host, 'Додати запитання');
+  await click(host, 'пари');
+  await questionText(host).fill('З’єднайте місто з річкою');
+  for (const [index, [l, r]] of [['Київ', 'Дніпро'], ['Львів', 'Полтва'], ['Ужгород', LONG_RIGHT]].entries()) {
+    await field(host, `Ліворуч ${index + 1}`).fill(l);
+    await field(host, `Праворуч ${index + 1}`).fill(r);
+  }
 
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Наскрізна вікторина' }).waitFor();
@@ -275,6 +293,41 @@ async function scenario() {
   await click(taras, 'Відповісти');
   await reveal();
   await olya.getByText('Правильно!').waitFor();
+  await toNext();
+
+  // 7. Пари: до розкриття сцена й телефони не бачать правильних пар.
+  await olya.locator('.match-right').first().waitFor();
+  await stage.locator('.match-columns').waitFor();
+  expect(await stage.locator('.match-columns .match-left').count()).toBe(3);
+  expect(await stage.locator('.match-columns .match-right').count()).toBe(3);
+  expect(await stage.locator('.match-list').count()).toBe(0);
+  expect(await stage.locator('body').innerText()).not.toContain('Київ — Дніпро');
+  const authorOrder = ['Дніпро', 'Полтва', LONG_RIGHT];
+  const shown = await olya.locator('.match-right .match-text').allTextContents();
+  expect([...shown].sort()).toEqual([...authorOrder].sort());
+  expect(shown).not.toEqual(authorOrder);
+
+  const submit = taras.getByRole('button', { name: 'Відповісти', ...exact });
+  await connect(taras, [['Київ', 'Полтва']]);
+  await taras.locator('.match-left', { hasText: 'Київ' }).click();
+  expect(await taras.locator('.match-badge').count()).toBe(0);
+  expect(await submit.isDisabled()).toBe(true);
+  await connect(taras, [['Київ', 'Полтва'], ['Львів', 'Дніпро'], ['Ужгород', 'Уж — річка']]);
+  expect(await submit.isDisabled()).toBe(false);
+  expect(await taras.evaluate(() => (globalThis as unknown as { document: { documentElement: { scrollWidth: number } } }).document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  await shot(taras, 'match-phone');
+  await shot(stage, 'match-stage-question');
+
+  await connect(olya, [['Київ', 'Дніпро'], ['Львів', 'Полтва'], ['Ужгород', 'Уж — річка']]);
+  await click(olya, 'Відповісти');
+  await click(taras, 'Відповісти');
+  await reveal();
+  await stage.locator('li.match-row.is-correct').nth(2).waitFor();
+  expect(await stage.locator('li.match-row.is-correct').count()).toBe(3);
+  expect(await stage.locator('li.match-row.is-correct').first().textContent()).toContain('Київ — Дніпро');
+  await olya.getByText('Правильно!').waitFor();
+  await taras.getByText('Неправильно').waitFor();
+  await shot(stage, 'match-stage-reveal');
   await toNext(true);
 
   // Подіум.
@@ -289,8 +342,16 @@ async function scenario() {
   await host.getByRole('link', { name: /Наскрізна вікторина/ }).click();
   const rows = host.locator('.standings li');
   await rows.first().waitFor();
-  expect(await rows.nth(0).textContent()).toMatch(/Оля.*правильних: 6/);
+  expect(await rows.nth(0).textContent()).toMatch(/Оля.*правильних: 7/);
   expect(await rows.nth(1).textContent()).toMatch(/Тарас.*правильних: 1/);
+
+  // Відповіді гравців під запитанням: пари списком.
+  const matchQuestion = host.locator('.rows.stacked > li', { hasText: 'З’єднайте місто з річкою' });
+  await matchQuestion.getByText('Відповіді (2)').click();
+  const olyaRow = matchQuestion.locator('.responses li', { hasText: 'Оля' });
+  await olyaRow.locator('li.match-row').first().waitFor();
+  expect(await olyaRow.locator('li.match-row').first().textContent()).toContain('Київ — Дніпро');
+  await shot(host, 'history-match');
 
   expect(problems).toEqual([]);
 }
@@ -728,7 +789,7 @@ async function boardGame() {
   // Історія: три зіграні клітинки з балами, решта поля не показана.
   await host.goto(`${base}/history`);
   await host.getByRole('link', { name: /Вікторина-поле/ }).click();
-  const played = host.locator('.rows.stacked li');
+  const played = host.locator('.rows.stacked > li');
   await played.first().waitFor();
   await shot(host, 'history');
   expect(await played.count()).toBe(3);

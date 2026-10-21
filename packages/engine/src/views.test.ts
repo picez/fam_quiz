@@ -3,7 +3,7 @@ import { DEFAULT_RULES, type Answer, type Phase, type Question } from '@quiz/sha
 import { buzz } from './blitz';
 import { pickCell } from './board';
 import { acceptAnswer, endRound, judge, lock, next, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
-import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, text, withId, withPoints } from './testing/fixtures';
+import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints } from './testing/fixtures';
 import { acceptAll, lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -51,6 +51,7 @@ describe('while a question is open', () => {
         { id: 'b', text: 'Київ' },
         { id: 'c', text: 'Одеса' },
       ],
+      right: [],
     });
     expect(view.endsAt).toBe(T0 + 20_000);
     expect(view.answeredCount).toBe(1);
@@ -95,6 +96,36 @@ describe('while a question is open', () => {
   it('presents order items in the shuffled order', () => {
     const state = must(start(lobbyWith(makeQuiz([order]), 'Олена'), T0, () => 0.999));
     expect(stageView(state).question?.choices.map((c) => c.id)).toEqual(['l', 'k', 'h', 'u']);
+  });
+
+  it('shows a match question as left in author order and right in the presented order', () => {
+    const state = must(start(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => 0.999));
+    const right = [
+      { id: 'y', text: 'Полтва' },
+      { id: 'z', text: 'Уж' },
+      { id: 'x', text: 'Дніпро' },
+    ];
+    expect(state.presented).toEqual(['y', 'z', 'x']);
+    for (const question of [stageView(state).question, playerView(state, 'p1')?.question]) {
+      expect(question?.choices).toEqual([
+        { id: 'a', text: 'Київ' },
+        { id: 'b', text: 'Львів' },
+        { id: 'c', text: 'Ужгород' },
+      ]);
+      expect(question?.right).toEqual(right);
+    }
+    expect(stageView(open()).question?.right).toEqual([]);
+  });
+
+  it('does not leak the pairs of a match question to the stage or to players', () => {
+    const state = must(start(lobbyWith(makeQuiz([match]), 'Олена'), T0));
+    expect(JSON.stringify(stageView(state).question)).not.toContain('pairs');
+    expect(JSON.stringify(playerView(state, 'p1')?.question)).not.toContain('pairs');
+    expect(stageView(state).reveal).toBeNull();
+    expect(playerView(state, 'p1')?.reveal).toBeNull();
+    const revealed = must(next(must(lock(state)), T0 + 20_000));
+    expect(revealed.phase).toBe('reveal');
+    expect(stageView(revealed).reveal).toHaveProperty('pairs');
   });
 
   it('does not leak accepted spellings of a text question', () => {
@@ -465,6 +496,18 @@ describe('spotlight views', () => {
       expect(view?.endsAt).toBeNull();
       expect(view?.remainingMs).toBe(15_000);
     }
+  });
+
+  it('the pending match answer shows the player links and no pairs', () => {
+    const links = [
+      { left: 'a', right: 'x' },
+      { left: 'b', right: 'z' },
+      { left: 'c', right: 'y' },
+    ];
+    const state = answered({}, { type: 'match', links }, match);
+    expect(stageView(state).spotlight).toMatchObject({ answer: { type: 'match', links }, grade: null });
+    expect(JSON.stringify(stageView(state))).not.toContain('"pairs"');
+    expect(JSON.stringify(playerView(state, 'p2'))).not.toContain('"pairs"');
   });
 
   it('a hold under a host pause still shows the frozen remainder', () => {

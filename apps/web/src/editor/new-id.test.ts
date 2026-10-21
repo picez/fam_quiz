@@ -33,7 +33,7 @@ describe('the editor without crypto.randomUUID', () => {
   it('still creates a new quiz and questions of every type', () => {
     removeRandomUuid();
     expect(roundQuestions(newQuiz().rounds[0])).toHaveLength(1);
-    for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order'] as const) {
+    for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match'] as const) {
       expect(newQuestion(type).type).toBe(type);
     }
   });

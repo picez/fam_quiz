@@ -248,6 +248,12 @@ function present(question: Question, shuffleOptions: boolean, rng: Rng): string[
     // Гравець не повинен отримати готову правильну відповідь.
     return mixed.every((id, index) => id === ids[index]) ? [...ids.slice(1), ids[0]] : mixed;
   }
+  if (question.type === 'match') {
+    // Правий стовпчик перемішується завжди; на одному рівні з лівим він видав би відповідь.
+    const ids = question.pairs.map((pair) => pair.right.id);
+    const mixed = shuffle(ids, rng);
+    return mixed.every((id, index) => id === ids[index]) ? [...ids.slice(1), ids[0]] : mixed;
+  }
   if (question.type === 'single' || question.type === 'multi') {
     const ids = question.options.map((option) => option.id);
     return shuffleOptions ? shuffle(ids, rng) : ids;

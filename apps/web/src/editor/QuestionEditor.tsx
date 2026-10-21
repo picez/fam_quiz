@@ -131,6 +131,58 @@ function Rows(props: {
   );
 }
 
+/** Пари «ліворуч — праворуч»: кожен рядок має два поля, а порядок рядків — порядок лівого стовпчика. */
+function PairRows(props: { pairs: { left: Row; right: Row }[]; onChange: (pairs: { left: Row; right: Row }[]) => void }) {
+  const { pairs, onChange } = props;
+  const set = (index: number, side: 'left' | 'right', text: string) =>
+    onChange(pairs.map((pair, i) => (i === index ? { ...pair, [side]: { ...pair[side], text } } : pair)));
+  const noEnter = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') event.preventDefault();
+  };
+  return (
+    <div className="answer-rows">
+      {pairs.map((pair, index) => (
+        <div className="answer-row match-edit-row" key={pair.left.id}>
+          <span className="letter">{index + 1}</span>
+          <input
+            aria-label={t('pairLeftN', { index: index + 1 })}
+            placeholder={t('pairLeftN', { index: index + 1 })}
+            value={pair.left.text}
+            maxLength={LIMITS.optionText}
+            onKeyDown={noEnter}
+            onChange={(event) => set(index, 'left', event.target.value)}
+          />
+          <input
+            aria-label={t('pairRightN', { index: index + 1 })}
+            placeholder={t('pairRightN', { index: index + 1 })}
+            value={pair.right.text}
+            maxLength={LIMITS.optionText}
+            onKeyDown={noEnter}
+            onChange={(event) => set(index, 'right', event.target.value)}
+          />
+          <button
+            type="button"
+            className="row-button"
+            aria-label={t('removePair', { index: index + 1 })}
+            disabled={pairs.length <= LIMITS.minPairs}
+            onClick={() => onChange(pairs.filter((_, i) => i !== index))}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn btn-dashed"
+        disabled={pairs.length >= LIMITS.maxPairs}
+        onClick={() => onChange([...pairs, { left: newRow(), right: newRow() }])}
+      >
+        {t('addPair')}
+      </button>
+    </div>
+  );
+}
+
 /** Позначка «цей варіант правильний»: натискання вмикає або вимикає її. */
 function Mark(props: { on: boolean; index: number; onToggle: () => void }) {
   return (
@@ -269,6 +321,13 @@ function Body({ question, onChange }: Props) {
             />
           </div>
           <p className="meta">{t('toleranceHint')}</p>
+        </>
+      );
+    case 'match':
+      return (
+        <>
+          <PairRows pairs={question.pairs} onChange={(pairs) => onChange({ ...question, pairs })} />
+          <p className="meta">{t('matchHint')}</p>
         </>
       );
     case 'order':

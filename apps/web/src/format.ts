@@ -1,4 +1,4 @@
-import type { Answer, CellMark, Choice, LobbyPlayer, Question, Round, RoundInfo } from '@quiz/shared';
+import type { Answer, CellMark, Choice, LobbyPlayer, PublicQuestion, Question, Round, RoundInfo } from '@quiz/shared';
 import { t } from './i18n';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
@@ -12,11 +12,36 @@ export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 const yesNo = (value: boolean) => t(value ? 'yes' : 'no');
 
-function choicesOf(question: Question | null): { id: string; text: string }[] {
+export interface PairText {
+  left: string;
+  right: string;
+}
+
+/** Варіанти запитання для пошуку назв за id; для match — ліві й праві. */
+export function choicesOf(question: Question | null): Choice[] {
   if (question === null) return [];
   if (question.type === 'single' || question.type === 'multi') return question.options;
+  if (question.type === 'match') return question.pairs.flatMap((pair) => [pair.left, pair.right]);
   return question.type === 'order' ? question.items : [];
 }
+
+/** Усі показані варіанти: choices і right. */
+export function shownChoices(question: PublicQuestion): Choice[] {
+  return [...question.choices, ...question.right];
+}
+
+/** Зв’язки відповіді словами; невідомий id показується як є. */
+export function pairTexts(links: { left: string; right: string }[], choices: Choice[]): PairText[] {
+  const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
+  return links.map((link) => ({ left: name(link.left), right: name(link.right) }));
+}
+
+/** Правильні пари словами; для інших типів []. */
+export function correctPairs(question: Question): PairText[] {
+  return question.type === 'match' ? question.pairs.map((pair) => ({ left: pair.left.text, right: pair.right.text })) : [];
+}
+
+const pairsLine = (pairs: PairText[]) => pairs.map((pair) => `${pair.left} — ${pair.right}`).join('; ');
 
 /** Клас заголовка запитання: довгий текст набирається дрібніше, щоб варіанти лишались на екрані. */
 export function questionClass(text: string): string {
@@ -48,6 +73,8 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.tolerance > 0 ? `${question.correct} (± ${question.tolerance})` : String(question.correct);
     case 'order':
       return question.items.map((item) => item.text).join(' → ');
+    case 'match':
+      return pairsLine(correctPairs(question));
   }
 }
 
@@ -69,6 +96,8 @@ export function answerText(answer: Answer | null, question: Question | null): st
       return String(answer.value);
     case 'order':
       return answer.itemIds.map(name).join(' → ');
+    case 'match':
+      return pairsLine(pairTexts(answer.links, choices));
   }
 }
 
@@ -116,6 +145,8 @@ export function pickedText(answer: Answer, choices: Choice[]): string {
       return answer.optionIds.map(name).join(', ');
     case 'order':
       return answer.itemIds.map(name).join(' → ');
+    case 'match':
+      return pairsLine(pairTexts(answer.links, choices));
     default:
       return answerText(answer, null);
   }

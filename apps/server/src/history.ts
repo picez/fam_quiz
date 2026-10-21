@@ -5,7 +5,9 @@ import {
   quizSchema,
   upgradeQuiz,
   type GameDetail,
+  type Answer,
   type GameQuestionResult,
+  type GameResponse,
   type GameSummary,
   type PlayedGame,
   type Question,
@@ -93,6 +95,19 @@ function cellResult(
   };
 }
 
+/** Відповіді на запитання: учасники за турнірною таблицею, потім за номером спроби. */
+function responsesOf(
+  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean }[],
+  standings: { participantId: string; nickname: string }[],
+): GameResponse[] {
+  return standings.flatMap(({ participantId, nickname }) =>
+    given
+      .filter((a) => a.participantId === participantId)
+      .sort((a, b) => a.attempt - b.attempt)
+      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted })),
+  );
+}
+
 /** Кількість різних значень: у бліці гравець може мати кілька рядків-спроб на одне запитання. */
 const distinct = (values: unknown[]) => new Set(values).size;
 
@@ -139,7 +154,14 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     participants.length === 0
       ? []
       : await db
-          .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted, points: answer.points })
+          .select({
+            participantId: answer.participantId,
+            questionIndex: answer.questionIndex,
+            attempt: answer.attempt,
+            payload: answer.payload,
+            accepted: answer.accepted,
+            points: answer.points,
+          })
           .from(answer)
           .where(
             inArray(
@@ -175,6 +197,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         answered: distinct(given.map((a) => a.participantId)),
         accepted: distinct(given.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given),
+        question,
+        responses: responsesOf(given, standings),
       },
     ];
   });
