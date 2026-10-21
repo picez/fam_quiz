@@ -56,8 +56,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const chooserIsMe = board?.turn?.playerId === me.id;
   const chooserName = board?.turn?.nickname ?? '';
   const { spotlight } = view;
-  // Чия відповідь зараз у центрі уваги: помаранчева, чи та, що йде першою в черзі бліцу.
-  const answering = spotlight ?? board?.turn ?? view.blitz?.queue[0] ?? null;
+  // Хто відповідає: власник помаранчевої відповіді, інакше вибравший на полі чи голова черги бліцу.
+  // Червона відповідь бліцу вже минула, тож її автор не «відповідає».
+  const answering = (spotlight?.grade === null ? spotlight : null) ?? board?.turn ?? view.blitz?.queue[0] ?? null;
   const othersAnswer = answering !== null && answering.playerId !== me.id;
   const myPending = spotlight !== null && spotlight.grade === null && spotlight.playerId === me.id;
 

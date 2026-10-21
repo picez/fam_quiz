@@ -287,7 +287,7 @@ describe('blitz', () => {
     expect(room.state.plays[0].blitz?.attempts).toEqual([]);
     expect(room.state.plays[0].blitz?.queue[0]).toMatchObject({ playerId: olena.playerId, answer: wrong });
 
-    expect(manager.host(room, { type: 'accept' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept', playerId: olena.playerId })).toEqual({ ok: true });
     expect(room.state.plays[0].blitz?.attempts).toMatchObject([{ playerId: olena.playerId, grade: 'wrong' }]);
     // Тарас натиснув під час утримання: його вікно (5 с) почалося лише зараз.
     expect(scheduler.pending()).toEqual([5000]);
@@ -545,7 +545,7 @@ describe('board rounds', () => {
     expect(manager.answer(room, anna.playerId, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
     scheduler.advance(10 * 60_000);
     expect(room.state.phase).toBe('question');
-    expect(manager.host(room, { type: 'repick' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'repick', playerId: anna.playerId })).toEqual({ ok: true });
     scheduler.advance(14_999);
     expect(room.state.phase).toBe('question');
     scheduler.advance(1);
@@ -556,9 +556,10 @@ describe('board rounds', () => {
     const { manager, room, anna } = boardRoom();
     manager.host(room, { type: 'next' });
     manager.pick(room, anna.playerId, 'c12');
-    expect(manager.host(room, { type: 'accept' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(manager.host(room, { type: 'accept', playerId: anna.playerId })).toEqual({ ok: false, error: 'wrong_phase' });
     expect(manager.answer(room, anna.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
-    expect(manager.host(room, { type: 'accept' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept', playerId: 'someone-else' })).toEqual({ ok: false, error: 'not_found' });
+    expect(manager.host(room, { type: 'accept', playerId: anna.playerId })).toEqual({ ok: true });
     expect(room.state.phase).toBe('reveal');
     expect(room.state.players.find((p) => p.id === anna.playerId)?.score).toBe(200);
   });

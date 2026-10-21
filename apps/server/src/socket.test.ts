@@ -214,10 +214,12 @@ describe('permissions and bad input', () => {
     const { host, olena } = await lobby();
     await send(host, 'host:start');
     await until(olena, inPhase('question'));
-    expect(await send(olena, 'host:accept')).toEqual({ ok: false, error: 'forbidden' });
-    expect(await send(olena, 'host:repick')).toEqual({ ok: false, error: 'forbidden' });
-    expect(await send(host, 'host:accept')).toEqual({ ok: false, error: 'wrong_phase' });
-    expect(await send(host, 'host:repick')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'host:accept', { playerId: 'p1' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:repick', { playerId: 'p1' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:accept')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:repick', { playerId: '' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:accept', { playerId: 'p1' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:repick', { playerId: 'p1' })).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('player:buzz and host:judge are accepted only from their roles', async () => {

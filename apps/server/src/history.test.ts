@@ -221,7 +221,7 @@ describe('history: blitz attempts', () => {
     const attempt = (playerId: string, optionId: string) => {
       expect(ctx.manager.buzz(room, playerId)).toEqual({ ok: true });
       expect(ctx.manager.answer(room, playerId, { type: 'single', optionId })).toEqual({ ok: true });
-      expect(ctx.manager.host(room, { type: 'accept' })).toEqual({ ok: true });
+      expect(ctx.manager.host(room, { type: 'accept', playerId })).toEqual({ ok: true });
     };
 
     expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
@@ -340,13 +340,13 @@ describe('host history: board', () => {
     const room = ctx.manager.get(created.code);
     if (room === undefined) throw new Error('room missing');
     ctx.manager.connect(room, { role: 'player', playerId: joined.playerId });
-    const step = (type: 'start' | 'next' | 'lock' | 'end-round' | 'accept') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+    const step = (type: 'start' | 'next' | 'lock' | 'end-round') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
 
     step('start');
     step('next');
     expect(ctx.manager.pick(room, joined.playerId, 'c11')).toEqual({ ok: true });
     expect(ctx.manager.answer(room, joined.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
-    step('accept');
+    expect(ctx.manager.host(room, { type: 'accept', playerId: joined.playerId })).toEqual({ ok: true });
     while (room.state.phase !== 'board') step('next');
     step('end-round');
     while ((room.state.phase as string) !== 'question') step('next');

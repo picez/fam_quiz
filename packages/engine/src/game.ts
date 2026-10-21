@@ -463,9 +463,11 @@ function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string
 }
 
 /** «Прийняти» за автоматичної перевірки. */
-export function acceptAnswer(state: GameState, now: number): Result {
+export function acceptAnswer(state: GameState, playerId: string, now: number): Result {
   const pending = pendingOf(state);
   if (pending === null) return fail('wrong_phase');
+  // Ведучий називає відповідь: подвійний дотик не має прийняти наступну, яку він ще не бачив.
+  if (pending.playerId !== playerId) return fail('not_found');
   if (state.paused) return fail('paused');
   const play = state.plays[state.questionIndex];
   const round = state.quiz.rounds[play.roundIndex];
@@ -495,8 +497,10 @@ export function acceptAnswer(state: GameState, now: number): Result {
 }
 
 /** «Перевибрати»: відповідь знято, годинник (у бліці й вікно голови черги) іде з того самого залишку. */
-export function repick(state: GameState, now: number): Result {
-  if (pendingOf(state) === null) return fail('wrong_phase');
+export function repick(state: GameState, playerId: string, now: number): Result {
+  const pending = pendingOf(state);
+  if (pending === null) return fail('wrong_phase');
+  if (pending.playerId !== playerId) return fail('not_found');
   if (state.paused) return fail('paused');
   const play = state.plays[state.questionIndex];
   if (play.blitz !== undefined) {
@@ -653,7 +657,10 @@ export function pause(state: GameState, now: number): Result {
 export function resume(state: GameState, now: number): Result {
   if (!state.paused) return fail('wrong_phase');
   // Годинник стоїть і далі, доки ведучий не вирішить; якщо гравця вилучили на паузі, він рушає зараз.
-  if (state.phase === 'question' && state.heldAt !== null) return ok(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now));
+  if (state.phase === 'question' && state.heldAt !== null) {
+    // Якщо утримання знялося, а відповідати вже нікому, запитання закривається одразу.
+    return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now)));
+  }
   if (state.phase === 'question' && state.remainingMs !== null) {
     const limitMs = limitMsOf(state.plays[state.questionIndex]);
     const endsAt = now + state.remainingMs;

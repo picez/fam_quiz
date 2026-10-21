@@ -5,6 +5,7 @@ import {
   kickSchema,
   orderSchema,
   overrideSchema,
+  pendingSchema,
   pickSchema,
   socketAuthSchema,
   timeSchema,
@@ -25,7 +26,7 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<stri
 
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'roll', 'skip', 'accept', 'repick'] as const;
+const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'roll', 'skip'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
@@ -135,6 +136,14 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       const payload = judgeSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'judge', ...payload.data }) : INVALID;
     });
+
+    for (const type of ['accept', 'repick'] as const) {
+      on(`host:${type}`, (args) => {
+        if (!isHost) return FORBIDDEN;
+        const payload = pendingSchema.safeParse(payloadOf(args));
+        return payload.success ? manager.host(room, { type, ...payload.data }) : INVALID;
+      });
+    }
 
     on('host:time', (args) => {
       if (!isHost) return FORBIDDEN;

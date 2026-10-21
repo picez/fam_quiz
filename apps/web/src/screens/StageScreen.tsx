@@ -67,7 +67,9 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   const voice = view.board?.answerMode === 'voice';
   // Поле з телефонами й бліц показують відповідь одного гравця кольором.
   const spotlit = view.blitz !== null || (view.board !== null && !voice);
-  const answering = view.spotlight ?? view.board?.turn ?? view.blitz?.queue[0] ?? null;
+  // Червона відповідь бліцу вже минула: відповідає голова черги, а не її автор.
+  const pendingSpot = view.spotlight?.grade === null ? view.spotlight : null;
+  const answering = pendingSpot ?? view.board?.turn ?? view.blitz?.queue[0] ?? null;
   const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (

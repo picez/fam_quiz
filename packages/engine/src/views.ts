@@ -228,7 +228,12 @@ function spotlightOf(state: GameState): Spotlight | null {
   const open = currentBoardPlay(state);
   if (open === null || open.round.answerMode !== 'phone') return null;
   // Закрите запитання: відповідь без оцінки лишається помаранчевою, вердикт видно лише на розкритті.
-  if (state.phase === 'locked') return open.board.answer === null ? null : { ...blitzPlayer(state, open.board.chooserId), answer: open.board.answer, grade: null };
+  // Вилученого гравця вже немає: його відповідь не показуємо.
+  if (state.phase === 'locked') {
+    const { answer, chooserId } = open.board;
+    if (answer === null || !state.players.some((p) => p.id === chooserId)) return null;
+    return { ...blitzPlayer(state, chooserId), answer, grade: null };
+  }
   if (state.phase !== 'reveal') return null;
   const record = currentRecord(state, open.board.chooserId);
   if (record === undefined || !state.players.some((p) => p.id === open.board.chooserId)) return null;

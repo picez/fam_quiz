@@ -18,6 +18,6 @@ export function lobbyWith(quiz: Quiz, ...nicknames: string[]): GameState {
 /** Ведучий тисне «Прийняти», доки є відповідь, що чекає на рішення. */
 export function acceptAll(state: GameState, now: number): GameState {
   let current = state;
-  while (pendingOf(current) !== null) current = must(acceptAnswer(current, now));
+  while (pendingOf(current) !== null) current = must(acceptAnswer(current, pendingOf(current)?.playerId ?? '', now));
   return current;
 }

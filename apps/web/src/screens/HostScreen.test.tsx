@@ -444,7 +444,7 @@ describe('HostScreen: blitz', () => {
       fireEvent.click(button('Частково'));
       expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'partial' });
       fireEvent.click(button('Перевибрати'));
-      expect(send).toHaveBeenCalledWith('host:repick', undefined);
+      expect(send).toHaveBeenCalledWith('host:repick', { playerId: 'p1' });
     });
 
     it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
@@ -505,9 +505,27 @@ describe('HostScreen: blitz', () => {
       const send = show(during('question', single, { endsAt: Date.now() + 20_000, spotlight: pendingSpot }));
       expect(screen.getByRole('heading', { name: 'Відповідь чекає на рішення' })).toBeTruthy();
       fireEvent.click(button('Прийняти'));
-      expect(send).toHaveBeenCalledWith('host:accept', undefined);
+      expect(send).toHaveBeenCalledWith('host:accept', { playerId: 'p1' });
+    });
+
+    it('re-picks a pending answer naming its player', () => {
+      const send = show(during('question', single, { endsAt: Date.now() + 20_000, spotlight: pendingSpot }));
       fireEvent.click(button('Перевибрати'));
-      expect(send).toHaveBeenCalledWith('host:repick', undefined);
+      expect(send).toHaveBeenCalledWith('host:repick', { playerId: 'p1' });
+    });
+
+    it('sends accept once and disables the pending buttons until the ack', async () => {
+      let done: () => void = () => {};
+      const send: Send = vi.fn(() => new Promise<{ ok: true }>((resolve) => (done = () => resolve({ ok: true }))));
+      show(during('question', single, { endsAt: Date.now() + 20_000, spotlight: pendingSpot }), send);
+      fireEvent.click(button('Прийняти'));
+      expect(button('Прийняти').disabled).toBe(true);
+      expect(button('Перевибрати').disabled).toBe(true);
+      fireEvent.click(button('Прийняти'));
+      fireEvent.click(button('Перевибрати'));
+      expect(send).toHaveBeenCalledTimes(1);
+      done();
+      await waitFor(() => expect(button('Прийняти').disabled).toBe(false));
     });
 
     it('judges a pending blitz head by hand', () => {

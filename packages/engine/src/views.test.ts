@@ -475,7 +475,7 @@ describe('spotlight views', () => {
   });
 
   it('after accept everyone sees the verdict and the correct answer at the reveal', () => {
-    const state = must(acceptAnswer(answered(), 6000));
+    const state = must(acceptAnswer(answered(), 'p1', 6000));
     expect(state.phase).toBe('reveal');
     expect(stageView(state).spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: wrong, grade: 'wrong' });
     expect(playerView(state, 'p2')?.spotlight?.grade).toBe('wrong');
@@ -487,6 +487,12 @@ describe('spotlight views', () => {
     expect(state.phase).toBe('locked');
     expect(stageView(state).spotlight).toMatchObject({ playerId: 'p1', grade: null });
     expect(stageView(must(lock(picked()))).spotlight).toBeNull();
+  });
+
+  it('a locked spotlight is empty once the pending chooser was kicked', () => {
+    const state = must(lock(must(removePlayer(answered({ check: 'manual' }), 'p1'))));
+    expect(state.phase).toBe('locked');
+    expect(stageView(state).spotlight).toBeNull();
   });
 
   it('stage and player views never carry the correct answer before the reveal', () => {
@@ -510,7 +516,7 @@ describe('spotlight views', () => {
     let state = must(buzz(blitzGame({ attempts: 2 }), 'p1', 1000));
     state = must(submitAnswer(state, 'p1', wrong, 2000));
     expect(stageView(state).spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: wrong, grade: null });
-    state = must(acceptAnswer(state, 3000));
+    state = must(acceptAnswer(state, 'p1', 3000));
     expect(stageView(state).spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: wrong, grade: 'wrong' });
     state = must(buzz(state, 'p2', 4000));
     state = must(submitAnswer(state, 'p2', correct, 4500));

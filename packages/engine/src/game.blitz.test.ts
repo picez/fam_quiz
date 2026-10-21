@@ -384,25 +384,25 @@ describe('blitz millionaire: the head answer waits for the host', () => {
     let state = must(buzz(pendingHead(), 'p2', 3500));
     state = must(submitAnswer(state, 'p2', right, 4000));
     expect(state.heldAt).toBe(3000);
-    state = must(acceptAnswer(state, 10000));
+    state = must(acceptAnswer(state, 'p1', 10000));
     expect(state.plays[0].blitz?.attempts.map((a) => [a.playerId, a.grade])).toEqual([['p1', 'wrong']]);
     expect(pendingOf(state)).toEqual({ playerId: 'p2', answer: right });
     expect(state.heldAt).toBe(10000);
     expect(state.endsAt).toBe(27000);
-    state = must(acceptAnswer(state, 11000));
+    state = must(acceptAnswer(state, 'p2', 11000));
     expect(state.phase).toBe('locked');
     expect(score(state, 'p2')).toBe(1000);
   });
 
   it('repick clears the head answer and resumes its window from the same remainder', () => {
     let state = pendingHead({ answerWindow: 15 });
-    state = must(repick(state, 50000));
+    state = must(repick(state, 'p1', 50000));
     expect(state.heldAt).toBeNull();
     expect(state.plays[0].blitz?.queue[0]).toMatchObject({ playerId: 'p1', answer: null, deadline: 63000 });
     expect(state.endsAt).toBe(67000);
     state = must(submitAnswer(state, 'p1', right, 51000));
     expect(state.heldAt).toBe(51000);
-    state = must(acceptAnswer(state, 52000));
+    state = must(acceptAnswer(state, 'p1', 52000));
     expect(state.plays[0].blitz?.attempts.map((a) => a.grade)).toEqual(['correct']);
     expect(state.phase).toBe('locked');
   });
@@ -410,7 +410,7 @@ describe('blitz millionaire: the head answer waits for the host', () => {
   it('a buzz during a pending answer gets its full window after the hold', () => {
     let state = must(buzz(pendingHead({ answerWindow: 15 }), 'p2', 40000));
     expect(state.plays[0].blitz?.queue[1]).toMatchObject({ playerId: 'p2', at: 3000, deadline: 18000 });
-    state = must(acceptAnswer(state, 50000));
+    state = must(acceptAnswer(state, 'p1', 50000));
     expect(state.plays[0].blitz?.queue[0]).toMatchObject({ playerId: 'p2', deadline: 65000 });
     expect(state.heldAt).toBeNull();
     expect(tick(state, 64999).plays[0].blitz?.queue.map((e) => e.playerId)).toEqual(['p2']);
@@ -431,8 +431,8 @@ describe('blitz millionaire: the head answer waits for the host', () => {
     let state = must(buzz(pendingHead({ check: 'manual' }), 'p2', 4000));
     state = must(submitAnswer(state, 'p2', right, 5000));
     expect(state.heldAt).toBe(3000);
-    expect(acceptAnswer(state, 6000)).toEqual({ ok: false, error: 'wrong_phase' });
-    expect(must(repick(state, 6000)).plays[0].blitz?.queue[0].answer).toBeNull();
+    expect(acceptAnswer(state, 'p1', 6000)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(must(repick(state, 'p1', 6000)).plays[0].blitz?.queue[0].answer).toBeNull();
     state = must(judge(state, 'p1', false, 10000));
     expect(state.plays[0].blitz?.attempts.map((a) => [a.playerId, a.grade])).toEqual([['p1', 'wrong']]);
     expect(state.heldAt).toBe(10000);
@@ -458,13 +458,35 @@ describe('blitz millionaire: the head answer waits for the host', () => {
     expect(state.endsAt).toBe(26000);
   });
 
+  it('accept and repick name the pending player: a stale tap on the next answer is refused', () => {
+    let state = must(buzz(pendingHead(), 'p2', 3500));
+    state = must(submitAnswer(state, 'p2', right, 4000));
+    expect(acceptAnswer(state, 'p2', 5000)).toEqual({ ok: false, error: 'not_found' });
+    expect(repick(state, 'p2', 5000)).toEqual({ ok: false, error: 'not_found' });
+    state = must(acceptAnswer(state, 'p1', 5000));
+    expect(pendingOf(state)?.playerId).toBe('p2');
+    expect(acceptAnswer(state, 'p1', 5000)).toEqual({ ok: false, error: 'not_found' });
+    expect(state.phase).toBe('question');
+  });
+
+  it('resume after kicking the pending head on pause closes the question when nobody can answer', () => {
+    let state = buzzAndAnswer(open(), 'p2', wrong, 1000);
+    state = buzzAndAnswer(state, 'p3', wrong, 2000);
+    state = must(submitAnswer(must(buzz(state, 'p1', 3000)), 'p1', wrong, 3500));
+    expect(state.heldAt).toBe(3500);
+    state = must(removePlayer(must(pause(state, 4000)), 'p1'));
+    expect(state.phase).toBe('question');
+    state = must(resume(state, 5000));
+    expect(state.phase).toBe('locked');
+  });
+
   it('a pause over a pending blitz answer changes nothing', () => {
     let state = must(pause(pendingHead(), 4000));
     state = must(resume(state, 500000));
     expect(state.heldAt).toBe(3000);
-    expect(acceptAnswer(must(pause(state, 500000)), 500000)).toEqual({ ok: false, error: 'paused' });
-    expect(repick(must(pause(state, 500000)), 500000)).toEqual({ ok: false, error: 'paused' });
-    state = must(repick(state, 500000));
+    expect(acceptAnswer(must(pause(state, 500000)), 'p1', 500000)).toEqual({ ok: false, error: 'paused' });
+    expect(repick(must(pause(state, 500000)), 'p1', 500000)).toEqual({ ok: false, error: 'paused' });
+    state = must(repick(state, 'p1', 500000));
     expect(state.endsAt).toBe(517000);
   });
 });

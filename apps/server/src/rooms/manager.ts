@@ -70,7 +70,8 @@ export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'roll' | 'skip' | 'accept' | 'repick' }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'roll' | 'skip' }
+  | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
   | { type: 'judge'; playerId: string; correct: boolean }
@@ -264,9 +265,9 @@ export class RoomManager {
       case 'judge':
         return this.apply(room, judge(state, action.playerId, action.correct, this.now()));
       case 'accept':
-        return this.apply(room, acceptAnswer(state, this.now()));
+        return this.apply(room, acceptAnswer(state, action.playerId, this.now()));
       case 'repick':
-        return this.apply(room, repick(state, this.now()));
+        return this.apply(room, repick(state, action.playerId, this.now()));
     }
   }
 

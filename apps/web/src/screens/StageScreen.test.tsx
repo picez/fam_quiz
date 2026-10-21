@@ -179,6 +179,16 @@ describe('StageScreen: blitz', () => {
     expect(screen.getByText('Ніхто не відповів правильно')).toBeTruthy();
   });
 
+  it('names the current head, not the last wrong answer, as answering', () => {
+    const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
+    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [queue[0]], winner: null } }));
+    expect(screen.getByText('Відповідає Олена')).toBeTruthy();
+    expect(screen.queryByText('Відповідає Тарас')).toBeNull();
+    cleanup();
+    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [], winner: null } }));
+    expect(screen.queryByText(/Відповідає/)).toBeNull();
+  });
+
   describe('board round', () => {
     const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
     const boardOf = (over: Partial<NonNullable<StageView['board']>> = {}): NonNullable<StageView['board']> => ({

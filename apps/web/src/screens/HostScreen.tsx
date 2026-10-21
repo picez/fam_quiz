@@ -136,6 +136,25 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       release();
     });
   };
+  // «Прийняти» й «Перевибрати» називають гравця й ідуть по одному: поки підтвердження не прийшло,
+  // другий дотик не має зачепити наступну відповідь черги бліцу.
+  const [deciding, setDeciding] = useState(false);
+  const decidingRef = useRef(false);
+  const decide = (event: 'host:accept' | 'host:repick', playerId: string) => {
+    if (decidingRef.current) return;
+    const release = () => {
+      decidingRef.current = false;
+      setDeciding(false);
+    };
+    decidingRef.current = true;
+    setDeciding(true);
+    const fallback = setTimeout(release, 3000);
+    void act(event, { playerId }).finally(() => {
+      clearTimeout(fallback);
+      release();
+    });
+  };
+
   const move = (from: number, to: number) => {
     if (board === null) return;
     const ids = board.order.map((entry) => entry.playerId);
@@ -271,7 +290,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           </ul>
           <div className="actions">
             {!manualPending && (
-              <button type="button" className="btn btn-small" onClick={() => void act('host:accept')}>
+              <button type="button" className="btn btn-small" disabled={deciding} onClick={() => decide('host:accept', pending.playerId)}>
                 {t('acceptAnswer')}
               </button>
             )}
@@ -298,7 +317,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 </button>
               </>
             )}
-            <button type="button" className="btn btn-small" onClick={() => void act('host:repick')}>
+            <button type="button" className="btn btn-small" disabled={deciding} onClick={() => decide('host:repick', pending.playerId)}>
               {t('repick')}
             </button>
           </div>

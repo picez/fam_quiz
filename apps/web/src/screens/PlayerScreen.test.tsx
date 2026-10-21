@@ -280,6 +280,19 @@ describe('PlayerScreen: blitz', () => {
     expect(screen.getByRole('button', { name: 'Відповісти' })).toBeTruthy();
   });
 
+  it('names the current head, not the last wrong answer, as answering', () => {
+    const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
+    const head = { playerId: 'p1', nickname: 'Олена' };
+    show(onQuestion({ round, spotlight, blitz: { queue: [head], winner: null }, me: blitzMe({ position: 1 }) }));
+    expect(screen.queryByText(/Відповідає/)).toBeNull();
+    cleanup();
+    show(onQuestion({ round, spotlight, blitz: { queue: [{ playerId: 'p3', nickname: 'Віра' }], winner: null }, me: blitzMe({}) }));
+    expect(screen.getByText('Відповідає Віра')).toBeTruthy();
+    cleanup();
+    show(onQuestion({ round, spotlight, blitz: { queue: [], winner: null }, me: blitzMe({}) }));
+    expect(screen.queryByText(/Відповідає/)).toBeNull();
+  });
+
   it('shows the winner line at the reveal', () => {
     show(
       view({

@@ -385,37 +385,37 @@ describe('a phone answer waits for the host', () => {
   });
 
   it('accept grades the answer and goes straight to the reveal', () => {
-    const accepted = must(acceptAnswer(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 9000));
+    const accepted = must(acceptAnswer(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 'p1', 9000));
     expect(accepted.phase).toBe('reveal');
     expect(accepted.heldAt).toBeNull();
     expect(accepted.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'wrong', timeMs: 5000, points: 0 });
-    const won = must(acceptAnswer(must(submitAnswer(picked('c12'), 'p1', right, t)), 9000));
+    const won = must(acceptAnswer(must(submitAnswer(picked('c12'), 'p1', right, t)), 'p1', 9000));
     expect(won.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'correct', points: 200 });
     expect(score(won, 'p1')).toBe(200);
   });
 
   it('repick clears the answer and resumes from the same remainder, as often as needed', () => {
-    let state = must(repick(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 50000));
+    let state = must(repick(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 'p1', 50000));
     expect(state.plays.at(-1)?.board?.answer).toBeNull();
     expect(state.heldAt).toBeNull();
     expect(state.endsAt).toBe(65000);
     expect(state.startedAt).toBe(45000);
-    state = must(repick(must(submitAnswer(state, 'p1', wrong, 52000)), 60000));
+    state = must(repick(must(submitAnswer(state, 'p1', wrong, 52000)), 'p1', 60000));
     expect(state.endsAt).toBe(73000);
     expect(state.startedAt).toBe(53000);
-    const accepted = must(acceptAnswer(must(submitAnswer(state, 'p1', right, 61000)), 62000));
+    const accepted = must(acceptAnswer(must(submitAnswer(state, 'p1', right, 61000)), 'p1', 62000));
     expect(accepted.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'correct', timeMs: 8000 });
   });
 
   it('manual check: the host grades the pending answer, partial included, and repick stays', () => {
     const pending = must(submitAnswer(picked('c12', manual()), 'p1', wrong, t));
-    expect(acceptAnswer(pending, 8000)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(acceptAnswer(pending, 'p1', 8000)).toEqual({ ok: false, error: 'wrong_phase' });
     const graded = must(override(pending, 'p1', 'partial', 8000));
     expect(graded.phase).toBe('reveal');
     expect(graded.heldAt).toBeNull();
     expect(graded.plays.at(-1)?.answers.p1).toMatchObject({ grade: 'partial', points: 100, timeMs: 5000, overridden: false });
     expect(score(graded, 'p1')).toBe(100);
-    const repicked = must(repick(must(submitAnswer(picked('c12', manual()), 'p1', wrong, t)), 50000));
+    const repicked = must(repick(must(submitAnswer(picked('c12', manual()), 'p1', wrong, t)), 'p1', 50000));
     expect(repicked.plays.at(-1)?.board?.answer).toBeNull();
     expect(repicked.endsAt).toBe(65000);
   });
@@ -430,20 +430,20 @@ describe('a phone answer waits for the host', () => {
     expect(resumed.heldAt).toBe(t);
     expect(resumed.phase).toBe('question');
     expect(resumed.paused).toBe(false);
-    expect(must(repick(resumed, 900000)).endsAt).toBe(915000);
+    expect(must(repick(resumed, 'p1', 900000)).endsAt).toBe(915000);
   });
 
   it('±15 on a pending answer works on the stored remainder', () => {
     const added = must(adjustTime(must(submitAnswer(picked('c12'), 'p1', wrong, t)), 15, 40000));
     expect(remainingOf(added, 40000)).toBe(30000);
-    expect(must(repick(added, 50000)).endsAt).toBe(80000);
+    expect(must(repick(added, 'p1', 50000)).endsAt).toBe(80000);
   });
 
   it('a disconnected pending player can still be accepted or re-picked', () => {
     const away = must(setConnected(must(submitAnswer(picked('c12'), 'p1', right, t)), 'p1', false, 6000));
-    expect(must(acceptAnswer(away, 7000)).plays.at(-1)?.answers.p1?.grade).toBe('correct');
+    expect(must(acceptAnswer(away, 'p1', 7000)).plays.at(-1)?.answers.p1?.grade).toBe('correct');
     const awayAgain = must(setConnected(must(submitAnswer(picked('c12'), 'p1', right, t)), 'p1', false, 6000));
-    const repicked = must(repick(awayAgain, 7000));
+    const repicked = must(repick(awayAgain, 'p1', 7000));
     expect(tick(repicked, repicked.endsAt ?? 0).phase).toBe('locked');
   });
 
@@ -459,16 +459,34 @@ describe('a phone answer waits for the host', () => {
   it('voice mode has no pending step', () => {
     const state = picked('c12', boardRound('g1', [{ title: 'A', cells: [c11, c12] }], { answerMode: 'voice' }));
     expect(submitAnswer(state, 'p1', right, t)).toEqual({ ok: false, error: 'wrong_phase' });
-    expect(acceptAnswer(state, t)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(acceptAnswer(state, 'p1', t)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(must(override(state, 'p1', 'correct', t)).phase).toBe('locked');
+  });
+
+  it('accept and repick refuse a player who is not the pending one', () => {
+    const state = must(submitAnswer(picked('c12'), 'p1', wrong, t));
+    expect(acceptAnswer(state, 'p2', 7000)).toEqual({ ok: false, error: 'not_found' });
+    expect(repick(state, 'p2', 7000)).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('closing the question or ending the round during a pending answer leaves the game movable', () => {
+    const pending = must(submitAnswer(picked('c12'), 'p1', right, t));
+    const locked = must(lock(pending));
+    expect(locked.heldAt).toBeNull();
+    const revealed = must(next(locked, 7000));
+    expect(revealed.phase).toBe('reveal');
+    expect(revealed.plays.at(-1)?.answers.p1?.grade).toBe('wrong');
+    const ended = must(endRound(pending, 7000));
+    expect(ended.heldAt).toBeNull();
+    expect(ended.phase).not.toBe('question');
   });
 
   it('accept and repick are refused without a pending answer or on pause', () => {
     const state = picked('c12');
-    expect(acceptAnswer(state, t)).toEqual({ ok: false, error: 'wrong_phase' });
-    expect(repick(state, t)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(acceptAnswer(state, 'p1', t)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(repick(state, 'p1', t)).toEqual({ ok: false, error: 'wrong_phase' });
     const paused = must(pause(must(submitAnswer(state, 'p1', wrong, t)), 6000));
-    expect(acceptAnswer(paused, 7000)).toEqual({ ok: false, error: 'paused' });
-    expect(repick(paused, 7000)).toEqual({ ok: false, error: 'paused' });
+    expect(acceptAnswer(paused, 'p1', 7000)).toEqual({ ok: false, error: 'paused' });
+    expect(repick(paused, 'p1', 7000)).toEqual({ ok: false, error: 'paused' });
   });
 });
