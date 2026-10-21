@@ -317,8 +317,8 @@ describe('PlayerScreen: blitz', () => {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: null },
-            { id: 'c2', price: 200, played: true, mark: null },
+            { id: 'c1', price: 100, played: false, mark: null, kind: null },
+            { id: 'c2', price: 200, played: true, mark: null, kind: null },
           ],
         },
       ],
@@ -328,12 +328,11 @@ describe('PlayerScreen: blitz', () => {
       ],
       turn: { playerId: turn, nickname: turn === 'p1' ? 'Олена' : 'Анна' },
       cell: null,
-      answerMode: 'phone',
       rolls: 0,
       skipAt: null,
       ...over,
     });
-    const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const };
+    const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
 
     it('lets the chooser pick a cell and others wait', async () => {
       const send = show(view({ phase: 'board', round, board: boardOf('p1') }));
@@ -364,7 +363,7 @@ describe('PlayerScreen: blitz', () => {
       expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
       cleanup();
 
-      show(onQuestion({ round, board: boardOf('p1', { cell, answerMode: 'voice' }) }));
+      show(onQuestion({ round, board: boardOf('p1', { cell: { ...cell, answerMode: 'voice' } }) }));
       expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
       cleanup();
 
@@ -386,8 +385,7 @@ describe('PlayerScreen: spotlight', () => {
     categories: [],
     order: [turn],
     turn,
-    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' },
-    answerMode: 'phone',
+    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const },
     rolls: 0,
     skipAt: null,
   });

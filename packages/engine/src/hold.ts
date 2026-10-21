@@ -19,7 +19,7 @@ export function pendingOf(state: GameState): Pending | null {
     return head === undefined || head.answer === null ? null : { playerId: head.playerId, answer: head.answer };
   }
   const board = play?.board;
-  if (round?.type !== 'board' || round.answerMode !== 'phone' || board === undefined || board.answer === null) return null;
+  if (round?.type !== 'board' || board === undefined || board.answerMode !== 'phone' || board.answer === null) return null;
   return state.players.some((p) => p.id === board.chooserId) ? { playerId: board.chooserId, answer: board.answer } : null;
 }
 

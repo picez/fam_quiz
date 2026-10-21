@@ -1,6 +1,9 @@
 import {
   LIMITS,
   type Answer,
+  type AnswerMode,
+  type CellKind,
+  type CellPenalty,
   type ErrorCode,
   type Grade,
   type Phase,
@@ -100,6 +103,11 @@ export interface BoardPlay {
   price: number;
   /** Множник клітинки: x2 → 2, x3 → 3, інакше 1. */
   multiplier: 1 | 2 | 3;
+  /** Тип, спосіб відповіді й штраф клітинки, знімені з неї в мить відкриття. */
+  kind: CellKind;
+  answerMode: AnswerMode;
+  /** Для kind 'blitz'. */
+  penalty: CellPenalty;
   /** Відповідь з телефону, що чекає на рішення ведучого («Прийняти», оцінка або «Перевибрати»); інакше null. */
   answer: Answer | null;
 }
@@ -460,7 +468,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
 function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string, answer: Answer, now: number): Result {
   const play = state.plays[state.questionIndex];
   const board = play.board;
-  if (board === undefined || round.answerMode === 'voice') return fail('wrong_phase');
+  if (board === undefined || board.answerMode === 'voice') return fail('wrong_phase');
   if (playerId !== board.chooserId) return fail('not_your_turn');
   if (recordOf(state, state.questionIndex, playerId) !== undefined || board.answer !== null) return fail('already_answered');
   if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
@@ -686,7 +694,7 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   const board = play?.board;
   const phase = state.phase;
   if (board === undefined || (phase !== 'question' && phase !== 'locked' && phase !== 'reveal')) return fail('wrong_phase');
-  if (phase === 'question' && round.answerMode !== 'voice' && board.answer === null) return fail('wrong_phase');
+  if (phase === 'question' && board.answerMode !== 'voice' && board.answer === null) return fail('wrong_phase');
   if (playerId !== board.chooserId || !state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;

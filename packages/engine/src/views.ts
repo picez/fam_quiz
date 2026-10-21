@@ -189,15 +189,21 @@ function boardInfo(state: GameState, showAll: boolean): BoardInfo | null {
   const open = currentBoardPlay(state);
   const turnId = state.phase === 'board' ? chooserOf(state) : (open?.board.chooserId ?? null);
   const cell = open === null ? undefined : findCell(round, open.board.cellId);
-  const markOf = (id: string, mark: CellMark, played: boolean): CellMark | null =>
-    showAll || played || id === open?.board.cellId ? mark : null;
+  const revealed = (id: string, played: boolean) => showAll || played || id === open?.board.cellId;
+  const markOf = (id: string, mark: CellMark, played: boolean): CellMark | null => (revealed(id, played) ? mark : null);
   return {
     categories: round.categories.map((category) => ({
       id: category.id,
       title: category.title,
-      cells: category.cells.map(({ mark, question }): BoardCellView => {
+      cells: category.cells.map(({ mark, kind, question }): BoardCellView => {
         const played = cellPlayed(state, question.id);
-        return { id: question.id, price: question.points, played, mark: markOf(question.id, mark, played) };
+        return {
+          id: question.id,
+          price: question.points,
+          played,
+          mark: markOf(question.id, mark, played),
+          kind: revealed(question.id, played) ? kind : null,
+        };
       }),
     })),
     order: state.board.circle.map((id) => blitzPlayer(state, id)),
@@ -206,8 +212,15 @@ function boardInfo(state: GameState, showAll: boolean): BoardInfo | null {
     cell:
       open === null || cell === undefined
         ? null
-        : { id: open.board.cellId, category: cell.category.title, price: open.board.price, mark: cell.cell.mark },
-    answerMode: round.answerMode,
+        : {
+            id: open.board.cellId,
+            category: cell.category.title,
+            price: open.board.price,
+            mark: cell.cell.mark,
+            kind: open.board.kind,
+            answerMode: open.board.answerMode,
+            penalty: open.board.penalty,
+          },
     rolls: state.board.rolls,
     skipAt: state.board.awaySince === null ? null : state.board.awaySince + BOARD_AWAY_MS,
   };
@@ -219,7 +232,7 @@ function hostBoard(state: GameState): HostBoard | null {
   if (info === null || round?.type !== 'board') return null;
   return {
     ...info,
-    manual: round.answerMode === 'voice' || round.check === 'manual',
+    manual: info.cell?.answerMode === 'voice' || round.check === 'manual',
     answer: currentBoardPlay(state)?.board.answer ?? null,
   };
 }
@@ -234,7 +247,7 @@ function spotlightOf(state: GameState): Spotlight | null {
     return last === undefined ? null : { ...blitzPlayer(state, last.playerId), answer: last.answer, grade: last.grade };
   }
   const open = currentBoardPlay(state);
-  if (open === null || open.round.answerMode !== 'phone') return null;
+  if (open === null || open.board.answerMode !== 'phone') return null;
   // Закрите запитання: відповідь без оцінки лишається помаранчевою, вердикт видно лише на розкритті.
   // Вилученого гравця вже немає: його відповідь не показуємо.
   if (state.phase === 'locked') {

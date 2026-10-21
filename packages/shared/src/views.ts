@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { Grade, Phase } from './game';
-import type { CellMark, Question, Round } from './quiz';
+import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round } from './quiz';
 import type { Standing } from './standing';
 
 export interface Choice {
@@ -84,6 +84,8 @@ export interface BoardCellView {
   played: boolean;
   /** null — позначку приховано (сцена й гравці, поки клітинку не вибрали). */
   mark: CellMark | null;
+  /** null — тип приховано (сцена й гравці, поки клітинку не вибрали), за тим самим правилом, що mark. */
+  kind: CellKind | null;
 }
 
 export interface BoardInfo {
@@ -93,15 +95,22 @@ export interface BoardInfo {
   /** Чий хід: хто вибирає (board) або відповідає (question…reveal). */
   turn: BlitzPlayer | null;
   /** Вибрана клітинка поточного запитання (category — назва категорії); її позначку видно всім. */
-  cell: { id: string; category: string; price: number; mark: CellMark } | null;
-  answerMode: 'phone' | 'voice';
+  cell: {
+    id: string;
+    category: string;
+    price: number;
+    mark: CellMark;
+    kind: CellKind;
+    answerMode: AnswerMode;
+    penalty: CellPenalty;
+  } | null;
   rolls: number;
   /** Мить автоматичного пропуску ходу відсутнього гравця; null — гравець на місці або пауза. */
   skipAt: number | null;
 }
 
 export interface HostBoard extends BoardInfo {
-  /** answerMode 'voice' або check 'manual'. */
+  /** Клітинка відповідає усно або check раунду 'manual'. */
   manual: boolean;
   /** Відповідь з телефону, що чекає на оцінку. */
   answer: Answer | null;

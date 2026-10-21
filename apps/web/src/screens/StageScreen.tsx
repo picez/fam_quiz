@@ -65,7 +65,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           ? reveal.correctIds
           : [];
   const showChoices = question.type === 'single' || question.type === 'multi';
-  const voice = view.board?.answerMode === 'voice';
+  const voice = view.board?.cell?.answerMode === 'voice';
   // Поле з телефонами й бліц показують відповідь одного гравця кольором.
   const spotlit = view.blitz !== null || (view.board !== null && !voice);
   // Червона відповідь бліцу вже минула: відповідає голова черги, а не її автор.

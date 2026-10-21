@@ -197,11 +197,11 @@ describe('StageScreen: blitz', () => {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: null },
-            { id: 'c2', price: 200, played: true, mark: null },
+            { id: 'c1', price: 100, played: false, mark: null, kind: null },
+            { id: 'c2', price: 200, played: true, mark: null, kind: null },
           ],
         },
-        { id: 'k2', title: 'Ріки', cells: [{ id: 'c3', price: 100, played: false, mark: null }] },
+        { id: 'k2', title: 'Ріки', cells: [{ id: 'c3', price: 100, played: false, mark: null, kind: null }] },
       ],
       order: [
         { playerId: 'p1', nickname: 'Олена' },
@@ -209,7 +209,6 @@ describe('StageScreen: blitz', () => {
       ],
       turn: { playerId: 'p2', nickname: 'Анна' },
       cell: null,
-      answerMode: 'phone',
       rolls: 0,
       skipAt: null,
       ...over,
@@ -235,7 +234,7 @@ describe('StageScreen: blitz', () => {
           questionIndex: 0,
           question,
           endsAt: Date.now() + 20_000,
-          board: boardOf({ cell: { id: 'c1', category: 'Міста', price: 100, mark: 'x3' } }),
+          board: boardOf({ cell: { id: 'c1', category: 'Міста', price: 100, mark: 'x3', kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const } }),
         }),
       );
       expect(screen.getByText('Міста · 100')).toBeTruthy();
@@ -251,7 +250,7 @@ describe('StageScreen: blitz', () => {
           questionIndex: 0,
           question,
           endsAt: Date.now() + 20_000,
-          board: boardOf({ cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' } }),
+          board: boardOf({ cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const } }),
         }),
       );
       expect(screen.getByText('Відповідає Анна')).toBeTruthy();
@@ -283,8 +282,7 @@ describe('StageScreen: spotlight', () => {
     categories: [],
     order: [{ playerId: 'p2', nickname: 'Анна' }],
     turn: { playerId: 'p2', nickname: 'Анна' },
-    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const },
-    answerMode: 'phone' as const,
+    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const },
     rolls: 0,
     skipAt: null,
   };
@@ -352,8 +350,7 @@ describe('StageScreen: match', () => {
       categories: [],
       order: [{ playerId: 'p2', nickname: 'Анна' }],
       turn: { playerId: 'p2', nickname: 'Анна' },
-      cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const },
-      answerMode: 'voice' as const,
+      cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const },
       rolls: 0,
       skipAt: null,
     };

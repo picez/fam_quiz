@@ -120,7 +120,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             </section>
           ) : board !== null && !chooserIsMe ? (
             <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
-          ) : board !== null && board.answerMode === 'voice' && me.answer === null ? (
+          ) : board !== null && board.cell?.answerMode === 'voice' && me.answer === null ? (
             <p className="lead">{t('answerAloud')}</p>
           ) : me.blitz !== null ? (
             <>

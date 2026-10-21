@@ -354,15 +354,14 @@ describe('HostScreen: blitz', () => {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: 'x2' },
-            { id: 'c2', price: 200, played: true, mark: null },
+            { id: 'c1', price: 100, played: false, mark: 'x2', kind: null },
+            { id: 'c2', price: 200, played: true, mark: null, kind: null },
           ],
         },
       ],
       order: three.map((p) => ({ playerId: p.id, nickname: p.nickname })),
       turn: { playerId: 'p1', nickname: 'Олена' },
       cell: null,
-      answerMode: 'phone',
       rolls: 0,
       skipAt: null,
       manual: false,
@@ -411,7 +410,7 @@ describe('HostScreen: blitz', () => {
         during('question', single, {
           round: boardRound,
           players: three,
-          board: boardOf({ answerMode: 'voice', manual: true, cell: { id: 'c1', category: 'Міста', price: 100, mark: 'x2' } }),
+          board: boardOf({ manual: true, cell: { id: 'c1', category: 'Міста', price: 100, mark: 'x2', kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const } }),
         }),
       );
       expect(screen.getByText('Відповідає Олена')).toBeTruthy();
@@ -423,7 +422,7 @@ describe('HostScreen: blitz', () => {
     });
 
     it('shows a phone answer awaiting a grade and hides grading without one', () => {
-      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const };
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
       const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Одеса' }, grade: null };
       show(during('question', textQuestion, { round: boardRound, players: three, spotlight, board: boardOf({ manual: true, cell, answer: spotlight.answer }) }));
       expect(screen.getAllByText('Одеса').length).toBeGreaterThan(0);
@@ -434,7 +433,7 @@ describe('HostScreen: blitz', () => {
     });
 
     it('grades a pending board answer by hand and can still re-pick', () => {
-      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const };
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
       const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Одеса' }, grade: null };
       const send = show(
         during('question', textQuestion, { round: boardRound, players: three, spotlight, board: boardOf({ manual: true, cell, answer: spotlight.answer }) }),
@@ -452,7 +451,7 @@ describe('HostScreen: blitz', () => {
       show(onBoard({}, boardOf({ categories: [{ id: 'k1', title: 'Міста', cells: unmarked }] })));
       expect(document.body.textContent).not.toContain('×');
       cleanup();
-      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const };
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
       show(during('question', single, { round: boardRound, players: three, board: boardOf({ cell }) }));
       expect(screen.getByText('Відповідає Олена')).toBeTruthy();
       expect(document.body.textContent).not.toContain('×');

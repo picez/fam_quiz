@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { bool, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { answer, game, user } from './db/schema';
-import { getQuiz, listQuizzes } from './quizzes';
+import { createQuiz as saveQuiz, getQuiz, listQuizzes } from './quizzes';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb, createTestDbUpTo } from './testing/test-db';
 
@@ -190,5 +190,38 @@ describe('moving saved quizzes to rounds (migration 0002)', () => {
     expect(played.plays).toEqual([]);
     const [given] = await db.select().from(answer);
     expect(given).toMatchObject({ questionIndex: 0, roundIndex: 0, streakBonus: 0, points: 1000 });
+  });
+});
+
+describe('getQuiz with an old saved board quiz', () => {
+  it('fills in the cell kind and penalty that old cells lack', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const cell = { mark: 'none', question: single };
+    const old = {
+      title: 'Поле',
+      description: '',
+      settings: { leaderboard: 'each' },
+      rounds: [
+        {
+          id: 'g1',
+          type: 'board',
+          title: '',
+          shuffleOptions: false,
+          answerMode: 'phone',
+          check: 'auto',
+          rules: { penalty: 'none', partial: null, streak: null, multiplier: 1 },
+          categories: ['a', 'b', 'c'].map((id) => ({
+            id,
+            title: id,
+            cells: [1, 2, 3].map((n) => ({ ...cell, question: { ...single, id: `${id}${n}` } })),
+          })),
+        },
+      ],
+    };
+    const id = await saveQuiz(db, 'u1', old as never);
+    const got = await getQuiz(db, 'u1', id);
+    const first = got?.rounds[0].type === 'board' ? got.rounds[0].categories[0].cells[0] : null;
+    expect(first).toMatchObject({ kind: 'normal', penalty: 'none' });
   });
 });

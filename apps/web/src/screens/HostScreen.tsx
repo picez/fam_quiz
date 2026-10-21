@@ -70,7 +70,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
     board !== null &&
     view.question !== null &&
     chooserId !== null &&
-    ((phase === 'question' && board.manual && board.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
+    ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
   // Відповідь з телефона, що чекає на рішення ведучого (помаранчева).
   const pending = phase === 'question' && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
   const manualPending = pending !== null && ((board !== null && board.manual) || (blitz !== null && blitz.manual));
@@ -377,7 +377,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   return (
                     <>
                       <span className="given">
-                        {given !== null ? answerText(given, correct) : board.answerMode === 'voice' ? t('answeredAloud') : '—'}
+                        {given !== null ? answerText(given, correct) : board.cell?.answerMode === 'voice' ? t('answeredAloud') : '—'}
                       </span>
                       {response !== undefined && (
                         <>
