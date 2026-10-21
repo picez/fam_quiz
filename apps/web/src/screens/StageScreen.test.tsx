@@ -301,3 +301,64 @@ describe('StageScreen: spotlight', () => {
     expect(cls('Київ')).toContain('is-correct');
   });
 });
+
+describe('StageScreen: match', () => {
+  const matchQ = {
+    type: 'match' as const,
+    text: 'Пари',
+    imageUrl: null,
+    timeLimit: 20,
+    points: 100,
+    choices: [
+      { id: 'a', text: 'Київ' },
+      { id: 'b', text: 'Львів' },
+      { id: 'c', text: 'Ужгород' },
+    ],
+    right: [
+      { id: 'z', text: 'Уж' },
+      { id: 'x', text: 'Дніпро' },
+      { id: 'y', text: 'Полтва' },
+    ],
+  };
+  const matchFull: Question = {
+    id: 'q',
+    type: 'match',
+    text: 'Пари',
+    imageUrl: null,
+    timeLimit: 20,
+    points: 100,
+    pairs: [
+      { left: matchQ.choices[0], right: matchQ.right[1] },
+      { left: matchQ.choices[1], right: matchQ.right[2] },
+      { left: matchQ.choices[2], right: matchQ.right[0] },
+    ],
+  };
+
+  it('shows both match columns during the question and only the correct pairs at the reveal', () => {
+    const { container } = show(view({ phase: 'question', questionIndex: 0, question: matchQ, endsAt: Date.now() + 20_000 }));
+    expect(container.querySelector('.match-columns')).not.toBeNull();
+    expect(screen.getByText('З’єднайте пари на телефоні')).toBeTruthy();
+    expect(container.querySelector('.match-list')).toBeNull();
+    cleanup();
+    const done = show(view({ phase: 'reveal', questionIndex: 0, question: matchQ, reveal: matchFull }));
+    expect(done.container.querySelectorAll('li.match-row.is-correct').length).toBe(3);
+    expect(screen.getByText('Правильні пари')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
+  it('a voice board cell shows the match columns without the phone hint', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const board = {
+      categories: [],
+      order: [{ playerId: 'p2', nickname: 'Анна' }],
+      turn: { playerId: 'p2', nickname: 'Анна' },
+      cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const },
+      answerMode: 'voice' as const,
+      rolls: 0,
+      skipAt: null,
+    };
+    const { container } = show(view({ phase: 'question', questionIndex: 0, question: matchQ, round, board, endsAt: Date.now() + 20_000 }));
+    expect(container.querySelector('.match-columns')).not.toBeNull();
+    expect(screen.queryByText('З’єднайте пари на телефоні')).toBeNull();
+  });
+});

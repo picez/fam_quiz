@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
-import { correctText, markText, pickedText, num, questionClass, questionLabel, roundLabel, signed } from '../format';
+import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
@@ -132,7 +132,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           ) : me.answer !== null ? (
             <section className="sent">
               <h2>{t('answerSent')}</h2>
-              <p>{pickedText(me.answer, question.choices)}</p>
+              <p>{pickedText(me.answer, shownChoices(question))}</p>
             </section>
           ) : (
             // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
@@ -226,7 +226,7 @@ function BlitzTurn({
       return (
         <section className="sent">
           <h2>{t('blitzSent', { position: blitz.position })}</h2>
-          <p>{pickedText(me.answer, question.choices)}</p>
+          <p>{pickedText(me.answer, shownChoices(question))}</p>
         </section>
       );
     }

@@ -1,6 +1,7 @@
 import type { PublicQuestion, Question, RevealStats, Spotlight } from '@quiz/shared';
-import { LETTERS, pickedText } from '../format';
+import { LETTERS, correctPairs, pairTexts, pickedText, shownChoices } from '../format';
 import { t } from '../i18n';
+import { MatchColumns, PairList } from './MatchView';
 
 interface Props {
   question: PublicQuestion;
@@ -56,6 +57,20 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null }: 
           );
         })}
       </ul>
+    );
+  }
+
+  if (question.type === 'match') {
+    const mine = answer?.type === 'match' ? pairTexts(answer.links, shownChoices(question)) : [];
+    if (reveal === null) {
+      return mine.length === 0 ? <MatchColumns left={question.choices} right={question.right} /> : <PairList pairs={mine} tone={tone} />;
+    }
+    return (
+      <div className="match-reveal">
+        {mine.length > 0 && spotlight?.grade !== 'correct' && <PairList pairs={mine} tone={tone} />}
+        <h2 className="match-heading">{t('correctPairs')}</h2>
+        <PairList pairs={correctPairs(reveal)} tone="is-correct" />
+      </div>
     );
   }
 
