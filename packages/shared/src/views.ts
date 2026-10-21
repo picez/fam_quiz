@@ -16,6 +16,8 @@ export interface PublicQuestion {
   timeLimit: number;
   points: number;
   choices: Choice[];
+  /** Праві елементи пар у порядку показу; [] для інших типів. */
+  right: Choice[];
 }
 
 export interface RevealStats {

@@ -56,10 +56,17 @@ function publicQuestion(state: GameState): PublicQuestion | null {
       : question.type === 'single' || question.type === 'multi'
         ? question.options
         : [];
-  const choices = state.presented
-    .map((id) => source.find((choice) => choice.id === id))
-    .filter((choice): choice is Choice => choice !== undefined)
-    .map((choice) => ({ id: choice.id, text: choice.text }));
+  const shown = (from: Choice[]) =>
+    state.presented
+      .map((id) => from.find((choice) => choice.id === id))
+      .filter((choice): choice is Choice => choice !== undefined)
+      .map((choice) => ({ id: choice.id, text: choice.text }));
+  // У парах ліві елементи йдуть в авторському порядку, а presented описує правий стовпчик.
+  const choices =
+    question.type === 'match'
+      ? question.pairs.map(({ left }) => ({ id: left.id, text: left.text }))
+      : shown(source);
+  const right = question.type === 'match' ? shown(question.pairs.map((pair) => pair.right)) : [];
   return {
     type: question.type,
     text: question.text,
@@ -67,6 +74,7 @@ function publicQuestion(state: GameState): PublicQuestion | null {
     timeLimit: question.timeLimit,
     points: question.points,
     choices,
+    right,
   };
 }
 

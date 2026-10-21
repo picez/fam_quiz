@@ -78,6 +78,18 @@ export const order = {
   ],
 } satisfies Question;
 
+export const match = {
+  ...base,
+  id: 'q7',
+  type: 'match',
+  text: 'З’єднайте місто з річкою',
+  pairs: [
+    { left: { id: 'a', text: 'Київ' }, right: { id: 'x', text: 'Дніпро' } },
+    { left: { id: 'b', text: 'Львів' }, right: { id: 'y', text: 'Полтва' } },
+    { left: { id: 'c', text: 'Ужгород' }, right: { id: 'z', text: 'Уж' } },
+  ],
+} satisfies Question;
+
 export type RoundOptions = Partial<Pick<ClassicRound, 'title' | 'speedBonus' | 'shuffleOptions' | 'rules'>>;
 
 export function classicRound(id: string, questions: Question[], options: RoundOptions = {}): ClassicRound {

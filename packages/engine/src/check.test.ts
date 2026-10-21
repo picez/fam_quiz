@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkAnswer } from './check';
-import { bool, multi, numeric, order, single, text } from './testing/fixtures';
+import { bool, match, multi, numeric, order, single, text } from './testing/fixtures';
 
 const REJECTED = { accepted: false, accuracy: 0 };
 const FULL = { accepted: true, accuracy: 1 };
@@ -82,5 +82,22 @@ describe('checkAnswer', () => {
     expect(checkAnswer(order, { type: 'order', itemIds: ['u', 'u', 'k', 'h'] })).toEqual(REJECTED);
     expect(checkAnswer(order, { type: 'order', itemIds: ['u', 'l', 'k'] })).toEqual(REJECTED);
     expect(checkAnswer(order, { type: 'order', itemIds: ['u', 'l', 'k', 'zzz'] })).toEqual(REJECTED);
+  });
+
+  it('match: all pairs right in any link order is fully correct', () => {
+    expect(checkAnswer(match, { type: 'match', links: [{ left: 'c', right: 'z' }, { left: 'a', right: 'x' }, { left: 'b', right: 'y' }] })).toEqual(FULL);
+  });
+
+  it('match: one swapped pair makes the whole answer wrong', () => {
+    expect(checkAnswer(match, { type: 'match', links: [{ left: 'a', right: 'y' }, { left: 'b', right: 'x' }, { left: 'c', right: 'z' }] })).toEqual(REJECTED);
+  });
+
+  it('match: duplicate, unknown or missing links are wrong', () => {
+    const links = (...pairs: [string, string][]) => ({ type: 'match' as const, links: pairs.map(([left, right]) => ({ left, right })) });
+    expect(checkAnswer(match, links(['a', 'x'], ['a', 'x'], ['c', 'z']))).toEqual(REJECTED);
+    expect(checkAnswer(match, links(['a', 'x'], ['b', 'x'], ['c', 'z']))).toEqual(REJECTED);
+    expect(checkAnswer(match, links(['a', 'x'], ['b', 'y'], ['c', 'zzz']))).toEqual(REJECTED);
+    expect(checkAnswer(match, links(['a', 'x'], ['b', 'y']))).toEqual(REJECTED);
+    expect(checkAnswer(match, links(['a', 'x'], ['b', 'y'], ['c', 'z'], ['a', 'x']))).toEqual(REJECTED);
   });
 });
