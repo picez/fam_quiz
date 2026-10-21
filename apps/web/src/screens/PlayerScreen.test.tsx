@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerView, Question, RoundInfo } from '@quiz/shared';
+import type { PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
 
@@ -317,8 +317,8 @@ describe('PlayerScreen: blitz', () => {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: null },
-            { id: 'c2', price: 200, played: true, mark: null },
+            { id: 'c1', price: 100, played: false, mark: null, kind: null },
+            { id: 'c2', price: 200, played: true, mark: null, kind: null },
           ],
         },
       ],
@@ -328,12 +328,11 @@ describe('PlayerScreen: blitz', () => {
       ],
       turn: { playerId: turn, nickname: turn === 'p1' ? 'Олена' : 'Анна' },
       cell: null,
-      answerMode: 'phone',
       rolls: 0,
       skipAt: null,
       ...over,
     });
-    const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const };
+    const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
 
     it('lets the chooser pick a cell and others wait', async () => {
       const send = show(view({ phase: 'board', round, board: boardOf('p1') }));
@@ -364,7 +363,7 @@ describe('PlayerScreen: blitz', () => {
       expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
       cleanup();
 
-      show(onQuestion({ round, board: boardOf('p1', { cell, answerMode: 'voice' }) }));
+      show(onQuestion({ round, board: boardOf('p1', { cell: { ...cell, answerMode: 'voice' } }) }));
       expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
       cleanup();
 
@@ -380,14 +379,87 @@ describe('PlayerScreen: blitz', () => {
   });
 });
 
+
+describe('PlayerScreen: blitz cell', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+  const anna = { playerId: 'p2', nickname: 'Анна' };
+  const blitzBoard = (over: Partial<NonNullable<NonNullable<PlayerView['board']>['cell']>> = {}): NonNullable<PlayerView['board']> => ({
+    categories: [],
+    order: [anna],
+    turn: { playerId: 'p2', nickname: 'Алла' },
+    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'blitz', answerMode: 'phone', penalty: 'none', ...over },
+    rolls: 0,
+    skipAt: null,
+  });
+  const blitzMe = (blitz: PlayerBlitz | null, extra = {}) => ({ ...me, blitz, ...extra });
+  const canBuzz = { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null };
+
+  it('on a blitz cell every player gets the buzz button, the chooser too', () => {
+    for (const id of ['p1', 'p2']) {
+      show(onQuestion({ round, board: blitzBoard(), me: blitzMe(canBuzz, { id }) }));
+      expect(screen.getByRole('button', { name: 'Відповісти' })).toBeTruthy();
+      expect(screen.getByText('Бліц')).toBeTruthy();
+      expect(screen.getByText('Вибір: Алла')).toBeTruthy();
+      expect(screen.queryByText(/^Відповідає Алла/)).toBeNull();
+      cleanup();
+    }
+  });
+
+  it('on a voice blitz cell the head of the queue answers aloud', () => {
+    const head = { ...canBuzz, position: 1, canBuzz: false };
+    show(onQuestion({ round, board: blitzBoard({ answerMode: 'voice' }), me: blitzMe(head) }));
+    expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+    expect(document.querySelector('.inputs')).toBeNull();
+  });
+
+  it('a queued non-head on a voice blitz cell is not told to answer aloud', () => {
+    const second = { ...canBuzz, position: 2, canBuzz: false };
+    show(onQuestion({ round, board: blitzBoard({ answerMode: 'voice' }), me: blitzMe(second) }));
+    expect(screen.queryByText('Відповідайте вголос')).toBeNull();
+    expect(screen.getByText('Ви 2-й у черзі')).toBeTruthy();
+  });
+
+  it('labels own input only when the head answer is shown above it', () => {
+    const spotlight = { playerId: 'p3', nickname: 'Віра', answer: { type: 'single' as const, optionId: 'a' }, grade: null };
+    const second = { ...canBuzz, position: 2, canBuzz: false };
+    show(onQuestion({ round, board: blitzBoard(), spotlight, me: blitzMe(second) }));
+    expect(screen.getByText('Ваша відповідь')).toBeTruthy();
+    cleanup();
+    show(onQuestion({ round, board: blitzBoard(), me: blitzMe(second) }));
+    expect(screen.queryByText('Ваша відповідь')).toBeNull();
+  });
+
+  it('the blitz cell reveal shows own points and the winner', () => {
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: publicQuestion,
+        reveal: fullQuestion,
+        round,
+        board: blitzBoard(),
+        blitz: { queue: [], winner: { playerId: 'p3', nickname: 'Віра' } },
+        me: blitzMe(canBuzz, { result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: -200 } }),
+      }),
+    );
+    expect(screen.getByText('−200')).toBeTruthy();
+    expect(screen.getByText('Першим правильно відповів: Віра')).toBeTruthy();
+  });
+
+  it('players see the penalty rule after a blitz cell opens', () => {
+    show(onQuestion({ round, board: blitzBoard({ penalty: 'all' }), me: blitzMe(canBuzz) }));
+    expect(screen.getByText('Мінус для всіх, хто не відповість правильно')).toBeTruthy();
+    expect(screen.getByText(/Відповідає перший, хто натисне/)).toBeTruthy();
+  });
+});
+
 describe('PlayerScreen: spotlight', () => {
   const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
   const boardOf = (turn: { playerId: string; nickname: string }): NonNullable<PlayerView['board']> => ({
     categories: [],
     order: [turn],
     turn,
-    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' },
-    answerMode: 'phone',
+    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const },
     rolls: 0,
     skipAt: null,
   });

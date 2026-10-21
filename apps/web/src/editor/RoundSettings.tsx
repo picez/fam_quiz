@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { LIMITS, type Round, type RoundRules } from '@quiz/shared';
+import { LIMITS, boardCells, cellAnswerMode, type Round, type RoundRules } from '@quiz/shared';
 import { t } from '../i18n';
-import { applyRoundTime } from './draft';
+import { applyRoundTime, withDefaultMode } from './draft';
 
 interface Props {
   round: Round;
@@ -82,14 +82,14 @@ export function RoundSettings({ round, index, onChange }: Props) {
         <>
           <label className="field">
             <span>{t('boardAnswerMode')}</span>
-            <select value={round.answerMode} onChange={(event) => onChange({ ...round, answerMode: event.target.value === 'voice' ? 'voice' : 'phone' })}>
+            <select value={round.answerMode} onChange={(event) => onChange(withDefaultMode(round, event.target.value === 'voice' ? 'voice' : 'phone'))}>
               <option value="phone">{t('boardAnswerPhone')}</option>
               <option value="voice">{t('boardAnswerVoice')}</option>
             </select>
           </label>
-          {round.answerMode === 'phone' && (
+          {boardCells(round).some((c) => cellAnswerMode(round, c.cell) === 'phone') && (
             <label className="field">
-              <span>{t('blitzCheck')}</span>
+              <span>{t('boardCheck')}</span>
               <select value={round.check} onChange={(event) => onChange({ ...round, check: event.target.value === 'manual' ? 'manual' : 'auto' })}>
                 <option value="auto">{t('blitzCheckAuto')}</option>
                 <option value="manual">{t('blitzCheckManual')}</option>

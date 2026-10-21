@@ -899,14 +899,55 @@ describe('QuizEditor board rounds', () => {
     expect(screen.getAllByRole('button', { name: /^Категорія 1, клітинка \d+:/ })).toHaveLength(3);
   });
 
-  it('board settings offer answer mode and hide the check for voice', () => {
+  it('board settings offer the default mode, which leaves existing cells alone', () => {
     open();
     addBoard();
-    expect(screen.getByLabelText(t('blitzCheck'))).toBeTruthy();
+    expect(screen.getByLabelText(t('boardCheck'))).toBeTruthy();
     expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
-    fireEvent.change(screen.getByLabelText('Спосіб відповіді'), { target: { value: 'voice' } });
-    expect(screen.queryByLabelText(t('blitzCheck'))).toBeNull();
-    expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
+    fireEvent.change(screen.getByLabelText('Спосіб відповіді для нових клітинок'), { target: { value: 'voice' } });
+    expect(screen.getByLabelText(t('boardCheck'))).toBeTruthy();
+    expect((screen.getByLabelText('Як відповідати') as HTMLSelectElement).value).toBe('phone');
+  });
+
+  it('each board cell gets a kind, an answer mode and a blitz penalty', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fillQuestion();
+    addBoard();
+    [1, 2, 3].forEach((n) => fill(`Назва категорії ${n}`, `Тема ${n}`));
+    for (const [category, count] of [[1, 3], [2, 3], [3, 3]]) {
+      for (let index = 1; index <= count; index += 1) {
+        fireEvent.click(cell(category, index));
+        fillQuestion();
+      }
+    }
+    fireEvent.click(cell(1, 1));
+    expect(screen.queryByLabelText('Штраф бліцу')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Тип клітинки'), { target: { value: 'blitz' } });
+    fireEvent.change(screen.getByLabelText('Штраф бліцу'), { target: { value: 'all' } });
+    fireEvent.change(screen.getByLabelText('Як відповідати'), { target: { value: 'voice' } });
+    expect(cell(1, 1).textContent).toContain('Бліц');
+    expect(cell(1, 2).textContent).not.toContain('Бліц');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const board = saved(onSave).rounds[1] as BoardRound;
+    expect(board.categories[0].cells[0]).toMatchObject({ kind: 'blitz', penalty: 'all', answerMode: 'voice' });
+    expect(board.categories[0].cells[1]).toMatchObject({ kind: 'normal', penalty: 'none', answerMode: 'phone' });
+  });
+
+  it('the phone check setting shows only while some cell answers by phone', () => {
+    open();
+    addBoard();
+    expect(screen.getByLabelText('Перевірка відповідей з телефона')).toBeTruthy();
+    for (const category of [1, 2, 3]) {
+      for (const index of [1, 2, 3]) {
+        fireEvent.click(cell(category, index));
+        fireEvent.change(screen.getByLabelText('Як відповідати'), { target: { value: 'voice' } });
+      }
+    }
+    expect(screen.queryByLabelText('Перевірка відповідей з телефона')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Як відповідати'), { target: { value: 'phone' } });
+    expect(screen.getByLabelText('Перевірка відповідей з телефона')).toBeTruthy();
   });
 
   it('hides the question list for a board and opens the broken cell on save', () => {

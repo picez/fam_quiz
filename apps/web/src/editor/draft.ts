@@ -7,6 +7,7 @@ import {
   quizSchema,
   boardRoundIssues,
   roundRulesSchema,
+  type AnswerMode,
   type BlitzRound,
   type BoardCategory,
   type BoardRound,
@@ -171,12 +172,18 @@ export function newBoardQuestion(after: Question | undefined): Question {
   return { ...newQuestion('single'), points };
 }
 
-/** Нова категорія поля: порожня назва й три порожні запитання за 100, 200, 300. */
-export function newBoardCategory(): BoardCategory {
+/** Нова категорія поля: порожня назва й три порожні запитання за 100, 200, 300 з явним способом відповіді. */
+export function newBoardCategory(answerMode: AnswerMode): BoardCategory {
   return {
     id: newId(),
     title: '',
-    cells: [100, 200, 300].map((points) => ({ mark: 'none', question: { ...newQuestion('single'), points } })),
+    cells: [100, 200, 300].map((points) => ({
+      mark: 'none',
+      kind: 'normal',
+      answerMode,
+      penalty: 'none',
+      question: { ...newQuestion('single'), points },
+    })),
   };
 }
 
@@ -187,10 +194,22 @@ export function newBoardRound(): BoardRound {
     type: 'board',
     title: '',
     shuffleOptions: false,
-    categories: [newBoardCategory(), newBoardCategory(), newBoardCategory()],
+    categories: [newBoardCategory('phone'), newBoardCategory('phone'), newBoardCategory('phone')],
     answerMode: 'phone',
     check: 'auto',
     rules: defaultRules(),
+  };
+}
+
+/** Змінює типовий спосіб раунду; клітинки без власного способу спершу отримують попередній спосіб раунду явно. */
+export function withDefaultMode(round: BoardRound, mode: AnswerMode): BoardRound {
+  return {
+    ...round,
+    answerMode: mode,
+    categories: round.categories.map((category) => ({
+      ...category,
+      cells: category.cells.map((cell) => ({ ...cell, answerMode: cell.answerMode ?? round.answerMode })),
+    })),
   };
 }
 

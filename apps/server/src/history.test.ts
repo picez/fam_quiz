@@ -356,8 +356,96 @@ describe('host history: board', () => {
     await ctx.recorder.idle();
 
     const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as { questions: Record<string, unknown>[] };
-    expect(detail.questions[0].cell).toEqual({ category: 'Міста', price: 100, multiplier: 1, chooser: 'Анна', points: 100 });
+    expect(detail.questions[0].cell).toEqual({ category: 'Міста', price: 100, multiplier: 1, chooser: 'Анна', points: 100, kind: 'normal', scores: [] });
     expect(detail.questions.at(-1)?.cell).toBeNull();
+  });
+
+  it('a blitz cell shows its kind and everyone’s points, penalty rows are not responses', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const cell = (id: string, points: number) => ({ ...withId(single, id), points });
+    const quiz = makeRoundsQuiz([
+      boardRound('g1', [
+        { title: 'Міста', cells: [{ question: cell('c11', 100), kind: 'blitz', mark: 'x2', penalty: 'all' }, cell('c12', 200), cell('c13', 300)] },
+        { title: 'Річки', cells: [cell('c21', 100), cell('c22', 200), cell('c23', 300)] },
+        { title: 'Гори', cells: [cell('c31', 100), cell('c32', 200), cell('c33', 300)] },
+      ]),
+    ]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const nickname of ['Анна', 'Богдан', 'Віра']) {
+      const joined = (await post(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string };
+      ctx.manager.connect(room, { role: 'player', playerId: joined.playerId });
+      ids[nickname] = joined.playerId;
+    }
+    const step = (type: 'start' | 'next' | 'lock') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    expect(ctx.manager.pick(room, ids['Анна'], 'c11')).toEqual({ ok: true });
+    for (const [nickname, optionId] of [['Анна', 'a'], ['Богдан', 'b']] as const) {
+      expect(ctx.manager.buzz(room, ids[nickname])).toEqual({ ok: true });
+      expect(ctx.manager.answer(room, ids[nickname], { type: 'single', optionId })).toEqual({ ok: true });
+      expect(ctx.manager.host(room, { type: 'accept', playerId: ids[nickname] })).toEqual({ ok: true });
+    }
+    expect(room.state.phase).toBe('locked');
+    step('next');
+    await ctx.recorder.idle();
+
+    const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
+      questions: { answered: number; cell: Record<string, unknown>; responses: { nickname: string; answer: unknown; accepted: boolean }[] }[];
+    };
+    // Віра лише отримала «Мінус для всіх»: вона не відповідала.
+    expect(detail.questions[0].answered).toBe(2);
+    expect(detail.questions[0].cell).toMatchObject({ kind: 'blitz', chooser: 'Анна', multiplier: 2 });
+    expect(detail.questions[0].cell.scores).toEqual([
+      { nickname: 'Богдан', points: 200 },
+      { nickname: 'Анна', points: -200 },
+      { nickname: 'Віра', points: -200 },
+    ]);
+    expect(detail.questions[0].responses).toEqual([
+      { nickname: 'Богдан', answer: { type: 'single', optionId: 'b' }, accepted: true },
+      { nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, accepted: false },
+    ]);
+  });
+
+  it('an old game without cell kinds still renders', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const gameId = '99999999-9999-4999-8999-999999999999';
+    const playerId = '99999999-9999-4999-8999-999999999990';
+    const cell = (id: string) => ({ ...withId(single, id), points: 100 });
+    // Знімок до плану 6c: клітинки без kind і penalty.
+    const round = boardRound('g1', [
+      { title: 'Міста', cells: [cell('c11'), cell('c12'), cell('c13')] },
+      { title: 'Річки', cells: [cell('c21'), cell('c22'), cell('c23')] },
+      { title: 'Гори', cells: [cell('c31'), cell('c32'), cell('c33')] },
+    ]);
+    const oldRound = {
+      ...round,
+      categories: round.categories.map((c) => ({ ...c, cells: c.cells.map(({ kind: _kind, penalty: _penalty, ...rest }) => ({ ...rest, mark: c.id === 'c1' ? 'x2' : 'none' })) })),
+    };
+    await db.insert(game).values({
+      id: gameId,
+      hostId: account.id,
+      quizId: null,
+      status: 'finished',
+      questionsPlayed: 1,
+      finishedAt: new Date(),
+      code: '777888',
+      title: 'Старе поле',
+      quizSnapshot: { ...makeRoundsQuiz([]), title: 'Старе поле', rounds: [oldRound] },
+      plays: [{ roundIndex: 0, questionId: 'c11', cell: { cellId: 'c11', chooserId: playerId } }],
+      startedAt: new Date(2026, 0, 4),
+    });
+    await db.insert(participant).values({ id: playerId, gameId, nickname: 'Анна', userId: null, score: 200, totalTimeMs: 0, rank: 1 });
+    await db.insert(answer).values({ participantId: playerId, questionIndex: 0, attempt: 0, roundIndex: 0, payload: { type: 'single', optionId: 'b' }, timeMs: 10, accepted: true, points: 200, streakBonus: 0, overridden: false });
+
+    const response = await get(`/api/games/${gameId}`, host.cookie);
+    expect(response.statusCode).toBe(200);
+    const detail = response.json() as { questions: { cell: Record<string, unknown> }[] };
+    expect(detail.questions[0].cell).toMatchObject({ kind: 'normal', scores: [], chooser: 'Анна', points: 200 });
   });
 
   it('counts the cells of a board round in a snapshot that no longer passes the schema', async () => {

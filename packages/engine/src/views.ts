@@ -25,7 +25,7 @@ import {
   type StageView,
 } from '@quiz/shared';
 import { currentRound, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
-import { attemptsUsed } from './blitz';
+import { attemptsUsed, blitzRulesOf } from './blitz';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
@@ -111,12 +111,12 @@ function previousStreak(state: GameState, playerId: string): number {
   return streakCounts(state, state.questionIndex)[playerId] ?? 0;
 }
 
-/** Поточне запитання бліцу з його раундом; null поза запитанням або в класичному раунді. */
+/** Поточне запитання з чергою (бліц-раунд або бліц-клітинка) з її правилами; null поза запитанням або без черги. */
 function currentBlitz(state: GameState) {
   if (!inQuestion(state)) return null;
   const play = state.plays[state.questionIndex];
-  const round = play === undefined ? undefined : state.quiz.rounds[play.roundIndex];
-  return round?.type === 'blitz' && play?.blitz !== undefined ? { play, blitz: play.blitz, round } : null;
+  const rules = play?.blitz === undefined ? null : blitzRulesOf(state, play);
+  return play?.blitz !== undefined && rules !== null ? { play, blitz: play.blitz, rules } : null;
 }
 
 function blitzPlayer(state: GameState, playerId: string): BlitzPlayer {
@@ -141,10 +141,10 @@ function blitzInfo(state: GameState): BlitzInfo | null {
 function playerBlitz(state: GameState, playerId: string): PlayerBlitz | null {
   const open = currentBlitz(state);
   if (open === null) return null;
-  const { play, blitz, round } = open;
+  const { play, blitz, rules } = open;
   const index = blitz.queue.findIndex((entry) => entry.playerId === playerId);
   const used = attemptsUsed(play, playerId);
-  const left = round.attempts === null ? null : Math.max(0, round.attempts - used);
+  const left = rules.attempts === null ? null : Math.max(0, rules.attempts - used);
   return {
     position: index < 0 ? null : index + 1,
     attemptsUsed: used,
@@ -158,9 +158,10 @@ function playerBlitz(state: GameState, playerId: string): PlayerBlitz | null {
 function hostBlitz(state: GameState): HostBlitz | null {
   const open = currentBlitz(state);
   if (open === null) return null;
-  const { blitz, round } = open;
+  const { blitz, rules } = open;
   return {
-    manual: round.check === 'manual',
+    voice: rules.check === 'voice',
+    manual: rules.check !== 'auto',
     winner: blitzWinner(state, blitz.attempts),
     queue: blitz.queue.map((e) => ({ ...blitzPlayer(state, e.playerId), answer: e.answer, deadline: e.deadline })),
     attempts: blitz.attempts.map((a) => ({
@@ -189,15 +190,21 @@ function boardInfo(state: GameState, showAll: boolean): BoardInfo | null {
   const open = currentBoardPlay(state);
   const turnId = state.phase === 'board' ? chooserOf(state) : (open?.board.chooserId ?? null);
   const cell = open === null ? undefined : findCell(round, open.board.cellId);
-  const markOf = (id: string, mark: CellMark, played: boolean): CellMark | null =>
-    showAll || played || id === open?.board.cellId ? mark : null;
+  const revealed = (id: string, played: boolean) => showAll || played || id === open?.board.cellId;
+  const markOf = (id: string, mark: CellMark, played: boolean): CellMark | null => (revealed(id, played) ? mark : null);
   return {
     categories: round.categories.map((category) => ({
       id: category.id,
       title: category.title,
-      cells: category.cells.map(({ mark, question }): BoardCellView => {
+      cells: category.cells.map(({ mark, kind, question }): BoardCellView => {
         const played = cellPlayed(state, question.id);
-        return { id: question.id, price: question.points, played, mark: markOf(question.id, mark, played) };
+        return {
+          id: question.id,
+          price: question.points,
+          played,
+          mark: markOf(question.id, mark, played),
+          kind: revealed(question.id, played) ? kind : null,
+        };
       }),
     })),
     order: state.board.circle.map((id) => blitzPlayer(state, id)),
@@ -206,8 +213,15 @@ function boardInfo(state: GameState, showAll: boolean): BoardInfo | null {
     cell:
       open === null || cell === undefined
         ? null
-        : { id: open.board.cellId, category: cell.category.title, price: open.board.price, mark: cell.cell.mark },
-    answerMode: round.answerMode,
+        : {
+            id: open.board.cellId,
+            category: cell.category.title,
+            price: open.board.price,
+            mark: cell.cell.mark,
+            kind: open.board.kind,
+            answerMode: open.board.answerMode,
+            penalty: open.board.penalty,
+          },
     rolls: state.board.rolls,
     skipAt: state.board.awaySince === null ? null : state.board.awaySince + BOARD_AWAY_MS,
   };
@@ -219,7 +233,7 @@ function hostBoard(state: GameState): HostBoard | null {
   if (info === null || round?.type !== 'board') return null;
   return {
     ...info,
-    manual: round.answerMode === 'voice' || round.check === 'manual',
+    manual: info.cell?.answerMode === 'voice' || round.check === 'manual',
     answer: currentBoardPlay(state)?.board.answer ?? null,
   };
 }
@@ -230,11 +244,13 @@ function spotlightOf(state: GameState): Spotlight | null {
   if (pending !== null) return { ...blitzPlayer(state, pending.playerId), answer: pending.answer, grade: null };
   const blitz = currentBlitz(state);
   if (blitz !== null) {
+    // Усна відповідь звучить у залі: на телефоні її немає.
+    if (blitz.rules.check === 'voice') return null;
     const last = blitz.blitz.attempts[blitz.blitz.attempts.length - 1];
     return last === undefined ? null : { ...blitzPlayer(state, last.playerId), answer: last.answer, grade: last.grade };
   }
   const open = currentBoardPlay(state);
-  if (open === null || open.round.answerMode !== 'phone') return null;
+  if (open === null || open.board.answerMode !== 'phone') return null;
   // Закрите запитання: відповідь без оцінки лишається помаранчевою, вердикт видно лише на розкритті.
   // Вилученого гравця вже немає: його відповідь не показуємо.
   if (state.phase === 'locked') {

@@ -4,7 +4,7 @@ import { secondsLeft } from '../clock';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import type { Send } from '../live/types';
-import { Board } from './Board';
+import { BlitzCellNotes, Board } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { Standings } from './Standings';
 
@@ -68,12 +68,15 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   // У полі оцінка йде одразу після відповіді вибравшого: у запитанні лише коли ведучий оцінює вручну.
   const canGradeBoard =
     board !== null &&
+    blitz === null &&
     view.question !== null &&
     chooserId !== null &&
-    ((phase === 'question' && board.manual && board.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
+    ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
   // Відповідь з телефона, що чекає на рішення ведучого (помаранчева).
   const pending = phase === 'question' && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
   const manualPending = pending !== null && ((board !== null && board.manual) || (blitz !== null && blitz.manual));
+  // На бліц-клітинці відповідає голова черги, а не вибравший.
+  const answering = blitz !== null ? (blitz.queue[0] ?? null) : (board?.turn ?? null);
   const secondsNow = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
   const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
@@ -258,9 +261,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
               {board.cell.mark !== 'none' && <span className="cell-mark">{markText(board.cell.mark)}</span>}
+              {board.cell.kind === 'blitz' && <span className="cell-mark">{t('cellBlitz')}</span>}
             </p>
           )}
-          {board !== null && board.turn !== null && <p className="lead">{t('boardAnswering', { name: board.turn.nickname })}</p>}
+          {board !== null && <BlitzCellNotes board={board} />}
+          {answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
           <QuestionImage url={view.question.imageUrl} />
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
@@ -299,11 +304,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 <button
                   type="button"
                   className="btn btn-small"
-                  onClick={() => (board !== null ? grade(pending.playerId, 'correct') : judge(pending.playerId, true))}
+                  onClick={() => (blitz !== null ? judge(pending.playerId, true) : grade(pending.playerId, 'correct'))}
                 >
                   {t('judgeCorrect')}
                 </button>
-                {board !== null && round?.partial === true && (
+                {blitz === null && round?.partial === true && (
                   <button type="button" className="btn btn-small" onClick={() => grade(pending.playerId, 'partial')}>
                     {t('gradePartial')}
                   </button>
@@ -311,7 +316,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 <button
                   type="button"
                   className="btn btn-small"
-                  onClick={() => (board !== null ? grade(pending.playerId, 'wrong') : judge(pending.playerId, false))}
+                  onClick={() => (blitz !== null ? judge(pending.playerId, false) : grade(pending.playerId, 'wrong'))}
                 >
                   {t('judgeWrong')}
                 </button>
@@ -334,10 +339,21 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 <p className="meta">{t('noResponses')}</p>
               ) : (
                 <ul className="rows">
-                  {blitz.queue.map((entry) => (
+                  {blitz.queue.map((entry, index) => (
                     <li key={entry.playerId}>
                       <span className="name">{entry.nickname}</span>
-                      <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct)}</span>
+                      {blitz.voice && index === 0 ? (
+                        <span className="row-actions">
+                          <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, true)}>
+                            {t('judgeCorrect')}
+                          </button>
+                          <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, false)}>
+                            {t('judgeWrong')}
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct)}</span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -364,7 +380,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </>
       )}
 
-      {view.question !== null && live && board !== null && (
+      {view.question !== null && live && board !== null && blitz === null && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           <ul className="rows">
@@ -377,7 +393,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   return (
                     <>
                       <span className="given">
-                        {given !== null ? answerText(given, correct) : board.answerMode === 'voice' ? t('answeredAloud') : '—'}
+                        {given !== null ? answerText(given, correct) : board.cell?.answerMode === 'voice' ? t('answeredAloud') : '—'}
                       </span>
                       {response !== undefined && (
                         <>
@@ -526,7 +542,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
             disabled={stepping || (phase === 'lobby' && view.players.length === 0)}
             onClick={() => step(main.event)}
           >
-            {t(main.label)}
+            {t(main.label === 'lock' && blitz !== null && board !== null ? 'closeCell' : main.label)}
           </button>
         )}
       </footer>

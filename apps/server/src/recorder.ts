@@ -2,7 +2,7 @@ import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
 import type { Answer } from '@quiz/shared';
 import { and, eq, notInArray } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, game, participant } from './db/schema';
+import { answer, game, participant, PENALTY_ATTEMPT } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
 
 export interface Recorder {
@@ -59,7 +59,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
     const { answer: payload, timeMs, accepted, points, streakBonus, overridden } = record;
     return [{ attempt: 0, payload, timeMs, accepted, points, streakBonus, overridden }];
   }
-  return attempts.map((attempt, number) => {
+  const rows = attempts.map((attempt, number) => {
     // Бонус серії належить виграшній спробі; бали спроби в журналі бліцу його не містять.
     const streakBonus = attempt.grade === 'correct' ? record.streakBonus : 0;
     return {
@@ -72,6 +72,14 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
       overridden: false,
     };
   });
+  // Штраф бліц-клітинки не належить жодній спробі (його платить і той, хто не натискав):
+  // він іде окремим рядком, щоб бали гравця за рядками збігалися з журналом.
+  const penalty = record.basePoints - attempts.reduce((sum, attempt) => sum + attempt.points, 0);
+  if (penalty === 0) return rows;
+  return [
+    ...rows,
+    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false },
+  ];
 }
 
 async function save(db: Db, snapshot: Snapshot): Promise<void> {

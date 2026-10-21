@@ -296,8 +296,8 @@ describe('GameHistory: rounds', () => {
         ...detail,
         rounds: [{ title: 'Поле', type: 'board' }],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 1, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: 100 }, question: singleQ, responses: [] },
-          { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 0, cell: { category: 'Ріки', price: 200, multiplier: 1, chooser: null, points: null }, question: textQ, responses: [] },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 1, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: 100, kind: 'normal', scores: [] }, question: singleQ, responses: [] },
+          { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 0, cell: { category: 'Ріки', price: 200, multiplier: 1, chooser: null, points: null, kind: 'normal', scores: [] }, question: textQ, responses: [] },
         ],
       },
     });
@@ -307,5 +307,27 @@ describe('GameHistory: rounds', () => {
     expect(screen.getByText('Анна: +100')).toBeTruthy();
     expect(screen.getByText('Ріки · 200')).toBeTruthy();
     expect(screen.getByText('гравця вилучено')).toBeTruthy();
+  });
+
+  it('shows a blitz cell with everyone’s points', async () => {
+    const scores = [
+      { nickname: 'Богдан', points: 200 },
+      { nickname: 'Анна', points: -200 },
+      { nickname: 'Віра', points: -200 },
+    ];
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        rounds: [{ title: 'Поле', type: 'board' }],
+        questions: [
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: -200, kind: 'blitz', scores }, question: singleQ, responses: [] },
+        ],
+      },
+    });
+    open('/history/g1');
+    expect(await screen.findByText('Бліц')).toBeTruthy();
+    expect(screen.getByText('Богдан: +200, Анна: −200, Віра: −200')).toBeTruthy();
+    expect(screen.queryByText('Анна: −200')).toBeNull();
   });
 });

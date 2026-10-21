@@ -1,4 +1,4 @@
-import { findCell } from '@quiz/shared';
+import { cellAnswerMode, findCell } from '@quiz/shared';
 import { advanceTurn, cellMultiplier, cellPlayed, chooserOf, enterBoard } from './board-turns';
 import { fail, ok, openQuestion, shuffle, type GameState, type Result, type Rng } from './game';
 
@@ -34,7 +34,7 @@ export function pickCell(state: GameState, by: string | null, cellId: string, no
   if (by !== null && by !== chooser) return fail('not_your_turn');
   const round = state.quiz.rounds[state.roundIndex];
   const found = round.type === 'board' ? findCell(round, cellId) : undefined;
-  if (found === undefined) return fail('not_found');
+  if (round.type !== 'board' || found === undefined) return fail('not_found');
   if (cellPlayed(state, cellId)) return fail('cell_closed');
   const { question } = found.cell;
   const turned = { ...state, board: { ...advanceTurn(state.board), awaySince: null } };
@@ -44,6 +44,9 @@ export function pickCell(state: GameState, by: string | null, cellId: string, no
       chooserId: chooser,
       price: question.points,
       multiplier: cellMultiplier(found.cell.mark),
+      kind: found.cell.kind,
+      answerMode: cellAnswerMode(round, found.cell),
+      penalty: found.cell.penalty,
       answer: null,
     }),
   );

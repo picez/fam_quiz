@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardQuestion, newBoardRound, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
+import { QUESTION_TYPES, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -528,5 +528,38 @@ describe('match questions', () => {
   it('a match pair with an empty side is a problem', () => {
     const question = withPairs([['а', 'б'], ['в', ''], ['д', 'е']]);
     expect(problemsOf(quizWith(question))).toContain(t('problemEmptyPair', { index: 1 }));
+  });
+});
+
+describe('board cell kinds and modes', () => {
+  it('a new category gets the given answer mode in every cell', () => {
+    const category = newBoardCategory('voice');
+    expect(category.cells.every((c) => c.answerMode === 'voice' && c.kind === 'normal' && c.penalty === 'none')).toBe(true);
+  });
+
+  it('changing the round default keeps the modes of existing cells', () => {
+    const round = newBoardRound();
+    const [a, b] = round.categories[0].cells;
+    const { answerMode: _drop, ...bare } = a;
+    round.categories[0].cells = [bare, { ...b, answerMode: 'voice' }, round.categories[0].cells[2]];
+    const next = withDefaultMode(round, 'voice');
+    expect(next.answerMode).toBe('voice');
+    expect(next.categories[0].cells[0].answerMode).toBe('phone');
+    expect(next.categories[0].cells[1].answerMode).toBe('voice');
+  });
+
+  it('a stored draft keeps cell kinds, modes and penalties', () => {
+    const round = newBoardRound();
+    const [a, b, c] = round.categories[0].cells;
+    round.categories[0].cells = [
+      { ...a, kind: 'blitz', answerMode: 'voice', penalty: 'all' },
+      { ...b, kind: 'mega' as never, answerMode: 'loud' as never, penalty: 'huge' as never },
+      c,
+    ];
+    saveDraft('cells', { ...newQuiz(), title: 'Гра', rounds: [round] });
+    const back = loadDraft('cells')!.rounds[0] as BoardRound;
+    expect(back.categories[0].cells[0]).toMatchObject({ kind: 'blitz', answerMode: 'voice', penalty: 'all' });
+    expect(back.categories[0].cells[1]).toMatchObject({ kind: 'normal', penalty: 'none' });
+    expect(back.categories[0].cells[1].answerMode).toBeUndefined();
   });
 });

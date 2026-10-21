@@ -1,4 +1,4 @@
-import { questionsOf, type Quiz } from '@quiz/shared';
+import { questionsOf, quizSchema, type Quiz } from '@quiz/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { quiz } from './db/schema';
@@ -32,7 +32,10 @@ export async function getQuiz(db: Db, ownerId: string, id: string): Promise<Quiz
   if (where === null) return null;
   const [row] = await db.select().from(quiz).where(where);
   if (row === undefined) return null;
-  return { title: row.title, description: row.description, settings: row.settings, rounds: row.rounds };
+  const stored = { title: row.title, description: row.description, settings: row.settings, rounds: row.rounds };
+  // Схема дописує типові значення в старих вікторинах; зламаний рядок лишається як є.
+  const parsed = quizSchema.safeParse(stored);
+  return parsed.success ? parsed.data : stored;
 }
 
 export async function createQuiz(db: Db, ownerId: string, data: Quiz): Promise<string> {

@@ -1,4 +1,4 @@
-import { LIMITS, type BoardCategory, type BoardCell, type BoardRound, type CellMark } from '@quiz/shared';
+import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty } from '@quiz/shared';
 import { useEffect, useState } from 'react';
 import { t } from '../i18n';
 import { moveItem, newBoardCategory, newBoardQuestion } from './draft';
@@ -16,6 +16,7 @@ interface Props {
 }
 
 const markText = (mark: CellMark) => (mark === 'x2' ? t('boardMarkX2') : mark === 'x3' ? t('boardMarkX3') : '');
+const pick = <T extends string>(values: readonly T[], value: string, fallback: T): T => values.find((v) => v === value) ?? fallback;
 const toMark = (value: string): CellMark => (value === 'x2' ? 'x2' : value === 'x3' ? 'x3' : 'none');
 
 /**
@@ -43,7 +44,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
     setCells(category, cells.map((cell, i) => (i === index ? { ...cell, ...patch } : cell)));
 
   const addCategory = () => {
-    setCategories([...categories, newBoardCategory()]);
+    setCategories([...categories, newBoardCategory(round.answerMode)]);
     setPicked({ category: categories.length, index: 0 });
   };
 
@@ -57,7 +58,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
 
   const addCell = (at: number) => {
     const column = categories[at].cells;
-    setCells(at, [...column, { mark: 'none', question: newBoardQuestion(column[column.length - 1]?.question) }]);
+    setCells(at, [...column, { mark: 'none', kind: 'normal', answerMode: round.answerMode, penalty: 'none', question: newBoardQuestion(column[column.length - 1]?.question) }]);
     setPicked({ category: at, index: column.length });
   };
 
@@ -105,12 +106,13 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
                       category: columnIndex + 1,
                       index: cellIndex + 1,
                       points,
-                      mark: mark === '' ? '' : ` ${mark}`,
+                      mark: (mark === '' ? '' : ` ${mark}`) + (cell.kind === 'blitz' ? t('boardCellBlitzSuffix') : ''),
                     })}
                     onClick={() => setPicked({ category: columnIndex, index: cellIndex })}
                   >
                     <span>{points}</span>
                     {mark !== '' && <span className="board-mark">{mark}</span>}
+                    {cell.kind === 'blitz' && <span className="board-edit-badge">{t('boardKindBlitz')}</span>}
                   </button>
                 );
               })}
@@ -138,6 +140,32 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
             <option value="x3">{t('boardMarkX3')}</option>
           </select>
         </label>
+        <label className="field">
+          <span>{t('boardKind')}</span>
+          <select value={current.kind} onChange={(event) => setCell({ kind: pick<CellKind>(CELL_KINDS, event.target.value, 'normal') })}>
+            <option value="normal">{t('boardKindNormal')}</option>
+            <option value="blitz">{t('boardKindBlitz')}</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>{t('boardCellMode')}</span>
+          <select
+            value={cellAnswerMode(round, current)}
+            onChange={(event) => setCell({ answerMode: pick<AnswerMode>(ANSWER_MODES, event.target.value, 'phone') })}
+          >
+            <option value="phone">{t('boardAnswerPhone')}</option>
+            <option value="voice">{t('boardAnswerVoice')}</option>
+          </select>
+        </label>
+        {current.kind === 'blitz' && (
+          <label className="field">
+            <span>{t('boardCellPenalty')}</span>
+            <select value={current.penalty} onChange={(event) => setCell({ penalty: pick<CellPenalty>(CELL_PENALTIES, event.target.value, 'none') })}>
+              <option value="none">{t('boardPenaltyNone')}</option>
+              <option value="all">{t('boardPenaltyAll')}</option>
+            </select>
+          </label>
+        )}
         <QuestionEditor key={current.question.id} question={current.question} onChange={(question) => setCell({ question })} />
         <div className="toolbar">
           <button type="button" className="btn btn-small" aria-label={t('boardCellUp')} disabled={index === 0} onClick={() => moveCell(index - 1)}>

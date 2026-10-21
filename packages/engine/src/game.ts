@@ -1,6 +1,9 @@
 import {
   LIMITS,
   type Answer,
+  type AnswerMode,
+  type CellKind,
+  type CellPenalty,
   type ErrorCode,
   type Grade,
   type Phase,
@@ -9,7 +12,8 @@ import {
   type BoardRound,
   type Round,
 } from '@quiz/shared';
-import { applyVerdict, blitzDone, settleQueue, withPlay } from './blitz';
+import { applyVerdict, blitzDone, blitzRulesOf, settleQueue, withPlay } from './blitz';
+import { withCellPenalty } from './board-cells';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
@@ -100,6 +104,11 @@ export interface BoardPlay {
   price: number;
   /** Множник клітинки: x2 → 2, x3 → 3, інакше 1. */
   multiplier: 1 | 2 | 3;
+  /** Тип, спосіб відповіді й штраф клітинки, знімені з неї в мить відкриття. */
+  kind: CellKind;
+  answerMode: AnswerMode;
+  /** Для kind 'blitz'. */
+  penalty: CellPenalty;
   /** Відповідь з телефону, що чекає на рішення ведучого («Прийняти», оцінка або «Перевибрати»); інакше null. */
   answer: Answer | null;
 }
@@ -277,7 +286,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     answers: {},
     extraMs: 0,
     ...(board !== undefined ? { board } : {}),
-    ...(round.type === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
+    ...(round.type === 'blitz' || board?.kind === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
   };
   return {
     ...state,
@@ -357,7 +366,8 @@ function withTotals(state: GameState): GameState {
     const answers = { ...play.answers };
     for (const player of state.players) {
       const record = Object.hasOwn(answers, player.id) ? answers[player.id] : undefined;
-      if (record === undefined) continue;
+      // Серія на полі лише за власні клітинки: на чужій бліц-клітинці бонусу немає.
+      if (record === undefined || (play.board !== undefined && play.board.chooserId !== player.id)) continue;
       const bonus = (counters[player.id] ?? 0) >= streak.length ? streakBonus(streakBase(play, player.id, record), streak.bonus) : 0;
       answers[player.id] = { ...record, streakBonus: bonus, points: record.basePoints + bonus };
     }
@@ -388,8 +398,9 @@ function dropQueue(state: GameState): GameState {
   return withPlay(state, closed);
 }
 
+/** Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз. */
 function lockNow(state: GameState): GameState {
-  return withTotals({ ...dropQueue(state), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null });
+  return withTotals({ ...withCellPenalty(dropQueue(state)), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null });
 }
 
 /** Закриває запитання поля й одразу розкриває оцінку: так відповідь світиться зеленим або червоним. */
@@ -400,7 +411,7 @@ function revealNow(state: GameState): GameState {
 /** Закриває запитання, якщо відповіли всі підключені гравці (у бліці: якщо запитання вже вирішене). */
 function autoLock(state: GameState): GameState {
   if (state.phase !== 'question' || state.paused) return state;
-  if (currentRound(state)?.type === 'blitz') return blitzDone(state, null) ? lockNow(state) : state;
+  if (state.plays[state.questionIndex]?.blitz !== undefined) return blitzDone(state, null) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
   const connected = state.players.filter((p) => p.connected);
@@ -426,7 +437,11 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   const play = state.plays[state.questionIndex];
   const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
-  if (round.type === 'blitz') return submitBlitzAnswer(state, playerId, answer, now);
+  if (play.blitz !== undefined) {
+    // Усну відповідь голови черги оцінює ведучий, з телефона її не приймають.
+    if (blitzRulesOf(state, play)?.check === 'voice') return fail('wrong_phase');
+    return submitBlitzAnswer(state, playerId, answer, now);
+  }
   if (round.type === 'board') return submitBoardAnswer(state, round, playerId, answer, now);
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
@@ -460,7 +475,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
 function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string, answer: Answer, now: number): Result {
   const play = state.plays[state.questionIndex];
   const board = play.board;
-  if (board === undefined || round.answerMode === 'voice') return fail('wrong_phase');
+  if (board === undefined || board.answerMode === 'voice') return fail('wrong_phase');
   if (playerId !== board.chooserId) return fail('not_your_turn');
   if (recordOf(state, state.questionIndex, playerId) !== undefined || board.answer !== null) return fail('already_answered');
   if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
@@ -477,8 +492,8 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
   if (state.paused) return fail('paused');
   const play = state.plays[state.questionIndex];
   const round = state.quiz.rounds[play.roundIndex];
-  if (round.type === 'blitz') {
-    if (round.check === 'manual') return fail('wrong_phase');
+  if (play.blitz !== undefined) {
+    if (blitzRulesOf(state, play)?.check !== 'auto') return fail('wrong_phase');
     const correct = checkAnswer(play.question, pending.answer).accuracy === 1;
     return closeIfDone(applyVerdict(state, pending.playerId, correct, now), now);
   }
@@ -549,10 +564,11 @@ function closeIfDone(result: Result, now: number): Result {
   return ok(blitzDone(result.state, now) ? lockNow(result.state) : result.state);
 }
 
-/** Ведучий оцінює відповідь голови черги в бліці з ручною перевіркою. */
+/** Ведучий оцінює голову черги: відповідь з телефона за ручної перевірки або усну відповідь. */
 export function judge(state: GameState, playerId: string, correct: boolean, now: number): Result {
-  const round = currentRound(state);
-  if (round?.type !== 'blitz' || round.check !== 'manual') return fail('wrong_phase');
+  const play = state.plays[state.questionIndex];
+  const check = play === undefined ? undefined : blitzRulesOf(state, play)?.check;
+  if (check === undefined || check === 'auto') return fail('wrong_phase');
   return closeIfDone(applyVerdict(state, playerId, correct, now), now);
 }
 
@@ -568,7 +584,7 @@ export function tick(state: GameState, now: number): GameState {
   const running = releaseStaleHold(state, now);
   // Поки відповідь чекає на ведучого, годинник стоїть.
   if (running.heldAt !== null) return running;
-  if (currentRound(running)?.type === 'blitz') {
+  if (running.plays[running.questionIndex]?.blitz !== undefined) {
     const settled = settleQueue(running, now);
     return blitzDone(settled, now) ? lockNow(settled) : settled;
   }
@@ -585,11 +601,11 @@ function tickBoard(state: GameState, board: BoardState, now: number): GameState 
   return enterBoard({ ...state, board: advanceTurn(board) }, now);
 }
 
-/** Під час розкриття гравець, чий хід, без оцінки отримує «неправильно» (зі штрафом, якщо він увімкнений). */
+/** Під час розкриття гравець, чий хід, без оцінки отримує «неправильно» (зі штрафом, якщо він увімкнений); бліц-клітинку не зачіпає. */
 function unansweredIsWrong(state: GameState): GameState {
   const round = currentRound(state);
   const play = state.plays[state.questionIndex];
-  if (round?.type !== 'board' || play?.board === undefined) return state;
+  if (round?.type !== 'board' || play?.board === undefined || play.board.kind === 'blitz') return state;
   const { chooserId } = play.board;
   if (!state.players.some((p) => p.id === chooserId) || recordOf(state, state.questionIndex, chooserId) !== undefined) return state;
   const points = boardPoints(round, play.board, 0);
@@ -686,7 +702,9 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   const board = play?.board;
   const phase = state.phase;
   if (board === undefined || (phase !== 'question' && phase !== 'locked' && phase !== 'reveal')) return fail('wrong_phase');
-  if (phase === 'question' && round.answerMode !== 'voice' && board.answer === null) return fail('wrong_phase');
+  // Оцінка бліц-клітинки остаточна, як у бліц-раунді.
+  if (board.kind === 'blitz') return fail('wrong_phase');
+  if (phase === 'question' && board.answerMode !== 'voice' && board.answer === null) return fail('wrong_phase');
   if (playerId !== board.chooserId || !state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;

@@ -450,6 +450,31 @@ describe('board views', () => {
     expect(playerView(kicked, 'p2')?.board?.turn).toBeNull();
   });
 
+  it('players see a cell kind and answer mode only after the cell opens', () => {
+    const cells = [{ question: q('c11', 100), kind: 'blitz' as const, penalty: 'all' as const, answerMode: 'voice' as const }, q('c12', 200), q('c13', 300)];
+    const round = boardRound('g1', [{ title: 'A', cells }], { answerMode: 'phone' });
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0));
+    const state = must(next(intro, 0));
+    for (const json of [JSON.stringify(stageView(state)), JSON.stringify(playerView(state, 'p2'))]) {
+      expect(json).not.toContain(':"blitz"');
+      expect(json).not.toContain('voice');
+    }
+    expect(stageView(state).board?.categories[0].cells[0].kind).toBeNull();
+    expect(playerView(state, 'p2')?.board?.categories[0].cells[0].kind).toBeNull();
+    expect(hostView(state).board?.categories[0].cells[0].kind).toBe('blitz');
+    expect(hostView(state).board?.categories[0].cells[1].kind).toBe('normal');
+    const open = must(pickCell(state, null, 'c11', 0, Math.random));
+    expect(stageView(open).board?.cell).toMatchObject({ kind: 'blitz', answerMode: 'voice', penalty: 'all' });
+    expect(playerView(open, 'p2')?.board?.categories[0].cells[0].kind).toBe('blitz');
+  });
+
+  it('the host grades by hand on a voice cell even in a phone round', () => {
+    const round = boardRound('g1', [{ title: 'A', cells: [{ question: q('c11', 100), answerMode: 'voice' }, q('c12', 200)] }], { answerMode: 'phone', check: 'auto' });
+    const state = must(next(must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0)), 0));
+    expect(hostView(must(pickCell(state, null, 'c11', 0, Math.random))).board?.manual).toBe(true);
+    expect(hostView(must(pickCell(state, null, 'c12', 0, Math.random))).board?.manual).toBe(false);
+  });
+
   it('the host sees a phone answer waiting for a grade', () => {
     const state = must(submitAnswer(picked('c11', { check: 'manual' }), 'p1', { type: 'single', optionId: 'b' }, 0));
     const host = hostView(state).board;
@@ -583,5 +608,34 @@ describe('spotlight views', () => {
     expect(stageView(open()).spotlight).toBeNull();
     expect(playerView(reveal(), 'p1')?.spotlight).toBeNull();
     expect(hostView(lobby()).spotlight).toBeNull();
+  });
+});
+
+describe('blitz cell views', () => {
+  const field = (cell = {}) =>
+    boardRound('g1', [{ title: 'Міста', cells: [{ kind: 'blitz', question: withId(single, 'c11'), ...cell }, withId(text, 'c12')] }]);
+  const picked = (cell = {}) => {
+    const intro = must(start(lobbyWith(makeRoundsQuiz([field(cell)]), 'Анна', 'Богдан', 'Віра'), 0));
+    return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
+  };
+
+  it('a blitz cell shows the queue, own buzz state and the pending answer to everyone, never the correct answer', () => {
+    const state = must(submitAnswer(must(buzz(picked(), 'p2', 1000)), 'p2', wrong, 2000));
+    const stage = stageView(state);
+    const player = playerView(state, 'p3');
+    expect(player?.me.blitz).toMatchObject({ canBuzz: true, attemptsLeft: null, position: null });
+    expect(stage.blitz?.queue[0].nickname).toBe('Богдан');
+    expect(stage.spotlight).toEqual({ playerId: 'p2', nickname: 'Богдан', answer: wrong, grade: null });
+    expect(hostView(state).blitz).toMatchObject({ voice: false, manual: false });
+    for (const json of [JSON.stringify(stage), JSON.stringify(player)]) expect(json).not.toContain('correctId');
+  });
+
+  it('a voice blitz cell marks the queue for the host to judge and shows no spotlight', () => {
+    const state = must(buzz(picked({ answerMode: 'voice' }), 'p2', 1000));
+    expect(hostView(state).blitz).toMatchObject({ voice: true, manual: true });
+    expect(stageView(state).spotlight).toBeNull();
+    const judged = must(judge(state, 'p2', false, 2000));
+    expect(stageView(judged).spotlight).toBeNull();
+    expect(hostView(judged).blitz?.attempts).toMatchObject([{ playerId: 'p2', grade: 'wrong' }]);
   });
 });
