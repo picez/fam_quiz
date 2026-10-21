@@ -11,6 +11,7 @@ import {
   type BoardCategory,
   type BoardRound,
   type ClassicRound,
+  type Round,
   type Question,
   type Quiz,
   type RoundRules,
@@ -67,6 +68,21 @@ export function changeType(question: Question, type: QuestionType): Question {
     return { ...common, type, options: question.options, correctId: (firstCorrect ?? question.options[0]).id };
   }
   return build(common, type);
+}
+
+/** Ставить timeLimit усім запитанням раунду; у полі — усім клітинкам усіх категорій. Меж не перевіряє: їх стереже кнопка в налаштуваннях. */
+export function applyRoundTime(round: Round, seconds: number): Round {
+  const timed = (question: Question): Question => ({ ...question, timeLimit: seconds });
+  if (round.type === 'board') {
+    return {
+      ...round,
+      categories: round.categories.map((category) => ({
+        ...category,
+        cells: category.cells.map((cell) => ({ ...cell, question: timed(cell.question) })),
+      })),
+    };
+  }
+  return { ...round, questions: round.questions.map(timed) } as Round;
 }
 
 /** Копія запитання з власними ідентифікаторами; правильні відповіді вказують на варіанти копії. */

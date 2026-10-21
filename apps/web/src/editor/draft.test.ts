@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
-import { QUESTION_TYPES, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardQuestion, newBoardRound, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
+import { DEFAULT_RULES, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
+import { QUESTION_TYPES, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardQuestion, newBoardRound, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -37,7 +37,7 @@ describe('newQuestion', () => {
   it('uses the default time and points and unique ids', () => {
     const first = newQuestion('single');
     const second = newQuestion('single');
-    expect(first.timeLimit).toBe(20);
+    expect(first.timeLimit).toBe(30);
     expect(first.points).toBe(1000);
     expect(first.id).not.toBe(second.id);
     if (first.type === 'single') expect(new Set(first.options.map((o) => o.id)).size).toBe(first.options.length);
@@ -456,3 +456,20 @@ function filled0() {
   const round = newClassicRound();
   return { ...round, questions: round.questions.map(filled) };
 }
+
+describe('applyRoundTime', () => {
+  it('sets the time of every question in a classic round and every board cell', () => {
+    const base = newClassicRound();
+    const classic = { ...base, questions: [{ ...newQuestion('single'), timeLimit: 10 }, { ...newQuestion('boolean'), timeLimit: 60 }] };
+    const applied = applyRoundTime(classic, 45);
+    expect(applied).toEqual({ ...classic, questions: classic.questions.map((q) => ({ ...q, timeLimit: 45 })) });
+
+    const board = newBoardRound();
+    const after = applyRoundTime(board, 90);
+    if (after.type !== 'board') throw new Error('unexpected type');
+    expect(boardCells(after).every((c) => c.cell.question.timeLimit === 90)).toBe(true);
+    expect(boardCells(after).map((c) => [c.cell.mark, c.cell.question.points])).toEqual(
+      boardCells(board).map((c) => [c.cell.mark, c.cell.question.points]),
+    );
+  });
+});

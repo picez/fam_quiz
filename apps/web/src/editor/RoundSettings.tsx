@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { LIMITS, type Round, type RoundRules } from '@quiz/shared';
 import { t } from '../i18n';
+import { applyRoundTime } from './draft';
 
 interface Props {
   round: Round;
@@ -22,6 +24,8 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
  * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». Згорнуті, доки їх не відкриють.
  */
 export function RoundSettings({ round, index, onChange }: Props) {
+  const [seconds, setSeconds] = useState<number>(LIMITS.defaultTime);
+  const secondsValid = Number.isInteger(seconds) && seconds >= LIMITS.minTime && seconds <= LIMITS.maxTime;
   const { rules } = round;
   const { streak } = rules;
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
@@ -43,6 +47,23 @@ export function RoundSettings({ round, index, onChange }: Props) {
           onChange={(event) => onChange({ ...round, title: event.target.value })}
         />
       </label>
+      <div className="same-time">
+        <span>{t('sameTimeTitle')}</span>
+        <label className="field">
+          <span>{t('sameTimeSeconds')}</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={LIMITS.minTime}
+            max={LIMITS.maxTime}
+            value={Number.isNaN(seconds) ? '' : seconds}
+            onChange={(event) => setSeconds(toNumber(event.target.value))}
+          />
+        </label>
+        <button type="button" className="btn btn-small" disabled={!secondsValid} onClick={() => onChange(applyRoundTime(round, seconds))}>
+          {t('sameTimeApply')}
+        </button>
+      </div>
       {round.type === 'classic' && (
         <label className="check">
           <input type="checkbox" checked={round.speedBonus} onChange={(event) => onChange({ ...round, speedBonus: event.target.checked })} />
