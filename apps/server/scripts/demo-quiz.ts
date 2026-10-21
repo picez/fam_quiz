@@ -10,42 +10,42 @@ const id = (prefix: string) => `${prefix}-${++n}`;
 const q = (text: string, points = 1000, timeLimit = 20) => ({ id: id('q'), text, imageUrl: null, timeLimit, points });
 const opts = (...texts: string[]) => texts.map((text, i) => ({ id: String.fromCharCode(97 + i), text }));
 
-const single = (text: string, options: string[], correct: number, points?: number, time?: number): Question => ({
+export const single = (text: string, options: string[], correct: number, points?: number, time?: number): Question => ({
   ...q(text, points, time),
   type: 'single',
   options: opts(...options),
   correctId: String.fromCharCode(97 + correct),
 });
-const multi = (text: string, options: string[], correct: number[], points?: number, time?: number): Question => ({
+export const multi = (text: string, options: string[], correct: number[], points?: number, time?: number): Question => ({
   ...q(text, points, time),
   type: 'multi',
   options: opts(...options),
   correctIds: correct.map((i) => String.fromCharCode(97 + i)),
 });
-const bool = (text: string, correct: boolean, points?: number, time?: number): Question => ({
+export const bool = (text: string, correct: boolean, points?: number, time?: number): Question => ({
   ...q(text, points, time),
   type: 'boolean',
   correct,
 });
-const textQ = (text: string, accepted: string[], points?: number, time?: number): Question => ({
+export const textQ = (text: string, accepted: string[], points?: number, time?: number): Question => ({
   ...q(text, points, time),
   type: 'text',
   accepted,
 });
-const numeric = (text: string, correct: number, tolerance: number, points?: number, time?: number): Question => ({
+export const numeric = (text: string, correct: number, tolerance: number, points?: number, time?: number): Question => ({
   ...q(text, points, time),
   type: 'numeric',
   correct,
   tolerance,
 });
-const order = (text: string, items: string[], points?: number, time?: number): Question => ({
+export const order = (text: string, items: string[], points?: number, time?: number): Question => ({
   ...q(text, points, time),
   type: 'order',
   items: opts(...items),
 });
 
-const rules = (patch: Partial<RoundRules>): RoundRules => ({ ...DEFAULT_RULES, ...patch });
-const cell = (question: Question, mark: 'none' | 'x2' | 'x3' = 'none') => ({ mark, question });
+export const rules = (patch: Partial<RoundRules>): RoundRules => ({ ...DEFAULT_RULES, ...patch });
+export const cell = (question: Question, mark: 'none' | 'x2' | 'x3' = 'none') => ({ mark, question });
 
 export const demoQuiz: Quiz = {
   title: 'Демо: усі можливості',
