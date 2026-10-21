@@ -6,7 +6,7 @@ import { SpotlightChoices } from './SpotlightChoices';
 
 afterEach(cleanup);
 
-const base = { imageUrl: null, timeLimit: 20, points: 100 };
+const base = { imageUrl: null, timeLimit: 20, points: 100, right: [] };
 const textQ: PublicQuestion = { ...base, type: 'text', text: 'Перлина?', choices: [] };
 const orderQ: PublicQuestion = {
   ...base,

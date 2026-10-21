@@ -13,6 +13,7 @@ const publicQuestion = {
   imageUrl: null,
   timeLimit: 20,
   points: 1000,
+  right: [],
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Question } from '@quiz/shared';
-import { answerText, correctText, formatDate } from './format';
+import { answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, shownChoices } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -60,5 +60,27 @@ describe('formatDate', () => {
 
   it('returns an empty string for something that is not a date', () => {
     expect(formatDate('не дата')).toBe('');
+  });
+});
+
+describe('match questions', () => {
+  const pair = (l: string, lt: string, r: string, rt: string) => ({ left: { id: l, text: lt }, right: { id: r, text: rt } });
+  const matchQ: Question = {
+    ...base,
+    type: 'match',
+    pairs: [pair('a', 'Київ', 'x', 'Дніпро'), pair('b', 'Львів', 'y', 'Полтва'), pair('c', 'Ужгород', 'z', 'Уж')],
+  };
+
+  it('writes match answers and the correct pairs as pairs', () => {
+    expect(correctText(matchQ)).toBe('Київ — Дніпро; Львів — Полтва; Ужгород — Уж');
+    expect(answerText({ type: 'match', links: [{ left: 'b', right: 'x' }, { left: 'a', right: 'y' }] }, matchQ)).toBe('Львів — Дніпро; Київ — Полтва');
+    expect(pairTexts([{ left: 'a', right: '??' }], choicesOf(matchQ))).toEqual([{ left: 'Київ', right: '??' }]);
+    expect(correctPairs(matchQ)[1]).toEqual({ left: 'Львів', right: 'Полтва' });
+    expect(correctPairs(single)).toEqual([]);
+  });
+
+  it('lists the left and right items as shown choices', () => {
+    const shown = shownChoices({ choices: [{ id: 'a', text: 'Київ' }], right: [{ id: 'x', text: 'Дніпро' }] } as never);
+    expect(shown.map((c) => c.id)).toEqual(['a', 'x']);
   });
 });

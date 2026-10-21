@@ -10,7 +10,7 @@ const choices = [
   { id: 'a', text: 'Львів' },
   { id: 'b', text: 'Київ' },
 ];
-const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, timeLimit: 20, points: 1000, choices };
+const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, timeLimit: 20, points: 1000, choices, right: [] };
 const full: Question = { id: 'q1', type: 'single', text: question.text, imageUrl: null, timeLimit: 20, points: 1000, options: choices, correctId: 'b' };
 
 const view = (over: Partial<StageView> = {}): StageView => ({

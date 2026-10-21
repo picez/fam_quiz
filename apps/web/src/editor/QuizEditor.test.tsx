@@ -467,6 +467,44 @@ describe('QuizEditor: answers on the stage', () => {
   });
 });
 
+describe('QuizEditor: match questions', () => {
+  it('creates a match question and saves its pairs in the author order', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Місто і річка');
+    click('пари');
+    const texts: [string, string][] = [
+      ['Київ', 'Дніпро'],
+      ['Львів', 'Полтва'],
+      ['Ужгород', 'Уж'],
+    ];
+    texts.forEach(([l, r], i) => {
+      fill(`Ліворуч ${i + 1}`, l);
+      fill(`Праворуч ${i + 1}`, r);
+    });
+    click('Додати пару');
+    fill('Ліворуч 4', 'Харків');
+    fill('Праворуч 4', 'Лопань');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question.type).toBe('match');
+    expect(question.type === 'match' && question.pairs.map((p) => [p.left.text, p.right.text])).toEqual([
+      ...texts,
+      ['Харків', 'Лопань'],
+    ]);
+  });
+
+  it('a match question cannot have fewer than three or more than six pairs', () => {
+    open();
+    click('пари');
+    expect((screen.getByRole('button', { name: 'Прибрати пару 1' }) as HTMLButtonElement).disabled).toBe(true);
+    for (let i = 0; i < 3; i += 1) click('Додати пару');
+    expect((screen.getByRole('button', { name: 'Додати пару' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Прибрати пару 1' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
 describe('QuizEditor: question image', () => {
   const IMAGE = '/uploads/0123456789abcdef0123456789abcdef.png';
   const file = (type: string, size = 10) => new File([new Uint8Array(size)], 'photo', { type });

@@ -1223,6 +1223,23 @@ a.banner {
   color: var(--stage);
 }
 
+@media (max-width: 480px) {
+  .match-edit-row {
+    flex-wrap: wrap;
+    padding-block: 0.5rem;
+  }
+
+  .match-edit-row input {
+    flex: 1 0 100%;
+    order: 2;
+    width: 100%;
+  }
+
+  .match-edit-row .letter {
+    flex: 1 1 auto;
+  }
+}
+
 .answer-pick {
   justify-content: space-between;
   padding-right: 0.875rem;

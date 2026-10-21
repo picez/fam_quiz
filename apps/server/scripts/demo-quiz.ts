@@ -1,7 +1,7 @@
 import { DEFAULT_RULES, type Question, type Quiz, type RoundRules } from '@quiz/shared';
 
 /**
- * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order),
+ * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match),
  * усіма раундами (класичний, бліц, поле) і варіантами правил.
  */
 
@@ -44,13 +44,27 @@ export const order = (text: string, items: string[], points?: number, time?: num
   items: opts(...items),
 });
 
+export const match = (text: string, pairs: [string, string][], points?: number, time?: number): Question => {
+  const base = q(text, points, time);
+  const n = pairs.length;
+  return {
+    ...base,
+    type: 'match',
+    // Id правих елементів не повторюють номер пари: l1 не стоїть поруч із r1.
+    pairs: pairs.map(([left, right], i) => ({
+      left: { id: `${base.id}-l${i}`, text: left },
+      right: { id: `${base.id}-r${(i + 2) % n}`, text: right },
+    })),
+  };
+};
+
 export const rules = (patch: Partial<RoundRules>): RoundRules => ({ ...DEFAULT_RULES, ...patch });
 export const cell = (question: Question, mark: 'none' | 'x2' | 'x3' = 'none') => ({ mark, question });
 
 export const demoQuiz: Quiz = {
   title: 'Демо: усі можливості',
   description:
-    'Усі типи запитань (один варіант, кілька, так/ні, текст, число, порядок), класичні раунди з різними правилами, бліц (авто й ручна перевірка) та ігрове поле (телефони й голос, ×2/×3).',
+    'Усі типи запитань (один варіант, кілька, так/ні, текст, число, порядок, пари), класичні раунди з різними правилами, бліц (авто й ручна перевірка) та ігрове поле (телефони й голос, ×2/×3).',
   settings: { leaderboard: 'each' },
   rounds: [
     {
@@ -68,6 +82,7 @@ export const demoQuiz: Quiz = {
         numeric('Скільки хвилин у добі?', 1440, 0, 1500, 30),
         numeric('Висота Говерли в метрах (±20 м)?', 2061, 20, 1500, 30),
         order('Розставте планети від Сонця', ['Меркурій', 'Венера', 'Земля', 'Марс'], 2000, 40),
+        match('З’єднайте країну зі столицею', [['Україна', 'Київ'], ['Польща', 'Варшава'], ['Франція', 'Париж'], ['Японія', 'Токіо']], 1500, 40),
       ],
     },
     {

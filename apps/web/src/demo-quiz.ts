@@ -5,7 +5,7 @@ const base = { imageUrl: null, timeLimit: 20, points: 1000 };
 /** Коротка вікторина, що показує всі типи запитань. */
 export const demoQuiz: Quiz = {
   title: 'Україна: розминка',
-  description: 'Шість запитань, по одному кожного типу.',
+  description: 'Сім запитань, по одному кожного типу.',
   settings: { leaderboard: 'each' },
   rounds: [
     {
@@ -71,6 +71,18 @@ export const demoQuiz: Quiz = {
             { id: 'l', text: 'Львів' },
             { id: 'k', text: 'Київ' },
             { id: 'h', text: 'Харків' },
+          ],
+        },
+        {
+          ...base,
+          id: 'q7',
+          type: 'match',
+          timeLimit: 40,
+          text: 'З’єднайте місто з річкою.',
+          pairs: [
+            { left: { id: 'p1', text: 'Київ' }, right: { id: 'p5', text: 'Дніпро' } },
+            { left: { id: 'p2', text: 'Львів' }, right: { id: 'p6', text: 'Полтва' } },
+            { left: { id: 'p3', text: 'Ужгород' }, right: { id: 'p4', text: 'Уж' } },
           ],
         },
       ],

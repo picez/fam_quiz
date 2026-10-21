@@ -19,6 +19,7 @@ const question = (over: Partial<PublicQuestion>): PublicQuestion => ({
   timeLimit: 20,
   points: 1000,
   choices: cities,
+  right: [],
   ...over,
 });
 

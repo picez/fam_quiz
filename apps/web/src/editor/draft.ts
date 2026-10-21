@@ -20,10 +20,11 @@ import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
 
 export type QuestionType = Question['type'];
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match'] as const;
 
 type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'timeLimit' | 'points'>;
 
+const blank = () => ({ id: newId(), text: '' });
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
 
 function build(common: Common, type: QuestionType): Question {
@@ -44,6 +45,12 @@ function build(common: Common, type: QuestionType): Question {
       return { ...common, type, correct: 0, tolerance: 0 };
     case 'order':
       return { ...common, type, items: blanks(LIMITS.minOrderItems) };
+    case 'match':
+      return {
+        ...common,
+        type,
+        pairs: Array.from({ length: LIMITS.minPairs }, () => ({ left: blank(), right: blank() })),
+      };
   }
 }
 
@@ -102,6 +109,12 @@ export function duplicateQuestion(question: Question): Question {
     }
     case 'order':
       return { ...question, id, items: question.items.map((item) => ({ ...item, id: newId() })) };
+    case 'match':
+      return {
+        ...question,
+        id,
+        pairs: question.pairs.map((pair) => ({ left: { ...pair.left, id: newId() }, right: { ...pair.right, id: newId() } })),
+      };
     case 'text':
       return { ...question, id, accepted: [...question.accepted] };
     default:
@@ -213,6 +226,13 @@ export function cleaned(quiz: Quiz): Quiz {
       }
       case 'order':
         return { ...question, text, items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems) };
+      case 'match': {
+        // Як і в впорядкуванні, прибираються лише порожні пари в кінці.
+        const trimmed = question.pairs.map((pair) => ({ left: trimAll([pair.left])[0], right: trimAll([pair.right])[0] }));
+        let end = trimmed.length;
+        while (end > LIMITS.minPairs && trimmed[end - 1].left.text === '' && trimmed[end - 1].right.text === '') end -= 1;
+        return { ...question, text, pairs: trimmed.slice(0, end) };
+      }
       case 'text':
         return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
       default:
@@ -259,6 +279,9 @@ function problemKey(question: Question): TextKey | null {
       break;
     case 'order':
       if (question.items.some((item) => item.text === '')) return 'problemEmptyOption';
+      break;
+    case 'match':
+      if (question.pairs.some((pair) => pair.left.text === '' || pair.right.text === '')) return 'problemEmptyOption';
       break;
     case 'text':
       if (question.accepted.length === 0) return 'problemNoAccepted';
