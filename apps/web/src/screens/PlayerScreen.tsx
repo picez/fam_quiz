@@ -5,7 +5,7 @@ import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
-import { Board } from './Board';
+import { BlitzCellNotes, Board } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
@@ -34,7 +34,7 @@ function Result({ view }: { view: PlayerView }) {
       {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
       {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
       {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
-      {view.round?.type === 'blitz' && view.blitz !== null && (
+      {view.blitz !== null && (
         <p className="winner">
           {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}
         </p>
@@ -58,7 +58,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const { spotlight } = view;
   // Хто відповідає: власник помаранчевої відповіді, інакше вибравший на полі чи голова черги бліцу.
   // Червона відповідь бліцу вже минула, тож її автор не «відповідає».
-  const answering = (spotlight?.grade === null ? spotlight : null) ?? board?.turn ?? view.blitz?.queue[0] ?? null;
+  // На бліц-клітинці вибравший лише обирає: відповідає голова черги.
+  const blitzCell = board?.cell?.kind === 'blitz';
+  const answering =
+    (spotlight?.grade === null ? spotlight : null) ?? (blitzCell ? null : board?.turn) ?? view.blitz?.queue[0] ?? null;
   const othersAnswer = answering !== null && answering.playerId !== me.id;
   const myPending = spotlight !== null && spotlight.grade === null && spotlight.playerId === me.id;
 
@@ -108,8 +111,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
               {board.cell.mark !== 'none' && <span className="cell-mark">{markText(board.cell.mark)}</span>}
+              {board.cell.kind === 'blitz' && <span className="cell-mark">{t('cellBlitz')}</span>}
             </p>
           )}
+          {board !== null && <BlitzCellNotes board={board} />}
           {othersAnswer && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           <h1 className={questionClass(question.text)}>{question.text}</h1>
           <QuestionImage url={question.imageUrl} />
@@ -118,17 +123,25 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
               <p className="lead">{t('pendingWait')}</p>
             </section>
-          ) : board !== null && !chooserIsMe ? (
-            <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
-          ) : board !== null && board.cell?.answerMode === 'voice' && me.answer === null ? (
-            <p className="lead">{t('answerAloud')}</p>
           ) : me.blitz !== null ? (
             <>
               {(me.blitz.position === null || (spotlight !== null && spotlight.playerId !== me.id)) && (
                 <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
               )}
-              <BlitzTurn view={view} blitz={me.blitz} offsetMs={offsetMs} onSubmit={submit} send={send} onError={setError} />
+              <BlitzTurn
+                view={view}
+                blitz={me.blitz}
+                voice={board?.cell?.answerMode === 'voice'}
+                offsetMs={offsetMs}
+                onSubmit={submit}
+                send={send}
+                onError={setError}
+              />
             </>
+          ) : board !== null && !chooserIsMe ? (
+            <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
+          ) : board !== null && board.cell?.answerMode === 'voice' && me.answer === null ? (
+            <p className="lead">{t('answerAloud')}</p>
           ) : me.answer !== null ? (
             <section className="sent">
               <h2>{t('answerSent')}</h2>
@@ -153,7 +166,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'reveal' && (
         <>
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
-          {board !== null && !chooserIsMe ? (
+          {board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
               {question !== null && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} />}
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
@@ -201,6 +214,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 function BlitzTurn({
   view,
   blitz,
+  voice,
   offsetMs,
   onSubmit,
   send,
@@ -208,6 +222,7 @@ function BlitzTurn({
 }: {
   view: PlayerView;
   blitz: PlayerBlitz;
+  voice: boolean;
   offsetMs: number;
   onSubmit: (answer: Answer) => void;
   send: Send;
@@ -235,9 +250,13 @@ function BlitzTurn({
         <p className="blitz-place">{t('blitzPlace', { position: blitz.position })}</p>
         {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
         {blitz.deadline !== null && !view.paused && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
-        <fieldset className="inputs" disabled={view.paused}>
-          <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={question} onSubmit={onSubmit} />
-        </fieldset>
+        {voice ? (
+          <p className="lead">{t('answerAloud')}</p>
+        ) : (
+          <fieldset className="inputs" disabled={view.paused}>
+            <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={question} onSubmit={onSubmit} />
+          </fieldset>
+        )}
       </>
     );
   }

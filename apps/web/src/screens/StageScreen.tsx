@@ -5,7 +5,7 @@ import { LETTERS, correctPairs, correctText, markText, questionClass, questionLa
 import { t } from '../i18n';
 import { MatchColumns, PairList } from './MatchView';
 import { Timer } from '../live/Timer';
-import { Board } from './Board';
+import { BlitzCellNotes, Board } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
@@ -70,7 +70,9 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   const spotlit = view.blitz !== null || (view.board !== null && !voice);
   // Червона відповідь бліцу вже минула: відповідає голова черги, а не її автор.
   const pendingSpot = view.spotlight?.grade === null ? view.spotlight : null;
-  const answering = pendingSpot ?? view.board?.turn ?? view.blitz?.queue[0] ?? null;
+  // На бліц-клітинці вибравший лише обирає: відповідає голова черги.
+  const blitzCell = view.board?.cell?.kind === 'blitz';
+  const answering = pendingSpot ?? (blitzCell ? null : view.board?.turn) ?? view.blitz?.queue[0] ?? null;
   const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
@@ -89,9 +91,11 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         <p className="lead cell-head">
           <span className="cell-tag">{t('cellTitle', { category: view.board.cell.category, price: view.board.cell.price })}</span>
           {view.board.cell.mark !== 'none' && <span className="cell-mark">{markText(view.board.cell.mark)}</span>}
-          {view.board.turn !== null && <span>{t('boardAnswering', { name: view.board.turn.nickname })}</span>}
+          {view.board.cell.kind === 'blitz' && <span className="cell-mark">{t('cellBlitz')}</span>}
+          {answering !== null && <span>{t('boardAnswering', { name: answering.nickname })}</span>}
         </p>
       )}
+      {view.board !== null && <BlitzCellNotes board={view.board} />}
       {view.board === null && answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
       <div className="stage-main">
         <h1 className={questionClass(question.text)}>{question.text}</h1>

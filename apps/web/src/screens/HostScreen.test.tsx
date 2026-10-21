@@ -528,6 +528,79 @@ describe('HostScreen: blitz', () => {
       await waitFor(() => expect(button('Прийняти').disabled).toBe(false));
     });
 
+  describe('blitz cell', () => {
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const bob = { playerId: 'p2', nickname: 'Богдан' };
+    const blitzCell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+    const cellBoard = (over: Partial<NonNullable<HostView['board']>> = {}): NonNullable<HostView['board']> => ({
+      categories: [
+        {
+          id: 'k1',
+          title: 'Міста',
+          cells: [{ id: 'c1', price: 100, played: false, mark: 'x2', kind: 'blitz' }],
+        },
+      ],
+      order: [{ playerId: 'p1', nickname: 'Олена' }, bob],
+      turn: { playerId: 'p1', nickname: 'Олена' },
+      cell: null,
+      rolls: 0,
+      skipAt: null,
+      manual: false,
+      answer: null,
+      ...over,
+    });
+
+    it('a blitz cell has the close-cell button and judge buttons for a voice head', () => {
+      const head = { ...bob, answer: null, deadline: null };
+      const send = show(
+        during('question', textQuestion, {
+          round: boardRound,
+          endsAt: Date.now() + 20_000,
+          board: cellBoard({ manual: true, cell: { ...blitzCell, answerMode: 'voice' } }),
+          blitz: { voice: true, manual: true, queue: [head], winner: null, attempts: [] },
+        }),
+      );
+      expect(screen.getByText('Відповідає Богдан')).toBeTruthy();
+      expect(screen.getByText('Вибір: Олена')).toBeTruthy();
+      expect(screen.queryByText('Відповідає Олена')).toBeNull();
+      expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+      fireEvent.click(button('Правильно'));
+      expect(send).toHaveBeenCalledWith('host:judge', { playerId: 'p2', correct: true });
+      fireEvent.click(button('Закрити клітинку'));
+      expect(send).toHaveBeenCalledWith('host:lock', undefined);
+    });
+
+    it('a manual pending answer on a blitz cell is judged, not graded', () => {
+      const spotlight = { ...bob, answer: { type: 'text' as const, value: 'Одеса' }, grade: null };
+      const send = show(
+        during('question', textQuestion, {
+          round: boardRound,
+          endsAt: Date.now() + 20_000,
+          spotlight,
+          board: cellBoard({ manual: true, cell: blitzCell, answer: spotlight.answer }),
+          blitz: { voice: false, manual: true, queue: [{ ...bob, answer: spotlight.answer, deadline: null }], winner: null, attempts: [] },
+        }),
+      );
+      expect(screen.queryByRole('button', { name: 'Частково' })).toBeNull();
+      fireEvent.click(button('Неправильно'));
+      expect(send).toHaveBeenCalledWith('host:judge', { playerId: 'p2', correct: false });
+      expect(send).not.toHaveBeenCalledWith('host:override', expect.anything());
+    });
+
+    it('the host board marks blitz cells', () => {
+      const { container } = render(
+        <HostScreen
+          view={view({ phase: 'board', round: boardRound, board: cellBoard() })}
+          code="123456"
+          stageUrl="http://quiz.test/stage/123456#s"
+          joinUrl="http://quiz.test/play/123456"
+          send={vi.fn(async () => ({ ok: true as const }))}
+        />,
+      );
+      expect(container.querySelector('.gb-kind')?.textContent).toBe('Бліц');
+    });
+  });
+
     it('judges a pending blitz head by hand', () => {
       const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
       const head = { playerId: 'p1', nickname: 'Олена', answer: pendingSpot.answer, deadline: null };

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerView, Question, RoundInfo } from '@quiz/shared';
+import type { PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
 
@@ -376,6 +376,63 @@ describe('PlayerScreen: blitz', () => {
       expect(screen.getByText('Відповідав Анна')).toBeTruthy();
       expect(screen.getByText(/Правильна відповідь: B. Київ/)).toBeTruthy();
     });
+  });
+});
+
+
+describe('PlayerScreen: blitz cell', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+  const anna = { playerId: 'p2', nickname: 'Анна' };
+  const blitzBoard = (over: Partial<NonNullable<NonNullable<PlayerView['board']>['cell']>> = {}): NonNullable<PlayerView['board']> => ({
+    categories: [],
+    order: [anna],
+    turn: { playerId: 'p2', nickname: 'Алла' },
+    cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'blitz', answerMode: 'phone', penalty: 'none', ...over },
+    rolls: 0,
+    skipAt: null,
+  });
+  const blitzMe = (blitz: PlayerBlitz | null, extra = {}) => ({ ...me, blitz, ...extra });
+  const canBuzz = { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null };
+
+  it('on a blitz cell every player gets the buzz button, the chooser too', () => {
+    for (const id of ['p1', 'p2']) {
+      show(onQuestion({ round, board: blitzBoard(), me: blitzMe(canBuzz, { id }) }));
+      expect(screen.getByRole('button', { name: 'Відповісти' })).toBeTruthy();
+      expect(screen.getByText('Бліц')).toBeTruthy();
+      expect(screen.getByText('Вибір: Алла')).toBeTruthy();
+      expect(screen.queryByText(/^Відповідає Алла/)).toBeNull();
+      cleanup();
+    }
+  });
+
+  it('on a voice blitz cell the head of the queue answers aloud', () => {
+    const head = { ...canBuzz, position: 1, canBuzz: false };
+    show(onQuestion({ round, board: blitzBoard({ answerMode: 'voice' }), me: blitzMe(head) }));
+    expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+    expect(document.querySelector('.inputs')).toBeNull();
+  });
+
+  it('the blitz cell reveal shows own points and the winner', () => {
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: publicQuestion,
+        reveal: fullQuestion,
+        round,
+        board: blitzBoard(),
+        blitz: { queue: [], winner: { playerId: 'p3', nickname: 'Віра' } },
+        me: blitzMe(canBuzz, { result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: -200 } }),
+      }),
+    );
+    expect(screen.getByText('−200')).toBeTruthy();
+    expect(screen.getByText('Першим правильно відповів: Віра')).toBeTruthy();
+  });
+
+  it('players see the penalty rule after a blitz cell opens', () => {
+    show(onQuestion({ round, board: blitzBoard({ penalty: 'all' }), me: blitzMe(canBuzz) }));
+    expect(screen.getByText('Мінус для всіх, хто не відповість правильно')).toBeTruthy();
+    expect(screen.getByText(/Відповідає перший, хто натисне/)).toBeTruthy();
   });
 });
 

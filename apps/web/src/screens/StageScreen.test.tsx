@@ -358,4 +358,31 @@ describe('StageScreen: match', () => {
     expect(container.querySelector('.match-columns')).not.toBeNull();
     expect(screen.queryByText('З’єднайте пари на телефоні')).toBeNull();
   });
+  it('the stage shows a blitz cell with the chooser and the queue', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const board = {
+      categories: [],
+      order: [{ playerId: 'p1', nickname: 'Алла' }],
+      turn: { playerId: 'p1', nickname: 'Алла' },
+      cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'all' as const },
+      rolls: 0,
+      skipAt: null,
+    };
+    show(
+      view({
+        phase: 'question',
+        questionIndex: 0,
+        question,
+        round,
+        board,
+        blitz: { queue: [{ playerId: 'p2', nickname: 'Богдан' }], winner: null },
+        endsAt: Date.now() + 20_000,
+      }),
+    );
+    expect(screen.getByText('Бліц')).toBeTruthy();
+    expect(screen.getByText('Вибір: Алла')).toBeTruthy();
+    expect(screen.getAllByText('Відповідає Богдан').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Відповідає Алла')).toBeNull();
+    expect(screen.getByText('Мінус для всіх, хто не відповість правильно')).toBeTruthy();
+  });
 });

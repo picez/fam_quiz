@@ -22,6 +22,7 @@ export function Board({ board, onPick, disabled = false }: Props) {
             const content = (
               <>
                 <span className="price">{cell.price}</span>
+                {cell.kind === 'blitz' && <span className="gb-kind">{t('cellBlitz')}</span>}
                 {cell.mark !== null && cell.mark !== 'none' && <span className="gb-mark">{markText(cell.mark)}</span>}
               </>
             );
@@ -45,5 +46,18 @@ export function Board({ board, onPick, disabled = false }: Props) {
         </div>
       ))}
     </div>
+  );
+}
+
+/** Рядки правил відкритої бліц-клітинки: хто вибрав, як відповідають і ставка штрафу. */
+export function BlitzCellNotes({ board }: { board: BoardInfo }) {
+  const cell = board.cell;
+  if (cell === null || cell.kind !== 'blitz') return null;
+  return (
+    <>
+      {board.turn !== null && <p className="meta">{t('cellChosenBy', { name: board.turn.nickname })}</p>}
+      <p className="meta">{t('cellBlitzRule')}</p>
+      {cell.penalty === 'all' && <p className="meta">{t('cellPenaltyAll')}</p>}
+    </>
   );
 }
