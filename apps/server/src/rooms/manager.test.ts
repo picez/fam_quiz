@@ -510,4 +510,30 @@ describe('board rounds', () => {
     expect(manager.host(room, { type: 'pick', cellId: 'c21' })).toEqual({ ok: true });
     expect(room.state.phase).toBe('question');
   });
+
+  it('a pending board answer stops the room timer until the host re-picks', () => {
+    const { scheduler, manager, room, anna } = boardRoom();
+    manager.host(room, { type: 'next' });
+    expect(manager.pick(room, anna.playerId, 'c12')).toEqual({ ok: true });
+    scheduler.advance(5000);
+    expect(manager.answer(room, anna.playerId, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    scheduler.advance(10 * 60_000);
+    expect(room.state.phase).toBe('question');
+    expect(manager.host(room, { type: 'repick' })).toEqual({ ok: true });
+    scheduler.advance(14_999);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('host accept goes through the manager', () => {
+    const { manager, room, anna } = boardRoom();
+    manager.host(room, { type: 'next' });
+    manager.pick(room, anna.playerId, 'c12');
+    expect(manager.host(room, { type: 'accept' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(manager.answer(room, anna.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+    expect(room.state.players.find((p) => p.id === anna.playerId)?.score).toBe(200);
+  });
 });

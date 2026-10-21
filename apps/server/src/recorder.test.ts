@@ -469,7 +469,8 @@ describe('recorder: board', () => {
     const { manager, room, olena, saved } = await boardSetup(round);
     expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
     expect(manager.answer(room, olena, correct)).toEqual({ ok: true });
-    expect(room.state.phase).toBe('locked');
+    expect(manager.host(room, { type: 'accept' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
 
     const { games, answers } = await saved();
     expect(games[0].plays).toEqual([{ roundIndex: 0, questionId: 'c11', cell: { cellId: 'c11', chooserId: olena } }]);

@@ -18,6 +18,8 @@ export function limitMsOf(play: Play): number {
 /** Залишок таймера поточного запитання; null — не етап question або таймера немає. */
 export function remainingOf(state: GameState, now: number): number | null {
   if (state.phase !== 'question') return null;
+  // Під час утримання годинник стоїть, також на паузі.
+  if (state.heldAt !== null) return state.endsAt === null ? null : state.endsAt - state.heldAt;
   if (state.paused) return state.remainingMs;
   return state.endsAt === null ? null : Math.max(0, state.endsAt - now);
 }
@@ -39,5 +41,6 @@ export function adjustTime(state: GameState, seconds: number, now: number): Resu
   const plays = state.plays.map((play, index) =>
     index === state.questionIndex ? { ...play, extraMs: play.extraMs + (next - remaining) } : play,
   );
+  if (state.heldAt !== null) return { ok: true, state: { ...state, plays, endsAt: state.heldAt + next } };
   return { ok: true, state: state.paused ? { ...state, plays, remainingMs: next } : { ...state, plays, endsAt: now + next } };
 }

@@ -148,7 +148,8 @@ export function nextDeadline(state: GameState, now: number): number | null {
     if (state.paused || since === null) return null;
     return since + BOARD_AWAY_MS > now ? since + BOARD_AWAY_MS : null;
   }
-  if (state.phase !== 'question' || state.paused || state.endsAt === null) return null;
+  // Під час утримання годинник стоїть: tick нічого не змінить, доки ведучий не вирішить.
+  if (state.phase !== 'question' || state.paused || state.endsAt === null || state.heldAt !== null) return null;
   const times = [state.endsAt, ...(state.plays[state.questionIndex]?.blitz?.queue.map((e) => e.deadline) ?? [])];
   const upcoming = times.filter((time): time is number => time !== null && time > now);
   return upcoming.length === 0 ? null : Math.min(...upcoming);

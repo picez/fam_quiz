@@ -1,5 +1,6 @@
 import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
+  acceptAnswer,
   addPlayer,
   adjustTime,
   buzz,
@@ -16,6 +17,7 @@ import {
   pickCell,
   playerView,
   removePlayer,
+  repick,
   resume,
   rollOrder,
   setConnected,
@@ -68,7 +70,7 @@ export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'roll' | 'skip' }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'roll' | 'skip' | 'accept' | 'repick' }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
   | { type: 'judge'; playerId: string; correct: boolean }
@@ -261,6 +263,10 @@ export class RoomManager {
         return this.apply(room, adjustTime(state, action.seconds, this.now()));
       case 'judge':
         return this.apply(room, judge(state, action.playerId, action.correct, this.now()));
+      case 'accept':
+        return this.apply(room, acceptAnswer(state, this.now()));
+      case 'repick':
+        return this.apply(room, repick(state, this.now()));
     }
   }
 

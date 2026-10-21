@@ -12,6 +12,7 @@ import {
 import { applyVerdict, blitzDone, settleQueue, withPlay } from './blitz';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { checkAnswer } from './check';
+import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
 import { answerPoints, speedFactor, streakBonus } from './score';
 import { limitMsOf } from './timing';
@@ -99,7 +100,7 @@ export interface BoardPlay {
   price: number;
   /** Множник клітинки: x2 → 2, x3 → 3, інакше 1. */
   multiplier: 1 | 2 | 3;
-  /** Відповідь з телефону, що чекає на оцінку ведучого (check 'manual'); інакше null. */
+  /** Відповідь з телефону, що чекає на рішення ведучого («Прийняти», оцінка або «Перевибрати»); інакше null. */
   answer: Answer | null;
 }
 
@@ -132,6 +133,8 @@ export interface GameState {
   pausedAt: number | null;
   /** Ходи раунду поля; null поза раундом поля. */
   board: BoardState | null;
+  /** Відколи годинник запитання стоїть, бо відповідь чекає на ведучого; null — іде. */
+  heldAt: number | null;
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -154,6 +157,7 @@ export function createGame(quiz: Quiz): GameState {
     remainingMs: null,
     pausedAt: null,
     board: null,
+    heldAt: null,
   };
 }
 
@@ -378,7 +382,12 @@ function dropQueue(state: GameState): GameState {
 }
 
 function lockNow(state: GameState): GameState {
-  return withTotals({ ...dropQueue(state), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null });
+  return withTotals({ ...dropQueue(state), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null });
+}
+
+/** Закриває запитання поля й одразу розкриває оцінку: так відповідь світиться зеленим або червоним. */
+function revealNow(state: GameState): GameState {
+  return withTotals({ ...lockNow(state), phase: 'reveal' });
 }
 
 /** Закриває запитання, якщо відповіли всі підключені гравці (у бліці: якщо запитання вже вирішене). */
@@ -440,7 +449,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   return ok(autoLock(withRecord(state, playerId, record)));
 }
 
-/** Відповідь на запитання поля: лише від гравця, чий хід; при ручній перевірці чекає на ведучого. */
+/** Відповідь на запитання поля: лише від гравця, чий хід; годинник стоїть, поки ведучий не прийме відповідь або не дасть перевибрати. */
 function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string, answer: Answer, now: number): Result {
   const play = state.plays[state.questionIndex];
   const board = play.board;
@@ -449,15 +458,25 @@ function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string
   if (recordOf(state, state.questionIndex, playerId) !== undefined || board.answer !== null) return fail('already_answered');
   if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
   if (play.question.type !== answer.type) return fail('type_mismatch');
-  if (round.check === 'manual') return ok(lockNow(withBoard(state, { ...board, answer })));
+  return ok(holdAt(withBoard(state, { ...board, answer }), now));
+}
 
-  const checked = checkAnswer(play.question, answer);
+/** «Прийняти» за автоматичної перевірки. */
+export function acceptAnswer(state: GameState, now: number): Result {
+  const pending = pendingOf(state);
+  if (pending === null) return fail('wrong_phase');
+  if (state.paused) return fail('paused');
+  const play = state.plays[state.questionIndex];
+  const round = state.quiz.rounds[play.roundIndex];
+  if (round.type !== 'board' || play.board === undefined || round.check === 'manual') return fail('wrong_phase');
+
+  const checked = checkAnswer(play.question, pending.answer);
   // Часткові бали лише за увімкненого правила; інакше неповна відповідь неправильна.
   const accuracy = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && round.rules.partial !== null ? checked.accuracy : 0;
-  const points = boardPoints(round, board, accuracy);
+  const points = boardPoints(round, play.board, accuracy);
   const record: AnswerRecord = {
-    answer,
-    timeMs: Math.max(0, now - state.startedAt),
+    answer: pending.answer,
+    timeMs: Math.max(0, clockOf(state, now) - (state.startedAt ?? now)),
     accepted: accuracy >= 1,
     accuracy,
     grade: gradeOf(accuracy),
@@ -466,7 +485,16 @@ function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string
     points,
     overridden: false,
   };
-  return ok(lockNow(withRecord(state, playerId, record)));
+  return ok(revealNow(withRecord(state, pending.playerId, record)));
+}
+
+/** «Перевибрати»: відповідь знято, годинник іде з того самого залишку. */
+export function repick(state: GameState, now: number): Result {
+  if (pendingOf(state) === null) return fail('wrong_phase');
+  if (state.paused) return fail('paused');
+  const board = state.plays[state.questionIndex].board;
+  if (board === undefined) return fail('wrong_phase');
+  return ok(thaw(withBoard(state, { ...board, answer: null }), now));
 }
 
 /** Замінює клітинку в поточному запитанні поля. */
@@ -507,12 +535,15 @@ export function lock(state: GameState): Result {
 export function tick(state: GameState, now: number): GameState {
   if (state.phase === 'board' && state.board !== null) return state.paused ? state : tickBoard(state, state.board, now);
   if (state.phase !== 'question' || state.paused) return state;
-  if (currentRound(state)?.type === 'blitz') {
-    const settled = settleQueue(state, now);
+  const running = releaseStaleHold(state, now);
+  // Поки відповідь чекає на ведучого, годинник стоїть.
+  if (running.heldAt !== null) return running;
+  if (currentRound(running)?.type === 'blitz') {
+    const settled = settleQueue(running, now);
     return blitzDone(settled, now) ? lockNow(settled) : settled;
   }
-  const expired = state.endsAt !== null && now >= state.endsAt;
-  return expired ? lockNow(state) : state;
+  const expired = running.endsAt !== null && now >= running.endsAt;
+  return expired ? lockNow(running) : running;
 }
 
 /** Етап вибору клітинки: стартує відлік для відключеного гравця й пропускає хід, коли 30 секунд сплило. */
@@ -590,6 +621,8 @@ export function endRound(state: GameState, now: number): Result {
 export function pause(state: GameState, now: number): Result {
   if (state.paused) return fail('paused');
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
+  // Під час утримання годинник уже стоїть: пауза його не чіпає.
+  if (state.phase === 'question' && state.heldAt !== null) return ok({ ...state, paused: true, pausedAt: now });
   if (state.phase === 'question' && state.endsAt !== null) {
     const remainingMs = Math.max(0, state.endsAt - now);
     return ok({ ...state, paused: true, pausedAt: now, remainingMs, startedAt: null, endsAt: null });
@@ -597,20 +630,10 @@ export function pause(state: GameState, now: number): Result {
   return ok({ ...state, paused: true, pausedAt: now, board: clearAway(state.board) });
 }
 
-/** Зсуває натискання черги бліцу на довжину паузи: вікна відповіді й час натискань не включають паузу. */
-function shiftQueue(state: GameState, shiftMs: number): GameState {
-  const play = state.plays[state.questionIndex];
-  if (play?.blitz === undefined || shiftMs === 0) return state;
-  const queue = play.blitz.queue.map((e) => ({
-    ...e,
-    at: e.at + shiftMs,
-    deadline: e.deadline === null ? null : e.deadline + shiftMs,
-  }));
-  return withPlay(state, { ...play, blitz: { ...play.blitz, queue } });
-}
-
 export function resume(state: GameState, now: number): Result {
   if (!state.paused) return fail('wrong_phase');
+  // Годинник стоїть і далі, доки ведучий не вирішить; якщо гравця вилучили на паузі, він рушає зараз.
+  if (state.phase === 'question' && state.heldAt !== null) return ok(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now));
   if (state.phase === 'question' && state.remainingMs !== null) {
     const limitMs = limitMsOf(state.plays[state.questionIndex]);
     const endsAt = now + state.remainingMs;
@@ -636,7 +659,8 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
   const existing = recordOf(state, state.questionIndex, playerId);
   const limitMs = limitMsOf(play);
-  const spentMs = phase === 'question' && now !== undefined && state.startedAt !== null ? Math.max(0, now - state.startedAt) : limitMs;
+  const spentMs =
+    phase === 'question' && now !== undefined && state.startedAt !== null ? Math.max(0, clockOf(state, now) - state.startedAt) : limitMs;
   const points = boardPoints(round, board, accuracy);
   const record: AnswerRecord = {
     answer: existing?.answer ?? board.answer,
@@ -650,7 +674,9 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
     overridden: phase === 'reveal',
   };
   const graded = withRecord(state, playerId, record);
-  return ok(phase === 'question' ? lockNow(graded) : withTotals(graded));
+  if (phase !== 'question') return ok(withTotals(graded));
+  // Оцінка відповіді з телефона одразу розкривається; усна відповідь лише закриває запитання.
+  return ok(board.answer !== null ? revealNow(graded) : lockNow(graded));
 }
 
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
@@ -691,6 +717,15 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
 export function end(state: GameState): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   return ok(
-    withTotals({ ...dropQueue(state), phase: 'finished', board: clearAway(state.board), paused: false, startedAt: null, endsAt: null, remainingMs: null }),
+    withTotals({
+      ...dropQueue(state),
+      phase: 'finished',
+      board: clearAway(state.board),
+      paused: false,
+      startedAt: null,
+      endsAt: null,
+      remainingMs: null,
+      heldAt: null,
+    }),
   );
 }

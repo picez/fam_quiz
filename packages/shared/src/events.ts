@@ -45,6 +45,8 @@ export interface ClientToServerEvents {
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
   'host:judge': (payload: z.infer<typeof judgeSchema>, ack: Ack) => void;
   'host:time': (payload: z.infer<typeof timeSchema>, ack: Ack) => void;
+  'host:accept': (ack: Ack) => void;
+  'host:repick': (ack: Ack) => void;
   'host:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   'host:order': (payload: z.infer<typeof orderSchema>, ack: Ack) => void;
   'host:roll': (ack: Ack) => void;

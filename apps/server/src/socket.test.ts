@@ -210,6 +210,16 @@ describe('permissions and bad input', () => {
     expect(await send(host, 'host:time', { seconds: -15 })).toEqual({ ok: true });
   });
 
+  it('host:accept and host:repick are accepted only from the host', async () => {
+    const { host, olena } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'host:accept')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:repick')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:accept')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:repick')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
   it('player:buzz and host:judge are accepted only from their roles', async () => {
     const game = (await startGame(ctx.app, makeRoundsQuiz([blitzRound('b1', [single], { check: 'manual' })]))).game;
     const { host, stage, olena, olenaJoin } = await lobby(game);
