@@ -610,3 +610,32 @@ describe('spotlight views', () => {
     expect(hostView(lobby()).spotlight).toBeNull();
   });
 });
+
+describe('blitz cell views', () => {
+  const field = (cell = {}) =>
+    boardRound('g1', [{ title: 'Міста', cells: [{ kind: 'blitz', question: withId(single, 'c11'), ...cell }, withId(text, 'c12')] }]);
+  const picked = (cell = {}) => {
+    const intro = must(start(lobbyWith(makeRoundsQuiz([field(cell)]), 'Анна', 'Богдан', 'Віра'), 0));
+    return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
+  };
+
+  it('a blitz cell shows the queue, own buzz state and the pending answer to everyone, never the correct answer', () => {
+    const state = must(submitAnswer(must(buzz(picked(), 'p2', 1000)), 'p2', wrong, 2000));
+    const stage = stageView(state);
+    const player = playerView(state, 'p3');
+    expect(player?.me.blitz).toMatchObject({ canBuzz: true, attemptsLeft: null, position: null });
+    expect(stage.blitz?.queue[0].nickname).toBe('Богдан');
+    expect(stage.spotlight).toEqual({ playerId: 'p2', nickname: 'Богдан', answer: wrong, grade: null });
+    expect(hostView(state).blitz).toMatchObject({ voice: false, manual: false });
+    for (const json of [JSON.stringify(stage), JSON.stringify(player)]) expect(json).not.toContain('correctId');
+  });
+
+  it('a voice blitz cell marks the queue for the host to judge and shows no spotlight', () => {
+    const state = must(buzz(picked({ answerMode: 'voice' }), 'p2', 1000));
+    expect(hostView(state).blitz).toMatchObject({ voice: true, manual: true });
+    expect(stageView(state).spotlight).toBeNull();
+    const judged = must(judge(state, 'p2', false, 2000));
+    expect(stageView(judged).spotlight).toBeNull();
+    expect(hostView(judged).blitz?.attempts).toMatchObject([{ playerId: 'p2', grade: 'wrong' }]);
+  });
+});

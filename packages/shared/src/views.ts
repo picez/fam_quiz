@@ -73,6 +73,9 @@ export interface PlayerBlitz {
 }
 
 export interface HostBlitz extends BlitzInfo {
+  /** Відповідь уголос (усна бліц-клітинка): голову черги оцінює ведучий, відповіді в черзі немає. */
+  voice: boolean;
+  /** Ведучий оцінює голову («Правильно» / «Неправильно»): ручна перевірка або усна відповідь. */
   manual: boolean;
   queue: (BlitzPlayer & { answer: Answer | null; deadline: number | null })[];
   attempts: (BlitzPlayer & { answer: Answer | null; grade: 'correct' | 'wrong'; points: number })[];

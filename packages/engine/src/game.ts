@@ -13,6 +13,7 @@ import {
   type Round,
 } from '@quiz/shared';
 import { applyVerdict, blitzDone, blitzRulesOf, settleQueue, withPlay } from './blitz';
+import { withCellPenalty } from './board-cells';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
@@ -396,8 +397,9 @@ function dropQueue(state: GameState): GameState {
   return withPlay(state, closed);
 }
 
+/** Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз. */
 function lockNow(state: GameState): GameState {
-  return withTotals({ ...dropQueue(state), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null });
+  return withTotals({ ...withCellPenalty(dropQueue(state)), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null });
 }
 
 /** Закриває запитання поля й одразу розкриває оцінку: так відповідь світиться зеленим або червоним. */

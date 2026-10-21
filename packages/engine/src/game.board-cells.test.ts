@@ -5,6 +5,7 @@ import { pickCell } from './board';
 import { chooserOf } from './board-turns';
 import {
   acceptAnswer,
+  endRound,
   judge,
   lock,
   next,
@@ -222,5 +223,65 @@ describe('blitz cell', () => {
     state = must(acceptAnswer(state, 'p3', 3000));
     expect(state.phase).toBe('locked');
     expect(score(state, 'p3')).toBe(100);
+  });
+});
+
+describe('blitz cell penalty', () => {
+  const minus = (cell: Partial<BoardCell> = {}, options = {}) => blitzCell({ mark: 'x2', penalty: 'all', ...cell }, options);
+
+  it('penalty all charges everyone but the winner, the chooser included, never the ×2', () => {
+    let state = answered(minus(), 'p1', a, 1000);
+    state = answered(state, 'p2', b, 2000);
+    expect(state.phase).toBe('locked');
+    const revealed = must(next(state, 3000));
+    expect(scores(revealed)).toEqual([-200, 200, -200]);
+  });
+
+  it('penalty all when the chooser wins: the chooser keeps ×2, the others lose the price', () => {
+    const revealed = must(next(answered(minus(), 'p1', b, 1000), 2000));
+    expect(scores(revealed)).toEqual([400, -200, -200]);
+  });
+
+  it('nobody correct with penalty all: everyone loses', () => {
+    const state = tick(minus(), 20000);
+    expect(state.phase).toBe('locked');
+    expect(scores(must(next(state, 21000)))).toEqual([-200, -200, -200]);
+  });
+
+  it('closing the cell with a pending answer gives nobody points and charges everyone once', () => {
+    const state = must(submitAnswer(must(buzz(minus(), 'p2', 1000)), 'p2', b, 2000));
+    expect(pendingOf(state)).toMatchObject({ playerId: 'p2' });
+    const closed = must(lock(state));
+    const revealed = must(next(closed, 3000));
+    expect(revealed.phase).toBe('reveal');
+    expect(scores(revealed)).toEqual([-200, -200, -200]);
+    expect(scores(must(endRound(revealed, 4000)))).toEqual([-200, -200, -200]);
+  });
+
+  it('ending the round with the cell open charges everyone once', () => {
+    expect(scores(must(endRound(minus(), 1000)))).toEqual([-200, -200, -200]);
+  });
+
+  it('penalty none charges nobody', () => {
+    let state = answered(blitzCell({ mark: 'x2' }), 'p2', a, 1000);
+    state = tick(state, 20000);
+    expect(scores(must(next(state, 21000)))).toEqual([0, 0, 0]);
+  });
+
+  it('the round penalty never applies to a blitz cell', () => {
+    let state = answered(blitzCell({}, { rules: { ...DEFAULT_RULES, penalty: 'minus' } }), 'p2', a, 1000);
+    expect(state.plays[0].blitz?.attempts[0].points).toBe(0);
+    state = tick(state, 20000);
+    const revealed = must(next(state, 21000));
+    expect(revealed.phase).toBe('reveal');
+    expect(scores(revealed)).toEqual([0, 0, 0]);
+    expect(revealed.plays[0].answers.p1).toBeUndefined();
+  });
+
+  it('a kicked player is not charged', () => {
+    const state = must(removePlayer(minus(), 'p3'));
+    const locked = must(lock(state));
+    expect(locked.plays[0].answers.p3).toBeUndefined();
+    expect(scores(locked)).toEqual([-200, -200]);
   });
 });

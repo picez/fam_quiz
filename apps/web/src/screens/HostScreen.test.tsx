@@ -294,6 +294,7 @@ describe('HostScreen: rounds', () => {
 describe('HostScreen: blitz', () => {
   const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
   const blitz = (over: Partial<NonNullable<HostView['blitz']>> = {}): NonNullable<HostView['blitz']> => ({
+    voice: false,
     manual: true,
     winner: null,
     queue: [
@@ -535,7 +536,7 @@ describe('HostScreen: blitz', () => {
           round: blitzRound,
           endsAt: Date.now() + 20_000,
           spotlight: pendingSpot,
-          blitz: { manual: true, queue: [head], winner: null, attempts: [] },
+          blitz: { voice: false, manual: true, queue: [head], winner: null, attempts: [] },
         }),
       );
       expect(screen.getAllByRole('button', { name: 'Неправильно' })).toHaveLength(1);
