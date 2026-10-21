@@ -59,10 +59,15 @@ export const match = (text: string, pairs: [string, string][], points?: number, 
 };
 
 export const rules = (patch: Partial<RoundRules>): RoundRules => ({ ...DEFAULT_RULES, ...patch });
-export const cell = (question: Question, mark: 'none' | 'x2' | 'x3' = 'none') => ({
+export const cell = (
+  question: Question,
+  mark: 'none' | 'x2' | 'x3' = 'none',
+  extra: { kind?: 'normal' | 'blitz'; answerMode?: 'phone' | 'voice'; penalty?: 'none' | 'all' } = {},
+) => ({
   mark,
-  kind: 'normal' as const,
-  penalty: 'none' as const,
+  kind: extra.kind ?? ('normal' as const),
+  penalty: extra.penalty ?? ('none' as const),
+  ...(extra.answerMode ? { answerMode: extra.answerMode } : {}),
   question,
 });
 
@@ -165,7 +170,7 @@ export const demoQuiz: Quiz = {
           cells: [
             cell(single('Найвища гора світу?', ['Монблан', 'Еверест', 'Кіліманджаро'], 1, 100)),
             cell(bool('Австралія — це материк і країна водночас.', true, 200), 'x2'),
-            cell(textQ('Столиця Канади?', ['Оттава', 'Ottawa'], 300, 30)),
+            cell(textQ('Столиця Канади?', ['Оттава', 'Ottawa'], 300, 30), 'none', { answerMode: 'voice' }),
             cell(numeric('Скільки материків на Землі?', 6, 1, 400)),
           ],
         },
@@ -175,7 +180,7 @@ export const demoQuiz: Quiz = {
           cells: [
             cell(single('Яка планета найбільша?', ['Сатурн', 'Юпітер', 'Нептун'], 1, 100)),
             cell(multi('Які з цих — благородні гази?', ['Гелій', 'Кисень', 'Неон', 'Аргон'], [0, 2, 3], 200, 30)),
-            cell(numeric('Температура кипіння води (°C)?', 100, 0, 300), 'x3'),
+            cell(numeric('Температура кипіння води (°C)?', 100, 0, 300), 'x3', { kind: 'blitz' }),
             cell(order('Від найлегшого', ['Водень', 'Гелій', 'Літій'], 400, 30)),
           ],
         },
@@ -185,8 +190,8 @@ export const demoQuiz: Quiz = {
           cells: [
             cell(bool('«Титанік» отримав 11 «Оскарів».', true, 100)),
             cell(single('Хто зняв «Аватар»?', ['Спілберг', 'Кемерон', 'Нолан'], 1, 200)),
-            cell(textQ('Гурт, що переміг на Євробаченні-2022?', ['Kalush', 'Kalush Orchestra', 'Калуш'], 300, 30), 'x2'),
-            cell(order('Альбоми The Beatles за роком', ['Please Please Me', 'Help!', 'Abbey Road'], 400, 30)),
+            cell(textQ('Гурт, що переміг на Євробаченні-2022?', ['Kalush', 'Kalush Orchestra', 'Калуш'], 300, 30), 'x2', { answerMode: 'voice' }),
+            cell(order('Альбоми The Beatles за роком', ['Please Please Me', 'Help!', 'Abbey Road'], 400, 30), 'none', { kind: 'blitz', penalty: 'all' }),
           ],
         },
       ],

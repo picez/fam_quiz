@@ -799,3 +799,220 @@ async function boardGame() {
 
   expect(problems).toEqual([]);
 }
+
+it('a mixed board: a phone cell, blitz cells won by an opponent and by the chooser with penalty for all, a voice cell', async () => {
+  try {
+    await mixedBoard();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function mixedBoard() {
+  const host = await open('host5', 1280, 900);
+
+  await host.goto(base);
+  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await click(host, 'Створити акаунт');
+  await field(host, 'Ваше ім’я').fill('Дарина Ведуча');
+  await field(host, 'Email').fill('host5@example.com');
+  await field(host, 'Пароль').fill('correct horse battery');
+  await click(host, 'Зареєструватися');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Мішане поле');
+
+  await click(host, '+ Раунд');
+  await click(host, 'Ігрове поле');
+  await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
+  await click(host, 'Видалити раунд');
+
+  await openRoundSettings(host);
+  await host.locator('label.field', { hasText: 'Спосіб відповіді' }).locator('select').selectOption('phone');
+  await host.locator('label.field', { hasText: 'Перевірка' }).locator('select').selectOption('auto');
+  await field(host, 'Секунд').fill('40');
+  await click(host, 'Застосувати');
+
+  const categories = ['Міста', 'Річки', 'Гори'];
+  for (const [column, title] of categories.entries()) {
+    await field(host, `Назва категорії ${column + 1}`).fill(title);
+    for (const row of [0, 1, 2]) {
+      const price = (row + 1) * 100;
+      await host.getByRole('button', { name: new RegExp(`^Категорія ${column + 1}, клітинка ${row + 1}: ${price}`) }).click();
+      await questionText(host).fill(`${title} ${price}?`);
+      await field(host, 'Варіант 1').fill('Так');
+      await field(host, 'Варіант 2').fill('Ні');
+      await field(host, 'Правильний: варіант 1').click();
+    }
+  }
+  const select = (label: string) => host.locator('label.field', { hasText: label }).locator('select');
+  const editCell = (column: number, row: number) =>
+    host.getByRole('button', { name: new RegExp(`^Категорія ${column}, клітинка ${row}: ${row * 100}`) }).click();
+  // «Річки, 100»: бліц без штрафу.
+  await editCell(2, 1);
+  await select('Тип клітинки').selectOption('blitz');
+  // «Гори, 100»: бліц, мінус для всіх, ×2.
+  await editCell(3, 1);
+  await select('Тип клітинки').selectOption('blitz');
+  await select('Штраф бліцу').selectOption('all');
+  await select('Позначка').selectOption('x2');
+  // «Міста, 200»: усна звичайна клітинка.
+  await editCell(1, 2);
+  await select('Як відповідати').selectOption('voice');
+  // «Міста, 300»: усний бліц.
+  await editCell(1, 3);
+  await select('Тип клітинки').selectOption('blitz');
+  await select('Як відповідати').selectOption('voice');
+  await editCell(3, 1);
+  await shot(host, 'cells-editor');
+  await host.setViewportSize({ width: 390, height: 844 });
+  await shot(host, 'cells-editor-phone');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Мішане поле' }).waitFor();
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage5', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const alla = await open('alla5', 390, 844);
+  const bohdan = await open('bohdan5', 360, 740);
+  const vira = await open('vira5', 360, 740);
+  await join(alla, code, 'Алла', false);
+  await join(bohdan, code, 'Богдан', false);
+  await join(vira, code, 'Віра', false);
+  await stage.getByText('Віра').waitFor();
+
+  await click(host, 'Почати гру');
+  await click(host, 'Кинути кубик');
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+
+  const cell = (page: Page, category: string, price: number) =>
+    page.getByRole('button', { name: `${category}, ${price}`, ...exact });
+  const toBoard = async () => {
+    await click(host, 'Далі');
+    const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+    const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+    await Promise.race([next.waitFor(), picking.waitFor()]);
+    if (await next.isVisible()) await next.click();
+    await picking.waitFor();
+  };
+  const score = async (nickname: string) =>
+    Number(
+      (await host.locator('.rows > li:has(button)', { hasText: nickname }).locator('.score').first().textContent())!
+        .replace('−', '-')
+        .replace(/\s/g, ''),
+    );
+
+  // Хід 1: Алла, звичайна клітинка з телефона.
+  await alla.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(alla, 'Міста', 100).click();
+  await alla.getByRole('button', { name: /Так/ }).click();
+  await click(host, 'Прийняти');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  expect(await score('Алла')).toBe(100);
+  await toBoard();
+
+  // Хід 2: Богдан, бліц без штрафу; до вибору сцена й телефони не бачать типу, пульт бачить.
+  await bohdan.getByText('Ваш хід: виберіть клітинку').waitFor();
+  expect(await host.locator('.gb-kind').count()).toBeGreaterThan(0);
+  expect(await stage.locator('.gb-kind').count()).toBe(0);
+  expect(await alla.locator('.gb-kind').count()).toBe(0);
+  expect(await bohdan.locator('.gb-kind').count()).toBe(0);
+  await cell(bohdan, 'Річки', 100).click();
+  for (const page of [stage, alla, bohdan, vira]) await page.getByText('Бліц', exact).first().waitFor();
+  await bohdan.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+  await alla.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+  await shot(alla, 'blitz-cell-buzz-phone');
+  await shot(bohdan, 'blitz-cell-buzz-chooser');
+  await click(alla, 'Відповісти');
+  await click(vira, 'Відповісти');
+  await alla.getByRole('button', { name: /Ні/ }).click();
+  await stage.locator('.choice.is-pending', { hasText: 'Ні' }).waitFor();
+  expect(await stage.locator('.choice.is-correct').count()).toBe(0);
+  await vira.getByText('Відповідає Алла').waitFor();
+  await shot(stage, 'blitz-cell-pending-stage');
+  await shot(host, 'blitz-cell-pending-host');
+  await shot(vira, 'blitz-cell-phone-other');
+  await click(host, 'Прийняти');
+  await vira.getByRole('button', { name: /Так/ }).click();
+  await click(host, 'Прийняти');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  expect(await score('Віра')).toBe(100);
+  expect(await score('Богдан')).toBe(0);
+  await toBoard();
+
+  // Хід 3: Віра, бліц «Мінус для всіх» ×2; вибирала вона, тож відповідає правильно в ×2.
+  await vira.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(vira, 'Гори', 100).click();
+  for (const page of [alla, bohdan, vira]) await page.getByText('Мінус для всіх, хто не відповість правильно').waitFor();
+  await click(bohdan, 'Відповісти');
+  await bohdan.getByRole('button', { name: /Ні/ }).click();
+  await click(host, 'Прийняти');
+  await click(vira, 'Відповісти');
+  await vira.getByRole('button', { name: /Так/ }).click();
+  await click(host, 'Прийняти');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  expect(await score('Віра')).toBe(500);
+  expect(await score('Алла')).toBe(-100);
+  expect(await score('Богдан')).toBe(-200);
+  await shot(stage, 'blitz-cell-reveal-stage');
+  await shot(vira, 'blitz-cell-reveal-phone');
+  await toBoard();
+
+  // Коло 2 починає Богдан, а потім Віра: ведучий пропускає їхні ходи, щоб клітинку вибрала Алла.
+  await bohdan.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await click(host, 'Пропустити хід');
+  await vira.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await click(host, 'Пропустити хід');
+
+  // Хід 4: Алла, усна клітинка.
+  await alla.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(alla, 'Міста', 200).click();
+  await alla.getByText('Відповідайте вголос').waitFor();
+  await shot(alla, 'voice-cell-phone');
+  await click(host, 'Зарахувати');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  expect(await score('Алла')).toBe(100);
+  await toBoard();
+
+  // Хід 5: Віра (коло 3 починає вона), усний бліц: черга чекає на ведучого, клітинку закривають без балів.
+  await vira.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(vira, 'Міста', 300).click();
+  await click(alla, 'Відповісти');
+  await alla.getByText('Відповідайте вголос').waitFor();
+  await host.getByRole('button', { name: 'Неправильно', ...exact }).waitFor();
+  await shot(host, 'voice-blitz-host');
+  await shot(stage, 'voice-blitz-stage');
+  await click(host, 'Закрити клітинку');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  expect(await score('Алла')).toBe(100);
+  expect(await score('Богдан')).toBe(-200);
+  await toBoard();
+
+  // Кінець гри.
+  await alla.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  // Історія: бліц з балами кожного, зокрема штрафом.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Мішане поле/ }).click();
+  const played = host.locator('.rows.stacked > li');
+  await played.first().waitFor();
+  await shot(host, 'history-cells');
+  expect(await played.count()).toBe(5);
+  const gory = played.filter({ hasText: 'Гори · 100' });
+  expect(await gory.textContent()).toMatch(/Бліц/);
+  expect(await gory.textContent()).toMatch(/Віра: \+400, Алла: −200, Богдан: −200/);
+
+  expect(problems).toEqual([]);
+}
