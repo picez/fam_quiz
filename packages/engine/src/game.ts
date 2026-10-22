@@ -298,9 +298,9 @@ export function setConnected(state: GameState, playerId: string, connected: bool
   // На звичайній клітинці без таймера так само, але відлік не стартує, поки відповідь чекає на ведучого.
   const watched = state.phase === 'question' && !state.paused && awayWatched(state) === playerId;
   if (watched && state.board !== null && (connected || state.heldAt === null)) {
-    return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }));
+    return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }, now));
   }
-  return ok(autoLock(changed));
+  return ok(autoLock(changed, now));
 }
 
 /** Гравець, чия відсутність закриває запитання: той, хто вибрав звичайну клітинку без таймера; інакше null. */
@@ -582,10 +582,15 @@ function revealNow(state: GameState): GameState {
   return withTotals({ ...lockNow(state), phase: 'reveal' });
 }
 
-/** Закриває запитання, якщо відповіли всі підключені гравці (у бліці: якщо запитання вже вирішене). */
-export function autoLock(state: GameState): GameState {
+/**
+ * Закриває запитання, якщо відповіли всі підключені гравці (у бліці: якщо запитання вже вирішене;
+ * у ланцюжку: кожен підключений пройшов або, якщо відомо now, вичерпав свій час).
+ * Внутрішня функція рушія: експортовано для chain.ts, не для сервера.
+ */
+export function autoLock(state: GameState, now: number | null = null): GameState {
   if (state.phase !== 'question' || state.paused) return state;
   if (state.plays[state.questionIndex]?.blitz !== undefined) return blitzDone(state, null) ? lockNow(state) : state;
+  if (state.plays[state.questionIndex]?.question.type === 'chain') return chainDone(state, now) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
   const connected = state.players.filter((p) => p.connected);
@@ -910,7 +915,7 @@ export function resume(state: GameState, now: number): Result {
   // Годинник стоїть і далі, доки ведучий не вирішить; якщо гравця вилучили на паузі, він рушає зараз.
   if (state.phase === 'question' && state.heldAt !== null) {
     // Якщо утримання знялося, а відповідати вже нікому, запитання закривається одразу.
-    return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now)));
+    return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now), now));
   }
   if (state.phase === 'question' && state.remainingMs !== null) {
     const limitMs = limitMsOf(state.plays[state.questionIndex]) ?? 0;
@@ -918,7 +923,7 @@ export function resume(state: GameState, now: number): Result {
     // startedAt зсувається так, щоб час відповіді не включав паузу.
     const resumed = { ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs };
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
-    return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now)));
+    return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now), now));
   }
   if (state.phase === 'question' && !isTimed(state.plays[state.questionIndex].question)) {
     // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
@@ -930,7 +935,7 @@ export function resume(state: GameState, now: number): Result {
       startedAt: state.startedAt === null ? null : state.startedAt + shift,
     };
     // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
-    return ok(watchAway(autoLock(settleQueue(shiftQueue(resumed, shift), now)), now));
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(resumed, shift), now), now), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.

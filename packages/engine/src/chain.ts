@@ -106,7 +106,7 @@ export function guessWord(state: GameState, playerId: string, word: string, now:
     overridden: false,
   };
   const current = advanced.plays[advanced.questionIndex];
-  return ok(autoLock(withPlay(advanced, { ...current, answers: { ...current.answers, [playerId]: record } })));
+  return ok(autoLock(withPlay(advanced, { ...current, answers: { ...current.answers, [playerId]: record } }), now));
 }
 
 /** Відкриває гравцеві наступну літеру поточного слова (ніколи останню) і додає до його часу секунди підказки. */

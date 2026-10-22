@@ -2,7 +2,8 @@ import { DEFAULT_ANSWER_WINDOW, type ErrorCode } from '@quiz/shared';
 import { cellBlitzRules } from './board-cells';
 import { BOARD_AWAY_MS } from './board-turns';
 import { chainDeadline } from './chain';
-// З game.ts лише типи: game.ts сам викликає цей файл, цикл під час виконання не потрібен.
+// З game.ts лише типи, але chain.ts (вище) під час виконання імпортує game.ts, тож цикл є:
+// game.ts → blitz.ts → chain.ts → game.ts. Він безпечний, бо всі звертання відбуваються лише під час виклику функцій.
 import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
 import { clockOf, holdAt, thaw } from './hold';
 import { answerPoints } from './score';

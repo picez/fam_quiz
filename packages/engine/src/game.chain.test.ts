@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES } from '@quiz/shared';
 import { nextDeadline } from './blitz';
 import { chainDeadline, chainOf, guessWord, letterCount, maskWord, takeHint } from './chain';
-import { lock, next, override, pause, recordOf, removePlayer, resume, submitAnswer, tick, type GameState } from './game';
+import { lock, next, override, pause, recordOf, removePlayer, resume, setConnected, submitAnswer, tick, type GameState } from './game';
 import { adjustTime } from './timing';
 import { chain, makeQuiz, single } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
@@ -115,6 +115,30 @@ describe('word chain', () => {
     const locked = tick(s, 10_000);
     expect(locked.phase).toBe('locked');
     expect(record(locked, 'p2')).toMatchObject({ accepted: false, answer: { solved: 0, hints: 2 } });
+  });
+
+  it('the last player to finish closes the question when the others are already out of time', () => {
+    let s = must(takeHint(state, 'p2', 1000));
+    s = must(takeHint(s, 'p2', 1000));
+    s = must(removePlayer(s, 'p3'));
+    s = tick(s, 10_000);
+    expect(s.phase).toBe('question');
+    s = finish(s, 'p1', 11_000);
+    expect(s.phase).toBe('locked');
+    expect(record(s, 'p1')).toMatchObject({ accepted: true, points: 1000 });
+    expect(record(s, 'p2')).toMatchObject({ accepted: false, points: 0 });
+  });
+
+  it('the last player still playing drops out and the question closes when the rest are out of time', () => {
+    let s = must(takeHint(state, 'p2', 1000));
+    s = must(takeHint(s, 'p2', 1000));
+    s = must(removePlayer(s, 'p3'));
+    s = must(guessWord(s, 'p1', 'Риба', 2000));
+    s = tick(s, 10_000);
+    expect(s.phase).toBe('question');
+    s = must(setConnected(s, 'p1', false, 11_000));
+    expect(s.phase).toBe('locked');
+    expect(record(s, 'p1')).toMatchObject({ accepted: false, answer: { solved: 1 } });
   });
 
   it('pause does not count and +15 s moves every personal deadline', () => {
