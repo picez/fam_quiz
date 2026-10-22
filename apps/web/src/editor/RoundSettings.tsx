@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { LIMITS, boardCells, cellAnswerMode, rulesOf, type Round, type RoundRules } from '@quiz/shared';
+import { LIMITS, boardCells, cellAnswerMode, roundBrief, rulesOf, type Round, type RoundRules } from '@quiz/shared';
 import { t } from '../i18n';
+import { RoundBriefing } from '../screens/RoundBriefing';
 import { applyRoundTime, withDefaultMode } from './draft';
 
 interface Props {
@@ -20,8 +21,8 @@ const toAttempts = (value: string): 1 | 2 | 3 | null => (value === '3' ? 3 : val
 const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3' ? 3 : value === '2' ? 2 : 1);
 
 /**
- * Налаштування одного раунду: назва, перемішування варіантів і правила підрахунку (штраф, серії, множник);
- * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». Згорнуті, доки їх не відкриють.
+ * Налаштування одного раунду: назва, опис для гравців, перемішування варіантів і правила підрахунку (штраф, серії, множник);
+ * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». В кінці — попередній перегляд заставки з поясненням правил. Згорнуті, доки їх не відкриють.
  */
 export function RoundSettings({ round, index, onChange }: Props) {
   const [seconds, setSeconds] = useState<number>(LIMITS.defaultTime);
@@ -48,6 +49,16 @@ export function RoundSettings({ round, index, onChange }: Props) {
           maxLength={LIMITS.roundTitle}
           placeholder={round.type === 'final' ? t('finalThemePlaceholder') : t('roundTitlePlaceholder', { index })}
           onChange={(event) => onChange({ ...round, title: event.target.value })}
+        />
+      </label>
+      <label className="field">
+        <span>{t('roundDescriptionLabel')}</span>
+        <textarea
+          rows={2}
+          maxLength={LIMITS.roundDescription}
+          placeholder={t('roundDescriptionPlaceholder')}
+          value={round.description ?? ''}
+          onChange={(event) => onChange({ ...round, description: event.target.value })}
         />
       </label>
       {round.type !== 'final' && (
@@ -248,6 +259,10 @@ export function RoundSettings({ round, index, onChange }: Props) {
       </label>
         </>
       )}
+      <div className="round-brief-preview">
+        <p className="meta">{t('roundBriefPreview')}</p>
+        <RoundBriefing brief={roundBrief(round)} description={round.description ?? ''} />
+      </div>
     </details>
   );
 }

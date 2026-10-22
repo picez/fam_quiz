@@ -2241,3 +2241,6 @@ button.match-item {
   font-size: clamp(1.125rem, 2vw, 2rem);
   margin: 0 auto;
 }
+
+.editor-quiz { display: grid; gap: 0.875rem; margin-bottom: 0.75rem; }
+.round-brief-preview { display: grid; gap: 0.5rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }

@@ -1118,3 +1118,37 @@ describe('QuizEditor: final round', () => {
     expect(screen.queryByLabelText('Час, с')).toBeNull();
   });
 });
+
+describe('QuizEditor: quiz on top and round notes', () => {
+  it('puts the quiz title and the game rules above the rounds', () => {
+    open();
+    const title = screen.getByLabelText('Назва вікторини');
+    const rules = screen.getByText('Правила гри');
+    const addRoundButton = screen.getByRole('button', { name: '+ Раунд' });
+    const roundSettings = screen.getByText('Налаштування раунду');
+    const before = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(before(title, rules)).toBe(true);
+    expect(before(rules, addRoundButton)).toBe(true);
+    expect(before(rules, roundSettings)).toBe(true);
+  });
+
+  it('saves an author note of the round and previews the rules summary', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    expect(screen.getByText('Так гравці побачать раунд на заставці')).toBeTruthy();
+    expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
+    expect(screen.getByLabelText('Опис раунду для гравців').getAttribute('maxlength')).toBe('200');
+    fill('Опис раунду для гравців', 'Кіно 90-х');
+    expect(screen.getAllByText('Кіно 90-х').length).toBeGreaterThan(1);
+
+    addRound('Бліц');
+    expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
+    fill('Текст запитання', 'Друге?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saved(onSave).rounds[0].description).toBe('Кіно 90-х');
+  });
+});

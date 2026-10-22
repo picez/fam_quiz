@@ -31,7 +31,7 @@ interface Props {
 }
 
 /**
- * Редактор «список і сцена»: ліворуч назва, правила й усі запитання, праворуч одне запитання
+ * Редактор «список і сцена»: зверху назва й правила, далі раунди; ліворуч список запитань, праворуч одне запитання
  * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
  */
 export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel }: Props) {
@@ -184,6 +184,35 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         </p>
       )}
 
+      <section className="editor-quiz">
+        <label className="field">
+          <span>{t('quizTitle')}</span>
+          <input value={quiz.title} maxLength={120} onChange={(event) => update({ ...quiz, title: event.target.value })} />
+        </label>
+
+        <details className="rules">
+          <summary>{t('settingsTitle')}</summary>
+          <label className="field">
+            <span>{t('quizDescription')}</span>
+            <input
+              value={quiz.description}
+              maxLength={500}
+              onChange={(event) => update({ ...quiz, description: event.target.value })}
+            />
+          </label>
+          <label className="field">
+            <span>{t('leaderboardLabel')}</span>
+            <select
+              value={settings.leaderboard}
+              onChange={(event) => setSettings({ leaderboard: event.target.value === 'end' ? 'end' : 'each' })}
+            >
+              <option value="each">{t('leaderboardEach')}</option>
+              <option value="end">{t('leaderboardEnd')}</option>
+            </select>
+          </label>
+        </details>
+      </section>
+
       <RoundStrip
         rounds={rounds}
         selected={ri}
@@ -197,33 +226,6 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
       <div className="editor-grid">
         <aside className="editor-side">
-          <label className="field">
-            <span>{t('quizTitle')}</span>
-            <input value={quiz.title} maxLength={120} onChange={(event) => update({ ...quiz, title: event.target.value })} />
-          </label>
-
-          <details className="rules">
-            <summary>{t('settingsTitle')}</summary>
-            <label className="field">
-              <span>{t('quizDescription')}</span>
-              <input
-                value={quiz.description}
-                maxLength={500}
-                onChange={(event) => update({ ...quiz, description: event.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>{t('leaderboardLabel')}</span>
-              <select
-                value={settings.leaderboard}
-                onChange={(event) => setSettings({ leaderboard: event.target.value === 'end' ? 'end' : 'each' })}
-              >
-                <option value="each">{t('leaderboardEach')}</option>
-                <option value="end">{t('leaderboardEnd')}</option>
-              </select>
-            </label>
-          </details>
-
           {round.type !== 'board' && round.type !== 'final' && (
             <>
               {/* На вузькому екрані список схований; ці кнопки гортають запитання й відкривають його. */}
