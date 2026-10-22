@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Answer } from './answer';
+import { answerSchema, type Answer } from './answer';
 import type { ErrorCode } from './game';
 import { LIMITS } from './quiz';
 import { UNSTORABLE, isStorable } from './text';
@@ -32,6 +32,8 @@ export const pickSchema = z.object({ cellId: z.string().min(1).max(64) });
 export const wagerSchema = z.object({ amount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) });
 export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.maxPlayers) });
 export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).refine(isStorable, UNSTORABLE) });
+/** Варіант, названий уголос на усній клітинці; null знімає позначку. */
+export const nameSchema = z.object({ answer: answerSchema.nullable() });
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
 export interface ClientToServerEvents {
@@ -51,6 +53,7 @@ export interface ClientToServerEvents {
   'host:override': (payload: z.infer<typeof overrideSchema>, ack: Ack) => void;
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
   'host:judge': (payload: z.infer<typeof judgeSchema>, ack: Ack) => void;
+  'host:name': (payload: z.infer<typeof nameSchema>, ack: Ack) => void;
   'host:time': (payload: z.infer<typeof timeSchema>, ack: Ack) => void;
   'host:accept': (payload: z.infer<typeof pendingSchema>, ack: Ack) => void;
   'host:repick': (payload: z.infer<typeof pendingSchema>, ack: Ack) => void;

@@ -4,6 +4,7 @@ import {
   guessSchema,
   judgeSchema,
   kickSchema,
+  nameSchema,
   orderSchema,
   overrideSchema,
   pendingSchema,
@@ -154,6 +155,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (!isHost) return FORBIDDEN;
       const payload = judgeSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'judge', ...payload.data }) : INVALID;
+    });
+
+    on('host:name', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = nameSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'name', ...payload.data }) : INVALID;
     });
 
     for (const type of ['accept', 'repick'] as const) {

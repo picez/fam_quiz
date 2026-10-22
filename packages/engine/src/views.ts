@@ -32,7 +32,7 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
+import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BoardPlay, type GameState, type PlayerState } from './game';
 import { attemptsUsed, blitzRulesOf } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
@@ -272,7 +272,8 @@ function spotlightOf(state: GameState): Spotlight | null {
     return last === undefined ? null : { ...blitzPlayer(state, last.playerId), answer: last.answer, grade: last.grade };
   }
   const open = currentBoardPlay(state);
-  if (open === null || open.board.answerMode !== 'phone') return null;
+  if (open === null) return null;
+  if (open.board.answerMode === 'voice') return voiceSpotlight(state, open.board);
   // Закрите запитання: відповідь без оцінки лишається помаранчевою, вердикт видно лише на розкритті.
   // Вилученого гравця вже немає: його відповідь не показуємо.
   if (state.phase === 'locked') {
@@ -284,6 +285,18 @@ function spotlightOf(state: GameState): Spotlight | null {
   const record = currentRecord(state, open.board.chooserId);
   if (record === undefined || !state.players.some((p) => p.id === open.board.chooserId)) return null;
   return { ...blitzPlayer(state, open.board.chooserId), answer: record.answer, grade: record.grade };
+}
+
+/**
+ * Усна клітинка: позначка ведучого помаранчева на question і locked, вердикт видно лише на розкритті.
+ * Без позначки до розкриття spotlight немає; вилученого гравця не показуємо.
+ */
+function voiceSpotlight(state: GameState, board: BoardPlay): Spotlight | null {
+  const { chooserId, named } = board;
+  if (!state.players.some((p) => p.id === chooserId)) return null;
+  const record = state.phase === 'reveal' ? currentRecord(state, chooserId) : undefined;
+  if (record !== undefined) return { ...blitzPlayer(state, chooserId), answer: named ?? null, grade: record.grade };
+  return named === undefined ? null : { ...blitzPlayer(state, chooserId), answer: named, grade: null };
 }
 
 const FINAL_PHASES: Phase[] = ['intro', 'wager', 'question', 'locked', 'reveal'];

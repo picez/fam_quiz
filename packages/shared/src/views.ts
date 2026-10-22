@@ -178,7 +178,7 @@ export interface HostBoard extends BoardInfo {
 export interface Spotlight {
   playerId: string;
   nickname: string;
-  /** null — у бліці гравець не встиг відповісти у вікно. */
+  /** null — у бліці гравець не встиг відповісти; на усній клітинці ведучий не позначив варіант. */
   answer: Answer | null;
   /** null — чекає на рішення ведучого (помаранчевий); інакше вердикт. */
   grade: Grade | null;

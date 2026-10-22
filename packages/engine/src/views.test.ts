@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, roundBrief, type Answer, type Phase, type Question } from '@quiz/shared';
 import { buzz } from './blitz';
-import { pickCell } from './board';
+import { nameAnswer, pickCell } from './board';
 import { adjustTime } from './timing';
 import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
 import { placeWager } from './final';
@@ -526,6 +526,25 @@ describe('board views', () => {
     expect(playerView(state, 'p1')?.me.answer).toEqual({ type: 'single', optionId: 'b' });
     expect(hostView(picked('c11')).board).toMatchObject({ manual: false, answer: null });
     expect(hostView(picked('c11', { answerMode: 'voice' })).board?.manual).toBe(true);
+  });
+
+  it('the host names the option a voice player said: orange for everyone, the verdict only on reveal', () => {
+    const named = must(nameAnswer(picked('c11', { answerMode: 'voice' }), { type: 'single', optionId: 'a' }));
+    const pending = { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, grade: null };
+    expect(stageView(named).spotlight).toEqual(pending);
+    expect(playerView(named, 'p2')?.spotlight).toEqual(pending);
+    expect(hostView(named).spotlight).toEqual(pending);
+    const judged = must(override(named, 'p1', 'wrong', 1000));
+    expect(judged.phase).toBe('locked');
+    expect(stageView(judged).spotlight?.grade).toBeNull();
+    expect(stageView(judged).spotlight?.answer).toEqual(pending.answer);
+    const revealed = must(next(judged, 2000));
+    expect(stageView(revealed).spotlight).toEqual({ ...pending, grade: 'wrong' });
+  });
+
+  it('a voice cell judged without a mark shows the verdict alone on reveal', () => {
+    const revealed = must(next(must(override(picked('c11', { answerMode: 'voice' }), 'p1', 'correct', 1000)), 2000));
+    expect(stageView(revealed).spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: null, grade: 'correct' });
   });
 
   it('the absent chooser has a skip time that a pause removes', () => {

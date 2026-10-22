@@ -1,7 +1,7 @@
 import { DEFAULT_RULES, type BoardCell } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { buzz } from './blitz';
-import { pickCell } from './board';
+import { nameAnswer, pickCell } from './board';
 import { chooserOf } from './board-turns';
 import {
   acceptAnswer,
@@ -18,7 +18,7 @@ import {
   type GameState,
 } from './game';
 import { pendingOf } from './hold';
-import { boardRound, makeRoundsQuiz, single, withId, withPoints } from './testing/fixtures';
+import { bool, boardRound, makeRoundsQuiz, multi, single, text, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const q = (id: string, points: number) => withPoints(withId(single, id), points);
@@ -61,6 +61,45 @@ describe('answer mode of a board cell', () => {
   it('the cell kind and penalty are taken when it opens', () => {
     const state = picked([{ question: c11, kind: 'blitz', penalty: 'all' }, c12]);
     expect(state.plays[0].board).toMatchObject({ kind: 'blitz', penalty: 'all' });
+  });
+});
+
+describe('the host names the option a voice player said', () => {
+  const chooser = 'p1';
+  const pickVoiceCell = () => picked([{ question: c11, answerMode: 'voice' }, c12]);
+  const pickPhoneCell = () => picked([{ question: c11, answerMode: 'phone' }, c12]);
+  const pickVoiceBlitzCell = () => picked([{ question: c11, answerMode: 'voice', kind: 'blitz' }, c12]);
+
+  it('nameAnswer marks only a normal voice cell and only one of its options', () => {
+    const voice = pickVoiceCell();
+    const named = must(nameAnswer(voice, { type: 'single', optionId: 'a' }));
+    expect(named.plays[named.questionIndex].board?.named).toEqual({ type: 'single', optionId: 'a' });
+    expect(named.players.map((p) => p.score)).toEqual(voice.players.map((p) => p.score));
+    expect(named.plays[named.questionIndex].answers).toEqual({});
+    expect(must(nameAnswer(named, null)).plays[named.questionIndex].board?.named).toBeUndefined();
+    expect(nameAnswer(voice, { type: 'single', optionId: 'zzz' })).toEqual({ ok: false, error: 'not_found' });
+    expect(nameAnswer(voice, { type: 'boolean', value: true })).toEqual({ ok: false, error: 'type_mismatch' });
+    expect(nameAnswer(pickPhoneCell(), { type: 'single', optionId: 'a' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(nameAnswer(pickVoiceBlitzCell(), { type: 'single', optionId: 'a' })).toEqual({ ok: false, error: 'wrong_phase' });
+    const judged = must(override(named, chooser, 'correct', 1000));
+    expect(judged.phase).toBe('locked');
+    expect(must(nameAnswer(judged, { type: 'single', optionId: 'b' })).phase).toBe('locked');
+    expect(nameAnswer(must(next(judged, 2000)), null)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('a multi pick without options clears the mark', () => {
+    const voice = picked([{ question: withId(multi, 'c11'), answerMode: 'voice' }, c12]);
+    const named = must(nameAnswer(voice, { type: 'multi', optionIds: ['a', 'c'] }));
+    expect(named.plays[0].board?.named).toEqual({ type: 'multi', optionIds: ['a', 'c'] });
+    expect(nameAnswer(voice, { type: 'multi', optionIds: ['a', 'x'] })).toEqual({ ok: false, error: 'not_found' });
+    expect(must(nameAnswer(named, { type: 'multi', optionIds: [] })).plays[0].board?.named).toBeUndefined();
+  });
+
+  it('a boolean question takes a mark, a text question does not', () => {
+    const voiceBool = picked([{ question: withId(bool, 'c11'), answerMode: 'voice' }, c12]);
+    expect(must(nameAnswer(voiceBool, { type: 'boolean', value: false })).plays[0].board?.named).toEqual({ type: 'boolean', value: false });
+    const voiceText = picked([{ question: withId(text, 'c11'), answerMode: 'voice' }, c12]);
+    expect(nameAnswer(voiceText, { type: 'text', value: 'Одеса' })).toEqual({ ok: false, error: 'type_mismatch' });
   });
 });
 
