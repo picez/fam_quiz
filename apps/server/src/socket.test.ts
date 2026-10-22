@@ -246,6 +246,16 @@ describe('permissions and bad input', () => {
     expect((await until(olena, inPhase('locked'))).phase).toBe('locked');
   });
 
+  it('host:adjust is host-only and takes a whole non-zero sum', async () => {
+    const { host, olena, olenaJoin } = await lobby();
+    await send(host, 'host:start');
+    expect(await send(olena, 'host:adjust', { playerId: olenaJoin.playerId, points: 50 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 0 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 1.5 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 10_001 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: -100 })).toEqual({ ok: true });
+  });
+
   it('host:name is host-only and validated', async () => {
     const { host, olena } = await lobby();
     expect(await send(olena, 'host:name', { answer: null })).toEqual({ ok: false, error: 'forbidden' });

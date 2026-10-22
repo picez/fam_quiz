@@ -3,6 +3,10 @@ export type Phase = 'lobby' | 'intro' | 'wager' | 'question' | 'locked' | 'revea
 
 export type Grade = 'correct' | 'partial' | 'wrong';
 
+/** Звідки коригування рахунку поза відповідями: бали від ведучого або дуель. */
+export const ADJUSTMENT_SOURCES = ['host', 'duel'] as const;
+export type AdjustmentSource = (typeof ADJUSTMENT_SOURCES)[number];
+
 export type ErrorCode =
   | 'wrong_phase'
   | 'paused'
@@ -25,4 +29,5 @@ export type ErrorCode =
   | 'wrong_word'
   | 'no_hint'
   | 'hint_late'
-  | 'dice_pending';
+  | 'dice_pending'
+  | 'points_invalid';

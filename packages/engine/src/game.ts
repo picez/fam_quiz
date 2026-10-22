@@ -5,6 +5,7 @@ import {
   type AnswerMode,
   type CellKind,
   type CellPenalty,
+  type AdjustmentSource,
   type ErrorCode,
   type Grade,
   type Phase,
@@ -15,6 +16,8 @@ import {
   type Round,
   rulesOf,
 } from '@quiz/shared';
+// adjust.ts імпортує цей файл, а цей файл — adjust.ts; звертання лише під час виклику функцій.
+import { adjustmentTotal } from './adjust';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
@@ -179,6 +182,19 @@ export interface BlitzPlay {
   dropped: BuzzEntry[];
 }
 
+/** Коригування рахунку поза відповідями: бали від ведучого, пізніше — дуелі. */
+export interface ScoreAdjustment {
+  /** Зростаючий номер у межах гри, від 1. */
+  seq: number;
+  playerId: string;
+  points: number;
+  roundIndex: number;
+  /** Скільки запитань журналу було закрито в мить коригування. */
+  afterQuestion: number;
+  source: AdjustmentSource;
+  at: number;
+}
+
 export interface GameState {
   quiz: Quiz;
   phase: Phase;
@@ -204,6 +220,10 @@ export interface GameState {
   heldAt: number | null;
   /** Фінал поточного раунду; null поза раундом фіналу. */
   final: FinalState | null;
+  /** Журнал коригувань рахунку в порядку seq. */
+  adjustments: ScoreAdjustment[];
+  /** Останній виданий seq; після вилучення гравця номери не повторюються. */
+  adjustmentSeq: number;
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -228,6 +248,8 @@ export function createGame(quiz: Quiz): GameState {
     board: null,
     heldAt: null,
     final: null,
+    adjustments: [],
+    adjustmentSeq: 0,
   };
 }
 
@@ -298,7 +320,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
   const board = state.board === null ? null : { ...dropFromDice(dropFromCircle(state.board, playerId), playerId, ids), awaySince: null };
   const final = state.final === null ? null : dropFromFinal(state.final, playerId);
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
-  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final };
+  const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
+  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments };
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
@@ -549,8 +572,11 @@ function streakBase(play: Play, playerId: string, record: AnswerRecord): number 
   return play.blitz.attempts.find((a) => a.playerId === playerId && a.grade === 'correct')?.points ?? 0;
 }
 
-/** Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями. */
-function withTotals(state: GameState): GameState {
+/**
+ * Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями; до рахунку додаються коригування.
+ * Внутрішня функція рушія: експортовано для adjust.ts, не для сервера.
+ */
+export function withTotals(state: GameState): GameState {
   // Відкрите запитання завжди останнє в журналі.
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
@@ -582,6 +608,7 @@ function withTotals(state: GameState): GameState {
       if (state.quiz.rounds[play.roundIndex].type !== 'classic' || limitMs === null) continue;
       totalTimeMs += record ? record.timeMs : limitMs;
     }
+    score += adjustmentTotal(state, player.id);
     return { ...player, score, totalTimeMs, streak: counters[player.id] ?? 0 };
   });
   return { ...state, plays, players };

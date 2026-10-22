@@ -2,6 +2,7 @@ import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto
 import {
   acceptAnswer,
   addPlayer,
+  adjustScore,
   adjustTime,
   buzz,
   createGame,
@@ -80,6 +81,7 @@ export type HostAction =
   | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
+  | { type: 'adjust'; playerId: string; points: number }
   | { type: 'judge'; playerId: string; correct: boolean }
   | { type: 'name'; answer: SubmittedAnswer | null }
   | { type: 'pick'; cellId: string }
@@ -289,6 +291,8 @@ export class RoomManager {
         return this.apply(room, setOrder(state, action.playerIds));
       case 'kick':
         return this.kick(room, action.playerId);
+      case 'adjust':
+        return this.apply(room, adjustScore(state, action.playerId, action.points, this.now()));
       case 'time':
         return this.apply(room, adjustTime(state, action.seconds, this.now()));
       case 'judge':

@@ -34,6 +34,16 @@ export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.ma
 export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).refine(isStorable, UNSTORABLE) });
 /** Варіант, названий уголос на усній клітинці; null знімає позначку. */
 export const nameSchema = z.object({ answer: answerSchema.nullable() });
+/** Бали від ведучого: ціле, не нуль, за модулем не більше LIMITS.maxAdjust. */
+export const adjustSchema = z.object({
+  playerId,
+  points: z
+    .number()
+    .int()
+    .min(-LIMITS.maxAdjust)
+    .max(LIMITS.maxAdjust)
+    .refine((n) => n !== 0),
+});
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
 export interface ClientToServerEvents {
@@ -54,6 +64,8 @@ export interface ClientToServerEvents {
   'host:end': (ack: Ack) => void;
   'host:override': (payload: z.infer<typeof overrideSchema>, ack: Ack) => void;
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
+  /** Бали від ведучого: додати або зняти будь-яку цілу суму. */
+  'host:adjust': (payload: z.infer<typeof adjustSchema>, ack: Ack) => void;
   'host:judge': (payload: z.infer<typeof judgeSchema>, ack: Ack) => void;
   'host:name': (payload: z.infer<typeof nameSchema>, ack: Ack) => void;
   'host:time': (payload: z.infer<typeof timeSchema>, ack: Ack) => void;

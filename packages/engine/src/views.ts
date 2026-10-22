@@ -35,6 +35,7 @@ import {
   rulesOf,
 } from '@quiz/shared';
 import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type GameState, type PlayerState } from './game';
+import { lastNotice } from './adjust';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
@@ -521,6 +522,7 @@ function base(state: GameState, forHost: boolean) {
     spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
     chain: currentRound(state)?.type === 'final' ? null : chainInfo(state),
+    notice: lastNotice(state),
   };
 }
 

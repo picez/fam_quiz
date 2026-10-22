@@ -4,6 +4,7 @@ import { buzz } from './blitz';
 import { nameAnswer, pickCell } from './board';
 import { rollDie, startDice } from './board-dice';
 import { turnSchedule } from './board-turns';
+import { adjustScore } from './adjust';
 import { adjustTime } from './timing';
 import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, repick, setConnected, start, submitAnswer, type GameState } from './game';
 import { placeWager } from './final';
@@ -1109,5 +1110,19 @@ describe('chain views', () => {
     expect(playerView(plain, 'p1')?.me.chain).toBeNull();
     expect(stageView(plain).chain).toBeNull();
     expect(hostView(plain).chain).toBeNull();
+  });
+});
+
+describe('host points views', () => {
+  it('every role sees the last host adjustment as a notice', () => {
+    const intro = must(start(lobby()));
+    expect(stageView(intro).notice).toBeNull();
+    expect(playerView(intro, 'p2')?.notice).toBeNull();
+    expect(hostView(intro).notice).toBeNull();
+    const adjusted = must(adjustScore(intro, 'p1', -100, T0));
+    const notice = { seq: 1, at: T0, nickname: 'Олена', points: -100 };
+    expect(stageView(adjusted).notice).toEqual(notice);
+    expect(playerView(adjusted, 'p2')?.notice).toEqual(notice);
+    expect(hostView(adjusted).notice).toEqual(notice);
   });
 });

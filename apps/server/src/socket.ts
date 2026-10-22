@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import {
+  adjustSchema,
   answerSchema,
   guessSchema,
   judgeSchema,
@@ -154,6 +155,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (!isHost) return FORBIDDEN;
       const payload = kickSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'kick', ...payload.data }) : INVALID;
+    });
+
+    on('host:adjust', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = adjustSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'adjust', ...payload.data }) : INVALID;
     });
 
     on('host:judge', (args) => {

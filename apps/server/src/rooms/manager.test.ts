@@ -434,6 +434,19 @@ describe('kicking', () => {
   });
 });
 
+describe('host points', () => {
+  it('are refused in the lobby and change the score once the game has started', () => {
+    const { manager, room } = setup();
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'adjust', playerId: olena.playerId, points: -100 })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'adjust', playerId: olena.playerId, points: -100 })).toEqual({ ok: true });
+    expect(room.state.players[0].score).toBe(-100);
+  });
+});
+
 describe('expiry', () => {
   it('closes a lobby that was not started within two hours', () => {
     const { manager, room, scheduler, events } = setup();

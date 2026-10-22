@@ -275,6 +275,15 @@ export interface HostFinal extends FinalInfo {
   pending: { playerId: string; nickname: string; answer: Answer }[];
 }
 
+/** Останнє коригування від ведучого, для короткого сповіщення. */
+export interface AdjustmentNotice {
+  seq: number;
+  /** Час сервера в мить коригування. */
+  at: number;
+  nickname: string;
+  points: number;
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -303,6 +312,8 @@ interface BaseView {
   final: FinalInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
   chain: ChainInfo | null;
+  /** Останнє коригування балів ведучим; null — не було. */
+  notice: AdjustmentNotice | null;
 }
 
 export interface StageView extends BaseView {

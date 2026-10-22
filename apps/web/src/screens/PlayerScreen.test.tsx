@@ -45,6 +45,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   spotlight: null,
   final: null,
   chain: null,
+  notice: null,
   round: null,
   questionIndex: -1,
   total: 2,
