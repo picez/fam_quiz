@@ -930,6 +930,11 @@ button.choice {
   margin: 0 auto;
 }
 
+/* Заставка поля росте вниз (кидки, потім розклад): притиснута догори, вона не їде вгору, як вміст по центру сцени. */
+.stage-board.is-board-intro {
+  margin-bottom: auto;
+}
+
 .stage .standings li {
   font-size: clamp(1.25rem, 2.6vw, 2.75rem);
   padding: 1.2vh 1vw;

@@ -94,6 +94,12 @@ const pages = new Map<string, Page>();
 /** Браузерні контексти поточного тесту: закриваються після нього, щоб сокети старих ігор не жили далі. */
 const contexts: BrowserContext[] = [];
 const ARTIFACTS = resolve(import.meta.dirname, 'artifacts');
+/** Грані кубика для наступних кидків (1–6); порожньо — звичайний випадок. */
+const rigged: number[] = [];
+const rng = () => {
+  const face = rigged.shift();
+  return face === undefined ? Math.random() : (face - 1) / 6 + 0.01;
+};
 
 /** Після невдачі лишає знімок кожного екрана: без нього причину не знайти. */
 async function snapshot() {
@@ -127,13 +133,14 @@ beforeAll(async () => {
   if (!existsSync(resolve(WEB, 'index.html'))) throw new Error('Клієнт не зібрано: спершу виконайте pnpm build.');
   const port = await freePort();
   base = `http://localhost:${port}`;
-  ctx = await buildApp({ db: await createTestDb(), auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB });
+  ctx = await buildApp({ db: await createTestDb(), auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng });
   await ctx.app.listen({ port, host: '127.0.0.1' });
   browser = await chromium.launch({ channel: process.env.E2E_CHANNEL ?? 'chrome', headless: true });
 });
 
 beforeEach(() => {
   problems.length = 0;
+  rigged.length = 0;
 });
 
 afterEach(async () => {
@@ -850,10 +857,13 @@ async function boardGame() {
   await join(bohdan, code, 'Богдан', false);
   await stage.getByText('Богдан').waitFor();
 
-  // Заставка: кубик на сцені, порядок за приєднанням, старт раунду.
+  // Заставка: кубики на сцені (ведучий кидає за всіх), потім порядок за приєднанням, старт раунду.
   await click(host, 'Почати гру');
-  await click(host, 'Кинути кубик');
-  await stage.locator('.dice.is-rolling').waitFor();
+  rigged.push(4, 2);
+  await click(host, 'Кидати кубики');
+  await click(host, 'Кинути за тих, хто лишився');
+  await stage.locator('.dice-rows .die').first().waitFor();
+  await stage.getByText('Порядок визначено').waitFor();
   await click(host, 'За порядком приєднання');
   await click(host, 'Почати раунд');
 
@@ -1043,7 +1053,10 @@ async function mixedBoard() {
   await stage.getByText('Віра').waitFor();
 
   await click(host, 'Почати гру');
-  await click(host, 'Кинути кубик');
+  rigged.push(6, 4, 2);
+  await click(host, 'Кидати кубики');
+  await click(host, 'Кинути за тих, хто лишився');
+  await stage.getByText('Порядок визначено').waitFor();
   await click(host, 'За порядком приєднання');
   await click(host, 'Почати раунд');
 
@@ -2500,6 +2513,233 @@ async function instantBlitzGame() {
   await click(host, 'Показати відповідь');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
   await toBoard();
+
+  // 8. Кінець гри.
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 7c: each phone rolls its die, everyone sees the spin and results, a tie re-rolls, the host rolls for an absent player, the schedule of circles and the turn queue beside the board', async () => {
+  try {
+    await diceGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Кубик крутиться 1,2 с: результат чекаємо довше за типову секунду expect.poll. */
+const POLL = { timeout: 5000 };
+/** Верх кожного рядка кидків (px): рядки не рухаються, коли приходять результати. */
+const diceRowsY = (page: Page) =>
+  page.locator('.dice-rows li').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+/** Рядок кидків гравця. */
+const diceRow = (page: Page, nickname: string) =>
+  page.locator('.dice-rows li').filter({ has: page.locator('.name').getByText(nickname, exact) });
+const diceValue = (page: Page, nickname: string) => diceRow(page, nickname).locator('.dice-value').textContent();
+/** Тексти кіл розкладу з нормалізованими пробілами. */
+const circleTexts = (page: Page, scope = 'body') =>
+  page
+    .locator(`${scope} li.turn-circle`)
+    .evaluateAll((els) => els.map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()));
+
+async function diceGame() {
+  const host = await open('host7c', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host7c@example.com');
+
+  // Один раунд поля 3×3: 9 клітинок, для 4 гравців — 3 кола.
+  const data = {
+    ...makeRoundsQuiz([
+      boardRound(
+        'r1',
+        ['Міста', 'Річки', 'Гори'].map((title, column) => ({
+          title,
+          cells: [100, 200, 300].map((price) => withPoints(withId(single, `q-${column}-${price}`), price)),
+        })),
+      ),
+    ]),
+    title: 'Кубики',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage7c', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya7c', 375, 812);
+  const petro = await open('petro7c', 360, 740);
+  const ira = await open('ira7c', 390, 844);
+  const maks = await open('maks7c', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await join(maks, code, 'Макс', false);
+  await stage.getByText('Макс').waitFor();
+  // Макс іде: за нього кидатиме ведучий.
+  await maks.context().close();
+  pages.delete('maks7c');
+  await host.locator('.rows li', { hasText: 'Макс' }).getByText('немає зв’язку', exact).waitFor();
+
+  // 1. Початок кидків.
+  await click(host, 'Почати гру');
+  await click(host, 'Кидати кубики');
+  for (const page of [olya, petro, ira]) await page.getByRole('button', { name: 'Кинути кубик', ...exact }).waitFor();
+  await stage.locator('.dice-rows li').nth(3).waitFor();
+  expect(await stage.locator('.dice-rows li .name').allTextContents()).toEqual(['Оля', 'Петро', 'Іра', 'Макс']);
+  expect(await stage.locator('.dice-rows li .die.is-empty').count()).toBe(4);
+  await stage.locator('.dice-status').getByText('Кидають: Оля, Петро, Іра, Макс', exact).waitFor();
+  const start = host.getByRole('button', { name: 'Почати раунд', ...exact });
+  expect(await start.isDisabled()).toBe(true);
+  await host.getByText('Ще не кинули: Оля, Петро, Іра, Макс. Можна кинути за них.', exact).waitFor();
+  const stageY = await diceRowsY(stage);
+  const olyaY = await diceRowsY(olya);
+  expect(stageY).toHaveLength(4);
+  expect(olyaY).toHaveLength(4);
+  const dieBox = (await stage.locator('.dice-rows li .die').first().boundingBox())!;
+  await shot(host, 'dice7c-start-host');
+
+  // 2. Кожен телефон кидає сам: кубик крутиться на телефоні й на сцені, потім результат у всіх.
+  rigged.push(5);
+  await click(olya, 'Кинути кубик');
+  await diceRow(olya, 'Оля').locator('.die.is-rolling').waitFor();
+  await shot(olya, 'dice7c-rolling-phone-olya');
+  await diceRow(stage, 'Оля').locator('.die.is-rolling').waitFor();
+  await shot(stage, 'dice7c-rolling-stage');
+  // Поки кубик крутиться, результату не видно.
+  expect(await diceValue(stage, 'Оля')).toBe('');
+  for (const page of [stage, petro, host]) await expect.poll(() => diceValue(page, 'Оля'), POLL).toBe('5');
+  // Кубик з результатом займає те саме місце, що й порожній.
+  const shownBox = (await diceRow(stage, 'Оля').locator('.die').boundingBox())!;
+  expect([shownBox.x, shownBox.y, shownBox.width, shownBox.height]).toEqual([dieBox.x, dieBox.y, dieBox.width, dieBox.height]);
+
+  rigged.push(5);
+  await click(petro, 'Кинути кубик');
+  await diceRow(petro, 'Петро').locator('.die.is-rolling').waitFor();
+  await shot(petro, 'dice7c-rolling-phone-petro');
+  for (const page of [stage, olya]) await expect.poll(() => diceValue(page, 'Петро'), POLL).toBe('5');
+
+  rigged.push(2);
+  await click(ira, 'Кинути кубик');
+  await diceRow(ira, 'Іра').locator('.die.is-rolling').waitFor();
+  await shot(ira, 'dice7c-rolling-phone-ira');
+  for (const page of [stage, olya, ira]) await expect.poll(() => diceValue(page, 'Іра'), POLL).toBe('2');
+  await ira.getByText('Кубик кинуто. Чекаємо інших', exact).waitFor();
+  expect(await diceRowsY(stage), 'stage dice rows moved').toEqual(stageY);
+  expect(await diceRowsY(olya), 'phone dice rows moved').toEqual(olyaY);
+  await stage.locator('.dice-status').getByText('Кидають: Макс', exact).waitFor();
+  await shot(stage, 'dice7c-results-stage');
+
+  // 3. Перепідключення: результати одразу, без повторного кружляння.
+  await ira.reload();
+  await ira.locator('.dice-rows li').nth(3).waitFor();
+  expect(await ira.locator('.die.is-rolling').count()).toBe(0);
+  expect(await diceValue(ira, 'Іра')).toBe('2');
+  expect(await diceValue(ira, 'Оля')).toBe('5');
+
+  // 4. Ведучий кидає за відсутнього Макса.
+  rigged.push(3);
+  await click(host, 'Кинути за тих, хто лишився');
+  for (const page of [host, stage]) await expect.poll(() => diceValue(page, 'Макс'), POLL).toBe('3');
+  await shot(host, 'dice7c-roll-for-rest-host');
+
+  // 5. Нічия між Олею й Петром: перекидають лише вони.
+  await stage.locator('.dice-status').getByText('Нічия! Перекидають: Оля, Петро', exact).waitFor();
+  for (const page of [olya, petro]) await page.getByRole('button', { name: 'Кинути кубик', ...exact }).waitFor();
+  await ira.getByText('Кубик кинуто. Чекаємо інших', exact).waitFor();
+  expect(await ira.getByRole('button', { name: 'Кинути кубик', ...exact }).count()).toBe(0);
+  expect(await start.isDisabled()).toBe(true);
+  await host.getByText('Ще не кинули: Оля, Петро. Можна кинути за них.', exact).waitFor();
+  expect(await diceRowsY(stage), 'stage dice rows moved on the tie').toEqual(stageY);
+  await shot(stage, 'dice7c-tie-stage');
+  await shot(olya, 'dice7c-tie-phone-olya');
+  rigged.push(6);
+  await click(olya, 'Кинути кубик');
+  await expect.poll(() => diceValue(stage, 'Оля'), POLL).toBe('6');
+  rigged.push(1);
+  await click(petro, 'Кинути кубик');
+  await expect.poll(() => diceValue(stage, 'Петро'), POLL).toBe('1');
+  await stage.locator('.dice-status').getByText('Порядок визначено', exact).waitFor();
+  expect(await diceRow(olya, 'Оля').locator('.dice-throws').textContent()).toBe('5 →');
+  await expect.poll(() => diceValue(olya, 'Оля'), POLL).toBe('6');
+  expect(await diceRowsY(stage), 'stage dice rows moved after the re-roll').toEqual(stageY);
+  expect(await diceRowsY(olya), 'phone dice rows moved after the re-roll').toEqual(olyaY);
+
+  // 6. Розклад кіл, коли кубики зупинилися.
+  const circles = ['Коло 1: Оля → Петро → Макс → Іра', 'Коло 2: Петро → Макс → Іра → Оля', 'Коло 3: Макс → Іра → Оля → Петро'];
+  for (const page of [stage, olya, host]) {
+    await page.getByRole('heading', { name: 'Розклад ходів', ...exact }).waitFor();
+    expect(await circleTexts(page)).toEqual(circles);
+    expect(await page.getByText('Далі черга повторюється').count()).toBe(0);
+    // Розклад нижче рядків кидків.
+    const lastRow = (await page.locator('.dice-rows li').last().boundingBox())!;
+    const schedule = (await page.locator('.turn-schedule').boundingBox())!;
+    expect(schedule.y).toBeGreaterThan(lastRow.y + lastRow.height - 1);
+  }
+  await shot(stage, 'dice7c-schedule-stage');
+  await shot(olya, 'dice7c-schedule-phone');
+  await shot(host, 'dice7c-schedule-host');
+  await expectNoSideScroll(olya, 'dice7c-schedule-phone-375');
+  expect(await noSideScroll(petro), 'the 360 px phone scrolls sideways').toBe(true);
+  expect(await start.isDisabled()).toBe(false);
+
+  // 7. «Черга ходів» під час вибору клітинки.
+  await click(host, 'Почати раунд');
+  const aside = stage.locator('.board-aside');
+  await aside.getByRole('heading', { name: 'Черга ходів', ...exact }).waitFor();
+  expect(await circleTexts(stage, '.board-aside')).toEqual(circles);
+  expect(await aside.locator('.turn-name.is-turn').allTextContents()).toEqual(['Оля']);
+  await shot(stage, 'dice7c-queue-stage');
+  // Поле з панеллю черги: поле ліворуч від колонки, не стиснуте, без прокрутки вбік.
+  for (const [width, height] of [
+    [1600, 900],
+    [1280, 720],
+    [1920, 1080],
+  ] as const) {
+    await stage.setViewportSize({ width, height });
+    const board = (await stage.locator('.gb').boundingBox())!;
+    const column = (await aside.boundingBox())!;
+    console.log(`7c stage ${width}: board ${Math.round(board.width)}×${Math.round(board.height)} px, aside ${Math.round(column.width)} px`);
+    expect(board.x + board.width, `stage ${width}: the board runs under the queue`).toBeLessThanOrEqual(column.x);
+    expect(board.width, `stage ${width}: the board is squeezed`).toBeGreaterThan(width * 0.5);
+    expect(await noSideScroll(stage), `stage ${width}: horizontal scroll`).toBe(true);
+    if (width !== 1600) await shot(stage, `dice7c-queue-stage-${width}`);
+  }
+  await stage.setViewportSize({ width: 1600, height: 900 });
+
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  const queue = olya.locator('.turn-schedule');
+  await queue.getByRole('heading', { name: 'Черга ходів', ...exact }).waitFor();
+  expect(await queue.locator('.turn-name.is-turn').allTextContents()).toEqual(['Оля']);
+  const legend = olya.locator('.gb-legend');
+  const anchor = (await legend.count()) > 0 ? (await legend.boundingBox())! : (await olya.locator('.gb').boundingBox())!;
+  expect((await queue.boundingBox())!.y, 'the queue sits under the legend').toBeGreaterThan(anchor.y + anchor.height - 1);
+  await shot(olya, 'dice7c-queue-phone');
+  await expectNoSideScroll(olya, 'dice7c-queue-phone-375');
+
+  await olya.getByRole('button', { name: 'Міста, 100', ...exact }).click();
+  await olya.getByRole('button', { name: /Київ/ }).click();
+  await click(host, 'Прийняти');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await click(host, 'Далі');
+  const nextQuestion = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+  const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+  await Promise.race([nextQuestion.waitFor(), picking.waitFor()]);
+  if (await nextQuestion.isVisible()) await nextQuestion.click();
+  await picking.waitFor();
+  await expect.poll(() => aside.locator('.turn-name.is-turn').allTextContents(), POLL).toEqual(['Петро']);
+  expect(await aside.locator('.turn-name.is-done').allTextContents()).toEqual(['Оля']);
+  await shot(stage, 'dice7c-queue-next-stage');
+  const hostQueue = host.locator('.turn-schedule');
+  await hostQueue.getByRole('heading', { name: 'Черга ходів', ...exact }).waitFor();
+  expect(await hostQueue.locator('.turn-name.is-turn').allTextContents()).toEqual(['Петро']);
+  await shot(host, 'dice7c-queue-host');
 
   // 8. Кінець гри.
   await click(host, 'Завершити гру');
