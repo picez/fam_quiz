@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { blitzRound, boardRound, bool, classicRound, finalRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
@@ -113,6 +113,32 @@ describe('recorder', () => {
       [0, false, 0, false, wrong],
       [0, true, 1000, false, correct],
     ]);
+  });
+
+  it('saves a chain summary as the answer, finished as accepted', async () => {
+    const ctx = await setup();
+    const room = ctx.manager.create(makeQuiz([chain], { speedBonus: false }), HOST, null);
+    const enter = (nickname: string, userId: string | null = null) => {
+      const joined = ctx.manager.join(room.code, nickname, userId);
+      if (!joined.ok) throw new Error(joined.error);
+      ctx.manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const olena = enter('Олена', 'olena-user');
+    const taras = enter('Тарас');
+    expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(ctx.manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    for (const word of ['Риба', 'Океан', 'Корабель']) ctx.manager.guess(room, olena, word);
+    ctx.manager.guess(room, taras, 'Риба');
+    expect(ctx.manager.host(room, { type: 'lock' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+
+    const rows = await ctx.db.select().from(answer).orderBy(asc(answer.points));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ accepted: false, points: 0, payload: { type: 'chain', solved: 1, hints: 0 } });
+    expect(rows[1]).toMatchObject({ accepted: true, points: 1000, payload: { type: 'chain', solved: 3, hints: 0 } });
+    expect((rows[1].payload as { timeMs: number }).timeMs).toEqual(expect.any(Number));
+    expect(ctx.errors).toEqual([]);
   });
 
   it('saves a manual change of a grade', async () => {

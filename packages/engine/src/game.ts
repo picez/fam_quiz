@@ -17,6 +17,7 @@ import {
 import { applyVerdict, blitzDone, blitzRulesOf, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
+import { chainDone, scoreChain } from './chain';
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -85,6 +86,17 @@ export interface Play {
   board?: BoardPlay;
   /** Лише в запитанні раунду фіналу. */
   final?: FinalPlay;
+  /** Лише в запитанні-ланцюжку; гравця тут немає, поки він не торкався ланцюжка. */
+  chain?: Record<string, ChainProgress>;
+}
+
+/** Поступ гравця в ланцюжку слів. */
+export interface ChainProgress {
+  /** Скільки прихованих слів уже вгадано. */
+  solved: number;
+  /** Скільки літер поточного слова відкрито; від 1 (перша літера). */
+  shown: number;
+  hints: number;
 }
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
@@ -241,6 +253,10 @@ export function removePlayer(state: GameState, playerId: string): Result {
   const plays = state.plays.map((play): Play => {
     const { [playerId]: _removed, ...rest } = play.answers;
     const kept: Play = { ...play, answers: rest };
+    if (play.chain !== undefined) {
+      const { [playerId]: _progress, ...chain } = play.chain;
+      kept.chain = chain;
+    }
     if (play.final !== undefined) {
       const { [playerId]: _wager, ...wagers } = play.final.wagers;
       kept.final = { wagers, graded: play.final.graded.filter((id) => id !== playerId) };
@@ -282,9 +298,9 @@ export function setConnected(state: GameState, playerId: string, connected: bool
   // На звичайній клітинці без таймера так само, але відлік не стартує, поки відповідь чекає на ведучого.
   const watched = state.phase === 'question' && !state.paused && awayWatched(state) === playerId;
   if (watched && state.board !== null && (connected || state.heldAt === null)) {
-    return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }));
+    return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }, now));
   }
-  return ok(autoLock(changed));
+  return ok(autoLock(changed, now));
 }
 
 /** Гравець, чия відсутність закриває запитання: той, хто вибрав звичайну клітинку без таймера; інакше null. */
@@ -556,7 +572,8 @@ function dropQueue(state: GameState): GameState {
 
 /** Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз. */
 function lockNow(state: GameState): GameState {
-  const closed = withCellPenalty(dropQueue(state));
+  // Бали за ланцюжок залежать від найшвидшого, тож рахуються лише тут, коли відомі часи всіх.
+  const closed = withCellPenalty(dropQueue(scoreChain(state)));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
@@ -565,10 +582,15 @@ function revealNow(state: GameState): GameState {
   return withTotals({ ...lockNow(state), phase: 'reveal' });
 }
 
-/** Закриває запитання, якщо відповіли всі підключені гравці (у бліці: якщо запитання вже вирішене). */
-function autoLock(state: GameState): GameState {
+/**
+ * Закриває запитання, якщо відповіли всі підключені гравці (у бліці: якщо запитання вже вирішене;
+ * у ланцюжку: кожен підключений пройшов або, якщо відомо now, вичерпав свій час).
+ * Внутрішня функція рушія: експортовано для chain.ts, не для сервера.
+ */
+export function autoLock(state: GameState, now: number | null = null): GameState {
   if (state.phase !== 'question' || state.paused) return state;
   if (state.plays[state.questionIndex]?.blitz !== undefined) return blitzDone(state, null) ? lockNow(state) : state;
+  if (state.plays[state.questionIndex]?.question.type === 'chain') return chainDone(state, now) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
   const connected = state.players.filter((p) => p.connected);
@@ -589,6 +611,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (state.paused) return fail('paused');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const play = state.plays[state.questionIndex];
+  // Ланцюжок проходять лише guessWord і takeHint: підсумок з телефона не приймається.
+  if (answer.type === 'chain' || play.question.type === 'chain') return fail('type_mismatch');
   const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
   if (play.blitz !== undefined) {
@@ -767,6 +791,8 @@ export function tick(state: GameState, now: number): GameState {
   const running = watchAway(releaseStaleHold(state, now), now);
   // Поки відповідь чекає на ведучого, годинник стоїть (і відлік відсутності теж).
   if (running.heldAt !== null) return running;
+  // Ланцюжок закривається, коли кожен пройшов або вичерпав свій час зі штрафом.
+  if (running.plays[running.questionIndex]?.question.type === 'chain' && chainDone(running, now)) return lockNow(running);
   // Звичайна клітинка без таймера закривається, коли гравець, чий хід, відсутній 30 секунд.
   const since = running.board?.awaySince ?? null;
   if (since !== null && awayWatched(running) !== null && now >= since + BOARD_AWAY_MS) return lockNow(running);
@@ -889,7 +915,7 @@ export function resume(state: GameState, now: number): Result {
   // Годинник стоїть і далі, доки ведучий не вирішить; якщо гравця вилучили на паузі, він рушає зараз.
   if (state.phase === 'question' && state.heldAt !== null) {
     // Якщо утримання знялося, а відповідати вже нікому, запитання закривається одразу.
-    return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now)));
+    return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now), now));
   }
   if (state.phase === 'question' && state.remainingMs !== null) {
     const limitMs = limitMsOf(state.plays[state.questionIndex]) ?? 0;
@@ -897,7 +923,7 @@ export function resume(state: GameState, now: number): Result {
     // startedAt зсувається так, щоб час відповіді не включав паузу.
     const resumed = { ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs };
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
-    return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now)));
+    return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now), now));
   }
   if (state.phase === 'question' && !isTimed(state.plays[state.questionIndex].question)) {
     // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
@@ -909,7 +935,7 @@ export function resume(state: GameState, now: number): Result {
       startedAt: state.startedAt === null ? null : state.startedAt + shift,
     };
     // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
-    return ok(watchAway(autoLock(settleQueue(shiftQueue(resumed, shift), now)), now));
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(resumed, shift), now), now), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.
@@ -976,6 +1002,8 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
 
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
+  // Ланцюжок перевіряється за літерами однозначно; зміна одного вердикту зсунула б бали інших.
+  if (state.plays[state.questionIndex]?.question.type === 'chain') return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
   if (current?.type === 'final') return overrideFinal(state, playerId, grade);
@@ -1016,7 +1044,7 @@ export function end(state: GameState): Result {
   // Поза фіналом closeFinal лише перераховує підсумки; у фіналі ще оцінює мовчання й розкриває всіх.
   return ok(
     closeFinal({
-      ...dropQueue(state),
+      ...dropQueue(scoreChain(state)),
       phase: 'finished',
       board: clearAway(state.board),
       paused: false,

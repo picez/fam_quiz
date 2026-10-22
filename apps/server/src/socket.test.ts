@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, chain, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -331,6 +331,47 @@ describe('host presence', () => {
     const left = presence(false);
     host.socket.close();
     await left;
+  });
+  it('player:guess and player:hint are player-only and validated', async () => {
+    const { host, stage, olena } = await lobby();
+    expect(await send(host, 'player:guess', { word: 'Риба' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:guess', { word: 'Риба' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'player:hint')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:hint')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:guess')).toEqual({ ok: false, error: 'invalid_payload' });
+    for (const word of [5, 'а'.repeat(31), null]) {
+      expect(await send(olena, 'player:guess', { word })).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:guess', { word: 'Риба' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'player:hint')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('plays a chain over sockets: a wrong word, a hint, a finish', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([chain]))).game;
+    const { host, stage, olena, taras, olenaJoin } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+
+    expect(await send(olena, 'player:guess', { word: 'Сом' })).toEqual({ ok: false, error: 'wrong_word' });
+    expect(await send(olena, 'player:hint')).toEqual({ ok: true });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.chain?.hints === 1);
+    const theirs = await until(taras, (view) => view.role === 'player' && view.phase === 'question');
+    if (mine.role !== 'player' || theirs.role !== 'player') throw new Error('not players');
+    expect(mine.me.chain?.masks[0]).toEqual(['Р', 'и', null, null]);
+    expect(theirs.me.chain?.masks[0]).toEqual(['Р', null, null, null]);
+
+    olena.socket.close();
+    const back = open({ code: created.code, role: 'player', token: olenaJoin.token });
+    const restored = await until(back, (view) => view.role === 'player' && view.me.chain !== null);
+    if (restored.role !== 'player') throw new Error('not a player');
+    expect(restored.me.chain?.masks[0]).toEqual(['Р', 'и', null, null]);
+
+    for (const word of ['Риба', 'Океан', 'Корабель']) {
+      expect(await send(back, 'player:guess', { word })).toEqual({ ok: true });
+    }
+    const scene = await until(stage, (view) => view.chain?.rows.some((row) => row.timeMs !== null) === true);
+    expect(scene.chain?.rows[0].timeMs).not.toBeNull();
   });
   it('player:wager is player-only and validated', async () => {
     const { host, stage, olena } = await lobby();

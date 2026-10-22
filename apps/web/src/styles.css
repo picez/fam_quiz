@@ -2249,3 +2249,106 @@ button.match-item {
 
 .editor-quiz { display: grid; gap: 0.875rem; margin-bottom: 0.75rem; }
 .round-brief-preview { display: grid; gap: 0.5rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }
+
+/* ---------- Ланцюжок слів ---------- */
+
+.chain-words {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  container-type: inline-size;
+}
+
+/* Кожне слово в один рядок: на вузькому екрані клітинки стискаються, а не переносяться. */
+.chain-word {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.chain-cell {
+  flex: 0 1 1.4em;
+  min-width: 0;
+  min-height: 1.2em;
+  line-height: 1.2;
+  text-align: center;
+  border-bottom: 2px solid var(--line);
+  font-family: var(--display);
+}
+
+/* Довге слово: вужчий шрифт, розмір від ширини рядка й кількості клітинок (--cells), щоб літери не наїжджали. */
+.chain-word.is-long {
+  gap: 1px;
+}
+
+.chain-word.is-long .chain-cell,
+.chain-word.is-long .chain-sep {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: min(1rem, calc((100cqi - 2.5rem) / var(--cells) * 1.5));
+}
+
+.chain-count {
+  flex: none;
+  align-self: center;
+  margin-left: 0.375rem;
+  color: var(--dim);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chain-sep {
+  white-space: pre;
+  color: var(--dim);
+  font-family: var(--display);
+}
+
+.chain-word.is-current .chain-cell {
+  border-color: var(--amber);
+}
+
+.chain-words.is-correct .chain-cell {
+  color: var(--correct);
+}
+
+.chain-play {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.chain-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.chain-form .btn {
+  min-height: 44px;
+}
+
+.chain-miss {
+  color: var(--signal);
+}
+
+.chain-clock {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.chain-board .is-out {
+  color: var(--dim);
+}
+
+.stage .chain-cell {
+  font-size: 2rem;
+}
+
+.stage .chain-word.is-long .chain-cell,
+.stage .chain-word.is-long .chain-sep {
+  font-size: min(2rem, calc((100cqi - 3rem) / var(--cells) * 1.5));
+}
+
+.stage .chain-count {
+  font-size: 1.25rem;
+}

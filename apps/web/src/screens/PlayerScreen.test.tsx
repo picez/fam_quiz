@@ -14,7 +14,7 @@ const publicQuestion = {
   video: null,
   timeLimit: 20,
   points: 1000,
-  right: [],
+  right: [], chain: null,
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },
@@ -33,7 +33,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -43,6 +43,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   board: null,
   spotlight: null,
   final: null,
+  chain: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -604,5 +605,35 @@ describe('PlayerScreen final', () => {
     show(onQuestion({ round, final: info, me: { ...me, final: { wager: 100, limit: 100 } } }));
     expect(screen.queryByText(/1000/)).toBeNull();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it('a chain question shows the own chain and the personal timer instead of the shared one', () => {
+    const chainQuestion = { ...publicQuestion, type: 'chain' as const, choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null]], hintSeconds: 5 } };
+    const chain = { solved: 0, masks: [['Р', null, null, null]], hints: 0, hintMs: 5000, canHint: true, deadline: Date.now() + 15_000, remainingMs: null, limitMs: 20_000, timeMs: null };
+    show(onQuestion({ question: chainQuestion, endsAt: Date.now() + 20_000, me: { ...me, chain } }));
+    expect(screen.getAllByRole('timer')).toHaveLength(1);
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('15');
+    expect(screen.getByLabelText('Р___')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Перевірити' })).toBeTruthy();
+  });
+
+  it('the reveal of a chain says the own time', () => {
+    const chainQuestion = { ...publicQuestion, type: 'chain' as const, choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null]], hintSeconds: 5 } };
+    const chain = { solved: 1, masks: [['Р', 'и', 'б', 'а']], hints: 0, hintMs: 5000, canHint: false, deadline: null, remainingMs: null, limitMs: 20_000, timeMs: 12_300 };
+    show(view({ phase: 'reveal', questionIndex: 0, question: chainQuestion, me: { ...me, chain } }));
+    expect(screen.getByText('Ланцюжок пройдено за 12,3 с')).toBeTruthy();
+  });
+
+  it('after a chain closes the phone shows the own result and waits for the results, not a correct answer', () => {
+    const chainQuestion = { ...publicQuestion, type: 'chain' as const, choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null]], hintSeconds: 5 } };
+    const done = { solved: 1, masks: [['Р', 'и', 'б', 'а']], hints: 0, hintMs: 5000, canHint: false, deadline: null, remainingMs: null, limitMs: 20_000, timeMs: 5_800 };
+    show(view({ phase: 'locked', questionIndex: 0, question: chainQuestion, me: { ...me, chain: done } }));
+    expect(screen.getByRole('heading', { name: 'Ланцюжок пройдено за 5,8 с' })).toBeTruthy();
+    expect(screen.getByLabelText('Риба')).toBeTruthy();
+    expect(screen.getByText('Чекаємо на результати')).toBeTruthy();
+    expect(screen.queryByText('Чекаємо на правильну відповідь')).toBeNull();
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: chainQuestion, me: { ...me, chain: { ...done, solved: 0, masks: [['Р', null, null, null]], timeMs: null } } }));
+    expect(screen.getByRole('heading', { name: 'Не встигли пройти ланцюжок' })).toBeTruthy();
   });
 });

@@ -4,7 +4,8 @@ import { buzz } from './blitz';
 import { pickCell } from './board';
 import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
 import { placeWager } from './final';
-import { blitzRound, boardRound, bool, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints, withVideo } from './testing/fixtures';
+import { guessWord, takeHint } from './chain';
+import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints, withVideo } from './testing/fixtures';
 import { acceptAll, lobbyWith, must, startRound } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -54,6 +55,7 @@ describe('while a question is open', () => {
         { id: 'c', text: 'Одеса' },
       ],
       right: [],
+      chain: null,
     });
     expect(view.endsAt).toBe(T0 + 20_000);
     expect(view.answeredCount).toBe(1);
@@ -824,5 +826,104 @@ describe('final round views', () => {
     const s = must(endRound(toWagers(), 9000));
     expect(stageView(s).final).toBeNull();
     expect(playerView(s, 'p1')?.me.score).toBe(1000);
+  });
+});
+
+describe('chain views', () => {
+  const chainOpen = () => startRound(lobbyWith(makeQuiz([chain]), 'Олена', 'Тарас', 'Віра'), 0);
+  const solveAll = (s: GameState, id: string, now: number) =>
+    ['Риба', 'Океан', 'Корабель'].reduce((cur, word) => must(guessWord(cur, id, word, now)), s);
+  const final = () => {
+    let s = must(next(must(start(lobbyWith(makeRoundsQuiz([finalRound('f', chain)]), 'Олена', 'Тарас', 'Віра'))), 0));
+    while (s.phase !== 'wager') s = must(next(s, 0));
+    for (const id of ['p1', 'p2', 'p3']) s = must(placeWager(s, id, 0, 0, () => 0));
+    return s;
+  };
+
+  it('shows the first word and only first letters of the chain to everyone', () => {
+    const s = chainOpen();
+    const masks = [['Р', null, null, null], ['О', null, null, null, null], ['К', null, null, null, null, null, null, null]];
+    expect(stageView(s).question?.chain).toEqual({ first: 'Форель', masks, hintSeconds: 5 });
+    expect(playerView(s, 'p1')?.me.chain).toEqual({
+      solved: 0,
+      masks,
+      hints: 0,
+      hintMs: 5000,
+      canHint: true,
+      deadline: 20_000,
+      remainingMs: null,
+      limitMs: 20_000,
+      timeMs: null,
+    });
+    expect(stageView(s).question).toMatchObject({ choices: [], right: [] });
+  });
+
+  it("never sends hidden words or another player's hint letters", () => {
+    let s = chainOpen();
+    s = must(takeHint(s, 'p2', 1000));
+    s = must(takeHint(s, 'p2', 1000));
+    s = must(guessWord(s, 'p1', 'Риба', 1000));
+    s = must(takeHint(s, 'p1', 1000));
+    expect(playerView(s, 'p2')?.me.chain?.masks[0]).toEqual(['Р', 'и', 'б', null]);
+    expect(playerView(s, 'p1')?.me.chain?.masks[0]).toEqual(['Р', 'и', 'б', 'а']);
+    expect(playerView(s, 'p1')?.me.chain?.masks[1]).toEqual(['О', 'к', null, null, null]);
+    expect(playerView(s, 'p2')?.me.chain?.masks[1]).toEqual(['О', null, null, null, null]);
+    const p2 = JSON.stringify(playerView(s, 'p2')).toLowerCase();
+    expect(p2).not.toContain('океан');
+    expect(p2).not.toContain('корабель');
+    for (const json of [JSON.stringify(stageView(s)), JSON.stringify(playerView(s, 'p3'))]) {
+      for (const word of ['риба', 'океан', 'корабель']) expect(json.toLowerCase()).not.toContain(word);
+    }
+    s = must(lock(s));
+    expect(JSON.stringify(stageView(s)).toLowerCase()).not.toContain('океан');
+    s = must(next(s, 5000));
+    expect(stageView(s).reveal).toMatchObject({ words: chain.words });
+  });
+
+  it('shows chain progress to the stage and the host without letters, ranked by time', () => {
+    let s = solveAll(chainOpen(), 'p1', 5000);
+    s = must(takeHint(s, 'p2', 6000));
+    s = must(guessWord(s, 'p2', 'Риба', 6000));
+    const rows = [
+      { playerId: 'p1', nickname: 'Олена', solved: 3, hints: 0, timeMs: 5000, points: null },
+      { playerId: 'p2', nickname: 'Тарас', solved: 1, hints: 1, timeMs: null, points: null },
+      { playerId: 'p3', nickname: 'Віра', solved: 0, hints: 0, timeMs: null, points: null },
+    ];
+    expect(stageView(s).chain).toEqual({ total: 3, rows });
+    expect(hostView(s).chain).toEqual({ total: 3, rows });
+    expect(playerView(s, 'p3')?.chain).toEqual({ total: 3, rows });
+    s = must(next(must(lock(s)), 30_000));
+    expect(stageView(s).chain?.rows[0]).toMatchObject({ playerId: 'p1', points: 1000 });
+    expect(stageView(s).chain?.rows[1]).toMatchObject({ playerId: 'p2', solved: 1, timeMs: null, points: 0 });
+  });
+
+  it('the final keeps chain progress for the host only', () => {
+    const s = must(guessWord(final(), 'p1', 'Риба', 1000));
+    expect(s.phase).toBe('question');
+    expect(stageView(s).chain).toBeNull();
+    expect(playerView(s, 'p2')?.chain).toBeNull();
+    expect(hostView(s).chain?.rows).toHaveLength(3);
+    expect(playerView(s, 'p1')?.me.chain?.solved).toBe(1);
+  });
+
+  it('freezes the personal clock on pause with the penalty taken off', () => {
+    let s = must(takeHint(chainOpen(), 'p1', 1000));
+    s = must(pause(s, 3000));
+    expect(playerView(s, 'p1')?.me.chain).toMatchObject({ deadline: null, remainingMs: 17_000 - 5000, canHint: false });
+  });
+
+  it('a finished player sees the whole chain and the time; other types have no chain', () => {
+    const s = solveAll(chainOpen(), 'p1', 5000);
+    expect(playerView(s, 'p1')?.me.chain).toMatchObject({
+      solved: 3,
+      masks: [['Р', 'и', 'б', 'а'], [...'Океан'], [...'Корабель']],
+      timeMs: 5000,
+      canHint: false,
+    });
+    const plain = open();
+    expect(stageView(plain).question?.chain).toBeNull();
+    expect(playerView(plain, 'p1')?.me.chain).toBeNull();
+    expect(stageView(plain).chain).toBeNull();
+    expect(hostView(plain).chain).toBeNull();
   });
 });

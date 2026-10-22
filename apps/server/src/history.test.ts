@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
-import { blitzRound, boardRound, bool, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
@@ -491,6 +491,7 @@ describe('host history: answers', () => {
       await local.recorder.idle();
       return (await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })).json() as {
         questions: { question: { type: string }; responses: unknown[] }[];
+        standings: { nickname: string; correct: number }[];
       };
     };
     return { local, room, enter, detail, localDb };
@@ -514,6 +515,31 @@ describe('host history: answers', () => {
     expect(result.questions[0].responses).toEqual([
       { nickname: 'Олена', answer: right, accepted: true },
       { nickname: 'Тарас', answer: swapped, accepted: false },
+    ]);
+    await local.app.close();
+  });
+
+  it('history lists chain summaries and counts a finished chain as correct', async () => {
+    const { local, room, enter, detail } = await start(makeQuiz([chain], { speedBonus: false }));
+    const olena = await enter('Олена');
+    const taras = await enter('Тарас');
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    for (const word of ['Риба', 'Океан', 'Корабель']) local.manager.guess(room, olena, word);
+    local.manager.guess(room, taras, 'Риба');
+    step('lock');
+    step('next');
+    step('next');
+    const result = await detail();
+    expect(result.questions[0].question.type).toBe('chain');
+    expect(result.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'chain', solved: 3, hints: 0 }, accepted: true },
+      { nickname: 'Тарас', answer: { type: 'chain', solved: 1, hints: 0 }, accepted: false },
+    ]);
+    expect(result.standings.map((s) => [s.nickname, s.correct])).toEqual([
+      ['Олена', 1],
+      ['Тарас', 0],
     ]);
     await local.app.close();
   });

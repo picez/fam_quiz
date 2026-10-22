@@ -1,7 +1,7 @@
 import { DEFAULT_RULES, type Question, type Quiz, type RoundRules } from '@quiz/shared';
 
 /**
- * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match),
+ * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match, chain),
  * усіма раундами (класичний, бліц, поле, фінал зі ставками) і варіантами правил.
  */
 
@@ -58,6 +58,13 @@ export const match = (text: string, pairs: [string, string][], points?: number, 
   };
 };
 
+export const chain = (text: string, words: string[], hintSeconds = 5, points?: number, time?: number): Question => ({
+  ...q(text, points, time),
+  type: 'chain',
+  words,
+  hintSeconds,
+});
+
 /** Додає до запитання відео з YouTube: id і секунда початку. */
 export const video = (question: Question, id: string, start = 0): Question => ({ ...question, video: { id, start } });
 
@@ -77,7 +84,7 @@ export const cell = (
 export const demoQuiz: Quiz = {
   title: 'Демо: усі можливості',
   description:
-    'Усі типи запитань (один варіант, кілька, так/ні, текст, число, порядок, пари), класичні раунди з різними правилами, бліц (авто й ручна перевірка) та ігрове поле (телефони й голос, ×2/×3).',
+    'Усі типи запитань (один варіант, кілька, так/ні, текст, число, порядок, пари, ланцюжок слів), класичні раунди з різними правилами, бліц (авто й ручна перевірка) та ігрове поле (телефони й голос, ×2/×3).',
   settings: { leaderboard: 'each' },
   rounds: [
     {
@@ -97,6 +104,7 @@ export const demoQuiz: Quiz = {
         numeric('Висота Говерли в метрах (±20 м)?', 2061, 20, 1500, 30),
         order('Розставте планети від Сонця', ['Меркурій', 'Венера', 'Земля', 'Марс'], 2000, 40),
         match('З’єднайте країну зі столицею', [['Україна', 'Київ'], ['Польща', 'Варшава'], ['Франція', 'Париж'], ['Японія', 'Токіо']], 1500, 40),
+        chain('Ланцюжок: від форелі до літака', ['Форель', 'Риба', 'Океан', 'Корабель', 'Порт', 'Подорож', 'Літак'], 5, 1500, 90),
       ],
     },
     {

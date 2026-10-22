@@ -14,6 +14,12 @@ describe('the seeded demo quiz', () => {
     }
   });
 
+  it('has the owner chain in the warm-up round', () => {
+    const chain = questionsOf({ ...demoQuiz, rounds: [demoQuiz.rounds[0]] }).find((q) => q.type === 'chain');
+    expect(chain?.type === 'chain' && [chain.words[0], chain.words.at(-1)]).toEqual(['Форель', 'Літак']);
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+  });
+
   it('has a video question in the classic and the blitz round', () => {
     const rounds = demoQuiz.rounds.filter((r) => questionsOf({ ...demoQuiz, rounds: [r] }).some((q) => q.video !== null));
     expect(rounds.map((r) => r.type).sort()).toEqual(['blitz', 'classic']);

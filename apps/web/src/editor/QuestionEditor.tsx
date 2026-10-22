@@ -4,7 +4,7 @@ import { LETTERS } from '../format';
 import { t, type TextKey } from '../i18n';
 import { ImageField } from './ImageField';
 import { VideoField } from './VideoField';
-import { QUESTION_TYPES, changeType, moveItem, type QuestionType } from './draft';
+import { changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 
 interface Props {
@@ -12,6 +12,8 @@ interface Props {
   onChange: (next: Question) => void;
   /** Поле «Бали»; у фіналі бали ні на що не впливають, тому там його немає. */
   showPoints?: boolean;
+  /** Типи запитань, доступні в цьому раунді. */
+  types: readonly QuestionType[];
 }
 
 interface Row {
@@ -204,7 +206,7 @@ function Mark(props: { on: boolean; index: number; onToggle: () => void }) {
 
 const letter = (_row: Row, index: number) => <span className="letter">{LETTERS[index]}</span>;
 
-function Body({ question, onChange }: Props) {
+function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
   switch (question.type) {
     case 'single':
       return (
@@ -333,6 +335,32 @@ function Body({ question, onChange }: Props) {
           <p className="meta">{t('matchHint')}</p>
         </>
       );
+    case 'chain': {
+      // Слова не мають власних id, тому ключем рядка є його позиція.
+      const rows = question.words.map((text, index) => ({ id: String(index), text }));
+      return (
+        <>
+          <Rows
+            rows={rows}
+            min={LIMITS.minChainWords}
+            max={LIMITS.maxChainWords}
+            maxLength={LIMITS.chainWord}
+            label="chainWordN"
+            removeLabel="removeChainWord"
+            addLabel="addChainWord"
+            lead={(_row, index) => <span className="letter">{index + 1}</span>}
+            makeRow={() => ({ id: String(rows.length), text: '' })}
+            onChange={(next) => onChange({ ...question, words: next.map((row) => row.text) })}
+          />
+          <NumberField
+            label={t('hintSecondsLabel')}
+            value={question.hintSeconds}
+            onChange={(hintSeconds) => onChange({ ...question, hintSeconds })}
+          />
+          <p className="meta">{t('chainHint')}</p>
+        </>
+      );
+    }
     case 'order':
       return (
         <>
@@ -381,14 +409,14 @@ function timeInLimits(timeLimit: number): boolean {
 }
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange, showPoints = true }: Props) {
+export function QuestionEditor({ question, onChange, types, showPoints = true }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
   return (
     <div className="question-edit">
       <div className="type-chips" role="group" aria-label={t('questionType')}>
-        {QUESTION_TYPES.map((type: QuestionType) => (
+        {types.map((type: QuestionType) => (
           <button
             type="button"
             key={type}
@@ -404,11 +432,13 @@ export function QuestionEditor({ question, onChange, showPoints = true }: Props)
 
       <div className="stage-card">
         <ImageField url={question.imageUrl} onChange={(imageUrl) => latest.current.onChange({ ...latest.current.question, imageUrl })} />
-        <VideoField
-          key={question.id}
-          video={question.video}
-          onChange={(video) => latest.current.onChange({ ...latest.current.question, video })}
-        />
+        {question.type !== 'chain' && (
+          <VideoField
+            key={question.id}
+            video={question.video}
+            onChange={(video) => latest.current.onChange({ ...latest.current.question, video })}
+          />
+        )}
         <label className="field question-field">
           <span>{t('questionText')}</span>
           <textarea

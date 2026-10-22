@@ -31,10 +31,13 @@ export const timeSchema = z.object({ seconds: z.union([z.literal(-15), z.literal
 export const pickSchema = z.object({ cellId: z.string().min(1).max(64) });
 export const wagerSchema = z.object({ amount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) });
 export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.maxPlayers) });
+export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).refine(isStorable, UNSTORABLE) });
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
 export interface ClientToServerEvents {
   'player:answer': (answer: Answer, ack: Ack) => void;
+  'player:guess': (payload: z.infer<typeof guessSchema>, ack: Ack) => void;
+  'player:hint': (ack: Ack) => void;
   'player:buzz': (ack: Ack) => void;
   'player:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   'player:wager': (payload: z.infer<typeof wagerSchema>, ack: Ack) => void;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
   FINISHED_TTL_MS,
@@ -333,6 +333,35 @@ describe('blitz', () => {
     scheduler.advance(20_000);
     expect(room.state.phase).toBe('question');
     expect(scheduler.pending()).toEqual([]);
+  });
+});
+
+describe('word chain', () => {
+  it('closes a chain question at the personal deadline of the last player still playing', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeQuiz([chain]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+
+    for (const word of ['Риба', 'Океан', 'Корабель']) expect(manager.guess(room, olena.playerId, word)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(1000);
+    expect(manager.hint(room, taras.playerId)).toEqual({ ok: true });
+    expect(manager.hint(room, taras.playerId)).toEqual({ ok: true });
+    scheduler.advance(8999);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('refuses a guess and a hint from someone who is not a player', () => {
+    const { manager, room } = setup();
+    expect(manager.guess(room, 'nobody', 'Риба')).toMatchObject({ ok: false });
+    expect(manager.hint(room, 'nobody')).toMatchObject({ ok: false });
   });
 });
 

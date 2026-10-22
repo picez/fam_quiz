@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf } from './draft';
+import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -25,6 +25,8 @@ function filled(question: Question): Question {
       };
     case 'text':
       return { ...question, text, accepted: ['Відповідь'] };
+    case 'chain':
+      return { ...question, text, words: ['Форель', 'Риба', 'Океан'] };
     default:
       return { ...question, text };
   }
@@ -640,5 +642,50 @@ describe('final round drafts', () => {
     expect(problems[0]).toContain('Раунд 2');
     expect(problems[0]).toContain('Запитання 1');
     expect(problems.join()).not.toContain(t('problemRules'));
+  });
+});
+
+describe('chain questions', () => {
+  const chain = (patch: object = {}) => ({ ...newQuestion('chain'), text: 'Q?', ...patch }) as Question;
+
+  it('a new chain question has three empty words, a 5 s hint and no video', () => {
+    expect(newQuestion('chain')).toMatchObject({ type: 'chain', words: ['', '', ''], hintSeconds: 5, video: null });
+  });
+
+  it('cleaned trims chain words and drops trailing empty ones but keeps three', () => {
+    const words = (list: string[]) => {
+      const out = cleaned(quizWith(chain({ words: list }))).rounds[0];
+      const q = (out as { questions: Question[] }).questions[0];
+      return q.type === 'chain' ? q.words : null;
+    };
+    expect(words(['Форель', ' Риба ', 'Біла   Церква', '', ''])).toEqual(['Форель', 'Риба', 'Біла Церква']);
+    expect(words(['Форель', '', ''])).toEqual(['Форель', '', '']);
+    expect(words(['Форель', 'Гай'.normalize('NFD'), 'Океан'])).toEqual(['Форель', 'Гай', 'Океан']);
+  });
+
+  it('chain problems: an empty word, a word with digits, a hint out of range', () => {
+    const problems = (patch: object) => problemsOf(quizWith(chain({ words: ['Форель', 'Риба', 'Океан'], ...patch })));
+    expect(problems({})).toEqual([]);
+    expect(problems({ words: ['Форель', '', 'Океан'] })).toEqual([t('problemEmptyWord', { index: 1 })]);
+    expect(problems({ words: ['Форель', 'R2D2', 'Океан'] })).toEqual([t('problemChainWord', { index: 1 })]);
+    expect(problems({ hintSeconds: 0 })).toEqual([t('problemHintSeconds', { index: 1 })]);
+    expect(problems({ words: ['Форель', 'Гай'.normalize('NFD'), 'Океан'] })).toEqual([]);
+  });
+
+  it('blitz and board rounds offer no chain type', () => {
+    expect(questionTypesFor('classic')).toContain('chain');
+    expect(questionTypesFor('final')).toContain('chain');
+    expect(questionTypesFor('blitz')).not.toContain('chain');
+    expect(questionTypesFor('board')).not.toContain('chain');
+  });
+
+  it('switching a question with a video to a chain drops the video', () => {
+    const withVideo = { ...newQuestion('single'), video: { id: 'dQw4w9WgXcQ', start: 0 } };
+    expect(changeType(withVideo, 'chain')).toMatchObject({ type: 'chain', video: null });
+  });
+
+  it('duplicating a chain copies its words', () => {
+    const copy = duplicateQuestion(chain({ words: ['A1', 'B2', 'C3'] }));
+    expect(copy.type === 'chain' && copy.words).toEqual(['A1', 'B2', 'C3']);
   });
 });

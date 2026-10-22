@@ -11,3 +11,4 @@ export * from './board';
 export * from './board-turns';
 export * from './board-cells';
 export * from './final';
+export * from './chain';

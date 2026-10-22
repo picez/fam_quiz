@@ -33,6 +33,12 @@ export const LIMITS = {
   nicknameMax: 20,
   /** Найпізніша секунда початку відео (12 год). */
   maxVideoStart: 43_200,
+  minChainWords: 3,
+  maxChainWords: 10,
+  chainWord: 30,
+  minHintSeconds: 1,
+  maxHintSeconds: 30,
+  defaultHintSeconds: 5,
 } as const;
 
 /** Обмеження для зображень у запитаннях. */
@@ -70,6 +76,9 @@ const base = {
   points: z.number().int().min(0).max(LIMITS.maxPoints),
 };
 
+/** Слово ланцюжка: літери, між ними по одному пробілу, дефісу чи апострофу. */
+export const CHAIN_WORD = /^\p{L}+(?:[ '’ʼ-]\p{L}+)*$/u;
+
 const options = z.array(choice).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
@@ -105,6 +114,17 @@ export const questionSchema = z
       // Пари зберігаються правильними.
       pairs: z.array(z.object({ left: choice, right: choice })).min(LIMITS.minPairs).max(LIMITS.maxPairs),
     }),
+    z.object({
+      ...base,
+      type: z.literal('chain'),
+      /** words[0] видно всім; решта приховані. */
+      words: z
+        .array(z.string().trim().normalize('NFC').min(2).max(LIMITS.chainWord).regex(CHAIN_WORD).refine(isStorable, UNSTORABLE))
+        .min(LIMITS.minChainWords)
+        .max(LIMITS.maxChainWords),
+      /** Скільки секунд додає гравцеві підказка. */
+      hintSeconds: z.number().int().min(LIMITS.minHintSeconds).max(LIMITS.maxHintSeconds),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
@@ -116,6 +136,7 @@ export const questionSchema = z
             ? q.pairs.flatMap((p) => [p.left.id, p.right.id])
             : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
+    if (q.type === 'chain' && q.video !== null) ctx.addIssue({ code: 'custom', message: 'chain_video' });
     if (q.type === 'single' && !ids.includes(q.correctId)) {
       ctx.addIssue({ code: 'custom', message: 'unknown_correct_id' });
     }
@@ -287,6 +308,9 @@ export const quizSchema = z
     if (hasDuplicates(questions.map((q) => q.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_question_ids' });
     if (hasDuplicates(quiz.rounds.map((r) => r.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_round_ids' });
     for (const round of quiz.rounds) {
+      if ((round.type === 'blitz' || round.type === 'board') && roundQuestions(round).some((q) => q.type === 'chain')) {
+        ctx.addIssue({ code: 'custom', message: 'chain_round' });
+      }
       if (round.type === 'board') {
         for (const message of boardRoundIssues(round)) ctx.addIssue({ code: 'custom', message });
       }

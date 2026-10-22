@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/shared';
 import { secondsLeft } from '../clock';
+import { ChainBoard } from './ChainView';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing } from './RoundBriefing';
@@ -512,7 +513,15 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
-      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && (
+      {view.chain !== null && (
+        <section className="panel">
+          <h2>{t('chainTitle')}</h2>
+          <ChainBoard chain={view.chain} reveal={phase === 'reveal'} />
+        </section>
+      )}
+
+      {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
+      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && !(view.chain !== null && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (

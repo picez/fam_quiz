@@ -16,7 +16,7 @@ const options = [
 ];
 const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
 const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
-const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [] });
+const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null });
 
 const players = [
   { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0 },
@@ -31,6 +31,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   board: null,
   spotlight: null,
   final: null,
+  chain: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -825,5 +826,23 @@ describe('HostScreen final', () => {
     );
     fireEvent.click(button('Не зараховувати'));
     expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'wrong' });
+  });
+
+  it('the host sees chain progress for every player', () => {
+    const chainQ: Question = { id: 'q3', type: 'chain', text: 'Ланцюжок', imageUrl: null, video: null, timeLimit: 20, points: 1000, words: ['Форель', 'Риба'], hintSeconds: 5 };
+    const info = {
+      total: 1,
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', solved: 1, hints: 1, timeMs: 8000, points: null },
+        { playerId: 'p2', nickname: 'Тарас', solved: 0, hints: 0, timeMs: null, points: null },
+      ],
+    };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'chain', choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null]], hintSeconds: 5 } }, correct: chainQ, endsAt: Date.now() + 20_000, chain: info }));
+    expect(screen.getByRole('heading', { name: 'Ланцюжок' })).toBeTruthy();
+    expect(document.querySelector('.chain-board')?.textContent).toContain('8,0 с');
+    expect(document.querySelector('.chain-board')?.textContent).toContain('0 з 1');
+    // Бали ланцюжка рахуються при закритті: панель «Відповіді» з нулями не показується.
+    expect(document.querySelector('.chain-board .is-out')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
   });
 });

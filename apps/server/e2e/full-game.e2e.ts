@@ -1631,3 +1631,163 @@ async function menuProfileFriends() {
 
   expect(problems).toEqual([]);
 }
+
+/** Вводить слово ланцюжка й тисне «Перевірити». */
+async function guess(page: Page, word: string, accepted = true): Promise<void> {
+  await field(page, 'Наступне слово').fill(word);
+  await click(page, 'Перевірити');
+  // Наступне слово вводимо, лише коли відповідь сервера вже оброблено: поле очистилося (або форма зникла).
+  if (accepted) {
+    await page.waitForFunction(
+      "(() => { const input = document.querySelector('.chain-form input'); return input === null || input.value === ''; })()",
+    );
+  }
+}
+
+const LONG_WORD = 'Найнайнайвисокогірнішоокеанний';
+
+it('a word chain: first letters for all, a private hint with time penalty, the fastest wins', async () => {
+  try {
+    await chainGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function chainGame() {
+  const host = await open('host10', 1280, 900);
+
+  await host.goto(base);
+  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await click(host, 'Створити акаунт');
+  await field(host, 'Ваше ім’я').fill('Ірина Ведуча');
+  await field(host, 'Email').fill('host10@example.com');
+  await field(host, 'Пароль').fill('correct horse battery');
+  await click(host, 'Зареєструватися');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Ланцюжок');
+
+  // Редактор: ланцюжок з п'яти слів, підказка 5 с, час 60 с, відео немає.
+  await click(host, 'ланцюжок');
+  await questionText(host).fill('Від форелі до корабля');
+  await field(host, 'Слово 1').fill('Форель');
+  await field(host, 'Слово 2').fill('Риба');
+  await field(host, 'Слово 3').fill('Океан');
+  await click(host, 'Додати слово');
+  await field(host, 'Слово 4').fill(LONG_WORD);
+  await click(host, 'Додати слово');
+  await field(host, 'Слово 5').fill('Корабель');
+  await field(host, 'Підказка додає, с').fill('5');
+  await field(host, 'Час, с').fill('60');
+  expect(await host.getByLabel('Відео з YouTube', exact).count()).toBe(0);
+  await shot(host, 'chain-editor');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Ланцюжок' }).waitFor();
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage10', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya10', 390, 844);
+  const taras = await open('taras10', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+
+  // Перше слово й перші літери видно всім, решти слів у сторінці немає.
+  await stage.getByText('Форель').first().waitFor();
+  await stage.getByLabel('Р___', exact).waitFor();
+  await olya.getByLabel('Р___', exact).waitFor();
+  await taras.getByLabel('Р___', exact).waitFor();
+  for (const page of [stage, olya, taras]) {
+    const text = (await bodyText(page)).toLowerCase();
+    for (const hidden of ['риба', 'океан', 'корабель', LONG_WORD.toLowerCase()]) expect(text).not.toContain(hidden);
+    const html = (await page.content()).toLowerCase();
+    for (const hidden of ['риба', 'океан', 'корабель']) expect(html).not.toContain(hidden);
+  }
+  await shot(stage, 'chain-stage-question');
+
+  // Тарас: хибне слово, потім приватна підказка.
+  await guess(taras, 'Сом', false);
+  await taras.getByText('Не те слово. Спробуйте ще.').waitFor();
+  await click(taras, 'Підказка (+5 с)');
+  await taras.getByLabel('Ри__', exact).waitFor();
+  expect(await olya.getByLabel('Р___', exact).count()).toBe(1);
+  expect(await olya.getByLabel('Ри__', exact).count()).toBe(0);
+  expect(await stage.getByLabel('Ри__', exact).count()).toBe(0);
+  await taras.getByText(/Ваш час: \d+(,\d+)? с/).waitFor();
+  const penalised = await taras.locator('.chain-clock').textContent();
+  expect(Number(penalised!.match(/(\d+(?:,\d+)?)/)![1]!.replace(',', '.'))).toBeGreaterThanOrEqual(5);
+  await expectNoSideScroll(taras, 'chain-phone-360');
+  await shot(taras, 'chain-phone-hint');
+
+  // Оля проходить ланцюжок першою.
+  await guess(olya, 'риба');
+  await guess(olya, 'Океан');
+  await guess(olya, LONG_WORD.toLowerCase());
+  await guess(olya, 'Корабель');
+  await olya.getByText(/Ланцюжок пройдено за/).waitFor();
+  await stage.getByText('Пройшли 1 з 2').waitFor();
+  const olyaBoard = stage.locator('.chain-board li', { hasText: 'Оля' });
+  await olyaBoard.waitFor();
+  expect(await olyaBoard.textContent()).toMatch(/\d+(,\d+)? с/);
+  await host.getByRole('heading', { name: 'Ланцюжок', exact: true }).waitFor();
+  await shot(stage, 'chain-stage-progress');
+  await shot(host, 'chain-host');
+
+  // Тарас доходить до кінця: запитання закривається само.
+  await guess(taras, 'Риба');
+  await guess(taras, 'Океан');
+  await expectNoSideScroll(taras, 'chain-phone-360-long');
+  // Довге слово лишається в одному рядку (не вище за коротке), поле не менше 16 px, кнопки видно без прокручування.
+  const layout = await taras.evaluate(
+    "(() => { const words = [...document.querySelectorAll('.chain-play .chain-word')].map((w) => w.getBoundingClientRect().height); const input = document.querySelector('.chain-form input'); const buttons = [...document.querySelectorAll('.chain-form .btn')].map((b) => b.getBoundingClientRect().bottom); return { words, font: parseFloat(getComputedStyle(input).fontSize), bottom: Math.max(...buttons), viewport: window.innerHeight }; })()",
+  ) as { words: number[]; font: number; bottom: number; viewport: number };
+  expect(Math.max(...layout.words)).toBeLessThan(Math.min(...layout.words) * 1.5);
+  expect(layout.font).toBeGreaterThanOrEqual(16);
+  expect(layout.bottom).toBeLessThanOrEqual(layout.viewport);
+  await guess(taras, LONG_WORD);
+  await guess(taras, 'Корабель');
+  await taras.getByText('Чекаємо на результати').waitFor();
+  await taras.getByRole('heading', { name: /Ланцюжок пройдено за/ }).waitFor();
+  await expectNoSideScroll(taras, 'chain-phone-locked');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+
+  // Розкриття: ланцюжок зеленим, рейтинг за часом.
+  await click(host, 'Показати відповідь');
+  await stage.locator('.chain-words.is-correct').getByLabel('Риба', exact).waitFor();
+  const first = stage.locator('.chain-board li').first();
+  expect(await first.textContent()).toContain('Оля');
+  expect((await first.textContent())!.replace(/\s/g, '')).toContain('+1000');
+  await taras.getByText('Правильно!').waitFor();
+  const earned = Number((await taras.locator('.earned').textContent())!.replace(/\D/g, ''));
+  expect(earned).toBeGreaterThanOrEqual(500);
+  expect(earned).toBeLessThanOrEqual(999);
+  await shot(stage, 'chain-stage-reveal');
+  await shot(taras, 'chain-phone-reveal');
+
+  // Подіум: Оля перша.
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const podium = await stage.locator('.standings li').allTextContents();
+  expect(podium[0]).toContain('Оля');
+  expect(podium[1]).toContain('Тарас');
+
+  // Історія: підсумок ланцюжка в відповіді.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Ланцюжок/ }).click();
+  const chainQuestion = host.locator('.rows.stacked > li', { hasText: 'Від форелі до корабля' });
+  await chainQuestion.getByText('Відповіді (2)').click();
+  const olyaRow = chainQuestion.locator('.responses li', { hasText: 'Оля' });
+  await olyaRow.getByText(/Пройдено за/).waitFor();
+  await shot(host, 'history-chain');
+
+  expect(problems).toEqual([]);
+}

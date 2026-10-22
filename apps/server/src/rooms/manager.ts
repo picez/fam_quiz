@@ -7,6 +7,7 @@ import {
   createGame,
   end,
   endRound,
+  guessWord,
   hostView,
   judge,
   lock,
@@ -27,6 +28,7 @@ import {
   stageView,
   start,
   submitAnswer,
+  takeHint,
   tick,
   type GameState,
   type Result,
@@ -224,6 +226,16 @@ export class RoomManager {
   buzz(room: Room, playerId: string): AckResult {
     if (!this.alive(room)) return GONE;
     return this.apply(room, buzz(room.state, playerId, this.now()));
+  }
+
+  guess(room: Room, playerId: string, word: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, guessWord(room.state, playerId, word, this.now()));
+  }
+
+  hint(room: Room, playerId: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, takeHint(room.state, playerId, this.now()));
   }
 
   pick(room: Room, playerId: string, cellId: string): AckResult {

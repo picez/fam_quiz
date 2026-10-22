@@ -1,7 +1,7 @@
 import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty } from '@quiz/shared';
 import { useEffect, useId, useState } from 'react';
 import { t } from '../i18n';
-import { moveItem, newBoardCategory, newBoardQuestion } from './draft';
+import { moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
 import { QuestionEditor } from './QuestionEditor';
 
 interface Props {
@@ -187,7 +187,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
             </select>
           </label>
         )}
-        <QuestionEditor key={current.question.id} question={current.question} onChange={(question) => setCell({ question })} />
+        <QuestionEditor key={current.question.id} question={current.question} types={questionTypesFor('board')} onChange={(question) => setCell({ question })} />
         <div className="toolbar">
           <button type="button" className="btn btn-small" aria-label={t('boardCellUp')} disabled={index === 0} onClick={() => moveCell(index - 1)}>
             {t('moveUpShort')}

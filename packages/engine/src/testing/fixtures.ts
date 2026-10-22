@@ -92,6 +92,16 @@ export const match = {
   ],
 } satisfies Question;
 
+/** Ланцюжок слів; до типового списку makeQuiz не входить. */
+export const chain = {
+  ...base,
+  id: 'q8',
+  type: 'chain',
+  text: 'Від риби до корабля',
+  words: ['Форель', 'Риба', 'Океан', 'Корабель'],
+  hintSeconds: 5,
+} satisfies Question;
+
 export type RoundOptions = Partial<Pick<ClassicRound, 'title' | 'speedBonus' | 'shuffleOptions' | 'rules'>>;
 
 export function classicRound(id: string, questions: Question[], options: RoundOptions = {}): ClassicRound {

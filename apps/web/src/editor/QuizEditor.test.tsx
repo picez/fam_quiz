@@ -1183,3 +1183,30 @@ describe('QuizEditor: quiz on top and round notes', () => {
     expect(saved(onSave).rounds[0].description).toBe('Кіно 90-х');
   });
 });
+
+describe('QuizEditor: chain questions', () => {
+  it('creates a chain question and saves its words and hint seconds', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Слова');
+    click('ланцюжок');
+    fill('Текст запитання', 'Від форелі до корабля');
+    fill('Слово 1', 'Форель');
+    fill('Слово 2', 'Риба');
+    fill('Слово 3', 'Океан');
+    click('Додати слово');
+    fill('Слово 4', 'Корабель');
+    fill('Підказка додає, с', '7');
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    click('Зберегти');
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'chain', words: ['Форель', 'Риба', 'Океан', 'Корабель'], hintSeconds: 7, video: null });
+  });
+
+  it('a blitz round shows no chain chip', () => {
+    open();
+    addRound('Бліц');
+    expect(screen.queryByRole('button', { name: 'ланцюжок' })).toBeNull();
+  });
+});
