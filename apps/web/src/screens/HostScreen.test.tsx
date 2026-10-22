@@ -372,6 +372,30 @@ describe('HostScreen: blitz', () => {
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:judge', { playerId: 'p1', correct: false }));
   });
 
+  it('the host sees each pick in the instant queue and the head orange with accept and repick', () => {
+    const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Київ' }, grade: null };
+    const rows = [
+      { playerId: 'p1', nickname: 'Олена', timeMs: 1200, grade: 'wrong' as const, answer: { type: 'text' as const, value: 'Одеса' } },
+      { playerId: 'p2', nickname: 'Тарас', timeMs: 2500, grade: null, answer: { type: 'text' as const, value: 'Київ' } },
+    ];
+    show(during('question', textQuestion, { round, spotlight, answeredCount: 2, blitz: blitz({ manual: false, instant: true, rows, attempts: [], queue: [{ playerId: 'p2', nickname: 'Тарас', answer: spotlight.answer, deadline: null }] }) }));
+    const list = document.querySelector('.blitz-queue');
+    expect(list?.querySelectorAll('.given').length).toBe(2);
+    expect(list?.querySelectorAll('li')[1]?.classList.contains('is-pending')).toBe(true);
+    expect(list?.querySelectorAll('li')[0]?.classList.contains('is-pending')).toBe(false);
+    expect(button('Прийняти')).toBeTruthy();
+    expect(button('Перевибрати')).toBeTruthy();
+    expect(screen.queryByText('Черга')).toBeNull();
+    expect(screen.queryByText('Спроби')).toBeNull();
+    expect(screen.getByText(/Відповіли 2 з 2/)).toBeTruthy();
+  });
+
+  it('the button blitz host panel is unchanged', () => {
+    show(during('question', textQuestion, { round, blitz: blitz({ instant: false }) }));
+    expect(screen.getByText('Черга')).toBeTruthy();
+    expect(screen.getByText('Спроби')).toBeTruthy();
+  });
+
   it('has no judge buttons in an automatic blitz round', () => {
     show(during('question', textQuestion, { round, blitz: blitz({ manual: false }) }));
     expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();

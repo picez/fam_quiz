@@ -10,7 +10,8 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
-import { useVerdictBlink } from './verdict-blink';
+import { BlitzQueue } from './BlitzQueue';
+import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus } from '../live/Timer';
 import { Standings } from './Standings';
@@ -96,7 +97,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const pending = phase === 'question' && !voiceCell && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
   const manualPending = pending !== null && ((board !== null && board.manual) || (blitz !== null && blitz.manual));
   // На бліц-клітинці відповідає голова черги, а не вибравший.
-  const answering = blitz !== null ? (blitz.queue[0] ?? null) : (board?.turn ?? null);
+  const instant = blitz?.instant === true;
+  const answering = blitz !== null ? (instant ? null : (blitz.queue[0] ?? null)) : (board?.turn ?? null);
   const secondsNow = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
   const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
@@ -108,6 +110,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   };
 
   const blink = useVerdictBlink(view.spotlight);
+  const blinking = useBlinkingRows(blitz?.rows ?? [], view.questionIndex);
   // Позначка варіанта, названого вголос: звичайна усна клітинка, single/multi/boolean, поки відповідь не розкрита.
   const questionType = view.question?.type;
   const canName =
@@ -217,7 +220,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         {round !== null && round.total > 1 && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
         {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&
-          `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
+          `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
       </p>
 
       {phase === 'intro' && round !== null && (
@@ -447,7 +450,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
-      {view.question !== null && live && blitz !== null && (
+      {view.question !== null && live && blitz !== null && instant && (
+        <section className="panel">
+          <BlitzQueue rows={blitz.rows} reserve={view.playerCount} question={view.question} blinking={blinking} highlightHead closed={phase !== 'question'} />
+        </section>
+      )}
+
+      {view.question !== null && live && blitz !== null && !instant && (
         <>
           {/* Після закриття запитання черги вже немає: лишаються тільки спроби. */}
           {phase === 'question' && (

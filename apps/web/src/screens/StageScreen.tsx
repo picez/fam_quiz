@@ -11,7 +11,8 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
-import { useVerdictBlink } from './verdict-blink';
+import { BlitzQueue } from './BlitzQueue';
+import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
 
@@ -79,7 +80,7 @@ function FinalReveal({ final, question, presented }: { final: FinalInfo; questio
   );
 }
 
-function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & { blink: boolean }) {
+function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'offsetMs'> & { blink: boolean; blinking: ReadonlySet<string> }) {
   const { question, reveal, stats } = view;
   if (question === null) return null;
   const correctIds =
@@ -93,12 +94,15 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
   const showChoices = question.type === 'single' || question.type === 'multi';
   const voice = view.board?.cell?.answerMode === 'voice';
   // Поле й бліц показують відповідь одного гравця кольором; на усній клітинці — позначку ведучого.
-  const spotlit = view.blitz !== null || view.board !== null;
+  // Миттєвий бліц показує варіанти як класичне запитання: чужого вибору до розкриття на сцені немає.
+  const instant = view.blitz?.instant === true;
+  const spotlit = !instant && (view.blitz !== null || view.board !== null);
   // Червона відповідь бліцу вже минула: відповідає голова черги, а не її автор.
   const pendingSpot = view.spotlight?.grade === null ? view.spotlight : null;
   // На бліц-клітинці вибравший лише обирає: відповідає голова черги.
   const blitzCell = view.board?.cell?.kind === 'blitz';
-  const answering = pendingSpot ?? (blitzCell ? null : view.board?.turn) ?? view.blitz?.queue[0] ?? null;
+  const answering = instant ? null : (pendingSpot ?? (blitzCell ? null : view.board?.turn) ?? view.blitz?.queue[0] ?? null);
+  const queueRows = view.blitz?.rows ?? [];
   // Розкриття фіналу йде по одному гравцю: відео, картинка й варіанти зникають, щоб список був на екрані.
   const finalReveal = view.final !== null && view.phase === 'reveal';
   const orderLabels = question.orderLabels === null ? '' : orderLabelsText(question.orderLabels);
@@ -115,6 +119,8 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
               : view.blitz === null
               ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
+              : instant
+              ? t('answeredOf', { answered: queueRows.length, total: view.playerCount })
               : t('blitzQueued', { count: view.blitz.queue.length })}
           </span>
         )}
@@ -124,11 +130,20 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
           <span className="cell-tag">{t('cellTitle', { category: view.board.cell.category, price: view.board.cell.price })}</span>
           {view.board.cell.mark !== 'none' && <span className="cell-mark">{markText(view.board.cell.mark)}</span>}
           {view.board.cell.kind === 'blitz' && <span className="cell-mark">{t('cellBlitz')}</span>}
-          {answering !== null && <span>{t('boardAnswering', { name: answering.nickname })}</span>}
+          {view.blitz !== null && !instant ? (
+            <span className="answering-line">{answering !== null ? t('boardAnswering', { name: answering.nickname }) : ''}</span>
+          ) : (
+            answering !== null && <span>{t('boardAnswering', { name: answering.nickname })}</span>
+          )}
         </p>
       )}
       {view.board !== null && <BlitzCellNotes board={view.board} />}
-      {view.board === null && answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
+      {view.board === null && view.blitz !== null && !instant ? (
+        // Бліц з кнопкою: рядок завжди займає місце, тож поява голови черги не зсуває запитання.
+        <p className="lead answering-line">{answering !== null ? t('boardAnswering', { name: answering.nickname }) : ''}</p>
+      ) : (
+        view.board === null && answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>
+      )}
       <div className="stage-main">
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
@@ -166,7 +181,8 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
         )
       )}
       {view.chain !== null && !finalReveal && <ChainBoard chain={view.chain} reveal={view.phase === 'reveal'} />}
-      {view.blitz !== null && view.phase !== 'reveal' && view.blitz.queue.length > 0 && (
+      {instant && <BlitzQueue rows={queueRows} reserve={view.playerCount} question={question} blinking={blinking} closed={view.phase !== 'question'} />}
+      {view.blitz !== null && !instant && view.phase !== 'reveal' && view.blitz.queue.length > 0 && (
         <ol className="rows blitz-queue">
           {view.blitz.queue.map((entry, index) => (
             <li key={entry.playerId}>
@@ -177,7 +193,7 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
           ))}
         </ol>
       )}
-      {view.blitz !== null && view.phase === 'reveal' && (
+      {view.blitz !== null && (view.phase === 'reveal' || (instant && view.phase === 'locked' && view.blitz.winner !== null)) && (
         <p className="lead winner">
           {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}
         </p>
@@ -277,6 +293,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
   const { phase, standings } = view;
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
   const blink = useVerdictBlink(view.spotlight);
+  const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   return (
     <main className="app stage">
       {view.paused && (
@@ -285,7 +302,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
         </p>
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} />}
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}

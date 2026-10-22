@@ -241,6 +241,65 @@ describe('StageScreen: blitz', () => {
     expect(screen.queryByText(/Відповідає/)).toBeNull();
   });
 
+  describe('instant blitz', () => {
+    const instantRound: RoundInfo = { ...round, brief: { ...emptyBrief('blitz'), instant: true } };
+    const rows = [
+      { playerId: 'p1', nickname: 'Оля', timeMs: 2400, grade: 'wrong' as const, answer: null },
+      { playerId: 'p2', nickname: 'Петро', timeMs: 3100, grade: null, answer: null },
+    ];
+    const instantView = (over: Partial<StageView> = {}) =>
+      view({ phase: 'question', round: instantRound, questionIndex: 0, question, playerCount: 3, answeredCount: 2, blitz: { queue: [], winner: null, instant: true, rows }, ...over });
+
+    it('the stage shows no picks and no answering line in an instant blitz until the reveal', () => {
+      show(instantView());
+      const list = document.querySelector('ol.blitz-queue');
+      expect(list?.textContent).toContain('Оля');
+      expect(list?.textContent).toContain('2,4 с');
+      expect(list?.textContent).toContain('✗');
+      expect(document.querySelector('.given')).toBeNull();
+      expect(screen.queryByText(/Відповідає/)).toBeNull();
+      expect(document.querySelector('.choice.is-pending')).toBeNull();
+      expect(screen.getByText(/Відповіли 2 з 3/)).toBeTruthy();
+    });
+
+    it('on locked the stage shows the winner, on reveal the picks and the correct option', () => {
+      const won = [{ ...rows[0], grade: 'wrong' as const }, { ...rows[1], grade: 'correct' as const }];
+      show(instantView({ phase: 'locked', blitz: { queue: [], winner: { playerId: 'p2', nickname: 'Петро' }, instant: true, rows: won } }));
+      expect(screen.getByText('Першим правильно відповів: Петро')).toBeTruthy();
+      expect(document.querySelector('.given')).toBeNull();
+      cleanup();
+      const open = won.map((row, index) => ({ ...row, answer: { type: 'single' as const, optionId: index === 0 ? 'a' : 'b' } }));
+      show(
+        instantView({
+          phase: 'reveal',
+          reveal: full,
+          stats: { answered: 2, accepted: 1, counts: { a: 1, b: 1 } },
+          blitz: { queue: [], winner: { playerId: 'p2', nickname: 'Петро' }, instant: true, rows: open },
+        }),
+      );
+      expect(document.querySelectorAll('.blitz-queue .given').length).toBe(2);
+      expect(document.querySelector('.choice.is-correct')).not.toBeNull();
+      expect(document.querySelectorAll('.choice .count').length).toBe(2);
+    });
+
+    it('a row blinks when its verdict arrives', () => {
+      const { rerender } = show(instantView());
+      expect(document.querySelector('.blitz-mark.is-blinking')).toBeNull();
+      const graded = rows.map((row) => (row.playerId === 'p2' ? { ...row, grade: 'correct' as const } : row));
+      rerender(
+        <StageScreen view={instantView({ blitz: { queue: [], winner: null, instant: true, rows: graded } })} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />,
+      );
+      expect(document.querySelector('.blitz-mark.is-blinking')).not.toBeNull();
+    });
+
+    it('the button blitz reserves the answering line', () => {
+      show(view({ phase: 'question', round, questionIndex: 0, question, blitz: { queue: [], winner: null, instant: false, rows: [] } }));
+      const line = document.querySelector('p.answering-line');
+      expect(line).not.toBeNull();
+      expect(line?.textContent).toBe('');
+    });
+  });
+
   describe('board round', () => {
     const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const boardOf = (over: Partial<NonNullable<StageView['board']>> = {}): NonNullable<StageView['board']> => ({
