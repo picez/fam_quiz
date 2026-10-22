@@ -40,6 +40,8 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   remainingMs: null,
   playerCount: 2,
   answeredCount: 0,
+  limitMs: null,
+  held: false,
   players,
   correct: null,
   responses: [],
@@ -234,7 +236,7 @@ describe('HostScreen: question image', () => {
 });
 
 describe('HostScreen: rounds', () => {
-  const round = (over: Partial<RoundInfo> = {}): RoundInfo => ({ index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), ...over });
+  const round = (over: Partial<RoundInfo> = {}): RoundInfo => ({ index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null, ...over });
 
   it('shows the round intro with a «start round» main action', () => {
     const send = show(view({ phase: 'intro', round: round() }));
@@ -245,13 +247,13 @@ describe('HostScreen: rounds', () => {
   });
 
   it('the host sees the round summary to read it aloud', () => {
-    show(view({ phase: 'intro', round: round({ description: 'Кіно 90-х', brief: { ...emptyBrief('classic'), speedBonus: true } }) }));
+    show(view({ phase: 'intro', round: round({ description: 'Кіно 90-х', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null }) }));
     expect(screen.getByText('Кіно 90-х')).toBeTruthy();
     expect(screen.getByText('Якщо є таймер, швидша правильна відповідь дає більше балів.')).toBeTruthy();
   });
 
   it('the intro of a one-round quiz has no round counter', () => {
-    show(view({ phase: 'intro', round: round({ total: 1, title: '', brief: { ...emptyBrief('classic'), speedBonus: true } }) }));
+    show(view({ phase: 'intro', round: round({ total: 1, title: '', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null }) }));
     expect(screen.queryByText(/Раунд 1 з 1/)).toBeNull();
     expect(button('Почати раунд')).toBeTruthy();
     expect(screen.getByText('Якщо є таймер, швидша правильна відповідь дає більше балів.')).toBeTruthy();
@@ -324,7 +326,7 @@ describe('HostScreen: rounds', () => {
 });
 
 describe('HostScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
   const blitz = (over: Partial<NonNullable<HostView['blitz']>> = {}): NonNullable<HostView['blitz']> => ({
     voice: false,
     manual: true,
@@ -375,7 +377,7 @@ describe('HostScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board') };
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board'), times: null };
     const three = [
       { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0 },
       { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 0 },
@@ -387,8 +389,8 @@ describe('HostScreen: blitz', () => {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: 'x2', kind: null },
-            { id: 'c2', price: 200, played: true, mark: null, kind: null },
+            { id: 'c1', price: 100, played: false, mark: 'x2', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+            { id: 'c2', price: 200, played: true, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
           ],
         },
       ],
@@ -579,7 +581,7 @@ describe('HostScreen: blitz', () => {
     });
 
   describe('blitz cell', () => {
-    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const bob = { playerId: 'p2', nickname: 'Богдан' };
     const blitzCell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'none' as const };
     const cellBoard = (over: Partial<NonNullable<HostView['board']>> = {}): NonNullable<HostView['board']> => ({
@@ -587,7 +589,7 @@ describe('HostScreen: blitz', () => {
         {
           id: 'k1',
           title: 'Міста',
-          cells: [{ id: 'c1', price: 100, played: false, mark: 'x2', kind: 'blitz' }],
+          cells: [{ id: 'c1', price: 100, played: false, mark: 'x2', kind: 'blitz', answerMode: 'phone', penalty: 'none' }],
         },
       ],
       order: [{ playerId: 'p1', nickname: 'Олена' }, bob],
@@ -652,7 +654,7 @@ describe('HostScreen: blitz', () => {
   });
 
     it('judges a pending blitz head by hand', () => {
-      const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
+      const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
       const head = { playerId: 'p1', nickname: 'Олена', answer: pendingSpot.answer, deadline: null };
       const send = show(
         during('question', single, {
@@ -671,7 +673,7 @@ describe('HostScreen: blitz', () => {
 });
 
 describe('HostScreen final', () => {
-  const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
+  const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const three = [
     { id: 'p1', nickname: 'Анна', connected: true, score: 1000, streak: 0 },
     { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0 },

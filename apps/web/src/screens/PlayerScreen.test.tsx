@@ -52,6 +52,8 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   remainingMs: null,
   playerCount: 2,
   answeredCount: 0,
+  limitMs: null,
+  held: false,
   me,
   reveal: null,
   standings: null,
@@ -207,7 +209,7 @@ describe('PlayerScreen: question image', () => {
 });
 
 describe('PlayerScreen: rounds', () => {
-  const round: RoundInfo = { index: 1, total: 3, title: 'Фінальний', type: 'classic', partial: false, description: '', brief: emptyBrief('classic') };
+  const round: RoundInfo = { index: 1, total: 3, title: 'Фінальний', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
 
   it('announces the round on the intro', () => {
     show(view({ phase: 'intro', round }));
@@ -216,13 +218,13 @@ describe('PlayerScreen: rounds', () => {
   });
 
   it('the intro explains the round on the phone', () => {
-    show(view({ phase: 'intro', round: { ...round, type: 'blitz', description: 'Кіно 90-х', brief: emptyBrief('blitz') } }));
+    show(view({ phase: 'intro', round: { ...round, type: 'blitz', description: 'Кіно 90-х', brief: emptyBrief('blitz'), times: null } }));
     expect(screen.getByText('Кіно 90-х')).toBeTruthy();
     expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
   });
 
   it('the intro of a one-round quiz has no round counter', () => {
-    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null } }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 1');
     expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
     expect(screen.queryByText('Раунд 1 з 1')).toBeNull();
@@ -257,7 +259,7 @@ describe('PlayerScreen: rounds', () => {
 });
 
 describe('PlayerScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
   const blitzMe = (blitz: Partial<NonNullable<PlayerView['me']['blitz']>>, over: Partial<PlayerView['me']> = {}) => ({
     ...me,
     ...over,
@@ -335,15 +337,15 @@ describe('PlayerScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const boardOf = (turn: string, over: Partial<NonNullable<PlayerView['board']>> = {}): NonNullable<PlayerView['board']> => ({
       categories: [
         {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: null, kind: null },
-            { id: 'c2', price: 200, played: true, mark: null, kind: null },
+            { id: 'c1', price: 100, played: false, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+            { id: 'c2', price: 200, played: true, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
           ],
         },
       ],
@@ -413,7 +415,7 @@ describe('PlayerScreen: blitz', () => {
 
 
 describe('PlayerScreen: blitz cell', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
   const anna = { playerId: 'p2', nickname: 'Анна' };
   const blitzBoard = (over: Partial<NonNullable<NonNullable<PlayerView['board']>['cell']>> = {}): NonNullable<PlayerView['board']> => ({
     categories: [],
@@ -486,7 +488,7 @@ describe('PlayerScreen: blitz cell', () => {
 });
 
 describe('PlayerScreen: spotlight', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
   const boardOf = (turn: { playerId: string; nickname: string }): NonNullable<PlayerView['board']> => ({
     categories: [],
     order: [turn],
@@ -537,7 +539,7 @@ describe('PlayerScreen: spotlight', () => {
 });
 
 describe('PlayerScreen final', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const info = { theme: 'Космос', placed: 0, total: 2, shown: [], left: 0 };
   const onWager = (limit: number, wager: number | null = null) =>
     view({ phase: 'wager', round, final: info, me: { ...me, score: limit, final: { wager, limit } } });

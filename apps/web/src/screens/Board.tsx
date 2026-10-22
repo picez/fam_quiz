@@ -23,7 +23,7 @@ export function Board({ board, onPick, disabled = false }: Props) {
               <>
                 <span className="price">{cell.price}</span>
                 {cell.kind === 'blitz' && <span className="gb-kind">{t('cellBlitz')}</span>}
-                {cell.mark !== null && cell.mark !== 'none' && <span className="gb-mark">{markText(cell.mark)}</span>}
+                {cell.mark !== 'none' && <span className="gb-mark">{markText(cell.mark)}</span>}
               </>
             );
             return onPick === undefined ? (

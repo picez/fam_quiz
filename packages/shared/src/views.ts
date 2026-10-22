@@ -96,6 +96,8 @@ export interface RoundInfo {
   /** Опис раунду від автора; '' — немає. */
   description: string;
   brief: RoundBrief;
+  /** Найменший і найбільший час (с) запитань раунду з таймером; null — таймера немає в жодного. */
+  times: { min: number; max: number } | null;
 }
 
 export interface BlitzPlayer {
@@ -136,10 +138,12 @@ export interface BoardCellView {
   id: string;
   price: number;
   played: boolean;
-  /** null — позначку приховано (сцена й гравці, поки клітинку не вибрали). */
-  mark: CellMark | null;
-  /** null — тип приховано (сцена й гравці, поки клітинку не вибрали), за тим самим правилом, що mark. */
-  kind: CellKind | null;
+  /** Позначку, вид, спосіб відповіді й штраф видно всім від початку раунду: формат запитання з них не випливає. */
+  mark: CellMark;
+  kind: CellKind;
+  /** Спосіб клітинки або, якщо його немає, раунду (cellAnswerMode). */
+  answerMode: AnswerMode;
+  penalty: CellPenalty;
 }
 
 export interface BoardInfo {
@@ -228,6 +232,10 @@ interface BaseView {
   question: PublicQuestion | null;
   endsAt: number | null;
   remainingMs: number | null;
+  /** Повний час поточного запитання з «±15 с», мс; лише на етапі question і з таймером, інакше null. */
+  limitMs: number | null;
+  /** Годинник стоїть, бо відповідь чекає на рішення ведучого. */
+  held: boolean;
   playerCount: number;
   answeredCount: number;
   /** Черга бліцу; null поза запитанням раунду бліцу. */
@@ -297,7 +305,7 @@ export interface HostView extends BaseView {
   correct: Question | null;
   responses: HostResponse[];
   blitz: HostBlitz | null;
-  /** Як у BaseView, але позначки всіх клітинок видно завжди. */
+  /** Як у BaseView. */
   board: HostBoard | null;
   final: HostFinal | null;
   /** Як у BaseView, але і у фіналі. */

@@ -30,6 +30,8 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   remainingMs: null,
   playerCount: 0,
   answeredCount: 0,
+  limitMs: null,
+  held: false,
   players: [],
   reveal: null,
   stats: null,
@@ -139,7 +141,7 @@ describe('StageScreen', () => {
 });
 
 describe('StageScreen: rounds', () => {
-  const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic') };
+  const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
 
   it('announces the round on the intro', () => {
     show(view({ phase: 'intro', round }));
@@ -154,13 +156,13 @@ describe('StageScreen: rounds', () => {
   });
 
   it('the intro shows the rules summary without an empty note', () => {
-    show(view({ phase: 'intro', round: { ...round, brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    show(view({ phase: 'intro', round: { ...round, brief: { ...emptyBrief('classic'), speedBonus: true }, times: null } }));
     expect(document.querySelector('.round-brief-note')).toBeNull();
     expect(within(screen.getByRole('list', { name: 'Як нараховуються бали' })).getAllByRole('listitem')).toHaveLength(2);
   });
 
   it('the intro of a one-round quiz shows the rules without a round counter', () => {
-    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null } }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 1');
     expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
     expect(screen.queryByText('Раунд 1 з 1')).toBeNull();
@@ -187,7 +189,7 @@ describe('StageScreen: rounds', () => {
 });
 
 describe('StageScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
   const queue = [
     { playerId: 'p1', nickname: 'Олена' },
     { playerId: 'p2', nickname: 'Тарас' },
@@ -219,18 +221,18 @@ describe('StageScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const boardOf = (over: Partial<NonNullable<StageView['board']>> = {}): NonNullable<StageView['board']> => ({
       categories: [
         {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: null, kind: null },
-            { id: 'c2', price: 200, played: true, mark: null, kind: null },
+            { id: 'c1', price: 100, played: false, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+            { id: 'c2', price: 200, played: true, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
           ],
         },
-        { id: 'k2', title: 'Ріки', cells: [{ id: 'c3', price: 100, played: false, mark: null, kind: null }] },
+        { id: 'k2', title: 'Ріки', cells: [{ id: 'c3', price: 100, played: false, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' }] },
       ],
       order: [
         { playerId: 'p1', nickname: 'Олена' },
@@ -306,7 +308,7 @@ describe('StageScreen: blitz', () => {
 });
 
 describe('StageScreen: spotlight', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
   const board = {
     categories: [],
     order: [{ playerId: 'p2', nickname: 'Анна' }],
@@ -377,7 +379,7 @@ describe('StageScreen: match', () => {
   });
 
   it('a voice board cell shows the match columns without the phone hint', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const board = {
       categories: [],
       order: [{ playerId: 'p2', nickname: 'Анна' }],
@@ -391,7 +393,7 @@ describe('StageScreen: match', () => {
     expect(screen.queryByText('З’єднайте пари на телефоні')).toBeNull();
   });
   it('the stage shows a blitz cell with the chooser and the queue', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const board = {
       categories: [],
       order: [{ playerId: 'p1', nickname: 'Алла' }],
@@ -420,7 +422,7 @@ describe('StageScreen: match', () => {
 });
 
 describe('StageScreen final', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const info = { theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 };
   const entry = (nickname: string, wager: number, before: number, after: number) => ({
     playerId: nickname,
