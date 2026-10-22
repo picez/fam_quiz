@@ -8,10 +8,12 @@ import {
   type Answer,
   type GameQuestionResult,
   type GameResponse,
+  type GameStatus,
   type GameSummary,
   type PlayedGame,
   type Question,
   type Quiz,
+  type Round,
 } from '@quiz/shared';
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from './db/client';
@@ -299,4 +301,65 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
 
 export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[]> {
   return (await playerGames(db, userId, LIMIT)).map((g) => g.played);
+}
+
+export interface TableRow {
+  roundIndex: number;
+  attempt: number;
+  accepted: boolean;
+  points: number;
+}
+
+export interface TablePlayer {
+  participantId: string;
+  userId: string | null;
+  score: number;
+  rank: number | null;
+  rows: TableRow[];
+}
+
+/** Гра з усіма учасниками: для ачівок, що порівнюють гравців у межах раунду. */
+export interface GameTable {
+  gameId: string;
+  status: GameStatus;
+  startedAt: string;
+  /** Типи раундів зі знімка; [] — знімок не проходить схему. */
+  roundTypes: Round['type'][];
+  players: TablePlayer[];
+}
+
+/** Ігри за id (порядок не гарантовано), з усіма учасниками та їхніми рядками answer. */
+export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]> {
+  if (gameIds.length === 0) return [];
+  const games = await db.select().from(game).where(inArray(game.id, gameIds));
+  const participants = await db.select().from(participant).where(inArray(participant.gameId, gameIds));
+  const answers =
+    participants.length === 0
+      ? []
+      : await db
+          .select({ participantId: answer.participantId, roundIndex: answer.roundIndex, attempt: answer.attempt, accepted: answer.accepted, points: answer.points })
+          .from(answer)
+          .where(
+            inArray(
+              answer.participantId,
+              participants.map((p) => p.id),
+            ),
+          );
+  return games.map((row) => ({
+    gameId: row.id,
+    status: row.status,
+    startedAt: row.startedAt.toISOString(),
+    roundTypes: (snapshotOf(row.quizSnapshot)?.rounds ?? []).map((round) => round.type),
+    players: participants
+      .filter((p) => p.gameId === row.id)
+      .map((p) => ({
+        participantId: p.id,
+        userId: p.userId,
+        score: p.score,
+        rank: p.rank,
+        rows: answers
+          .filter((a) => a.participantId === p.id)
+          .map(({ roundIndex, attempt, accepted, points }) => ({ roundIndex, attempt, accepted, points })),
+      })),
+  }));
 }

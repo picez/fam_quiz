@@ -16,7 +16,10 @@ export const nicknameSchema = z
 export const profileUpdateSchema = z.object({ nickname: nicknameSchema, avatar: z.string().regex(AVATAR_URL).nullable() }).strict();
 export type ProfileUpdate = z.infer<typeof profileUpdateSchema>;
 
-export const ACHIEVEMENTS = ['first_game', 'first_win', 'games_10', 'streak_5', 'perfect_game', 'host', 'games_50', 'wins_10'] as const;
+export const ACHIEVEMENTS = [
+  'first_game', 'first_win', 'games_10', 'streak_5', 'perfect_game', 'host', 'games_50', 'wins_10',
+  'games_100', 'host_10', 'streak_10', 'win_streak_3', 'blitz_win', 'final_hit', 'comeback', 'friends_5',
+] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 export interface Achievement {
   id: AchievementId;

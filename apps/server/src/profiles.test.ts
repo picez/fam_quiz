@@ -1,14 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
+import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
-import { game, participant, profile, user } from './db/schema';
+import { follow, game, participant, profile, user } from './db/schema';
 import { ensureProfile, profileFacts, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
+import { seedGame } from './testing/history-rows';
 
 const addUser = (db: Awaited<ReturnType<typeof createTestDb>>, id: string, name: string) =>
   db.insert(user).values({ id, name, email: `${id}@example.com` });
@@ -152,12 +153,33 @@ describe('profile facts', () => {
     expect(olena.wins).toEqual([{ gameId, title: 'Тестова вікторина', startedAt: expect.any(String), rank: 1 }]);
     expect(Date.parse(olena.wins[0].startedAt)).not.toBeNaN();
     expect(earned(olena.achievements)).toEqual(['first_game', 'first_win']);
-    expect(olena.achievements).toHaveLength(8);
+    expect(olena.achievements).toHaveLength(16);
 
     const host = await profileFacts(db, hostId);
     expect(host.stats).toEqual({ games: 0, wins: 0, accuracy: null, quizzes: 2, hosted: 1 });
     expect(host.wins).toEqual([]);
     expect(earned(host.achievements)).toEqual(['host']);
+  });
+
+  it('profileFacts earns blitz, final, comeback and friends achievements from stored games', async () => {
+    const ids = Array.from({ length: 7 }, () => randomUUID());
+    const [hostId, me, ...others] = ids as [string, string, ...string[]];
+    await db.insert(user).values(ids.map((id) => ({ id, name: 'Гравець', email: `${id}@example.com` })));
+    await db.insert(follow).values(others.map((followeeId) => ({ followerId: me, followeeId })));
+    const snapshot = makeRoundsQuiz([blitzRound('b', [single]), finalRound('f', withId(single, 'f1'))]);
+    await seedGame(db, {
+      hostId,
+      snapshot,
+      startedAt: new Date(Date.UTC(2026, 0, 1)),
+      players: [
+        { userId: me, nickname: 'Я', score: 40, rank: 1, rows: [{ questionIndex: 0, roundIndex: 0, accepted: true, points: 10 }, { questionIndex: 1, roundIndex: 1, accepted: true, points: 30 }] },
+        { userId: others[0]!, nickname: 'А', score: 20, rank: 2, rows: [{ questionIndex: 0, roundIndex: 0, accepted: true, points: 20 }] },
+        ...others.slice(1).map((userId, i) => ({ userId, nickname: `Б${i}`, score: 0, rank: 3 + i })),
+      ],
+    });
+    const earned = (await profileFacts(db, me)).achievements.filter((a) => a.earned).map((a) => a.id);
+    expect(earned).toEqual(expect.arrayContaining(['final_hit', 'comeback', 'friends_5']));
+    expect(earned).not.toContain('blitz_win');
   });
 
   it('a game the host abandoned does not count as hosted', async () => {
@@ -203,7 +225,7 @@ describe('profile facts', () => {
 
     const facts = await profileFacts(db, playerId);
     expect(facts.stats.games).toBe(101);
-    expect(earned(facts.achievements)).toEqual(['first_game', 'games_10', 'games_50']);
+    expect(earned(facts.achievements)).toEqual(['first_game', 'games_10', 'games_50', 'games_100']);
   });
   it('a final answer counts like any answer in profile stats, silence does not break a perfect game', async () => {
     const classic = ['s1', 's2', 's3', 's4', 's5'].map((id) => withId(single, id));

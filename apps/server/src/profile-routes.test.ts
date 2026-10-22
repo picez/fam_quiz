@@ -44,7 +44,7 @@ describe('own profile', () => {
     expect(body.nickname).toBe('Олена');
     expect(body.quizzes).toEqual([{ id: quizId, title: 'Таємна вікторина' }]);
     expect(body.friends).toEqual([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
-    expect(body.achievements).toHaveLength(8);
+    expect(body.achievements).toHaveLength(16);
     expect(body.stats.quizzes).toBe(1);
   });
 
