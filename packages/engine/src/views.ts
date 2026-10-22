@@ -13,6 +13,7 @@ import {
   type BoardInfo,
   type DiceInfo,
   type ChainInfo,
+  type DebuffKind,
   type PlayerChain,
   type Choice,
   type FinalEntry,
@@ -36,6 +37,7 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type GameState, type PlayerState } from './game';
 import { lastNotice } from './adjust';
+import { activeDebuff, shownDebuff } from './debuffs';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
@@ -572,6 +574,8 @@ export function stageView(state: GameState): StageView {
     // У фіналі лічильники видали б результат ще не розкритих гравців.
     stats: revealed !== null && currentRound(state)?.type !== 'final' ? revealStats(state, revealed) : null,
     standings: publicStandings(state),
+    // Лише імена: вид дебафу сцена не бачить.
+    debuffs: state.players.filter((p) => shownDebuff(state, p.id) !== null).map((p) => blitzPlayer(state, p.id)),
   };
 }
 
@@ -623,10 +627,22 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       blitz: playerBlitz(state, playerId),
       final: playerFinal(state, playerId),
       chain: playerChain(state, playerId),
+      debuff: playerDebuff(state, playerId),
     },
     reveal: revealed ? currentQuestion(state) : null,
     standings,
   };
+}
+
+/** Власний дебаф гравця, лише поки він діє: до спрацювання гравець про нього не знає. */
+function playerDebuff(state: GameState, playerId: string): { kind: DebuffKind; since: number } | null {
+  const debuff = activeDebuff(state, playerId);
+  return debuff === null || debuff.since === null ? null : { kind: debuff.kind, since: debuff.since };
+}
+
+function hostDebuff(state: GameState, playerId: string): { kind: DebuffKind; fired: boolean } | null {
+  const debuff = shownDebuff(state, playerId);
+  return debuff === null ? null : { kind: debuff.kind, fired: activeDebuff(state, playerId) !== null };
 }
 
 export function hostView(state: GameState): HostView {
@@ -656,6 +672,7 @@ export function hostView(state: GameState): HostView {
       connected: p.connected,
       streak: shownStreak(state, p),
       score: p.score,
+      debuff: hostDebuff(state, p.id),
     })),
     correct: currentQuestion(state),
     responses,

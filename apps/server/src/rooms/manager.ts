@@ -5,6 +5,7 @@ import {
   adjustScore,
   adjustTime,
   buzz,
+  cancelDebuff,
   createGame,
   end,
   endRound,
@@ -26,6 +27,7 @@ import {
   rollDie,
   rollForRest,
   setConnected,
+  setDebuff,
   setOrder,
   skipTurn,
   startDice,
@@ -37,7 +39,7 @@ import {
   type GameState,
   type Result,
 } from '@quiz/engine';
-import type { AckResult, Answer, ErrorCode, GameView, Grade, Phase, Quiz, Role, SubmittedAnswer } from '@quiz/shared';
+import type { AckResult, Answer, DebuffKind, ErrorCode, GameView, Grade, Phase, Quiz, Role, SubmittedAnswer } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -82,6 +84,8 @@ export type HostAction =
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
   | { type: 'adjust'; playerId: string; points: number }
+  | { type: 'debuff'; playerId: string; kind: DebuffKind }
+  | { type: 'undebuff'; playerId: string }
   | { type: 'judge'; playerId: string; correct: boolean }
   | { type: 'name'; answer: SubmittedAnswer | null }
   | { type: 'pick'; cellId: string }
@@ -293,6 +297,10 @@ export class RoomManager {
         return this.kick(room, action.playerId);
       case 'adjust':
         return this.apply(room, adjustScore(state, action.playerId, action.points, this.now()));
+      case 'debuff':
+        return this.apply(room, setDebuff(state, action.playerId, action.kind));
+      case 'undebuff':
+        return this.apply(room, cancelDebuff(state, action.playerId));
       case 'time':
         return this.apply(room, adjustTime(state, action.seconds, this.now()));
       case 'judge':

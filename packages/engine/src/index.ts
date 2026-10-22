@@ -4,6 +4,7 @@ export * from './score';
 export * from './ranking';
 export * from './game';
 export * from './adjust';
+export * from './debuffs';
 export * from './timing';
 export * from './hold';
 export * from './blitz';

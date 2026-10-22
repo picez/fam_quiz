@@ -19,8 +19,8 @@ const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина �
 const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, orderLabels: null });
 
 const players = [
-  { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0 },
-  { id: 'p2', nickname: 'Тарас', connected: false, score: 0, streak: 0 },
+  { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0, debuff: null },
+  { id: 'p2', nickname: 'Тарас', connected: false, score: 0, streak: 0, debuff: null },
 ];
 
 const view = (over: Partial<HostView> = {}): HostView => ({
@@ -335,8 +335,8 @@ describe('HostScreen: rounds', () => {
 
   it('marks a streak of two or more next to the nickname and prints negative points with a minus', () => {
     const hot = [
-      { id: 'p1', nickname: 'Олена', connected: true, score: -500, streak: 3 },
-      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 1 },
+      { id: 'p1', nickname: 'Олена', connected: true, score: -500, streak: 3, debuff: null },
+      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 1, debuff: null },
     ];
     show(view({ phase: 'leaderboard', round: round(), questionIndex: 0, players: hot }));
     expect(screen.getByText('🔥 3')).toBeTruthy();
@@ -427,9 +427,9 @@ describe('HostScreen: blitz', () => {
   describe('board round', () => {
     const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board'), times: null };
     const three = [
-      { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0 },
-      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 0 },
-      { id: 'p3', nickname: 'Іра', connected: true, score: 0, streak: 0 },
+      { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0, debuff: null },
+      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 0, debuff: null },
+      { id: 'p3', nickname: 'Іра', connected: true, score: 0, streak: 0, debuff: null },
     ];
     const boardOf = (over: Partial<NonNullable<HostView['board']>> = {}): NonNullable<HostView['board']> => ({
       categories: [
@@ -821,9 +821,9 @@ describe('HostScreen: blitz', () => {
 describe('HostScreen final', () => {
   const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const three = [
-    { id: 'p1', nickname: 'Анна', connected: true, score: 1000, streak: 0 },
-    { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0 },
-    { id: 'p3', nickname: 'Віра', connected: true, score: 300, streak: 0 },
+    { id: 'p1', nickname: 'Анна', connected: true, score: 1000, streak: 0, debuff: null },
+    { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0, debuff: null },
+    { id: 'p3', nickname: 'Віра', connected: true, score: 300, streak: 0, debuff: null },
   ];
   const info = { theme: 'Космос', placed: 2, total: 3, shown: [], left: 0 };
   const entry = (playerId: string, nickname: string, over: object = {}) => ({

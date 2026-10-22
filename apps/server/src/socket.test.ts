@@ -256,6 +256,18 @@ describe('permissions and bad input', () => {
     expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: -100 })).toEqual({ ok: true });
   });
 
+  it('host:debuff and host:undebuff are host-only and validated', async () => {
+    const { host, olena, olenaJoin } = await lobby();
+    await send(host, 'host:start');
+    const playerId = olenaJoin.playerId;
+    expect(await send(olena, 'host:debuff', { playerId, kind: 'fog' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:undebuff', { playerId })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:debuff', { playerId, kind: 'rain' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:undebuff', {})).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:debuff', { playerId, kind: 'fog' })).toEqual({ ok: true });
+    expect(await send(host, 'host:undebuff', { playerId })).toEqual({ ok: true });
+  });
+
   it('host:name is host-only and validated', async () => {
     const { host, olena } = await lobby();
     expect(await send(olena, 'host:name', { answer: null })).toEqual({ ok: false, error: 'forbidden' });

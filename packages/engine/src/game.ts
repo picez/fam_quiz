@@ -6,6 +6,7 @@ import {
   type CellKind,
   type CellPenalty,
   type AdjustmentSource,
+  type DebuffKind,
   type ErrorCode,
   type Grade,
   type Phase,
@@ -16,13 +17,14 @@ import {
   type Round,
   rulesOf,
 } from '@quiz/shared';
-// adjust.ts імпортує цей файл, а цей файл — adjust.ts; звертання лише під час виклику функцій.
+// adjust.ts і debuffs.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { chainDone, scoreChain } from './chain';
+import { fireDebuffs, spendDebuffs } from './debuffs';
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -195,6 +197,15 @@ export interface ScoreAdjustment {
   at: number;
 }
 
+/** Дебаф від ведучого на гравця. */
+export interface DebuffState {
+  kind: DebuffKind;
+  /** Індекс у plays запитання, у якому дебаф спрацював; null — чекає. */
+  firedAt: number | null;
+  /** Мить спрацювання; null — чекає. */
+  since: number | null;
+}
+
 export interface GameState {
   quiz: Quiz;
   phase: Phase;
@@ -224,6 +235,8 @@ export interface GameState {
   adjustments: ScoreAdjustment[];
   /** Останній виданий seq; після вилучення гравця номери не повторюються. */
   adjustmentSeq: number;
+  /** Дебафи за id гравця: що чекають на наступне запитання або діють у поточному. */
+  debuffs: Record<string, DebuffState>;
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -250,6 +263,7 @@ export function createGame(quiz: Quiz): GameState {
     final: null,
     adjustments: [],
     adjustmentSeq: 0,
+    debuffs: {},
   };
 }
 
@@ -321,7 +335,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
   const final = state.final === null ? null : dropFromFinal(state.final, playerId);
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
   const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
-  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments };
+  const { [playerId]: _debuff, ...debuffs } = state.debuffs;
+  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments, debuffs };
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
@@ -421,7 +436,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(round.type === 'blitz' || board?.kind === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [], dropped: [] } } : {}),
   };
   // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
-  return watchAway(
+  // Дебафи, що чекають, спрацьовують для тих, хто відповідає на це запитання з телефона.
+  const opened = watchAway(
     {
       ...state,
       phase: 'question',
@@ -435,6 +451,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     },
     now,
   );
+  return fireDebuffs(opened, now);
 }
 
 /** Відкриває запитання фіналу; ставка кожного гравця знімається на цю мить, хто не поставив — грає з 0. */
@@ -626,7 +643,7 @@ function dropQueue(state: GameState): GameState {
 /** Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз. */
 function lockNow(state: GameState): GameState {
   // Бали за ланцюжок залежать від найшвидшого, тож рахуються лише тут, коли відомі часи всіх.
-  const closed = withCellPenalty(dropQueue(scoreChain(state)));
+  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreChain(state))));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 

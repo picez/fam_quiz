@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 import {
   adjustSchema,
   answerSchema,
+  debuffSchema,
   guessSchema,
   judgeSchema,
   kickSchema,
@@ -13,6 +14,7 @@ import {
   wagerSchema,
   socketAuthSchema,
   timeSchema,
+  undebuffSchema,
   type AckResult,
   type ClientToServerEvents,
   type ServerToClientEvents,
@@ -161,6 +163,18 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (!isHost) return FORBIDDEN;
       const payload = adjustSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'adjust', ...payload.data }) : INVALID;
+    });
+
+    on('host:debuff', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = debuffSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'debuff', ...payload.data }) : INVALID;
+    });
+
+    on('host:undebuff', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = undebuffSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'undebuff', ...payload.data }) : INVALID;
     });
 
     on('host:judge', (args) => {
