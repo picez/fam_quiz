@@ -57,6 +57,26 @@ export interface ProfileWin {
   rank: number;
 }
 
+export interface VersusGame {
+  gameId: string;
+  title: string;
+  startedAt: string;
+  myRank: number | null;
+  theirRank: number | null;
+}
+
+/** Спільні завершені ігри того, хто дивиться («я»), і іншого користувача. */
+export interface Versus {
+  together: number;
+  /** Ігри, де моє місце краще (менше). */
+  myAhead: number;
+  theirAhead: number;
+  myAccuracy: number | null;
+  theirAccuracy: number | null;
+  /** Найновіші першими, не більше VERSUS_RECENT. */
+  recent: VersusGame[];
+}
+
 export interface OwnProfile extends ProfileCard {
   email: string;
   stats: ProfileStats;

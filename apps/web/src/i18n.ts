@@ -483,6 +483,7 @@ const uk = {
   addFriendButton: 'Додати друга',
   friendNotFound: 'Гравця з таким нікнеймом не знайдено.',
   err_self_follow: 'Себе додати в друзі не можна.',
+  err_self_versus: 'Порівняти себе з собою не можна.',
   // Меню
   menuLabel: 'Меню',
   menuJoin: 'Приєднатися',

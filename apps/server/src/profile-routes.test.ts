@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { follow, user } from './db/schema';
+import { seedGame } from './testing/history-rows';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -168,5 +169,30 @@ describe('friends', () => {
     expect(self.json()).toEqual({ error: 'self_follow' });
     expect((await request('PUT', '/api/me/friends/nobody', anna.cookie)).statusCode).toBe(404);
     expect((await request('PUT', `/api/me/friends/${borysId}`)).statusCode).toBe(401);
+  });
+});
+
+describe('versus', () => {
+  it('versus is only about the viewer and that user', async () => {
+    const vera = await signUp(ctx.app, 'Віра');
+    const veraId = await idOf(vera.cookie);
+    await seedGame(db, {
+      hostId: veraId,
+      startedAt: new Date(Date.UTC(2026, 1, 1)),
+      players: [
+        { userId: olenaId, nickname: 'Олена', score: 10, rank: 1 },
+        { userId: tarasId, nickname: 'Тарас', score: 5, rank: 2 },
+        { userId: veraId, nickname: 'Віра', score: 1, rank: 3 },
+      ],
+    });
+    expect((await request('GET', `/api/me/versus/${tarasId}`)).statusCode).toBe(401);
+    expect((await request('GET', `/api/me/versus/${olenaId}`, olena.cookie)).json()).toEqual({ error: 'self_versus' });
+    expect((await request('GET', '/api/me/versus/nobody', olena.cookie)).statusCode).toBe(404);
+    expect((await request('GET', `/api/me/versus/${'x'.repeat(65)}`, olena.cookie)).statusCode).toBe(404);
+    const response = await request('GET', `/api/me/versus/${tarasId}`, olena.cookie);
+    expect(response.statusCode).toBe(200);
+    expect(Object.keys(response.json()).sort()).toEqual(['myAccuracy', 'myAhead', 'recent', 'theirAccuracy', 'theirAhead', 'together']);
+    expect(Object.keys(response.json().recent[0]).sort()).toEqual(['gameId', 'myRank', 'startedAt', 'theirRank', 'title']);
+    for (const secret of ['Віра', veraId, olena.email, taras.email]) expect(response.body).not.toContain(secret);
   });
 });
