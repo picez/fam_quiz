@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer, type Phase, type Question } from '@quiz/shared';
 import { buzz } from './blitz';
 import { pickCell } from './board';
-import { acceptAnswer, endRound, judge, lock, next, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
-import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints, withVideo } from './testing/fixtures';
+import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
+import { placeWager } from './final';
+import { blitzRound, boardRound, bool, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints, withVideo } from './testing/fixtures';
 import { acceptAll, lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -667,5 +668,138 @@ describe('video views', () => {
     const stage = stageView(openWith(single));
     expect(stage.question).toMatchObject({ timeLimit: 20, video: null });
     expect(stage.endsAt).toBe(20_000);
+  });
+});
+
+describe('final round views', () => {
+  const rng = () => 0;
+  const q2 = withId(withPoints(single, 400), 'q2');
+  const f1 = withId(single, 'f1');
+
+  // Класичний раунд: p1 1000, p2 400, p3 -400 до фіналу; далі етап ставок фіналу «Космос».
+  function toWagers(check: 'auto' | 'manual' = 'auto'): GameState {
+    const quizFinal = makeRoundsQuiz(
+      [
+        classicRound('r1', [single, q2], { speedBonus: false, rules: { ...DEFAULT_RULES, penalty: 'minus' } }),
+        finalRound('f', f1, { title: 'Космос', check }),
+      ],
+      { leaderboard: 'end' },
+    );
+    let s = must(start(lobbyWith(quizFinal, 'Анна', 'Богдан', 'Віра'), 0, rng));
+    s = must(next(s, 0, rng));
+    s = must(submitAnswer(s, 'p1', correct, 1000));
+    s = must(next(must(lock(s)), 2000, rng));
+    s = must(next(s, 3000, rng));
+    s = must(submitAnswer(s, 'p2', correct, 4000));
+    s = must(submitAnswer(s, 'p3', wrong, 4000));
+    s = must(next(must(lock(s)), 5000, rng));
+    s = must(next(s, 6000, rng));
+    s = must(next(s, 7000, rng));
+    return must(next(s, 8000, rng));
+  }
+
+  // Ставки 500 / 400 / 0; p1 правильно, p2 неправильно, p3 мовчить.
+  function toAnswered(check: 'auto' | 'manual' = 'auto'): GameState {
+    let s = toWagers(check);
+    s = must(placeWager(s, 'p1', 500, 9000, rng));
+    s = must(placeWager(s, 'p2', 400, 9500, rng));
+    s = must(placeWager(s, 'p3', 0, 10_000, rng));
+    s = must(submitAnswer(s, 'p1', correct, 11_000));
+    return must(submitAnswer(s, 'p2', wrong, 12_000));
+  }
+
+  const toReveal = () => must(next(must(lock(toAnswered())), 13_000, rng));
+
+  it('wagers stay secret: the stage and other players only see how many have placed', () => {
+    const s = must(placeWager(toWagers(), 'p1', 777, 9000, rng));
+    expect(JSON.stringify(stageView(s))).not.toContain('777');
+    expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('777');
+    expect(stageView(s).final).toEqual({ theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 });
+    expect(playerView(s, 'p1')?.me.final).toEqual({ wager: 777, limit: 1000 });
+    expect(playerView(s, 'p3')?.me.final).toEqual({ wager: null, limit: 0 });
+  });
+
+  it('the reveal shows players one by one without spoilers', () => {
+    const entered = toReveal();
+    expect(entered.phase).toBe('reveal');
+    expect(entered.final?.shown).toBe(0);
+    expect(stageView(entered).final).toMatchObject({ shown: [], left: 3 });
+    expect(JSON.stringify(stageView(entered))).not.toContain('500');
+    expect(playerView(entered, 'p1')?.me.score).toBe(1000);
+    expect(playerView(entered, 'p1')?.me.result).toBeNull();
+    const s = must(next(entered, 13_500, rng));
+    expect(s.final?.shown).toBe(1);
+    const stage = stageView(s);
+    expect(stage.final?.shown).toEqual([
+      { playerId: 'p3', nickname: 'Віра', answer: null, grade: 'wrong', wager: 0, before: -400, after: -400 },
+    ]);
+    expect(stage.final?.left).toBe(2);
+    expect(stage.stats).toBeNull();
+    expect(stage.reveal).not.toBeNull();
+    const json = JSON.stringify(stage);
+    expect(json).not.toContain('500');
+    expect(json).not.toContain('"wager":400');
+    expect(playerView(s, 'p2')?.me.result).toBeNull();
+    expect(playerView(s, 'p2')?.me.score).toBe(400);
+    expect(playerView(s, 'p1')?.me.score).toBe(1000);
+    expect(playerView(s, 'p3')?.me.result).not.toBeNull();
+    const second = must(next(s, 14_000, rng));
+    expect(second.final?.shown).toBe(2);
+    expect(playerView(second, 'p2')?.me.result).not.toBeNull();
+    expect(playerView(second, 'p2')?.me.score).toBe(0);
+    expect(playerView(second, 'p1')?.me.result).toBeNull();
+    expect(playerView(second, 'p1')?.me.score).toBe(1000);
+    expect(stageView(second).final?.shown.map((e) => e.playerId)).toEqual(['p3', 'p2']);
+  });
+
+  it('the host sees every wager, every entry and pending manual answers', () => {
+    let s = must(placeWager(toWagers('manual'), 'p1', 500, 9000, rng));
+    let host = hostView(s).final;
+    expect(host?.manual).toBe(true);
+    expect(host?.wagers).toEqual([
+      { playerId: 'p1', nickname: 'Анна', wager: 500, limit: 1000 },
+      { playerId: 'p2', nickname: 'Богдан', wager: null, limit: 400 },
+      { playerId: 'p3', nickname: 'Віра', wager: null, limit: 0 },
+    ]);
+    s = must(placeWager(s, 'p2', 400, 9500, rng));
+    s = must(placeWager(s, 'p3', 0, 10_000, rng));
+    s = must(submitAnswer(s, 'p1', correct, 11_000));
+    s = must(submitAnswer(s, 'p2', wrong, 12_000));
+    host = hostView(s).final;
+    expect(host?.pending.map((p) => p.playerId)).toEqual(['p1', 'p2']);
+    s = must(override(must(lock(s)), 'p1', 'correct'));
+    host = hostView(s).final;
+    expect(host?.pending.map((p) => p.playerId)).toEqual(['p2']);
+    expect(host?.entries.map((e) => [e.playerId, e.wager])).toEqual([
+      ['p1', 500],
+      ['p2', 400],
+    ]);
+    const shown = hostView(must(next(toReveal(), 13_500, rng))).final;
+    expect(shown?.entries.map((e) => e.playerId)).toEqual(['p3', 'p2', 'p1']);
+    expect(shown?.entries.find((e) => e.playerId === 'p1')).toMatchObject({ wager: 500, before: 1000, after: 1500, grade: 'correct' });
+    expect(shown?.shown).toHaveLength(1);
+  });
+
+  it('the final has no spotlight and no partial button', () => {
+    for (const s of [toWagers(), toAnswered(), toReveal()]) {
+      expect(stageView(s).spotlight).toBeNull();
+      expect(playerView(s, 'p1')?.spotlight).toBeNull();
+      expect(hostView(s).round?.partial).toBe(false);
+    }
+  });
+
+  it('other rounds carry no final data', () => {
+    const s = oneAnswered();
+    expect(stageView(s).final).toBeNull();
+    expect(hostView(s).final).toBeNull();
+    expect(playerView(s, 'p1')?.final).toBeNull();
+    expect(playerView(s, 'p1')?.me.final).toBeNull();
+    expect(stageView(lobby()).final).toBeNull();
+  });
+
+  it('a final ended during wagers does not hide scores', () => {
+    const s = must(endRound(toWagers(), 9000));
+    expect(stageView(s).final).toBeNull();
+    expect(playerView(s, 'p1')?.me.score).toBe(1000);
   });
 });

@@ -131,6 +131,42 @@ export interface Spotlight {
   grade: Grade | null;
 }
 
+/** Запис гравця у фіналі. */
+export interface FinalEntry {
+  playerId: string;
+  nickname: string;
+  /** null — гравець мовчав. */
+  answer: Answer | null;
+  grade: Grade;
+  wager: number;
+  /** Рахунок до фіналу й після нього. */
+  before: number;
+  after: number;
+}
+
+/** Фінал для всіх ролей: ставок і чужих результатів до розкриття тут немає. */
+export interface FinalInfo {
+  /** Тема — назва раунду (може бути порожньою). */
+  theme: string;
+  /** Скільки гравців уже поставили; усього гравців. */
+  placed: number;
+  total: number;
+  /** Розкриті гравці в порядку розкриття (лише reveal); останній — щойно розкритий. */
+  shown: FinalEntry[];
+  /** Скільки ще не розкрито (лише reveal; інакше 0). */
+  left: number;
+}
+
+export interface HostFinal extends FinalInfo {
+  /** Ставки всіх гравців; null — ще не поставив. */
+  wagers: { playerId: string; nickname: string; wager: number | null; limit: number }[];
+  /** Записи всіх гравців незалежно від розкриття, у порядку розкриття (до reveal — у порядку гравців). */
+  entries: FinalEntry[];
+  manual: boolean;
+  /** Відповіді, що чекають на ручну оцінку (manual, answer не null, гравця немає в graded). */
+  pending: { playerId: string; nickname: string; answer: Answer }[];
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -151,6 +187,8 @@ interface BaseView {
   board: BoardInfo | null;
   /** Відповідь одного гравця для всіх ролей (поле з телефонами, бліц); null — немає. */
   spotlight: Spotlight | null;
+  /** Фінал; null поза раундом фіналу й поза етапами intro, wager, question, locked, reveal. */
+  final: FinalInfo | null;
 }
 
 export interface StageView extends BaseView {
@@ -180,6 +218,8 @@ export interface PlayerView extends BaseView {
     answer: Answer | null;
     result: PlayerResult | null;
     blitz: PlayerBlitz | null;
+    /** Власна ставка й її межа; null поза фіналом. */
+    final: { wager: number | null; limit: number } | null;
   };
   reveal: Question | null;
   standings: Standing[] | null;
@@ -206,6 +246,7 @@ export interface HostView extends BaseView {
   blitz: HostBlitz | null;
   /** Як у BaseView, але позначки всіх клітинок видно завжди. */
   board: HostBoard | null;
+  final: HostFinal | null;
   standings: Standing[];
 }
 
