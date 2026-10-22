@@ -59,7 +59,7 @@ describe('Home', () => {
 });
 
 describe('Home for a signed-in person', () => {
-  it('offers the quiz list and played games instead of the sign-in entry', async () => {
+  it('does not repeat the menu links for a signed-in person', async () => {
     vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
     render(
       <MemoryRouter initialEntries={['/']}>
@@ -68,8 +68,10 @@ describe('Home for a signed-in person', () => {
         </Routes>
       </MemoryRouter>,
     );
-    expect((await screen.findByRole('link', { name: 'Мої вікторини' })).getAttribute('href')).toBe('/quizzes');
-    expect(screen.getByRole('link', { name: 'Мої ігри' }).getAttribute('href')).toBe('/me');
+    await vi.waitFor(() => expect(me).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByRole('link', { name: 'Мої вікторини' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Мої ігри' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Я ведучий' })).toBeNull();
   });
 

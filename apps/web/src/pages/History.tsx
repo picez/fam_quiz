@@ -3,6 +3,7 @@ import { listGames } from '../api';
 import { formatDate } from '../format';
 import { t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
+import { HistoryTabs } from './HistoryTabs';
 
 export function History() {
   const state = usePrivateData(listGames);
@@ -11,11 +12,7 @@ export function History() {
 
   return (
     <main className="app wide">
-      <header className="bar">
-        <Link className="quiet-link" to="/quizzes">
-          {t('toQuizzes')}
-        </Link>
-      </header>
+      <HistoryTabs />
       <h1 className="brand">{t('historyTitle')}</h1>
 
       {state.status === 'loading' && <p className="meta">{t('loading')}</p>}

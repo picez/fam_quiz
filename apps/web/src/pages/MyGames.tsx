@@ -1,9 +1,10 @@
 import { gameStats } from '@quiz/shared';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { myHistory } from '../api';
 import { formatDate } from '../format';
 import { countText, t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
+import { HistoryTabs } from './HistoryTabs';
 
 export function MyGames() {
   const state = usePrivateData(myHistory);
@@ -14,11 +15,7 @@ export function MyGames() {
 
   return (
     <main className="app wide">
-      <header className="bar">
-        <Link className="quiet-link" to="/">
-          {t('backHome')}
-        </Link>
-      </header>
+      <HistoryTabs />
       <h1 className="brand">{t('myGamesTitle')}</h1>
 
       {state.status === 'loading' && <p className="meta">{t('loading')}</p>}

@@ -130,12 +130,6 @@ export function Quizzes() {
         <button type="button" className="btn" disabled={busy} onClick={addDemo}>
           {t('addDemo')}
         </button>
-        <Link className="btn btn-quiet" to="/history">
-          {t('historyTitle')}
-        </Link>
-        <Link className="btn btn-quiet" to="/me">
-          {t('myGamesTitle')}
-        </Link>
       </div>
 
       {error !== null && (

@@ -54,16 +54,7 @@ export function Home() {
           </p>
         )}
       </form>
-      {account.status === 'signed-in' ? (
-        <nav className="toolbar centered">
-          <Link className="quiet-link" to="/quizzes">
-            {t('toQuizzes')}
-          </Link>
-          <Link className="quiet-link" to="/me">
-            {t('myGamesTitle')}
-          </Link>
-        </nav>
-      ) : (
+      {account.status !== 'signed-in' && (
         <Link className="quiet-link" to="/quizzes">
           {t('hostEntry')}
         </Link>
