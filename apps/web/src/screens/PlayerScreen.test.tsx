@@ -214,6 +214,12 @@ describe('PlayerScreen: rounds', () => {
     expect(screen.getByText('Фінальний')).toBeTruthy();
   });
 
+  it('the intro explains the round on the phone', () => {
+    show(view({ phase: 'intro', round: { ...round, type: 'blitz', description: 'Кіно 90-х', brief: emptyBrief('blitz') } }));
+    expect(screen.getByText('Кіно 90-х')).toBeTruthy();
+    expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
+  });
+
   it('shows the round results with the place', () => {
     const standings = [
       { participantId: 'p2', nickname: 'Тарас', score: 900, totalTimeMs: 1, rank: 1 },

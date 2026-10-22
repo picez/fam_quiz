@@ -3,6 +3,7 @@ import type { ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/sha
 import { secondsLeft } from '../clock';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
+import { RoundBriefing } from './RoundBriefing';
 import type { Send } from '../live/types';
 import { BlitzCellNotes, Board } from './Board';
 import { QuestionImage } from './QuestionImage';
@@ -206,6 +207,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         <section className="panel">
           <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>
           <h1 className="question">{roundLabel(round.title, round.index, round.type)}</h1>
+          <RoundBriefing brief={round.brief} description={round.description} />
         </section>
       )}
 

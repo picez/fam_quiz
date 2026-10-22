@@ -2219,3 +2219,25 @@ button.match-item {
   background: var(--panel);
   outline: 2px solid var(--amber);
 }
+
+.round-brief {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 40rem;
+}
+.round-brief-note {
+  margin: 0;
+  color: var(--amber);
+  overflow-wrap: anywhere;
+}
+.round-brief-lines {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.375rem;
+  color: var(--paper);
+}
+.stage .round-brief {
+  font-size: clamp(1.125rem, 2vw, 2rem);
+  margin: 0 auto;
+}

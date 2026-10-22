@@ -235,6 +235,12 @@ describe('HostScreen: rounds', () => {
     expect(send).toHaveBeenCalledWith('host:next', undefined);
   });
 
+  it('the host sees the round summary to read it aloud', () => {
+    show(view({ phase: 'intro', round: round({ description: 'Кіно 90-х', brief: { ...emptyBrief('classic'), speedBonus: true } }) }));
+    expect(screen.getByText('Кіно 90-х')).toBeTruthy();
+    expect(screen.getByText('Що швидша правильна відповідь, то більше балів.')).toBeTruthy();
+  });
+
   it('offers «next round» after the round results', () => {
     const send = show(view({ phase: 'round_end', round: round(), questionIndex: 1 }));
     fireEvent.click(button('Наступний раунд'));

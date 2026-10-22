@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
 import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
+import { RoundBriefing } from './RoundBriefing';
 import { MatchColumns, PairList } from './MatchView';
 import { Timer } from '../live/Timer';
 import { BlitzCellNotes, Board } from './Board';
@@ -221,6 +222,7 @@ function FinalStage({ view }: { view: StageView }) {
     <div className="stage-board">
       <p className="meta">{t('finalLabel')}</p>
       <h1 className="question wager-theme">{theme}</h1>
+      {view.phase === 'intro' && <RoundBriefing brief={view.round.brief} description={view.round.description} />}
       {view.phase === 'wager' && <p className="lead">{t('finalStageWagers', { placed: final.placed, total: final.total })}</p>}
     </div>
   );
@@ -233,6 +235,7 @@ function Intro({ view }: { view: StageView }) {
     <div className="stage-board">
       <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
+      <RoundBriefing brief={view.round.brief} description={view.round.description} />
       {view.board !== null && (
         <>
           <p className="meta">{t('boardOrder')}</p>

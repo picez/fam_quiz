@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type Question, RoundInfo, StageView } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
@@ -144,6 +144,18 @@ describe('StageScreen: rounds', () => {
     show(view({ phase: 'intro', round }));
     expect(screen.getByText('Раунд 1 з 2')).toBeTruthy();
     expect(screen.getByText('Розминка')).toBeTruthy();
+  });
+
+  it('the intro shows the author note and the rules summary', () => {
+    show(view({ phase: 'intro', round: { ...round, description: 'Кіно 90-х', brief: { ...emptyBrief('blitz'), attempts: 1, answerWindow: 15 } } }));
+    expect(screen.getByText('Кіно 90-х')).toBeTruthy();
+    expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
+  });
+
+  it('the intro shows the rules summary without an empty note', () => {
+    show(view({ phase: 'intro', round: { ...round, brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    expect(document.querySelector('.round-brief-note')).toBeNull();
+    expect(within(screen.getByRole('list', { name: 'Як нараховуються бали' })).getAllByRole('listitem')).toHaveLength(2);
   });
 
   it('names an untitled round «Раунд N» in the intro heading', () => {
@@ -409,6 +421,14 @@ describe('StageScreen final', () => {
     wager,
     before,
     after,
+  });
+
+  it('explains the wager on the intro only', () => {
+    const { unmount } = show(view({ phase: 'intro', round, final: info }));
+    expect(screen.getByText('Кожен таємно ставить від 0 до свого рахунку.')).toBeTruthy();
+    unmount();
+    show(view({ phase: 'wager', round, final: info }));
+    expect(screen.queryByText('Кожен таємно ставить від 0 до свого рахунку.')).toBeNull();
   });
 
   it('shows the theme and how many have wagered', () => {

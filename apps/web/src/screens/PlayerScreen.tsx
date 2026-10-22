@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, signed } from '../format';
 import { errorText, t } from '../i18n';
+import { RoundBriefing } from './RoundBriefing';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
@@ -163,6 +164,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
+          <RoundBriefing brief={view.round.brief} description={view.round.description} />
         </>
       )}
 
