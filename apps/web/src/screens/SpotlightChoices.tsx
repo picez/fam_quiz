@@ -133,14 +133,19 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
   if (verdictAlone !== null) return verdictAlone;
   if (answer === null) {
     if (question.type === 'order') {
+      const labels = question.orderLabels;
       return (
-        <ol className="order spotlight-order">
-          {question.choices.map((choice) => (
-            <li key={choice.id}>
-              <span className="order-text">{choice.text}</span>
-            </li>
-          ))}
-        </ol>
+        <>
+          {labels !== null && labels.top !== '' && <p className="order-label is-top">↑ {labels.top}</p>}
+          <ol className="order spotlight-order">
+            {question.choices.map((choice) => (
+              <li key={choice.id}>
+                <span className="order-text">{choice.text}</span>
+              </li>
+            ))}
+          </ol>
+          {labels !== null && labels.bottom !== '' && <p className="order-label is-bottom">↓ {labels.bottom}</p>}
+        </>
       );
     }
     // Місце для відповіді словами чи числом; на розкритті його вже не треба.

@@ -89,6 +89,27 @@ describe('questionSchema', () => {
     expect(valid(questionSchema, multi)).toBe(false);
   });
 
+  it('order labels are optional and at most 40 characters', () => {
+    const order = {
+      id: 'q6',
+      type: 'order',
+      text: 'Розташуйте міста з заходу на схід',
+      imageUrl: null,
+      timeLimit: 20,
+      points: 1000,
+      items: [
+        { id: 'u', text: 'Ужгород' },
+        { id: 'l', text: 'Львів' },
+        { id: 'k', text: 'Київ' },
+      ],
+    };
+    const withLabels = (patch: object) => ({ ...order, ...patch });
+    expect(valid(questionSchema, order)).toBe(true);
+    expect(questionSchema.parse(withLabels({ topLabel: '  Найбільший ', bottomLabel: 'Найменший' }))).toMatchObject({ topLabel: 'Найбільший', bottomLabel: 'Найменший' });
+    expect(valid(questionSchema, withLabels({ topLabel: 'а'.repeat(40) }))).toBe(true);
+    expect(valid(questionSchema, withLabels({ bottomLabel: 'а'.repeat(41) }))).toBe(false);
+  });
+
   it('rejects an order question with fewer than three items', () => {
     const order = {
       id: 'q6',

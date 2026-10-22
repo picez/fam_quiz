@@ -2698,3 +2698,16 @@ button.match-item {
   font-size: 1rem;
   color: var(--dim);
 }
+
+/* Підписи «що зверху» і «що знизу» над і під списком порядку. */
+.order-label {
+  margin: 0.5rem 0;
+  color: var(--amber);
+  font-family: var(--display);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.stage-question .order-label {
+  font-size: 1.5rem;
+}

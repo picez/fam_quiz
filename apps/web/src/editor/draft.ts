@@ -266,8 +266,19 @@ export function cleaned(quiz: Quiz): Quiz {
         const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
         return { ...question, text, options, correctIds };
       }
-      case 'order':
-        return { ...question, text, items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems) };
+      case 'order': {
+        // Порожній підпис зникає з запитання, а не лишається порожнім рядком.
+        const { topLabel, bottomLabel, ...rest } = question;
+        const top = topLabel?.trim() ?? '';
+        const bottom = bottomLabel?.trim() ?? '';
+        return {
+          ...rest,
+          text,
+          items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems),
+          ...(top === '' ? {} : { topLabel: top }),
+          ...(bottom === '' ? {} : { bottomLabel: bottom }),
+        };
+      }
       case 'match': {
         // Як і в впорядкуванні, прибираються лише порожні пари в кінці.
         const trimmed = question.pairs.map((pair) => ({ left: trimAll([pair.left])[0], right: trimAll([pair.right])[0] }));

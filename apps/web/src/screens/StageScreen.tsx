@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
-import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
+import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { MatchColumns, PairList } from './MatchView';
@@ -100,7 +100,9 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
   const answering = pendingSpot ?? (blitzCell ? null : view.board?.turn) ?? view.blitz?.queue[0] ?? null;
   // Розкриття фіналу йде по одному гравцю: відео, картинка й варіанти зникають, щоб список був на екрані.
   const finalReveal = view.final !== null && view.phase === 'reveal';
-  const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'order' ? t('orderOnPhone') : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const orderLabels = question.orderLabels === null ? '' : orderLabelsText(question.orderLabels);
+  const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
+  const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question">

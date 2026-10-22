@@ -6,7 +6,7 @@ import { SpotlightChoices } from './SpotlightChoices';
 
 afterEach(cleanup);
 
-const base = { imageUrl: null, video: null, timeLimit: 20, points: 100, right: [], chain: null };
+const base = { imageUrl: null, video: null, timeLimit: 20, points: 100, right: [], chain: null, orderLabels: null };
 const textQ: PublicQuestion = { ...base, type: 'text', text: 'Перлина?', choices: [] };
 const orderQ: PublicQuestion = {
   ...base,
@@ -38,6 +38,16 @@ describe('SpotlightChoices', () => {
     expect(order.container.querySelector('p.spotlight-answer.is-wrong')?.textContent).toBe('Ужгород → Львів');
     cleanup();
     expect(render(<SpotlightChoices question={textQ} spotlight={null} reveal={null} />).container.textContent).toBe('Відповідь словами з’явиться тут');
+  });
+
+  it('the waiting order list shows the labels above and below', () => {
+    const labelled = { ...orderQ, orderLabels: { top: 'Захід', bottom: 'Схід' } };
+    const { container } = render(<SpotlightChoices question={labelled} spotlight={null} reveal={null} />);
+    const list = container.querySelector('ol.spotlight-order') as HTMLElement;
+    expect(container.querySelector('.order-label.is-top')?.textContent).toBe('↑ Захід');
+    expect(container.querySelector('.order-label.is-bottom')?.textContent).toBe('↓ Схід');
+    expect(list.previousElementSibling?.className).toContain('is-top');
+    expect(list.nextElementSibling?.className).toContain('is-bottom');
   });
 
   it('numeric without an answer shows where the number will appear', () => {

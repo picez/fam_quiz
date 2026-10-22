@@ -364,6 +364,15 @@ function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
     case 'order':
       return (
         <>
+          <label className="field">
+            <span>{t('orderTopLabel')}</span>
+            <input
+              maxLength={LIMITS.orderLabel}
+              placeholder={t('orderTopPlaceholder')}
+              value={question.topLabel ?? ''}
+              onChange={(event) => onChange({ ...question, topLabel: event.target.value })}
+            />
+          </label>
           <Rows
             rows={question.items}
             min={LIMITS.minOrderItems}
@@ -397,6 +406,15 @@ function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
             )}
             onChange={(items) => onChange({ ...question, items })}
           />
+          <label className="field">
+            <span>{t('orderBottomLabel')}</span>
+            <input
+              maxLength={LIMITS.orderLabel}
+              placeholder={t('orderBottomPlaceholder')}
+              value={question.bottomLabel ?? ''}
+              onChange={(event) => onChange({ ...question, bottomLabel: event.target.value })}
+            />
+          </label>
           <p className="meta">{t('orderHint')}</p>
         </>
       );

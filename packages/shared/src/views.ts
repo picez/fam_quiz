@@ -21,6 +21,8 @@ export interface PublicQuestion {
   choices: Choice[];
   /** Праві елементи пар у порядку показу; [] для інших типів. */
   right: Choice[];
+  /** Підписи над і під списком order ('' — немає); null для інших типів. */
+  orderLabels: { top: string; bottom: string } | null;
   /** null для інших типів. */
   chain: PublicChain | null;
 }

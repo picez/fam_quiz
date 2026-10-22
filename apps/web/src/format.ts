@@ -72,8 +72,10 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.accepted[0];
     case 'numeric':
       return question.tolerance > 0 ? `${question.correct} (± ${question.tolerance})` : String(question.correct);
-    case 'order':
-      return question.items.map((item) => item.text).join(' → ');
+    case 'order': {
+      const labels = orderLabelsText({ top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' });
+      return question.items.map((item) => item.text).join(' → ') + (labels === '' ? '' : ` (${labels})`);
+    }
     case 'match':
       return pairsLine(correctPairs(question));
     case 'chain':
@@ -168,6 +170,16 @@ export function streaksOf(players: LobbyPlayer[]): Record<string, number> {
 /** Позначка клітинки поля: «×2», «×3»; для клітинки без позначки порожньо. */
 export function markText(mark: CellMark): string {
   return mark === 'x2' ? '×2' : mark === 'x3' ? '×3' : '';
+}
+
+/** «зверху — Найбільший, знизу — Найменший»; порожні підписи пропускаються; обидва порожні — ''. */
+export function orderLabelsText(labels: { top: string; bottom: string }): string {
+  return [
+    labels.top === '' ? '' : t('orderTop', { label: labels.top }),
+    labels.bottom === '' ? '' : t('orderBottom', { label: labels.bottom }),
+  ]
+    .filter((part) => part !== '')
+    .join(', ');
 }
 
 /** Відповідь словами за показаними варіантами: назви беруться з запитання, яке бачить гравець. */

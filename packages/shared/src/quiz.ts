@@ -28,6 +28,7 @@ export const LIMITS = {
   minCategoryQuestions: 3,
   maxCategoryQuestions: 10,
   categoryTitle: 40,
+  orderLabel: 40,
   maxPlayers: 50,
   nicknameMin: 2,
   nicknameMax: 20,
@@ -107,6 +108,10 @@ export const questionSchema = z
       type: z.literal('order'),
       // Елементи зберігаються в правильному порядку.
       items: z.array(choice).min(LIMITS.minOrderItems).max(LIMITS.maxOrderItems),
+      /** Що зверху списку, наприклад «Найбільший»; старі запитання без підпису. */
+      topLabel: z.string().trim().max(LIMITS.orderLabel).refine(isStorable, UNSTORABLE).optional(),
+      /** Що знизу списку, наприклад «Найменший». */
+      bottomLabel: z.string().trim().max(LIMITS.orderLabel).refine(isStorable, UNSTORABLE).optional(),
     }),
     z.object({
       ...base,

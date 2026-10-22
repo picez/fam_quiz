@@ -14,7 +14,7 @@ const publicQuestion = {
   video: null,
   timeLimit: 20,
   points: 1000,
-  right: [], chain: null,
+  right: [], chain: null, orderLabels: null,
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },

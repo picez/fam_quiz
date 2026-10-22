@@ -85,6 +85,7 @@ function publicQuestion(state: GameState): PublicQuestion | null {
     points: question.points,
     choices,
     right,
+    orderLabels: question.type === 'order' ? { top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' } : null,
     chain:
       question.type === 'chain'
         ? { first: question.words[0], masks: question.words.slice(1).map((w) => maskWord(w, 1)), hintSeconds: question.hintSeconds }

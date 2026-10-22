@@ -10,7 +10,7 @@ const choices = [
   { id: 'a', text: 'Львів' },
   { id: 'b', text: 'Київ' },
 ];
-const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [], chain: null };
+const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [], chain: null, orderLabels: null };
 const full: Question = { id: 'q1', type: 'single', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, options: choices, correctId: 'b' };
 
 const view = (over: Partial<StageView> = {}): StageView => ({
@@ -356,6 +356,7 @@ describe('StageScreen: match', () => {
       { id: 'y', text: 'Полтва' },
     ],
     chain: null,
+    orderLabels: null,
   };
   const matchFull: Question = {
     id: 'q',
@@ -382,6 +383,16 @@ describe('StageScreen: match', () => {
     expect(done.container.querySelectorAll('li.match-row.is-correct').length).toBe(3);
     expect(screen.getByText('Правильні пари')).toBeTruthy();
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
+  it('the stage hint names the order labels', () => {
+    const orderQ = { ...question, type: 'order' as const, choices };
+    const at = { phase: 'question' as const, questionIndex: 0, endsAt: Date.now() + 20_000 };
+    const labelled = show(view({ ...at, question: { ...orderQ, orderLabels: { top: 'Захід', bottom: 'Схід' } } }));
+    expect(screen.getByText('Розставте на телефоні: зверху — Захід, знизу — Схід')).toBeTruthy();
+    labelled.unmount();
+    show(view({ ...at, question: { ...orderQ, orderLabels: { top: '', bottom: '' } } }));
+    expect(screen.getByText('Розставте в правильному порядку на телефоні')).toBeTruthy();
   });
 
   it('a voice board cell shows the match columns without the phone hint', () => {

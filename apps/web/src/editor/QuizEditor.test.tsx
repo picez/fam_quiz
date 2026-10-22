@@ -48,6 +48,24 @@ describe('QuizEditor', () => {
     }
   });
 
+  it('an order question takes optional top and bottom labels', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Розставте');
+    fireEvent.click(screen.getByRole('button', { name: 'порядок' }));
+    fill('Елемент 1', 'Один');
+    fill('Елемент 2', 'Два');
+    fill('Елемент 3', 'Три');
+    expect(screen.getByLabelText('Що зверху (необов’язково)').getAttribute('maxlength')).toBe('40');
+    expect(screen.getByLabelText('Що знизу (необов’язково)').getAttribute('maxlength')).toBe('40');
+    fill('Що зверху (необов’язково)', ' Найбільший ');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'order', topLabel: 'Найбільший' });
+    expect('bottomLabel' in question).toBe(false);
+  });
+
   it('does not save an unfinished quiz and says what is missing', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Географія');

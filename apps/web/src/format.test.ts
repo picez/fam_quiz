@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyBrief, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, secondsText, shownChoices } from './format';
+import { questionLabel, roundFacts, roundLabel, answerText, choicesOf, correctPairs, correctText, formatDate, orderLabelsText, pairTexts, secondsText, shownChoices } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -23,6 +23,16 @@ describe('correctText', () => {
     expect(correctText(text)).toBe('Одеса');
     expect(correctText(numeric)).toBe('2061 (± 100)');
     expect(correctText({ ...numeric, tolerance: 0 })).toBe('2061');
+    expect(correctText(order)).toBe('Львів → Київ → Одеса');
+  });
+});
+
+describe('order labels', () => {
+  it('order labels in words and in the revealed answer', () => {
+    expect(orderLabelsText({ top: 'Найбільший', bottom: 'Найменший' })).toBe('зверху — Найбільший, знизу — Найменший');
+    expect(orderLabelsText({ top: '', bottom: 'Найменший' })).toBe('знизу — Найменший');
+    expect(orderLabelsText({ top: '', bottom: '' })).toBe('');
+    expect(correctText({ ...order, topLabel: 'Захід', bottomLabel: 'Схід' })).toBe('Львів → Київ → Одеса (зверху — Захід, знизу — Схід)');
     expect(correctText(order)).toBe('Львів → Київ → Одеса');
   });
 });

@@ -20,7 +20,7 @@ const question = (over: Partial<PublicQuestion>): PublicQuestion => ({
   timeLimit: 20,
   points: 1000,
   choices: cities,
-  right: [], chain: null,
+  right: [], chain: null, orderLabels: null,
   ...over,
 });
 
@@ -33,6 +33,18 @@ function setup(over: Partial<PublicQuestion>) {
 const button = (name: string | RegExp) => screen.getByRole('button', { name }) as HTMLButtonElement;
 
 describe('AnswerInput', () => {
+  it('the order input shows what goes on top and at the bottom', () => {
+    const { container } = render(<AnswerInput question={question({ type: 'order', orderLabels: { top: 'Захід', bottom: 'Схід' } })} onSubmit={vi.fn()} />);
+    const list = container.querySelector('ol.order') as HTMLElement;
+    const top = screen.getByText(/Захід/);
+    const bottom = screen.getByText(/Схід/);
+    expect(top.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(list.compareDocumentPosition(bottom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    const plain = render(<AnswerInput question={question({ type: 'order', orderLabels: { top: '', bottom: '' } })} onSubmit={vi.fn()} />);
+    expect(plain.container.querySelector('.order-label')).toBeNull();
+  });
+
   it('single: sends the tapped option at once', () => {
     const onSubmit = setup({ type: 'single' });
     fireEvent.click(button(/Київ/));

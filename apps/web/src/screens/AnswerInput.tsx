@@ -100,6 +100,7 @@ function OrderInput({ question, onSubmit }: Props) {
 
   return (
     <>
+      {question.orderLabels !== null && question.orderLabels.top !== '' && <p className="order-label is-top">↑ {question.orderLabels.top}</p>}
       <ol className="order">
         {items.map((item, index) => (
           <li key={item.id}>
@@ -126,6 +127,7 @@ function OrderInput({ question, onSubmit }: Props) {
           </li>
         ))}
       </ol>
+      {question.orderLabels !== null && question.orderLabels.bottom !== '' && <p className="order-label is-bottom">↓ {question.orderLabels.bottom}</p>}
       <button
         type="button"
         className="btn btn-primary"

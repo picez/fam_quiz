@@ -56,6 +56,7 @@ describe('while a question is open', () => {
         { id: 'c', text: 'Одеса' },
       ],
       right: [],
+      orderLabels: null,
       chain: null,
     });
     expect(view.endsAt).toBe(T0 + 20_000);
@@ -96,6 +97,14 @@ describe('while a question is open', () => {
         overridden: false,
       },
     ]);
+  });
+
+  it('players see the order labels, other types have none', () => {
+    const labelled = { ...order, topLabel: 'Захід', bottomLabel: 'Схід' };
+    const view = (question: Question) => stageView(startRound(lobbyWith(makeQuiz([question]), 'Олена'), T0, () => 0.999)).question;
+    expect(view(labelled)?.orderLabels).toEqual({ top: 'Захід', bottom: 'Схід' });
+    expect(view(order)?.orderLabels).toEqual({ top: '', bottom: '' });
+    expect(view(single)?.orderLabels).toBeNull();
   });
 
   it('presents order items in the shuffled order', () => {
