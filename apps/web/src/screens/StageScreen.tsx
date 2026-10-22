@@ -7,6 +7,7 @@ import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
+import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -239,12 +240,7 @@ function Intro({ view }: { view: StageView }) {
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} />
-      {view.board !== null && (
-        <>
-          <p className="meta">{t('boardOrder')}</p>
-          <Order board={view.board} />
-        </>
-      )}
+      {view.board !== null && <BoardIntro board={view.board} />}
     </div>
   );
 }

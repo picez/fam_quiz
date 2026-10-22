@@ -540,6 +540,58 @@ describe('PlayerScreen: blitz', () => {
       expect(screen.getByText('Відповідав Анна')).toBeTruthy();
       expect(screen.getByText(/Правильна відповідь: B. Київ/)).toBeTruthy();
     });
+
+    const olena = { playerId: 'p1', nickname: 'Олена' };
+    const anna = { playerId: 'p2', nickname: 'Анна' };
+    const diceOf = (mine: number[], waiting: boolean, extra: { tieBreak?: boolean; done?: boolean; annaWaiting?: boolean } = {}) => ({
+      rows: [
+        { ...olena, throws: mine, waiting },
+        { ...anna, throws: [], waiting: extra.annaWaiting ?? true },
+      ],
+      tieBreak: extra.tieBreak ?? false,
+      done: extra.done ?? false,
+    });
+    const intro = (dice: ReturnType<typeof diceOf>, over: Partial<PlayerView> = {}, board: Partial<NonNullable<PlayerView['board']>> = {}) =>
+      view({ phase: 'intro', round, board: boardOf('p1', { turn: null, dice, ...board }), ...over });
+    const rollButton = () => screen.queryByRole('button', { name: 'Кинути кубик' }) as HTMLButtonElement | null;
+
+    it('the phone roll button sends once and disappears into the reserved slot', async () => {
+      let resolve: (value: { ok: true }) => void = () => {};
+      const send = vi.fn(() => new Promise<{ ok: true }>((r) => (resolve = r))) as unknown as Send;
+      const { rerender } = render(<PlayerScreen view={intro(diceOf([], true))} hostOnline offsetMs={0} send={send} />);
+      const slot = document.querySelector('div.dice-action')!;
+      expect(slot.contains(rollButton())).toBe(true);
+      fireEvent.click(rollButton()!);
+      expect(send).toHaveBeenCalledWith('player:roll', undefined);
+      expect(rollButton()!.disabled).toBe(true);
+      fireEvent.click(rollButton()!);
+      expect(send).toHaveBeenCalledTimes(1);
+      await act(async () => resolve({ ok: true }));
+      rerender(<PlayerScreen view={intro(diceOf([4], false))} hostOnline offsetMs={0} send={send} />);
+      expect(rollButton()).toBeNull();
+      expect(document.querySelector('div.dice-action')).toBe(slot);
+      expect(slot.textContent).toBe('Кубик кинуто. Чекаємо інших');
+    });
+
+    it('the roll button is disabled on pause and hidden for those not in the tie-break', () => {
+      show(intro(diceOf([], true), { paused: true }));
+      expect(rollButton()!.disabled).toBe(true);
+      cleanup();
+      show(intro(diceOf([3], false, { tieBreak: true })));
+      expect(rollButton()).toBeNull();
+      expect(document.querySelector('div.dice-action')?.textContent).toBe('Кубик кинуто. Чекаємо інших');
+    });
+
+    it('the phone intro shows the dice rows with the own row marked and then the schedule', () => {
+      show(intro(diceOf([], true)));
+      expect(document.querySelector('.dice-rows li.is-me')?.textContent).toContain('Олена');
+      expect(screen.queryByText('Розклад ходів')).toBeNull();
+      cleanup();
+      const schedule = [{ number: 1, order: [olena, anna], done: 0 }];
+      show(intro({ ...diceOf([5], false, { done: true, annaWaiting: false }) }, {}, { schedule }));
+      expect(screen.getByText('Розклад ходів')).toBeTruthy();
+      expect(document.querySelector('div.dice-action')).toBeNull();
+    });
   });
 });
 

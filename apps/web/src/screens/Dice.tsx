@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import type { DiceInfo, DiceRow } from '@quiz/shared';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { BoardInfo, DiceInfo, DiceRow } from '@quiz/shared';
 import { t } from '../i18n';
+import { TurnSchedule } from './TurnSchedule';
 
 /** Скільки крутиться кубик після кидка, мс. */
 export const ROLL_MS = 1200;
@@ -96,5 +97,19 @@ export function DicePanel({ dice, spinning, meId }: { dice: DiceInfo; spinning: 
         })}
       </ul>
     </div>
+  );
+}
+
+const NO_ROWS: DiceRow[] = [];
+
+/** Кидки й розклад на заставці; розклад з'являється, коли всі кубики зупинилися (інакше він видав би результат раніше). */
+export function BoardIntro({ board, meId, children }: { board: BoardInfo; meId?: string; children?: ReactNode }) {
+  const spinning = useDiceSpin(board.dice?.rows ?? NO_ROWS);
+  return (
+    <>
+      {board.dice !== null && <DicePanel dice={board.dice} spinning={spinning} meId={meId} />}
+      {children}
+      {spinning.size === 0 && <TurnSchedule board={board} heading={t('scheduleTitle')} />}
+    </>
   );
 }

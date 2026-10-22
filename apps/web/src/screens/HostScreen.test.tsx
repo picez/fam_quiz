@@ -455,20 +455,56 @@ describe('HostScreen: blitz', () => {
     const onBoard = (over: Partial<HostView> = {}, board = boardOf()) =>
       view({ phase: 'board', round: boardRound, players: three, playerCount: 3, board, ...over });
 
-    it('sets the board order with arrows, dice and join order', async () => {
+    const diceOf = (waiting: string[], done = false) => ({
+      rows: three.map((p) => ({ playerId: p.id, nickname: p.nickname, throws: waiting.includes(p.id) ? [] : [4], waiting: waiting.includes(p.id) })),
+      tieBreak: false,
+      done,
+    });
+    const onIntro = (board = boardOf({ turn: null })) => view({ phase: 'intro', round: boardRound, players: three, playerCount: 3, board });
+
+    it('sets the board order with arrows, starts the dice, rolls for the rest and keeps the join order', async () => {
       const order = [three[2], three[0], three[1]].map((p) => ({ playerId: p.id, nickname: p.nickname }));
-      const send = show(view({ phase: 'intro', round: boardRound, players: three, playerCount: 3, board: boardOf({ turn: null, order }) }));
+      const send = show(onIntro(boardOf({ turn: null, order })));
       expect(screen.getByText('Порядок ходів')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Кинути за тих, хто лишився' })).toBeNull();
       // порядок у панелі береться з board.order: Іра, Олена, Тарас
       fireEvent.click(button('Опустити Іра'));
       expect(send).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p3', 'p2'] });
       // кнопки розблоковуються, коли відповідь на попередню дію прийшла
-      await waitFor(() => expect((button('Кинути кубик') as HTMLButtonElement).disabled).toBe(false));
-      fireEvent.click(button('Кинути кубик'));
-      expect(send).toHaveBeenCalledWith('host:roll', undefined);
+      await waitFor(() => expect((button('Кидати кубики') as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button('Кидати кубики'));
+      expect(send).toHaveBeenCalledWith('host:dice', undefined);
+      cleanup();
+
+      const rolling = show(onIntro(boardOf({ turn: null, order, dice: diceOf(['p2']) })));
+      expect((button('Кидати кубики') as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(button('Кинути за тих, хто лишився'));
+      expect(rolling).toHaveBeenCalledWith('host:roll', undefined);
       await waitFor(() => expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(button('За порядком приєднання'));
-      expect(send).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p2', 'p3'] });
+      expect(rolling).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p2', 'p3'] });
+      cleanup();
+
+      show(onIntro(boardOf({ turn: null, dice: diceOf([], true) })));
+      expect((button('Кидати кубики') as HTMLButtonElement).disabled).toBe(false);
+      expect(screen.queryByRole('button', { name: 'Кинути за тих, хто лишився' })).toBeNull();
+    });
+
+    it('the host start button waits for the dice and names who has not rolled', () => {
+      show(onIntro(boardOf({ turn: null, dice: diceOf(['p2', 'p3']) })));
+      expect((button('Почати раунд') as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByText('Ще не кинули: Тарас, Іра. Можна кинути за них.')).toBeTruthy();
+      cleanup();
+      show(onIntro(boardOf({ turn: null, dice: diceOf([], true) })));
+      expect((button('Почати раунд') as HTMLButtonElement).disabled).toBe(false);
+      expect(screen.queryByText(/Ще не кинули/)).toBeNull();
+    });
+
+    it('the host sees the dice rows and the schedule', () => {
+      const schedule = [{ number: 1, order: three.map((p) => ({ playerId: p.id, nickname: p.nickname })), done: 0 }];
+      show(onIntro(boardOf({ turn: null, dice: diceOf([], true), schedule })));
+      expect(document.querySelector('.dice-rows')).not.toBeNull();
+      expect(screen.getByText('Розклад ходів')).toBeTruthy();
     });
 
     it('the host shows the legend under the board', () => {

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type Question, RoundInfo, StageView } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
+import { ROLL_MS } from './Dice';
 
 afterEach(cleanup);
 
@@ -332,6 +333,54 @@ describe('StageScreen: blitz', () => {
       scheduleRepeats: false,
       skipAt: null,
       ...over,
+    });
+
+    const olena = { playerId: 'p1', nickname: 'Олена' };
+    const anna = { playerId: 'p2', nickname: 'Анна' };
+    const introOf = (board: NonNullable<StageView['board']>) => view({ phase: 'intro', round, board });
+
+    it("the board intro shows every player's die and the result next to the name", () => {
+      const dice = { rows: [{ ...olena, throws: [5], waiting: false }, { ...anna, throws: [], waiting: true }], tieBreak: false, done: false };
+      const { container } = show(introOf(boardOf({ turn: null, dice })));
+      const rows = container.querySelector('.dice-rows')!;
+      expect(rows.textContent).toContain('Олена');
+      expect(rows.querySelectorAll('li')[0]!.querySelector('.dice-value')?.textContent).toBe('5');
+      expect(rows.querySelectorAll('li')[1]!.querySelector('.die.is-empty')).not.toBeNull();
+      expect(screen.getByText('Кидають: Анна')).toBeTruthy();
+      expect(container.querySelector('.turn-schedule')).toBeNull();
+    });
+
+    it('the schedule waits until the dice stop', () => {
+      vi.useFakeTimers();
+      try {
+        const waiting = { rows: [{ ...olena, throws: [5], waiting: false }, { ...anna, throws: [], waiting: true }], tieBreak: false, done: false };
+        const { container, rerender } = show(introOf(boardOf({ turn: null, dice: waiting })));
+        const done = { rows: [{ ...olena, throws: [5], waiting: false }, { ...anna, throws: [2], waiting: false }], tieBreak: false, done: true };
+        const schedule = [
+          { number: 1, order: [olena, anna], done: 0 },
+          { number: 2, order: [anna, olena], done: 0 },
+        ];
+        rerender(
+          <StageScreen view={introOf(boardOf({ turn: null, dice: done, schedule }))} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />,
+        );
+        expect(container.querySelector('.is-rolling')).not.toBeNull();
+        expect(container.querySelector('.turn-schedule')).toBeNull();
+        act(() => {
+          vi.advanceTimersByTime(ROLL_MS);
+        });
+        expect(container.querySelector('.is-rolling')).toBeNull();
+        expect(screen.getByText('Розклад ходів')).toBeTruthy();
+        expect(container.querySelector('li.turn-circle')?.textContent).toBe('Коло 1: Олена → Анна');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('without dice the intro shows the schedule from the join order', () => {
+      const schedule = [{ number: 1, order: [olena, anna], done: 0 }];
+      const { container } = show(introOf(boardOf({ turn: null, schedule })));
+      expect(container.querySelector('.turn-schedule')).not.toBeNull();
+      expect(container.querySelector('.dice-panel')).toBeNull();
     });
 
     it('shows the board with hidden marks, played cells and whose turn it is', () => {

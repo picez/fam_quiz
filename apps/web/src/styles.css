@@ -2357,6 +2357,10 @@ a.banner {
   line-height: 1;
 }
 
+.stage .dice-rows li {
+  height: 4.25rem;
+}
+
 .stage .die {
   width: 4rem;
   height: 4rem;
@@ -2378,6 +2382,77 @@ a.banner {
   .die.is-rolling {
     animation: dice-roll 0.3s linear infinite;
   }
+}
+
+.dice-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.5rem;
+}
+
+.dice-action .lead {
+  margin: 0;
+}
+
+.turn-schedule {
+  min-width: 0;
+}
+
+.turn-schedule h2 {
+  margin: 0 0 0.5rem;
+}
+
+.turn-circles {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn-circle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+
+.circle-label {
+  color: var(--dim);
+}
+
+.turn-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.turn-name {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-name.is-turn {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.turn-name.is-done {
+  color: var(--dim);
+}
+
+.turn-arrow {
+  color: var(--dim);
 }
 
 .banner.is-away {
