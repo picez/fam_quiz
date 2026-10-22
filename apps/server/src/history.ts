@@ -118,6 +118,22 @@ function responsesOf(
   );
 }
 
+/** Запитання фіналу: ставка кожного учасника з рядками на нього (мовчання теж), за турнірною таблицею. */
+function finalResult(
+  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; points: number }[],
+  standings: { participantId: string; nickname: string }[],
+): GameQuestionResult['final'] {
+  return {
+    entries: standings.flatMap(({ participantId, nickname }) => {
+      const row = given.filter((a) => a.participantId === participantId).sort((a, b) => b.attempt - a.attempt)[0];
+      // Ставка не зберігається окремо: бали фіналу завжди «плюс» або «мінус» ставка.
+      return row === undefined
+        ? []
+        : [{ nickname, answer: row.attempt === PENALTY_ATTEMPT ? null : row.payload, wager: Math.abs(row.points), points: row.points, accepted: row.accepted }];
+    }),
+  };
+}
+
 /** Кількість різних значень: у бліці гравець може мати кілька рядків-спроб на одне запитання. */
 const distinct = (values: unknown[]) => new Set(values).size;
 
@@ -209,6 +225,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
         responses: responsesOf(given, standings),
+        final: quiz?.rounds[roundIndex]?.type === 'final' ? finalResult(given, standings) : null,
       },
     ];
   });

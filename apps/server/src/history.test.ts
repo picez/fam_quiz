@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
-import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, match, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
+import { playToEnd } from './testing/final-game';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { createTestDb } from './testing/test-db';
 
@@ -547,5 +548,43 @@ describe('host history: answers', () => {
     const result = await detail();
     expect(result.questions[0].responses).toEqual([{ nickname: 'Олена', answer: null, accepted: false }]);
     await local.app.close();
+  });
+  it('history shows final wagers and silence is not an answer', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const quiz = makeRoundsQuiz([classicRound('r1', [withId(single, 's1')], { speedBonus: false }), finalRound('f', withId(single, 'f1'))]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const join = async (nickname: string) =>
+      ((await post(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
+    const anna = await join('Анна');
+    const bohdan = await join('Богдан');
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    for (const playerId of [anna, bohdan]) ctx.manager.connect(room, { role: 'player', playerId });
+    const stake = (id: string) => (id === anna ? 300 : 200);
+    // Зупинка на розкритті фіналу: у завершеній грі вилучити гравця вже не можна.
+    playToEnd(ctx.manager, room, [anna, bohdan], [anna], stake, (r) => r.state.roundIndex === 1 && r.state.phase === 'reveal');
+    expect(room.state.phase).toBe('reveal');
+    await ctx.recorder.idle();
+
+    const read = async () =>
+      (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
+        questions: { final: { entries: { nickname: string }[] } | null; answered: number; responses: { nickname: string }[] }[];
+      };
+    const detail = await read();
+    expect(detail.questions[0].final).toBeNull();
+    expect(detail.questions[1].final).toEqual({
+      entries: [
+        { nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, wager: 300, points: 300, accepted: true },
+        { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false },
+      ],
+    });
+    expect(detail.questions[1].answered).toBe(1);
+    expect(detail.questions[1].responses.map((r) => r.nickname)).toEqual(['Анна']);
+
+    expect(ctx.manager.host(room, { type: 'kick', playerId: bohdan })).toEqual({ ok: true });
+    playToEnd(ctx.manager, room, [anna], [anna], stake);
+    await ctx.recorder.idle();
+    expect((await read()).questions[1].final?.entries.map((e) => e.nickname)).toEqual(['Анна']);
   });
 });

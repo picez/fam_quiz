@@ -323,4 +323,14 @@ describe('host presence', () => {
     host.socket.close();
     await left;
   });
+  it('player:wager is player-only and validated', async () => {
+    const { host, stage, olena } = await lobby();
+    expect(await send(host, 'player:wager', { amount: 0 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:wager', { amount: 0 })).toEqual({ ok: false, error: 'forbidden' });
+    for (const amount of [-1, 1.5, '5']) {
+      expect(await send(olena, 'player:wager', { amount })).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:wager')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:wager', { amount: 0 })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
 });
