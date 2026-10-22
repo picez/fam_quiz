@@ -9,6 +9,6 @@ describe('demoQuiz', () => {
 
   it('shows every question type', () => {
     const types = new Set(questionsOf(demoQuiz).map((question) => question.type));
-    expect([...types].sort()).toEqual(['boolean', 'match', 'multi', 'numeric', 'order', 'single', 'text']);
+    expect([...types].sort()).toEqual(['boolean', 'chain', 'match', 'multi', 'numeric', 'order', 'single', 'text']);
   });
 });

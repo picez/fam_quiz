@@ -76,7 +76,14 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.items.map((item) => item.text).join(' → ');
     case 'match':
       return pairsLine(correctPairs(question));
+    case 'chain':
+      return question.words.join(' → ');
   }
+}
+
+/** Мілісекунди як секунди з однією цифрою після коми: 23400 → «23,4». */
+export function secondsText(ms: number): string {
+  return (Math.round(ms / 100) / 10).toFixed(1).replace('.', ',');
 }
 
 /** Відповідь гравця словами. */
@@ -99,6 +106,11 @@ export function answerText(answer: Answer | null, question: Question | null): st
       return answer.itemIds.map(name).join(' → ');
     case 'match':
       return pairsLine(pairTexts(answer.links, choices));
+    case 'chain':
+      if (question === null || question.type !== 'chain') return t('chainAnswerBare', { solved: answer.solved });
+      return answer.solved === question.words.length - 1
+        ? t('chainAnswerDone', { time: secondsText(answer.timeMs), hints: answer.hints })
+        : t('chainAnswerPart', { solved: answer.solved, total: question.words.length - 1 });
   }
 }
 

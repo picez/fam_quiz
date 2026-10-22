@@ -3,6 +3,7 @@ import {
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   LIMITS,
+  CHAIN_WORD,
   questionSchema,
   quizSchema,
   boardRoundIssues,
@@ -23,7 +24,12 @@ import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
 
 export type QuestionType = Question['type'];
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain'] as const;
+
+/** Типи запитань, доступні в раунді: без ланцюжка в бліці й полі. */
+export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
+  return roundType === 'blitz' || roundType === 'board' ? QUESTION_TYPES.filter((type) => type !== 'chain') : QUESTION_TYPES;
+}
 
 type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points'>;
 
@@ -53,6 +59,14 @@ function build(common: Common, type: QuestionType): Question {
         ...common,
         type,
         pairs: Array.from({ length: LIMITS.minPairs }, () => ({ left: blank(), right: blank() })),
+      };
+    case 'chain':
+      return {
+        ...common,
+        video: null,
+        type,
+        words: Array.from({ length: LIMITS.minChainWords }, () => ''),
+        hintSeconds: LIMITS.defaultHintSeconds,
       };
   }
 }
@@ -120,6 +134,8 @@ export function duplicateQuestion(question: Question): Question {
       };
     case 'text':
       return { ...question, id, accepted: [...question.accepted] };
+    case 'chain':
+      return { ...question, id, words: [...question.words] };
     default:
       return { ...question, id };
   }
@@ -259,6 +275,12 @@ export function cleaned(quiz: Quiz): Quiz {
         while (end > LIMITS.minPairs && trimmed[end - 1].left.text === '' && trimmed[end - 1].right.text === '') end -= 1;
         return { ...question, text, pairs: trimmed.slice(0, end) };
       }
+      case 'chain': {
+        const words = question.words.map((word) => word.trim().replace(/\s+/g, ' '));
+        let end = words.length;
+        while (end > LIMITS.minChainWords && words[end - 1] === '') end -= 1;
+        return { ...question, text, words: words.slice(0, end) };
+      }
       case 'text':
         return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
       default:
@@ -315,6 +337,19 @@ function problemKey(question: Question): TextKey | null {
     case 'numeric':
       if (!Number.isFinite(question.correct) || !Number.isFinite(question.tolerance) || question.tolerance < 0) {
         return 'problemNumber';
+      }
+      break;
+    case 'chain':
+      if (question.words.some((word) => word === '')) return 'problemEmptyWord';
+      if (question.words.some((word) => word.length < 2 || word.length > LIMITS.chainWord || !CHAIN_WORD.test(word))) {
+        return 'problemChainWord';
+      }
+      if (
+        !Number.isInteger(question.hintSeconds) ||
+        question.hintSeconds < LIMITS.minHintSeconds ||
+        question.hintSeconds > LIMITS.maxHintSeconds
+      ) {
+        return 'problemHintSeconds';
       }
       break;
     case 'boolean':

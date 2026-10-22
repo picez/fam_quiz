@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Question } from '@quiz/shared';
-import { roundLabel, answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, shownChoices } from './format';
+import { roundLabel, answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, secondsText, shownChoices } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -88,4 +88,15 @@ describe('match questions', () => {
 it('an untitled final round is called «Фінал»', () => {
   expect(roundLabel('', 3, 'final')).toBe('Фінал');
   expect(roundLabel('Космос', 3, 'final')).toBe('Космос');
+});
+
+describe('chain texts', () => {
+  const chainQ: Question = { ...base, type: 'chain', words: ['Форель', 'Риба', 'Океан', 'Корабель'], hintSeconds: 5 };
+  it('writes the chain and chain answers in words', () => {
+    expect(correctText(chainQ)).toBe('Форель → Риба → Океан → Корабель');
+    expect(answerText({ type: 'chain', solved: 3, hints: 1, timeMs: 23_400 }, chainQ)).toBe('Пройдено за 23,4 с, підказок: 1');
+    expect(answerText({ type: 'chain', solved: 1, hints: 0, timeMs: 20_000 }, chainQ)).toBe('Слів: 1 з 3');
+    expect(answerText({ type: 'chain', solved: 1, hints: 0, timeMs: 20_000 }, null)).toBe('Слів: 1');
+    expect(secondsText(5000)).toBe('5,0');
+  });
 });

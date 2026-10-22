@@ -12,6 +12,7 @@ import {
   newClassicRound,
   newQuestion,
   problemsOf,
+  questionTypesFor,
 } from './draft';
 import { BoardEditor } from './BoardEditor';
 import { QuestionEditor } from './QuestionEditor';
@@ -324,6 +325,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               key={current.id}
               question={current}
               showPoints={round.type !== 'final'}
+              types={questionTypesFor(round.type)}
               onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
             />
             {round.type !== 'final' && (
