@@ -139,6 +139,14 @@ describe('friends', () => {
     await request('PUT', '/api/me/profile', borys.cookie, { nickname: 'Борис К', avatar: null });
   });
 
+  it('the friends list is only for its owner', async () => {
+    expect((await request('GET', '/api/me/friends')).statusCode).toBe(401);
+    const response = await request('GET', '/api/me/friends', olena.cookie);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
+    expect(response.body).not.toContain(taras.email);
+  });
+
   it('finds a profile by its exact nickname only', async () => {
     const found = await request('GET', `/api/profiles?nickname=${encodeURIComponent(' борис  к ')}`, anna.cookie);
     expect(found.statusCode).toBe(200);

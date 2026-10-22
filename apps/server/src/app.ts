@@ -5,6 +5,7 @@ import Fastify from 'fastify';
 import { registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
 import type { Db } from './db/client';
+import { Invites, registerInviteRoutes } from './invites';
 import { registerProfileRoutes } from './profile-routes';
 import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
@@ -60,6 +61,8 @@ export async function buildApp(options: AppOptions) {
 
   await registerUploadRoutes(app, { storage: options.storage ?? memoryStorage(), currentUser });
   await registerProfileRoutes(app, { db: options.db, currentUser });
+  const invites = new Invites(manager);
+  await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
     const room = manager.get(request.params.code);
@@ -98,5 +101,5 @@ export async function buildApp(options: AppOptions) {
     io.disconnectSockets(true);
   });
 
-  return { app, manager, io, recorder };
+  return { app, manager, io, recorder, invites };
 }

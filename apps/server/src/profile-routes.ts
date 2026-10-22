@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import type { Db } from './db/client';
 import { versusOf } from './versus';
-import { ensureProfile, findByNickname, ownProfile, publicProfile, saveProfile, setFollow } from './profiles';
+import { ensureProfile, findByNickname, friendsOf, ownProfile, publicProfile, saveProfile, setFollow } from './profiles';
 
 export interface ProfileDeps {
   db: Db;
@@ -92,6 +92,12 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
       return versusOf(db, user.id, id);
     },
   );
+
+  app.get('/api/me/friends', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    return friendsOf(db, user.id);
+  });
 
   app.put<{ Params: { id: string } }>('/api/me/friends/:id', async (request, reply) => {
     const user = await currentUser(request);

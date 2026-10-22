@@ -43,6 +43,14 @@ export interface ProfileCard {
   avatar: string | null;
 }
 
+/** Запрошення в гру, що чекає в лобі. */
+export interface GameInvite {
+  code: string;
+  title: string;
+  host: ProfileCard;
+  invitedAt: string;
+}
+
 export interface PublicProfile extends ProfileCard {
   stats: ProfileStats;
   achievements: Achievement[];
