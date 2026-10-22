@@ -10,11 +10,11 @@ interface Props {
   onChange: (url: string | null) => void;
 }
 
-const ACCEPT = IMAGE_LIMITS.types.join(',');
+export const ACCEPT = IMAGE_LIMITS.types.join(',');
 const isAllowed = (type: string) => (IMAGE_LIMITS.types as readonly string[]).includes(type);
 
-/** Зображення до запитання: вибрати файл, побачити його, замінити або прибрати. */
-export function ImageField({ url, onChange }: Props) {
+/** Вибір файла, перевірка й завантаження; onChange отримує адресу завантаженого зображення. */
+export function useImageUpload(onChange: (url: string | null) => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Завантаження триває довше за один кадр: відповідь має потрапити в актуальний обробник
@@ -45,6 +45,13 @@ export function ImageField({ url, onChange }: Props) {
     else setError(errorText(result.error));
   };
 
+  return { busy, error, pick, clearError: () => setError(null) };
+}
+
+/** Зображення до запитання: вибрати файл, побачити його, замінити або прибрати. */
+export function ImageField({ url, onChange }: Props) {
+  const { busy, error, pick, clearError } = useImageUpload(onChange);
+
   return (
     <div className="image-field">
       <QuestionImage url={url} alt={t('imageAlt')} />
@@ -58,7 +65,7 @@ export function ImageField({ url, onChange }: Props) {
             type="button"
             className="btn btn-small"
             onClick={() => {
-              setError(null);
+              clearError();
               onChange(null);
             }}
           >

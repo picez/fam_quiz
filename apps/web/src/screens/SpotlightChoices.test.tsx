@@ -40,6 +40,17 @@ describe('SpotlightChoices', () => {
     expect(render(<SpotlightChoices question={textQ} spotlight={null} reveal={null} />).container.textContent).toBe('Відповідь словами з’явиться тут');
   });
 
+  it('a picture option carries the colour of the answer', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const pictured = { ...singleQ, choices: [{ id: 'a', text: 'Львів' }, { id: 'b', text: '', imageUrl: pic }] };
+    const { container } = render(<SpotlightChoices question={pictured} spotlight={spot({ type: 'single', optionId: 'b' }, null)} reveal={null} />);
+    expect(container.querySelector('.choices')?.className).toContain('has-images');
+    expect(container.querySelector('.choice.is-pending img')?.getAttribute('alt')).toBe('Картинка B');
+    cleanup();
+    const host = render(<SpotlightChoices question={pictured} spotlight={null} reveal={null} onName={vi.fn()} />);
+    expect(host.container.querySelector('.choices.has-images button.choice img')).toBeTruthy();
+  });
+
   it('the waiting order list shows the labels above and below', () => {
     const labelled = { ...orderQ, orderLabels: { top: 'Захід', bottom: 'Схід' } };
     const { container } = render(<SpotlightChoices question={labelled} spotlight={null} reveal={null} />);

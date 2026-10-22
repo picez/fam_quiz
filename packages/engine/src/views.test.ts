@@ -107,6 +107,18 @@ describe('while a question is open', () => {
     expect(view(single)?.orderLabels).toBeNull();
   });
 
+  it('picture options keep their pictures in the shown order', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const pictured = { ...single, options: single.options.map((o) => (o.id === 'b' ? { ...o, imageUrl: pic } : o)) };
+    const state = startRound(lobbyWith(makeQuiz([pictured], { shuffleOptions: true }), 'Олена'), T0, () => 0);
+    const choices = stageView(state).question?.choices ?? [];
+    expect(choices.map((c) => c.id)).not.toEqual(['a', 'b', 'c']);
+    expect(choices.find((c) => c.id === 'b')?.imageUrl).toBe(pic);
+    expect(choices.find((c) => c.id === 'a')).not.toHaveProperty('imageUrl');
+    expect(playerView(state, 'p1')?.question?.choices.find((c) => c.id === 'b')?.imageUrl).toBe(pic);
+    expect(JSON.stringify(stageView(state))).not.toContain('correctId');
+  });
+
   it('presents order items in the shuffled order', () => {
     const state = startRound(lobbyWith(makeQuiz([order]), 'Олена'), T0, () => 0.999);
     expect(stageView(state).question?.choices.map((c) => c.id)).toEqual(['l', 'k', 'h', 'u']);

@@ -110,6 +110,29 @@ describe('questionSchema', () => {
     expect(valid(questionSchema, withLabels({ bottomLabel: 'а'.repeat(41) }))).toBe(false);
   });
 
+  it('an option may be a picture, then its text is optional, but never both empty', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const withOptions = (options: object[]) => ({ ...single, options });
+    const order = {
+      id: 'q6',
+      type: 'order',
+      text: 'Розташуйте міста з заходу на схід',
+      imageUrl: null,
+      timeLimit: 20,
+      points: 1000,
+      items: [
+        { id: 'u', text: 'Ужгород' },
+        { id: 'l', text: 'Львів' },
+        { id: 'k', text: 'Київ' },
+      ],
+    };
+    expect(valid(questionSchema, single)).toBe(true);
+    expect(valid(questionSchema, withOptions([{ id: 'a', text: '', imageUrl: pic }, { id: 'b', text: 'Київ', imageUrl: pic }, { id: 'c', text: 'Одеса' }]))).toBe(true);
+    expect(valid(questionSchema, withOptions([{ id: 'a', text: '  ' }, { id: 'b', text: 'Київ' }]))).toBe(false);
+    expect(valid(questionSchema, withOptions([{ id: 'a', text: 'Львів', imageUrl: 'https://evil.example/x.png' }, { id: 'b', text: 'Київ' }]))).toBe(false);
+    expect(valid(questionSchema, { ...order, items: [{ id: 'u', text: '', imageUrl: pic }, ...order.items.slice(1)] })).toBe(false);
+  });
+
   it('rejects an order question with fewer than three items', () => {
     const order = {
       id: 'q6',

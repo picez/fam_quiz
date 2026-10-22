@@ -84,6 +84,17 @@ describe('StageScreen', () => {
     expect(screen.getByRole('timer')).toBeTruthy();
   });
 
+  it('the stage shows picture options as a grid with letters', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const pictured = { ...question, choices: [{ id: 'a', text: '', imageUrl: pic }, { id: 'b', text: 'Київ', imageUrl: pic }, { id: 'c', text: 'Одеса' }] };
+    const { container } = show(view({ phase: 'question', questionIndex: 0, question: pictured, endsAt: Date.now() + 20_000 }));
+    const list = container.querySelector('.choices.has-images') as HTMLElement;
+    expect(list).toBeTruthy();
+    expect(list.querySelectorAll('img')).toHaveLength(2);
+    expect([...list.querySelectorAll('.letter')].map((letter) => letter.textContent)).toEqual(['A', 'B', 'C']);
+    expect(screen.getByAltText('Картинка A')).toBeTruthy();
+  });
+
   it('tells players to type on their phones for a text question', () => {
     show(view({ phase: 'question', questionIndex: 0, question: { ...question, type: 'text', choices: [] } }));
     expect(screen.getByText('Введіть відповідь на телефоні')).toBeTruthy();

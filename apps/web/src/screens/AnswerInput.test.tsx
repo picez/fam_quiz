@@ -57,6 +57,30 @@ describe('AnswerInput', () => {
     expect(button(/Одеса/).textContent).toContain('C');
   });
 
+  it('picture options show thumbnails with letters and still answer by id', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const onSubmit = vi.fn();
+    const choices = [{ id: 'a', text: 'Львів' }, { id: 'b', text: '', imageUrl: pic }, { id: 'c', text: 'Одеса', imageUrl: pic }];
+    const { container } = render(<AnswerInput question={question({ type: 'single', choices })} onSubmit={onSubmit} />);
+    expect(container.querySelector('.choices')?.className).toContain('has-images');
+    const image = screen.getByAltText('Картинка B') as HTMLImageElement;
+    expect(image.getAttribute('src')).toBe(pic);
+    const pictured = image.closest('button') as HTMLButtonElement;
+    expect(pictured.querySelector('.letter')?.textContent).toBe('B');
+    expect(screen.getByAltText('Одеса')).toBeTruthy();
+    fireEvent.click(pictured);
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+    cleanup();
+    expect(render(<AnswerInput question={question({ type: 'single' })} onSubmit={vi.fn()} />).container.querySelector('.choices')?.className).toBe('choices');
+  });
+
+  it('a picture that fails to load turns into its letter label', () => {
+    render(<AnswerInput question={question({ type: 'single', choices: [{ id: 'a', text: 'Львів' }, { id: 'b', text: '', imageUrl: '/uploads/abcdefabcdefabcd.png' }] })} onSubmit={vi.fn()} />);
+    fireEvent.error(screen.getByAltText('Картинка B'));
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(button(/Картинка B/)).toBeTruthy();
+  });
+
   it('multi: sends the selected options after confirmation', () => {
     const onSubmit = setup({ type: 'multi' });
     expect(button('Відповісти').disabled).toBe(true);

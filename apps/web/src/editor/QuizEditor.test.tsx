@@ -48,6 +48,40 @@ describe('QuizEditor', () => {
     }
   });
 
+  it('an option takes a picture instead of text', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ url: '/uploads/abcdefabcdefabcd.png' }), { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { onSave } = open();
+    fill('Назва вікторини', 'Географія');
+    fill('Текст запитання', 'Де Київ?');
+    fill('Варіант 1', 'Львів');
+    fill('Варіант 2', 'Київ');
+    const file = new File(['x'], 'kyiv.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Картинка для варіанта 2'), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Прибрати картинку варіанта 2' })).toBeTruthy());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fill('Варіант 2', '');
+    fireEvent.click(screen.getByLabelText('Правильний: варіант 2'));
+    click('Зберегти');
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    const [question] = roundQuestions(quiz.rounds[0]);
+    if (question.type !== 'single') throw new Error('single');
+    expect(question.options[1]).toEqual({ id: question.options[1].id, text: '', imageUrl: '/uploads/abcdefabcdefabcd.png' });
+    expect(question.correctId).toBe(question.options[1].id);
+
+    fill('Варіант 2', 'Київ');
+    click('Прибрати картинку варіанта 2');
+    expect(screen.queryByRole('button', { name: 'Прибрати картинку варіанта 2' })).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    const [again] = roundQuestions(onSave.mock.calls[1][0].rounds[0]);
+    expect(again.type === 'single' && again.options[1]).not.toHaveProperty('imageUrl');
+    vi.unstubAllGlobals();
+  });
+
   it('an order question takes optional top and bottom labels', async () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');

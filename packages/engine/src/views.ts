@@ -69,7 +69,7 @@ function publicQuestion(state: GameState): PublicQuestion | null {
     state.presented
       .map((id) => from.find((choice) => choice.id === id))
       .filter((choice): choice is Choice => choice !== undefined)
-      .map((choice) => ({ id: choice.id, text: choice.text }));
+      .map((choice) => ({ id: choice.id, text: choice.text, ...(choice.imageUrl === undefined ? {} : { imageUrl: choice.imageUrl }) }));
   // У парах ліві елементи йдуть в авторському порядку, а presented описує правий стовпчик.
   const choices =
     question.type === 'match'

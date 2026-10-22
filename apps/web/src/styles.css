@@ -390,6 +390,49 @@ button.choice {
   cursor: pointer;
 }
 
+/* Варіанти-картинки: сітка у два стовпці, картинка над текстом, літера в лівому верхньому куті. */
+.choices.has-images {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choices.has-images .choice {
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.choices.has-images .choice .letter {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 1;
+  min-width: 1.75rem;
+  padding: 0 0.375rem;
+  border-radius: 0.375rem;
+  background: var(--stage);
+  text-align: center;
+}
+
+.choice-image {
+  display: block;
+  width: 100%;
+  max-height: 7rem;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+
+.choices.has-images .choice-text {
+  padding-inline: 0.25rem;
+}
+
+/* Текст одразу після літери (картинки немає або вона не завантажилася) стоїть нижче за літеру. */
+.choices.has-images .letter + .choice-text {
+  padding-top: 2rem;
+}
+
 .letter {
   flex: none;
   min-width: 1.5rem;
@@ -770,6 +813,18 @@ button.choice {
   padding-inline: 1.5vw;
 }
 
+.stage .choices.has-images {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stage .choices.has-images .choice {
+  padding: 0.75vh 0.5vw;
+}
+
+.stage .choice-image {
+  max-height: 28vh;
+}
+
 .stage-lobby {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -848,6 +903,10 @@ button.choice {
   .stage-lobby,
   .stage .choices {
     grid-template-columns: 1fr;
+  }
+
+  .stage .choices.has-images {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1430,6 +1489,47 @@ a.banner {
   color: var(--dim);
   font-size: 0.875rem;
   font-weight: 400;
+}
+
+.option-image {
+  flex: none;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.option-image-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.option-image .file-pick {
+  min-width: 2.5rem;
+  padding: 0;
+}
+
+.option-thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: cover;
+  border-radius: 0.375rem;
+}
+
+.option-image .error {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* На вузькому екрані рядок з картинкою переносить картинку й кнопки під поле вводу. */
+@media (max-width: 480px) {
+  .answer-row:has(.option-thumb, .option-image .error) {
+    flex-wrap: wrap;
+    padding-block: 0.375rem;
+  }
+
+  .answer-row:has(.option-thumb, .option-image .error) input {
+    flex-basis: calc(100% - 2.5rem);
+  }
 }
 
 .row-button:disabled {

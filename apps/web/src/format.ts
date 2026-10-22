@@ -18,17 +18,25 @@ export interface PairText {
   right: string;
 }
 
-/** Варіанти запитання для пошуку назв за id; для match — ліві й праві. */
+/** Текст варіанта або «Картинка Б» за літерою; index — місце у списку, з якого береться літера. */
+export function choiceLabel(choice: Choice, index: number): string {
+  return choice.text !== '' ? choice.text : t('imageChoice', { letter: LETTERS[index] ?? String(index + 1) });
+}
+
+/** Варіанти з підписами замість порожнього тексту картинки. */
+const labelled = (choices: Choice[]): Choice[] => choices.map((choice, index) => ({ ...choice, text: choiceLabel(choice, index) }));
+
+/** Варіанти запитання для пошуку назв за id; для match — ліві й праві. Варіант-картинка підписаний літерою автора. */
 export function choicesOf(question: Question | null): Choice[] {
   if (question === null) return [];
-  if (question.type === 'single' || question.type === 'multi') return question.options;
+  if (question.type === 'single' || question.type === 'multi') return labelled(question.options);
   if (question.type === 'match') return question.pairs.flatMap((pair) => [pair.left, pair.right]);
   return question.type === 'order' ? question.items : [];
 }
 
-/** Усі показані варіанти: choices і right. */
+/** Усі показані варіанти: choices (варіант-картинка підписаний літерою показу) і right. */
 export function shownChoices(question: PublicQuestion): Choice[] {
-  return [...question.choices, ...question.right];
+  return [...labelled(question.choices), ...question.right];
 }
 
 /** Зв’язки відповіді словами; невідомий id показується як є. */
@@ -50,6 +58,9 @@ export function questionClass(text: string): string {
   return text.length > 120 ? 'question is-long' : 'question';
 }
 
+/** Варіант без тексту в правильній відповіді: «Б. картинка». */
+const optionText = (text: string) => (text === '' ? t('imagePlain') : text);
+
 /**
  * Правильна відповідь словами, для розкриття та пульта.
  * presented — варіанти в порядку показу: літери мають збігатися з тим, що бачать гравці.
@@ -63,7 +74,7 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return shown
         .map((id, index) => ({ id, letter: LETTERS[index] }))
         .filter(({ id }) => correct.includes(id))
-        .map(({ id, letter }) => `${letter}. ${question.options.find((option) => option.id === id)?.text ?? id}`)
+        .map(({ id, letter }) => `${letter}. ${optionText(question.options.find((option) => option.id === id)?.text ?? id)}`)
         .join(', ');
     }
     case 'boolean':
@@ -184,7 +195,8 @@ export function orderLabelsText(labels: { top: string; bottom: string }): string
 
 /** Відповідь словами за показаними варіантами: назви беруться з запитання, яке бачить гравець. */
 export function pickedText(answer: Answer, choices: Choice[]): string {
-  const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
+  const named = labelled(choices);
+  const name = (id: string) => named.find((choice) => choice.id === id)?.text ?? id;
   switch (answer.type) {
     case 'single':
       return name(answer.optionId);
@@ -193,7 +205,7 @@ export function pickedText(answer: Answer, choices: Choice[]): string {
     case 'order':
       return answer.itemIds.map(name).join(' → ');
     case 'match':
-      return pairsLine(pairTexts(answer.links, choices));
+      return pairsLine(pairTexts(answer.links, named));
     default:
       return answerText(answer, null);
   }

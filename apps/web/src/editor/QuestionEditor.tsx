@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { LETTERS } from '../format';
 import { t, type TextKey } from '../i18n';
 import { ImageField } from './ImageField';
+import { OptionImage } from './OptionImage';
 import { VideoField } from './VideoField';
 import { changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
@@ -19,6 +20,8 @@ interface Props {
 interface Row {
   id: string;
   text: string;
+  /** Лише варіанти single/multi. */
+  imageUrl?: string;
 }
 
 const newRow = (): Row => ({ id: newId(), text: '' });
@@ -206,6 +209,15 @@ function Mark(props: { on: boolean; index: number; onToggle: () => void }) {
 
 const letter = (_row: Row, index: number) => <span className="letter">{LETTERS[index]}</span>;
 
+/** Рядки з новою картинкою рядка id; undefined прибирає ключ, щоб варіант без картинки лишався як раніше. */
+function withImage<T extends Row>(rows: T[], id: string, url: string | undefined): T[] {
+  return rows.map((row) => {
+    if (row.id !== id) return row;
+    const { imageUrl: _old, ...rest } = row;
+    return (url === undefined ? rest : { ...rest, imageUrl: url }) as T;
+  });
+}
+
 function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
   switch (question.type) {
     case 'single':
@@ -221,7 +233,14 @@ function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
           rowClass={(row) => (row.id === question.correctId ? 'is-correct' : '')}
           lead={letter}
           tail={(row, index) => (
-            <Mark on={row.id === question.correctId} index={index} onToggle={() => onChange({ ...question, correctId: row.id })} />
+            <>
+              <OptionImage
+                url={row.imageUrl}
+                index={index + 1}
+                onChange={(url) => onChange({ ...question, options: withImage(question.options, row.id, url) })}
+              />
+              <Mark on={row.id === question.correctId} index={index} onToggle={() => onChange({ ...question, correctId: row.id })} />
+            </>
           )}
           onChange={(options) =>
             onChange({
@@ -248,16 +267,23 @@ function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
           tail={(row, index) => {
             const on = question.correctIds.includes(row.id);
             return (
-              <Mark
-                on={on}
-                index={index}
-                onToggle={() =>
-                  onChange({
-                    ...question,
-                    correctIds: on ? question.correctIds.filter((id) => id !== row.id) : [...question.correctIds, row.id],
-                  })
-                }
-              />
+              <>
+                <OptionImage
+                  url={row.imageUrl}
+                  index={index + 1}
+                  onChange={(url) => onChange({ ...question, options: withImage(question.options, row.id, url) })}
+                />
+                <Mark
+                  on={on}
+                  index={index}
+                  onToggle={() =>
+                    onChange({
+                      ...question,
+                      correctIds: on ? question.correctIds.filter((id) => id !== row.id) : [...question.correctIds, row.id],
+                    })
+                  }
+                />
+              </>
             );
           }}
           onChange={(options) =>

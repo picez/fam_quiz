@@ -7,6 +7,8 @@ import type { Standing } from './standing';
 export interface Choice {
   id: string;
   text: string;
+  /** Лише варіанти single/multi. */
+  imageUrl?: string;
 }
 
 /** Запитання без правильної відповіді; choices у порядку показу. */

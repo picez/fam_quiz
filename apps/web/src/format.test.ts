@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyBrief, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choicesOf, correctPairs, correctText, formatDate, orderLabelsText, pairTexts, secondsText, shownChoices } from './format';
+import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -24,6 +24,23 @@ describe('correctText', () => {
     expect(correctText(numeric)).toBe('2061 (± 100)');
     expect(correctText({ ...numeric, tolerance: 0 })).toBe('2061');
     expect(correctText(order)).toBe('Львів → Київ → Одеса');
+  });
+});
+
+describe('picture options', () => {
+  it('labels a picture-only option by its letter wherever text is needed', () => {
+    const pics = {
+      ...base,
+      type: 'single' as const,
+      options: [{ id: 'a', text: 'Львів' }, { id: 'b', text: '', imageUrl: '/uploads/abcdefabcdefabcd.png' }, { id: 'c', text: 'Одеса' }],
+      correctId: 'b',
+    };
+    expect(choiceLabel(pics.options[1], 1)).toBe('Картинка B');
+    expect(choiceLabel(pics.options[0], 0)).toBe('Львів');
+    expect(answerText({ type: 'single', optionId: 'b' }, pics)).toBe('Картинка B');
+    expect(correctText(pics)).toBe('B. картинка');
+    expect(pickedText({ type: 'single', optionId: 'b' }, [pics.options[1], pics.options[0]])).toBe('Картинка A');
+    expect(choicesOf(pics)[1]).toEqual({ id: 'b', text: 'Картинка B', imageUrl: '/uploads/abcdefabcdefabcd.png' });
   });
 });
 

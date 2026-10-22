@@ -1,6 +1,7 @@
 import type { Answer, PublicQuestion, Question, RevealStats, Spotlight } from '@quiz/shared';
 import { LETTERS, correctPairs, pairTexts, pickedText, shownChoices } from '../format';
 import { t } from '../i18n';
+import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
 
 interface Props {
@@ -48,7 +49,7 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
         onName(next.length === 0 ? null : { type: 'multi', optionIds: question.choices.map((c) => c.id).filter((c) => next.includes(c)) });
       };
       return (
-        <div className="choices">
+        <div className={choicesClass(question.choices)}>
           {question.choices.map((choice, index) => (
             <button
               key={choice.id}
@@ -57,8 +58,7 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
               aria-pressed={pickedIds.includes(choice.id)}
               onClick={() => tap(choice.id)}
             >
-              <span className="letter">{LETTERS[index]}</span>
-              <span>{choice.text}</span>
+              <ChoiceFace choice={choice} letter={LETTERS[index]} />
             </button>
           ))}
         </div>
@@ -66,11 +66,10 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
     }
     return (
       <>
-        <ul className="choices">
+        <ul className={choicesClass(question.choices)}>
           {question.choices.map((choice, index) => (
             <li key={choice.id} className={`choice ${colorOf(choice.id)}`.trim()}>
-              <span className="letter">{LETTERS[index]}</span>
-              <span>{choice.text}</span>
+              <ChoiceFace choice={choice} letter={LETTERS[index]} />
               {stats !== null && <span className="count">{stats.counts[choice.id] ?? 0}</span>}
             </li>
           ))}

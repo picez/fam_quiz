@@ -80,7 +80,17 @@ const base = {
 /** Слово ланцюжка: літери, між ними по одному пробілу, дефісу чи апострофу. */
 export const CHAIN_WORD = /^\p{L}+(?:[ '’ʼ-]\p{L}+)*$/u;
 
-const options = z.array(choice).min(LIMITS.minOptions).max(LIMITS.maxOptions);
+/** Варіант single/multi: текст, картинка або обидва; пари й порядок картинок не мають. */
+const option = z
+  .object({
+    id: z.string().min(1).refine(isStorable, UNSTORABLE),
+    text: z.string().trim().max(LIMITS.optionText).refine(isStorable, UNSTORABLE),
+    /** Картинка варіанта; старі варіанти без неї. */
+    imageUrl: z.string().regex(IMAGE_URL).optional(),
+  })
+  .refine((o) => o.text !== '' || o.imageUrl !== undefined, { message: 'empty_option' });
+
+const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 

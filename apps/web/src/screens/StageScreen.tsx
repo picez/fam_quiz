@@ -4,6 +4,7 @@ import type { BoardInfo, FinalInfo, Question as FullQuestion, StageView } from '
 import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
+import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -154,11 +155,10 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
         )
       ) : (
         showChoices && (
-          <ul className="choices">
+          <ul className={choicesClass(question.choices)}>
             {question.choices.map((choice, index) => (
               <li key={choice.id} className={correctIds.includes(choice.id) ? 'choice is-correct' : 'choice'}>
-                <span className="letter">{LETTERS[index]}</span>
-                <span>{choice.text}</span>
+                <ChoiceFace choice={choice} letter={LETTERS[index]} />
                 {stats !== null && <span className="count">{stats.counts[choice.id] ?? 0}</span>}
               </li>
             ))}
