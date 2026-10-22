@@ -484,6 +484,17 @@ describe('PlayerScreen: blitz', () => {
     });
     const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
 
+    it('the phone shows the turn queue under the legend while choosing a cell', () => {
+      const olena = { playerId: 'p1', nickname: 'Олена' };
+      const anna = { playerId: 'p2', nickname: 'Анна' };
+      const schedule = [{ number: 1, order: [olena, anna], done: 1 }];
+      show(view({ phase: 'board', round, board: boardOf('p2', { schedule }) }));
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const queue = screen.getByText('Черга ходів');
+      expect(legend.compareDocumentPosition(queue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.querySelector('.turn-schedule .is-turn')?.textContent).toBe('Анна');
+    });
+
     it('the phone shows the legend under the board', () => {
       show(view({ phase: 'board', round, board: boardOf('p2') }));
       const legend = screen.getByRole('list', { name: 'Види клітинок' });
@@ -571,6 +582,22 @@ describe('PlayerScreen: blitz', () => {
       expect(rollButton()).toBeNull();
       expect(document.querySelector('div.dice-action')).toBe(slot);
       expect(slot.textContent).toBe('Кубик кинуто. Чекаємо інших');
+    });
+
+    it('the roll button frees itself when the ack never arrives', () => {
+      vi.useFakeTimers();
+      try {
+        const send = vi.fn(() => new Promise<{ ok: true }>(() => {})) as unknown as Send;
+        render(<PlayerScreen view={intro(diceOf([], true))} hostOnline offsetMs={0} send={send} />);
+        fireEvent.click(rollButton()!);
+        expect(rollButton()!.disabled).toBe(true);
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(rollButton()!.disabled).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('the roll button is disabled on pause and hidden for those not in the tie-break', () => {

@@ -7,6 +7,7 @@ import { errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
+import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
@@ -304,6 +305,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           <SkipNote board={board} view={view} offsetMs={offsetMs} />
           <Board board={board} onPick={(cellId) => void act('host:pick', { cellId })} />
           <BoardLegend board={board} />
+          <TurnSchedule board={board} heading={t('turnQueueTitle')} limit={3} />
           <div className="panel-actions">
             <button type="button" className="btn" onClick={() => void act('host:skip')}>
               {t('skipTurn')}

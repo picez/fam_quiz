@@ -7,6 +7,7 @@ import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
+import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
@@ -64,11 +65,17 @@ function DiceAction({ dice, meId, paused, send, onError }: { dice: DiceInfo; meI
     if (rollingRef.current) return;
     rollingRef.current = true;
     setRolling(true);
+    const release = () => {
+      rollingRef.current = false;
+      setRolling(false);
+    };
+    // Відповідь може не прийти (send без тайм-ауту): кнопка не лишається вимкненою назавжди.
+    const fallback = setTimeout(release, 3000);
     void send('player:roll', undefined)
       .then((result) => onError(result.ok ? null : errorText(result.error)))
       .finally(() => {
-        rollingRef.current = false;
-        setRolling(false);
+        clearTimeout(fallback);
+        release();
       });
   };
   return (
@@ -276,6 +283,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <p className="lead">{chooserIsMe ? t('yourPick') : t('boardChooser', { name: chooserName })}</p>
           <Board board={board} onPick={chooserIsMe ? (cellId) => void pick(cellId) : undefined} disabled={view.paused} />
           <BoardLegend board={board} />
+          <TurnSchedule board={board} heading={t('turnQueueTitle')} limit={3} />
         </>
       )}
 

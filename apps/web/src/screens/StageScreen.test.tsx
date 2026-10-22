@@ -384,7 +384,8 @@ describe('StageScreen: blitz', () => {
     });
 
     it('shows the board with hidden marks, played cells and whose turn it is', () => {
-      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
+      const schedule = [{ number: 1, order: [olena, anna], done: 1 }];
+      const { container } = show(view({ phase: 'board', round, board: boardOf({ schedule }) }));
       expect(screen.getByText('Міста')).toBeTruthy();
       expect(screen.getByText('Ріки')).toBeTruthy();
       expect(screen.getAllByText('100')).toHaveLength(2);
@@ -395,10 +396,17 @@ describe('StageScreen: blitz', () => {
       expect(container.querySelector('.is-turn')?.textContent).toContain('Анна');
     });
 
-    it('the turn order is its own list, not the order-question list', () => {
-      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
-      const turns = container.querySelector('ol.turn-order');
-      expect(turns?.querySelector('li.is-turn')?.textContent).toBe('Анна');
+    it('the board aside shows the turn queue with the current circle and the next ones', () => {
+      const schedule = [1, 2, 3, 4].map((number) => ({ number, order: [olena, anna], done: number === 1 ? 1 : 0 }));
+      const { container } = show(view({ phase: 'board', round, board: boardOf({ schedule }) }));
+      const aside = container.querySelector('.board-aside')!;
+      expect(aside.textContent).toContain('Черга ходів');
+      expect(aside.querySelectorAll('li.turn-circle')).toHaveLength(3);
+      expect(aside.querySelector('li.turn-circle .is-turn')?.textContent).toBe('Анна');
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const queue = aside.querySelector('.turn-schedule')!;
+      expect(legend.compareDocumentPosition(queue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(container.querySelector('ol.turn-order')).toBeNull();
       expect(container.querySelector('ol.order')).toBeNull();
     });
 

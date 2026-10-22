@@ -8,6 +8,7 @@ import { MatchColumns, PairList } from './MatchView';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { BoardIntro } from './Dice';
+import { TurnSchedule } from './TurnSchedule';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -204,19 +205,6 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
   );
 }
 
-/** Порядок ходів поточного кола. */
-function Order({ board }: { board: BoardInfo }) {
-  return (
-    <ol className="turn-order">
-      {board.order.map((entry) => (
-        <li key={entry.playerId} className={entry.playerId === board.turn?.playerId ? 'is-turn' : undefined}>
-          {entry.nickname}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 function FinalStage({ view }: { view: StageView }) {
   if (view.round === null || view.final === null) return null;
   const { final } = view;
@@ -251,7 +239,7 @@ function BoardStage({ board }: { board: BoardInfo }) {
       <Board board={board} />
       <aside className="board-aside">
         <BoardLegend board={board} />
-        <Order board={board} />
+        <TurnSchedule board={board} heading={t('turnQueueTitle')} limit={3} />
       </aside>
       {board.turn !== null && <p className="lead board-turn">{t('boardChooser', { name: board.turn.nickname })}</p>}
     </div>

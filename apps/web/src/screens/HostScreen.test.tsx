@@ -507,6 +507,15 @@ describe('HostScreen: blitz', () => {
       expect(screen.getByText('Розклад ходів')).toBeTruthy();
     });
 
+    it('the host shows the turn queue under the legend', () => {
+      const order = three.map((p) => ({ playerId: p.id, nickname: p.nickname }));
+      show(onBoard({}, boardOf({ schedule: [{ number: 1, order, done: 0 }] })));
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const queue = screen.getByText('Черга ходів');
+      expect(legend.compareDocumentPosition(queue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.querySelector('.turn-schedule .is-turn')?.textContent).toBe('Олена');
+    });
+
     it('the host shows the legend under the board', () => {
       show(onBoard());
       const legend = screen.getByRole('list', { name: 'Види клітинок' });
