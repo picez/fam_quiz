@@ -279,7 +279,8 @@ function boardInfo(state: GameState): BoardInfo | null {
             answerMode: open.board.answerMode,
             penalty: open.board.penalty,
           },
-    rolls: state.board.rolls,
+    // Тимчасово до задачі 2: BoardInfo.rolls ще в зрізі.
+    rolls: 0,
     skipAt: state.board.awaySince === null ? null : state.board.awaySince + BOARD_AWAY_MS,
   };
 }

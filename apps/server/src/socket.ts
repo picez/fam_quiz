@@ -29,7 +29,7 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<stri
 
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'roll', 'skip'] as const;
+const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
@@ -115,6 +115,11 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = pickSchema.safeParse(payloadOf(args));
       return payload.success ? manager.pick(room, identity.playerId, payload.data.cellId) : INVALID;
+    });
+
+    on('player:roll', () => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      return manager.roll(room, identity.playerId);
     });
 
     on('player:wager', (args) => {

@@ -5,9 +5,9 @@ import { answerPoints } from './score';
 /** Скільки гравець, чий хід, може бути відключеним, поки хід не пропущено. */
 export const BOARD_AWAY_MS = 30_000;
 
-/** Нове коло: гравці в порядку приєднання. */
+/** Новий раунд поля: гравці в порядку приєднання, перше коло, без кубиків. */
 export function initBoard(state: GameState): BoardState {
-  return { circle: state.players.map((p) => p.id), done: 0, rolls: 0, awaySince: null };
+  return { circle: state.players.map((p) => p.id), done: 0, circleNo: 1, dice: null, awaySince: null };
 }
 
 /** Гравець, чий хід; лише на етапі вибору клітинки. */
@@ -21,7 +21,7 @@ export function advanceTurn(board: BoardState): BoardState {
   const done = board.done + 1;
   if (done < board.circle.length) return { ...board, done };
   const [first, ...rest] = board.circle;
-  return { ...board, circle: first === undefined ? [] : [...rest, first], done: 0 };
+  return { ...board, circle: first === undefined ? [] : [...rest, first], done: 0, circleNo: board.circleNo + 1 };
 }
 
 /** Гравця вилучено: коло скорочується, ходи, що вже відбулися, зберігаються. */
@@ -32,7 +32,7 @@ export function dropFromCircle(board: BoardState, playerId: string): BoardState 
   const done = index < board.done ? board.done - 1 : board.done;
   if (circle.length === 0 || done < circle.length) return { ...board, circle, done };
   const [first, ...rest] = circle;
-  return { ...board, circle: [...rest, first], done: 0 };
+  return { ...board, circle: [...rest, first], done: 0, circleNo: board.circleNo + 1 };
 }
 
 /** Клітинка вже зіграна в поточному раунді. */

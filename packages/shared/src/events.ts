@@ -42,6 +42,8 @@ export interface ClientToServerEvents {
   'player:hint': (ack: Ack) => void;
   'player:buzz': (ack: Ack) => void;
   'player:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
+  /** Гравець кидає свій кубик на заставці раунду поля. */
+  'player:roll': (ack: Ack) => void;
   'player:wager': (payload: z.infer<typeof wagerSchema>, ack: Ack) => void;
   'host:start': (ack: Ack) => void;
   'host:lock': (ack: Ack) => void;
@@ -59,6 +61,9 @@ export interface ClientToServerEvents {
   'host:repick': (payload: z.infer<typeof pendingSchema>, ack: Ack) => void;
   'host:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   'host:order': (payload: z.infer<typeof orderSchema>, ack: Ack) => void;
+  /** Почати кидки кубиків: кожен гравець кидає сам. */
+  'host:dice': (ack: Ack) => void;
+  /** Кинути за тих, хто в поточному турі ще не кинув. */
   'host:roll': (ack: Ack) => void;
   'host:skip': (ack: Ack) => void;
 }

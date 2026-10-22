@@ -24,4 +24,5 @@ export type ErrorCode =
   | 'time_limit'
   | 'wrong_word'
   | 'no_hint'
-  | 'hint_late';
+  | 'hint_late'
+  | 'dice_pending';

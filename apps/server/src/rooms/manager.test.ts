@@ -599,8 +599,10 @@ describe('board rounds', () => {
 
   it('board actions go through the manager', () => {
     const { manager, room, anna, bohdan } = boardRoom();
+    expect(manager.host(room, { type: 'dice' })).toEqual({ ok: true });
+    expect(manager.roll(room, anna.playerId)).toEqual({ ok: true });
+    expect(room.state.board?.dice?.throws[anna.playerId]).toEqual([4]);
     expect(manager.host(room, { type: 'roll' })).toEqual({ ok: true });
-    expect(room.state.board?.rolls).toBe(1);
     expect(manager.host(room, { type: 'order', playerIds: [bohdan.playerId, anna.playerId] })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(manager.pick(room, anna.playerId, 'c11')).toEqual({ ok: false, error: 'not_your_turn' });

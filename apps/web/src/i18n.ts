@@ -587,6 +587,7 @@ const uk = {
   // Помилки
   err_not_your_turn: 'Зараз не ваш хід.',
   err_cell_closed: 'Цю клітинку вже зіграно.',
+  err_dice_pending: 'Ще не всі кинули кубик.',
   err_wrong_phase: 'Зараз цього зробити не можна.',
   chainGuessLabel: 'Наступне слово',
   chainCheck: 'Перевірити',

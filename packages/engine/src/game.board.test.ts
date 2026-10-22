@@ -1,6 +1,7 @@
 import type { Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { pickCell, rollOrder, setOrder, skipTurn } from './board';
+import { pickCell, setOrder, skipTurn } from './board';
+import { dropFromCircle } from './board-turns';
 import { nextDeadline } from './blitz';
 import {
   acceptAnswer,
@@ -59,20 +60,15 @@ describe('board turns', () => {
     expect(state.board?.done).toBe(0);
   });
 
-  it('the host sets the order or rolls the dice before the round starts', () => {
+  it('the host sets the order before the round starts', () => {
     const quiz = makeRoundsQuiz([field()]);
     const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра')));
     expect(must(setOrder(intro, ['p3', 'p1', 'p2'])).board?.circle).toEqual(['p3', 'p1', 'p2']);
     expect(setOrder(intro, ['p1', 'p2'])).toEqual({ ok: false, error: 'not_found' });
     expect(setOrder(intro, ['p1', 'p2', 'p9'])).toEqual({ ok: false, error: 'not_found' });
-    const rolled = must(rollOrder(intro, () => 0));
-    expect([...(rolled.board?.circle ?? [])].sort()).toEqual(['p1', 'p2', 'p3']);
-    expect(rolled.board?.rolls).toBe(1);
-    expect(must(rollOrder(rolled, () => 0.99)).board?.rolls).toBe(2);
     const started = must(next(intro, 0));
     expect(started.phase).toBe('board');
     expect(setOrder(started, ['p1', 'p2', 'p3'])).toEqual({ ok: false, error: 'wrong_phase' });
-    expect(rollOrder(started, () => 0)).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('turns rotate by one after every circle', () => {
@@ -84,14 +80,23 @@ describe('board turns', () => {
     let state = onBoard(round, { leaderboard: 'end' });
     const ids = ['a1', 'a2', 'a3', 'b1', 'b2', 'b3', 'd1', 'd2', 'd3'];
     const choosers: string[] = [];
+    const circles: number[] = [];
     for (const id of ids) {
       expect(state.phase).toBe('board');
+      circles.push(state.board?.circleNo ?? 0);
       const play = must(pickCell(state, null, id, 0, Math.random));
       choosers.push(play.plays.at(-1)?.board?.chooserId ?? '');
       state = finishCell(play);
     }
     expect(choosers).toEqual(['p1', 'p2', 'p3', 'p2', 'p3', 'p1', 'p3', 'p1', 'p2']);
+    expect(circles).toEqual([1, 1, 1, 2, 2, 2, 3, 3, 3]);
     expect(state.phase).toBe('finished');
+  });
+
+  it('circleNo counts the circles; a kick that closes the circle starts the next one', () => {
+    const board = { circle: ['p1', 'p2', 'p3'], done: 2, circleNo: 1, dice: null, awaySince: null };
+    expect(dropFromCircle(board, 'p3')).toMatchObject({ circle: ['p2', 'p1'], done: 0, circleNo: 2 });
+    expect(dropFromCircle(board, 'p1')).toMatchObject({ circle: ['p2', 'p3'], done: 1, circleNo: 1 });
   });
 
   it('only the chooser or the host can pick, and only an unplayed cell', () => {

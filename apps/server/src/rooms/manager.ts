@@ -22,10 +22,12 @@ import {
   removePlayer,
   repick,
   resume,
-  rollOrder,
+  rollDie,
+  rollForRest,
   setConnected,
   setOrder,
   skipTurn,
+  startDice,
   stageView,
   start,
   submitAnswer,
@@ -74,7 +76,7 @@ export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'roll' | 'skip' }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' }
   | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
@@ -245,6 +247,11 @@ export class RoomManager {
     return this.apply(room, pickCell(room.state, playerId, cellId, this.now(), this.rng));
   }
 
+  roll(room: Room, playerId: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, rollDie(room.state, playerId, this.rng));
+  }
+
   wager(room: Room, playerId: string, amount: number): AckResult {
     if (!this.alive(room)) return GONE;
     return this.apply(room, placeWager(room.state, playerId, amount, this.now(), this.rng));
@@ -270,8 +277,10 @@ export class RoomManager {
         return this.apply(room, end(state));
       case 'override':
         return this.apply(room, override(state, action.playerId, action.grade, this.now()));
+      case 'dice':
+        return this.apply(room, startDice(state));
       case 'roll':
-        return this.apply(room, rollOrder(state, this.rng));
+        return this.apply(room, rollForRest(state, this.rng));
       case 'skip':
         return this.apply(room, skipTurn(state, this.now()));
       case 'pick':
