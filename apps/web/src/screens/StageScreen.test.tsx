@@ -500,4 +500,21 @@ describe('StageScreen final', () => {
     expect(delta.className).not.toContain('is-up');
     expect(delta.className).not.toContain('is-down');
   });
+
+  it('shows the chain with first letters and the progress during the question, the whole chain and the ranking at the reveal', () => {
+    const chainQ = { ...question, type: 'chain' as const, choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null]], hintSeconds: 5 } };
+    const info = { total: 1, rows: [{ playerId: 'p1', nickname: 'Олена', solved: 1, hints: 0, timeMs: 5000, points: null }] };
+    const { unmount } = show(view({ phase: 'question', questionIndex: 0, question: chainQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1, chain: info }));
+    expect(screen.getByLabelText('Р___')).toBeTruthy();
+    expect(screen.getByText('Вгадуйте слова ланцюжка на телефоні')).toBeTruthy();
+    expect(screen.getByText('Пройшли 1 з 2')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Риба');
+    unmount();
+    const full: Question = { id: 'q8', type: 'chain', text: 'Ланцюжок', imageUrl: null, video: null, timeLimit: 20, points: 1000, words: ['Форель', 'Риба'], hintSeconds: 5 };
+    show(view({ phase: 'reveal', questionIndex: 0, question: chainQ, reveal: full, chain: { ...info, rows: [{ ...info.rows[0], points: 1000 }] } }));
+    expect(document.querySelector('.chain-words.is-correct')).not.toBeNull();
+    expect(screen.getByLabelText('Риба')).toBeTruthy();
+    expect(document.querySelector('.chain-board .rank')).not.toBeNull();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
 });

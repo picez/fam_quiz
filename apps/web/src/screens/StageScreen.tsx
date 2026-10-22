@@ -11,6 +11,7 @@ import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
+import { ChainBoard, ChainWords, fullMask } from './ChainView';
 
 interface Props {
   view: StageView;
@@ -98,7 +99,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   const answering = pendingSpot ?? (blitzCell ? null : view.board?.turn) ?? view.blitz?.queue[0] ?? null;
   // Розкриття фіналу йде по одному гравцю: відео, картинка й варіанти зникають, щоб список був на екрані.
   const finalReveal = view.final !== null && view.phase === 'reveal';
-  const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'order' ? t('orderOnPhone') : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question">
@@ -106,7 +107,9 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         <span>{questionLabel(view.round, view.questionIndex, view.total)}</span>
         {view.board === null && (
           <span>
-            {view.blitz === null
+            {question.type === 'chain'
+              ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
+              : view.blitz === null
               ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
               : t('blitzQueued', { count: view.blitz.queue.length })}
           </span>
@@ -129,7 +132,13 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
       {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} />}
       {!finalReveal && <QuestionImage url={question.imageUrl} />}
       {!finalReveal && <YouTubePlayer video={question.video} />}
-      {finalReveal && question.type !== 'match' ? null : spotlit ? (
+      {finalReveal && question.type !== 'match' ? null : question.chain !== null ? (
+        reveal !== null && reveal.type === 'chain' ? (
+          <ChainWords first={reveal.words[0]} masks={reveal.words.slice(1).map(fullMask)} tone="is-correct" />
+        ) : (
+          <ChainWords first={question.chain.first} masks={question.chain.masks} />
+        )
+      ) : spotlit ? (
         <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} />
       ) : question.type === 'match' ? (
         reveal === null ? (
@@ -153,6 +162,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           </ul>
         )
       )}
+      {view.chain !== null && !finalReveal && <ChainBoard chain={view.chain} reveal={view.phase === 'reveal'} />}
       {view.blitz !== null && view.phase !== 'reveal' && view.blitz.queue.length > 0 && (
         <ol className="rows blitz-queue">
           {view.blitz.queue.map((entry, index) => (
@@ -170,7 +180,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         </p>
       )}
       {reveal === null && hint !== null && <p className="lead">{hint}</p>}
-      {reveal !== null && question.type !== 'match' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {reveal !== null && question.type !== 'match' && question.type !== 'chain' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
-import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, signed } from '../format';
+import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { RoundBriefing } from './RoundBriefing';
 import { Timer } from '../live/Timer';
@@ -11,6 +11,7 @@ import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
+import { ChainPlay } from './ChainView';
 
 interface Props {
   view: PlayerView;
@@ -35,6 +36,9 @@ function Result({ view }: { view: PlayerView }) {
       <h2>{title}</h2>
       {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
       {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
+      {view.me.chain !== null && (
+        <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
+      )}
       {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
       {view.blitz !== null && (
         <p className="winner">
@@ -143,6 +147,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
     setError(result.ok ? null : errorText(result.error));
   };
 
+  const chainMine = question?.type === 'chain' && me.chain !== null;
+
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
 
   return (
@@ -186,7 +192,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <div className="question-head">
             <p className="meta">{questionLabel(view.round, view.questionIndex, view.total)}</p>
-            <Timer view={view} offsetMs={offsetMs} />
+            {!chainMine && <Timer view={view} offsetMs={offsetMs} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">
@@ -200,7 +206,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <h1 className={questionClass(question.text)}>{question.text}</h1>
           <QuestionImage url={question.imageUrl} />
           <YouTubePlayer video={question.video} />
-          {myPending ? (
+          {chainMine && me.chain !== null ? (
+            <ChainPlay chain={me.chain} question={question} paused={view.paused} offsetMs={offsetMs} send={send} />
+          ) : myPending ? (
             <section className="sent">
               <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
               <p className="lead">{t('pendingWait')}</p>

@@ -827,4 +827,19 @@ describe('HostScreen final', () => {
     fireEvent.click(button('Не зараховувати'));
     expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'wrong' });
   });
+
+  it('the host sees chain progress for every player', () => {
+    const chainQ: Question = { id: 'q3', type: 'chain', text: 'Ланцюжок', imageUrl: null, video: null, timeLimit: 20, points: 1000, words: ['Форель', 'Риба'], hintSeconds: 5 };
+    const info = {
+      total: 1,
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', solved: 1, hints: 1, timeMs: 8000, points: null },
+        { playerId: 'p2', nickname: 'Тарас', solved: 0, hints: 0, timeMs: null, points: null },
+      ],
+    };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'chain', choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null]], hintSeconds: 5 } }, correct: chainQ, endsAt: Date.now() + 20_000, chain: info }));
+    expect(screen.getByRole('heading', { name: 'Ланцюжок' })).toBeTruthy();
+    expect(document.querySelector('.chain-board')?.textContent).toContain('8,0 с');
+    expect(document.querySelector('.chain-board')?.textContent).toContain('0 з 1');
+  });
 });

@@ -2249,3 +2249,73 @@ button.match-item {
 
 .editor-quiz { display: grid; gap: 0.875rem; margin-bottom: 0.75rem; }
 .round-brief-preview { display: grid; gap: 0.5rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }
+
+/* ---------- Ланцюжок слів ---------- */
+
+.chain-words {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.chain-word {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+.chain-cell {
+  min-width: 1.4em;
+  text-align: center;
+  border-bottom: 2px solid var(--line);
+  font-family: var(--display);
+}
+
+.chain-cell.is-blank {
+  line-height: 1.2;
+}
+
+.chain-sep {
+  white-space: pre;
+  color: var(--dim);
+  font-family: var(--display);
+}
+
+.chain-word.is-current .chain-cell {
+  border-color: var(--amber);
+}
+
+.chain-words.is-correct .chain-cell {
+  color: var(--correct);
+}
+
+.chain-play {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.chain-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.chain-form .btn,
+.chain-form input {
+  min-height: 44px;
+}
+
+.chain-miss {
+  color: var(--signal);
+}
+
+.chain-clock {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.chain-board .is-out {
+  color: var(--dim);
+}
+
+.stage .chain-cell {
+  font-size: 2rem;
+}
