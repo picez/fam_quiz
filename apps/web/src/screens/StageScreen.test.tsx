@@ -41,6 +41,14 @@ const show = (current: StageView, hostOnline = true) =>
   );
 
 describe('StageScreen', () => {
+  it('the stage shows the image and the video together, without a timer', () => {
+    const both = { ...question, imageUrl: '/uploads/a.png', video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: both, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('img.question-image')).not.toBeNull();
+    expect(document.querySelector('iframe')).not.toBeNull();
+    expect(screen.queryByRole('timer')).toBeNull();
+  });
+
   it('invites players with the address and the code split for reading aloud', () => {
     show(view());
     expect(screen.getByText('quiz.test')).toBeTruthy();

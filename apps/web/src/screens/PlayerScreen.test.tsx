@@ -66,6 +66,14 @@ function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send 
 }
 
 describe('PlayerScreen', () => {
+  it('a video question shows the player and no timer on the phone', () => {
+    const withVideo = { ...publicQuestion, video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(onQuestion({ question: withVideo, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('iframe')?.getAttribute('src')).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
+    expect(screen.queryByRole('timer')).toBeNull();
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
   it('shows the nickname, the score and a waiting message in the lobby', () => {
     show(view({ me: { ...me, score: 1250 } }));
     expect(screen.getByText('Олена')).toBeTruthy();
@@ -352,6 +360,13 @@ describe('PlayerScreen: blitz', () => {
       show(onQuestion({ round, board: boardOf('p2', { cell: { ...cell, mark: 'none' } }) }));
       expect(screen.getByText('Відповідає Анна')).toBeTruthy();
       expect(document.body.textContent).not.toContain('×');
+    });
+
+    it('another player watching a board answerer sees the video too', () => {
+      const withVideo = { ...publicQuestion, video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+      show(onQuestion({ round, question: withVideo, endsAt: null, board: boardOf('p1', { cell: { ...cell, mark: 'none' } }), me: { ...me, id: 'p2' } }));
+      expect(document.querySelector('iframe')).not.toBeNull();
+      expect(screen.getByText('Відповідає Олена')).toBeTruthy();
     });
 
     it('disables the chooser board while the game is paused', () => {

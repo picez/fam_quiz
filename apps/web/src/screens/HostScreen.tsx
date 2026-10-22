@@ -6,6 +6,7 @@ import { errorText, t, type TextKey } from '../i18n';
 import type { Send } from '../live/types';
 import { BlitzCellNotes, Board } from './Board';
 import { QuestionImage } from './QuestionImage';
+import { YouTubePlayer } from './YouTubePlayer';
 import { Standings } from './Standings';
 
 interface Props {
@@ -50,9 +51,9 @@ function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView;
   const name = chooser.nickname;
   if (board.skipAt !== null) {
     const seconds = secondsLeft({ endsAt: board.skipAt, remainingMs: null }, offsetMs, now) ?? 0;
-    return <p className="banner is-away">{t('chooserAwaySkip', { name, seconds })}</p>;
+    return <p className="banner is-away">{t(view.phase === 'question' ? 'answererAwayClose' : 'chooserAwaySkip', { name, seconds })}</p>;
   }
-  return view.paused ? <p className="banner is-away">{t('chooserAwayPaused', { name })}</p> : null;
+  return view.paused && view.phase === 'board' ? <p className="banner is-away">{t('chooserAwayPaused', { name })}</p> : null;
 }
 
 export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }: Props) {
@@ -266,8 +267,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           )}
           {board !== null && <BlitzCellNotes board={board} />}
           {answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
+          {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
           <QuestionImage url={view.question.imageUrl} />
+          <YouTubePlayer video={view.question.video} />
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
         </section>
       )}

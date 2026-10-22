@@ -7,6 +7,7 @@ import { MatchColumns, PairList } from './MatchView';
 import { Timer } from '../live/Timer';
 import { BlitzCellNotes, Board } from './Board';
 import { QuestionImage } from './QuestionImage';
+import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
 
@@ -102,6 +103,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
       </div>
       <QuestionImage url={question.imageUrl} />
+      <YouTubePlayer video={question.video} />
       {spotlit ? (
         <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} />
       ) : question.type === 'match' ? (
