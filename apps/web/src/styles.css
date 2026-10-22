@@ -2293,15 +2293,79 @@ a.banner {
   color: var(--amber);
 }
 
-.dice {
-  margin: 0;
-  font-size: 7rem;
-  line-height: 1;
-  text-align: center;
+.dice-panel {
+  display: grid;
+  gap: 0.5rem;
 }
 
-.dice.is-rolling {
-  animation: dice-roll 0.3s linear infinite;
+.dice-status {
+  margin: 0;
+  min-height: 1.5em;
+  color: var(--dim);
+}
+
+.dice-rows {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dice-rows li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 2.75rem;
+  white-space: nowrap;
+}
+
+.dice-rows .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dice-rows li.is-waiting .name {
+  color: var(--amber);
+}
+
+.dice-rows li.is-me .name {
+  font-weight: 700;
+}
+
+.dice-throws {
+  color: var(--dim);
+}
+
+.dice-value {
+  min-width: 1.5ch;
+  font-weight: 700;
+  text-align: right;
+}
+
+.die {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  box-sizing: border-box;
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+.stage .die {
+  width: 4rem;
+  height: 4rem;
+  font-size: 3.5rem;
+}
+
+.die.is-empty {
+  border: 2px dashed var(--line);
+  border-radius: 0.4rem;
 }
 
 @keyframes dice-roll {
@@ -2310,9 +2374,9 @@ a.banner {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dice.is-rolling {
-    animation: none;
+@media (prefers-reduced-motion: no-preference) {
+  .die.is-rolling {
+    animation: dice-roll 0.3s linear infinite;
   }
 }
 

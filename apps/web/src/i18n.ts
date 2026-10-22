@@ -197,6 +197,10 @@ const uk = {
   cellChosenBy: 'Вибір: {name}',
   closeCell: 'Закрити клітинку',
   diceLabel: 'Кубик',
+  diceStatusWaiting: 'Кидають: {names}',
+  diceStatusTie: 'Нічия! Перекидають: {names}',
+  diceStatusDone: 'Порядок визначено',
+  diceResult: 'Кубик: {value}',
   phase_leaderboard: 'Рейтинг',
   phase_finished: 'Гру завершено',
   // Акаунт
