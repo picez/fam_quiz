@@ -1605,7 +1605,7 @@ async function menuProfileFriends() {
 
   // 6. Ведуча відкриває публічний профіль Олі і додає її в друзі.
   await host.goto(publicUrl);
-  await host.getByRole('heading', { name: 'Зірка' }).waitFor();
+  await host.getByRole('heading', { name: 'Зірка', exact: true }).waitFor();
   await host.getByText('email приховано').waitFor();
   expect(await host.content()).not.toContain('olya8@example.com');
   await shot(host, 'profile-public-desktop');
@@ -1621,7 +1621,7 @@ async function menuProfileFriends() {
   await shot(host, 'profile-own-desktop');
   await friend.click();
   await host.waitForURL(`${base}/profile/${olyaId}`);
-  await host.getByRole('heading', { name: 'Зірка' }).waitFor();
+  await host.getByRole('heading', { name: 'Зірка', exact: true }).waitFor();
 
   // 7. Приватність через API: у відповіді немає приватних ключів.
   const response = await host.request.get(`${base}/api/profiles/${olyaId}`);
@@ -1788,6 +1788,162 @@ async function chainGame() {
   const olyaRow = chainQuestion.locator('.responses li', { hasText: 'Оля' });
   await olyaRow.getByText(/Пройдено за/).waitFor();
   await shot(host, 'history-chain');
+
+  expect(problems).toEqual([]);
+}
+
+it('a host invites a friend from the lobby; the friend sees the badge, joins from the profile, and they compare', async () => {
+  try {
+    await invitesAndVersus();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function register(page: Page, via: 'host' | 'menu', name: string, email: string) {
+  await page.goto(base);
+  if (via === 'host') await page.getByRole('link', { name: 'Я ведучий' }).click();
+  else await page.locator(MENU).getByRole('link', { name: 'Увійти' }).click();
+  await click(page, 'Створити акаунт');
+  await field(page, 'Ваше ім’я').fill(name);
+  await field(page, 'Email').fill(email);
+  await field(page, 'Пароль').fill('correct horse battery');
+  await click(page, 'Зареєструватися');
+  await page.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
+}
+
+async function myId(page: Page): Promise<string> {
+  const me = (await (await page.request.get(`${base}/api/me`)).json()) as { id?: string; user?: { id: string } };
+  return (me.user?.id ?? me.id)!;
+}
+
+const noSideScroll = (page: Page) => page.evaluate('document.documentElement.scrollWidth <= innerWidth');
+
+/** Один круг гри: ведуча стартує, гравці відповідають (Київ правильно, Львів ні), гра доходить до фінішу. */
+async function playOut(host: Page, answers: [Page, boolean][]) {
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+  for (const [page, right] of answers) await page.getByRole('button', { name: right ? /Київ/ : /Львів/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await click(host, 'Далі');
+  await host.getByText('Гру завершено').first().waitFor();
+}
+
+async function invitesAndVersus() {
+  const host = await open('inv-host', 1280, 900);
+  await register(host, 'host', 'Ніна Ведуча', 'invhost@example.com');
+  const olya = await open('inv-olya', 375, 812);
+  await register(olya, 'menu', 'Оксана Гравець', 'involya@example.com');
+  const hostId = await myId(host);
+  const olyaId = await myId(olya);
+  expect((await host.request.put(`${base}/api/me/friends/${olyaId}`)).ok()).toBe(true);
+
+  const quiz = { ...makeQuiz([single], { speedBonus: false }), title: 'Вечір друзів' };
+  expect((await host.request.post(`${base}/api/quizzes`, { data: quiz })).ok()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+
+  // Запрошення з лобі.
+  await click(host, 'Запросити друзів');
+  const row = host.locator('.invite-friends li', { hasText: 'Оксана' });
+  await row.getByRole('button', { name: 'Запросити', ...exact }).click();
+  await row.getByRole('button', { name: 'Запрошено', ...exact }).waitFor();
+  await shot(host, 'invite-lobby-host');
+  await host.setViewportSize({ width: 375, height: 812 });
+  expect(await noSideScroll(host), 'invite panel on 375: horizontal scroll').toBe(true);
+  const nameBox = (await row.locator('.name').boundingBox())!;
+  const buttonBox = (await row.getByRole('button', { name: 'Запрошено', ...exact }).boundingBox())!;
+  expect(buttonBox.y < nameBox.y + nameBox.height && nameBox.y < buttonBox.y + buttonBox.height, 'invite row on 375: button on the name line').toBe(true);
+  await shot(host, 'invite-lobby-host-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  // Позначка в меню на телефоні.
+  await olya.goto(base);
+  const badge = olya.getByLabel('Запрошень: 1', exact);
+  await badge.waitFor();
+  const item = (await olya.locator(MENU).getByRole('link', { name: /Профіль/ }).boundingBox())!;
+  const mark = (await badge.boundingBox())!;
+  expect(mark.height).toBeLessThanOrEqual(22);
+  expect(mark.x).toBeGreaterThanOrEqual(item.x - 0.5);
+  expect(mark.y).toBeGreaterThanOrEqual(item.y - 0.5);
+  expect(mark.x + mark.width).toBeLessThanOrEqual(item.x + item.width + 0.5);
+  expect(mark.y + mark.height).toBeLessThanOrEqual(item.y + item.height + 0.5);
+  await shot(olya, 'invite-badge-phone');
+  await olya.locator(MENU).getByRole('link', { name: /Профіль/ }).click();
+  await olya.getByRole('heading', { name: 'Вас запросили' }).waitFor();
+  await olya.getByText(`Ніна запрошує: «Вечір друзів», код ${code.slice(0, 3)} ${code.slice(3)}`).waitFor();
+  await expectPhoneFit(olya, 'invite-profile-phone-375');
+
+  // Сторонній користувач нічого не бачить і не може запрошувати.
+  const vira = await open('inv-vira', 390, 844);
+  await register(vira, 'menu', 'Віра', 'invvira@example.com');
+  const viraId = await myId(vira);
+  expect(await (await vira.request.get(`${base}/api/me/invites`)).json()).toEqual([]);
+  const foreign = await vira.request.post(`${base}/api/games/by-code/${code}/invites`, { data: { userIds: [olyaId] } });
+  expect(foreign.status()).toBe(404);
+
+  // Оксана приєднується з профілю.
+  await olya.locator('.invite-list').getByRole('link', { name: 'Приєднатися', ...exact }).click();
+  await olya.waitForURL(`${base}/play/${code}`);
+  await field(olya, 'Ваше ім’я').fill('Оксана');
+  await click(olya, 'Увійти в гру');
+  await olya.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+  const taras = await open('inv-taras', 360, 740);
+  await join(taras, code, 'Тарас', false);
+  await playOut(host, [[olya, true], [taras, false]]);
+  expect(await (await olya.request.get(`${base}/api/me/invites`)).json()).toEqual([]);
+
+  // Ведуча не грала в спільних іграх.
+  await host.goto(`${base}/profile/${olyaId}`);
+  await host.getByRole('heading', { name: 'Ви і Оксана' }).waitFor();
+  await host.getByText('Ви ще не грали разом.').waitFor();
+
+  // Друга гра: Оксана й Віра з акаунтів.
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code2 = host.url().slice(-6);
+  await join(olya, code2, 'Оксана', false);
+  await join(vira, code2, 'Віра', false);
+  await playOut(host, [[olya, true], [vira, false]]);
+
+  await olya.goto(`${base}/profile/${viraId}`);
+  await olya.getByRole('heading', { name: 'Ви і Віра' }).waitFor();
+  await stat(olya, 'гра разом').waitFor();
+  expect(await stat(olya, 'гра разом').textContent()).toBe('1гра разом');
+  expect(await stat(olya, 'гра, де ви вище').textContent()).toBe('1гра, де ви вище');
+  expect(await stat(olya, 'ігор, де Віра вище').textContent()).toBe('0ігор, де Віра вище');
+  expect(await stat(olya, 'правильних відповідей у вас').textContent()).toBe('100%правильних відповідей у вас');
+  expect(await stat(olya, 'правильних відповідей — Віра').textContent()).toBe('0%правильних відповідей — Віра');
+  await olya.locator('.versus-games li', { hasText: '«Вечір друзів»: ви — 1 місце, Віра — 2 місце' }).waitFor();
+  await expectPhoneFit(olya, 'versus-phone-375');
+  await vira.goto(`${base}/profile/${olyaId}`);
+  await vira.getByRole('heading', { name: 'Ви і Оксана' }).waitFor();
+  await vira.setViewportSize({ width: 1280, height: 900 });
+  await shot(vira, 'versus-desktop');
+
+  // Нові ачівки.
+  await olya.goto(`${base}/profile`);
+  await olya.getByRole('heading', { name: 'Статистика' }).waitFor();
+  expect(await olya.locator('.achievements li').count()).toBe(16);
+  expect(await noSideScroll(olya)).toBe(true);
+  await shot(olya, 'achievements-16-phone');
+
+  // Приватність на рівні API.
+  const anonymous = await browser.newContext();
+  const denied = await anonymous.request.get(`${base}/api/me/versus/${olyaId}`);
+  expect(denied.status()).toBe(401);
+  await anonymous.close();
+  const versusText = await (await olya.request.get(`${base}/api/me/versus/${viraId}`)).text();
+  expect(versusText).not.toContain('Тарас');
+  expect(versusText).not.toContain('@');
+  expect(versusText).not.toContain(hostId);
+  const publicProfile = (await (await host.request.get(`${base}/api/profiles/${olyaId}`)).json()) as Record<string, unknown>;
+  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'nickname', 'stats']);
 
   expect(problems).toEqual([]);
 }

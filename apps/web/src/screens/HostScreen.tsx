@@ -9,6 +9,7 @@ import type { Send } from '../live/types';
 import { BlitzCellNotes, Board } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
+import { InviteFriends } from './InviteFriends';
 import { Standings } from './Standings';
 
 interface Props {
@@ -609,6 +610,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           </ul>
         </section>
       )}
+
+      {phase === 'lobby' && <InviteFriends code={code} />}
 
       <nav className="links">
         <a href={stageUrl} target="_blank" rel="noreferrer">

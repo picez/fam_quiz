@@ -6,6 +6,7 @@ import { errorText, t } from '../i18n';
 import { AchievementList } from '../profile/AchievementList';
 import { Avatar } from '../profile/Avatar';
 import { StatsView } from '../profile/StatsView';
+import { VersusBlock } from '../profile/VersusBlock';
 import { useAccount } from '../useAccount';
 
 type State = { status: 'loading' } | { status: 'ready'; profile: PublicProfileData } | { status: 'error'; message: string };
@@ -104,6 +105,7 @@ export function PublicProfile() {
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
+      {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={profile.nickname} />}
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
         <AchievementList achievements={profile.achievements} />

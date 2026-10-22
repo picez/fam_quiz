@@ -423,6 +423,22 @@ const uk = {
   statHosted_few: 'проведені гри',
   statHosted_many: 'проведених ігор',
   statsTitle: 'Статистика',
+  versusTitle: 'Ви і {name}',
+  versusNone: 'Ви ще не грали разом.',
+  versusTogether_one: 'гра разом',
+  versusTogether_few: 'гри разом',
+  versusTogether_many: 'ігор разом',
+  versusYouHigher_one: 'гра, де ви вище',
+  versusYouHigher_few: 'гри, де ви вище',
+  versusYouHigher_many: 'ігор, де ви вище',
+  versusTheyHigher_one: 'гра, де {name} вище',
+  versusTheyHigher_few: 'гри, де {name} вище',
+  versusTheyHigher_many: 'ігор, де {name} вище',
+  versusYourAccuracy: 'правильних відповідей у вас',
+  versusTheirAccuracy: 'правильних відповідей — {name}',
+  versusRecent: 'Останні спільні ігри',
+  versusGame: '{date} — «{title}»: ви — {mine}, {name} — {theirs}',
+  versusNoPlace: 'без місця',
   achievementsTitle: 'Ачівки',
   achievement_first_game: 'Перша гра',
   achievement_first_win: 'Перша перемога',
@@ -432,6 +448,14 @@ const uk = {
   achievement_host: 'Ведучий',
   achievement_games_50: '50 ігор',
   achievement_wins_10: '10 перемог',
+  achievement_games_100: '100 ігор',
+  achievement_host_10: 'Досвідчений ведучий',
+  achievement_streak_10: 'Серія 10 правильних поспіль',
+  achievement_win_streak_3: 'Три перемоги поспіль',
+  achievement_blitz_win: 'Король бліцу',
+  achievement_final_hit: 'Влучна ставка',
+  achievement_comeback: 'Камбек',
+  achievement_friends_5: 'Компанія друзів',
   achievementHint_first_game: 'Зіграти першу гру з акаунта',
   achievementHint_first_win: 'Посісти перше місце в грі',
   achievementHint_games_10: 'Зіграти 10 ігор',
@@ -440,6 +464,14 @@ const uk = {
   achievementHint_host: 'Провести першу гру',
   achievementHint_games_50: 'Зіграти 50 ігор',
   achievementHint_wins_10: 'Перемогти 10 разів',
+  achievementHint_games_100: 'Зіграти 100 ігор',
+  achievementHint_host_10: 'Провести 10 ігор до кінця',
+  achievementHint_streak_10: 'Відповісти правильно на 10 запитань поспіль в одній грі',
+  achievementHint_win_streak_3: 'Перемогти в трьох завершених іграх поспіль',
+  achievementHint_blitz_win: 'Набрати в бліц-раунді більше балів, ніж будь-хто інший',
+  achievementHint_final_hit: 'Правильно відповісти у фіналі й виграти ставку',
+  achievementHint_comeback: 'Перемогти, коли перед останнім раундом хтось мав більше балів',
+  achievementHint_friends_5: 'Зіграти з п’ятьма різними друзями (за весь час)',
   achievementLocked: '{name} (ще не отримано)',
   avatarOf: 'Аватар {nickname}',
   emailHidden: 'email приховано',
@@ -467,6 +499,20 @@ const uk = {
   addFriendButton: 'Додати друга',
   friendNotFound: 'Гравця з таким нікнеймом не знайдено.',
   err_self_follow: 'Себе додати в друзі не можна.',
+  err_self_versus: 'Порівняти себе з собою не можна.',
+  // Запрошення
+  inviteFriends: 'Запросити друзів',
+  inviteClose: 'Згорнути',
+  inviteOne: 'Запросити',
+  invitedOne: 'Запрошено',
+  noFriendsToInvite: 'Друзів поки немає. Додайте їх у профілі.',
+  openProfile: 'Відкрити профіль',
+  inviteHint: 'Запрошення бачать лише ваші друзі з акаунтом, поки гра не почалась.',
+  invitesTitle: 'Вас запросили',
+  inviteLine: '{host} запрошує: «{title}», код {code}',
+  inviteJoin: 'Приєднатися',
+  inviteDismiss: 'Відхилити',
+  invitesBadge: 'Запрошень: {count}',
   // Меню
   menuLabel: 'Меню',
   menuJoin: 'Приєднатися',
@@ -576,9 +622,9 @@ export function errorText(code: string): string {
 type CountKey = { [K in TextKey]: K extends `${infer Base}_one` ? Base : never }[TextKey];
 
 /** Іменник у формі, якої вимагає число: 1 гра, 2 гри, 5 ігор. */
-export function countText(base: CountKey, count: number): string {
+export function countText(base: CountKey, count: number, vars: Record<string, string | number> = {}): string {
   const lastTwo = Math.abs(count) % 100;
   const last = lastTwo % 10;
   const form = last === 1 && lastTwo !== 11 ? 'one' : last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? 'few' : 'many';
-  return t(`${base}_${form}` as TextKey);
+  return t(`${base}_${form}` as TextKey, vars);
 }

@@ -10,6 +10,14 @@ const ICONS: Record<AchievementId, string> = {
   host: '🎤',
   games_50: '🏅',
   wins_10: '👑',
+  games_100: '💯',
+  host_10: '🎙️',
+  streak_10: '⚡',
+  win_streak_3: '🥇',
+  blitz_win: '⏱️',
+  final_hit: '🎲',
+  comeback: '🚀',
+  friends_5: '🤝',
 };
 
 /** Усі ачівки; неотримані показано заблокованими. */

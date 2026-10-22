@@ -16,7 +16,10 @@ export const nicknameSchema = z
 export const profileUpdateSchema = z.object({ nickname: nicknameSchema, avatar: z.string().regex(AVATAR_URL).nullable() }).strict();
 export type ProfileUpdate = z.infer<typeof profileUpdateSchema>;
 
-export const ACHIEVEMENTS = ['first_game', 'first_win', 'games_10', 'streak_5', 'perfect_game', 'host', 'games_50', 'wins_10'] as const;
+export const ACHIEVEMENTS = [
+  'first_game', 'first_win', 'games_10', 'streak_5', 'perfect_game', 'host', 'games_50', 'wins_10',
+  'games_100', 'host_10', 'streak_10', 'win_streak_3', 'blitz_win', 'final_hit', 'comeback', 'friends_5',
+] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 export interface Achievement {
   id: AchievementId;
@@ -40,6 +43,14 @@ export interface ProfileCard {
   avatar: string | null;
 }
 
+/** Запрошення в гру, що чекає в лобі. */
+export interface GameInvite {
+  code: string;
+  title: string;
+  host: ProfileCard;
+  invitedAt: string;
+}
+
 export interface PublicProfile extends ProfileCard {
   stats: ProfileStats;
   achievements: Achievement[];
@@ -52,6 +63,26 @@ export interface ProfileWin {
   title: string;
   startedAt: string;
   rank: number;
+}
+
+export interface VersusGame {
+  gameId: string;
+  title: string;
+  startedAt: string;
+  myRank: number | null;
+  theirRank: number | null;
+}
+
+/** Спільні завершені ігри того, хто дивиться («я»), і іншого користувача. */
+export interface Versus {
+  together: number;
+  /** Ігри, де моє місце краще (менше). */
+  myAhead: number;
+  theirAhead: number;
+  myAccuracy: number | null;
+  theirAccuracy: number | null;
+  /** Найновіші першими, не більше VERSUS_RECENT. */
+  recent: VersusGame[];
 }
 
 export interface OwnProfile extends ProfileCard {

@@ -14,10 +14,10 @@ import {
 } from '@quiz/shared';
 import { and, asc, count, eq } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
-import { achievementsOf, bestStreak, isPerfect } from './achievements';
+import { achievementsOf, bestStreak, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound } from './achievements';
 import type { Db } from './db/client';
 import { follow, game, profile, quiz, user } from './db/schema';
-import { playerGames } from './history';
+import { gameTables, playerGames } from './history';
 import { listQuizzes } from './quizzes';
 
 export const DEFAULT_NICKNAME = 'Гравець';
@@ -122,12 +122,27 @@ export async function profileFacts(
 
   const played = games.map((g) => g.played);
   const stats = { ...gameStats(played), quizzes: quizzes.n, hosted: hosted.n };
+  const tables = await gameTables(
+    db,
+    played.map((g) => g.gameId),
+  );
+  const friendRows = await db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId));
+  // Свій учасник у грі: з кількох береться той, що з кращим місцем, а без місця останній.
+  const mine = tables.flatMap((table) => {
+    const own = table.players.filter((p) => p.userId === userId).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+    return own[0] === undefined ? [] : [{ table, id: own[0].participantId }];
+  });
   const achievements = achievementsOf({
     games: stats.games,
     wins: stats.wins,
     hosted: stats.hosted,
     bestStreak: games.reduce((best, g) => Math.max(best, bestStreak(g.marks)), 0),
     perfectGames: games.filter(isPerfect).length,
+    winStreak: winStreak(played),
+    blitzWins: mine.filter(({ table, id }) => wonBlitzRound(table, id)).length,
+    finalHits: mine.filter(({ table, id }) => hitFinal(table, id)).length,
+    comebacks: mine.filter(({ table, id }) => isComeback(table, id)).length,
+    friendsPlayedWith: friendsPlayedWith(tables, userId, new Set(friendRows.map((r) => r.id))),
   });
   const wins = played
     .filter(isWin)

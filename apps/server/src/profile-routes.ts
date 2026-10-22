@@ -2,7 +2,8 @@ import { profileUpdateSchema } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import type { Db } from './db/client';
-import { ensureProfile, findByNickname, ownProfile, publicProfile, saveProfile, setFollow } from './profiles';
+import { versusOf } from './versus';
+import { ensureProfile, findByNickname, friendsOf, ownProfile, publicProfile, saveProfile, setFollow } from './profiles';
 
 export interface ProfileDeps {
   db: Db;
@@ -70,6 +71,33 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
       return found ?? reply.code(404).send(NOT_FOUND);
     },
   );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/me/versus/:id',
+    {
+      config: {
+        rateLimit: {
+          max: 60,
+          timeWindow: '1 minute',
+          keyGenerator: async (request: FastifyRequest) => `versus:${(await currentUser(request))?.id ?? request.ip}`,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await currentUser(request);
+      if (user === null) return reply.code(401).send(UNAUTHORIZED);
+      const { id } = request.params;
+      if (id === user.id) return reply.code(400).send({ error: 'self_versus' });
+      if (id.length > MAX_ID_LENGTH || (await ensureProfile(db, id)) === null) return reply.code(404).send(NOT_FOUND);
+      return versusOf(db, user.id, id);
+    },
+  );
+
+  app.get('/api/me/friends', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    return friendsOf(db, user.id);
+  });
 
   app.put<{ Params: { id: string } }>('/api/me/friends/:id', async (request, reply) => {
     const user = await currentUser(request);

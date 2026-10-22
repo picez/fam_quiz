@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { getMyProfile, signOut } from '../api';
 import { formatDate } from '../format';
@@ -7,7 +7,10 @@ import { AchievementList } from '../profile/AchievementList';
 import { AddFriend } from '../profile/AddFriend';
 import { Avatar } from '../profile/Avatar';
 import { ProfileEditor } from '../profile/ProfileEditor';
+import { InviteList } from '../profile/InviteList';
 import { StatsView } from '../profile/StatsView';
+import { useAccount } from '../useAccount';
+import { announceInvitesChanged, useInvites } from '../useInvites';
 import { usePrivateData } from '../usePrivateData';
 
 const LOGIN = '/login?next=%2Fprofile';
@@ -17,6 +20,13 @@ export function Profile() {
   const [version, setVersion] = useState(0);
   const [editing, setEditing] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const account = useAccount();
+  const invites = useInvites(account.status === 'signed-in', version);
+  const [gone, setGone] = useState<string[]>([]);
+  // Код, якого сервер уже не віддає, забуваємо: повторно виданий код має знову з'явитися.
+  useEffect(() => {
+    setGone((codes) => (codes.some((code) => !invites.some((invite) => invite.code === code)) ? codes.filter((code) => invites.some((invite) => invite.code === code)) : codes));
+  }, [invites]);
   const fresh = usePrivateData(getMyProfile, String(version));
   // Під час оновлення лишаємо попередні дані: сторінка не блимає й не губить прокрутку.
   const last = useRef<typeof fresh | null>(null);
@@ -76,6 +86,13 @@ export function Profile() {
           </div>
         </header>
       )}
+      <InviteList
+        invites={invites.filter((invite) => !gone.includes(invite.code))}
+        onDismissed={(code) => {
+          setGone((codes) => [...codes, code]);
+          announceInvitesChanged();
+        }}
+      />
       <section className="profile-section">
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />

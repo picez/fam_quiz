@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
 import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
+import { gameTables } from './history';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -290,6 +291,83 @@ describe('host history: broken snapshot', () => {
       questions: [],
       standings: [{ nickname: 'Тарас', score: 5, rank: 1 }],
     });
+  });
+});
+
+describe('gameTables', () => {
+  it('an empty list makes no query', async () => {
+    const untouchable = new Proxy({}, { get: () => { throw new Error('db used'); } }) as Db;
+    expect(await gameTables(untouchable, [])).toEqual([]);
+  });
+
+  it('reads round types for new, old and broken snapshots and groups players with their rows', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const base = { hostId: account.id, quizId: null, status: 'finished' as const, questionsPlayed: 0, finishedAt: new Date() };
+    const ids = { modern: 'a1111111-1111-4111-8111-111111111111', old: 'a2222222-2222-4222-8222-222222222222', broken: 'a3333333-3333-4333-8333-333333333333' };
+    await db.insert(game).values([
+      {
+        ...base,
+        id: ids.modern,
+        code: '700001',
+        title: 'Нова',
+        quizSnapshot: makeRoundsQuiz([classicRound('r1', [single]), blitzRound('r2', [single]), finalRound('r3', text)]),
+        startedAt: new Date(2026, 1, 3),
+      },
+      {
+        ...base,
+        id: ids.old,
+        code: '700002',
+        title: 'Стара',
+        quizSnapshot: { title: 'Стара', description: '', settings: { speedBonus: false, leaderboard: 'each', shuffleOptions: false }, questions: [single, text] },
+        startedAt: new Date(2026, 1, 2),
+      },
+      {
+        ...base,
+        id: ids.broken,
+        code: '700003',
+        title: 'Зіпсована',
+        quizSnapshot: { title: 'Зіпсована', rounds: [{ id: 'r1', questions: [{}] }, { id: 'r2', type: 'classic' }] },
+        startedAt: new Date(2026, 1, 1),
+      },
+    ]);
+    const p = { a: 'b1111111-1111-4111-8111-111111111111', b: 'b2222222-2222-4222-8222-222222222222', c: 'b3333333-3333-4333-8333-333333333333' };
+    await db.insert(participant).values([
+      { id: p.a, gameId: ids.modern, userId: account.id, nickname: 'А', score: 30, totalTimeMs: 0, rank: 1 },
+      { id: p.b, gameId: ids.modern, nickname: 'Б', score: 10, totalTimeMs: 0, rank: 2 },
+      { id: p.c, gameId: ids.old, nickname: 'В', score: 0, totalTimeMs: 0, rank: null },
+    ]);
+    const given = { timeMs: 1000, overridden: false, payload: null };
+    await db.insert(answer).values([
+      { ...given, participantId: p.a, questionIndex: 0, roundIndex: 0, accepted: true, points: 20 },
+      { ...given, participantId: p.a, questionIndex: 1, roundIndex: 1, accepted: true, points: 10 },
+      { ...given, participantId: p.b, questionIndex: 1, roundIndex: 1, attempt: 1, accepted: false, points: 10 },
+    ]);
+
+    const tables = await gameTables(db, [ids.modern, ids.old, ids.broken]);
+    const byId = new Map(tables.map((table) => [table.gameId, table]));
+    expect(byId.size).toBe(3);
+    expect(byId.get(ids.modern)!.roundTypes).toEqual(['classic', 'blitz', 'final']);
+    expect(byId.get(ids.old)!.roundTypes).toEqual(['classic']);
+    expect(byId.get(ids.broken)!.roundTypes).toEqual([]);
+    expect(byId.get(ids.broken)!.players).toEqual([]);
+    expect(byId.get(ids.modern)).toMatchObject({ status: 'finished', startedAt: new Date(2026, 1, 3).toISOString() });
+    const players = [...byId.get(ids.modern)!.players].sort((x, y) => y.score - x.score);
+    expect(players).toEqual([
+      {
+        participantId: p.a,
+        userId: account.id,
+        score: 30,
+        rank: 1,
+        rows: expect.arrayContaining([
+          { roundIndex: 0, attempt: 0, accepted: true, points: 20 },
+          { roundIndex: 1, attempt: 0, accepted: true, points: 10 },
+        ]),
+      },
+      { participantId: p.b, userId: null, score: 10, rank: 2, rows: [{ roundIndex: 1, attempt: 1, accepted: false, points: 10 }] },
+    ]);
+    expect(players[0].rows).toHaveLength(2);
+    expect(byId.get(ids.old)!.players).toEqual([{ participantId: p.c, userId: null, score: 0, rank: null, rows: [] }]);
   });
 });
 

@@ -20,6 +20,11 @@ describe('countText', () => {
     expect([0, 5, 11, 12, 14, 20, 111, 112].map(games)).toEqual(Array(8).fill('ігор'));
     expect([1, 2, 5].map((count) => countText('statWins', count))).toEqual(['перемога', 'перемоги', 'перемог']);
   });
+
+  it('substitutes variables into the chosen form', () => {
+    const they = (count: number) => countText('versusTheyHigher', count, { name: 'Віра' });
+    expect([1, 3, 0, 5].map(they)).toEqual(['гра, де Віра вище', 'гри, де Віра вище', 'ігор, де Віра вище', 'ігор, де Віра вище']);
+  });
 });
 
 describe('points in words', () => {
