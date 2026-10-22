@@ -113,13 +113,13 @@ export function BoardLegend({ board }: { board: BoardInfo }) {
 }
 
 /** Рядки правил відкритої бліц-клітинки: хто вибрав, як відповідають і ставка штрафу. */
-export function BlitzCellNotes({ board }: { board: BoardInfo }) {
+export function BlitzCellNotes({ board, instant }: { board: BoardInfo; instant: boolean }) {
   const cell = board.cell;
   if (cell === null || cell.kind !== 'blitz') return null;
   return (
     <>
       {board.turn !== null && <p className="meta">{t('cellChosenBy', { name: board.turn.nickname })}</p>}
-      <p className="meta">{t('cellBlitzRule')}</p>
+      <p className="meta">{t(instant ? 'cellBlitzRuleInstant' : 'cellBlitzRule')}</p>
       {cell.penalty === 'all' && <p className="meta">{t('cellPenaltyAll')}</p>}
     </>
   );

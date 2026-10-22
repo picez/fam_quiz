@@ -1,5 +1,4 @@
 import {
-  DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   LIMITS,
@@ -176,7 +175,7 @@ export function newBlitzRound(): BlitzRound {
     type: 'blitz',
     title: '',
     shuffleOptions: false,
-    answerWindow: DEFAULT_ANSWER_WINDOW,
+    answerWindow: null,
     attempts: 1,
     check: 'auto',
     rules: { ...defaultRules(), partial: null },

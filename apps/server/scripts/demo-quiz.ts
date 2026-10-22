@@ -141,8 +141,8 @@ export const demoQuiz: Quiz = {
       type: 'blitz',
       title: 'Бліц: хто перший (авто)',
       shuffleOptions: true,
-      answerWindow: 10,
-      attempts: 2,
+      answerWindow: null,
+      attempts: 1,
       check: 'auto',
       rules: { ...rules({ penalty: 'minus', streak: { length: 3, bonus: { kind: 'percent', value: 25 } } }), partial: null },
       questions: [

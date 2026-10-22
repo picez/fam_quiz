@@ -126,34 +126,43 @@ export function RoundSettings({ round, index, onChange }: Props) {
       {round.type === 'blitz' && (
         <>
           <label className="field">
-            <span>{t('blitzAnswerWindow')}</span>
-            <select value={round.answerWindow ?? 'off'} onChange={(event) => onChange({ ...round, answerWindow: toWindow(event.target.value) })}>
-              <option value="off">{t('blitzWindowOff')}</option>
-              {WINDOWS.map((value) => (
-                <option key={value} value={value}>
-                  {t('blitzWindowSeconds', { count: value })}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>{t('blitzAttempts')}</span>
-            <select value={round.attempts ?? 'unlimited'} onChange={(event) => onChange({ ...round, attempts: toAttempts(event.target.value) })}>
-              {ATTEMPTS.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-              <option value="unlimited">{t('blitzAttemptsUnlimited')}</option>
-            </select>
-          </label>
-          <label className="field">
             <span>{t('blitzCheck')}</span>
-            <select value={round.check} onChange={(event) => onChange({ ...round, check: event.target.value === 'manual' ? 'manual' : 'auto' })}>
+            <select
+              value={round.check}
+              onChange={(event) =>
+                onChange(event.target.value === 'manual' ? { ...round, check: 'manual' } : { ...round, check: 'auto', answerWindow: null, attempts: 1 })
+              }
+            >
               <option value="auto">{t('blitzCheckAuto')}</option>
               <option value="manual">{t('blitzCheckManual')}</option>
             </select>
           </label>
+          {round.check === 'manual' && (
+            <>
+              <label className="field">
+                <span>{t('blitzAnswerWindow')}</span>
+                <select value={round.answerWindow ?? 'off'} onChange={(event) => onChange({ ...round, answerWindow: toWindow(event.target.value) })}>
+                  <option value="off">{t('blitzWindowOff')}</option>
+                  {WINDOWS.map((value) => (
+                    <option key={value} value={value}>
+                      {t('blitzWindowSeconds', { count: value })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>{t('blitzAttempts')}</span>
+                <select value={round.attempts ?? 'unlimited'} onChange={(event) => onChange({ ...round, attempts: toAttempts(event.target.value) })}>
+                  {ATTEMPTS.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                  <option value="unlimited">{t('blitzAttemptsUnlimited')}</option>
+                </select>
+              </label>
+            </>
+          )}
         </>
       )}
       {round.type !== 'final' && (

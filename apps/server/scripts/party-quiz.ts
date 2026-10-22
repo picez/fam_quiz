@@ -66,7 +66,7 @@ export const partyQuiz = (images: Record<string, string> = {}): Quiz => {
       type: 'blitz',
       title: 'Бліц: швидкі пальці',
       shuffleOptions: true,
-      answerWindow: 8,
+      answerWindow: null,
       attempts: 1,
       check: 'auto',
       rules: { ...rules({ penalty: 'minus' }), partial: null },

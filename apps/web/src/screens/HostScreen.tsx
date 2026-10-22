@@ -300,7 +300,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               {board.cell.kind === 'blitz' && <span className="cell-mark">{t('cellBlitz')}</span>}
             </p>
           )}
-          {board !== null && <BlitzCellNotes board={board} />}
+          {board !== null && <BlitzCellNotes board={board} instant={view.blitz?.instant === true} />}
           {answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>

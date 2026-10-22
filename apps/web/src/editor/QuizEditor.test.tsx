@@ -777,9 +777,9 @@ describe('QuizEditor: cancelled drag', () => {
       addRound('Бліц');
       expect(roundButton('Бліц')).toBeTruthy();
       fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
+      fill('Перевірка', 'manual');
       fill('Вікно відповіді', '30');
       fill('Спроб на запитання', '2');
-      fill('Перевірка', 'manual');
       fill('Текст запитання', 'Друге?');
       fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
       click('Зберегти');
@@ -795,13 +795,39 @@ describe('QuizEditor: cancelled drag', () => {
       }
     });
 
+    it('the window and attempts are hidden for an automatic blitz', async () => {
+      const { onSave } = open();
+      fill('Назва вікторини', 'Гра');
+      fill('Текст запитання', 'Перше?');
+      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      addRound('Бліц');
+      fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
+      expect((screen.getByLabelText('Перевірка') as HTMLSelectElement).value).toBe('auto');
+      expect(screen.queryByLabelText('Вікно відповіді')).toBeNull();
+      expect(screen.queryByLabelText('Спроб на запитання')).toBeNull();
+      fill('Перевірка', 'manual');
+      expect(screen.queryByLabelText('Вікно відповіді')).toBeTruthy();
+      expect(screen.queryByLabelText('Спроб на запитання')).toBeTruthy();
+      fill('Вікно відповіді', '30');
+      fill('Спроб на запитання', '3');
+      fill('Перевірка', 'auto');
+      expect(screen.queryByLabelText('Вікно відповіді')).toBeNull();
+      expect(screen.queryByLabelText('Спроб на запитання')).toBeNull();
+      fill('Текст запитання', 'Друге?');
+      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      click('Зберегти');
+      await waitFor(() => expect(onSave).toHaveBeenCalled());
+      const blitz = saved(onSave).rounds[1];
+      expect(blitz.type === 'blitz' && [blitz.check, blitz.answerWindow, blitz.attempts]).toEqual(['auto', null, 1]);
+    });
+
     it('blitz settings hide the speed bonus and partial credit', () => {
       open();
       expect(screen.queryByLabelText(t('speedBonus'))).toBeTruthy();
       addRound('Бліц');
       expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
       expect(screen.queryByLabelText(t('rulePartial'))).toBeNull();
-      expect(screen.queryByLabelText('Вікно відповіді')).toBeTruthy();
+      expect(screen.queryByLabelText('Перевірка')).toBeTruthy();
     });
 
     it('never removes the only round, but removes one of several', () => {

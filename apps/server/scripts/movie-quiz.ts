@@ -52,8 +52,8 @@ export const movieQuiz: Quiz = {
       title: 'Бліц: хто швидший',
       description: 'Хто перший натисне й правильно відповість, той і забирає бали.',
       shuffleOptions: true,
-      answerWindow: 20,
-      attempts: 2,
+      answerWindow: null,
+      attempts: 1,
       check: 'auto',
       rules: { ...rules({ penalty: 'minus' }), partial: null },
       questions: [

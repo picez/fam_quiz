@@ -387,6 +387,10 @@ describe('blitz drafts', () => {
     expect(roundSchema.safeParse({ ...round, questions: round.questions.map(filled) }).success).toBe(true);
   });
 
+  it('a new blitz round is automatic, without a window, with one attempt', () => {
+    expect(newBlitzRound()).toMatchObject({ check: 'auto', answerWindow: null, attempts: 1 });
+  });
+
   it('a saved blitz draft comes back unchanged', () => {
     const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [newClassicRound(), newBlitzRound()] };
     saveDraft(undefined, quiz);

@@ -73,3 +73,14 @@ describe('the seeded demo quiz', () => {
     expect(categories).toHaveLength(12);
   });
 });
+
+describe('blitz rounds in the demo quizzes', () => {
+  it('automatic blitz rounds in the demo quizzes carry no window and one attempt', () => {
+    for (const quiz of [demoQuiz, movieQuiz, eruditeQuiz, partyQuiz()]) {
+      expect(quizSchema.safeParse(quiz).success).toBe(true);
+      for (const round of quiz.rounds) {
+        if (round.type === 'blitz' && round.check === 'auto') expect([round.answerWindow, round.attempts]).toEqual([null, 1]);
+      }
+    }
+  });
+});

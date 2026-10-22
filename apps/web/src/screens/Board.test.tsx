@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BoardCellView, BoardInfo } from '@quiz/shared';
-import { Board, BoardLegend } from './Board';
+import { BlitzCellNotes, Board, BoardLegend } from './Board';
 
 afterEach(cleanup);
 
@@ -55,13 +55,13 @@ describe('Board', () => {
   it('the legend lists only the kinds and marks present on the board', () => {
     render(<BoardLegend board={board([cell('c1'), cell('c2', { kind: 'blitz', mark: 'x3' })])} />);
     const items = screen.getByRole('list', { name: 'Види клітинок' }).querySelectorAll('li');
-    expect([...items].map((li) => li.textContent)).toEqual(['Звичайна', 'Бліц: відповідає перший, хто натисне', '×3 — потрійна ціна']);
+    expect([...items].map((li) => li.textContent)).toEqual(['Звичайна', 'Бліц: бали першому, хто правильно відповість', '×3 — потрійна ціна']);
   });
 
   it('the legend counts played cells and lists the voice entry', () => {
     render(<BoardLegend board={board([cell('c1', { played: true, kind: 'blitz', answerMode: 'voice' }), cell('c2', { answerMode: 'voice' })])} />);
     const items = screen.getByRole('list', { name: 'Види клітинок' }).querySelectorAll('li');
-    expect([...items].map((li) => li.textContent)).toEqual(['Бліц: відповідає перший, хто натисне', 'Відповідь уголос', '🎤 Бліц уголос']);
+    expect([...items].map((li) => li.textContent)).toEqual(['Бліц: бали першому, хто правильно відповість', 'Відповідь уголос', '🎤 Бліц уголос']);
   });
 
   it('wraps the grid in a scroll box and gives every column the title row plus all cell rows', () => {
@@ -69,5 +69,15 @@ describe('Board', () => {
     expect(container.querySelector('.gb-scroll > .gb')).not.toBeNull();
     expect((container.querySelector('.gb') as HTMLElement).style.gridTemplateRows).toBe('auto repeat(3, var(--gb-cell-h))');
     expect((container.querySelector('.gb-col') as HTMLElement).style.gridRow).toBe('span 4');
+  });
+});
+
+describe('BlitzCellNotes', () => {
+  const open = (): BoardInfo => ({ ...board([]), cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'blitz', answerMode: 'phone', penalty: 'none' } });
+  it('says everyone answers at once for an instant blitz cell, else the button rule', () => {
+    const { container, rerender } = render(<BlitzCellNotes board={open()} instant />);
+    expect(container.textContent).toContain('Відповідають усі одразу, перевіряємо по черзі. Хто вибрав клітинку, отримує ×2');
+    rerender(<BlitzCellNotes board={open()} instant={false} />);
+    expect(container.textContent).toContain('Відповідає перший, хто натисне «Відповісти»');
   });
 });

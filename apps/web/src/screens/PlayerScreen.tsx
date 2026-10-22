@@ -252,7 +252,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {board.cell.kind === 'blitz' && <span className="cell-mark">{t('cellBlitz')}</span>}
             </p>
           )}
-          {board !== null && <BlitzCellNotes board={board} />}
+          {board !== null && <BlitzCellNotes board={board} instant={view.blitz?.instant === true} />}
           {me.blitz !== null && !instant ? (
             // Бліц з кнопкою: рядок завжди займає місце, тож поява голови черги не зсуває запитання.
             <p className="lead answering-line">{othersAnswer ? t('boardAnswering', { name: answering.nickname }) : ''}</p>

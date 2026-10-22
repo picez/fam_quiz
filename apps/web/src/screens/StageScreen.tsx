@@ -137,7 +137,7 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
           )}
         </p>
       )}
-      {view.board !== null && <BlitzCellNotes board={view.board} />}
+      {view.board !== null && <BlitzCellNotes board={view.board} instant={view.blitz?.instant === true} />}
       {view.board === null && view.blitz !== null && !instant ? (
         // Бліц з кнопкою: рядок завжди займає місце, тож поява голови черги не зсуває запитання.
         <p className="lead answering-line">{answering !== null ? t('boardAnswering', { name: answering.nickname }) : ''}</p>
