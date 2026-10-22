@@ -8,6 +8,7 @@ import { Host } from './pages/Host';
 import { Login } from './pages/Login';
 import { MyGames } from './pages/MyGames';
 import { Play } from './pages/Play';
+import { PublicProfile } from './pages/PublicProfile';
 import { Quizzes } from './pages/Quizzes';
 import { Stage } from './pages/Stage';
 
@@ -25,6 +26,7 @@ export function AppRoutes() {
         <Route path="/me" element={<MyGames />} />
         {/* Заглушка до сторінки профілю. */}
         <Route path="/profile" element={<Navigate to="/me" replace />} />
+        <Route path="/profile/:id" element={<PublicProfile />} />
         <Route path="/new" element={<Navigate to="/quizzes" replace />} />
       </Route>
       <Route path="/play/:code" element={<Play />} />
