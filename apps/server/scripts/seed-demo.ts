@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite]
  * party-media також потребує SITE_URL: картинки з Вікіпедії завантажуються на сайт
  * через тимчасовий акаунт, який потім видаляється.
  */
@@ -13,6 +13,7 @@ import { quiz, user } from '../src/db/schema';
 import { demoQuiz } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
+import { eruditeQuiz } from './erudite-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -95,11 +96,11 @@ async function uploadImages(site: string, db: ReturnType<typeof drizzle>): Promi
 
 const args = process.argv.slice(2);
 const email = args.find((arg) => arg.includes('@'));
-const name = args.find((arg) => ['demo', 'party', 'party-media', 'movies'].includes(arg)) ?? 'demo';
+const name = args.find((arg) => ['demo', 'party', 'party-media', 'movies', 'erudite'].includes(arg)) ?? 'demo';
 const url = process.env.DATABASE_URL;
 const site = process.env.SITE_URL?.replace(/\/$/, '');
 if (!email || !url || (name === 'party-media' && !site)) {
-  console.error('Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [demo|party|party-media|movies]');
+  console.error('Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [demo|party|party-media|movies|erudite]');
   process.exit(1);
 }
 
@@ -111,6 +112,7 @@ try {
   let source: Quiz = demoQuiz;
   if (name === 'party') source = partyQuiz();
   if (name === 'movies') source = movieQuiz;
+  if (name === 'erudite') source = eruditeQuiz;
   if (name === 'party-media') {
     const base = partyQuiz(await uploadImages(site!, db));
     source = { ...base, title: `${base.title} (з картинками)` };
