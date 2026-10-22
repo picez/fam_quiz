@@ -25,12 +25,20 @@ const exact = { exact: true };
 // Відео з цим id повідомляє про помилку так само, як справжній плеєр.
 const BROKEN_VIDEO = 'AAAAAAAAAAA';
 
-/** Сторінка вбудовування замість YouTube: для BROKEN_VIDEO на перше повідомлення від батьківської сторінки відповідає помилкою. */
+/** Сторінка вбудовування замість YouTube: для BROKEN_VIDEO помилкою відповідає лише після команди addEventListener на onError (як справжній плеєр); на «listening» усі відповідають initialDelivery. */
 function youtubeStub(url: string): string {
   const failing = url.includes(BROKEN_VIDEO)
-    ? `<script>addEventListener('message', () => parent.postMessage(JSON.stringify({ event: 'onError', info: 150 }), '*'), { once: true });</script>`
+    ? `addEventListener('message', (e) => {
+        let m; try { m = JSON.parse(e.data); } catch { return; }
+        if (m.event === 'command' && m.func === 'addEventListener' && Array.isArray(m.args) && m.args.includes('onError'))
+          parent.postMessage(JSON.stringify({ event: 'onError', info: 150, id: m.id, channel: 'widget' }), '*');
+      });`
     : '';
-  return `<!doctype html><title>stub</title>${failing}`;
+  const script = `<script>addEventListener('message', (e) => {
+    let m; try { m = JSON.parse(e.data); } catch { return; }
+    if (m.event === 'listening') parent.postMessage(JSON.stringify({ event: 'initialDelivery', id: m.id, channel: 'widget' }), '*');
+  });${failing}</script>`;
+  return `<!doctype html><title>stub</title>${script}`;
 }
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;

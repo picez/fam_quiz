@@ -373,6 +373,11 @@ function Body({ question, onChange }: Props) {
   }
 }
 
+/** Чи час у межах: поки ні, поле часу видно й для запитання з відео, щоб автор міг його виправити. */
+function timeInLimits(timeLimit: number): boolean {
+  return Number.isInteger(timeLimit) && timeLimit >= LIMITS.minTime && timeLimit <= LIMITS.maxTime;
+}
+
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
 export function QuestionEditor({ question, onChange }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
@@ -416,7 +421,7 @@ export function QuestionEditor({ question, onChange }: Props) {
       </div>
 
       <div className="pair">
-        {question.video === null ? (
+        {question.video === null || !timeInLimits(question.timeLimit) ? (
           <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
         ) : (
           <p className="meta">{t('noTimerHint')}</p>

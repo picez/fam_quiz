@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { YOUTUBE_ORIGIN, YouTubePlayer, youtubeEmbedUrl } from './YouTubePlayer';
 
@@ -36,6 +36,50 @@ describe('YouTubePlayer', () => {
     report({ origin: YOUTUBE_ORIGIN, source: iframe().contentWindow });
     expect(screen.getByText('Відео недоступне')).toBeTruthy();
     expect(document.querySelector('iframe')).toBeNull();
+  });
+
+  it('posts listening and the onError subscription every 250 ms after load until the frame replies', () => {
+    vi.useFakeTimers();
+    try {
+      render(<YouTubePlayer video={video} />);
+      const post = vi.spyOn(iframe().contentWindow as Window, 'postMessage');
+      fireEvent.load(iframe());
+      const sent = () => post.mock.calls.map(([message]) => JSON.parse(String(message)));
+      expect(sent()).toEqual([
+        { event: 'listening', id: 1, channel: 'widget' },
+        { event: 'command', func: 'addEventListener', args: ['onError'], id: 1, channel: 'widget' },
+      ]);
+      expect(post.mock.calls.every((call) => (call as unknown[])[1] === YOUTUBE_ORIGIN)).toBe(true);
+      act(() => void vi.advanceTimersByTime(500));
+      expect(post).toHaveBeenCalledTimes(6);
+      // чужа відповідь не зупиняє опитування
+      act(() => {
+        window.dispatchEvent(new MessageEvent('message', { data: '{"event":"initialDelivery"}', origin: 'https://evil.example', source: iframe().contentWindow }));
+      });
+      act(() => void vi.advanceTimersByTime(250));
+      expect(post).toHaveBeenCalledTimes(8);
+      act(() => {
+        window.dispatchEvent(new MessageEvent('message', { data: '{"event":"initialDelivery"}', origin: YOUTUBE_ORIGIN, source: iframe().contentWindow }));
+      });
+      act(() => void vi.advanceTimersByTime(1000));
+      expect(post).toHaveBeenCalledTimes(8);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops polling on unmount', () => {
+    vi.useFakeTimers();
+    try {
+      const { unmount } = render(<YouTubePlayer video={video} />);
+      const post = vi.spyOn(iframe().contentWindow as Window, 'postMessage');
+      fireEvent.load(iframe());
+      unmount();
+      act(() => void vi.advanceTimersByTime(1000));
+      expect(post).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('ignores messages from other origins or frames', () => {

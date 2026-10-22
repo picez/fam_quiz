@@ -1058,4 +1058,18 @@ describe('QuizEditor: YouTube video', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', video: { id: 'dQw4w9WgXcQ', start: 0 } });
   });
+
+  it('keeps the time field visible while the time is out of range, so a video cannot hide an unsaveable value', async () => {
+    const { onSave } = open(withVideoQuestion({ type: 'boolean', correct: true, timeLimit: 2 }));
+    fill(LINK, 'https://youtu.be/dQw4w9WgXcQ');
+    expect(document.querySelector('iframe')).not.toBeNull();
+    const time = screen.getByLabelText('Час, с') as HTMLInputElement;
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    fireEvent.change(time, { target: { value: '30' } });
+    await waitFor(() => expect(screen.queryByLabelText('Час, с')).toBeNull());
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: 30 });
+  });
 });

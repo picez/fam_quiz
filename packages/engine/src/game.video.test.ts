@@ -17,7 +17,7 @@ import {
   type GameState,
 } from './game';
 import { pendingOf } from './hold';
-import { adjustTime } from './timing';
+import { adjustTime, isTimed, limitMsOf } from './timing';
 import { blitzRound, boardRound, classicRound, makeRoundsQuiz, single, withId, withPoints, withVideo } from './testing/fixtures';
 import { acceptAll, lobbyWith, must } from './testing/helpers';
 import type { BlitzRound, BoardCell, Question } from '@quiz/shared';
@@ -270,5 +270,15 @@ describe('a video on the board', () => {
     const later = tick(away, 100_000);
     expect(later.phase).toBe('question');
     expect(later.board?.awaySince).toBeNull();
+  });
+});
+
+describe('isTimed with a missing video field', () => {
+  it('treats an undefined video (raw stored row) as no video', () => {
+    const raw = { ...single } as Record<string, unknown>;
+    delete raw.video;
+    expect(isTimed(raw as unknown as Question)).toBe(true);
+    expect(isTimed(clip)).toBe(false);
+    expect(limitMsOf({ question: raw as unknown as Question, extraMs: 0 } as never)).toBe(single.timeLimit * 1000);
   });
 });

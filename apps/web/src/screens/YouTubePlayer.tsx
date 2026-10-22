@@ -3,6 +3,7 @@ import type { Video } from '@quiz/shared';
 import { t } from '../i18n';
 
 export const YOUTUBE_ORIGIN = 'https://www.youtube-nocookie.com';
+const LISTEN_INTERVAL_MS = 250;
 
 /** Адреса вбудовування: start, rel=0, playsinline=1, enablejsapi=1, origin; ніколи autoplay. */
 export function youtubeEmbedUrl(video: Video, origin: string): string {
@@ -24,11 +25,30 @@ export function YouTubePlayer({ video }: { video: Video | null }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const id = video?.id ?? null;
   const [failedId, setFailedId] = useState<string | null>(null);
+  const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (poll.current !== null) clearInterval(poll.current);
+    poll.current = null;
+  };
+  // Рамка YouTube відповідає, лише поки батьківська сторінка повторює «listening» і підписується на onError.
+  const startPolling = () => {
+    stopPolling();
+    const send = () => {
+      const target = frame.current?.contentWindow;
+      if (!target) return;
+      target.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YOUTUBE_ORIGIN);
+      target.postMessage(JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onError'], id: 1, channel: 'widget' }), YOUTUBE_ORIGIN);
+    };
+    send();
+    poll.current = setInterval(send, LISTEN_INTERVAL_MS);
+  };
 
   useEffect(() => {
     if (id === null) return;
     const onMessage = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow || event.origin !== YOUTUBE_ORIGIN) return;
+      stopPolling();
       try {
         const data: unknown = JSON.parse(String(event.data));
         if (typeof data === 'object' && data !== null && (data as { event?: unknown }).event === 'onError') setFailedId(id);
@@ -37,7 +57,10 @@ export function YouTubePlayer({ video }: { video: Video | null }) {
       }
     };
     window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
+    return () => {
+      window.removeEventListener('message', onMessage);
+      stopPolling();
+    };
   }, [id]);
 
   if (video === null) return null;
@@ -59,9 +82,7 @@ export function YouTubePlayer({ video }: { video: Video | null }) {
         allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
         loading="lazy"
-        onLoad={() =>
-          frame.current?.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YOUTUBE_ORIGIN)
-        }
+        onLoad={startPolling}
       />
     </div>
   );

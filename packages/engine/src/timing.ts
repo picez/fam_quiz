@@ -12,7 +12,8 @@ export const MAX_REMAINING_MS = 120_000;
 
 /** Чи має запитання таймер: запитання з відео його не має. */
 export function isTimed(question: Question): boolean {
-  return question.video === null;
+  // Запитання без поля video (сирий рядок із сховища) — без відео.
+  return question.video == null;
 }
 
 /** Повний час запитання з урахуванням змін ведучого; null — без таймера. */
