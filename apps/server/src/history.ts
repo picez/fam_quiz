@@ -3,6 +3,7 @@ import {
   findCell,
   roundQuestions,
   quizSchema,
+  roundSchema,
   upgradeQuiz,
   type GameDetail,
   type Answer,
@@ -15,7 +16,7 @@ import {
   type Quiz,
   type Round,
 } from '@quiz/shared';
-import { and, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant, PENALTY_ATTEMPT, type PlayRef } from './db/schema';
 
@@ -278,8 +279,9 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
       ),
     );
 
+  const byParticipant = groupBy(answers, (a) => a.participantId);
   return rows.map((row) => {
-    const mine = answers.filter((a) => a.participantId === row.participant.id);
+    const mine = byParticipant.get(row.participant.id) ?? [];
     return {
       played: {
         gameId: row.game.id,
@@ -323,16 +325,59 @@ export interface GameTable {
   gameId: string;
   status: GameStatus;
   startedAt: string;
-  /** Типи раундів зі знімка; [] — знімок не проходить схему. */
+  /** Типи раундів зі знімка; [] — знімок не вдалося прочитати. */
   roundTypes: Round['type'][];
   players: TablePlayer[];
 }
 
-/** Ігри за id (порядок не гарантовано), з усіма учасниками та їхніми рядками answer. */
+/** Елементи списку за ключем, в одному проході. */
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const list = groups.get(key(item));
+    if (list === undefined) groups.set(key(item), [item]);
+    else list.push(item);
+  }
+  return groups;
+}
+
+const ROUND_TYPES: ReadonlySet<unknown> = new Set(roundSchema.options.map((option) => option.shape.type.value));
+
+/** Типи раундів, прочитані в SQL, якщо кожен раунд має відомий тип; інакше null — тоді читаємо весь знімок. */
+function roundTypesOf(types: unknown, roundCount: number | null): Round['type'][] | null {
+  if (roundCount === null || !Array.isArray(types) || types.length !== roundCount) return null;
+  return types.every((type) => ROUND_TYPES.has(type)) ? (types as Round['type'][]) : null;
+}
+
+/**
+ * Ігри за id (порядок не гарантовано), з усіма учасниками та їхніми рядками answer.
+ * Типи раундів читаються в SQL без завантаження знімка; лише старий формат (без rounds) чи дивний знімок
+ * дочитується повністю й розбирається схемою.
+ */
 export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]> {
   if (gameIds.length === 0) return [];
-  const games = await db.select().from(game).where(inArray(game.id, gameIds));
-  const participants = await db.select().from(participant).where(inArray(participant.gameId, gameIds));
+  const rounds = sql`${game.quizSnapshot}->'rounds'`;
+  const games = await db
+    .select({
+      id: game.id,
+      status: game.status,
+      startedAt: game.startedAt,
+      roundCount: sql<number | null>`case when jsonb_typeof(${rounds}) = 'array' then jsonb_array_length(${rounds}) end`,
+      roundTypes: sql<unknown>`jsonb_path_query_array(${game.quizSnapshot}, '$.rounds[*].type')`,
+    })
+    .from(game)
+    .where(inArray(game.id, gameIds));
+  const types = new Map(games.map((row) => [row.id, roundTypesOf(row.roundTypes, row.roundCount)]));
+  const unread = games.filter((row) => types.get(row.id) === null).map((row) => row.id);
+  if (unread.length > 0) {
+    const snapshots = await db.select({ id: game.id, quizSnapshot: game.quizSnapshot }).from(game).where(inArray(game.id, unread));
+    for (const row of snapshots) types.set(row.id, (snapshotOf(row.quizSnapshot)?.rounds ?? []).map((round) => round.type));
+  }
+
+  const participants = await db
+    .select({ id: participant.id, gameId: participant.gameId, userId: participant.userId, score: participant.score, rank: participant.rank })
+    .from(participant)
+    .where(inArray(participant.gameId, gameIds));
   const answers =
     participants.length === 0
       ? []
@@ -345,21 +390,19 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
               participants.map((p) => p.id),
             ),
           );
+  const playersByGame = groupBy(participants, (p) => p.gameId);
+  const rowsByParticipant = groupBy(answers, (a) => a.participantId);
   return games.map((row) => ({
     gameId: row.id,
     status: row.status,
     startedAt: row.startedAt.toISOString(),
-    roundTypes: (snapshotOf(row.quizSnapshot)?.rounds ?? []).map((round) => round.type),
-    players: participants
-      .filter((p) => p.gameId === row.id)
-      .map((p) => ({
-        participantId: p.id,
-        userId: p.userId,
-        score: p.score,
-        rank: p.rank,
-        rows: answers
-          .filter((a) => a.participantId === p.id)
-          .map(({ roundIndex, attempt, accepted, points }) => ({ roundIndex, attempt, accepted, points })),
-      })),
+    roundTypes: types.get(row.id) ?? [],
+    players: (playersByGame.get(row.id) ?? []).map((p) => ({
+      participantId: p.id,
+      userId: p.userId,
+      score: p.score,
+      rank: p.rank,
+      rows: (rowsByParticipant.get(p.id) ?? []).map(({ roundIndex, attempt, accepted, points }) => ({ roundIndex, attempt, accepted, points })),
+    })),
   }));
 }

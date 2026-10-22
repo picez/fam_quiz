@@ -99,11 +99,23 @@ describe('PublicProfile', () => {
     open();
     expect(await screen.findByText('Ви і Тарас')).toBeTruthy();
     const block = within(screen.getByText('Ви і Тарас').closest('section')!);
-    for (const [value, label] of [['3', 'гри разом'], ['2', 'разів вище ви'], ['1', 'разів вище Тарас'], ['80%', 'ваші правильні'], ['60%', 'правильні Тарас']]) {
+    for (const [value, label] of [['3', 'гри разом'], ['2', 'гри, де ви вище'], ['1', 'гра, де Тарас вище'], ['80%', 'правильних відповідей у вас'], ['60%', 'правильних відповідей — Тарас']]) {
       expect(block.getByText(label).previousElementSibling?.textContent).toBe(value);
     }
     expect(block.getByText(/«Кіно»: ви — 1 місце, Тарас — 2 місце/)).toBeTruthy();
     expect(getVersus).toHaveBeenCalledWith('u2');
+  });
+
+  it('counts with no or many games use the plural', async () => {
+    vi.mocked(getVersus).mockResolvedValue({
+      ok: true,
+      data: { together: 5, myAhead: 0, theirAhead: 5, myAccuracy: 40, theirAccuracy: 90, recent: [] },
+    });
+    open();
+    const block = within((await screen.findByText('Ви і Тарас')).closest('section')!);
+    for (const [value, label] of [['5', 'ігор разом'], ['0', 'ігор, де ви вище'], ['5', 'ігор, де Тарас вище']]) {
+      expect(block.getByText(label).previousElementSibling?.textContent).toBe(value);
+    }
   });
 
   it('a viewer who never played with them sees a short note', async () => {
@@ -132,6 +144,7 @@ describe('PublicProfile', () => {
     open();
     expect(await screen.findByText('Статистика')).toBeTruthy();
     expect(screen.queryByText('Ви і Тарас')).toBeNull();
+    expect(document.querySelectorAll('.profile-section')).toHaveLength(2);
   });
 
   it('an unknown profile says so', async () => {

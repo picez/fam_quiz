@@ -15,7 +15,7 @@ interface RoomInvites {
   room: Room;
   /** Запрошений → мить запрошення. */
   users: Map<string, number>;
-  /** Ті, хто відхилив: повторне запрошення їх не повертає. */
+  /** Ті, хто відхилив або вже приєднався: повторне запрошення (чи вилучення з кімнати) їх не повертає. */
   dismissed: Set<string>;
 }
 
@@ -31,6 +31,7 @@ export class Invites {
     this.manager = manager;
     manager.onEvent((room, event) => {
       if (event.type === 'closed' || room.state.phase !== 'lobby') this.rooms.delete(room.id);
+      else this.consumeJoined(room);
     });
   }
 
@@ -47,6 +48,7 @@ export class Invites {
       if (entry.users.size >= MAX_INVITES_PER_ROOM) break;
       if (!entry.users.has(userId) && !entry.dismissed.has(userId)) entry.users.set(userId, at);
     }
+    this.consumeJoined(room);
     return [...entry.users.keys()];
   }
 
@@ -55,13 +57,12 @@ export class Invites {
     return entry === undefined || !this.live(room) ? [] : [...entry.users.keys()];
   }
 
-  /** Живі кімнати в лобі, куди запрошено користувача, без відхилених і тих, куди він уже приєднався; найновіші першими. */
+  /** Живі кімнати в лобі, куди запрошено користувача, без відхилених і використаних; найновіші першими. */
   forUser(userId: string): { room: Room; at: number }[] {
     const found: { room: Room; at: number }[] = [];
     for (const { room, users, dismissed } of this.rooms.values()) {
       const at = users.get(userId);
       if (at === undefined || dismissed.has(userId) || !this.live(room)) continue;
-      if ([...room.playerUsers.values()].includes(userId)) continue;
       found.push({ room, at });
     }
     return found.sort((a, b) => b.at - a.at);
@@ -71,6 +72,13 @@ export class Invites {
     const room = this.manager.get(code);
     const entry = room === undefined ? undefined : this.rooms.get(room.id);
     if (entry?.users.has(userId)) entry.dismissed.add(userId);
+  }
+
+  /** Приєднання використовує запрошення: вилучений з кімнати гравець не побачить його знову. */
+  private consumeJoined(room: Room): void {
+    const entry = this.rooms.get(room.id);
+    if (entry === undefined) return;
+    for (const userId of room.playerUsers.values()) if (entry.users.has(userId)) entry.dismissed.add(userId);
   }
 
   private live(room: Room): boolean {

@@ -4,7 +4,7 @@ import { getVersus } from '../api';
 import { formatDate } from '../format';
 import { countText, t } from '../i18n';
 
-/** «Ви і <нікнейм>»: спільні ігри того, хто дивиться, і цього гравця. Помилка просто ховає блок. */
+/** «Ви і <нікнейм>»: спільні ігри того, хто дивиться, і цього гравця. Секція з’являється, лише коли дані прийшли; помилка просто ховає її. */
 export function VersusBlock({ id, nickname }: { id: string; nickname: string }) {
   const [versus, setVersus] = useState<Versus | null>(null);
 
@@ -24,13 +24,13 @@ export function VersusBlock({ id, nickname }: { id: string; nickname: string }) 
   const percent = (value: number | null) => (value === null ? '–' : `${value}%`);
   const rows: [value: string, label: string][] = [
     [String(versus.together), countText('versusTogether', versus.together)],
-    [String(versus.myAhead), t('versusYouHigher')],
-    [String(versus.theirAhead), t('versusTheyHigher', { name: nickname })],
+    [String(versus.myAhead), countText('versusYouHigher', versus.myAhead)],
+    [String(versus.theirAhead), countText('versusTheyHigher', versus.theirAhead, { name: nickname })],
     [percent(versus.myAccuracy), t('versusYourAccuracy')],
     [percent(versus.theirAccuracy), t('versusTheirAccuracy', { name: nickname })],
   ];
   return (
-    <>
+    <section className="profile-section">
       <h2>{t('versusTitle', { name: nickname })}</h2>
       {versus.together === 0 ? (
         <p className="meta">{t('versusNone')}</p>
@@ -60,6 +60,6 @@ export function VersusBlock({ id, nickname }: { id: string; nickname: string }) 
           </ul>
         </>
       )}
-    </>
+    </section>
   );
 }

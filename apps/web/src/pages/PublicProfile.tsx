@@ -105,11 +105,7 @@ export function PublicProfile() {
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
-      {account.status === 'signed-in' && !isOwner && (
-        <section className="profile-section versus">
-          <VersusBlock id={profile.id} nickname={profile.nickname} />
-        </section>
-      )}
+      {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={profile.nickname} />}
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
         <AchievementList achievements={profile.achievements} />

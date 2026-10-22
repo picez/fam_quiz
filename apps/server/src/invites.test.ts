@@ -145,6 +145,20 @@ describe('invites', () => {
     expect(await invitesOf(taras.cookie)).toEqual([]);
   });
 
+  it('a kicked player does not get the invite back', async () => {
+    const code = await newGame();
+    await invite(code, [olyaId]);
+    const joined = await request('POST', `/api/games/by-code/${code}/join`, olya.cookie, { nickname: 'Оля' });
+    expect(joined.statusCode).toBe(201);
+    const { playerId } = joined.json() as { playerId: string };
+    const room = ctx.manager.get(code)!;
+    expect(ctx.manager.host(room, { type: 'kick', playerId })).toEqual({ ok: true });
+    expect([...room.playerUsers.values()]).not.toContain(olyaId);
+    expect(await invitesOf(olya.cookie)).toEqual([]);
+    expect((await invite(code, [olyaId])).json()).toEqual({ invited: [olyaId] });
+    expect(await invitesOf(olya.cookie)).toEqual([]);
+  });
+
   it('lists the newest invites first', async () => {
     const first = await newGame();
     await invite(first, [olyaId]);

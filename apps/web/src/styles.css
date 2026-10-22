@@ -2408,6 +2408,19 @@ button.match-item {
   overflow-wrap: anywhere;
 }
 
+/* У лобі рядок друга лишається одним рядком і на 375 px: довге ім’я переноситься всередині .name. */
+.invite-friends li {
+  flex-wrap: nowrap;
+}
+
+.invite-friends .name {
+  flex: 1 1 0;
+}
+
+.invite-friends .btn {
+  flex: none;
+}
+
 .invite-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2432,6 +2445,10 @@ button.match-item {
     top: 0.2rem;
     left: calc(50% + 0.4rem);
   }
+}
+
+.versus-games li {
+  overflow-wrap: anywhere;
 }
 
 .versus-recent {

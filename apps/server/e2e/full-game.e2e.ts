@@ -1855,6 +1855,9 @@ async function invitesAndVersus() {
   await shot(host, 'invite-lobby-host');
   await host.setViewportSize({ width: 375, height: 812 });
   expect(await noSideScroll(host), 'invite panel on 375: horizontal scroll').toBe(true);
+  const nameBox = (await row.locator('.name').boundingBox())!;
+  const buttonBox = (await row.getByRole('button', { name: 'Запрошено', ...exact }).boundingBox())!;
+  expect(buttonBox.y < nameBox.y + nameBox.height && nameBox.y < buttonBox.y + buttonBox.height, 'invite row on 375: button on the name line').toBe(true);
   await shot(host, 'invite-lobby-host-375');
   await host.setViewportSize({ width: 1280, height: 900 });
 
@@ -1912,6 +1915,10 @@ async function invitesAndVersus() {
   await olya.getByRole('heading', { name: 'Ви і Віра' }).waitFor();
   await stat(olya, 'гра разом').waitFor();
   expect(await stat(olya, 'гра разом').textContent()).toBe('1гра разом');
+  expect(await stat(olya, 'гра, де ви вище').textContent()).toBe('1гра, де ви вище');
+  expect(await stat(olya, 'ігор, де Віра вище').textContent()).toBe('0ігор, де Віра вище');
+  expect(await stat(olya, 'правильних відповідей у вас').textContent()).toBe('100%правильних відповідей у вас');
+  expect(await stat(olya, 'правильних відповідей — Віра').textContent()).toBe('0%правильних відповідей — Віра');
   await olya.locator('.versus-games li', { hasText: '«Вечір друзів»: ви — 1 місце, Віра — 2 місце' }).waitFor();
   await expectPhoneFit(olya, 'versus-phone-375');
   await vira.goto(`${base}/profile/${olyaId}`);

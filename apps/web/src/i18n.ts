@@ -428,10 +428,14 @@ const uk = {
   versusTogether_one: 'гра разом',
   versusTogether_few: 'гри разом',
   versusTogether_many: 'ігор разом',
-  versusYouHigher: 'разів вище ви',
-  versusTheyHigher: 'разів вище {name}',
-  versusYourAccuracy: 'ваші правильні',
-  versusTheirAccuracy: 'правильні {name}',
+  versusYouHigher_one: 'гра, де ви вище',
+  versusYouHigher_few: 'гри, де ви вище',
+  versusYouHigher_many: 'ігор, де ви вище',
+  versusTheyHigher_one: 'гра, де {name} вище',
+  versusTheyHigher_few: 'гри, де {name} вище',
+  versusTheyHigher_many: 'ігор, де {name} вище',
+  versusYourAccuracy: 'правильних відповідей у вас',
+  versusTheirAccuracy: 'правильних відповідей — {name}',
   versusRecent: 'Останні спільні ігри',
   versusGame: '{date} — «{title}»: ви — {mine}, {name} — {theirs}',
   versusNoPlace: 'без місця',
@@ -466,8 +470,8 @@ const uk = {
   achievementHint_win_streak_3: 'Перемогти в трьох завершених іграх поспіль',
   achievementHint_blitz_win: 'Набрати в бліц-раунді більше балів, ніж будь-хто інший',
   achievementHint_final_hit: 'Правильно відповісти у фіналі й виграти ставку',
-  achievementHint_comeback: 'Перемогти, якщо перед останнім раундом ви не були першим',
-  achievementHint_friends_5: 'Зіграти в одній грі з п’ятьма різними друзями (за весь час)',
+  achievementHint_comeback: 'Перемогти, коли перед останнім раундом хтось мав більше балів',
+  achievementHint_friends_5: 'Зіграти з п’ятьма різними друзями (за весь час)',
   achievementLocked: '{name} (ще не отримано)',
   avatarOf: 'Аватар {nickname}',
   emailHidden: 'email приховано',
@@ -618,9 +622,9 @@ export function errorText(code: string): string {
 type CountKey = { [K in TextKey]: K extends `${infer Base}_one` ? Base : never }[TextKey];
 
 /** Іменник у формі, якої вимагає число: 1 гра, 2 гри, 5 ігор. */
-export function countText(base: CountKey, count: number): string {
+export function countText(base: CountKey, count: number, vars: Record<string, string | number> = {}): string {
   const lastTwo = Math.abs(count) % 100;
   const last = lastTwo % 10;
   const form = last === 1 && lastTwo !== 11 ? 'one' : last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? 'few' : 'many';
-  return t(`${base}_${form}` as TextKey);
+  return t(`${base}_${form}` as TextKey, vars);
 }
