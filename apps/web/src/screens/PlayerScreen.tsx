@@ -280,11 +280,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               ) : (
                 <SpotlightChoices question={question} spotlight={own} reveal={null} blink={blink} />
               )}
-              {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
-              {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
-                <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
-              )}
-              <p className="blitz-status">{instantStatus(me.blitz, timeOver)}</p>
+              {/* Відлік вікна стоїть у рядку стану з зарезервованою висотою: ні поява, ні зникнення не зсувають черги. */}
+              <div className="blitz-status-row">
+                {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
+                {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
+                  <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
+                )}
+                <p className="blitz-status">{instantStatus(me.blitz, timeOver)}</p>
+              </div>
               {queue}
             </>
           ) : myPending ? (

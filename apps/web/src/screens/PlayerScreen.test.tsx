@@ -391,6 +391,11 @@ describe('PlayerScreen: blitz', () => {
       show(instantView({ canAnswer: true, position: 1, deadline: Date.now() + 15_000 }, {}, {}, [row('p1', 'Олена', null)]));
       expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
       expect(screen.getByText('Ведучий просить вибрати ще раз')).toBeTruthy();
+      // Відлік вікна — у рядку стану, а не окремим блоком над ним: черга під ним не стрибає.
+      const statusRow = document.querySelector('.blitz-status-row');
+      expect(statusRow?.querySelector('.timer')).not.toBeNull();
+      expect(statusRow?.querySelector('p.blitz-status')).not.toBeNull();
+      expect(statusRow?.nextElementSibling?.matches('ol.blitz-queue')).toBe(true);
     });
 
     it('once the time is over, a player who has not answered sees the options locked in place and a calm note', () => {
