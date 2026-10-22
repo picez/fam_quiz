@@ -236,7 +236,32 @@ export function setConnected(state: GameState, playerId: string, connected: bool
   if (state.phase === 'board' && state.board !== null && !state.paused && chooserOf(state) === playerId) {
     return ok({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } });
   }
+  // На звичайній клітинці без таймера так само, але відлік не стартує, поки відповідь чекає на ведучого.
+  const watched = state.phase === 'question' && !state.paused && awayWatched(state) === playerId;
+  if (watched && state.board !== null && (connected || state.heldAt === null)) {
+    return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }));
+  }
   return ok(autoLock(changed));
+}
+
+/** Гравець, чия відсутність закриває запитання: той, хто вибрав звичайну клітинку без таймера; інакше null. */
+function awayWatched(state: GameState): string | null {
+  if (state.phase !== 'question') return null;
+  const play = state.plays[state.questionIndex];
+  const board = play?.board;
+  if (board === undefined || board.kind !== 'normal' || isTimed(play.question)) return null;
+  return state.players.some((p) => p.id === board.chooserId) ? board.chooserId : null;
+}
+
+/**
+ * Ставить відлік відсутності (awaySince = now), якщо гравець, за яким стежать, відключений, а відліку ще немає.
+ * Сервер викликає tick лише за дедлайном, тож відлік ставлять і самі дії, після яких він має піти.
+ */
+function watchAway(state: GameState, now: number): GameState {
+  if (state.paused || state.heldAt !== null || state.board === null || state.board.awaySince !== null) return state;
+  const watched = awayWatched(state);
+  const away = watched !== null && state.players.some((p) => p.id === watched && !p.connected);
+  return away ? { ...state, board: { ...state.board, awaySince: now } } : state;
 }
 
 export type Rng = () => number;
@@ -288,20 +313,24 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(board !== undefined ? { board } : {}),
     ...(round.type === 'blitz' || board?.kind === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
   };
-  return {
-    ...state,
-    phase: 'question',
-    questionIndex: state.plays.length,
-    plays: [...state.plays, play],
-    presented: present(question, round.shuffleOptions, rng),
-    startedAt: now,
-    endsAt: isTimed(question) ? now + question.timeLimit * 1000 : null,
-    remainingMs: null,
-    heldAt: null,
-  };
+  // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
+  return watchAway(
+    {
+      ...state,
+      phase: 'question',
+      questionIndex: state.plays.length,
+      plays: [...state.plays, play],
+      presented: present(question, round.shuffleOptions, rng),
+      startedAt: now,
+      endsAt: isTimed(question) ? now + question.timeLimit * 1000 : null,
+      remainingMs: null,
+      heldAt: null,
+    },
+    now,
+  );
 }
 
-/** Відлік відсутності має сенс лише на етапі board. */
+/** Скидає відлік відсутності гравця, чий хід. */
 function clearAway(board: BoardState | null): BoardState | null {
   return board === null ? null : { ...board, awaySince: null };
 }
@@ -401,7 +430,8 @@ function dropQueue(state: GameState): GameState {
 
 /** Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз. */
 function lockNow(state: GameState): GameState {
-  return withTotals({ ...withCellPenalty(dropQueue(state)), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null });
+  const closed = withCellPenalty(dropQueue(state));
+  return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
 /** Закриває запитання поля й одразу розкриває оцінку: так відповідь світиться зеленим або червоним. */
@@ -532,7 +562,8 @@ export function repick(state: GameState, playerId: string, now: number): Result 
   }
   const board = play.board;
   if (board === undefined) return fail('wrong_phase');
-  return ok(thaw(withBoard(state, { ...board, answer: null }), now));
+  // Гравець міг піти, поки відповідь чекала: тепер відлік відсутності рушає.
+  return ok(watchAway(thaw(withBoard(state, { ...board, answer: null }), now), now));
 }
 
 /** Замінює клітинку в поточному запитанні поля. */
@@ -583,9 +614,12 @@ export function lock(state: GameState): Result {
 export function tick(state: GameState, now: number): GameState {
   if (state.phase === 'board' && state.board !== null) return state.paused ? state : tickBoard(state, state.board, now);
   if (state.phase !== 'question' || state.paused) return state;
-  const running = releaseStaleHold(state, now);
-  // Поки відповідь чекає на ведучого, годинник стоїть.
+  const running = watchAway(releaseStaleHold(state, now), now);
+  // Поки відповідь чекає на ведучого, годинник стоїть (і відлік відсутності теж).
   if (running.heldAt !== null) return running;
+  // Звичайна клітинка без таймера закривається, коли гравець, чий хід, відсутній 30 секунд.
+  const since = running.board?.awaySince ?? null;
+  if (since !== null && awayWatched(running) !== null && now >= since + BOARD_AWAY_MS) return lockNow(running);
   if (running.plays[running.questionIndex]?.blitz !== undefined) {
     const settled = settleQueue(running, now);
     return blitzDone(settled, now) ? lockNow(settled) : settled;
@@ -702,7 +736,8 @@ export function resume(state: GameState, now: number): Result {
       pausedAt: null,
       startedAt: state.startedAt === null ? null : state.startedAt + shift,
     };
-    return ok(autoLock(settleQueue(shiftQueue(resumed, shift), now)));
+    // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(resumed, shift), now)), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.

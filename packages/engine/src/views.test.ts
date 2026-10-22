@@ -655,6 +655,14 @@ describe('video views', () => {
     expect(JSON.stringify(stage)).not.toContain('correctId');
   });
 
+  it('the host sees when an absent answerer will close an untimed cell', () => {
+    const cells = [withVideo(withPoints(withId(single, 'c11'), 100)), withPoints(withId(single, 'c12'), 200)];
+    const intro = must(start(lobbyWith(makeRoundsQuiz([boardRound('g1', [{ title: 'A', cells }])]), 'Анна', 'Богдан', 'Віра'), 0));
+    const state = must(setConnected(must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random)), 'p1', false, 1000));
+    expect(hostView(state).phase).toBe('question');
+    expect(hostView(state).board?.skipAt).toBe(31_000);
+  });
+
   it('a question without a video keeps its time limit and video null', () => {
     const stage = stageView(openWith(single));
     expect(stage.question).toMatchObject({ timeLimit: 20, video: null });
