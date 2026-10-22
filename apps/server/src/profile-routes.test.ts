@@ -14,7 +14,7 @@ let olenaId: string;
 let tarasId: string;
 let quizId: string;
 
-const request = (method: 'GET' | 'PUT', url: string, cookie?: string, payload?: unknown) =>
+const request = (method: 'GET' | 'PUT' | 'DELETE', url: string, cookie?: string, payload?: unknown) =>
   ctx.app.inject({ method, url, payload: payload as object, headers: cookie === undefined ? {} : { cookie } });
 const idOf = async (cookie: string) => ((await request('GET', '/api/me', cookie)).json() as { id: string }).id;
 
@@ -121,5 +121,52 @@ describe('changing the profile', () => {
     const shown = (await request('GET', `/api/profiles/${olenaId}`)).json();
     expect(shown.nickname).toBe('Зірка');
     expect(shown.avatar).toBe(avatar);
+  });
+});
+
+describe('friends', () => {
+  let anna: Awaited<ReturnType<typeof signUp>>;
+  let borys: Awaited<ReturnType<typeof signUp>>;
+  let annaId: string;
+  let borysId: string;
+
+  beforeAll(async () => {
+    anna = await signUp(ctx.app, 'Анна');
+    borys = await signUp(ctx.app, 'Борис');
+    annaId = await idOf(anna.cookie);
+    borysId = await idOf(borys.cookie);
+    await request('PUT', '/api/me/profile', borys.cookie, { nickname: 'Борис К', avatar: null });
+  });
+
+  it('finds a profile by its exact nickname only', async () => {
+    const found = await request('GET', `/api/profiles?nickname=${encodeURIComponent(' борис  к ')}`, anna.cookie);
+    expect(found.statusCode).toBe(200);
+    expect(found.json()).toEqual({ id: borysId, nickname: 'Борис К', avatar: null });
+    expect((await request('GET', '/api/profiles?nickname=%D0%91%D0%BE%D1%80%D0%B8%D1%81', anna.cookie)).statusCode).toBe(404);
+    expect((await request('GET', '/api/profiles', anna.cookie)).statusCode).toBe(400);
+    expect((await request('GET', `/api/profiles?nickname=${'x'.repeat(101)}`, anna.cookie)).statusCode).toBe(400);
+    expect((await request('GET', '/api/profiles?nickname=%D0%91%D0%BE%D1%80%D0%B8%D1%81%20%D0%9A')).statusCode).toBe(401);
+  });
+
+  it('a signed-in user adds and removes a friend, one-way and without confirmation', async () => {
+    const url = `/api/me/friends/${borysId}`;
+    expect((await request('PUT', url, anna.cookie)).statusCode).toBe(204);
+    expect((await request('PUT', url, anna.cookie)).statusCode).toBe(204);
+    const friends = async (cookie: string) => (await request('GET', '/api/me/profile', cookie)).json().friends;
+    expect(await friends(anna.cookie)).toEqual([{ id: borysId, nickname: 'Борис К', avatar: null }]);
+    expect(await friends(borys.cookie)).toEqual([]);
+    expect((await request('GET', `/api/profiles/${borysId}`, anna.cookie)).json().following).toBe(true);
+    expect((await request('DELETE', url, anna.cookie)).statusCode).toBe(204);
+    expect(await friends(anna.cookie)).toEqual([]);
+    expect((await request('DELETE', url, anna.cookie)).statusCode).toBe(204);
+    expect((await request('DELETE', url)).statusCode).toBe(401);
+  });
+
+  it('nobody can follow themselves or a missing user', async () => {
+    const self = await request('PUT', `/api/me/friends/${annaId}`, anna.cookie);
+    expect(self.statusCode).toBe(400);
+    expect(self.json()).toEqual({ error: 'self_follow' });
+    expect((await request('PUT', '/api/me/friends/nobody', anna.cookie)).statusCode).toBe(404);
+    expect((await request('PUT', `/api/me/friends/${borysId}`)).statusCode).toBe(401);
   });
 });

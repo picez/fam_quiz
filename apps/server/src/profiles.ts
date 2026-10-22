@@ -149,6 +149,21 @@ export async function friendsOf(db: Db, userId: string): Promise<ProfileCard[]> 
   return rows.sort((a, b) => a.nickname.localeCompare(b.nickname));
 }
 
+/** Профіль за точним нікнеймом (через nickname_key); null — немає. */
+export async function findByNickname(db: Db, nickname: string): Promise<ProfileCard | null> {
+  const [row] = await db.select().from(profile).where(eq(profile.nicknameKey, nicknameKey(nickname)));
+  return row ? card(row) : null;
+}
+
+/** Підписує або відписує; повторна дія нічого не змінює. */
+export async function setFollow(db: Db, followerId: string, followeeId: string, on: boolean): Promise<void> {
+  if (on) {
+    await db.insert(follow).values({ followerId, followeeId }).onConflictDoNothing();
+  } else {
+    await db.delete(follow).where(and(eq(follow.followerId, followerId), eq(follow.followeeId, followeeId)));
+  }
+}
+
 export async function isFollowing(db: Db, followerId: string, followeeId: string): Promise<boolean> {
   const [row] = await db
     .select({ n: count() })
