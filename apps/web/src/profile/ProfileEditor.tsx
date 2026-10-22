@@ -1,4 +1,4 @@
-import { IMAGE_LIMITS, type ProfileCard } from '@quiz/shared';
+import { IMAGE_LIMITS, LIMITS, type ProfileCard } from '@quiz/shared';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { saveMyProfile, uploadImage } from '../api';
 import { errorText, t } from '../i18n';
@@ -48,7 +48,7 @@ export function ProfileEditor({ profile, onSaved, onCancel }: { profile: Profile
       <div className="profile-editor-fields">
         <label className="field">
           <span>{t('profileNickname')}</span>
-          <input value={nickname} maxLength={40} onChange={(event) => setNickname(event.target.value)} />
+          <input value={nickname} maxLength={LIMITS.nicknameMax} onChange={(event) => setNickname(event.target.value)} />
         </label>
         <div className="toolbar">
           <label className={uploading ? 'btn btn-small file-pick is-busy' : 'btn btn-small file-pick'}>

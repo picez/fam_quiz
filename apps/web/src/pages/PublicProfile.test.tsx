@@ -51,6 +51,21 @@ describe('PublicProfile', () => {
     expect(unfollow).toHaveBeenCalledWith('u2');
   });
 
+  it('a second tap while the request runs does nothing and the button is disabled', async () => {
+    let finish: (value: { ok: true }) => void = () => undefined;
+    vi.mocked(follow).mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    open();
+    const button = (await screen.findByRole('button', { name: 'Додати в друзі' })) as HTMLButtonElement;
+    fireEvent.click(button);
+    expect(button.disabled).toBe(true);
+    fireEvent.click(button);
+    expect(follow).toHaveBeenCalledTimes(1);
+    finish({ ok: true });
+    expect(await screen.findByText('У друзях')).toBeTruthy();
+    expect(unfollow).not.toHaveBeenCalled();
+    expect((screen.getByRole('button', { name: 'Прибрати з друзів' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('a visitor is asked to sign in to follow', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null }) });

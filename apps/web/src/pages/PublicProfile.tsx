@@ -1,5 +1,5 @@
 import type { PublicProfile as PublicProfileData } from '@quiz/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { follow, getProfile, unfollow } from '../api';
 import { errorText, t } from '../i18n';
@@ -16,6 +16,8 @@ export function PublicProfile() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [following, setFollowing] = useState<boolean | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     let current = true;
@@ -35,11 +37,16 @@ export function PublicProfile() {
   }, [id]);
 
   async function toggle() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
     const next = following === false;
     setProblem(null);
     const result = await (next ? follow(id) : unfollow(id));
     if (result.ok) setFollowing(next);
     else setProblem(errorText(result.error));
+    inFlight.current = false;
+    setBusy(false);
   }
 
   if (state.status === 'loading') {
@@ -70,14 +77,14 @@ export function PublicProfile() {
           <h1 className="brand">{profile.nickname}</h1>
           <p className="meta">{t('emailHidden')}</p>
           {following === false && (
-            <button type="button" className="btn btn-small" onClick={() => void toggle()}>
+            <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
               {t('addFriend')}
             </button>
           )}
           {following === true && (
             <p>
               <span>{t('inFriends')}</span>{' '}
-              <button type="button" className="btn btn-small" onClick={() => void toggle()}>
+              <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
                 {t('removeFriend')}
               </button>
             </p>

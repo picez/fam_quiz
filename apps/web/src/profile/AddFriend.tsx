@@ -1,3 +1,4 @@
+import { LIMITS } from '@quiz/shared';
 import { useState, type FormEvent } from 'react';
 import { findProfile, follow } from '../api';
 import { errorText, t } from '../i18n';
@@ -30,7 +31,7 @@ export function AddFriend({ onAdded }: { onAdded: () => void }) {
     <form className="add-friend" onSubmit={(event) => void submit(event)}>
       <label className="field">
         <span>{t('friendNickname')}</span>
-        <input value={nickname} maxLength={40} onChange={(event) => setNickname(event.target.value)} />
+        <input value={nickname} maxLength={LIMITS.nicknameMax} onChange={(event) => setNickname(event.target.value)} />
       </label>
       <button type="submit" className="btn btn-small" disabled={busy}>
         {t('addFriendButton')}

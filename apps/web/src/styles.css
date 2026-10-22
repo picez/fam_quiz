@@ -1,4 +1,5 @@
 :root {
+  --menu-h: 3.75rem;
   --stage: #0e1020;
   --spot: #2a2f5c;
   --paper: #f5f1e6;
@@ -980,7 +981,18 @@ a.banner {
 .stat dt {
   color: var(--dim);
   font-size: 0.875rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+@media (max-width: 30rem) {
+  .stats {
+    gap: 0.5rem;
+  }
+
+  .stat {
+    padding: 0.75rem 0.5rem;
+  }
 }
 
 .rows .rank {
@@ -1994,19 +2006,26 @@ button.match-item {
   .menu a {
     flex: 1 1 0;
     min-width: 0;
+    min-height: calc(var(--menu-h) - 1px);
+    justify-content: center;
     flex-direction: column;
     gap: 0.15rem;
-    padding: 0.5rem 0.25rem;
+    padding: 0.25rem;
     font-size: 0.75rem;
     text-align: center;
   }
 
   .menu a span {
     font-size: 1.25rem;
+    line-height: 1.2;
   }
 
   .with-menu .app {
-    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(var(--menu-h) + 0.75rem + env(safe-area-inset-bottom));
+  }
+
+  .with-menu .actions {
+    bottom: calc(var(--menu-h) + env(safe-area-inset-bottom));
   }
 }
 

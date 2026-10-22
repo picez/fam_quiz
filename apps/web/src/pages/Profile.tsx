@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { getMyProfile, signOut } from '../api';
 import { formatDate } from '../format';
@@ -17,7 +17,11 @@ export function Profile() {
   const [version, setVersion] = useState(0);
   const [editing, setEditing] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const state = usePrivateData(getMyProfile, String(version));
+  const fresh = usePrivateData(getMyProfile, String(version));
+  // Під час оновлення лишаємо попередні дані: сторінка не блимає й не губить прокрутку.
+  const last = useRef<typeof fresh | null>(null);
+  if (fresh.status === 'ready') last.current = fresh;
+  const state = fresh.status === 'loading' && last.current !== null ? last.current : fresh;
 
   if (state.status === 'signed-out') return <Navigate to={LOGIN} replace />;
   if (state.status === 'error') {
