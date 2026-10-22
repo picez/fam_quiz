@@ -20,6 +20,9 @@
   --line: rgb(245 241 230 / 0.16);
   --ice: rgb(190 230 255 / 0.55);
   --ice-line: rgb(255 255 255 / 0.85);
+  --fog: rgb(222 226 238 / 0.78);
+  --mud: #5b3a1e;
+  --mud-dark: #3e2612;
   --display: 'Unbounded Variable', system-ui, sans-serif;
   --body: 'Onest Variable', system-ui, sans-serif;
   color-scheme: dark;
@@ -3391,6 +3394,32 @@ button.match-item {
   opacity: 1;
 }
 
+.debuff-fog {
+  inset: 0;
+  z-index: 1;
+  border-radius: 0.75rem;
+  background: var(--fog);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  /* Маска — крихітний canvas сітки; розтягування дає м'які краї протертих місць. */
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.debuff-splat {
+  z-index: 1;
+  overflow: visible;
+}
+
+.debuff-splat path {
+  fill: var(--mud);
+  stroke: var(--mud-dark);
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
 .debuff-guest {
   top: var(--lane);
   left: 0;
@@ -3438,6 +3467,10 @@ button.match-item {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .debuff-splat {
+    transition: opacity 0.2s ease-out;
+  }
+
   .is-shake:not(.is-calm) .debuff-content {
     animation: debuff-shake 3s infinite;
   }

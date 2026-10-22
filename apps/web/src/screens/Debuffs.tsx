@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { DebuffKind, PlayerView, PublicQuestion } from '@quiz/shared';
 import { debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
 import { reducedMotion } from '../motion';
+import { FogLayer, MudLayer } from './WipeLayers';
 
 type Debuff = PlayerView['me']['debuff'];
 
@@ -97,6 +98,7 @@ export function DebuffZone({
       : [BANNER_MS];
   const elapsed = useElapsed(debuff?.since ?? null, marks, offsetMs);
   const calm = kind !== null && reducedMotion();
+  const zoneRef = useRef<HTMLDivElement>(null);
 
   const banner = elapsed !== null && kind !== null && elapsed < BANNER_MS;
   const frozen = kind === 'freeze' && elapsed !== null && elapsed < freezeFor;
@@ -106,11 +108,13 @@ export function DebuffZone({
 
   const className = ['debuff-zone', kind !== null && `is-${kind}`, calm && 'is-calm'].filter(Boolean).join(' ');
   return (
-    <div className={className} data-debuff={kind ?? undefined}>
+    <div ref={zoneRef} className={className} data-debuff={kind ?? undefined}>
       <fieldset className="debuff-content" disabled={frozen}>
         {children}
       </fieldset>
       {frozen && <Ice stage={iceStage} />}
+      {kind === 'fog' && <FogLayer key={questionIndex} zone={zoneRef} />}
+      {kind === 'mud' && <MudLayer key={questionIndex} zone={zoneRef} seed={questionIndex} />}
       {kind === 'guests' &&
         GUESTS.map((emoji, i) => (
           <span
