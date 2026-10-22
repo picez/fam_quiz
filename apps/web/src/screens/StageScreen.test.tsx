@@ -323,7 +323,8 @@ describe('StageScreen: match', () => {
     id: 'q',
     type: 'match',
     text: 'Пари',
-    imageUrl: null, video: null,
+    imageUrl: null,
+    video: null,
     timeLimit: 20,
     points: 100,
     pairs: [

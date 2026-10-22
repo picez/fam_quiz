@@ -213,7 +213,8 @@ describe('spare empty rows', () => {
           id: 'q1',
           type: 'multi',
           text: 'Питання?',
-          imageUrl: null, video: null,
+          imageUrl: null,
+          video: null,
           timeLimit: 20,
           points: 1000,
           options: [
@@ -236,7 +237,8 @@ describe('spare empty rows', () => {
           id: 'q1',
           type: 'multi',
           text: 'Питання?',
-          imageUrl: null, video: null,
+          imageUrl: null,
+          video: null,
           timeLimit: 20,
           points: 1000,
           options: [

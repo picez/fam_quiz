@@ -11,9 +11,10 @@ const HOSTS = new Set([
 
 /** Позначка часу: секунди (`90`, `90s`) або `1h2m3s`, `1m30s`, `2m`; null — неправильна. */
 function parseStart(raw: string): number | null {
+  if (raw === '') return null;
   if (/^\d+$/.test(raw)) return Number(raw);
   const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(raw);
-  if (!m || raw === '') return null;
+  if (!m) return null;
   return Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0);
 }
 
@@ -21,28 +22,32 @@ function parseStart(raw: string): number | null {
 export function parseYouTubeLink(link: string): Video | null {
   const text = link.trim();
   if (text === '') return null;
-  let url: URL;
-  try {
-    url = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`);
-  } catch {
-    return null;
+  // Без `URL`: рушій чистий і не знає про DOM-типи.
+  const match = /^(?:https?:\/\/)?([^/?#]*)([^?#]*)(?:\?([^#]*))?/i.exec(text);
+  if (!match) return null;
+  const host = match[1]!.toLowerCase();
+  if (!HOSTS.has(host)) return null;
+  const params = new Map<string, string>();
+  for (const pair of (match[3] ?? '').split('&')) {
+    const eq = pair.indexOf('=');
+    const key = eq < 0 ? pair : pair.slice(0, eq);
+    if (key !== '' && !params.has(key)) params.set(key, eq < 0 ? '' : pair.slice(eq + 1));
   }
-  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || !HOSTS.has(url.hostname)) return null;
 
-  const segments = url.pathname.split('/').filter(Boolean);
+  const segments = match[2]!.split('/').filter(Boolean);
   let id: string | undefined;
-  if (url.hostname === 'youtu.be') {
+  if (host === 'youtu.be') {
     if (segments.length === 1) id = segments[0];
   } else if (segments.length === 1 && segments[0] === 'watch') {
-    id = url.searchParams.get('v') ?? undefined;
+    id = params.get('v');
   } else if (segments.length === 2 && (segments[0] === 'shorts' || segments[0] === 'embed')) {
     id = segments[1];
   }
   if (id === undefined) return null;
 
-  const rawStart = url.searchParams.get('t') ?? url.searchParams.get('start');
+  const rawStart = params.get('t') ?? params.get('start');
   let start = 0;
-  if (rawStart !== null) {
+  if (rawStart !== undefined) {
     const parsed = parseStart(rawStart);
     if (parsed === null) return null;
     start = parsed;
