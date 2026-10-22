@@ -341,3 +341,24 @@ describe('GameHistory: rounds', () => {
     expect(screen.queryByText('Анна: −200')).toBeNull();
   });
 });
+
+describe('GameHistory final', () => {
+  it('shows final wagers and results', async () => {
+    const finalQuestion = {
+      ...detail.questions[0],
+      final: {
+        entries: [
+          { nickname: 'Анна', answer: null, wager: 300, points: 300, accepted: true },
+          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false },
+        ],
+      },
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, rounds: [{ title: 'Космос', type: 'final' }], questions: [finalQuestion] } });
+    open('/history/g1');
+    expect(await screen.findByText('Ставки фіналу')).toBeTruthy();
+    const win = screen.getByText('Анна: ставка 300, +300');
+    const loss = screen.getByText('Богдан: ставка 200, −200');
+    expect(win.className).toContain('is-correct');
+    expect(loss.className).toContain('is-wrong');
+  });
+});

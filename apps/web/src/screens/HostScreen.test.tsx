@@ -647,3 +647,117 @@ describe('HostScreen: blitz', () => {
     });
   });
 });
+
+describe('HostScreen final', () => {
+  const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false };
+  const three = [
+    { id: 'p1', nickname: 'Анна', connected: true, score: 1000, streak: 0 },
+    { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0 },
+    { id: 'p3', nickname: 'Віра', connected: true, score: 300, streak: 0 },
+  ];
+  const info = { theme: 'Космос', placed: 2, total: 3, shown: [], left: 0 };
+  const entry = (playerId: string, nickname: string, over: object = {}) => ({
+    playerId,
+    nickname,
+    answer: { type: 'single' as const, optionId: 'b' },
+    grade: 'correct' as const,
+    wager: 300,
+    before: 1000,
+    after: 1300,
+    ...over,
+  });
+  const hostFinal = (over: object = {}) => ({ ...info, wagers: [], entries: [], manual: false, pending: [], ...over });
+
+  it('shows who has wagered and opens the final question', () => {
+    const send = show(
+      view({
+        phase: 'wager',
+        round: finalRound,
+        players: three,
+        final: hostFinal({
+          wagers: [
+            { playerId: 'p1', nickname: 'Анна', wager: 300, limit: 1000 },
+            { playerId: 'p2', nickname: 'Богдан', wager: 200, limit: 500 },
+            { playerId: 'p3', nickname: 'Віра', wager: null, limit: 300 },
+          ],
+        }),
+      }),
+    );
+    expect(screen.getByText('Поставили 2 з 3')).toBeTruthy();
+    expect(screen.getByText('ще думає')).toBeTruthy();
+    expect(document.querySelector('.wager-list li')?.textContent).toContain('300');
+    fireEvent.click(button('Показати запитання'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+  });
+
+  it('starts the final from the intro', () => {
+    show(view({ phase: 'intro', round: finalRound, players: three }));
+    expect(button('Почати фінал')).toBeTruthy();
+  });
+
+  it('lets the host end the round during the wagers', () => {
+    show(view({ phase: 'wager', round: { ...finalRound, total: 2 }, players: three, final: hostFinal() }));
+    expect(button('Завершити раунд')).toBeTruthy();
+  });
+
+  it('shows silent players next to the answers while the question is open', () => {
+    show(
+      during('question', single, {
+        round: finalRound,
+        players: three,
+        final: hostFinal(),
+        responses: [
+          { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, grade: 'correct', accepted: true, points: 0, streakBonus: 0, overridden: false, timeMs: 1000 },
+        ],
+      }),
+    );
+    expect(screen.getAllByText('не відповів')).toHaveLength(2);
+  });
+
+  it('reveals the next final player and regrades an entry', () => {
+    const send = show(
+      during('reveal', single, {
+        round: finalRound,
+        players: three,
+        final: hostFinal({
+          left: 2,
+          shown: [entry('p3', 'Віра')],
+          entries: [
+            entry('p3', 'Віра', { before: 300, after: 600 }),
+            entry('p2', 'Богдан', { grade: 'wrong', wager: 200, before: 500, after: 300 }),
+            entry('p1', 'Анна', { answer: null, grade: 'wrong', after: 700 }),
+          ],
+        }),
+      }),
+    );
+    expect(screen.getByText('Розкрито 1 з 3')).toBeTruthy();
+    expect(screen.getByText('500 → 300')).toBeTruthy();
+    // Мовчазного гравця оцінити не можна.
+    expect(screen.getAllByRole('button', { name: 'Зарахувати' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Не зараховувати' })).toHaveLength(1);
+    fireEvent.click(button('Наступний гравець'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+    fireEvent.click(button('Зарахувати'));
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p2', grade: 'correct' });
+  });
+
+  it('goes on with the usual next button once everyone is revealed', () => {
+    show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 0 }) }));
+    expect(button('Далі')).toBeTruthy();
+  });
+
+  it('grades pending manual final answers', () => {
+    const send = show(
+      during('locked', textQuestion, {
+        round: finalRound,
+        players: three,
+        final: hostFinal({
+          manual: true,
+          pending: [{ playerId: 'p1', nickname: 'Анна', answer: { type: 'text', text: 'Марс' } }],
+        }),
+      }),
+    );
+    fireEvent.click(button('Не зараховувати'));
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'wrong' });
+  });
+});
