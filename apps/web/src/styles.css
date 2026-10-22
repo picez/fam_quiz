@@ -1487,6 +1487,12 @@ a.banner {
   flex: none;
 }
 
+.board-edit-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+}
+
 .board-edit-title {
   width: 100%;
   min-width: 0;

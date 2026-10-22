@@ -837,6 +837,8 @@ describe('QuizEditor board rounds', () => {
     fill('Варіант 1', 'Так');
     fill('Варіант 2', 'Ні');
   };
+  const removeButton = () => screen.getByRole('button', { name: 'Прибрати запитання' }) as HTMLButtonElement;
+  const column = (n: number) => screen.getAllByRole('button', { name: new RegExp(`^Категорія ${n}, клітинка \\d+:`) });
   const addBoard = () => {
     click('+ Раунд');
     click('Ігрове поле');
@@ -879,13 +881,42 @@ describe('QuizEditor board rounds', () => {
     open();
     addBoard();
     expect(screen.queryByRole('button', { name: 'Прибрати категорію' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Прибрати запитання' })).toBeNull();
+    expect(removeButton().disabled).toBe(true);
     for (let i = 0; i < 5; i += 1) click('+ Категорія');
     expect(screen.queryByRole('button', { name: '+ Категорія' })).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Прибрати категорію' })).toHaveLength(8);
     for (let i = 0; i < 7; i += 1) fireEvent.click(screen.getAllByRole('button', { name: '+ Запитання' })[0]);
     expect(screen.getAllByRole('button', { name: '+ Запитання' })).toHaveLength(7);
-    expect(screen.getByRole('button', { name: 'Прибрати запитання' })).toBeTruthy();
+    expect(removeButton().disabled).toBe(false);
+  });
+
+  it('deletes a cell right from the grid and explains the minimum', () => {
+    open();
+    addBoard();
+    // Одна кнопка на все поле, у стовпці вибраної клітинки, і вона вимкнена на мінімумі.
+    expect(screen.getAllByRole('button', { name: 'Прибрати запитання' })).toHaveLength(1);
+    expect(removeButton().disabled).toBe(true);
+    const hint = screen.getByText('Щонайменше 3 запитання в категорії');
+    expect(removeButton().getAttribute('aria-describedby')).toBe(hint.id);
+    expect(removeButton().closest('.board-column')).toBe(cell(1, 1).closest('.board-column'));
+
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Запитання' })[1]);
+    expect(removeButton().closest('.board-column')).toBe(cell(2, 4).closest('.board-column'));
+    expect(removeButton().disabled).toBe(false);
+    expect(screen.queryByText('Щонайменше 3 запитання в категорії')).toBeNull();
+
+    // Запитання з текстом прибирається лише після підтвердження.
+    fill('Текст запитання', 'Питання?');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    click('Прибрати запитання');
+    expect(column(2)).toHaveLength(4);
+    click('Прибрати запитання');
+    expect(confirm).toHaveBeenCalledWith('Прибрати запитання разом із його текстом?');
+    expect(column(2)).toHaveLength(3);
+    expect(cell(2, 3).getAttribute('aria-current')).toBe('true');
+    expect(removeButton().disabled).toBe(true);
+    // У панелі клітинки кнопки видалення більше немає.
+    expect(screen.getByRole('region', { name: /^Клітинка/ }).querySelector('.btn-danger')).toBeNull();
   });
 
   it('removes a category and a cell', () => {
