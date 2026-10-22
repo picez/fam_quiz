@@ -481,6 +481,48 @@ describe('HostScreen: blitz', () => {
       expect(button('Частково')).toBeTruthy();
     });
 
+    it('the host sees the options when one player answers', () => {
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
+      show(during('reveal', single, { round: boardRound, players: three, spotlight, board: boardOf({ cell }) }));
+      const choices = document.querySelector('.choices');
+      expect(choices).not.toBeNull();
+      expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-wrong');
+      expect(screen.getByText('Київ').closest('.choice')?.className).toContain('is-correct');
+      expect(screen.queryByText('Торкніться варіанта, який назвав гравець')).toBeNull();
+      expect(choices?.querySelector('button')).toBeNull();
+    });
+
+    it('the host taps the option a voice player named', () => {
+      const voiceCell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const };
+      const send = show(during('question', single, { round: boardRound, players: three, endsAt: Date.now() + 20_000, board: boardOf({ manual: true, cell: voiceCell }) }));
+      expect(screen.getByText('Торкніться варіанта, який назвав гравець')).toBeTruthy();
+      fireEvent.click(button(/Київ/));
+      expect(send).toHaveBeenCalledWith('host:name', { answer: { type: 'single', optionId: 'b' } });
+      cleanup();
+      // Позначка ведучого помаранчева, але це не відповідь з телефона: панелі «Прийняти»/«Перевибрати» немає.
+      const named = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'b' }, grade: null };
+      show(during('question', single, { round: boardRound, players: three, endsAt: Date.now() + 20_000, spotlight: named, board: boardOf({ manual: true, cell: voiceCell }) }));
+      expect(button(/Київ/).className).toContain('is-pending');
+      expect(screen.queryByRole('heading', { name: 'Відповідь чекає на рішення' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Прийняти' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Перевибрати' })).toBeNull();
+      cleanup();
+      // На усній бліц-клітинці позначки немає.
+      show(
+        during('question', single, {
+          round: boardRound,
+          players: three,
+          endsAt: Date.now() + 20_000,
+          board: boardOf({ manual: true, cell: { ...voiceCell, kind: 'blitz' } }),
+          blitz: { voice: true, manual: true, queue: [], winner: null, attempts: [] },
+        }),
+      );
+      expect(document.querySelector('.choices')).not.toBeNull();
+      expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+      expect(screen.queryByText('Торкніться варіанта, який назвав гравець')).toBeNull();
+    });
+
     it('shows a phone answer awaiting a grade and hides grading without one', () => {
       const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
       const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Одеса' }, grade: null };

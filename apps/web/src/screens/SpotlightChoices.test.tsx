@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PublicQuestion, Question, Spotlight } from '@quiz/shared';
 import { SpotlightChoices } from './SpotlightChoices';
 
@@ -17,6 +17,16 @@ const orderQ: PublicQuestion = {
     { id: 'y', text: 'Львів' },
   ],
 };
+const singleQ: PublicQuestion = {
+  ...base,
+  type: 'single',
+  text: 'Столиця?',
+  choices: [
+    { id: 'a', text: 'Львів' },
+    { id: 'b', text: 'Київ' },
+    { id: 'c', text: 'Одеса' },
+  ],
+};
 const spot = (answer: Spotlight['answer'], grade: Spotlight['grade']): Spotlight => ({ playerId: 'p1', nickname: 'Анна', answer, grade });
 
 describe('SpotlightChoices', () => {
@@ -27,7 +37,76 @@ describe('SpotlightChoices', () => {
     const order = render(<SpotlightChoices question={orderQ} spotlight={spot({ type: 'order', itemIds: ['x', 'y'] }, 'wrong')} reveal={null} />);
     expect(order.container.querySelector('p.spotlight-answer.is-wrong')?.textContent).toBe('Ужгород → Львів');
     cleanup();
-    expect(render(<SpotlightChoices question={textQ} spotlight={null} reveal={null} />).container.textContent).toBe('');
+    expect(render(<SpotlightChoices question={textQ} spotlight={null} reveal={null} />).container.textContent).toBe('Відповідь словами з’явиться тут');
+  });
+
+  it('numeric without an answer shows where the number will appear', () => {
+    const q: PublicQuestion = { ...base, type: 'numeric', text: 'Скільки?', choices: [] };
+    const { container } = render(<SpotlightChoices question={q} spotlight={null} reveal={null} />);
+    expect(container.querySelector('p.spotlight-answer.is-waiting')?.textContent).toBe('Відповідь числом з’явиться тут');
+  });
+
+  it('a voice answer says the player answers aloud', () => {
+    const { container } = render(<SpotlightChoices question={textQ} spotlight={null} reveal={null} voice />);
+    expect(container.querySelector('p.spotlight-answer.is-waiting')?.textContent).toBe('Гравець відповідає вголос');
+  });
+
+  it('a voice verdict without a named option shows the verdict alone', () => {
+    const { container } = render(<SpotlightChoices question={textQ} spotlight={spot(null, 'correct')} reveal={null} voice blink />);
+    const verdict = container.querySelector('p.spotlight-answer.is-correct');
+    expect(verdict?.textContent).toBe('Правильно');
+    expect(verdict?.className).toContain('is-blinking');
+    cleanup();
+    const single = render(<SpotlightChoices question={singleQ} spotlight={spot(null, 'wrong')} reveal={null} voice />);
+    expect(single.container.querySelector('p.spotlight-answer.is-wrong')?.textContent).toBe('Неправильно');
+    expect(single.container.querySelectorAll('.choice').length).toBe(3);
+  });
+
+  it('order without an answer lists the items in the shown order', () => {
+    const { container } = render(<SpotlightChoices question={orderQ} spotlight={null} reveal={null} />);
+    const items = [...container.querySelectorAll('ol.order.spotlight-order li')].map((li) => li.textContent);
+    expect(items).toEqual(['Ужгород', 'Львів']);
+    expect(container.querySelector('button')).toBeNull();
+  });
+
+  it('a verdict blinks only while blink is on', () => {
+    const correct = spot({ type: 'single', optionId: 'b' }, 'correct');
+    const on = render(<SpotlightChoices question={singleQ} spotlight={correct} reveal={null} blink />);
+    expect(on.container.querySelector('.choice.is-correct.is-blinking')).not.toBeNull();
+    cleanup();
+    const off = render(<SpotlightChoices question={singleQ} spotlight={correct} reveal={null} />);
+    expect(off.container.querySelector('.choice.is-correct')).not.toBeNull();
+    expect(off.container.querySelector('.is-blinking')).toBeNull();
+    cleanup();
+    const pending = render(<SpotlightChoices question={singleQ} spotlight={spot({ type: 'single', optionId: 'b' }, null)} reveal={null} blink />);
+    expect(pending.container.querySelector('.choice.is-pending')).not.toBeNull();
+    expect(pending.container.querySelector('.is-blinking')).toBeNull();
+  });
+
+  it('the host names an option by tapping it', () => {
+    const onName = vi.fn();
+    render(<SpotlightChoices question={singleQ} spotlight={null} reveal={null} onName={onName} />);
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(onName).toHaveBeenLastCalledWith({ type: 'single', optionId: 'b' });
+    cleanup();
+    render(<SpotlightChoices question={singleQ} spotlight={spot({ type: 'single', optionId: 'b' }, null)} reveal={null} onName={onName} />);
+    const named = screen.getByRole('button', { name: /Київ/ });
+    expect(named.getAttribute('aria-pressed')).toBe('true');
+    expect(named.className).toContain('is-pending');
+    fireEvent.click(named);
+    expect(onName).toHaveBeenLastCalledWith(null);
+    cleanup();
+    const multiQ: PublicQuestion = { ...singleQ, type: 'multi' };
+    render(<SpotlightChoices question={multiQ} spotlight={spot({ type: 'multi', optionIds: ['a'] }, null)} reveal={null} onName={onName} />);
+    fireEvent.click(screen.getByRole('button', { name: /Одеса/ }));
+    expect(onName).toHaveBeenLastCalledWith({ type: 'multi', optionIds: ['a', 'c'] });
+    fireEvent.click(screen.getByRole('button', { name: /Львів/ }));
+    expect(onName).toHaveBeenLastCalledWith(null);
+    cleanup();
+    const boolQ: PublicQuestion = { ...base, type: 'boolean', text: 'Так?', choices: [] };
+    render(<SpotlightChoices question={boolQ} spotlight={null} reveal={null} onName={onName} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ні' }));
+    expect(onName).toHaveBeenLastCalledWith({ type: 'boolean', value: false });
   });
 
   it('shows yes and no for a boolean question and colours the choice', () => {

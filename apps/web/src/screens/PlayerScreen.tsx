@@ -10,6 +10,7 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
+import { useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { ChainPlay, ChainWords } from './ChainView';
 
@@ -141,6 +142,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
     (spotlight?.grade === null ? spotlight : null) ?? (blitzCell ? null : board?.turn) ?? view.blitz?.queue[0] ?? null;
   const othersAnswer = answering !== null && answering.playerId !== me.id;
   const myPending = spotlight !== null && spotlight.grade === null && spotlight.playerId === me.id;
+  const voice = board?.cell?.answerMode === 'voice';
+  // Хук на рівні екрана: миготіння має пережити зміну гілки question → reveal.
+  const blink = useVerdictBlink(spotlight);
 
   const pick = async (cellId: string) => {
     const result = await send('player:pick', { cellId });
@@ -212,19 +216,19 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <ChainPlay chain={me.chain} question={question} paused={view.paused} offsetMs={offsetMs} send={send} />
           ) : myPending ? (
             <section className="sent">
-              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
+              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
               <p className="lead">{t('pendingWait')}</p>
             </section>
           ) : me.blitz !== null ? (
             <>
-              {(me.blitz.position === null || (spotlight !== null && spotlight.playerId !== me.id)) && (
-                <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
+              {(me.blitz.position === null || voice || (spotlight !== null && spotlight.playerId !== me.id)) && (
+                <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
               )}
               <BlitzTurn
                 view={view}
                 labelled={spotlight !== null && spotlight.playerId !== me.id}
                 blitz={me.blitz}
-                voice={board?.cell?.answerMode === 'voice'}
+                voice={voice}
                 offsetMs={offsetMs}
                 onSubmit={submit}
                 send={send}
@@ -232,9 +236,12 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               />
             </>
           ) : board !== null && !chooserIsMe ? (
-            <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />
-          ) : board !== null && board.cell?.answerMode === 'voice' && me.answer === null ? (
-            <p className="lead">{t('answerAloud')}</p>
+            <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+          ) : board !== null && voice && me.answer === null ? (
+            <>
+              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice />
+              <p className="lead">{t('answerAloud')}</p>
+            </>
           ) : me.answer !== null ? (
             <section className="sent">
               <h2>{t('answerSent')}</h2>
@@ -272,12 +279,18 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <FinalResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
-              {question !== null && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} />}
+              {question !== null && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
               {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
-            <Result view={view} />
+            <>
+              {/* Вибравший і бліц: варіанти з кольором вердикту над власним результатом. */}
+              {spotlight !== null && question !== null && (
+                <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />
+              )}
+              <Result view={view} />
+            </>
           )}
         </>
       )}

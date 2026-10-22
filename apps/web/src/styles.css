@@ -447,6 +447,14 @@ button.choice {
   color: var(--stage);
 }
 
+.spotlight-answer.is-waiting {
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.75rem;
+  color: var(--dim);
+  font-weight: 400;
+}
+
 .choice .count {
   margin-left: auto;
   font-family: var(--display);
@@ -839,6 +847,22 @@ button.choice {
     from {
       opacity: 0;
       transform: scale(0.96);
+    }
+  }
+}
+
+/* Вердикт відповіді одного гравця мигає 3 с; селектор сильніший за .choice.is-correct вище. */
+@media (prefers-reduced-motion: no-preference) {
+  .choice.is-blinking.is-correct,
+  .choice.is-blinking.is-wrong,
+  .is-blinking.is-correct,
+  .is-blinking.is-wrong {
+    animation: verdict-blink 0.5s ease-in-out 6;
+  }
+
+  @keyframes verdict-blink {
+    50% {
+      opacity: 0.35;
     }
   }
 }
@@ -1944,6 +1968,16 @@ a.banner {
 .order li.is-turn {
   border-color: var(--amber);
   color: var(--amber);
+}
+
+/* Порядок для тих, хто не відповідає: стовпчик карток з номерами, як у полі відповіді. */
+.spotlight-order {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.spotlight-order li {
+  border-radius: 0.75rem;
 }
 
 .dice {

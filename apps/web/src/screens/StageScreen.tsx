@@ -10,6 +10,7 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
+import { useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
 
@@ -77,7 +78,7 @@ function FinalReveal({ final, question }: { final: FinalInfo; question: FullQues
   );
 }
 
-function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
+function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & { blink: boolean }) {
   const { question, reveal, stats } = view;
   if (question === null) return null;
   const correctIds =
@@ -90,8 +91,8 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           : [];
   const showChoices = question.type === 'single' || question.type === 'multi';
   const voice = view.board?.cell?.answerMode === 'voice';
-  // Поле з телефонами й бліц показують відповідь одного гравця кольором.
-  const spotlit = view.blitz !== null || (view.board !== null && !voice);
+  // Поле й бліц показують відповідь одного гравця кольором; на усній клітинці — позначку ведучого.
+  const spotlit = view.blitz !== null || view.board !== null;
   // Червона відповідь бліцу вже минула: відповідає голова черги, а не її автор.
   const pendingSpot = view.spotlight?.grade === null ? view.spotlight : null;
   // На бліц-клітинці вибравший лише обирає: відповідає голова черги.
@@ -139,7 +140,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           <ChainWords first={question.chain.first} masks={question.chain.masks} />
         )
       ) : spotlit ? (
-        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} />
+        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} />
       ) : question.type === 'match' ? (
         reveal === null ? (
           <MatchColumns left={question.choices} right={question.right} />
@@ -272,6 +273,8 @@ function BoardStage({ board }: { board: BoardInfo }) {
 
 export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props) {
   const { phase, standings } = view;
+  // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
+  const blink = useVerdictBlink(view.spotlight);
   return (
     <main className="app stage">
       {view.paused && (
@@ -280,7 +283,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
         </p>
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} />}
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}

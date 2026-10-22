@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/shared';
+import type { Answer, ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { ChainBoard } from './ChainView';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
@@ -9,6 +9,8 @@ import type { Send } from '../live/types';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
+import { SpotlightChoices } from './SpotlightChoices';
+import { useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus } from '../live/Timer';
 import { Standings } from './Standings';
@@ -88,8 +90,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
     view.question !== null &&
     chooserId !== null &&
     ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
+  const voiceCell = blitz === null && board?.cell?.answerMode === 'voice';
   // Відповідь з телефона, що чекає на рішення ведучого (помаранчева).
-  const pending = phase === 'question' && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
+  // На усній клітинці помаранчева лише позначка ведучого: приймати чи перевибирати там нічого.
+  const pending = phase === 'question' && !voiceCell && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
   const manualPending = pending !== null && ((board !== null && board.manual) || (blitz !== null && blitz.manual));
   // На бліц-клітинці відповідає голова черги, а не вибравший.
   const answering = blitz !== null ? (blitz.queue[0] ?? null) : (board?.turn ?? null);
@@ -102,6 +106,16 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
     const result = await send(event, payload);
     setError(result.ok ? null : errorText(result.error));
   };
+
+  const blink = useVerdictBlink(view.spotlight);
+  // Позначка варіанта, названого вголос: звичайна усна клітинка, single/multi/boolean, поки відповідь не розкрита.
+  const questionType = view.question?.type;
+  const canName =
+    (phase === 'question' || phase === 'locked') &&
+    board?.cell?.answerMode === 'voice' &&
+    board.cell.kind === 'normal' &&
+    (questionType === 'single' || questionType === 'multi' || questionType === 'boolean');
+  const name = (answer: Answer | null) => void act('host:name', { answer });
 
   // Кроки гри йдуть по одному: подвійний дотик не має перескочити етап.
   const [stepping, setStepping] = useState(false);
@@ -289,6 +303,19 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
           <QuestionImage url={view.question.imageUrl} />
           <YouTubePlayer video={view.question.video} />
+          {(blitz !== null || board !== null) && (
+            <>
+              {canName && <p className="meta">{t('nameHint')}</p>}
+              <SpotlightChoices
+                question={view.question}
+                spotlight={view.spotlight}
+                reveal={phase === 'reveal' ? correct : null}
+                blink={blink}
+                voice={board?.cell?.answerMode === 'voice'}
+                onName={canName ? name : undefined}
+              />
+            </>
+          )}
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
         </section>
       )}

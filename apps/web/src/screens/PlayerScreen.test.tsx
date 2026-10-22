@@ -533,6 +533,53 @@ describe('PlayerScreen: spotlight', () => {
     expect(screen.getByText('Київ').closest('.choice')?.className).toContain('is-correct');
   });
 
+  it('the voice chooser sees the options and answers aloud', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const board = { ...boardOf(mine), cell: { ...boardOf(mine).cell!, answerMode: 'voice' as const } };
+    show(onQuestion({ round, board }));
+    expect(screen.getByText('Львів').closest('.choice')).not.toBeNull();
+    expect(screen.getByText('Київ').closest('.choice')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+    expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+  });
+
+  it('a queued blitz player on a voice cell sees the options', () => {
+    const board = { ...boardOf(anna), cell: { ...boardOf(anna).cell!, kind: 'blitz' as const, answerMode: 'voice' as const } };
+    const queued = { position: 2, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null };
+    show(onQuestion({ round, board, me: { ...me, blitz: queued } }));
+    expect(screen.getByText('Київ').closest('.choice')).not.toBeNull();
+    expect(screen.getByText('Ви 2-й у черзі')).toBeTruthy();
+  });
+
+  it('the phone of another player blinks the verdict when the question turns to reveal', () => {
+    const answer = { type: 'single' as const, optionId: 'b' };
+    const at = (over: Partial<PlayerView>) => (
+      <PlayerScreen view={view({ questionIndex: 0, question: publicQuestion, round, board: boardOf(anna), ...over })} hostOnline offsetMs={0} send={vi.fn()} />
+    );
+    const { rerender } = render(at({ phase: 'question', endsAt: Date.now() + 20_000, spotlight: { ...anna, answer, grade: null } }));
+    expect(document.querySelector('.is-blinking')).toBeNull();
+    rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'correct' } }));
+    expect(document.querySelector('.choice.is-blinking')).not.toBeNull();
+  });
+
+  it('the first render with a verdict does not blink', () => {
+    const spotlight = { ...anna, answer: { type: 'single' as const, optionId: 'b' }, grade: 'correct' as const };
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round, board: boardOf(anna), spotlight }));
+    expect(document.querySelector('.choice.is-correct')).not.toBeNull();
+    expect(document.querySelector('.is-blinking')).toBeNull();
+  });
+
+  it('the chooser sees the choices with the verdict above the result', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const spotlight = { ...mine, answer: { type: 'single' as const, optionId: 'b' }, grade: 'correct' as const };
+    const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 100 };
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round, board: boardOf(mine), spotlight, me: { ...me, result } }));
+    const choice = screen.getByText('Київ').closest('.choice');
+    expect(choice?.className).toContain('is-correct');
+    const verdict = screen.getByText('Правильно!');
+    expect(choice!.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows a sent match answer with the right column names', () => {
     const matchQ = {
       ...publicQuestion,

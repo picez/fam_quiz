@@ -398,6 +398,26 @@ describe('StageScreen: match', () => {
     expect(container.querySelector('.match-columns')).not.toBeNull();
     expect(screen.queryByText('З’єднайте пари на телефоні')).toBeNull();
   });
+
+  it("a voice cell shows the options to the stage and the host's mark in orange", () => {
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
+    const board = {
+      categories: [],
+      order: [{ playerId: 'p2', nickname: 'Анна' }],
+      turn: { playerId: 'p2', nickname: 'Анна' },
+      cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const },
+      rolls: 0,
+      skipAt: null,
+    };
+    const at = { phase: 'question' as const, questionIndex: 0, round, board, endsAt: Date.now() + 20_000 };
+    const marked = show(view({ ...at, question, spotlight: { playerId: 'p2', nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, grade: null } }));
+    expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-pending');
+    expect(screen.getByText('Київ').closest('.choice')?.className).not.toContain('is-');
+    marked.unmount();
+    show(view({ ...at, question: { ...question, type: 'boolean', choices: [] } }));
+    expect(screen.getByText('Так')).toBeTruthy();
+    expect(screen.getByText('Ні')).toBeTruthy();
+  });
   it('the stage shows a blitz cell with the chooser and the queue', () => {
     const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const board = {
