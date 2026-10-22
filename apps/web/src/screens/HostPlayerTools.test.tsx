@@ -47,6 +47,19 @@ describe('PointsPanel', () => {
   });
 });
 
+describe('failed send', () => {
+  it('a rejected send shows a generic error and releases the buttons', async () => {
+    const send = vi.fn(async () => {
+      throw new Error('offline');
+    }) as unknown as Send;
+    const onError = vi.fn();
+    render(<PointsPanel player={player()} send={send} onError={onError} />);
+    fireEvent.click(button('+50'));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith('Щось пішло не так. Спробуйте ще раз.'));
+    await waitFor(() => expect(button('+50').disabled).toBe(false));
+  });
+});
+
 describe('DebuffPanel', () => {
   it('the debuff panel lists six debuffs and sends the chosen one', () => {
     const send = okSend();

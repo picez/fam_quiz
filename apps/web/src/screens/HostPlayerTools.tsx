@@ -38,6 +38,9 @@ function useGuardedSend(send: Send, onError: (message: string | null) => void) {
       const result = await send(event, payload);
       onError(result.ok ? null : errorText(result.error));
       return result.ok;
+    } catch {
+      onError(errorText('unknown'));
+      return false;
     } finally {
       clearTimeout(fallback);
       release();

@@ -3205,6 +3205,10 @@ button.match-item {
   flex-wrap: wrap;
 }
 
+.rows li.player-row .name {
+  flex: 1 1 8rem;
+}
+
 .player-tools {
   flex-basis: 100%;
   display: grid;
