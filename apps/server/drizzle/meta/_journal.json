@@ -36,6 +36,13 @@
       "when": 1792653999032,
       "tag": "0004_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792665473115,
+      "tag": "0005_short_default_nicknames",
+      "breakpoints": true
     }
   ]
 }

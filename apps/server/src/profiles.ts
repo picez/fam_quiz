@@ -36,10 +36,17 @@ const card = (row: { userId: string; nickname: string; avatar: string | null }):
   avatar: row.avatar,
 });
 
-/** Основа нікнейма за замовчуванням: ім'я акаунта, стиснуте й обрізане до межі; або DEFAULT_NICKNAME. */
+/**
+ * Основа нікнейма за замовчуванням: перше слово імені акаунта (обрізане до межі). Якщо воно не проходить
+ * перевірку нікнейма, береться стиснене повне ім'я, а якщо й воно не проходить, то DEFAULT_NICKNAME.
+ */
 function baseNickname(name: string): string {
-  const squeezed = name.replace(/\s+/g, ' ').trim().slice(0, LIMITS.nicknameMax).trim();
-  return nicknameSchema.safeParse(squeezed).success ? squeezed : DEFAULT_NICKNAME;
+  const squeezed = name.replace(/\s+/g, ' ').trim();
+  const candidates = [
+    squeezed.split(' ')[0]!.slice(0, LIMITS.nicknameMax),
+    squeezed.slice(0, LIMITS.nicknameMax).trim(),
+  ];
+  return candidates.find((c) => nicknameSchema.safeParse(c).success) ?? DEFAULT_NICKNAME;
 }
 
 function candidate(base: string, n: number): string {

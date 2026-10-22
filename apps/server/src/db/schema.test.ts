@@ -149,3 +149,31 @@ describe('profiles schema (migration 0004)', () => {
     expect(await ensureProfile(db, 'u1')).toEqual({ id: 'u1', nickname: 'Олена', avatar: null });
   });
 });
+
+describe('short default nicknames (migration 0005)', () => {
+  it('migration 0005 recreates only profiles nobody saved', async () => {
+    const { follow, profile } = await import('./schema');
+    const { ensureProfile, nicknameKey } = await import('../profiles');
+    const { db, migrateRest } = await createTestDbUpTo('0004_profiles');
+    for (const [id, name] of [
+      ['u1', 'Олена Петренко'],
+      ['u2', 'Тарас Шевченко'],
+      ['u3', 'Віра Коваль'],
+    ]) {
+      await db.insert(user).values({ id, name, email: `${id}@example.com` });
+    }
+    const row = (userId: string, nickname: string) => ({ userId, nickname, nicknameKey: nicknameKey(nickname) });
+    // u1 — створений за старим правилом і не збережений; u2 — збережений з тим самим повним ім'ям; u3 — з аватаром.
+    await db.insert(profile).values([row('u1', 'Олена Петренко'), row('u2', 'Тарас Шевченко'), row('u3', 'Віра Коваль')]);
+    await db.update(profile).set({ updatedAt: new Date(Date.now() + 1000) }).where(eq(profile.userId, 'u2'));
+    await db.update(profile).set({ avatar: '/uploads/abcdefabcdefabcd.png' }).where(eq(profile.userId, 'u3'));
+    await db.insert(follow).values({ followerId: 'u2', followeeId: 'u1' });
+
+    await migrateRest();
+
+    expect((await ensureProfile(db, 'u1'))?.nickname).toBe('Олена');
+    expect((await ensureProfile(db, 'u2'))?.nickname).toBe('Тарас Шевченко');
+    expect((await ensureProfile(db, 'u3'))?.nickname).toBe('Віра Коваль');
+    expect(await db.select().from(follow)).toHaveLength(1);
+  });
+});
