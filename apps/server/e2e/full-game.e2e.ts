@@ -2545,11 +2545,8 @@ const circleTexts = (page: Page, scope = 'body') =>
     .locator(`${scope} li.turn-circle`)
     .evaluateAll((els) => els.map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()));
 
-async function diceGame() {
-  const host = await open('host7c', 1280, 900);
-  await register(host, 'host', 'Олег Ведучий', 'host7c@example.com');
-
-  // Один раунд поля 3×3: 9 клітинок, для 4 гравців — 3 кола.
+/** Вікторина з одним раундом поля 3×3 (9 клітинок, для 4 гравців — 3 кола); повертає код гри й посилання на сцену. */
+async function hostDiceQuiz(host: Page): Promise<{ code: string; stageUrl: string }> {
   const data = {
     ...makeRoundsQuiz([
       boardRound(
@@ -2570,8 +2567,26 @@ async function diceGame() {
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  return { code, stageUrl: stageUrl! };
+}
+
+/** Заставка поля на сцені вміщається в екран: розклад і останній рядок кидків не нижче краю, без прокрутки вбік. */
+async function expectIntroFits(stage: Page, name: string) {
+  const height = (await stage.evaluate('innerHeight')) as number;
+  const schedule = (await stage.locator('.turn-schedule').boundingBox())!;
+  const lastRow = (await stage.locator('.dice-rows li').last().boundingBox())!;
+  console.log(`${name}: schedule bottom ${Math.round(schedule.y + schedule.height)} px, last dice row bottom ${Math.round(lastRow.y + lastRow.height)} px of ${height}`);
+  expect(schedule.y + schedule.height, `${name}: the schedule runs off the screen`).toBeLessThanOrEqual(height);
+  expect(lastRow.y + lastRow.height, `${name}: the dice rows run off the screen`).toBeLessThanOrEqual(height);
+  expect(await noSideScroll(stage), `${name}: horizontal scroll`).toBe(true);
+}
+
+async function diceGame() {
+  const host = await open('host7c', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host7c@example.com');
+  const { code, stageUrl } = await hostDiceQuiz(host);
   const stage = await open('stage7c', 1600, 900);
-  await stage.goto(stageUrl!);
+  await stage.goto(stageUrl);
   await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
   const olya = await open('olya7c', 375, 812);
   const petro = await open('petro7c', 360, 740);
@@ -2677,12 +2692,32 @@ async function diceGame() {
     await page.getByRole('heading', { name: 'Розклад ходів', ...exact }).waitFor();
     expect(await circleTexts(page)).toEqual(circles);
     expect(await page.getByText('Далі черга повторюється').count()).toBe(0);
-    // Розклад нижче рядків кидків.
     const lastRow = (await page.locator('.dice-rows li').last().boundingBox())!;
     const schedule = (await page.locator('.turn-schedule').boundingBox())!;
-    expect(schedule.y).toBeGreaterThan(lastRow.y + lastRow.height - 1);
+    if (page === stage) {
+      // Широка сцена: розклад праворуч від рядків кидків, а не під ними.
+      expect(schedule.x, 'stage: the schedule is not beside the dice').toBeGreaterThan(lastRow.x + lastRow.width - 1);
+      expect(schedule.y, 'stage: the schedule is not beside the dice').toBeLessThan(lastRow.y);
+    } else {
+      // Телефон і ведучий: розклад нижче рядків кидків.
+      expect(schedule.y).toBeGreaterThan(lastRow.y + lastRow.height - 1);
+    }
   }
+  // Поява розкладу не зсуває рядки кидків.
+  expect(await diceRowsY(stage), 'stage dice rows moved when the schedule appeared').toEqual(stageY);
+  expect(await diceRowsY(olya), 'phone dice rows moved when the schedule appeared').toEqual(olyaY);
+  // Кубик стоїть поруч з ім'ям, а не на іншому краю сцени.
+  const olyaRow = diceRow(stage, 'Оля');
+  const nameBox = (await olyaRow.locator('.name').boundingBox())!;
+  const olyaDie = (await olyaRow.locator('.die').boundingBox())!;
+  expect(olyaDie.x - nameBox.x, 'stage: the die is far from the name').toBeLessThan(600);
+  await expectIntroFits(stage, '7c intro 1600×900');
   await shot(stage, 'dice7c-schedule-stage');
+  // Телевізор 720p: заставка разом із розкладом вміщається без прокрутки.
+  await stage.setViewportSize({ width: 1280, height: 720 });
+  await expectIntroFits(stage, '7c intro 1280×720');
+  await shot(stage, 'dice7c-schedule-stage-1280');
+  await stage.setViewportSize({ width: 1600, height: 900 });
   await shot(olya, 'dice7c-schedule-phone');
   await shot(host, 'dice7c-schedule-host');
   await expectNoSideScroll(olya, 'dice7c-schedule-phone-375');
@@ -2708,6 +2743,7 @@ async function diceGame() {
     console.log(`7c stage ${width}: board ${Math.round(board.width)}×${Math.round(board.height)} px, aside ${Math.round(column.width)} px`);
     expect(board.x + board.width, `stage ${width}: the board runs under the queue`).toBeLessThanOrEqual(column.x);
     expect(board.width, `stage ${width}: the board is squeezed`).toBeGreaterThan(width * 0.5);
+    expect(column.y + column.height, `stage ${width}: the queue runs off the screen`).toBeLessThanOrEqual(height);
     expect(await noSideScroll(stage), `stage ${width}: horizontal scroll`).toBe(true);
     if (width !== 1600) await shot(stage, `dice7c-queue-stage-${width}`);
   }
@@ -2744,6 +2780,61 @@ async function diceGame() {
   // 8. Кінець гри.
   await click(host, 'Завершити гру');
   await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 7c: eight players — the stage board intro with dice in two columns and the schedule fits a 720p screen', async () => {
+  try {
+    await eightDice();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function eightDice() {
+  const host = await open('host7c8', 1280, 900);
+  await register(host, 'host', 'Ніна Ведуча', 'host7c8@example.com');
+  const { code, stageUrl } = await hostDiceQuiz(host);
+  const stage = await open('stage7c8', 1280, 720);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const names = ['Оля', 'Петро', 'Іра', 'Макс', 'Анастасія', 'Богдан', 'Віра', 'Ґанна'];
+  // Дешевше за вісім живих телефонів: кожен заходить і йде, за всіх кидає ведучий.
+  for (const [index, nickname] of names.entries()) {
+    const name = `p7c8-${index}`;
+    const phone = await open(name, 360, 640);
+    await join(phone, code, nickname, false);
+    await phone.context().close();
+    pages.delete(name);
+  }
+  await stage.getByText('Ґанна').waitFor();
+
+  await click(host, 'Почати гру');
+  await click(host, 'Кидати кубики');
+  await stage.locator('.dice-rows li').nth(7).waitFor();
+  expect(await stage.locator('.dice-rows.is-many').count()).toBe(1);
+  const startY = await diceRowsY(stage);
+  // Довгий рядок стану з вісьмома іменами видно цілим і без прокрутки вбік.
+  const status = (await stage.locator('.dice-status').evaluate((el) => ({ full: el.scrollWidth <= el.clientWidth }))) as { full: boolean };
+  expect(status.full, 'stage: the status line is cut').toBe(true);
+  expect(await noSideScroll(stage), 'stage 8 players: horizontal scroll').toBe(true);
+  await shot(stage, 'dice7c-start-stage-8-1280');
+  // Нічия Олі з Вірою й Петра з Ґанною, потім перекидання без нічиєї.
+  rigged.push(6, 5, 4, 3, 2, 1, 6, 5);
+  await click(host, 'Кинути за тих, хто лишився');
+  await stage.locator('.dice-status').getByText('Нічия! Перекидають: Оля, Петро, Віра, Ґанна', exact).waitFor();
+  rigged.push(6, 5, 4, 3);
+  await click(host, 'Кинути за тих, хто лишився');
+  await stage.locator('.dice-status').getByText('Порядок визначено', exact).waitFor();
+  await stage.getByRole('heading', { name: 'Розклад ходів', ...exact }).waitFor();
+  expect(await diceRowsY(stage), 'stage dice rows moved').toEqual(startY);
+  await expectIntroFits(stage, '7c 8 players 1280×720');
+  await shot(stage, 'dice7c-schedule-stage-8-1280');
+  await stage.setViewportSize({ width: 1600, height: 900 });
+  await expectIntroFits(stage, '7c 8 players 1600×900');
+  await shot(stage, 'dice7c-schedule-stage-8-1600');
 
   expect(problems).toEqual([]);
 }

@@ -54,6 +54,8 @@ const idsOf = (state: GameState) => state.players.map((p) => p.id);
 export function startDice(state: GameState): Result {
   if (!inBoardIntro(state) || state.board === null || dicePending(state.board)) return fail('wrong_phase');
   const ids = idsOf(state);
+  // Одному гравцеві кидати ні з ким: порядок як за приходом, без кубиків (інакше лишився б порожній кубик).
+  if (ids.length < 2) return ok({ ...state, board: { ...state.board, circle: ids, done: 0, circleNo: 1, dice: null } });
   const dice: DiceState = { throws: {}, tour: [...ids], waiting: [...ids], tourNo: 1 };
   return ok({ ...state, board: settle({ ...state.board, dice }, ids) });
 }

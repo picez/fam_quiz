@@ -600,6 +600,51 @@ describe('PlayerScreen: blitz', () => {
       }
     });
 
+    it('a late answer from a timed-out roll does not free a newer roll in flight', async () => {
+      vi.useFakeTimers();
+      try {
+        const resolvers: Array<(value: { ok: true }) => void> = [];
+        const send = vi.fn(() => new Promise<{ ok: true }>((r) => resolvers.push(r))) as unknown as Send;
+        render(<PlayerScreen view={intro(diceOf([], true))} hostOnline offsetMs={0} send={send} />);
+        fireEvent.click(rollButton()!);
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(rollButton()!.disabled).toBe(false);
+        fireEvent.click(rollButton()!);
+        expect(send).toHaveBeenCalledTimes(2);
+        expect(rollButton()!.disabled).toBe(true);
+        // Відповідь першого кидка приходить запізно: другий кидок ще летить, кнопка лишається вимкненою.
+        await act(async () => resolvers[0]!({ ok: true }));
+        expect(rollButton()!.disabled).toBe(true);
+        await act(async () => resolvers[1]!({ ok: true }));
+        expect(rollButton()!.disabled).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('no state update after the roll button unmounts', async () => {
+      vi.useFakeTimers();
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        let resolve: (value: { ok: false; error: string }) => void = () => {};
+        const send = vi.fn(() => new Promise<{ ok: false; error: string }>((r) => (resolve = r))) as unknown as Send;
+        const { unmount } = render(<PlayerScreen view={intro(diceOf([], true))} hostOnline offsetMs={0} send={send} />);
+        fireEvent.click(rollButton()!);
+        unmount();
+        expect(vi.getTimerCount()).toBe(0);
+        await act(async () => resolve({ ok: false, error: 'not-allowed' }));
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
     it('the roll button is disabled on pause and hidden for those not in the tie-break', () => {
       show(intro(diceOf([], true), { paused: true }));
       expect(rollButton()!.disabled).toBe(true);

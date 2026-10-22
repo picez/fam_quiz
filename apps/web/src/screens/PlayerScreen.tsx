@@ -60,23 +60,38 @@ function Result({ view }: { view: PlayerView }) {
 function DiceAction({ dice, meId, paused, send, onError }: { dice: DiceInfo; meId: string; paused: boolean; send: Send; onError: (message: string | null) => void }) {
   const [rolling, setRolling] = useState(false);
   const rollingRef = useRef(false);
+  // Номер поточного кидка: пізня відповідь старого кидка не звільняє кнопку для нового.
+  const tokenRef = useRef(0);
+  const fallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (fallbackRef.current !== null) clearTimeout(fallbackRef.current);
+      fallbackRef.current = null;
+    };
+  }, []);
   const mine = dice.rows.find((row) => row.playerId === meId);
   const roll = () => {
     if (rollingRef.current) return;
     rollingRef.current = true;
     setRolling(true);
+    const token = ++tokenRef.current;
     const release = () => {
+      if (tokenRef.current !== token || !rollingRef.current) return;
       rollingRef.current = false;
-      setRolling(false);
+      if (fallbackRef.current !== null) clearTimeout(fallbackRef.current);
+      fallbackRef.current = null;
+      if (mountedRef.current) setRolling(false);
     };
     // Відповідь може не прийти (send без тайм-ауту): кнопка не лишається вимкненою назавжди.
-    const fallback = setTimeout(release, 3000);
+    fallbackRef.current = setTimeout(release, 3000);
     void send('player:roll', undefined)
-      .then((result) => onError(result.ok ? null : errorText(result.error)))
-      .finally(() => {
-        clearTimeout(fallback);
-        release();
-      });
+      .then((result) => {
+        if (mountedRef.current) onError(result.ok ? null : errorText(result.error));
+      })
+      .finally(release);
   };
   return (
     <div className="dice-action">

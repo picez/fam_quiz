@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BoardInfo, DiceInfo, DiceRow } from '@quiz/shared';
 import { t } from '../i18n';
 import { TurnSchedule } from './TurnSchedule';
@@ -7,6 +7,8 @@ import { TurnSchedule } from './TurnSchedule';
 export const ROLL_MS = 1200;
 const FACE_MS = 120;
 const FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+/** Більше стількох рядків — дві колонки на сцені. */
+const MANY_ROWS = 4;
 
 function reducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -76,7 +78,11 @@ export function DicePanel({ dice, spinning, meId }: { dice: DiceInfo; spinning: 
       <p className="dice-status" role="status">
         {status}
       </p>
-      <ul className="dice-rows">
+      {/* Багато гравців: на сцені рядки стають у дві колонки (по --dice-half у кожній), щоб заставка вміщалася на екрані. */}
+      <ul
+        className={dice.rows.length > MANY_ROWS ? 'dice-rows is-many' : 'dice-rows'}
+        style={{ '--dice-half': Math.ceil(dice.rows.length / 2) } as CSSProperties}
+      >
         {dice.rows.map((r) => {
           const last = r.throws.length > 0 ? r.throws[r.throws.length - 1]! : null;
           const rolling = spinning.has(r.playerId);

@@ -509,7 +509,7 @@ describe('HostScreen: blitz', () => {
 
     it('the host shows the turn queue under the legend', () => {
       const order = three.map((p) => ({ playerId: p.id, nickname: p.nickname }));
-      show(onBoard({}, boardOf({ schedule: [{ number: 1, order, done: 0 }] })));
+      show(onBoard({}, boardOf({ turn: { playerId: 'p1', nickname: 'Олена' }, schedule: [{ number: 1, order, done: 0 }] })));
       const legend = screen.getByRole('list', { name: 'Види клітинок' });
       const queue = screen.getByText('Черга ходів');
       expect(legend.compareDocumentPosition(queue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

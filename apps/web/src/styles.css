@@ -932,6 +932,7 @@ button.choice {
 
 /* Заставка поля росте вниз (кидки, потім розклад): притиснута догори, вона не їде вгору, як вміст по центру сцени. */
 .stage-board.is-board-intro {
+  width: min(100%, 90rem);
   margin-bottom: auto;
 }
 
@@ -2199,7 +2200,7 @@ a.banner {
 
 .stage-board.board-with-legend {
   width: min(100%, 90rem);
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, max(18rem, 22vw));
   gap: 2rem;
   align-items: start;
 }
@@ -2334,15 +2335,67 @@ a.banner {
   line-height: 1;
 }
 
+/*
+ * Заставка поля на сцені вміщається на 720p: висота рядків і кубика росте з висотою екрана.
+ * Рядок обмежений за шириною (15em), тож кубик і результат стоять поруч з ім'ям, а не на іншому краю сцени.
+ */
+/* Один рядок, тож рядки кидків не зсуваються; довгий список імен заходить у колонку розкладу (її ще немає, поки кидають). */
+.stage .dice-status {
+  width: max-content;
+  max-width: min(90vw, 90rem);
+  font-size: clamp(1rem, 1.7vw, 1.75rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .stage .dice-rows li {
-  height: 4.25rem;
-  font-size: 1.75rem;
+  max-width: 15em;
+  height: clamp(2.75rem, 7.5vh, 4.25rem);
+}
+
+/* Багато гравців: дві колонки, згори вниз у кожній. */
+.stage .dice-rows.is-many {
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--dice-half), auto);
+  grid-template-columns: repeat(2, minmax(0, 15em));
+  column-gap: 2em;
 }
 
 .stage .die {
-  width: 4rem;
-  height: 4rem;
-  font-size: 3.5rem;
+  width: clamp(2.5rem, 6.5vh, 4rem);
+  height: clamp(2.5rem, 6.5vh, 4rem);
+  font-size: clamp(2.2rem, 5.7vh, 3.5rem);
+}
+
+/* Шрифт рядків кидків; ширина колонки кидків у тих самих em, що й рядки. */
+.stage-dice {
+  display: grid;
+  gap: 3vh 4vw;
+  align-items: start;
+  min-width: 0;
+  font-size: clamp(1.25rem, 3.2vh, 1.75rem);
+}
+
+/* Широкий екран: розклад поруч із кидками; колонки задані наперед, тож поява розкладу не зсуває рядки. */
+@media (min-width: 1100px) {
+  .stage-dice {
+    grid-template-columns: minmax(0, 15em) minmax(0, 1fr);
+  }
+
+  .stage-dice:has(.dice-rows.is-many) {
+    grid-template-columns: minmax(0, 32em) minmax(0, 1fr);
+  }
+
+  .stage-dice > .dice-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .stage-dice > .turn-schedule {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 
 .die.is-empty {
@@ -2379,6 +2432,16 @@ a.banner {
 
 .turn-schedule h2 {
   margin: 0 0 0.5rem;
+}
+
+/* Розклад і черга на сцені читаються здалеку, як решта тексту сцени. */
+.stage .turn-schedule h2 {
+  font-size: clamp(1.25rem, 2vw, 2.25rem);
+}
+
+.stage .turn-circles {
+  gap: 0.4em;
+  font-size: clamp(1.125rem, 1.6vw, 1.875rem);
 }
 
 .turn-circles {

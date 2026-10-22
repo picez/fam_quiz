@@ -84,7 +84,8 @@ describe('board dice', () => {
   });
 
   it('a single player needs no roll', () => {
-    expect(must(startDice(intro('Анна'))).board).toMatchObject({ circle: ['p1'], dice: { tour: [], throws: {} } });
+    // Як за приходом: без кубиків, тож на екранах немає порожнього кубика.
+    expect(must(startDice(intro('Анна'))).board).toMatchObject({ circle: ['p1'], done: 0, circleNo: 1, dice: null });
   });
 
   it('kicking a tied player ends the tie-break', () => {

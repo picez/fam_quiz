@@ -228,7 +228,12 @@ function Intro({ view }: { view: StageView }) {
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} />
-      {view.board !== null && <BoardIntro board={view.board} />}
+      {/* Обгортка сцени: на широкому екрані розклад стає поруч із кидками, а не під ними. */}
+      {view.board !== null && (
+        <div className="stage-dice">
+          <BoardIntro board={view.board} />
+        </div>
+      )}
     </div>
   );
 }
