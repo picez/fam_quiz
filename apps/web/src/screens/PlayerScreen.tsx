@@ -3,6 +3,7 @@ import type { Answer, DiceInfo, PlayerBlitz, PlayerView, Spotlight } from '@quiz
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
+import { AdjustmentToast } from '../live/LiveNotices';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
@@ -257,6 +258,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 
   return (
     <main className="app player">
+      <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <header className="bar">
         <span>{me.nickname}</span>
         <strong className="score">{num(me.score)}</strong>

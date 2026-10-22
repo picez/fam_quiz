@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
+import { AdjustmentToast, StageDebuffs } from '../live/LiveNotices';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { BoardIntro } from './Dice';
@@ -258,6 +259,8 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   return (
     <main className="app stage">
+      <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
+      <StageDebuffs debuffs={view.debuffs} />
       {view.paused && (
         <p className="banner" role="status">
           {t(hostOnline ? 'paused' : 'waitingHost')}

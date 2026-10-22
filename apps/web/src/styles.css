@@ -7,6 +7,9 @@
   --amber: #ffb300;
   --correct: #3ddcc0;
   --signal: #ff3d5a;
+  --notice-bg: rgb(14 16 32 / 0.92);
+  --notice-up: var(--correct);
+  --notice-down: var(--signal);
   --voice: #9b8cff;
   --cell-blitz: rgb(255 179 0 / 0.2);
   --cell-voice: rgb(155 140 255 / 0.22);
@@ -3236,4 +3239,65 @@ button.match-item {
 
 .debuff-tag {
   color: var(--amber);
+}
+
+/* Сповіщення про бали й значки дебафів: position: fixed, тож ніщо на екрані не зсувається. */
+.live-notice {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: calc(100vw - 2rem);
+  padding: 0.6rem 1.1rem;
+  border: 2px solid var(--notice-up);
+  border-radius: 0.75rem;
+  background: var(--notice-bg);
+  color: var(--paper);
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+
+.live-notice.is-down {
+  border-color: var(--notice-down);
+}
+
+.stage .live-notice {
+  font-size: 1.75rem;
+}
+
+.stage-debuffs {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.stage-debuffs li {
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: var(--notice-bg);
+  color: var(--paper);
+  font-size: 1.4rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .live-notice {
+    animation: notice-in 0.25s ease-out both;
+  }
+
+  @keyframes notice-in {
+    from {
+      opacity: 0;
+    }
+  }
 }

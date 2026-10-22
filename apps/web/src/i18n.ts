@@ -105,6 +105,8 @@ const uk = {
   points: 'Бали',
   adjustCustom: 'Своя сума',
   adjustApply: 'Нарахувати',
+  adjustNotice: 'Ведучий: {points} — {name}',
+  stageDebuffsLabel: 'Наслано дебаф',
   adjustInvalid: 'Введіть ціле число, наприклад −150 або 75.',
   debuff: 'Дебаф',
   debuffHint: 'Спрацює в наступному запитанні, де гравець відповідає.',

@@ -717,4 +717,17 @@ describe('StageScreen final', () => {
     expect(screen.queryByText('/ 60 с')).toBeNull();
     expect(container.querySelector('.timer-bar')).not.toBeNull();
   });
+
+  it('the stage shows the adjustment notice and the debuff badges in every phase', () => {
+    const live = { notice: { seq: 1, at: Date.now(), nickname: 'Оля', points: -100 }, debuffs: [{ playerId: 'p1', nickname: 'Оля' }] };
+    for (const phase of ['question', 'leaderboard'] as const) {
+      show(view({ ...live, phase, questionIndex: 0, question, standings: [] }));
+      expect(document.querySelector('.live-notice')).not.toBeNull();
+      expect(document.querySelector('.stage-debuffs')).not.toBeNull();
+      cleanup();
+    }
+    show(view());
+    expect(document.querySelector('.live-notice')).toBeNull();
+    expect(document.querySelector('.stage-debuffs')).toBeNull();
+  });
 });

@@ -59,10 +59,10 @@ export function activeDebuff(state: GameState, playerId: string): DebuffState | 
   return state.phase === 'question' && debuff.firedAt === state.questionIndex ? debuff : null;
 }
 
-/** Дебаф, що чекає або діє (для значка сцени й пульта); застарілий — null. */
+/** Дебаф, що чекає або діє (для значка сцени й пульта); застарілий або після кінця гри — null. */
 export function shownDebuff(state: GameState, playerId: string): DebuffState | null {
   const debuff = Object.hasOwn(state.debuffs, playerId) ? state.debuffs[playerId] : undefined;
-  if (debuff === undefined) return null;
+  if (debuff === undefined || state.phase === 'finished') return null;
   return debuff.firedAt === null ? debuff : activeDebuff(state, playerId);
 }
 

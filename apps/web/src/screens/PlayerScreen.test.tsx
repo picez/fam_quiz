@@ -1006,4 +1006,9 @@ describe('PlayerScreen round facts', () => {
     expect(screen.getByText('Клітинка 5 з 24 · лишилося 19')).toBeTruthy();
     expect(screen.getByText('/ 20 с')).toBeTruthy();
   });
+
+  it('every phone shows the adjustment notice', () => {
+    show(view({ notice: { seq: 3, at: Date.now(), nickname: 'Тарас', points: -100 } }));
+    expect(screen.getByText('Ведучий: −100 — Тарас')).toBeTruthy();
+  });
 });

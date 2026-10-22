@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
 import { activeDebuff, cancelDebuff, setDebuff, shownDebuff } from './debuffs';
 import { placeWager } from './final';
-import { endRound, lock, next, removePlayer, setConnected, start, type GameState } from './game';
+import { end, endRound, lock, next, removePlayer, setConnected, start, type GameState } from './game';
 import {
   blitzRound,
   boardRound,
@@ -17,6 +17,7 @@ import {
   withPoints,
 } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
+import { stageView } from './views';
 
 const T0 = 1_000_000;
 const rng = () => 0;
@@ -128,5 +129,13 @@ describe('host debuffs', () => {
     expect(ended.phase).toBe('round_end');
     expect(shownDebuff(ended, 'p1')).toBeNull();
     expect(must(setDebuff(ended, 'p1', 'mud')).debuffs.p1).toEqual({ kind: 'mud', firedAt: null, since: null });
+  });
+
+  it('a waiting debuff does not survive the end of the game on the stage', () => {
+    const waiting = must(setDebuff(must(start(lobby3())), 'p1', 'fog'));
+    const finished = must(end(waiting));
+    expect(finished.phase).toBe('finished');
+    expect(shownDebuff(finished, 'p1')).toBeNull();
+    expect(stageView(finished).debuffs).toEqual([]);
   });
 });
