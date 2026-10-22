@@ -1201,6 +1201,173 @@ async function videoGame() {
   expect(problems).toEqual([]);
 }
 
+it('a final round: secret wagers, a video question without a timer, a one-by-one reveal and the history', async () => {
+  try {
+    await finalGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Увесь видимий текст сторінки. */
+const bodyText = (page: Page) => page.locator('body').innerText();
+
+/** Телефон на своїй ширині: без прокручування вбік. */
+async function expectNoSideScroll(page: Page, name: string) {
+  const fits = (await page.evaluate('document.documentElement.scrollWidth <= innerWidth')) as boolean;
+  expect(fits, `${name}: horizontal scroll`).toBe(true);
+  await shot(page, name);
+}
+
+async function finalGame() {
+  const host = await open('host9', 1280, 900);
+
+  await host.goto(base);
+  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await click(host, 'Створити акаунт');
+  await field(host, 'Ваше ім’я').fill('Надія Ведуча');
+  await field(host, 'Email').fill('host9@example.com');
+  await field(host, 'Пароль').fill('correct horse battery');
+  await click(host, 'Зареєструватися');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Вікторина з фіналом');
+
+  // Класичний раунд: без бонусу за швидкість, одне запитання за 1000.
+  await openRoundSettings(host);
+  await field(host, 'Бали за швидкість: швидша правильна відповідь дає більше').setChecked(false);
+  await questionText(host).fill('Столиця України?');
+  await field(host, 'Варіант 1').fill('Львів');
+  await field(host, 'Варіант 2').fill('Київ');
+  await field(host, 'Правильний: варіант 2').click();
+
+  // Фінал: тема, одне запитання з відео, без полів «Бали» й «Час, с».
+  await click(host, '+ Раунд');
+  await click(host, 'Фінал');
+  await openRoundSettings(host);
+  await field(host, 'Тема фіналу').fill('Космос');
+  await questionText(host).fill('Яка планета найбільша?');
+  await field(host, 'Варіант 1').fill('Сатурн');
+  await field(host, 'Варіант 2').fill('Юпітер');
+  await field(host, 'Правильний: варіант 2').click();
+  await field(host, 'Відео з YouTube').fill('https://youtu.be/dQw4w9WgXcQ');
+  expect(await host.getByLabel('Бали', exact).count()).toBe(0);
+  expect(await host.getByLabel('Час, с', exact).count()).toBe(0);
+
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Вікторина з фіналом' }).waitFor();
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage9', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const alla = await open('alla9', 390, 844);
+  const bohdan = await open('bohdan9', 360, 740);
+  const vira = await open('vira9', 360, 740);
+  await join(alla, code, 'Алла', false);
+  await join(bohdan, code, 'Богдан', false);
+  await join(vira, code, 'Віра', false);
+  await stage.getByText('Віра').waitFor();
+
+  // Класичний раунд: Алла й Богдан по 1000, Віра неправильно.
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+  await alla.getByRole('button', { name: /Київ/ }).click();
+  await bohdan.getByRole('button', { name: /Київ/ }).click();
+  await vira.getByRole('button', { name: /Львів/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+
+  // Фінал: сцена показує тему.
+  await stage.getByRole('heading', { name: 'Космос' }).waitFor();
+  await click(host, 'Почати фінал');
+
+  // Ставки: у Віри рахунок 0, їй доступна лише «Поставити 0».
+  await bohdan.getByText('Ваша ставка від 0 до 1000').waitFor();
+  await vira.getByRole('button', { name: 'Поставити 0', ...exact }).waitFor();
+  await expectNoSideScroll(bohdan, 'final-wager-phone-360');
+  await shot(bohdan, 'final-wager-phone');
+  await expectNoSideScroll(vira, 'final-wager-phone-zero-360');
+  await alla.getByLabel('Ставка', exact).fill('1000');
+  await click(alla, 'Поставити');
+  await alla.getByText('Ваша ставка: 1000').waitFor();
+  await bohdan.getByLabel('Ставка', exact).fill('300');
+  await click(bohdan, 'Поставити');
+  await bohdan.getByText('Ваша ставка: 300').waitFor();
+  await host.getByText('Поставили 2 з 3').waitFor();
+  await stage.getByText('Ставки зроблено: 2 з 3').waitFor();
+  // Ставки таємні: ні сцена, ні чужі телефони їх не показують.
+  expect(await bodyText(stage)).not.toContain('Ставка');
+  expect(await bodyText(vira)).not.toMatch(/1000|300/);
+  expect(await bodyText(bohdan)).not.toContain('Ставка: 1000');
+  await shot(stage, 'final-wager-stage');
+  await shot(host, 'final-wager-host');
+
+  await click(vira, 'Поставити 0');
+  // Поставили всі: запитання відкривається само, кнопки ведучій не треба.
+  const embed = 'iframe[src*="youtube-nocookie.com/embed/dQw4w9WgXcQ"]';
+  for (const page of [stage, host, alla, bohdan, vira]) await page.locator(embed).waitFor();
+  for (const page of [stage, host, alla, bohdan, vira]) expect(await page.getByRole('timer').count()).toBe(0);
+  expect(await host.getByRole('button', { name: '−15 с', ...exact }).count()).toBe(0);
+  expect(await host.getByRole('button', { name: '+15 с', ...exact }).count()).toBe(0);
+
+  // Алла помиляється, Богдан і Віра відповідають правильно; запитання закривається саме.
+  await alla.getByRole('button', { name: /Сатурн/ }).click();
+  await bohdan.getByRole('button', { name: /Юпітер/ }).click();
+  // Під час запитання чужих ставок і нових рахунків ніде немає.
+  expect(await bodyText(vira)).not.toMatch(/1000|300/);
+  expect(await bodyText(stage)).not.toMatch(/Ставка|→|1300/);
+  await vira.getByRole('button', { name: /Юпітер/ }).click();
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+
+  // Розкриття по одному: Віра, Алла, Богдан.
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Наступний гравець', ...exact }).waitFor();
+  for (const page of [stage, alla, bohdan, vira]) expect(await bodyText(page)).not.toMatch(/Ставка 1000|Ставка 300|1300/);
+  await shot(host, 'final-reveal-host');
+  const row = (name: string) => stage.locator('.wager-list li', { hasText: name });
+  await click(host, 'Наступний гравець');
+  await row('Віра').waitFor();
+  expect((await row('Віра').textContent())!.replace(/\s/g, '')).toContain('0→0');
+  expect(await row('Алла').count()).toBe(0);
+  await bohdan.getByText('Чекаємо на розкриття').waitFor();
+  await alla.getByText('Чекаємо на розкриття').waitFor();
+  for (const page of [stage, alla, bohdan]) expect(await bodyText(page)).not.toMatch(/Ставка 1000|Ставка 300|1300/);
+  await click(host, 'Наступний гравець');
+  await row('Алла').waitFor();
+  expect((await row('Алла').textContent())!.replace(/\s/g, '')).toContain('1000→0');
+  expect(await row('Богдан').count()).toBe(0);
+  await bohdan.getByText('Чекаємо на розкриття').waitFor();
+  for (const page of [stage, bohdan]) expect(await bodyText(page)).not.toMatch(/Ставка 300|1300/);
+  await shot(stage, 'final-reveal-stage');
+  await click(host, 'Наступний гравець');
+  await row('Богдан').waitFor();
+  expect((await row('Богдан').textContent())!.replace(/\s/g, '')).toContain('1000→1300');
+  await bohdan.getByText('+300').waitFor();
+
+  // Подіум: Богдан першим з 1300, решта по 0.
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const podium = (await stage.locator('.standings li').allTextContents()).map((text) => text.replace(/\s/g, ''));
+  expect(podium[0]).toContain('Богдан');
+  expect(podium[0]).toContain('1300');
+  expect(podium[1]).toMatch(/(Алла|Віра)\D*0$/);
+  expect(podium[2]).toMatch(/(Алла|Віра)\D*0$/);
+
+  // Історія: ставки фіналу.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Вікторина з фіналом/ }).click();
+  await host.getByText('Ставки фіналу').waitFor();
+  const lines = (await host.locator('.wager-list li').allTextContents()).map((text) => text.replace(/\s/g, ''));
+  expect(lines).toEqual(expect.arrayContaining(['Алла:ставка1000,−1000', 'Богдан:ставка300,+300', 'Віра:ставка0,0']));
+
+  expect(problems).toEqual([]);
+}
+
 it('the menu stays off the game screens; a player’s profile counts the game, changes nickname and avatar, and gets a friend', async () => {
   try {
     await menuProfileFriends();

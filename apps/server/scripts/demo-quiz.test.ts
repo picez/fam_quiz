@@ -21,4 +21,11 @@ describe('the seeded demo quiz', () => {
     expect(questionsOf(partyQuiz()).filter((q) => q.video !== null).length).toBeGreaterThanOrEqual(1);
     expect(quizSchema.safeParse(partyQuiz()).success).toBe(true);
   });
+
+  it('ends with a final round', () => {
+    const last = demoQuiz.rounds[demoQuiz.rounds.length - 1];
+    expect(last.type).toBe('final');
+    expect(last.title).toBe('Фінал: Космос');
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+  });
 });
