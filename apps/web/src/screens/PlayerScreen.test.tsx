@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
+import { BLINK_MS } from './verdict-blink';
 
 afterEach(cleanup);
 
@@ -14,7 +15,7 @@ const publicQuestion = {
   video: null,
   timeLimit: 20,
   points: 1000,
-  right: [], chain: null,
+  right: [], chain: null, orderLabels: null,
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },
@@ -52,6 +53,8 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   remainingMs: null,
   playerCount: 2,
   answeredCount: 0,
+  limitMs: null,
+  held: false,
   me,
   reveal: null,
   standings: null,
@@ -74,6 +77,7 @@ describe('PlayerScreen', () => {
     expect(document.querySelector('iframe')?.getAttribute('src')).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
     expect(screen.queryByRole('timer')).toBeNull();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+    expect(document.querySelector('.video-mask')).not.toBeNull();
   });
 
   it('shows the nickname, the score and a waiting message in the lobby', () => {
@@ -207,7 +211,7 @@ describe('PlayerScreen: question image', () => {
 });
 
 describe('PlayerScreen: rounds', () => {
-  const round: RoundInfo = { index: 1, total: 3, title: 'Фінальний', type: 'classic', partial: false, description: '', brief: emptyBrief('classic') };
+  const round: RoundInfo = { index: 1, total: 3, title: 'Фінальний', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
 
   it('announces the round on the intro', () => {
     show(view({ phase: 'intro', round }));
@@ -216,13 +220,13 @@ describe('PlayerScreen: rounds', () => {
   });
 
   it('the intro explains the round on the phone', () => {
-    show(view({ phase: 'intro', round: { ...round, type: 'blitz', description: 'Кіно 90-х', brief: emptyBrief('blitz') } }));
+    show(view({ phase: 'intro', round: { ...round, type: 'blitz', description: 'Кіно 90-х', brief: emptyBrief('blitz'), times: null } }));
     expect(screen.getByText('Кіно 90-х')).toBeTruthy();
     expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
   });
 
   it('the intro of a one-round quiz has no round counter', () => {
-    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null } }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 1');
     expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
     expect(screen.queryByText('Раунд 1 з 1')).toBeNull();
@@ -257,14 +261,14 @@ describe('PlayerScreen: rounds', () => {
 });
 
 describe('PlayerScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
   const blitzMe = (blitz: Partial<NonNullable<PlayerView['me']['blitz']>>, over: Partial<PlayerView['me']> = {}) => ({
     ...me,
     ...over,
     blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, ...blitz },
   });
   const inBlitz = (meState: PlayerView['me']) =>
-    onQuestion({ round, question: { ...publicQuestion, type: 'text', choices: [] }, blitz: { queue: [], winner: null }, me: meState });
+    onQuestion({ round, question: { ...publicQuestion, type: 'text' as const, choices: [] }, blitz: { queue: [], winner: null }, me: meState });
 
   it('shows the buzz button and sends player:buzz', async () => {
     const send = show(inBlitz(blitzMe({ canBuzz: true })));
@@ -335,15 +339,15 @@ describe('PlayerScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const boardOf = (turn: string, over: Partial<NonNullable<PlayerView['board']>> = {}): NonNullable<PlayerView['board']> => ({
       categories: [
         {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: null, kind: null },
-            { id: 'c2', price: 200, played: true, mark: null, kind: null },
+            { id: 'c1', price: 100, played: false, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+            { id: 'c2', price: 200, played: true, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
           ],
         },
       ],
@@ -358,6 +362,13 @@ describe('PlayerScreen: blitz', () => {
       ...over,
     });
     const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+
+    it('the phone shows the legend under the board', () => {
+      show(view({ phase: 'board', round, board: boardOf('p2') }));
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const scroll = document.querySelector('.gb-scroll') as HTMLElement;
+      expect(scroll.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
 
     it('lets the chooser pick a cell and others wait', async () => {
       const send = show(view({ phase: 'board', round, board: boardOf('p1') }));
@@ -413,7 +424,7 @@ describe('PlayerScreen: blitz', () => {
 
 
 describe('PlayerScreen: blitz cell', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
   const anna = { playerId: 'p2', nickname: 'Анна' };
   const blitzBoard = (over: Partial<NonNullable<NonNullable<PlayerView['board']>['cell']>> = {}): NonNullable<PlayerView['board']> => ({
     categories: [],
@@ -486,7 +497,7 @@ describe('PlayerScreen: blitz cell', () => {
 });
 
 describe('PlayerScreen: spotlight', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
   const boardOf = (turn: { playerId: string; nickname: string }): NonNullable<PlayerView['board']> => ({
     categories: [],
     order: [turn],
@@ -524,6 +535,100 @@ describe('PlayerScreen: spotlight', () => {
     expect(screen.getByText('Київ').closest('.choice')?.className).toContain('is-correct');
   });
 
+  it('the voice chooser sees the options and answers aloud', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const board = { ...boardOf(mine), cell: { ...boardOf(mine).cell!, answerMode: 'voice' as const } };
+    show(onQuestion({ round, board }));
+    expect(screen.getByText('Львів').closest('.choice')).not.toBeNull();
+    expect(screen.getByText('Київ').closest('.choice')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+    expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+  });
+
+  it('the voice chooser on a text cell is told to answer aloud once', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const board = { ...boardOf(mine), cell: { ...boardOf(mine).cell!, answerMode: 'voice' as const } };
+    show(onQuestion({ round, board, question: { ...publicQuestion, type: 'text' as const, choices: [] } }));
+    expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+    expect(screen.queryByText('Гравець відповідає вголос')).toBeNull();
+    expect(document.querySelector('.spotlight-answer.is-waiting')).toBeNull();
+  });
+
+  it('a queued blitz player on a voice cell sees the options', () => {
+    const board = { ...boardOf(anna), cell: { ...boardOf(anna).cell!, kind: 'blitz' as const, answerMode: 'voice' as const } };
+    const queued = { position: 2, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null };
+    show(onQuestion({ round, board, me: { ...me, blitz: queued } }));
+    expect(screen.getByText('Київ').closest('.choice')).not.toBeNull();
+    expect(screen.getByText('Ви 2-й у черзі')).toBeTruthy();
+  });
+
+  it('the phone of another player blinks the verdict when the question turns to reveal', () => {
+    const answer = { type: 'single' as const, optionId: 'b' };
+    const at = (over: Partial<PlayerView>) => (
+      <PlayerScreen view={view({ questionIndex: 0, question: publicQuestion, round, board: boardOf(anna), ...over })} hostOnline offsetMs={0} send={vi.fn()} />
+    );
+    const { rerender } = render(at({ phase: 'question', endsAt: Date.now() + 20_000, spotlight: { ...anna, answer, grade: null } }));
+    expect(document.querySelector('.is-blinking')).toBeNull();
+    rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'correct' } }));
+    expect(document.querySelector('.choice.is-blinking')).not.toBeNull();
+  });
+
+  it('a locked phone keeps the options with the orange answer', () => {
+    const spotlight = { ...anna, answer: { type: 'single' as const, optionId: 'a' }, grade: null };
+    show(view({ phase: 'locked', questionIndex: 0, question: publicQuestion, round, board: boardOf(anna), spotlight }));
+    expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-pending');
+    expect(screen.getByText('Чекаємо на правильну відповідь')).toBeTruthy();
+  });
+
+  it('question → locked → reveal blinks once, on reveal', () => {
+    vi.useFakeTimers();
+    try {
+      const answer = { type: 'single' as const, optionId: 'a' };
+      const at = (over: Partial<PlayerView>) => (
+        <PlayerScreen view={view({ questionIndex: 0, question: publicQuestion, round, board: boardOf(anna), ...over })} hostOnline offsetMs={0} send={vi.fn()} />
+      );
+      const { rerender } = render(at({ phase: 'question', endsAt: Date.now() + 20_000, spotlight: { ...anna, answer, grade: null } }));
+      rerender(at({ phase: 'locked', spotlight: { ...anna, answer, grade: null } }));
+      expect(document.querySelector('.choice.is-pending')).not.toBeNull();
+      expect(document.querySelector('.is-blinking')).toBeNull();
+      rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'wrong' } }));
+      expect(document.querySelector('.choice.is-wrong.is-blinking')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(BLINK_MS));
+      expect(document.querySelector('.is-blinking')).toBeNull();
+      rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'wrong' } }));
+      expect(document.querySelector('.is-blinking')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a voice chooser sees the verdict once, in the result', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const board = { ...boardOf(mine), cell: { ...boardOf(mine).cell!, answerMode: 'voice' as const } };
+    const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 100 };
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round, board, spotlight: { ...mine, answer: null, grade: 'correct' }, me: { ...me, result } }));
+    expect(screen.getByText('Правильно!')).toBeTruthy();
+    expect(screen.queryByText('Правильно')).toBeNull();
+  });
+
+  it('the first render with a verdict does not blink', () => {
+    const spotlight = { ...anna, answer: { type: 'single' as const, optionId: 'b' }, grade: 'correct' as const };
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round, board: boardOf(anna), spotlight }));
+    expect(document.querySelector('.choice.is-correct')).not.toBeNull();
+    expect(document.querySelector('.is-blinking')).toBeNull();
+  });
+
+  it('the chooser sees the choices with the verdict above the result', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const spotlight = { ...mine, answer: { type: 'single' as const, optionId: 'b' }, grade: 'correct' as const };
+    const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 100 };
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round, board: boardOf(mine), spotlight, me: { ...me, result } }));
+    const choice = screen.getByText('Київ').closest('.choice');
+    expect(choice?.className).toContain('is-correct');
+    const verdict = screen.getByText('Правильно!');
+    expect(choice!.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows a sent match answer with the right column names', () => {
     const matchQ = {
       ...publicQuestion,
@@ -537,7 +642,7 @@ describe('PlayerScreen: spotlight', () => {
 });
 
 describe('PlayerScreen final', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const info = { theme: 'Космос', placed: 0, total: 2, shown: [], left: 0 };
   const onWager = (limit: number, wager: number | null = null) =>
     view({ phase: 'wager', round, final: info, me: { ...me, score: limit, final: { wager, limit } } });
@@ -635,5 +740,20 @@ describe('PlayerScreen final', () => {
     cleanup();
     show(view({ phase: 'locked', questionIndex: 0, question: chainQuestion, me: { ...me, chain: { ...done, solved: 0, masks: [['Р', null, null, null]], timeMs: null } } }));
     expect(screen.getByRole('heading', { name: 'Не встигли пройти ланцюжок' })).toBeTruthy();
+  });
+});
+
+describe('PlayerScreen round facts', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: { min: 20, max: 20 } };
+
+  it('the phone intro shows the round facts', () => {
+    show(view({ phase: 'intro', total: 24, round }));
+    expect(screen.getByText('24 клітинки · 20 с на кожну')).toBeTruthy();
+  });
+
+  it('a board question shows the cell count and what is left', () => {
+    show(view({ phase: 'question', round, questionIndex: 4, total: 24, question: publicQuestion, endsAt: null, remainingMs: 20_000, limitMs: 20_000 }));
+    expect(screen.getByText('Клітинка 5 з 24 · лишилося 19')).toBeTruthy();
+    expect(screen.getByText('/ 20 с')).toBeTruthy();
   });
 });

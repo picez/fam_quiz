@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { Answer, Choice, PublicQuestion } from '@quiz/shared';
 import { LETTERS } from '../format';
 import { t } from '../i18n';
+import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchInput } from './MatchView';
 
 interface Props {
@@ -18,7 +19,7 @@ function parseNumber(raw: string): number | null {
 
 function ChoiceButtons({ choices, picked, onPick }: { choices: Choice[]; picked: string[]; onPick: (id: string) => void }) {
   return (
-    <div className="choices">
+    <div className={choicesClass(choices)}>
       {choices.map((choice, index) => (
         <button
           type="button"
@@ -27,8 +28,7 @@ function ChoiceButtons({ choices, picked, onPick }: { choices: Choice[]; picked:
           aria-pressed={picked.includes(choice.id)}
           onClick={() => onPick(choice.id)}
         >
-          <span className="letter">{LETTERS[index]}</span>
-          <span>{choice.text}</span>
+          <ChoiceFace choice={choice} letter={LETTERS[index]} />
         </button>
       ))}
     </div>
@@ -100,6 +100,7 @@ function OrderInput({ question, onSubmit }: Props) {
 
   return (
     <>
+      {question.orderLabels !== null && question.orderLabels.top !== '' && <p className="order-label is-top">↑ {question.orderLabels.top}</p>}
       <ol className="order">
         {items.map((item, index) => (
           <li key={item.id}>
@@ -126,6 +127,7 @@ function OrderInput({ question, onSubmit }: Props) {
           </li>
         ))}
       </ol>
+      {question.orderLabels !== null && question.orderLabels.bottom !== '' && <p className="order-label is-bottom">↓ {question.orderLabels.bottom}</p>}
       <button
         type="button"
         className="btn btn-primary"

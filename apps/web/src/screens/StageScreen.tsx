@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import type { BoardInfo, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
-import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
+import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
+import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
-import { RoundBriefing } from './RoundBriefing';
+import { RoundBriefing, RoundFacts } from './RoundBriefing';
+import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
-import { Timer } from '../live/Timer';
-import { BlitzCellNotes, Board } from './Board';
+import { Timer, timerStatus } from '../live/Timer';
+import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
+import { useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
 
@@ -57,14 +59,14 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
 }
 
 /** Розкриті гравці фіналу: найновіший зверху й виділений, щоб він завжди був на екрані. */
-function FinalReveal({ final, question }: { final: FinalInfo; question: FullQuestion | null }) {
+function FinalReveal({ final, question, presented }: { final: FinalInfo; question: FullQuestion | null; presented?: Choice[] }) {
   return (
     <>
       <ol className="rows wager-list">
         {[...final.shown].reverse().map((entry, index) => (
           <li key={entry.playerId} className={index === 0 ? 'wager-latest' : undefined}>
             <span className="name">{entry.nickname}</span>
-            <span className="given">{answerText(entry.answer, question)}</span>
+            <span className="given">{answerText(entry.answer, question, presented)}</span>
             <span className="tag">{t('finalWagerTag', { wager: entry.wager })}</span>
             <span className={entry.after === entry.before ? 'wager-delta' : entry.after > entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
               {`${entry.before} → ${entry.after}`}
@@ -77,7 +79,7 @@ function FinalReveal({ final, question }: { final: FinalInfo; question: FullQues
   );
 }
 
-function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
+function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & { blink: boolean }) {
   const { question, reveal, stats } = view;
   if (question === null) return null;
   const correctIds =
@@ -90,8 +92,8 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           : [];
   const showChoices = question.type === 'single' || question.type === 'multi';
   const voice = view.board?.cell?.answerMode === 'voice';
-  // Поле з телефонами й бліц показують відповідь одного гравця кольором.
-  const spotlit = view.blitz !== null || (view.board !== null && !voice);
+  // Поле й бліц показують відповідь одного гравця кольором; на усній клітинці — позначку ведучого.
+  const spotlit = view.blitz !== null || view.board !== null;
   // Червона відповідь бліцу вже минула: відповідає голова черги, а не її автор.
   const pendingSpot = view.spotlight?.grade === null ? view.spotlight : null;
   // На бліц-клітинці вибравший лише обирає: відповідає голова черги.
@@ -99,7 +101,9 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   const answering = pendingSpot ?? (blitzCell ? null : view.board?.turn) ?? view.blitz?.queue[0] ?? null;
   // Розкриття фіналу йде по одному гравцю: відео, картинка й варіанти зникають, щоб список був на екрані.
   const finalReveal = view.final !== null && view.phase === 'reveal';
-  const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'order' ? t('orderOnPhone') : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const orderLabels = question.orderLabels === null ? '' : orderLabelsText(question.orderLabels);
+  const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
+  const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question">
@@ -127,11 +131,11 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
       {view.board === null && answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
       <div className="stage-main">
         <h1 className={questionClass(question.text)}>{question.text}</h1>
-        {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
+        {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
       </div>
-      {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} />}
+      {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} presented={view.question?.choices} />}
       {!finalReveal && <QuestionImage url={question.imageUrl} />}
-      {!finalReveal && <YouTubePlayer video={question.video} />}
+      {!finalReveal && <YouTubePlayer video={question.video} masked={reveal === null} />}
       {finalReveal && question.type !== 'match' ? null : question.chain !== null ? (
         reveal !== null && reveal.type === 'chain' ? (
           <ChainWords first={reveal.words[0]} masks={reveal.words.slice(1).map(fullMask)} tone="is-correct" />
@@ -139,7 +143,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
           <ChainWords first={question.chain.first} masks={question.chain.masks} />
         )
       ) : spotlit ? (
-        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} />
+        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} />
       ) : question.type === 'match' ? (
         reveal === null ? (
           <MatchColumns left={question.choices} right={question.right} />
@@ -151,11 +155,10 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         )
       ) : (
         showChoices && (
-          <ul className="choices">
+          <ul className={choicesClass(question.choices)}>
             {question.choices.map((choice, index) => (
               <li key={choice.id} className={correctIds.includes(choice.id) ? 'choice is-correct' : 'choice'}>
-                <span className="letter">{LETTERS[index]}</span>
-                <span>{choice.text}</span>
+                <ChoiceFace choice={choice} letter={LETTERS[index]} />
                 {stats !== null && <span className="count">{stats.counts[choice.id] ?? 0}</span>}
               </li>
             ))}
@@ -214,7 +217,7 @@ function Order({ board }: { board: BoardInfo }) {
     );
   }
   return (
-    <ol className="order">
+    <ol className="turn-order">
       {board.order.map((entry) => (
         <li key={entry.playerId} className={entry.playerId === board.turn?.playerId ? 'is-turn' : undefined}>
           {entry.nickname}
@@ -245,6 +248,7 @@ function Intro({ view }: { view: StageView }) {
     <div className="stage-board">
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
+      <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} />
       {view.board !== null && (
         <>
@@ -258,16 +262,21 @@ function Intro({ view }: { view: StageView }) {
 
 function BoardStage({ board }: { board: BoardInfo }) {
   return (
-    <div className="stage-board">
+    <div className="stage-board board-with-legend">
       <Board board={board} />
-      <Order board={board} />
-      {board.turn !== null && <p className="lead">{t('boardChooser', { name: board.turn.nickname })}</p>}
+      <aside className="board-aside">
+        <BoardLegend board={board} />
+        <Order board={board} />
+      </aside>
+      {board.turn !== null && <p className="lead board-turn">{t('boardChooser', { name: board.turn.nickname })}</p>}
     </div>
   );
 }
 
 export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props) {
   const { phase, standings } = view;
+  // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
+  const blink = useVerdictBlink(view.spotlight);
   return (
     <main className="app stage">
       {view.paused && (
@@ -276,7 +285,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
         </p>
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} />}
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}

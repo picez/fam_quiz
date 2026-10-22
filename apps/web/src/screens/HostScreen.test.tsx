@@ -16,7 +16,7 @@ const options = [
 ];
 const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
 const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
-const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null });
+const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, orderLabels: null });
 
 const players = [
   { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0 },
@@ -40,6 +40,8 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   remainingMs: null,
   playerCount: 2,
   answeredCount: 0,
+  limitMs: null,
+  held: false,
   players,
   correct: null,
   responses: [],
@@ -157,6 +159,25 @@ describe('HostScreen', () => {
     expect(row?.textContent).toContain('900');
   });
 
+  it('names a picture answer by the letter players saw after a shuffle, like the correct answer', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const pictured: Question = { ...single, options: [{ id: 'a', text: 'Львів' }, { id: 'b', text: '', imageUrl: pic }], correctId: 'b' } as Question;
+    // Показано у зворотному порядку: картинка під літерою A, хоча в автора вона B.
+    const shown = [{ id: 'b', text: '', imageUrl: pic }, { id: 'a', text: 'Львів' }];
+    show(
+      during('reveal', pictured, {
+        question: { ...publicOf(pictured), choices: shown },
+        responses: [
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false },
+        ],
+      }),
+    );
+    expect(screen.getByText('Правильна відповідь: A. картинка')).toBeTruthy();
+    const given = screen.getByText('Картинка A');
+    expect(given.className).toBe('given');
+    expect(given.closest('li')?.textContent).toContain('Олена');
+  });
+
   it('lets the host accept or reject text answers on reveal', () => {
     const responses = [
       { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false },
@@ -234,7 +255,7 @@ describe('HostScreen: question image', () => {
 });
 
 describe('HostScreen: rounds', () => {
-  const round = (over: Partial<RoundInfo> = {}): RoundInfo => ({ index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), ...over });
+  const round = (over: Partial<RoundInfo> = {}): RoundInfo => ({ index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null, ...over });
 
   it('shows the round intro with a «start round» main action', () => {
     const send = show(view({ phase: 'intro', round: round() }));
@@ -245,13 +266,13 @@ describe('HostScreen: rounds', () => {
   });
 
   it('the host sees the round summary to read it aloud', () => {
-    show(view({ phase: 'intro', round: round({ description: 'Кіно 90-х', brief: { ...emptyBrief('classic'), speedBonus: true } }) }));
+    show(view({ phase: 'intro', round: round({ description: 'Кіно 90-х', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null }) }));
     expect(screen.getByText('Кіно 90-х')).toBeTruthy();
     expect(screen.getByText('Якщо є таймер, швидша правильна відповідь дає більше балів.')).toBeTruthy();
   });
 
   it('the intro of a one-round quiz has no round counter', () => {
-    show(view({ phase: 'intro', round: round({ total: 1, title: '', brief: { ...emptyBrief('classic'), speedBonus: true } }) }));
+    show(view({ phase: 'intro', round: round({ total: 1, title: '', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null }) }));
     expect(screen.queryByText(/Раунд 1 з 1/)).toBeNull();
     expect(button('Почати раунд')).toBeTruthy();
     expect(screen.getByText('Якщо є таймер, швидша правильна відповідь дає більше балів.')).toBeTruthy();
@@ -324,7 +345,7 @@ describe('HostScreen: rounds', () => {
 });
 
 describe('HostScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
   const blitz = (over: Partial<NonNullable<HostView['blitz']>> = {}): NonNullable<HostView['blitz']> => ({
     voice: false,
     manual: true,
@@ -375,7 +396,7 @@ describe('HostScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board') };
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board'), times: null };
     const three = [
       { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0 },
       { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 0 },
@@ -387,8 +408,8 @@ describe('HostScreen: blitz', () => {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: 'x2', kind: null },
-            { id: 'c2', price: 200, played: true, mark: null, kind: null },
+            { id: 'c1', price: 100, played: false, mark: 'x2', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+            { id: 'c2', price: 200, played: true, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
           ],
         },
       ],
@@ -418,6 +439,13 @@ describe('HostScreen: blitz', () => {
       await waitFor(() => expect((button('За порядком приєднання') as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(button('За порядком приєднання'));
       expect(send).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p2', 'p3'] });
+    });
+
+    it('the host shows the legend under the board', () => {
+      show(onBoard());
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const scroll = document.querySelector('.gb-scroll') as HTMLElement;
+      expect(scroll.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('picks a cell for the chooser and skips a turn', async () => {
@@ -470,6 +498,48 @@ describe('HostScreen: blitz', () => {
       fireEvent.click(button('Зарахувати'));
       expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' });
       expect(button('Частково')).toBeTruthy();
+    });
+
+    it('the host sees the options when one player answers', () => {
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
+      show(during('reveal', single, { round: boardRound, players: three, spotlight, board: boardOf({ cell }) }));
+      const choices = document.querySelector('.choices');
+      expect(choices).not.toBeNull();
+      expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-wrong');
+      expect(screen.getByText('Київ').closest('.choice')?.className).toContain('is-correct');
+      expect(screen.queryByText('Торкніться варіанта, який назвав гравець')).toBeNull();
+      expect(choices?.querySelector('button')).toBeNull();
+    });
+
+    it('the host taps the option a voice player named', () => {
+      const voiceCell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const };
+      const send = show(during('question', single, { round: boardRound, players: three, endsAt: Date.now() + 20_000, board: boardOf({ manual: true, cell: voiceCell }) }));
+      expect(screen.getByText('Торкніться варіанта, який назвав гравець')).toBeTruthy();
+      fireEvent.click(button(/Київ/));
+      expect(send).toHaveBeenCalledWith('host:name', { answer: { type: 'single', optionId: 'b' } });
+      cleanup();
+      // Позначка ведучого помаранчева, але це не відповідь з телефона: панелі «Прийняти»/«Перевибрати» немає.
+      const named = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'b' }, grade: null };
+      show(during('question', single, { round: boardRound, players: three, endsAt: Date.now() + 20_000, spotlight: named, board: boardOf({ manual: true, cell: voiceCell }) }));
+      expect(button(/Київ/).className).toContain('is-pending');
+      expect(screen.queryByRole('heading', { name: 'Відповідь чекає на рішення' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Прийняти' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Перевибрати' })).toBeNull();
+      cleanup();
+      // На усній бліц-клітинці позначки немає.
+      show(
+        during('question', single, {
+          round: boardRound,
+          players: three,
+          endsAt: Date.now() + 20_000,
+          board: boardOf({ manual: true, cell: { ...voiceCell, kind: 'blitz' } }),
+          blitz: { voice: true, manual: true, queue: [], winner: null, attempts: [] },
+        }),
+      );
+      expect(document.querySelector('.choices')).not.toBeNull();
+      expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+      expect(screen.queryByText('Торкніться варіанта, який назвав гравець')).toBeNull();
     });
 
     it('shows a phone answer awaiting a grade and hides grading without one', () => {
@@ -579,7 +649,7 @@ describe('HostScreen: blitz', () => {
     });
 
   describe('blitz cell', () => {
-    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const bob = { playerId: 'p2', nickname: 'Богдан' };
     const blitzCell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'none' as const };
     const cellBoard = (over: Partial<NonNullable<HostView['board']>> = {}): NonNullable<HostView['board']> => ({
@@ -587,7 +657,7 @@ describe('HostScreen: blitz', () => {
         {
           id: 'k1',
           title: 'Міста',
-          cells: [{ id: 'c1', price: 100, played: false, mark: 'x2', kind: 'blitz' }],
+          cells: [{ id: 'c1', price: 100, played: false, mark: 'x2', kind: 'blitz', answerMode: 'phone', penalty: 'none' }],
         },
       ],
       order: [{ playerId: 'p1', nickname: 'Олена' }, bob],
@@ -652,7 +722,7 @@ describe('HostScreen: blitz', () => {
   });
 
     it('judges a pending blitz head by hand', () => {
-      const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
+      const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
       const head = { playerId: 'p1', nickname: 'Олена', answer: pendingSpot.answer, deadline: null };
       const send = show(
         during('question', single, {
@@ -671,7 +741,7 @@ describe('HostScreen: blitz', () => {
 });
 
 describe('HostScreen final', () => {
-  const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
+  const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const three = [
     { id: 'p1', nickname: 'Анна', connected: true, score: 1000, streak: 0 },
     { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0 },
@@ -852,5 +922,45 @@ describe('HostScreen final', () => {
     // Бали ланцюжка рахуються при закритті: панель «Відповіді» з нулями не показується.
     expect(document.querySelector('.chain-board .is-out')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+  });
+});
+
+describe('HostScreen timer and round facts', () => {
+  it('the host sees the timer with the full time and its state', () => {
+    show(during('question', single, { endsAt: Date.now() + 20_000, limitMs: 30_000 }));
+    expect(screen.getByRole('timer')).toBeTruthy();
+    expect(screen.getByText('/ 30 с')).toBeTruthy();
+    cleanup();
+    show(during('question', single, { endsAt: null, remainingMs: 20_000, limitMs: 30_000, paused: true }));
+    expect(screen.getAllByText('Пауза').length).toBeGreaterThan(0);
+  });
+
+  it('the host timer says the answer waits for the host', () => {
+    show(during('question', single, { endsAt: null, remainingMs: 20_000, limitMs: 30_000, held: true }));
+    const timer = screen.getByRole('timer');
+    expect(timer.querySelector('.timer-status')?.textContent).toBe('Чекає рішення ведучого');
+    expect(timer.querySelector('.timer-total')).toBeNull();
+  });
+
+  it('the video title is masked during the question and open at the reveal', () => {
+    const untimed = { ...publicOf(single), video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('.video-mask')).not.toBeNull();
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('iframe')).not.toBeNull();
+    expect(document.querySelector('.video-mask')).toBeNull();
+  });
+
+  it('no timer for a video question on the host', () => {
+    const untimed = { ...publicOf(single), video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));
+    expect(screen.queryByRole('timer')).toBeNull();
+  });
+
+  it('the host intro shows the round facts', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: 'Місто', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: { min: 30, max: 60 } };
+    show(view({ phase: 'intro', round, total: 10 }));
+    expect(screen.getByText('10 запитань · 30–60 с на кожне')).toBeTruthy();
   });
 });

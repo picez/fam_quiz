@@ -246,6 +246,14 @@ describe('permissions and bad input', () => {
     expect((await until(olena, inPhase('locked'))).phase).toBe('locked');
   });
 
+  it('host:name is host-only and validated', async () => {
+    const { host, olena } = await lobby();
+    expect(await send(olena, 'host:name', { answer: null })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:name', { answer: 5 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:name')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:name', { answer: null })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
   it('board events are accepted only from their roles and with valid payloads', async () => {
     const { host, stage, olena } = await lobby();
     expect(await send(host, 'player:pick', { cellId: 'c11' })).toEqual({ ok: false, error: 'forbidden' });

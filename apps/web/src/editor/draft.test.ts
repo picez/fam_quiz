@@ -202,6 +202,23 @@ describe('spare empty rows', () => {
     expect(question.type === 'single' && question.options.map((option) => option.text)).toEqual(['Львів', 'Київ']);
   });
 
+  it('cleaned keeps a picture-only option and drops an empty spare', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const quiz = single(['Львів', '', '', ''], 0);
+    const [first] = questionsOf(quiz);
+    if (first.type !== 'single') throw new Error('single');
+    first.options[1] = { ...first.options[1], imageUrl: pic };
+    first.options[2] = { ...first.options[2], text: '  ', imageUrl: pic };
+    expect(problemsOf(quiz)).toEqual([]);
+    const [question] = questionsOf(cleaned(quiz));
+    expect(question.type === 'single' && question.options).toEqual([
+      { id: 'o0', text: 'Львів' },
+      { id: 'o1', text: '', imageUrl: pic },
+      { id: 'o2', text: '', imageUrl: pic },
+    ]);
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+  });
+
   it('still asks to fill the options when too few are left', () => {
     expect(problemsOf(single(['Львів', ''], 0))).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
   });

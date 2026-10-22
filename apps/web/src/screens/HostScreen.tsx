@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/shared';
+import type { Answer, ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { ChainBoard } from './ChainView';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
-import { RoundBriefing } from './RoundBriefing';
+import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
-import { BlitzCellNotes, Board } from './Board';
+import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
+import { SpotlightChoices } from './SpotlightChoices';
+import { useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
+import { Timer, timerStatus } from '../live/Timer';
 import { Standings } from './Standings';
 
 interface Props {
@@ -87,8 +90,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
     view.question !== null &&
     chooserId !== null &&
     ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
+  const voiceCell = blitz === null && board?.cell?.answerMode === 'voice';
   // Відповідь з телефона, що чекає на рішення ведучого (помаранчева).
-  const pending = phase === 'question' && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
+  // На усній клітинці помаранчева лише позначка ведучого: приймати чи перевибирати там нічого.
+  const pending = phase === 'question' && !voiceCell && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
   const manualPending = pending !== null && ((board !== null && board.manual) || (blitz !== null && blitz.manual));
   // На бліц-клітинці відповідає голова черги, а не вибравший.
   const answering = blitz !== null ? (blitz.queue[0] ?? null) : (board?.turn ?? null);
@@ -101,6 +106,16 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
     const result = await send(event, payload);
     setError(result.ok ? null : errorText(result.error));
   };
+
+  const blink = useVerdictBlink(view.spotlight);
+  // Позначка варіанта, названого вголос: звичайна усна клітинка, single/multi/boolean, поки відповідь не розкрита.
+  const questionType = view.question?.type;
+  const canName =
+    (phase === 'question' || phase === 'locked') &&
+    board?.cell?.answerMode === 'voice' &&
+    board.cell.kind === 'normal' &&
+    (questionType === 'single' || questionType === 'multi' || questionType === 'boolean');
+  const name = (answer: Answer | null) => void act('host:name', { answer });
 
   // Кроки гри йдуть по одному: подвійний дотик не має перескочити етап.
   const [stepping, setStepping] = useState(false);
@@ -209,6 +224,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         <section className="panel">
           {round.total > 1 && <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>}
           <h1 className="question">{roundLabel(round.title, round.index, round.type)}</h1>
+          <RoundFacts round={round} total={view.total} />
           <RoundBriefing brief={round.brief} description={round.description} />
         </section>
       )}
@@ -263,6 +279,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           {board.turn !== null && <p className="lead">{t('boardChooser', { name: board.turn.nickname })}</p>}
           <SkipNote board={board} view={view} offsetMs={offsetMs} />
           <Board board={board} onPick={(cellId) => void act('host:pick', { cellId })} />
+          <BoardLegend board={board} />
           <div className="panel-actions">
             <button type="button" className="btn" onClick={() => void act('host:skip')}>
               {t('skipTurn')}
@@ -285,13 +302,27 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
           <QuestionImage url={view.question.imageUrl} />
-          <YouTubePlayer video={view.question.video} />
+          <YouTubePlayer video={view.question.video} masked={phase !== 'reveal'} />
+          {(blitz !== null || board !== null) && (
+            <>
+              {canName && <p className="meta">{t('nameHint')}</p>}
+              <SpotlightChoices
+                question={view.question}
+                spotlight={view.spotlight}
+                reveal={phase === 'reveal' ? correct : null}
+                blink={blink}
+                voice={board?.cell?.answerMode === 'voice'}
+                onName={canName ? name : undefined}
+              />
+            </>
+          )}
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
         </section>
       )}
 
       {timeShown && (
-        <div className="panel-actions">
+        <div className="panel-actions host-time">
+          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />
           <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
             {t('timeMinus')}
           </button>
@@ -307,7 +338,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           <ul className="rows">
             <li>
               <span className="name">{pending.nickname}</span>
-              <span className="given">{answerText(pending.answer, correct)}</span>
+              <span className="given">{answerText(pending.answer, correct, view.question?.choices)}</span>
               <span className="tag is-pending">{t('pendingTitle')}</span>
             </li>
           </ul>
@@ -369,7 +400,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
             {final.pending.map((entry) => (
               <li key={entry.playerId}>
                 <span className="name">{entry.nickname}</span>
-                <span className="given">{answerText(entry.answer, correct)}</span>
+                <span className="given">{answerText(entry.answer, correct, view.question?.choices)}</span>
                 <span className="row-actions">
                   <button type="button" className="btn btn-small" onClick={() => grade(entry.playerId, 'correct')}>
                     {t('finalGradeCorrect')}
@@ -394,7 +425,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               return (
                 <li key={entry.playerId} className={entry.grade === 'correct' ? 'is-correct' : 'is-wrong'}>
                   <span className="name">{entry.nickname}</span>
-                  <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct)}</span>
+                  <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct, view.question?.choices)}</span>
                   <span className="tag">{num(entry.wager)}</span>
                   <span className="score">{`${num(entry.before)} → ${num(entry.after)}`}</span>
                   {revealed && (
@@ -439,7 +470,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                           </button>
                         </span>
                       ) : (
-                        <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct)}</span>
+                        <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct, view.question?.choices)}</span>
                       )}
                     </li>
                   ))}
@@ -454,7 +485,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 {blitz.attempts.map((attempt, index) => (
                   <li key={`${attempt.playerId}-${index}`}>
                     <span className="name">{attempt.nickname}</span>
-                    <span className="given">{attempt.answer === null ? t('blitzMissed') : answerText(attempt.answer, correct)}</span>
+                    <span className="given">{attempt.answer === null ? t('blitzMissed') : answerText(attempt.answer, correct, view.question?.choices)}</span>
                     <span className={attempt.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                       {t(attempt.grade === 'correct' ? 'accepted' : 'rejected')}
                     </span>
@@ -480,7 +511,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   return (
                     <>
                       <span className="given">
-                        {given !== null ? answerText(given, correct) : board.cell?.answerMode === 'voice' ? t('answeredAloud') : '—'}
+                        {given !== null ? answerText(given, correct, view.question?.choices) : board.cell?.answerMode === 'voice' ? t('answeredAloud') : '—'}
                       </span>
                       {response !== undefined && (
                         <>
@@ -542,7 +573,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               {view.responses.map((response) => (
                 <li key={response.playerId}>
                   <span className="name">{response.nickname}</span>
-                  <span className="given">{answerText(response.answer, correct)}</span>
+                  <span className="given">{answerText(response.answer, correct, view.question?.choices)}</span>
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
                   {!isFinal && (
                     <>

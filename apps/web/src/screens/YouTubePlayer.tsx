@@ -5,13 +5,15 @@ import { t } from '../i18n';
 export const YOUTUBE_ORIGIN = 'https://www.youtube-nocookie.com';
 const LISTEN_INTERVAL_MS = 250;
 
-/** Адреса вбудовування: start, rel=0, playsinline=1, enablejsapi=1, origin; ніколи autoplay. */
+/** Адреса вбудовування: start, rel=0, playsinline=1, enablejsapi=1, iv_load_policy=3, fs=0, origin; ніколи autoplay. */
 export function youtubeEmbedUrl(video: Video, origin: string): string {
   const query = new URLSearchParams({
     start: String(video.start),
     rel: '0',
     playsinline: '1',
     enablejsapi: '1',
+    iv_load_policy: '3',
+    fs: '0',
     origin,
   });
   return `${YOUTUBE_ORIGIN}/embed/${video.id}?${query.toString()}`;
@@ -20,8 +22,13 @@ export function youtubeEmbedUrl(video: Video, origin: string): string {
 /**
  * Плеєр відео до запитання; null без відео. Недоступне відео (onError від плеєра
  * або немає мережі) замінюється написом, гра йде далі.
+ * `masked` закриває верхню смугу плеєра з назвою ролика до розкриття; рамка не
+ * перемонтовується, тож після розкриття відео грає далі. Повноекранного режиму
+ * немає (fs=0, без allowFullScreen): у ньому маска лишилася б поза плеєром.
+ * Чого маска не закриває: кінцевий екран і «Більше відео» на паузі показують
+ * інші ролики; логотип YouTube у смузі керування відкриває сторінку ролика.
  */
-export function YouTubePlayer({ video }: { video: Video | null }) {
+export function YouTubePlayer({ video, masked = false }: { video: Video | null; masked?: boolean }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const id = video?.id ?? null;
   const [failedId, setFailedId] = useState<string | null>(null);
@@ -78,12 +85,12 @@ export function YouTubePlayer({ video }: { video: Video | null }) {
         key={`${video.id}-${video.start}`}
         src={youtubeEmbedUrl(video, window.location.origin)}
         title={t('videoTitle')}
-        allow="encrypted-media; picture-in-picture; fullscreen"
-        allowFullScreen
+        allow="encrypted-media; picture-in-picture"
         referrerPolicy="strict-origin-when-cross-origin"
         loading="lazy"
         onLoad={startPolling}
       />
+      {masked && <div className="video-mask">{t('videoTitleHidden')}</div>}
     </div>
   );
 }

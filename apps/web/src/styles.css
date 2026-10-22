@@ -7,6 +7,10 @@
   --amber: #ffb300;
   --correct: #3ddcc0;
   --signal: #ff3d5a;
+  --voice: #9b8cff;
+  --cell-blitz: rgb(255 179 0 / 0.2);
+  --cell-voice: rgb(155 140 255 / 0.22);
+  --video-mask: #000;
   --pending: #ff7a1a;
   --panel: rgb(255 255 255 / 0.05);
   --line: rgb(245 241 230 / 0.16);
@@ -159,6 +163,7 @@ a {
 
 /* Плеєр відео: пропорція наперед, щоб варіанти відповіді не стрибали. */
 .question-video {
+  position: relative;
   width: 100%;
   max-width: 36rem;
   aspect-ratio: 16 / 9;
@@ -173,6 +178,20 @@ a {
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+.video-mask {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: max(3.5rem, 18%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  background: var(--video-mask);
+  color: var(--dim);
+  font-size: 0.875rem;
+  pointer-events: auto;
 }
 
 .stage .question-video {
@@ -372,6 +391,49 @@ button.choice {
   cursor: pointer;
 }
 
+/* Варіанти-картинки: сітка у два стовпці, картинка над текстом, літера в лівому верхньому куті. */
+.choices.has-images {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choices.has-images .choice {
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.choices.has-images .choice .letter {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 1;
+  min-width: 1.75rem;
+  padding: 0 0.375rem;
+  border-radius: 0.375rem;
+  background: var(--stage);
+  text-align: center;
+}
+
+.choice-image {
+  display: block;
+  width: 100%;
+  max-height: 7rem;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+
+.choices.has-images .choice-text {
+  padding-inline: 0.25rem;
+}
+
+/* Текст одразу після літери (картинки немає або вона не завантажилася) стоїть нижче за літеру; відступ у em росте з шрифтом сцени. */
+.choices.has-images .letter + .choice-text {
+  padding-top: calc(0.75rem + 1.5em);
+}
+
 .letter {
   flex: none;
   min-width: 1.5rem;
@@ -444,6 +506,14 @@ button.choice {
   color: var(--stage);
 }
 
+.spotlight-answer.is-waiting {
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.75rem;
+  color: var(--dim);
+  font-weight: 400;
+}
+
 .choice .count {
   margin-left: auto;
   font-family: var(--display);
@@ -453,6 +523,9 @@ button.choice {
 .order {
   display: grid;
   gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .order li {
@@ -606,9 +679,97 @@ button.choice {
 
 /* ---------- Табло відліку ---------- */
 
+/* Пластини й напис в одному рядку, смужка під ними. Стовпець напису вузький (стан стає в кілька рядків), але не
+   переносить напис у новий рядок: текст переноситься всередині. */
 .timer {
+  display: grid;
+  grid-template-columns: auto minmax(min-content, 5.5rem);
+  align-items: center;
+  justify-content: start;
+  gap: 0.25rem 0.5rem;
+}
+
+.timer:not(:has(.timer-label)) {
+  grid-template-columns: auto;
+}
+
+.timer-flaps {
   display: flex;
   gap: 0.25rem;
+}
+
+/* Місце для «/ 30 с» або стану годинника: невидимі ::before (стан) і ::after (повний час) лежать у тій
+   самій клітинці, тож розмір не залежить від стану. */
+.timer-label {
+  display: grid;
+  min-width: 0;
+}
+
+.timer-label::before,
+.timer-label::after,
+.timer-label > span {
+  grid-area: 1 / 1;
+}
+
+.timer-label > span {
+  align-self: center;
+}
+
+.timer-label::before {
+  content: attr(data-held);
+  visibility: hidden;
+}
+
+.timer-label::after {
+  content: attr(data-total);
+  visibility: hidden;
+}
+
+.timer-total,
+.timer-label::after {
+  color: var(--dim);
+  font-family: var(--display);
+}
+
+.timer-bar {
+  grid-column: 1 / -1;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.timer-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--amber);
+  transition: width 0.2s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-bar > span {
+    transition: none;
+  }
+}
+
+.timer-status,
+.timer-label::before {
+  color: var(--pending);
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+
+.round-facts {
+  color: var(--amber);
+  font-family: var(--display);
+}
+
+.stage-board .round-facts {
+  font-size: clamp(1.25rem, 2vw, 2rem);
+}
+
+.host-time {
+  align-items: center;
 }
 
 .flap {
@@ -692,6 +853,18 @@ button.choice {
   padding-inline: 1.5vw;
 }
 
+.stage .choices.has-images {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stage .choices.has-images .choice {
+  padding: 0.75vh 0.5vw;
+}
+
+.stage .choice-image {
+  max-height: 28vh;
+}
+
 .stage-lobby {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -771,6 +944,10 @@ button.choice {
   .stage .choices {
     grid-template-columns: 1fr;
   }
+
+  .stage .choices.has-images {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* Єдиний підкреслений момент: розкриття правильної відповіді. */
@@ -784,6 +961,28 @@ button.choice {
     from {
       opacity: 0;
       transform: scale(0.96);
+    }
+  }
+}
+
+/* Вердикт відповіді одного гравця мигає 3 с; селектор сильніший за .choice.is-correct вище. */
+@media (prefers-reduced-motion: no-preference) {
+  .choice.is-blinking.is-wrong,
+  .is-blinking.is-correct,
+  .is-blinking.is-wrong {
+    animation: verdict-blink 0.5s ease-in-out 6;
+  }
+
+  /* Поп розкриття лишається в списку: інакше він повторився б, коли is-blinking зникне. */
+  .choice.is-blinking.is-correct {
+    animation:
+      reveal 0.5s ease-out both,
+      verdict-blink 0.5s ease-in-out 6;
+  }
+
+  @keyframes verdict-blink {
+    50% {
+      opacity: 0.35;
     }
   }
 }
@@ -1235,7 +1434,7 @@ a.banner {
   font-weight: 600;
 }
 
-.answer-row input {
+.answer-row > input {
   flex: 1 1 0;
   width: 0;
   min-width: 0;
@@ -1246,12 +1445,12 @@ a.banner {
   font: inherit;
 }
 
-.answer-row input::placeholder {
+.answer-row > input::placeholder {
   color: var(--dim);
   font-weight: 400;
 }
 
-.answer-row input:focus-visible {
+.answer-row > input:focus-visible {
   outline: none;
 }
 
@@ -1266,7 +1465,7 @@ a.banner {
 }
 
 .answer-row.is-correct .letter,
-.answer-row.is-correct input::placeholder {
+.answer-row.is-correct > input::placeholder {
   color: var(--stage);
 }
 
@@ -1330,6 +1529,47 @@ a.banner {
   color: var(--dim);
   font-size: 0.875rem;
   font-weight: 400;
+}
+
+.option-image {
+  flex: none;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.option-image-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.option-image .file-pick {
+  min-width: 2.5rem;
+  padding: 0;
+}
+
+.option-thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: cover;
+  border-radius: 0.375rem;
+}
+
+.option-image .error {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* На вузькому екрані рядок з картинкою переносить картинку й кнопки під поле вводу. */
+@media (max-width: 480px) {
+  .answer-row:has(.option-thumb, .option-image .error) {
+    flex-wrap: wrap;
+    padding-block: 0.375rem;
+  }
+
+  .answer-row:has(.option-thumb, .option-image .error) > input {
+    flex-basis: calc(100% - 2.5rem);
+  }
 }
 
 .row-button:disabled {
@@ -1552,41 +1792,64 @@ a.banner {
   gap: 0.875rem;
 }
 
-/* Ігрове поле на пульті, телефоні й сцені: стовпці-категорії однакової ширини, без горизонтальної прокрутки. */
+/* Ігрове поле на пульті, телефоні й сцені. На вузькому екрані стовпець не вужчий за 4,5 rem, тож 6–8 категорій
+   прокручуються всередині .gb-scroll, а сторінка ні. */
+.gb-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
 .gb {
+  --gb-col-min: 4.5rem;
+  --gb-cell-h: 3.25rem;
   display: grid;
   gap: 0.375rem;
   min-width: 0;
   width: 100%;
-  align-items: start;
+  align-items: stretch;
 }
 
+/* Стовпець бере рядки сітки поля: найдовша назва задає висоту рядка назв для всіх, клітинки стоять рівно. */
 .gb-col {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  /* Рядок назв однакової висоти в усіх стовпцях, тож клітинки стоять рівними рядами. */
-  grid-template-rows: 2.75rem;
-  grid-auto-rows: 2.75rem;
+  grid-template-rows: subgrid;
   gap: 0.375rem;
   min-width: 0;
+}
+
+/* Без subgrid колонка рахує рядки сама: --rows задає Board. */
+@supports not (grid-template-rows: subgrid) {
+  .gb-col {
+    grid-template-rows: auto repeat(var(--rows), var(--gb-cell-h));
+  }
 }
 
 .gb-title {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  align-self: end;
   margin: 0;
   padding: 0 0.125rem 0.25rem;
-  overflow: hidden;
   border-bottom: 2px solid var(--amber);
   color: var(--amber);
   font-family: var(--display);
-  font-size: 0.625rem;
-  line-height: 1.1;
+  line-height: 1.15;
   text-align: center;
-  /* Вузький стовпець на телефоні: спершу перенос за складами, розрив слова — лише в крайньому разі. */
-  hyphens: auto;
-  overflow-wrap: anywhere;
+  /* Ширина назви — контейнер для шрифту в span; на самому стовпці це зламало б subgrid. */
+  container-type: inline-size;
+  overflow-wrap: break-word;
+  hyphens: manual;
+}
+
+/* Шрифт меншає, доки найдовше слово (--gb-word задає Board) не влізе в стовпець цілим; на кириличних
+   словниках переносів браузерам покладатися не можна. Розрив посеред слова — лише нижче 0,625 rem. */
+.gb-title > span {
+  min-width: 0;
+  max-width: 100%;
+  font-size: max(0.625rem, min(var(--gb-title-size, 0.875rem), calc(100cqi / (var(--gb-word, 1) * 0.9))));
 }
 
 .gb-cell {
@@ -1601,8 +1864,19 @@ a.banner {
   background: var(--panel);
   color: var(--paper);
   font-family: var(--display);
-  font-size: 0.8125rem;
+  font-size: 1.0625rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Колір клітинки — її вид: бліц, відповідь уголос або звичайна. */
+.gb-cell.is-blitz {
+  background: var(--cell-blitz);
+  border-color: var(--amber);
+}
+
+.gb-cell.is-voice {
+  background: var(--cell-voice);
+  border-color: var(--voice);
 }
 
 .gb-cell.is-played {
@@ -1633,8 +1907,11 @@ a.banner {
   position: absolute;
   top: 0.125rem;
   right: 0.25rem;
+  padding: 0.0625rem 0.25rem;
+  border-radius: 0.25rem;
+  background: var(--stage);
   color: var(--amber);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
 }
@@ -1649,35 +1926,149 @@ a.banner {
   line-height: 1;
 }
 
-.stage .gb-kind {
-  top: 0.375rem;
-  left: 0.5rem;
-  font-size: 1rem;
+.gb-penalty {
+  position: absolute;
+  bottom: 0.125rem;
+  left: 0.25rem;
+  color: var(--signal);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.gb-voice {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.125rem;
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+.host .gb-title {
+  --gb-title-size: 1rem;
+}
+
+.host .gb-cell {
+  font-size: 1.25rem;
 }
 
 .stage .gb {
+  --gb-col-min: 0px;
+  --gb-cell-h: clamp(4.5rem, 9vh, 7rem);
+  /* Приблизна ширина стовпця: поле з легендою не ширше за 90rem, легенда й проміжки — близько 20rem. */
+  --gb-col: calc((min(100vw - 4rem, 90rem) - 20rem) / var(--cols, 4));
   gap: 0.625rem;
 }
 
 .stage .gb-col {
-  grid-template-rows: 3.5rem;
-  grid-auto-rows: 4.5rem;
   gap: 0.625rem;
 }
 
+/* Шрифт назв, цін і позначок залежить від ширини стовпця (--gb-col; --cols задає Board): на 8 категорій
+   короткі назви не рвуться посеред слова, а ціна не налазить на позначки в кутах клітинки. */
 .stage .gb-title {
-  font-size: 1.125rem;
+  --gb-title-size: clamp(0.875rem, calc(var(--gb-col) * 0.15), 2rem);
 }
 
 .stage .gb-cell {
+  --gb-badge: clamp(0.75rem, calc(var(--gb-col) * 0.1), 1.125rem);
   border-radius: 0.625rem;
-  font-size: 1.75rem;
+  font-size: clamp(1.25rem, calc(var(--gb-col) * 0.24), 3rem);
+}
+
+.stage .gb-kind {
+  top: 0.375rem;
+  left: 0.5rem;
+  font-size: var(--gb-badge);
 }
 
 .stage .gb-mark {
   top: 0.375rem;
   right: 0.5rem;
-  font-size: 1rem;
+  font-size: var(--gb-badge);
+}
+
+.stage .gb-penalty,
+.stage .gb-voice {
+  bottom: 0.375rem;
+  font-size: var(--gb-badge);
+}
+
+.stage .gb-penalty {
+  left: 0.5rem;
+}
+
+.stage .gb-voice {
+  right: 0.5rem;
+}
+
+/* Легенда: лише ті види й позначки, що є на полі. */
+.gb-legend {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.375rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9375rem;
+}
+
+.gb-legend li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+}
+
+.gb-swatch {
+  flex: none;
+  margin-top: 0.2em;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+}
+
+.gb-swatch.is-blitz {
+  background: var(--cell-blitz);
+  border-color: var(--amber);
+}
+
+.gb-swatch.is-voice {
+  background: var(--cell-voice);
+  border-color: var(--voice);
+}
+
+.host .gb-legend {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.375rem 1rem;
+}
+
+.stage .gb-legend {
+  margin-top: 0;
+  font-size: clamp(1rem, 1.4vw, 1.5rem);
+}
+
+.stage-board.board-with-legend {
+  width: min(100%, 90rem);
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  gap: 2rem;
+  align-items: start;
+}
+
+.board-with-legend .board-turn {
+  grid-column: 1 / -1;
+}
+
+.board-aside {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+@media (max-width: 700px) {
+  .board-with-legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .cell-mark {
@@ -1708,12 +2099,17 @@ a.banner {
 }
 
 @media (min-width: 600px) {
+  .gb {
+    --gb-col-min: 0px;
+    --gb-cell-h: 3.75rem;
+  }
+
   .gb-title {
-    font-size: 0.8125rem;
+    --gb-title-size: 1rem;
   }
 
   .gb-cell {
-    font-size: 1rem;
+    font-size: 1.25rem;
   }
 }
 
@@ -1725,7 +2121,7 @@ a.banner {
   justify-content: center;
 }
 
-.order {
+.turn-order {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -1736,19 +2132,19 @@ a.banner {
   counter-reset: turn;
 }
 
-.order li {
+.turn-order li {
   counter-increment: turn;
   padding: 0.375rem 0.875rem;
   border: 1px solid var(--line);
   border-radius: 999px;
 }
 
-.order li::before {
+.turn-order li::before {
   content: counter(turn) '. ';
   color: var(--dim);
 }
 
-.order li.is-turn {
+.turn-order li.is-turn {
   border-color: var(--amber);
   color: var(--amber);
 }
@@ -2455,4 +2851,17 @@ button.match-item {
   margin: 1rem 0 0.5rem;
   font-size: 1rem;
   color: var(--dim);
+}
+
+/* Підписи «що зверху» і «що знизу» над і під списком порядку. */
+.order-label {
+  margin: 0.5rem 0;
+  color: var(--amber);
+  font-family: var(--display);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.stage-question .order-label {
+  font-size: 1.5rem;
 }

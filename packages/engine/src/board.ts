@@ -1,6 +1,6 @@
-import { cellAnswerMode, findCell } from '@quiz/shared';
+import { cellAnswerMode, findCell, type Answer } from '@quiz/shared';
 import { advanceTurn, cellMultiplier, cellPlayed, chooserOf, enterBoard } from './board-turns';
-import { fail, ok, openQuestion, shuffle, type GameState, type Result, type Rng } from './game';
+import { fail, ok, openQuestion, shuffle, withCurrentPlay, type GameState, type Result, type Rng } from './game';
 
 /** Порядок гравців можна міняти лише на заставці раунду поля. */
 function inBoardIntro(state: GameState): boolean {
@@ -57,4 +57,27 @@ export function skipTurn(state: GameState, now: number): Result {
   if (state.phase !== 'board' || state.board === null) return fail('wrong_phase');
   if (state.paused) return fail('paused');
   return ok(enterBoard({ ...state, board: advanceTurn(state.board) }, now));
+}
+
+/**
+ * Ведучий позначає варіант, названий уголос: звичайна усна клітинка, single/multi/boolean, етапи question і locked.
+ * null або multi без варіантів знімає позначку. Балів і записів не змінює.
+ */
+export function nameAnswer(state: GameState, answer: Answer | null): Result {
+  const play = state.plays[state.questionIndex];
+  const board = play?.board;
+  if (board === undefined || (state.phase !== 'question' && state.phase !== 'locked')) return fail('wrong_phase');
+  if (board.kind === 'blitz' || board.answerMode !== 'voice') return fail('wrong_phase');
+  const { question } = play;
+  if (answer === null || (answer.type === 'multi' && answer.optionIds.length === 0)) {
+    const { named: _cleared, ...rest } = board;
+    return ok(withCurrentPlay(state, { ...play, board: rest }));
+  }
+  if (answer.type !== question.type) return fail('type_mismatch');
+  if (question.type === 'single' || question.type === 'multi') {
+    const known = new Set(question.options.map((option) => option.id));
+    const picked = answer.type === 'single' ? [answer.optionId] : answer.type === 'multi' ? answer.optionIds : [];
+    if (!picked.every((id) => known.has(id))) return fail('not_found');
+  } else if (question.type !== 'boolean') return fail('type_mismatch');
+  return ok(withCurrentPlay(state, { ...play, board: { ...board, named: answer } }));
 }

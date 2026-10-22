@@ -147,6 +147,8 @@ export interface BoardPlay {
   penalty: CellPenalty;
   /** Відповідь з телефону, що чекає на рішення ведучого («Прийняти», оцінка або «Перевибрати»); інакше null. */
   answer: Answer | null;
+  /** Варіант, який гравець назвав уголос, позначений ведучим (лише звичайна усна клітинка); лише для показу. */
+  named?: Answer;
 }
 
 /** Бліц у межах одного запитання. */
@@ -399,8 +401,8 @@ export function openFinalQuestion(state: GameState, now: number, rng: Rng): Game
   return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers, graded: [] } });
 }
 
-/** Замінює поточне запитання в журналі. */
-function withCurrentPlay(state: GameState, play: Play): GameState {
+/** Замінює поточне запитання в журналі; експортовано для board.ts. */
+export function withCurrentPlay(state: GameState, play: Play): GameState {
   return { ...state, plays: state.plays.map((p, index) => (index === state.questionIndex ? play : p)) };
 }
 

@@ -10,7 +10,7 @@ const choices = [
   { id: 'a', text: 'Львів' },
   { id: 'b', text: 'Київ' },
 ];
-const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [], chain: null };
+const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [], chain: null, orderLabels: null };
 const full: Question = { id: 'q1', type: 'single', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, options: choices, correctId: 'b' };
 
 const view = (over: Partial<StageView> = {}): StageView => ({
@@ -30,6 +30,8 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   remainingMs: null,
   playerCount: 0,
   answeredCount: 0,
+  limitMs: null,
+  held: false,
   players: [],
   reveal: null,
   stats: null,
@@ -49,6 +51,16 @@ describe('StageScreen', () => {
     expect(document.querySelector('img.question-image')).not.toBeNull();
     expect(document.querySelector('iframe')).not.toBeNull();
     expect(screen.queryByRole('timer')).toBeNull();
+  });
+
+  it('the video title is masked during the question and open at the reveal', () => {
+    const withVideo = { ...question, video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: withVideo, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('.video-mask')?.textContent).toBe('Назву відео приховано до відповіді');
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question: withVideo, reveal: full }));
+    expect(document.querySelector('iframe')).not.toBeNull();
+    expect(document.querySelector('.video-mask')).toBeNull();
   });
 
   it('invites players with the address and the code split for reading aloud', () => {
@@ -76,10 +88,21 @@ describe('StageScreen', () => {
   it('shows the question with lettered options and the answer count', () => {
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, playerCount: 12, answeredCount: 7 }));
     expect(screen.getByText('Столиця України?')).toBeTruthy();
-    expect(screen.getByText('Запитання 1 з 3')).toBeTruthy();
+    expect(screen.getByText('Запитання 1 з 3 · лишилося 2')).toBeTruthy();
     expect(screen.getByText('Відповіли 7 з 12')).toBeTruthy();
     expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['AЛьвів', 'BКиїв']);
     expect(screen.getByRole('timer')).toBeTruthy();
+  });
+
+  it('the stage shows picture options as a grid with letters', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const pictured = { ...question, choices: [{ id: 'a', text: '', imageUrl: pic }, { id: 'b', text: 'Київ', imageUrl: pic }, { id: 'c', text: 'Одеса' }] };
+    const { container } = show(view({ phase: 'question', questionIndex: 0, question: pictured, endsAt: Date.now() + 20_000 }));
+    const list = container.querySelector('.choices.has-images') as HTMLElement;
+    expect(list).toBeTruthy();
+    expect(list.querySelectorAll('img')).toHaveLength(2);
+    expect([...list.querySelectorAll('.letter')].map((letter) => letter.textContent)).toEqual(['A', 'B', 'C']);
+    expect(screen.getByAltText('Картинка A')).toBeTruthy();
   });
 
   it('tells players to type on their phones for a text question', () => {
@@ -139,7 +162,7 @@ describe('StageScreen', () => {
 });
 
 describe('StageScreen: rounds', () => {
-  const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic') };
+  const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
 
   it('announces the round on the intro', () => {
     show(view({ phase: 'intro', round }));
@@ -154,13 +177,13 @@ describe('StageScreen: rounds', () => {
   });
 
   it('the intro shows the rules summary without an empty note', () => {
-    show(view({ phase: 'intro', round: { ...round, brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    show(view({ phase: 'intro', round: { ...round, brief: { ...emptyBrief('classic'), speedBonus: true }, times: null } }));
     expect(document.querySelector('.round-brief-note')).toBeNull();
     expect(within(screen.getByRole('list', { name: 'Як нараховуються бали' })).getAllByRole('listitem')).toHaveLength(2);
   });
 
   it('the intro of a one-round quiz shows the rules without a round counter', () => {
-    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null } }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 1');
     expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
     expect(screen.queryByText('Раунд 1 з 1')).toBeNull();
@@ -187,7 +210,7 @@ describe('StageScreen: rounds', () => {
 });
 
 describe('StageScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
   const queue = [
     { playerId: 'p1', nickname: 'Олена' },
     { playerId: 'p2', nickname: 'Тарас' },
@@ -219,18 +242,18 @@ describe('StageScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const boardOf = (over: Partial<NonNullable<StageView['board']>> = {}): NonNullable<StageView['board']> => ({
       categories: [
         {
           id: 'k1',
           title: 'Міста',
           cells: [
-            { id: 'c1', price: 100, played: false, mark: null, kind: null },
-            { id: 'c2', price: 200, played: true, mark: null, kind: null },
+            { id: 'c1', price: 100, played: false, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+            { id: 'c2', price: 200, played: true, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
           ],
         },
-        { id: 'k2', title: 'Ріки', cells: [{ id: 'c3', price: 100, played: false, mark: null, kind: null }] },
+        { id: 'k2', title: 'Ріки', cells: [{ id: 'c3', price: 100, played: false, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' }] },
       ],
       order: [
         { playerId: 'p1', nickname: 'Олена' },
@@ -253,6 +276,19 @@ describe('StageScreen: blitz', () => {
       expect(container.textContent).not.toMatch(/×[23]/);
       expect(screen.getAllByText('Вибирає Анна').length).toBeGreaterThan(0);
       expect(container.querySelector('.is-turn')?.textContent).toContain('Анна');
+    });
+
+    it('the turn order is its own list, not the order-question list', () => {
+      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
+      const turns = container.querySelector('ol.turn-order');
+      expect(turns?.querySelector('li.is-turn')?.textContent).toBe('Анна');
+      expect(container.querySelector('ol.order')).toBeNull();
+    });
+
+    it('the board stage shows the legend beside the board', () => {
+      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      expect(container.querySelector('.board-with-legend')?.contains(legend)).toBe(true);
     });
 
     it('shows the cell and the chooser above the question', () => {
@@ -306,7 +342,7 @@ describe('StageScreen: blitz', () => {
 });
 
 describe('StageScreen: spotlight', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
   const board = {
     categories: [],
     order: [{ playerId: 'p2', nickname: 'Анна' }],
@@ -348,6 +384,7 @@ describe('StageScreen: match', () => {
       { id: 'y', text: 'Полтва' },
     ],
     chain: null,
+    orderLabels: null,
   };
   const matchFull: Question = {
     id: 'q',
@@ -376,8 +413,18 @@ describe('StageScreen: match', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  it('the stage hint names the order labels', () => {
+    const orderQ = { ...question, type: 'order' as const, choices };
+    const at = { phase: 'question' as const, questionIndex: 0, endsAt: Date.now() + 20_000 };
+    const labelled = show(view({ ...at, question: { ...orderQ, orderLabels: { top: 'Захід', bottom: 'Схід' } } }));
+    expect(screen.getByText('Розставте на телефоні: зверху — Захід, знизу — Схід')).toBeTruthy();
+    labelled.unmount();
+    show(view({ ...at, question: { ...orderQ, orderLabels: { top: '', bottom: '' } } }));
+    expect(screen.getByText('Розставте в правильному порядку на телефоні')).toBeTruthy();
+  });
+
   it('a voice board cell shows the match columns without the phone hint', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const board = {
       categories: [],
       order: [{ playerId: 'p2', nickname: 'Анна' }],
@@ -390,8 +437,28 @@ describe('StageScreen: match', () => {
     expect(container.querySelector('.match-columns')).not.toBeNull();
     expect(screen.queryByText('З’єднайте пари на телефоні')).toBeNull();
   });
+
+  it("a voice cell shows the options to the stage and the host's mark in orange", () => {
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
+    const board = {
+      categories: [],
+      order: [{ playerId: 'p2', nickname: 'Анна' }],
+      turn: { playerId: 'p2', nickname: 'Анна' },
+      cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const },
+      rolls: 0,
+      skipAt: null,
+    };
+    const at = { phase: 'question' as const, questionIndex: 0, round, board, endsAt: Date.now() + 20_000 };
+    const marked = show(view({ ...at, question, spotlight: { playerId: 'p2', nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, grade: null } }));
+    expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-pending');
+    expect(screen.getByText('Київ').closest('.choice')?.className).not.toContain('is-');
+    marked.unmount();
+    show(view({ ...at, question: { ...question, type: 'boolean', choices: [] } }));
+    expect(screen.getByText('Так')).toBeTruthy();
+    expect(screen.getByText('Ні')).toBeTruthy();
+  });
   it('the stage shows a blitz cell with the chooser and the queue', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
     const board = {
       categories: [],
       order: [{ playerId: 'p1', nickname: 'Алла' }],
@@ -420,7 +487,7 @@ describe('StageScreen: match', () => {
 });
 
 describe('StageScreen final', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const info = { theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 };
   const entry = (nickname: string, wager: number, before: number, after: number) => ({
     playerId: nickname,
@@ -516,5 +583,20 @@ describe('StageScreen final', () => {
     expect(screen.getByLabelText('Риба')).toBeTruthy();
     expect(document.querySelector('.chain-board .rank')).not.toBeNull();
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
+  it('the intro shows the round facts', () => {
+    show(view({ phase: 'intro', total: 10, round: { index: 0, total: 1, title: 'Місто', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: { min: 30, max: 60 } } }));
+    expect(screen.getByText('10 запитань · 30–60 с на кожне')).toBeTruthy();
+  });
+
+  it('a question shows the full time, and the host wait in its place when held', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: null, remainingMs: 45_000, limitMs: 60_000 }));
+    expect(screen.getByText('/ 60 с')).toBeTruthy();
+    cleanup();
+    const { container } = show(view({ phase: 'question', questionIndex: 0, question, endsAt: null, remainingMs: 45_000, limitMs: 60_000, held: true }));
+    expect(screen.getByText('Чекає рішення ведучого')).toBeTruthy();
+    expect(screen.queryByText('/ 60 с')).toBeNull();
+    expect(container.querySelector('.timer-bar')).not.toBeNull();
   });
 });

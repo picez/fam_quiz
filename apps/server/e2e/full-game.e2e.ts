@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { makeQuiz, single } from '@quiz/engine/testing';
+import { boardRound, classicRound, makeQuiz, makeRoundsQuiz, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
@@ -221,7 +221,7 @@ async function scenario() {
   await field(host, 'Назва вікторини').fill('Наскрізна вікторина');
 
   await questionText(host).fill('Столиця України?');
-  await host.locator('.file-pick input').setInputFiles({ name: 'map.png', mimeType: 'image/png', buffer: PIXEL });
+  await host.getByRole('button', { name: 'Додати зображення', ...exact }).setInputFiles({ name: 'map.png', mimeType: 'image/png', buffer: PIXEL });
   await host.getByAltText('Зображення до запитання').waitFor();
   await field(host, 'Варіант 1').fill('Львів');
   await field(host, 'Варіант 2').fill('Київ');
@@ -1054,12 +1054,10 @@ async function mixedBoard() {
   expect(await score('Алла')).toBe(100);
   await toBoard();
 
-  // Хід 2: Богдан, бліц без штрафу; до вибору сцена й телефони не бачать типу, пульт бачить.
+  // Хід 2: Богдан, бліц без штрафу; вид клітинки ще до вибору бачать усі: пульт, сцена й телефони (план 7a), а сцена має легенду.
   await bohdan.getByText('Ваш хід: виберіть клітинку').waitFor();
-  expect(await host.locator('.gb-kind').count()).toBeGreaterThan(0);
-  expect(await stage.locator('.gb-kind').count()).toBe(0);
-  expect(await alla.locator('.gb-kind').count()).toBe(0);
-  expect(await bohdan.locator('.gb-kind').count()).toBe(0);
+  for (const page of [host, stage, alla, bohdan]) expect(await page.locator('.gb-cell.is-blitz').count()).toBeGreaterThan(0);
+  await stage.getByRole('list', { name: 'Види клітинок' }).waitFor();
   await cell(bohdan, 'Річки', 100).click();
   for (const page of [stage, alla, bohdan, vira]) await page.getByText('Бліц', exact).first().waitFor();
   await bohdan.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
@@ -1944,6 +1942,289 @@ async function invitesAndVersus() {
   expect(versusText).not.toContain(hostId);
   const publicProfile = (await (await host.request.get(`${base}/api/profiles/${olyaId}`)).json()) as Record<string, unknown>;
   expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'nickname', 'stats']);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 7a: a bigger coloured board with a legend, round facts, the host timer, options and verdict blinks for everyone, a masked video, order labels and picture options', async () => {
+  try {
+    await clarityGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function clarityGame() {
+  const host = await open('host7a', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host7a@example.com');
+
+  // Картинки варіантів: завантаження у сховище, як у редакторі.
+  const upload = async () => {
+    const response = await host.request.post(`${base}/api/uploads`, { data: avatarPng(), headers: { 'content-type': 'image/png' } });
+    expect(response.ok()).toBe(true);
+    return ((await response.json()) as { url: string }).url;
+  };
+  const [flagA, flagB] = [await upload(), await upload(), await upload(), await upload()];
+
+  const oceans = {
+    ...order,
+    id: 'q-order',
+    text: 'Розставте океани від найбільшого до найменшого',
+    items: [
+      { id: 'p', text: 'Тихий' },
+      { id: 'a', text: 'Атлантичний' },
+      { id: 'i', text: 'Індійський' },
+      { id: 'n', text: 'Північний Льодовитий' },
+    ],
+    topLabel: 'Найбільший',
+    bottomLabel: 'Найменший',
+    timeLimit: 30,
+  };
+  const flags = {
+    ...single,
+    id: 'q-flag',
+    text: 'Який прапор України?',
+    options: [
+      { id: 'a', text: '', imageUrl: flagA! },
+      { id: 'b', text: 'Польща', imageUrl: flagB! },
+      { id: 'c', text: 'Італія' },
+    ],
+    correctId: 'a',
+    timeLimit: 20,
+  };
+  const titles = ['Географія та подорожі світом', 'Міста', 'Річки', 'Гори', 'Озера', 'Моря', 'Країни', 'Острови'];
+  const special: Record<string, object> = {
+    'Міста 200': { answerMode: 'voice' },
+    'Міста 300': { mark: 'x2' },
+    'Річки 100': { kind: 'blitz', penalty: 'all' },
+    'Гори 300': { mark: 'x3' },
+  };
+  const categories = titles.map((title, column) => ({
+    title,
+    cells: [100, 200, 300].map((price) => ({
+      ...special[`${title} ${price}`],
+      question: withPoints(withId(single, `q-${column}-${price}`), price),
+    })),
+  }));
+  const data = {
+    ...makeRoundsQuiz([
+      classicRound('r1', [oceans, flags, withId(withVideo(single), 'q-video')], { speedBonus: false }),
+      boardRound('r2', categories),
+    ]),
+    title: 'Ясність',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage7a', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya7a', 375, 812);
+  const taras = await open('taras7a', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+
+  // 1. Заставка раунду 1: кількість запитань і час (відео без таймера не рахується).
+  await click(host, 'Почати гру');
+  for (const page of [stage, olya, host]) await page.locator('.round-facts', { hasText: '3 запитання · 20–30 с на кожне' }).waitFor();
+  await shot(stage, 'intro-facts-stage');
+  await shot(olya, 'intro-facts-phone');
+
+  // 2. Порядок з підписами; таймер «/ 30 с» на сцені й у ведучого.
+  await click(host, 'Почати раунд');
+  await stage.locator('.bar', { hasText: 'Запитання 1 з 3 · лишилося 2' }).waitFor();
+  await stage.locator('.timer-total', { hasText: '/ 30 с' }).waitFor();
+  const top = olya.locator('.order-label.is-top');
+  const bottom = olya.locator('.order-label.is-bottom');
+  expect(await top.textContent()).toBe('↑ Найбільший');
+  expect(await bottom.textContent()).toBe('↓ Найменший');
+  const list = (await olya.locator('ol.order').boundingBox())!;
+  expect((await top.boundingBox())!.y).toBeLessThan(list.y);
+  expect((await bottom.boundingBox())!.y).toBeGreaterThan(list.y + list.height - 1);
+  await stage.getByText('Розставте на телефоні: зверху — Найбільший, знизу — Найменший', exact).waitFor();
+  await host.getByRole('timer').waitFor();
+  await host.locator('.host-time .timer-total', { hasText: '/ 30 с' }).waitFor();
+  await shot(olya, 'order-labels-phone');
+  await shot(stage, 'order-labels-stage');
+  await shot(host, 'timer-host');
+  // Рядок таймера ведучого (таймер і ±15 с) на телефоні 375 px не виходить за край.
+  await host.setViewportSize({ width: 375, height: 812 });
+  const row = host.locator('.host-time');
+  expect(await row.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  const rowBox = (await row.boundingBox())!;
+  for (const part of await row.locator('.timer, button').all()) {
+    const box = (await part.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(rowBox.x - 0.5);
+    expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 0.5);
+  }
+  await expectNoSideScroll(host, 'timer-host-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await arrange(olya, ['Тихий', 'Атлантичний', 'Індійський', 'Північний Льодовитий']);
+  await click(olya, 'Відповісти');
+  await arrange(taras, ['Атлантичний', 'Тихий', 'Індійський', 'Північний Льодовитий']);
+  await click(taras, 'Відповісти');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await stage.locator('.answer', { hasText: '(зверху — Найбільший, знизу — Найменший)' }).waitFor();
+  await shot(stage, 'order-labels-reveal-stage');
+  await click(host, 'Далі');
+  await click(host, 'Наступне запитання');
+
+  // 3. Варіанти-картинки: сітка з літерами на сцені, мініатюри на телефоні.
+  await stage.locator('.choices.has-images img').first().waitFor();
+  expect(await stage.locator('.choices.has-images img').count()).toBe(2);
+  expect(await stage.locator('.choices.has-images .letter').allTextContents()).toEqual(['A', 'B', 'C']);
+  await taras.getByRole('button').filter({ has: taras.locator('img[alt="Картинка A"]') }).waitFor();
+  await shot(stage, 'image-options-stage');
+  await shot(taras, 'image-options-phone');
+  await expectNoSideScroll(olya, 'image-options-phone-375');
+  await olya.getByRole('button').filter({ has: olya.locator('img[alt="Картинка A"]') }).click();
+  await taras.getByRole('button', { name: /Італія/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await stage.getByText('Правильна відповідь: A. картинка').waitFor();
+  await click(host, 'Далі');
+  await click(host, 'Наступне запитання');
+
+  // 4. Відео: маска над назвою до розкриття ловить дотики.
+  for (const page of [stage, olya]) await page.locator('.video-mask', { hasText: 'Назву відео приховано до відповіді' }).waitFor();
+  const video = (await stage.locator('.question-video').boundingBox())!;
+  const masked = await stage.evaluate(
+    `document.elementFromPoint(${video.x + video.width / 2}, ${video.y + 10})?.closest('.video-mask') !== null`,
+  );
+  expect(masked).toBe(true);
+  await shot(stage, 'video-mask-stage');
+  await shot(olya, 'video-mask-phone');
+  await olya.getByRole('button', { name: /Київ/ }).click();
+  await taras.getByRole('button', { name: /Львів/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await stage.locator('.choice.is-correct', { hasText: 'Київ' }).waitFor();
+  expect(await stage.locator('.video-mask').count()).toBe(0);
+  await shot(stage, 'video-unmasked-stage');
+  await click(host, 'Далі');
+
+  // 5. Заставка поля.
+  await click(host, 'Наступний раунд');
+  for (const page of [stage, olya, host]) await page.locator('.round-facts', { hasText: '24 клітинки · 20 с на кожну' }).waitFor();
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+
+  // 6. Поле з кольорами й легендою: на сцені збоку, на телефоні й у ведучого під полем.
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await stage.locator('.board-with-legend').waitFor();
+  const legend = stage.getByRole('list', { name: 'Види клітинок' });
+  for (const item of [
+    'Звичайна',
+    'Бліц: відповідає перший, хто натисне',
+    'Відповідь уголос',
+    '×2 — подвійна ціна',
+    '×3 — потрійна ціна',
+    '−всім: мінус для всіх, хто не вгадав',
+  ])
+    await legend.getByText(item, exact).waitFor();
+  expect(await legend.getByText('🎤 Бліц уголос').count()).toBe(0);
+  for (const page of [host, stage, olya, taras]) {
+    expect(await page.locator('.gb-cell.is-blitz').count()).toBe(1);
+    expect(await page.locator('.gb-cell.is-voice').count()).toBe(1);
+  }
+  await expectNoSideScroll(olya, 'board-legend-phone-375');
+  expect(await olya.locator('.gb-scroll').evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  for (const page of [olya, stage]) {
+    const longTitle = (await page.locator('.gb-title').first().boundingBox())!;
+    const shortTitle = (await page.locator('.gb-title', { hasText: 'Міста' }).boundingBox())!;
+    expect(longTitle.height, 'a long category title wraps').toBeGreaterThan(shortTitle.height);
+  }
+  console.log(`stage 1600: board ${Math.round((await stage.locator('.gb').boundingBox())!.width)} px wide`);
+  await shot(stage, 'board-legend-stage');
+  await shot(host, 'board-legend-host');
+  for (const [width, height] of [
+    [1280, 720],
+    [1920, 1080],
+  ] as const) {
+    await stage.setViewportSize({ width, height });
+    console.log(`stage ${width}: board ${Math.round((await stage.locator('.gb').boundingBox())!.width)} px wide`);
+    expect(await noSideScroll(stage)).toBe(true);
+    await shot(stage, `board-legend-stage-${width}`);
+  }
+  await stage.setViewportSize({ width: 1600, height: 900 });
+
+  const cell = (page: Page, category: string, price: number) =>
+    page.getByRole('button', { name: `${category}, ${price}`, ...exact });
+  const toBoard = async () => {
+    await click(host, 'Далі');
+    const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+    const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+    await Promise.race([next.waitFor(), picking.waitFor()]);
+    if (await next.isVisible()) await next.click();
+    await picking.waitFor();
+  };
+
+  // 7. Телефонна клітинка: варіанти бачать усі ще до відповіді, вердикт мигає.
+  await cell(olya, 'Міста', 100).click();
+  await taras.locator('.choice').first().waitFor();
+  expect(await taras.locator('.choice').allTextContents()).toEqual(['AЛьвів', 'BКиїв', 'CОдеса']);
+  await shot(taras, 'spotlight-before-answer-phone-other');
+  await stage.locator('.bar', { hasText: 'Клітинка 1 з 24 · лишилося 23' }).waitFor();
+  const before = (await taras.locator('.choice').first().boundingBox())!;
+  await olya.getByRole('button', { name: /Київ/ }).click();
+  for (const page of [taras, stage]) await page.locator('.choice.is-pending', { hasText: 'Київ' }).waitFor();
+  await stage.getByText('Чекає рішення ведучого', exact).waitFor();
+  // Стан годинника стає на місце «/ 20 с»: варіанти в Тараса не з’їжджають.
+  await taras.locator('.timer-status', { hasText: 'Чекає рішення ведучого' }).waitFor();
+  expect((await taras.locator('.choice').first().boundingBox())!.y, 'the phone does not jump when held').toBe(before.y);
+  await shot(taras, 'held-phone-other');
+  await click(host, 'Прийняти');
+  for (const page of [stage, taras]) await page.locator('.choice.is-correct.is-blinking', { hasText: 'Київ' }).waitFor();
+  await shot(stage, 'verdict-blink-stage');
+  await shot(taras, 'verdict-blink-phone-other');
+  await shot(host, 'verdict-blink-host');
+  await expect.poll(() => stage.locator('.is-blinking').count(), { timeout: 6000 }).toBe(0);
+  expect(await stage.locator('.choice.is-correct', { hasText: 'Київ' }).count()).toBe(1);
+  await toBoard();
+
+  // 8–9. Усна клітинка: ведучий позначає названий варіант; вердикт лише на розкритті; в Олі без анімації.
+  await olya.emulateMedia({ reducedMotion: 'reduce' });
+  await taras.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(taras, 'Міста', 200).click();
+  await taras.getByText('Відповідайте вголос').waitFor();
+  expect(await taras.locator('.choice').count()).toBe(3);
+  await host.getByText('Торкніться варіанта, який назвав гравець', exact).waitFor();
+  await host.locator('button.choice', { hasText: 'Одеса' }).click();
+  for (const page of [stage, olya]) await page.locator('.choice.is-pending', { hasText: 'Одеса' }).waitFor();
+  await shot(stage, 'voice-named-stage');
+  await shot(olya, 'voice-named-phone-other');
+  await shot(host, 'voice-named-host');
+  await click(host, 'Не зараховувати');
+  // Закрите запитання (locked): позначка лишається помаранчевою на сцені й на телефонах, вердикту ще немає.
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  for (const page of [stage, olya, taras]) await page.locator('.choice.is-pending', { hasText: 'Одеса' }).waitFor();
+  for (const page of [stage, olya, taras]) expect(await page.locator('.is-wrong').count()).toBe(0);
+  expect(await taras.locator('.choice').count()).toBe(3);
+  await shot(taras, 'voice-locked-phone');
+  await click(host, 'Показати відповідь');
+  for (const page of [stage, taras]) {
+    await page.locator('.choice.is-wrong.is-blinking', { hasText: 'Одеса' }).waitFor();
+    await page.locator('.choice.is-correct', { hasText: 'Київ' }).waitFor();
+  }
+  await shot(stage, 'voice-verdict-stage');
+  await shot(taras, 'voice-verdict-phone');
+  const wrong = olya.locator('.choice.is-wrong', { hasText: 'Одеса' });
+  await wrong.waitFor();
+  expect(await wrong.evaluate((el) => (globalThis as unknown as { getComputedStyle: (e: unknown) => { animationName: string } }).getComputedStyle(el).animationName)).toBe('none');
+
+  // 10. Кінець гри.
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
 
   expect(problems).toEqual([]);
 }

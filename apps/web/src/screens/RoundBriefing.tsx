@@ -1,4 +1,5 @@
-import type { RoundBrief } from '@quiz/shared';
+import type { RoundBrief, RoundInfo } from '@quiz/shared';
+import { roundFacts } from '../format';
 import { t } from '../i18n';
 import { roundSummary } from '../round-summary';
 
@@ -14,4 +15,10 @@ export function RoundBriefing({ brief, description }: { brief: RoundBrief; descr
       </ul>
     </div>
   );
+}
+
+/** Скільки запитань у раунді й скільки часу на кожне; у фіналі нічого. */
+export function RoundFacts({ round, total }: { round: RoundInfo; total: number }) {
+  const facts = roundFacts(round, total);
+  return facts === null ? null : <p className="round-facts">{facts}</p>;
 }

@@ -240,14 +240,18 @@ export function newQuiz(): Quiz {
   return { title: '', description: '', settings: { ...DEFAULT_SETTINGS }, rounds: [newClassicRound()] };
 }
 
+/** Порожній варіант: без тексту й без картинки. */
+const isBlankOption = (option: { text: string; imageUrl?: string }) => option.text === '' && option.imageUrl === undefined;
+
 /** Вікторина в тому вигляді, у якому вона піде на сервер. */
 export function cleaned(quiz: Quiz): Quiz {
   const trimAll = <T extends { text: string }>(items: T[]) => items.map((item) => ({ ...item, text: item.text.trim() }));
   // Порожні рядки (наприклад, доданий останнім Enter) просто не зберігаються, якщо без них рядків
   // досить і жоден із них не позначено правильною відповіддю. Інакше їх лишаємо: про них скаже перевірка.
-  const withoutSpare = <T extends { id: string; text: string }>(items: T[], min: number, mustKeep: string[] = []) => {
-    const kept = items.filter((item) => item.text !== '');
-    const dropsNeeded = items.some((item) => item.text === '' && mustKeep.includes(item.id));
+  // Варіант лише з картинкою не порожній.
+  const withoutSpare = <T extends { id: string; text: string; imageUrl?: string }>(items: T[], min: number, mustKeep: string[] = []) => {
+    const kept = items.filter((item) => !isBlankOption(item));
+    const dropsNeeded = items.some((item) => isBlankOption(item) && mustKeep.includes(item.id));
     return kept.length >= min && !dropsNeeded ? kept : items;
   };
   // У впорядкуванні місце рядка має значення, тому прибираються лише порожні рядки в кінці.
@@ -266,8 +270,19 @@ export function cleaned(quiz: Quiz): Quiz {
         const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
         return { ...question, text, options, correctIds };
       }
-      case 'order':
-        return { ...question, text, items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems) };
+      case 'order': {
+        // Порожній підпис зникає з запитання, а не лишається порожнім рядком.
+        const { topLabel, bottomLabel, ...rest } = question;
+        const top = topLabel?.trim() ?? '';
+        const bottom = bottomLabel?.trim() ?? '';
+        return {
+          ...rest,
+          text,
+          items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems),
+          ...(top === '' ? {} : { topLabel: top }),
+          ...(bottom === '' ? {} : { bottomLabel: bottom }),
+        };
+      }
       case 'match': {
         // Як і в впорядкуванні, прибираються лише порожні пари в кінці.
         const trimmed = question.pairs.map((pair) => ({ left: trimAll([pair.left])[0], right: trimAll([pair.right])[0] }));
@@ -322,7 +337,7 @@ function problemKey(question: Question): TextKey | null {
   switch (question.type) {
     case 'single':
     case 'multi':
-      if (question.options.some((option) => option.text === '')) return 'problemEmptyOption';
+      if (question.options.some(isBlankOption)) return 'problemEmptyOption';
       if (question.type === 'multi' && question.correctIds.length === 0) return 'problemNoCorrect';
       break;
     case 'order':

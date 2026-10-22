@@ -1,5 +1,5 @@
 import type { Answer, CellMark, Choice, LobbyPlayer, PublicQuestion, Question, Round, RoundInfo } from '@quiz/shared';
-import { t } from './i18n';
+import { countText, t, type TextKey } from './i18n';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
 export const roundLabel = (title: string, index: number, type?: Round['type']): string => {
@@ -18,17 +18,28 @@ export interface PairText {
   right: string;
 }
 
-/** Варіанти запитання для пошуку назв за id; для match — ліві й праві. */
+/** Текст варіанта або «Картинка Б» за літерою; index — місце у списку, з якого береться літера. */
+export function choiceLabel(choice: Choice, index: number): string {
+  return choice.text !== '' ? choice.text : t('imageChoice', { letter: LETTERS[index] ?? String(index + 1) });
+}
+
+/** Варіанти з підписами замість порожнього тексту картинки. */
+const labelled = (choices: Choice[]): Choice[] => choices.map((choice, index) => ({ ...choice, text: choiceLabel(choice, index) }));
+
+/**
+ * Варіанти запитання для пошуку назв за id; для match — ліві й праві. Порядок показу тут невідомий,
+ * а літера автора може не збігтися з тією, яку бачили гравці, тож варіант-картинка — просто «картинка».
+ */
 export function choicesOf(question: Question | null): Choice[] {
   if (question === null) return [];
-  if (question.type === 'single' || question.type === 'multi') return question.options;
+  if (question.type === 'single' || question.type === 'multi') return question.options.map((option) => ({ ...option, text: optionText(option.text) }));
   if (question.type === 'match') return question.pairs.flatMap((pair) => [pair.left, pair.right]);
   return question.type === 'order' ? question.items : [];
 }
 
-/** Усі показані варіанти: choices і right. */
+/** Усі показані варіанти: choices (варіант-картинка підписаний літерою показу) і right. */
 export function shownChoices(question: PublicQuestion): Choice[] {
-  return [...question.choices, ...question.right];
+  return [...labelled(question.choices), ...question.right];
 }
 
 /** Зв’язки відповіді словами; невідомий id показується як є. */
@@ -50,6 +61,9 @@ export function questionClass(text: string): string {
   return text.length > 120 ? 'question is-long' : 'question';
 }
 
+/** Варіант без тексту в правильній відповіді: «Б. картинка». */
+const optionText = (text: string) => (text === '' ? t('imagePlain') : text);
+
 /**
  * Правильна відповідь словами, для розкриття та пульта.
  * presented — варіанти в порядку показу: літери мають збігатися з тим, що бачать гравці.
@@ -63,7 +77,7 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return shown
         .map((id, index) => ({ id, letter: LETTERS[index] }))
         .filter(({ id }) => correct.includes(id))
-        .map(({ id, letter }) => `${letter}. ${question.options.find((option) => option.id === id)?.text ?? id}`)
+        .map(({ id, letter }) => `${letter}. ${optionText(question.options.find((option) => option.id === id)?.text ?? id)}`)
         .join(', ');
     }
     case 'boolean':
@@ -72,8 +86,10 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.accepted[0];
     case 'numeric':
       return question.tolerance > 0 ? `${question.correct} (± ${question.tolerance})` : String(question.correct);
-    case 'order':
-      return question.items.map((item) => item.text).join(' → ');
+    case 'order': {
+      const labels = orderLabelsText({ top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' });
+      return question.items.map((item) => item.text).join(' → ') + (labels === '' ? '' : ` (${labels})`);
+    }
     case 'match':
       return pairsLine(correctPairs(question));
     case 'chain':
@@ -86,10 +102,16 @@ export function secondsText(ms: number): string {
   return (Math.round(ms / 100) / 10).toFixed(1).replace('.', ',');
 }
 
-/** Відповідь гравця словами. */
-export function answerText(answer: Answer | null, question: Question | null): string {
+/**
+ * Відповідь гравця словами.
+ * presented — варіанти в порядку показу: варіант-картинка підписується літерою, яку бачать гравці.
+ */
+export function answerText(answer: Answer | null, question: Question | null, presented?: { id: string }[]): string {
   if (answer === null) return '—';
-  const choices = choicesOf(question);
+  const choices =
+    presented !== undefined && question !== null && (question.type === 'single' || question.type === 'multi')
+      ? labelled(presented.flatMap(({ id }) => question.options.filter((option) => option.id === id)))
+      : choicesOf(question);
   const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
   switch (answer.type) {
     case 'single':
@@ -132,10 +154,32 @@ export function signed(value: number): string {
   return value > 0 ? `+${value}` : num(value);
 }
 
-/** Номер запитання в раунді; коли раундів кілька, поруч назва раунду. */
+/** Номер запитання в раунді, скільки лишилося й назва раунду, коли раундів кілька. */
 export function questionLabel(round: RoundInfo | null, index: number, total: number): string {
-  const base = t('questionOf', { index: index + 1, total });
-  return round !== null && round.total > 1 ? `${base}, ${t('roundN', { index: round.index + 1 })}` : base;
+  const board = round?.type === 'board';
+  const parts = [t(board ? 'cellOf' : 'questionOf', { index: index + 1, total })];
+  if (round?.type !== 'final') {
+    const left = total - index - 1;
+    parts.push(left > 0 ? t('leftCount', { count: left }) : t(board ? 'lastCell' : 'lastQuestion'));
+  }
+  if (round !== null && round.total > 1) parts.push(t('roundN', { index: round.index + 1 }));
+  return parts.join(' · ');
+}
+
+/** Факти заставки: «10 запитань · 30–60 с на кожне»; у фіналі їх немає. */
+export function roundFacts(round: RoundInfo, total: number): string | null {
+  if (round.type === 'final') return null;
+  const board = round.type === 'board';
+  const count = countText(board ? 'cellCount' : 'questionCount', total, { count: total });
+  const { times } = round;
+  const suffix = board ? 'Cell' : '';
+  const time =
+    times === null
+      ? t('noTimer')
+      : times.min === times.max
+      ? t(`timeEach${suffix}` as TextKey, { seconds: times.min })
+      : t(`timeRange${suffix}` as TextKey, { min: times.min, max: times.max });
+  return `${count} · ${time}`;
 }
 
 /** Серії гравців за id; показуються біля імені від двох правильних відповідей підряд. */
@@ -148,9 +192,20 @@ export function markText(mark: CellMark): string {
   return mark === 'x2' ? '×2' : mark === 'x3' ? '×3' : '';
 }
 
+/** «зверху — Найбільший, знизу — Найменший»; порожні підписи пропускаються; обидва порожні — ''. */
+export function orderLabelsText(labels: { top: string; bottom: string }): string {
+  return [
+    labels.top === '' ? '' : t('orderTop', { label: labels.top }),
+    labels.bottom === '' ? '' : t('orderBottom', { label: labels.bottom }),
+  ]
+    .filter((part) => part !== '')
+    .join(', ');
+}
+
 /** Відповідь словами за показаними варіантами: назви беруться з запитання, яке бачить гравець. */
 export function pickedText(answer: Answer, choices: Choice[]): string {
-  const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
+  const named = labelled(choices);
+  const name = (id: string) => named.find((choice) => choice.id === id)?.text ?? id;
   switch (answer.type) {
     case 'single':
       return name(answer.optionId);
@@ -159,7 +214,7 @@ export function pickedText(answer: Answer, choices: Choice[]): string {
     case 'order':
       return answer.itemIds.map(name).join(' → ');
     case 'match':
-      return pairsLine(pairTexts(answer.links, choices));
+      return pairsLine(pairTexts(answer.links, named));
     default:
       return answerText(answer, null);
   }

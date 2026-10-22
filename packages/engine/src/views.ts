@@ -2,13 +2,14 @@ import {
   boardCells,
   findCell,
   questionsOf,
+  cellAnswerMode,
   roundQuestions,
+  type Round,
   type Answer,
   type BlitzInfo,
   type BlitzPlayer,
   type BoardCellView,
   type BoardInfo,
-  type CellMark,
   type ChainInfo,
   type PlayerChain,
   type Choice,
@@ -31,7 +32,7 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
+import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BoardPlay, type GameState, type PlayerState } from './game';
 import { attemptsUsed, blitzRulesOf } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
@@ -68,7 +69,7 @@ function publicQuestion(state: GameState): PublicQuestion | null {
     state.presented
       .map((id) => from.find((choice) => choice.id === id))
       .filter((choice): choice is Choice => choice !== undefined)
-      .map((choice) => ({ id: choice.id, text: choice.text }));
+      .map((choice) => ({ id: choice.id, text: choice.text, ...(choice.imageUrl === undefined ? {} : { imageUrl: choice.imageUrl }) }));
   // У парах ліві елементи йдуть в авторському порядку, а presented описує правий стовпчик.
   const choices =
     question.type === 'match'
@@ -84,11 +85,18 @@ function publicQuestion(state: GameState): PublicQuestion | null {
     points: question.points,
     choices,
     right,
+    orderLabels: question.type === 'order' ? { top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' } : null,
     chain:
       question.type === 'chain'
         ? { first: question.words[0], masks: question.words.slice(1).map((w) => maskWord(w, 1)), hintSeconds: question.hintSeconds }
         : null,
   };
+}
+
+/** Найменший і найбільший час запитань раунду з таймером; null — таймера немає в жодного. */
+function timesOf(round: Round): { min: number; max: number } | null {
+  const limits = roundQuestions(round).flatMap((q) => (isTimed(q) ? [q.timeLimit] : []));
+  return limits.length === 0 ? null : { min: Math.min(...limits), max: Math.max(...limits) };
 }
 
 function roundInfo(state: GameState): RoundInfo | null {
@@ -102,6 +110,7 @@ function roundInfo(state: GameState): RoundInfo | null {
     partial: rulesOf(round).partial !== null,
     description: round.description ?? '',
     brief: roundBrief(round),
+    times: timesOf(round),
   };
 }
 
@@ -198,29 +207,28 @@ function currentBoardPlay(state: GameState) {
 
 const BOARD_PHASES: Phase[] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
-/** Поле для всіх ролей; showAll відкриває позначки всіх клітинок (ведучий). */
-function boardInfo(state: GameState, showAll: boolean): BoardInfo | null {
+/** Поле для всіх ролей: вид клітинок видно всім, формат запитань ні. */
+function boardInfo(state: GameState): BoardInfo | null {
   const round = currentRound(state);
   if (round?.type !== 'board' || state.board === null || !BOARD_PHASES.includes(state.phase)) return null;
   const open = currentBoardPlay(state);
   const turnId = state.phase === 'board' ? chooserOf(state) : (open?.board.chooserId ?? null);
   const cell = open === null ? undefined : findCell(round, open.board.cellId);
-  const revealed = (id: string, played: boolean) => showAll || played || id === open?.board.cellId;
-  const markOf = (id: string, mark: CellMark, played: boolean): CellMark | null => (revealed(id, played) ? mark : null);
   return {
     categories: round.categories.map((category) => ({
       id: category.id,
       title: category.title,
-      cells: category.cells.map(({ mark, kind, question }): BoardCellView => {
-        const played = cellPlayed(state, question.id);
-        return {
-          id: question.id,
-          price: question.points,
-          played,
-          mark: markOf(question.id, mark, played),
-          kind: revealed(question.id, played) ? kind : null,
-        };
-      }),
+      cells: category.cells.map(
+        (cell): BoardCellView => ({
+          id: cell.question.id,
+          price: cell.question.points,
+          played: cellPlayed(state, cell.question.id),
+          mark: cell.mark,
+          kind: cell.kind,
+          answerMode: cellAnswerMode(round, cell),
+          penalty: cell.penalty,
+        }),
+      ),
     })),
     order: state.board.circle.map((id) => blitzPlayer(state, id)),
     // Ведучого гравця могли вилучити під час запитання.
@@ -243,7 +251,7 @@ function boardInfo(state: GameState, showAll: boolean): BoardInfo | null {
 }
 
 function hostBoard(state: GameState): HostBoard | null {
-  const info = boardInfo(state, true);
+  const info = boardInfo(state);
   const round = currentRound(state);
   if (info === null || round?.type !== 'board') return null;
   return {
@@ -265,7 +273,8 @@ function spotlightOf(state: GameState): Spotlight | null {
     return last === undefined ? null : { ...blitzPlayer(state, last.playerId), answer: last.answer, grade: last.grade };
   }
   const open = currentBoardPlay(state);
-  if (open === null || open.board.answerMode !== 'phone') return null;
+  if (open === null) return null;
+  if (open.board.answerMode === 'voice') return voiceSpotlight(state, open.board);
   // Закрите запитання: відповідь без оцінки лишається помаранчевою, вердикт видно лише на розкритті.
   // Вилученого гравця вже немає: його відповідь не показуємо.
   if (state.phase === 'locked') {
@@ -277,6 +286,18 @@ function spotlightOf(state: GameState): Spotlight | null {
   const record = currentRecord(state, open.board.chooserId);
   if (record === undefined || !state.players.some((p) => p.id === open.board.chooserId)) return null;
   return { ...blitzPlayer(state, open.board.chooserId), answer: record.answer, grade: record.grade };
+}
+
+/**
+ * Усна клітинка: позначка ведучого помаранчева на question і locked, вердикт видно лише на розкритті.
+ * Без позначки до розкриття spotlight немає; вилученого гравця не показуємо.
+ */
+function voiceSpotlight(state: GameState, board: BoardPlay): Spotlight | null {
+  const { chooserId, named } = board;
+  if (!state.players.some((p) => p.id === chooserId)) return null;
+  const record = state.phase === 'reveal' ? currentRecord(state, chooserId) : undefined;
+  if (record !== undefined) return { ...blitzPlayer(state, chooserId), answer: named ?? null, grade: record.grade };
+  return named === undefined ? null : { ...blitzPlayer(state, chooserId), answer: named, grade: null };
 }
 
 const FINAL_PHASES: Phase[] = ['intro', 'wager', 'question', 'locked', 'reveal'];
@@ -422,6 +443,7 @@ function base(state: GameState) {
   const held = state.heldAt !== null;
   const remainingMs = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.remainingMs;
   const round = currentRound(state);
+  const play = state.plays[state.questionIndex];
   return {
     phase: state.phase,
     paused: state.paused,
@@ -431,10 +453,12 @@ function base(state: GameState) {
     question: publicQuestion(state),
     endsAt: held ? null : state.endsAt,
     remainingMs,
+    limitMs: state.phase === 'question' && play !== undefined ? limitMsOf(play) : null,
+    held,
     playerCount: state.players.length,
     answeredCount: Object.keys(currentAnswers(state)).length,
     blitz: blitzInfo(state),
-    board: boardInfo(state, false),
+    board: boardInfo(state),
     spotlight: spotlightOf(state),
     final: finalInfo(state),
     chain: currentRound(state)?.type === 'final' ? null : chainInfo(state),

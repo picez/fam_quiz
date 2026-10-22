@@ -5,6 +5,21 @@ import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
 
+describe('order labels in the demo quizzes', () => {
+  it('ocean and film-year orders carry labels', () => {
+    const find = (text: string) => questionsOf(eruditeQuiz).find((q) => q.text.startsWith(text));
+    const oceans = find('Розставте океани');
+    expect(oceans?.type === 'order' && [oceans.topLabel, oceans.bottomLabel]).toEqual(['Найбільший', 'Найменший']);
+    const films = find('Розставте фільми за роком виходу');
+    expect(films?.type === 'order' && [films.topLabel, films.bottomLabel]).toEqual(['Найраніше', 'Найпізніше']);
+    for (const quiz of [demoQuiz, movieQuiz, eruditeQuiz, partyQuiz()]) {
+      for (const question of questionsOf(quiz)) {
+        if (question.type === 'order') expect([question.text, question.topLabel, question.bottomLabel].every(Boolean)).toBe(true);
+      }
+    }
+  });
+});
+
 describe('the seeded demo quiz', () => {
   it('is valid and shows every question type including pairs', () => {
     expect(quizSchema.safeParse(demoQuiz).success).toBe(true);

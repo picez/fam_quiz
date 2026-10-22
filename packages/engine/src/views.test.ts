@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, roundBrief, type Answer, type Phase, type Question } from '@quiz/shared';
 import { buzz } from './blitz';
-import { pickCell } from './board';
+import { nameAnswer, pickCell } from './board';
+import { adjustTime } from './timing';
 import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
 import { placeWager } from './final';
 import { guessWord, takeHint } from './chain';
@@ -55,6 +56,7 @@ describe('while a question is open', () => {
         { id: 'c', text: 'Одеса' },
       ],
       right: [],
+      orderLabels: null,
       chain: null,
     });
     expect(view.endsAt).toBe(T0 + 20_000);
@@ -95,6 +97,26 @@ describe('while a question is open', () => {
         overridden: false,
       },
     ]);
+  });
+
+  it('players see the order labels, other types have none', () => {
+    const labelled = { ...order, topLabel: 'Захід', bottomLabel: 'Схід' };
+    const view = (question: Question) => stageView(startRound(lobbyWith(makeQuiz([question]), 'Олена'), T0, () => 0.999)).question;
+    expect(view(labelled)?.orderLabels).toEqual({ top: 'Захід', bottom: 'Схід' });
+    expect(view(order)?.orderLabels).toEqual({ top: '', bottom: '' });
+    expect(view(single)?.orderLabels).toBeNull();
+  });
+
+  it('picture options keep their pictures in the shown order', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const pictured = { ...single, options: single.options.map((o) => (o.id === 'b' ? { ...o, imageUrl: pic } : o)) };
+    const state = startRound(lobbyWith(makeQuiz([pictured], { shuffleOptions: true }), 'Олена'), T0, () => 0);
+    const choices = stageView(state).question?.choices ?? [];
+    expect(choices.map((c) => c.id)).not.toEqual(['a', 'b', 'c']);
+    expect(choices.find((c) => c.id === 'b')?.imageUrl).toBe(pic);
+    expect(choices.find((c) => c.id === 'a')).not.toHaveProperty('imageUrl');
+    expect(playerView(state, 'p1')?.question?.choices.find((c) => c.id === 'b')?.imageUrl).toBe(pic);
+    expect(JSON.stringify(stageView(state))).not.toContain('correctId');
   });
 
   it('presents order items in the shuffled order', () => {
@@ -225,6 +247,16 @@ describe('rounds', () => {
     expect(stageView(second).round?.description).toBe('');
   });
 
+  it('the round info carries the time range of timed questions', () => {
+    const quiz = makeRoundsQuiz([
+      classicRound('r1', [withId(single, 'a'), { ...withId(multi, 'b'), timeLimit: 30 }, withVideo(withId(bool, 'c'))]),
+      classicRound('r2', [withVideo(withId(single, 'd'))]),
+    ]);
+    const state = must(start(lobbyWith(quiz, 'Анна')));
+    expect(stageView(state).round?.times).toEqual({ min: 20, max: 30 });
+    expect(stageView(goTo(state, 'intro', 1)).round?.times).toBeNull();
+  });
+
   it('has no round in the lobby', () => {
     expect(stageView(lobbyWith(twoRounds(), 'Олена')).round).toBeNull();
   });
@@ -240,6 +272,7 @@ describe('rounds', () => {
         partial: true,
         description: '',
         brief: roundBrief(state.quiz.rounds[1]),
+        times: { min: 20, max: 20 },
       });
       expect(view?.question).toBeNull();
       expect(view?.total).toBe(2);
@@ -428,27 +461,25 @@ describe('board views', () => {
   };
   const picked = (cell: string, options = {}) => must(pickCell(onBoard(options), null, cell, 0, Math.random));
 
-  it('stage and player views never carry hidden marks or cell questions', () => {
+  it("every role sees each cell's mark, kind, answer mode and penalty but never its question", () => {
     const state = onBoard();
-    const stage = stageView(state);
-    const player = playerView(state, 'p2');
-    for (const json of [JSON.stringify(stage), JSON.stringify(player)]) {
-      expect(json).not.toContain('x2');
-      expect(json).not.toContain('x3');
+    for (const view of [stageView(state), playerView(state, 'p2')!, hostView(state)]) {
+      const cells = view.board!.categories.flatMap((c) => c.cells);
+      expect(view.board?.categories[0].cells[1].mark).toBe('x2');
+      expect(view.board?.categories[1].cells[2].mark).toBe('x3');
+      for (const cell of cells) expect(Object.keys(cell).sort()).toEqual(['answerMode', 'id', 'kind', 'mark', 'penalty', 'played', 'price']);
+    }
+    for (const json of [JSON.stringify(stageView(state)), JSON.stringify(playerView(state, 'p2'))]) {
       expect(json).not.toContain(single.text);
       expect(json).not.toContain('correctId');
+      expect(json).not.toContain('"type":"single"');
     }
-    expect(stage.board?.categories.flatMap((c) => c.cells).every((cell) => cell.mark === null)).toBe(true);
-    expect(player?.board?.categories.flatMap((c) => c.cells).every((cell) => cell.mark === null)).toBe(true);
-    expect(hostView(state).board?.categories[0].cells[1].mark).toBe('x2');
-    expect(hostView(state).board?.categories[1].cells[2].mark).toBe('x3');
   });
 
   it('a chosen cell shows its mark to everyone and stays shown', () => {
     const state = picked('c12');
     expect(stageView(state).board?.cell).toMatchObject({ id: 'c12', mark: 'x2', price: 200 });
     expect(playerView(state, 'p2')?.board?.cell).toMatchObject({ mark: 'x2', price: 200 });
-    expect(stageView(state).board?.categories[1].cells.every((cell) => cell.mark === null)).toBe(true);
     const revealed = must(next(must(lock(state)), 0));
     expect(stageView(revealed).board?.categories[0].cells[1]).toMatchObject({ mark: 'x2', played: true });
     const done = must(next(must(next(revealed, 0)), 0));
@@ -456,7 +487,7 @@ describe('board views', () => {
     const view = stageView(done).board;
     expect(view?.cell).toBeNull();
     expect(view?.categories[0].cells[1]).toMatchObject({ id: 'c12', mark: 'x2', played: true });
-    expect(view?.categories[0].cells[0]).toMatchObject({ mark: null, played: false });
+    expect(view?.categories[0].cells[0]).toMatchObject({ mark: 'none', played: false });
   });
 
   it('the board view shows the order, whose turn it is and categories of different length', () => {
@@ -475,24 +506,30 @@ describe('board views', () => {
     expect(playerView(kicked, 'p2')?.board?.turn).toBeNull();
   });
 
-  it('players see a cell kind and answer mode only after the cell opens', () => {
+  it('players see every cell kind, answer mode and penalty from the start', () => {
     const cells = [{ question: q('c11', 100), kind: 'blitz' as const, penalty: 'all' as const, answerMode: 'voice' as const }, q('c12', 200), q('c13', 300)];
     const round = boardRound('g1', [{ title: 'A', cells }], { answerMode: 'phone' });
     const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра')));
     const state = must(next(intro, 0));
-    // Зведення правил раунду (round.brief) навмисно каже, що в полі є голос і бліц-клітинки; секретні лише клітинки.
-    const withoutBrief = (view: object) => JSON.stringify({ ...view, round: null });
-    for (const json of [withoutBrief(stageView(state)), withoutBrief(playerView(state, 'p2')!)]) {
-      expect(json).not.toContain(':"blitz"');
-      expect(json).not.toContain('voice');
+    for (const view of [stageView(state), playerView(state, 'p2')!, hostView(state)]) {
+      expect(view.board?.categories[0].cells[0]).toMatchObject({ kind: 'blitz', answerMode: 'voice', penalty: 'all' });
+      // Власного способу немає, тож береться спосіб раунду.
+      expect(view.board?.categories[0].cells[1]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
     }
-    expect(stageView(state).board?.categories[0].cells[0].kind).toBeNull();
-    expect(playerView(state, 'p2')?.board?.categories[0].cells[0].kind).toBeNull();
-    expect(hostView(state).board?.categories[0].cells[0].kind).toBe('blitz');
-    expect(hostView(state).board?.categories[0].cells[1].kind).toBe('normal');
     const open = must(pickCell(state, null, 'c11', 0, Math.random));
     expect(stageView(open).board?.cell).toMatchObject({ kind: 'blitz', answerMode: 'voice', penalty: 'all' });
     expect(playerView(open, 'p2')?.board?.categories[0].cells[0].kind).toBe('blitz');
+  });
+
+  it('the view carries the full time limit with ±15 s and whether the clock is held', () => {
+    const state = picked('c11', { check: 'manual' });
+    expect(stageView(state)).toMatchObject({ limitMs: 20_000, held: false });
+    expect(stageView(must(adjustTime(state, 15, 1000))).limitMs).toBe(35_000);
+    const pending = must(submitAnswer(state, 'p1', { type: 'single', optionId: 'b' }, 0));
+    expect(stageView(pending)).toMatchObject({ held: true });
+    expect(playerView(pending, 'p2')?.held).toBe(true);
+    expect(stageView(must(lock(state))).limitMs).toBeNull();
+    expect(stageView(onBoard()).limitMs).toBeNull();
   });
 
   it('the host grades by hand on a voice cell even in a phone round', () => {
@@ -510,6 +547,25 @@ describe('board views', () => {
     expect(playerView(state, 'p1')?.me.answer).toEqual({ type: 'single', optionId: 'b' });
     expect(hostView(picked('c11')).board).toMatchObject({ manual: false, answer: null });
     expect(hostView(picked('c11', { answerMode: 'voice' })).board?.manual).toBe(true);
+  });
+
+  it('the host names the option a voice player said: orange for everyone, the verdict only on reveal', () => {
+    const named = must(nameAnswer(picked('c11', { answerMode: 'voice' }), { type: 'single', optionId: 'a' }));
+    const pending = { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, grade: null };
+    expect(stageView(named).spotlight).toEqual(pending);
+    expect(playerView(named, 'p2')?.spotlight).toEqual(pending);
+    expect(hostView(named).spotlight).toEqual(pending);
+    const judged = must(override(named, 'p1', 'wrong', 1000));
+    expect(judged.phase).toBe('locked');
+    expect(stageView(judged).spotlight?.grade).toBeNull();
+    expect(stageView(judged).spotlight?.answer).toEqual(pending.answer);
+    const revealed = must(next(judged, 2000));
+    expect(stageView(revealed).spotlight).toEqual({ ...pending, grade: 'wrong' });
+  });
+
+  it('a voice cell judged without a mark shows the verdict alone on reveal', () => {
+    const revealed = must(next(must(override(picked('c11', { answerMode: 'voice' }), 'p1', 'correct', 1000)), 2000));
+    expect(stageView(revealed).spotlight).toEqual({ playerId: 'p1', nickname: 'Анна', answer: null, grade: 'correct' });
   });
 
   it('the absent chooser has a skip time that a pause removes', () => {
@@ -679,6 +735,14 @@ describe('video views', () => {
     expect(stage.remainingMs).toBeNull();
     expect(playerView(state, 'p1')?.question?.video).toEqual({ id: 'dQw4w9WgXcQ', start: 90 });
     expect(JSON.stringify(stage)).not.toContain('correctId');
+  });
+
+  it('an untimed video question has no full time in the question phase', () => {
+    const state = openWith(withVideo(single, { id: 'dQw4w9WgXcQ', start: 90 }));
+    expect(state.phase).toBe('question');
+    expect(stageView(state).limitMs).toBeNull();
+    expect(playerView(state, 'p1')?.limitMs).toBeNull();
+    expect(hostView(state).limitMs).toBeNull();
   });
 
   it('the host sees when an absent answerer will close an untimed cell', () => {
