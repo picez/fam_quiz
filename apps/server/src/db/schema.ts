@@ -157,3 +157,31 @@ export const answer = pgTable(
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
 );
+
+/** Профіль гравця: окремо від user Better Auth, створюється під час першого читання. */
+export const profile = pgTable('profile', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  nickname: text('nickname').notNull(),
+  /** normalizeText(nickname): нікнейм унікальний без різниці регістру, пробілів і апострофів. */
+  nicknameKey: text('nickname_key').notNull().unique(),
+  /** Шлях /uploads/<назва> або null. */
+  avatar: text('avatar'),
+  ...stamps,
+});
+
+/** Підписка «follower додав followee в друзі»; одностороння. */
+export const follow = pgTable(
+  'follow',
+  {
+    followerId: text('follower_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    followeeId: text('followee_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: at('created_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.followerId, table.followeeId] }), index('follow_followee_idx').on(table.followeeId)],
+);
