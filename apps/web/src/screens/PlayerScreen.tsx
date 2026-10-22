@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import type { Answer, PlayerBlitz, PlayerView, Spotlight } from '@quiz/shared';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import type { Answer, DiceInfo, PlayerBlitz, PlayerView, Spotlight } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -7,6 +7,8 @@ import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
+import { TurnSchedule } from './TurnSchedule';
+import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -48,6 +50,59 @@ function Result({ view }: { view: PlayerView }) {
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * Місце під кнопку «Кинути кубик»: висота зарезервована, тож поява й зникнення кнопки нічого не зсуває.
+ * Поки кидок летить на сервер, кнопка вимкнена: подвійний дотик не надсилає вдруге.
+ */
+function DiceAction({ dice, meId, paused, send, onError }: { dice: DiceInfo; meId: string; paused: boolean; send: Send; onError: (message: string | null) => void }) {
+  const [rolling, setRolling] = useState(false);
+  const rollingRef = useRef(false);
+  // Номер поточного кидка: пізня відповідь старого кидка не звільняє кнопку для нового.
+  const tokenRef = useRef(0);
+  const fallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (fallbackRef.current !== null) clearTimeout(fallbackRef.current);
+      fallbackRef.current = null;
+    };
+  }, []);
+  const mine = dice.rows.find((row) => row.playerId === meId);
+  const roll = () => {
+    if (rollingRef.current) return;
+    rollingRef.current = true;
+    setRolling(true);
+    const token = ++tokenRef.current;
+    const release = () => {
+      if (tokenRef.current !== token || !rollingRef.current) return;
+      rollingRef.current = false;
+      if (fallbackRef.current !== null) clearTimeout(fallbackRef.current);
+      fallbackRef.current = null;
+      if (mountedRef.current) setRolling(false);
+    };
+    // Відповідь може не прийти (send без тайм-ауту): кнопка не лишається вимкненою назавжди.
+    fallbackRef.current = setTimeout(release, 3000);
+    void send('player:roll', undefined)
+      .then((result) => {
+        if (mountedRef.current) onError(result.ok ? null : errorText(result.error));
+      })
+      .finally(release);
+  };
+  return (
+    <div className="dice-action">
+      {mine?.waiting === true ? (
+        <button type="button" className="btn btn-primary" disabled={paused || rolling} onClick={roll}>
+          {t('rollDice')}
+        </button>
+      ) : (
+        <p className="lead">{t('diceMineWait')}</p>
+      )}
+    </div>
   );
 }
 
@@ -221,6 +276,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
           <RoundFacts round={view.round} total={view.total} />
           <RoundBriefing brief={view.round.brief} description={view.round.description} />
+          {board !== null && (
+            <BoardIntro board={board} meId={me.id}>
+              {board.dice !== null && !board.dice.done && (
+                <DiceAction dice={board.dice} meId={me.id} paused={view.paused} send={send} onError={setError} />
+              )}
+            </BoardIntro>
+          )}
         </>
       )}
 
@@ -236,6 +298,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <p className="lead">{chooserIsMe ? t('yourPick') : t('boardChooser', { name: chooserName })}</p>
           <Board board={board} onPick={chooserIsMe ? (cellId) => void pick(cellId) : undefined} disabled={view.paused} />
           <BoardLegend board={board} />
+          <TurnSchedule board={board} heading={t('turnQueueTitle')} limit={3} />
         </>
       )}
 

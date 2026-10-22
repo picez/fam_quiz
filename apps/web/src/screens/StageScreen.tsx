@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
 import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
@@ -8,6 +7,8 @@ import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
+import { BoardIntro } from './Dice';
+import { TurnSchedule } from './TurnSchedule';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -204,45 +205,6 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
   );
 }
 
-const DICE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-const ROLL_MS = 1500;
-
-/** Порядок ходів; коли ведучий кидає кубик, спершу 1,5 с крутиться кубик. */
-function Order({ board }: { board: BoardInfo }) {
-  const seen = useRef(board.rolls);
-  const [rolling, setRolling] = useState(false);
-  const [face, setFace] = useState(5);
-
-  useEffect(() => {
-    if (board.rolls === seen.current) return;
-    seen.current = board.rolls;
-    setRolling(true);
-    const spin = setInterval(() => setFace(Math.floor(Math.random() * DICE.length)), 120);
-    const stop = setTimeout(() => setRolling(false), ROLL_MS);
-    return () => {
-      clearInterval(spin);
-      clearTimeout(stop);
-    };
-  }, [board.rolls]);
-
-  if (rolling) {
-    return (
-      <p className="dice is-rolling" role="img" aria-label={t('diceLabel')}>
-        {DICE[face]}
-      </p>
-    );
-  }
-  return (
-    <ol className="turn-order">
-      {board.order.map((entry) => (
-        <li key={entry.playerId} className={entry.playerId === board.turn?.playerId ? 'is-turn' : undefined}>
-          {entry.nickname}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 function FinalStage({ view }: { view: StageView }) {
   if (view.round === null || view.final === null) return null;
   const { final } = view;
@@ -261,16 +223,16 @@ function Intro({ view }: { view: StageView }) {
   if (view.round === null) return null;
   if (view.round.type === 'final') return <FinalStage view={view} />;
   return (
-    <div className="stage-board">
+    <div className={view.board !== null ? 'stage-board is-board-intro' : 'stage-board'}>
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} />
+      {/* Обгортка сцени: на широкому екрані розклад стає поруч із кидками, а не під ними. */}
       {view.board !== null && (
-        <>
-          <p className="meta">{t('boardOrder')}</p>
-          <Order board={view.board} />
-        </>
+        <div className="stage-dice">
+          <BoardIntro board={view.board} />
+        </div>
       )}
     </div>
   );
@@ -282,7 +244,7 @@ function BoardStage({ board }: { board: BoardInfo }) {
       <Board board={board} />
       <aside className="board-aside">
         <BoardLegend board={board} />
-        <Order board={board} />
+        <TurnSchedule board={board} heading={t('turnQueueTitle')} limit={3} />
       </aside>
       {board.turn !== null && <p className="lead board-turn">{t('boardChooser', { name: board.turn.nickname })}</p>}
     </div>

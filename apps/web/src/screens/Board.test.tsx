@@ -25,7 +25,9 @@ const board = (cells: BoardCellView[], more: BoardCellView[] = []): BoardInfo =>
   order: [],
   turn: null,
   cell: null,
-  rolls: 0,
+  dice: null,
+  schedule: [],
+  scheduleRepeats: false,
   skipAt: null,
 });
 

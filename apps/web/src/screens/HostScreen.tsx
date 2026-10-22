@@ -7,6 +7,8 @@ import { errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
+import { TurnSchedule } from './TurnSchedule';
+import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -191,6 +193,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
     });
   };
 
+  // Поки тур кидків триває, раунд не починається; ведучий може кинути за тих, хто лишився, або впорядкувати вручну.
+  const diceRolling = phase === 'intro' && board !== null && board.dice !== null && !board.dice.done;
+
   const move = (from: number, to: number) => {
     if (board === null) return;
     const ids = board.order.map((entry) => entry.playerId);
@@ -261,10 +266,16 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               </li>
             ))}
           </ol>
-          <div className="actions">
-            <button type="button" className="btn" disabled={ordering} onClick={() => reorder('host:roll')}>
-              {t('rollDice')}
+          {/* Не липкий .actions: під кнопками ще кидки й розклад, футер не має їх накривати. */}
+          <div className="panel-actions">
+            <button type="button" className="btn" disabled={ordering || diceRolling} onClick={() => reorder('host:dice')}>
+              {t('diceStart')}
             </button>
+            {diceRolling && (
+              <button type="button" className="btn" disabled={ordering} onClick={() => reorder('host:roll')}>
+                {t('diceRollForRest')}
+              </button>
+            )}
             <button
               type="button"
               className="btn"
@@ -274,6 +285,17 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               {t('orderByJoin')}
             </button>
           </div>
+          <BoardIntro board={board} />
+          {diceRolling && board.dice !== null && (
+            <p className="meta">
+              {t('diceStartLocked', {
+                names: board.dice.rows
+                  .filter((row) => row.waiting)
+                  .map((row) => row.nickname)
+                  .join(', '),
+              })}
+            </p>
+          )}
         </section>
       )}
 
@@ -283,6 +305,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           <SkipNote board={board} view={view} offsetMs={offsetMs} />
           <Board board={board} onPick={(cellId) => void act('host:pick', { cellId })} />
           <BoardLegend board={board} />
+          <TurnSchedule board={board} heading={t('turnQueueTitle')} limit={3} />
           <div className="panel-actions">
             <button type="button" className="btn" onClick={() => void act('host:skip')}>
               {t('skipTurn')}
@@ -692,7 +715,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           <button
             type="button"
             className="btn btn-primary"
-            disabled={stepping || (phase === 'lobby' && view.players.length === 0)}
+            disabled={stepping || (phase === 'lobby' && view.players.length === 0) || diceRolling}
             onClick={() => step(main.event)}
           >
             {t(main.label === 'lock' && blitz !== null && board !== null ? 'closeCell' : main.label)}

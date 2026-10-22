@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type Question, RoundInfo, StageView } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
+import { ROLL_MS } from './Dice';
 
 afterEach(cleanup);
 
@@ -327,13 +328,64 @@ describe('StageScreen: blitz', () => {
       ],
       turn: { playerId: 'p2', nickname: 'Анна' },
       cell: null,
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
       ...over,
     });
 
+    const olena = { playerId: 'p1', nickname: 'Олена' };
+    const anna = { playerId: 'p2', nickname: 'Анна' };
+    const introOf = (board: NonNullable<StageView['board']>) => view({ phase: 'intro', round, board });
+
+    it("the board intro shows every player's die and the result next to the name", () => {
+      const dice = { rows: [{ ...olena, throws: [5], waiting: false }, { ...anna, throws: [], waiting: true }], tieBreak: false, done: false };
+      const { container } = show(introOf(boardOf({ turn: null, dice })));
+      const rows = container.querySelector('.dice-rows')!;
+      expect(rows.textContent).toContain('Олена');
+      expect(rows.querySelectorAll('li')[0]!.querySelector('.dice-value')?.textContent).toBe('5');
+      expect(rows.querySelectorAll('li')[1]!.querySelector('.die.is-empty')).not.toBeNull();
+      expect(screen.getByText('Кидають: Анна')).toBeTruthy();
+      expect(container.querySelector('.turn-schedule')).toBeNull();
+    });
+
+    it('the schedule waits until the dice stop', () => {
+      vi.useFakeTimers();
+      try {
+        const waiting = { rows: [{ ...olena, throws: [5], waiting: false }, { ...anna, throws: [], waiting: true }], tieBreak: false, done: false };
+        const { container, rerender } = show(introOf(boardOf({ turn: null, dice: waiting })));
+        const done = { rows: [{ ...olena, throws: [5], waiting: false }, { ...anna, throws: [2], waiting: false }], tieBreak: false, done: true };
+        const schedule = [
+          { number: 1, order: [olena, anna], done: 0 },
+          { number: 2, order: [anna, olena], done: 0 },
+        ];
+        rerender(
+          <StageScreen view={introOf(boardOf({ turn: null, dice: done, schedule }))} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />,
+        );
+        expect(container.querySelector('.is-rolling')).not.toBeNull();
+        expect(container.querySelector('.turn-schedule')).toBeNull();
+        act(() => {
+          vi.advanceTimersByTime(ROLL_MS);
+        });
+        expect(container.querySelector('.is-rolling')).toBeNull();
+        expect(screen.getByText('Розклад ходів')).toBeTruthy();
+        expect(container.querySelector('li.turn-circle')?.textContent).toBe('Коло 1: Олена → Анна');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('without dice the intro shows the schedule from the join order', () => {
+      const schedule = [{ number: 1, order: [olena, anna], done: 0 }];
+      const { container } = show(introOf(boardOf({ turn: null, schedule })));
+      expect(container.querySelector('.turn-schedule')).not.toBeNull();
+      expect(container.querySelector('.dice-panel')).toBeNull();
+    });
+
     it('shows the board with hidden marks, played cells and whose turn it is', () => {
-      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
+      const schedule = [{ number: 1, order: [olena, anna], done: 1 }];
+      const { container } = show(view({ phase: 'board', round, board: boardOf({ schedule }) }));
       expect(screen.getByText('Міста')).toBeTruthy();
       expect(screen.getByText('Ріки')).toBeTruthy();
       expect(screen.getAllByText('100')).toHaveLength(2);
@@ -344,10 +396,17 @@ describe('StageScreen: blitz', () => {
       expect(container.querySelector('.is-turn')?.textContent).toContain('Анна');
     });
 
-    it('the turn order is its own list, not the order-question list', () => {
-      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
-      const turns = container.querySelector('ol.turn-order');
-      expect(turns?.querySelector('li.is-turn')?.textContent).toBe('Анна');
+    it('the board aside shows the turn queue with the current circle and the next ones', () => {
+      const schedule = [1, 2, 3, 4].map((number) => ({ number, order: [olena, anna], done: number === 1 ? 1 : 0 }));
+      const { container } = show(view({ phase: 'board', round, board: boardOf({ schedule }) }));
+      const aside = container.querySelector('.board-aside')!;
+      expect(aside.textContent).toContain('Черга ходів');
+      expect(aside.querySelectorAll('li.turn-circle')).toHaveLength(3);
+      expect(aside.querySelector('li.turn-circle .is-turn')?.textContent).toBe('Анна');
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const queue = aside.querySelector('.turn-schedule')!;
+      expect(legend.compareDocumentPosition(queue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(container.querySelector('ol.turn-order')).toBeNull();
       expect(container.querySelector('ol.order')).toBeNull();
     });
 
@@ -387,23 +446,6 @@ describe('StageScreen: blitz', () => {
       expect(screen.getByText('Відповідає Анна')).toBeTruthy();
       expect(document.body.textContent).not.toContain('×');
     });
-
-    it('rolls the dice when the roll counter changes', () => {
-      const intro = (rolls: number) => (
-        <StageScreen
-          view={view({ phase: 'intro', round, board: boardOf({ turn: null, rolls }) })}
-          code="123456"
-          joinUrl="http://quiz.test/play/123456"
-          offsetMs={0}
-          hostOnline
-        />
-      );
-      const { container, rerender } = render(intro(0));
-      expect(container.querySelector('.is-rolling')).toBeNull();
-      expect(screen.getByText('Олена')).toBeTruthy();
-      rerender(intro(1));
-      expect(container.querySelector('.is-rolling')).not.toBeNull();
-    });
   });
 });
 
@@ -414,7 +456,9 @@ describe('StageScreen: spotlight', () => {
     order: [{ playerId: 'p2', nickname: 'Анна' }],
     turn: { playerId: 'p2', nickname: 'Анна' },
     cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const },
-    rolls: 0,
+    dice: null,
+    schedule: [],
+    scheduleRepeats: false,
     skipAt: null,
   };
   const picked = { playerId: 'p2', nickname: 'Анна', answer: { type: 'single' as const, optionId: 'a' } };
@@ -496,7 +540,9 @@ describe('StageScreen: match', () => {
       order: [{ playerId: 'p2', nickname: 'Анна' }],
       turn: { playerId: 'p2', nickname: 'Анна' },
       cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const },
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
     };
     const { container } = show(view({ phase: 'question', questionIndex: 0, question: matchQ, round, board, endsAt: Date.now() + 20_000 }));
@@ -511,7 +557,9 @@ describe('StageScreen: match', () => {
       order: [{ playerId: 'p2', nickname: 'Анна' }],
       turn: { playerId: 'p2', nickname: 'Анна' },
       cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const },
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
     };
     const at = { phase: 'question' as const, questionIndex: 0, round, board, endsAt: Date.now() + 20_000 };
@@ -530,7 +578,9 @@ describe('StageScreen: match', () => {
       order: [{ playerId: 'p1', nickname: 'Алла' }],
       turn: { playerId: 'p1', nickname: 'Алла' },
       cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'all' as const },
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
     };
     show(

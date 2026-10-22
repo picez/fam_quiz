@@ -930,6 +930,12 @@ button.choice {
   margin: 0 auto;
 }
 
+/* Заставка поля росте вниз (кидки, потім розклад): притиснута догори, вона не їде вгору, як вміст по центру сцени. */
+.stage-board.is-board-intro {
+  width: min(100%, 90rem);
+  margin-bottom: auto;
+}
+
 .stage .standings li {
   font-size: clamp(1.25rem, 2.6vw, 2.75rem);
   padding: 1.2vh 1vw;
@@ -2194,7 +2200,7 @@ a.banner {
 
 .stage-board.board-with-legend {
   width: min(100%, 90rem);
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, max(18rem, 22vw));
   gap: 2rem;
   align-items: start;
 }
@@ -2265,43 +2271,137 @@ a.banner {
   justify-content: center;
 }
 
-.turn-order {
-  display: flex;
-  flex-wrap: wrap;
+.dice-panel {
+  display: grid;
   gap: 0.5rem;
-  justify-content: center;
+}
+
+.dice-status {
   margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: turn;
-}
-
-.turn-order li {
-  counter-increment: turn;
-  padding: 0.375rem 0.875rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-}
-
-.turn-order li::before {
-  content: counter(turn) '. ';
+  min-height: 1.5em;
   color: var(--dim);
 }
 
-.turn-order li.is-turn {
-  border-color: var(--amber);
+.dice-rows {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dice-rows li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 2.75rem;
+  white-space: nowrap;
+}
+
+.dice-rows .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dice-rows li.is-waiting .name {
   color: var(--amber);
 }
 
-.dice {
-  margin: 0;
-  font-size: 7rem;
-  line-height: 1;
-  text-align: center;
+.dice-rows li.is-me .name {
+  font-weight: 700;
 }
 
-.dice.is-rolling {
-  animation: dice-roll 0.3s linear infinite;
+.dice-throws {
+  color: var(--dim);
+}
+
+.dice-value {
+  min-width: 1.5ch;
+  font-weight: 700;
+  text-align: right;
+}
+
+.die {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  box-sizing: border-box;
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+/*
+ * Заставка поля на сцені вміщається на 720p: висота рядків і кубика росте з висотою екрана.
+ * Рядок обмежений за шириною (15em), тож кубик і результат стоять поруч з ім'ям, а не на іншому краю сцени.
+ */
+/* Один рядок, тож рядки кидків не зсуваються; довгий список імен заходить у колонку розкладу (її ще немає, поки кидають). */
+.stage .dice-status {
+  width: max-content;
+  max-width: min(90vw, 90rem);
+  font-size: clamp(1rem, 1.7vw, 1.75rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage .dice-rows li {
+  max-width: 15em;
+  height: clamp(2.75rem, 7.5vh, 4.25rem);
+}
+
+/* Багато гравців: дві колонки, згори вниз у кожній. */
+.stage .dice-rows.is-many {
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--dice-half), auto);
+  grid-template-columns: repeat(2, minmax(0, 15em));
+  column-gap: 2em;
+}
+
+.stage .die {
+  width: clamp(2.5rem, 6.5vh, 4rem);
+  height: clamp(2.5rem, 6.5vh, 4rem);
+  font-size: clamp(2.2rem, 5.7vh, 3.5rem);
+}
+
+/* Шрифт рядків кидків; ширина колонки кидків у тих самих em, що й рядки. */
+.stage-dice {
+  display: grid;
+  gap: 3vh 4vw;
+  align-items: start;
+  min-width: 0;
+  font-size: clamp(1.25rem, 3.2vh, 1.75rem);
+}
+
+/* Широкий екран: розклад поруч із кидками; колонки задані наперед, тож поява розкладу не зсуває рядки. */
+@media (min-width: 1100px) {
+  /* Без кубиків (вручну, за приєднанням, один гравець) розклад стоїть ліворуч, як решта заставки. */
+  .stage-dice:has(> .dice-panel) {
+    grid-template-columns: minmax(0, 15em) minmax(0, 1fr);
+  }
+
+  .stage-dice:has(> .dice-panel .dice-rows.is-many) {
+    grid-template-columns: minmax(0, 32em) minmax(0, 1fr);
+  }
+
+  .stage-dice > .dice-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .stage-dice > .dice-panel ~ .turn-schedule {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+.die.is-empty {
+  border: 2px dashed var(--line);
+  border-radius: 0.4rem;
 }
 
 @keyframes dice-roll {
@@ -2310,10 +2410,91 @@ a.banner {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dice.is-rolling {
-    animation: none;
+@media (prefers-reduced-motion: no-preference) {
+  .die.is-rolling {
+    animation: dice-roll 0.3s linear infinite;
   }
+}
+
+.dice-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.5rem;
+}
+
+.dice-action .lead {
+  margin: 0;
+}
+
+.turn-schedule {
+  min-width: 0;
+}
+
+.turn-schedule h2 {
+  margin: 0 0 0.5rem;
+}
+
+/* Розклад і черга на сцені читаються здалеку, як решта тексту сцени. */
+.stage .turn-schedule h2 {
+  font-size: clamp(1.25rem, 2vw, 2.25rem);
+}
+
+.stage .turn-circles {
+  gap: 0.4em;
+  font-size: clamp(1.125rem, 1.6vw, 1.875rem);
+}
+
+.turn-circles {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn-circle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+
+.circle-label {
+  color: var(--dim);
+}
+
+.turn-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.turn-name {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-name.is-turn {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.turn-name.is-done {
+  color: var(--dim);
+}
+
+.turn-arrow {
+  color: var(--dim);
 }
 
 .banner.is-away {

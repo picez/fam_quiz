@@ -1,6 +1,6 @@
 import { cellAnswerMode, findCell, type Answer } from '@quiz/shared';
 import { advanceTurn, cellMultiplier, cellPlayed, chooserOf, enterBoard } from './board-turns';
-import { fail, ok, openQuestion, shuffle, withCurrentPlay, type GameState, type Result, type Rng } from './game';
+import { fail, ok, openQuestion, withCurrentPlay, type GameState, type Result, type Rng } from './game';
 
 /** Порядок гравців можна міняти лише на заставці раунду поля. */
 function inBoardIntro(state: GameState): boolean {
@@ -13,16 +13,8 @@ export function setOrder(state: GameState, playerIds: string[]): Result {
   const valid =
     playerIds.length === known.size && new Set(playerIds).size === playerIds.length && playerIds.every((id) => known.has(id));
   if (!valid) return fail('not_found');
-  return ok({ ...state, board: { ...state.board, circle: [...playerIds], done: 0 } });
-}
-
-export function rollOrder(state: GameState, rng: Rng): Result {
-  if (!inBoardIntro(state) || state.board === null) return fail('wrong_phase');
-  const circle = shuffle(
-    state.players.map((p) => p.id),
-    rng,
-  );
-  return ok({ ...state, board: { ...state.board, circle, done: 0, rolls: state.board.rolls + 1 } });
+  // Ручний порядок скасовує кубики.
+  return ok({ ...state, board: { ...state.board, circle: [...playerIds], done: 0, circleNo: 1, dice: null } });
 }
 
 /** by — id гравця або null, коли вибирає ведучий. */

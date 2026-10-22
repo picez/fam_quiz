@@ -260,6 +260,8 @@ describe('permissions and bad input', () => {
     expect(await send(stage, 'player:pick', { cellId: 'c11' })).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(olena, 'host:skip')).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(olena, 'host:roll')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:dice')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'player:roll')).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(olena, 'host:pick', { cellId: 'c11' })).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(olena, 'host:order', { playerIds: [] })).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(olena, 'player:pick', { cellId: '' })).toEqual({ ok: false, error: 'invalid_payload' });

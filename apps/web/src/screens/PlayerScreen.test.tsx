@@ -476,11 +476,24 @@ describe('PlayerScreen: blitz', () => {
       ],
       turn: { playerId: turn, nickname: turn === 'p1' ? 'Олена' : 'Анна' },
       cell: null,
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
       ...over,
     });
     const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+
+    it('the phone shows the turn queue under the legend while choosing a cell', () => {
+      const olena = { playerId: 'p1', nickname: 'Олена' };
+      const anna = { playerId: 'p2', nickname: 'Анна' };
+      const schedule = [{ number: 1, order: [olena, anna], done: 1 }];
+      show(view({ phase: 'board', round, board: boardOf('p2', { schedule }) }));
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const queue = screen.getByText('Черга ходів');
+      expect(legend.compareDocumentPosition(queue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.querySelector('.turn-schedule .is-turn')?.textContent).toBe('Анна');
+    });
 
     it('the phone shows the legend under the board', () => {
       show(view({ phase: 'board', round, board: boardOf('p2') }));
@@ -538,6 +551,119 @@ describe('PlayerScreen: blitz', () => {
       expect(screen.getByText('Відповідав Анна')).toBeTruthy();
       expect(screen.getByText(/Правильна відповідь: B. Київ/)).toBeTruthy();
     });
+
+    const olena = { playerId: 'p1', nickname: 'Олена' };
+    const anna = { playerId: 'p2', nickname: 'Анна' };
+    const diceOf = (mine: number[], waiting: boolean, extra: { tieBreak?: boolean; done?: boolean; annaWaiting?: boolean } = {}) => ({
+      rows: [
+        { ...olena, throws: mine, waiting },
+        { ...anna, throws: [], waiting: extra.annaWaiting ?? true },
+      ],
+      tieBreak: extra.tieBreak ?? false,
+      done: extra.done ?? false,
+    });
+    const intro = (dice: ReturnType<typeof diceOf>, over: Partial<PlayerView> = {}, board: Partial<NonNullable<PlayerView['board']>> = {}) =>
+      view({ phase: 'intro', round, board: boardOf('p1', { turn: null, dice, ...board }), ...over });
+    const rollButton = () => screen.queryByRole('button', { name: 'Кинути кубик' }) as HTMLButtonElement | null;
+
+    it('the phone roll button sends once and disappears into the reserved slot', async () => {
+      let resolve: (value: { ok: true }) => void = () => {};
+      const send = vi.fn(() => new Promise<{ ok: true }>((r) => (resolve = r))) as unknown as Send;
+      const { rerender } = render(<PlayerScreen view={intro(diceOf([], true))} hostOnline offsetMs={0} send={send} />);
+      const slot = document.querySelector('div.dice-action')!;
+      expect(slot.contains(rollButton())).toBe(true);
+      fireEvent.click(rollButton()!);
+      expect(send).toHaveBeenCalledWith('player:roll', undefined);
+      expect(rollButton()!.disabled).toBe(true);
+      fireEvent.click(rollButton()!);
+      expect(send).toHaveBeenCalledTimes(1);
+      await act(async () => resolve({ ok: true }));
+      rerender(<PlayerScreen view={intro(diceOf([4], false))} hostOnline offsetMs={0} send={send} />);
+      expect(rollButton()).toBeNull();
+      expect(document.querySelector('div.dice-action')).toBe(slot);
+      expect(slot.textContent).toBe('Кубик кинуто. Чекаємо інших');
+    });
+
+    it('the roll button frees itself when the ack never arrives', () => {
+      vi.useFakeTimers();
+      try {
+        const send = vi.fn(() => new Promise<{ ok: true }>(() => {})) as unknown as Send;
+        render(<PlayerScreen view={intro(diceOf([], true))} hostOnline offsetMs={0} send={send} />);
+        fireEvent.click(rollButton()!);
+        expect(rollButton()!.disabled).toBe(true);
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(rollButton()!.disabled).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a late answer from a timed-out roll does not free a newer roll in flight', async () => {
+      vi.useFakeTimers();
+      try {
+        const resolvers: Array<(value: { ok: true }) => void> = [];
+        const send = vi.fn(() => new Promise<{ ok: true }>((r) => resolvers.push(r))) as unknown as Send;
+        render(<PlayerScreen view={intro(diceOf([], true))} hostOnline offsetMs={0} send={send} />);
+        fireEvent.click(rollButton()!);
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(rollButton()!.disabled).toBe(false);
+        fireEvent.click(rollButton()!);
+        expect(send).toHaveBeenCalledTimes(2);
+        expect(rollButton()!.disabled).toBe(true);
+        // Відповідь першого кидка приходить запізно: другий кидок ще летить, кнопка лишається вимкненою.
+        await act(async () => resolvers[0]!({ ok: true }));
+        expect(rollButton()!.disabled).toBe(true);
+        await act(async () => resolvers[1]!({ ok: true }));
+        expect(rollButton()!.disabled).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('no state update after the roll button unmounts', async () => {
+      vi.useFakeTimers();
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        let resolve: (value: { ok: false; error: string }) => void = () => {};
+        const send = vi.fn(() => new Promise<{ ok: false; error: string }>((r) => (resolve = r))) as unknown as Send;
+        const { unmount } = render(<PlayerScreen view={intro(diceOf([], true))} hostOnline offsetMs={0} send={send} />);
+        fireEvent.click(rollButton()!);
+        unmount();
+        expect(vi.getTimerCount()).toBe(0);
+        await act(async () => resolve({ ok: false, error: 'not-allowed' }));
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
+    it('the roll button is disabled on pause and hidden for those not in the tie-break', () => {
+      show(intro(diceOf([], true), { paused: true }));
+      expect(rollButton()!.disabled).toBe(true);
+      cleanup();
+      show(intro(diceOf([3], false, { tieBreak: true })));
+      expect(rollButton()).toBeNull();
+      expect(document.querySelector('div.dice-action')?.textContent).toBe('Кубик кинуто. Чекаємо інших');
+    });
+
+    it('the phone intro shows the dice rows with the own row marked and then the schedule', () => {
+      show(intro(diceOf([], true)));
+      expect(document.querySelector('.dice-rows li.is-me')?.textContent).toContain('Олена');
+      expect(screen.queryByText('Розклад ходів')).toBeNull();
+      cleanup();
+      const schedule = [{ number: 1, order: [olena, anna], done: 0 }];
+      show(intro({ ...diceOf([5], false, { done: true, annaWaiting: false }) }, {}, { schedule }));
+      expect(screen.getByText('Розклад ходів')).toBeTruthy();
+      expect(document.querySelector('div.dice-action')).toBeNull();
+    });
   });
 });
 
@@ -550,7 +676,9 @@ describe('PlayerScreen: blitz cell', () => {
     order: [anna],
     turn: { playerId: 'p2', nickname: 'Алла' },
     cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'blitz', answerMode: 'phone', penalty: 'none', ...over },
-    rolls: 0,
+    dice: null,
+    schedule: [],
+    scheduleRepeats: false,
     skipAt: null,
   });
   const blitzMe = (blitz: PlayerBlitz | null, extra = {}) => ({ ...me, blitz, ...extra });
@@ -622,7 +750,9 @@ describe('PlayerScreen: spotlight', () => {
     order: [turn],
     turn,
     cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const },
-    rolls: 0,
+    dice: null,
+    schedule: [],
+    scheduleRepeats: false,
     skipAt: null,
   });
   const anna = { playerId: 'p2', nickname: 'Анна' };

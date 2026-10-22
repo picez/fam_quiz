@@ -17,6 +17,7 @@ import {
 } from '@quiz/shared';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
+import { dicePending, dropFromDice } from './board-dice';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { chainDone, scoreChain } from './chain';
 import { checkAnswer } from './check';
@@ -122,14 +123,28 @@ export interface FinalPlay {
   graded: string[];
 }
 
+/** Кидки кубиків на заставці раунду поля. */
+export interface DiceState {
+  /** Усі кидки гравця по черзі: перший тур, далі перекидання; немає ключа — ще не кидав. */
+  throws: Record<string, number[]>;
+  /** Учасники поточного туру в порядку приєднання; [] — порядок визначено. */
+  tour: string[];
+  /** Учасники туру, які ще не кинули в ньому. */
+  waiting: string[];
+  /** Номер туру: 1 — усі, далі — перекидання між тими, хто зрівнявся. */
+  tourNo: number;
+}
+
 /** Стан ходів у раунді поля. */
 export interface BoardState {
   /** Порядок поточного кола. */
   circle: string[];
   /** Скільки гравців поточного кола вже походили (вибрали клітинку або пропустили хід). */
   done: number;
-  /** Скільки разів у раунді кидали кубик; сцена показує анімацію, коли число змінилося. */
-  rolls: number;
+  /** Номер поточного кола в раунді, від 1. */
+  circleNo: number;
+  /** null — кубики не кидають (порядок за приєднанням або ручний). */
+  dice: DiceState | null;
   /** Відколи гравець, чий хід, відключений; null — на місці, пауза або не етап board. */
   awaySince: number | null;
 }
@@ -278,7 +293,9 @@ export function removePlayer(state: GameState, playerId: string): Result {
     return { ...kept, blitz };
   });
   // Гравець зникає з кола; відлік відсутності скидається, його заново ставить tick.
-  const board = state.board === null ? null : { ...dropFromCircle(state.board, playerId), awaySince: null };
+  // Вилучений гравець зникає й з кидків кубиків; тур, що через це скінчився, рахується.
+  const ids = state.players.map((p) => p.id);
+  const board = state.board === null ? null : { ...dropFromDice(dropFromCircle(state.board, playerId), playerId, ids), awaySince: null };
   const final = state.final === null ? null : dropFromFinal(state.final, playerId);
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
   const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final };
@@ -883,7 +900,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   if (state.paused) return fail('paused');
   switch (state.phase) {
     case 'intro':
-      if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
+      if (currentRound(state)?.type === 'board') return dicePending(state.board) ? fail('dice_pending') : ok(enterBoard(state, now));
       if (state.final !== null) return ok(enterWager(state, state.final));
       return ok(advance(state, now, rng));
     case 'wager':
