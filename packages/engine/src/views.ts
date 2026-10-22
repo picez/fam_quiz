@@ -26,6 +26,7 @@ import {
   type Spotlight,
   type Standing,
   type StageView,
+  roundBrief,
   rulesOf,
 } from '@quiz/shared';
 import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
@@ -92,6 +93,8 @@ function roundInfo(state: GameState): RoundInfo | null {
     title: round.title,
     type: round.type,
     partial: rulesOf(round).partial !== null,
+    description: round.description ?? '',
+    brief: roundBrief(round),
   };
 }
 

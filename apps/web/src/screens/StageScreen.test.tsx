@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Question, RoundInfo, StageView } from '@quiz/shared';
+import { emptyBrief, type Question, RoundInfo, StageView } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 
 afterEach(cleanup);
@@ -138,7 +138,7 @@ describe('StageScreen', () => {
 });
 
 describe('StageScreen: rounds', () => {
-  const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false };
+  const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic') };
 
   it('announces the round on the intro', () => {
     show(view({ phase: 'intro', round }));
@@ -167,7 +167,7 @@ describe('StageScreen: rounds', () => {
 });
 
 describe('StageScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
   const queue = [
     { playerId: 'p1', nickname: 'Олена' },
     { playerId: 'p2', nickname: 'Тарас' },
@@ -199,7 +199,7 @@ describe('StageScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
     const boardOf = (over: Partial<NonNullable<StageView['board']>> = {}): NonNullable<StageView['board']> => ({
       categories: [
         {
@@ -286,7 +286,7 @@ describe('StageScreen: blitz', () => {
 });
 
 describe('StageScreen: spotlight', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
   const board = {
     categories: [],
     order: [{ playerId: 'p2', nickname: 'Анна' }],
@@ -356,7 +356,7 @@ describe('StageScreen: match', () => {
   });
 
   it('a voice board cell shows the match columns without the phone hint', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
     const board = {
       categories: [],
       order: [{ playerId: 'p2', nickname: 'Анна' }],
@@ -370,7 +370,7 @@ describe('StageScreen: match', () => {
     expect(screen.queryByText('З’єднайте пари на телефоні')).toBeNull();
   });
   it('the stage shows a blitz cell with the chooser and the queue', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
     const board = {
       categories: [],
       order: [{ playerId: 'p1', nickname: 'Алла' }],
@@ -399,7 +399,7 @@ describe('StageScreen: match', () => {
 });
 
 describe('StageScreen final', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
   const info = { theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 };
   const entry = (nickname: string, wager: number, before: number, after: number) => ({
     playerId: nickname,

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
+import { emptyBrief, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
 
@@ -206,7 +206,7 @@ describe('PlayerScreen: question image', () => {
 });
 
 describe('PlayerScreen: rounds', () => {
-  const round: RoundInfo = { index: 1, total: 3, title: 'Фінальний', type: 'classic', partial: false };
+  const round: RoundInfo = { index: 1, total: 3, title: 'Фінальний', type: 'classic', partial: false, description: '', brief: emptyBrief('classic') };
 
   it('announces the round on the intro', () => {
     show(view({ phase: 'intro', round }));
@@ -243,7 +243,7 @@ describe('PlayerScreen: rounds', () => {
 });
 
 describe('PlayerScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
   const blitzMe = (blitz: Partial<NonNullable<PlayerView['me']['blitz']>>, over: Partial<PlayerView['me']> = {}) => ({
     ...me,
     ...over,
@@ -321,7 +321,7 @@ describe('PlayerScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
     const boardOf = (turn: string, over: Partial<NonNullable<PlayerView['board']>> = {}): NonNullable<PlayerView['board']> => ({
       categories: [
         {
@@ -399,7 +399,7 @@ describe('PlayerScreen: blitz', () => {
 
 
 describe('PlayerScreen: blitz cell', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
   const anna = { playerId: 'p2', nickname: 'Анна' };
   const blitzBoard = (over: Partial<NonNullable<NonNullable<PlayerView['board']>['cell']>> = {}): NonNullable<PlayerView['board']> => ({
     categories: [],
@@ -472,7 +472,7 @@ describe('PlayerScreen: blitz cell', () => {
 });
 
 describe('PlayerScreen: spotlight', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
   const boardOf = (turn: { playerId: string; nickname: string }): NonNullable<PlayerView['board']> => ({
     categories: [],
     order: [turn],
@@ -523,7 +523,7 @@ describe('PlayerScreen: spotlight', () => {
 });
 
 describe('PlayerScreen final', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false };
+  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
   const info = { theme: 'Космос', placed: 0, total: 2, shown: [], left: 0 };
   const onWager = (limit: number, wager: number | null = null) =>
     view({ phase: 'wager', round, final: info, me: { ...me, score: limit, final: { wager, limit } } });

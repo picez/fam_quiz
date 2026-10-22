@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostView, Question, RoundInfo } from '@quiz/shared';
+import { emptyBrief, type HostView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
 
@@ -225,7 +225,7 @@ describe('HostScreen: question image', () => {
 });
 
 describe('HostScreen: rounds', () => {
-  const round = (over: Partial<RoundInfo> = {}): RoundInfo => ({ index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, ...over });
+  const round = (over: Partial<RoundInfo> = {}): RoundInfo => ({ index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), ...over });
 
   it('shows the round intro with a «start round» main action', () => {
     const send = show(view({ phase: 'intro', round: round() }));
@@ -302,7 +302,7 @@ describe('HostScreen: rounds', () => {
 });
 
 describe('HostScreen: blitz', () => {
-  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
   const blitz = (over: Partial<NonNullable<HostView['blitz']>> = {}): NonNullable<HostView['blitz']> => ({
     voice: false,
     manual: true,
@@ -353,7 +353,7 @@ describe('HostScreen: blitz', () => {
   });
 
   describe('board round', () => {
-    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true };
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board') };
     const three = [
       { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0 },
       { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 0 },
@@ -557,7 +557,7 @@ describe('HostScreen: blitz', () => {
     });
 
   describe('blitz cell', () => {
-    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false };
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board') };
     const bob = { playerId: 'p2', nickname: 'Богдан' };
     const blitzCell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'none' as const };
     const cellBoard = (over: Partial<NonNullable<HostView['board']>> = {}): NonNullable<HostView['board']> => ({
@@ -630,7 +630,7 @@ describe('HostScreen: blitz', () => {
   });
 
     it('judges a pending blitz head by hand', () => {
-      const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false };
+      const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz') };
       const head = { playerId: 'p1', nickname: 'Олена', answer: pendingSpot.answer, deadline: null };
       const send = show(
         during('question', single, {
@@ -649,7 +649,7 @@ describe('HostScreen: blitz', () => {
 });
 
 describe('HostScreen final', () => {
-  const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false };
+  const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final') };
   const three = [
     { id: 'p1', nickname: 'Анна', connected: true, score: 1000, streak: 0 },
     { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0 },
