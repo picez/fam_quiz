@@ -59,7 +59,7 @@ export function winStreak(games: PlayedGame[]): number {
   return best;
 }
 
-/** Сума points рядків учасника в раунді (зі штрафними). */
+/** Сума points рядків учасника в раунді (зі штрафними й коригуваннями). */
 export function roundPoints(player: TablePlayer, roundIndex: number): number {
   return player.rows.filter((row) => row.roundIndex === roundIndex).reduce((sum, row) => sum + row.points, 0);
 }

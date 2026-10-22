@@ -1677,6 +1677,11 @@ a.banner {
   font-size: 1rem;
 }
 
+.history-adjustments {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Бліц ---------- */
 
 .btn-buzz {

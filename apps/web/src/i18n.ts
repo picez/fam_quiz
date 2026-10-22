@@ -275,6 +275,7 @@ const uk = {
   finalRevealed: 'Розкрито {shown} з {total}',
   historyFinal: 'Ставки фіналу',
   finalHistoryLine: '{nickname}: ставка {wager}, {points}',
+  historyAdjustments: 'Бали від ведучого: {list}',
   boardLabel: 'Ігрове поле',
   boardAnswerMode: 'Спосіб відповіді для нових клітинок',
   boardAnswerPhone: 'З телефона',

@@ -1,4 +1,4 @@
-import type { Answer, GameStatus, QuizSettings, Round } from '@quiz/shared';
+import type { AdjustmentSource, Answer, GameStatus, QuizSettings, Round } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -156,6 +156,27 @@ export const answer = pgTable(
     overridden: boolean('overridden').notNull(),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
+);
+
+/** Номер рядка в TableRow для коригування рахунку (не відповідь); у таблиці answer таких рядків немає. */
+export const ADJUSTMENT_ATTEMPT = -2;
+
+/** Коригування рахунку учасника поза відповідями: бали від ведучого, пізніше — дуелі. */
+export const scoreAdjustment = pgTable(
+  'score_adjustment',
+  {
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participant.id, { onDelete: 'cascade' }),
+    /** Зростаючий номер коригування в межах гри; не перевикористовується. */
+    seq: integer('seq').notNull(),
+    roundIndex: integer('round_index').notNull(),
+    /** Скільки запитань гри вже закрито в мить коригування. */
+    afterQuestion: integer('after_question').notNull(),
+    points: integer('points').notNull(),
+    source: text('source').$type<AdjustmentSource>().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.participantId, table.seq] })],
 );
 
 /** Профіль гравця: окремо від user Better Auth, створюється під час першого читання. */

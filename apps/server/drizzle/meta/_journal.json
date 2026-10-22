@@ -43,6 +43,13 @@
       "when": 1792665473115,
       "tag": "0005_short_default_nicknames",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792710519520,
+      "tag": "0006_score_adjustments",
+      "breakpoints": true
     }
   ]
 }

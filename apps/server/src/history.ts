@@ -16,9 +16,9 @@ import {
   type Quiz,
   type Round,
 } from '@quiz/shared';
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, game, participant, PENALTY_ATTEMPT, type PlayRef } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, type PlayRef } from './db/schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIMIT = 100;
@@ -199,6 +199,20 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
             ),
           );
 
+  const adjustments =
+    participants.length === 0
+      ? []
+      : await db
+          .select()
+          .from(scoreAdjustment)
+          .where(
+            inArray(
+              scoreAdjustment.participantId,
+              participants.map((p) => p.id),
+            ),
+          )
+          .orderBy(asc(scoreAdjustment.seq));
+
   const standings = participants
     .map((p) => ({
       participantId: p.id,
@@ -245,6 +259,14 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
     questions,
+    adjustments: adjustments.map(({ participantId, roundIndex, afterQuestion, points, source }) => ({
+      roundIndex,
+      afterQuestion,
+      // Коригування вилученого гравця зникають разом з учасником (каскадом), тож нікнейм є завжди.
+      nickname: nicknames.get(participantId) ?? '',
+      points,
+      source,
+    })),
   };
 }
 
@@ -307,6 +329,7 @@ export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[
 
 export interface TableRow {
   roundIndex: number;
+  /** Номер спроби, PENALTY_ATTEMPT для штрафу або ADJUSTMENT_ATTEMPT для коригування рахунку. */
   attempt: number;
   accepted: boolean;
   points: number;
@@ -350,7 +373,7 @@ function roundTypesOf(types: unknown, roundCount: number | null): Round['type'][
 }
 
 /**
- * Ігри за id (порядок не гарантовано), з усіма учасниками та їхніми рядками answer.
+ * Ігри за id (порядок не гарантовано), з усіма учасниками та їхніми рядками answer і коригуваннями (attempt = ADJUSTMENT_ATTEMPT).
  * Типи раундів читаються в SQL без завантаження знімка; лише старий формат (без rounds) чи дивний знімок
  * дочитується повністю й розбирається схемою.
  */
@@ -390,8 +413,22 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
               participants.map((p) => p.id),
             ),
           );
+  const adjustments =
+    participants.length === 0
+      ? []
+      : await db
+          .select({ participantId: scoreAdjustment.participantId, roundIndex: scoreAdjustment.roundIndex, points: scoreAdjustment.points })
+          .from(scoreAdjustment)
+          .where(
+            inArray(
+              scoreAdjustment.participantId,
+              participants.map((p) => p.id),
+            ),
+          );
+  // Коригування — рядки без відповіді: входять у бали раунду (бліц, камбек), але не в «влучив у фінал».
+  const adjustmentRows = adjustments.map(({ participantId, roundIndex, points }) => ({ participantId, roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points }));
   const playersByGame = groupBy(participants, (p) => p.gameId);
-  const rowsByParticipant = groupBy(answers, (a) => a.participantId);
+  const rowsByParticipant = groupBy([...answers, ...adjustmentRows], (a) => a.participantId);
   return games.map((row) => ({
     gameId: row.id,
     status: row.status,

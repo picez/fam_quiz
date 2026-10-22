@@ -177,3 +177,44 @@ describe('short default nicknames (migration 0005)', () => {
     expect(await db.select().from(follow)).toHaveLength(1);
   });
 });
+
+describe('score adjustments (migration 0006)', () => {
+  it('an old database migrates to score adjustments and keeps its games', async () => {
+    const { hostGame } = await import('../history');
+    const { db, migrateRest } = await createTestDbUpTo('0005_short_default_nicknames');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const gameId = '11111111-1111-4111-8111-111111111111';
+    const participantId = '22222222-2222-4222-8222-222222222222';
+    await db.execute(sql`
+      INSERT INTO "game" ("id", "host_id", "code", "status", "title", "quiz_snapshot", "questions_played", "started_at")
+      VALUES (${gameId}, 'u1', '123456', 'finished', 'Гра', ${JSON.stringify(makeQuiz([single]))}::jsonb, 1, now())`);
+    await db.execute(sql`
+      INSERT INTO "participant" ("id", "game_id", "nickname", "score", "total_time_ms", "rank")
+      VALUES (${participantId}, ${gameId}, 'Тарас', 1000, 3000, 1)`);
+    await db.execute(sql`
+      INSERT INTO "answer" ("participant_id", "question_index", "payload", "time_ms", "accepted", "points", "overridden")
+      VALUES (${participantId}, 0, '{"type":"single","optionId":"b"}'::jsonb, 3000, true, 1000, false)`);
+
+    await migrateRest();
+
+    const after = await hostGame(db, 'u1', gameId);
+    expect(after?.standings).toEqual([{ participantId, nickname: 'Тарас', score: 1000, rank: 1, correct: 1 }]);
+    expect(after?.adjustments).toEqual([]);
+    expect(after?.questions).toMatchObject([{ index: 0, roundIndex: 0, answered: 1, accepted: 1 }]);
+  });
+
+  it('adjustments go together with their participant', async () => {
+    const { game, participant, scoreAdjustment } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const gameId = '11111111-1111-4111-8111-111111111111';
+    const participantId = '22222222-2222-4222-8222-222222222222';
+    await db.insert(game).values({ id: gameId, hostId: 'u1', code: '123456', status: 'running', title: 'Гра', quizSnapshot: makeQuiz([single]), startedAt: new Date() });
+    await db.insert(participant).values({ id: participantId, gameId, nickname: 'Тарас', score: -100, totalTimeMs: 0 });
+    await db.insert(scoreAdjustment).values({ participantId, seq: 1, roundIndex: 0, afterQuestion: 0, points: -100, source: 'host' });
+    await expect(db.insert(scoreAdjustment).values({ participantId, seq: 1, roundIndex: 0, afterQuestion: 0, points: 50, source: 'host' })).rejects.toThrow();
+
+    await db.delete(participant).where(eq(participant.id, participantId));
+    expect(await db.select().from(scoreAdjustment)).toEqual([]);
+  });
+});
