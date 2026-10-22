@@ -17,6 +17,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus } from '../live/Timer';
 import { Standings } from './Standings';
+import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
 
 interface Props {
   view: HostView;
@@ -202,6 +203,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
     [ids[from], ids[to]] = [ids[to], ids[from]];
     reorder('host:order', { playerIds: ids });
   };
+
+  const [tools, setTools] = useState<{ playerId: string; kind: 'points' | 'debuff' } | null>(null);
+  const toggleTools = (playerId: string, kind: 'points' | 'debuff') =>
+    setTools((open) => (open?.playerId === playerId && open.kind === kind ? null : { playerId, kind }));
 
   const kick = (playerId: string, name: string) => {
     if (window.confirm(t('kickConfirm', { name }))) void act('host:kick', { playerId });
@@ -661,14 +666,28 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           <h2>{`${t('players')}: ${view.players.length}`}</h2>
           <ul className="rows">
             {view.players.map((player) => (
-              <li key={player.id}>
+              <li key={player.id} className="player-row">
                 <span className="name">{player.nickname}</span>
                 {!player.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
+                {player.debuff !== null && <span className="tag debuff-tag">{debuffTagText(player.debuff)}</span>}
                 {player.streak >= 2 && <span className="streak">{t('streakMark', { count: player.streak })}</span>}
                 <span className="score">{num(player.score)}</span>
+                {live &&
+                  (['points', 'debuff'] as const).map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      className="btn btn-small"
+                      aria-expanded={tools?.playerId === player.id && tools.kind === kind}
+                      onClick={() => toggleTools(player.id, kind)}
+                    >
+                      {t(kind)}
+                    </button>
+                  ))}
                 <button type="button" className="btn btn-small" onClick={() => kick(player.id, player.nickname)}>
                   {t('kick')}
                 </button>
+                {live && tools?.playerId === player.id && (tools.kind === 'points' ? <PointsPanel player={player} send={send} onError={setError} /> : <DebuffPanel player={player} send={send} onError={setError} />)}
               </li>
             ))}
           </ul>

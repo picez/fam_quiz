@@ -1042,3 +1042,42 @@ describe('HostScreen timer and round facts', () => {
     expect(screen.getByText('10 запитань · 30–60 с на кожне')).toBeTruthy();
   });
 });
+
+describe('HostScreen player tools', () => {
+  const running = (over: Partial<HostView> = {}) => during('question', single, over);
+
+  it('points and debuff buttons appear beside each player only while the game runs', () => {
+    show(view());
+    expect(screen.queryByRole('button', { name: 'Бали' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished' }));
+    expect(screen.queryByRole('button', { name: 'Дебаф' })).toBeNull();
+    cleanup();
+    show(running());
+    expect(screen.getAllByRole('button', { name: 'Бали' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Дебаф' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Вилучити' })).toHaveLength(2);
+  });
+
+  it('one tools panel opens at a time', () => {
+    show(running());
+    const points = screen.getAllByRole('button', { name: 'Бали' });
+    const debuffs = screen.getAllByRole('button', { name: 'Дебаф' });
+    expect(points[0].getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(points[0]);
+    expect(points[0].getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByLabelText('Своя сума')).toBeTruthy();
+    fireEvent.click(debuffs[1]);
+    expect(screen.queryByLabelText('Своя сума')).toBeNull();
+    expect(debuffs[1].getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('Спрацює в наступному запитанні, де гравець відповідає.')).toBeTruthy();
+    expect(debuffs[1].closest('li')?.contains(screen.getByText('Спрацює в наступному запитанні, де гравець відповідає.'))).toBe(true);
+    fireEvent.click(debuffs[1]);
+    expect(screen.queryByText('Спрацює в наступному запитанні, де гравець відповідає.')).toBeNull();
+  });
+
+  it('the player row shows the debuff tag', () => {
+    show(running({ players: [{ ...players[0], debuff: { kind: 'mud', fired: true } }, players[1]] }));
+    expect(screen.getByText('🟫 Брудний екран · діє')).toBeTruthy();
+  });
+});

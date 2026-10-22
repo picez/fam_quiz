@@ -3195,3 +3195,45 @@ button.match-item {
 .stage-question .order-label {
   font-size: 1.5rem;
 }
+
+/* ---------- Пульт: бали й дебафи біля гравця ---------- */
+
+.rows li.player-row {
+  flex-wrap: wrap;
+}
+
+.player-tools {
+  flex-basis: 100%;
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  min-width: 0;
+}
+
+.quick-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.custom-points {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.custom-points .field {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.debuff-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.5rem;
+}
+
+.debuff-tag {
+  color: var(--amber);
+}
