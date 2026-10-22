@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { BoardInfo, DiceInfo, DiceRow } from '@quiz/shared';
 import { t } from '../i18n';
 import { TurnSchedule } from './TurnSchedule';
@@ -21,7 +21,8 @@ export function useDiceSpin(rows: DiceRow[]): ReadonlySet<string> {
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const [spinning, setSpinning] = useState<ReadonlySet<string>>(() => new Set());
 
-  useEffect(() => {
+  // Layout-ефект: стан кружляння ставиться до малювання, тож новий результат не блимає.
+  useLayoutEffect(() => {
     const previous = seen.current;
     seen.current = new Map(rows.map((r) => [r.playerId, r.throws.length]));
     if (previous === null || reducedMotion()) return;
@@ -64,7 +65,11 @@ export function DicePanel({ dice, spinning, meId }: { dice: DiceInfo; spinning: 
     .filter((r) => r.waiting)
     .map((r) => r.nickname)
     .join(', ');
-  const status = dice.done ? t('diceStatusDone') : names === '' ? '' : t(dice.tieBreak ? 'diceStatusTie' : 'diceStatusWaiting', { names });
+  const current = dice.done ? t('diceStatusDone') : names === '' ? '' : t(dice.tieBreak ? 'diceStatusTie' : 'diceStatusWaiting', { names });
+  // Поки крутиться кубик, лишається попередній рядок стану: він не видає результат раніше.
+  const shown = useRef(current);
+  if (!anySpin) shown.current = current;
+  const status = shown.current;
 
   return (
     <div className="dice-panel">

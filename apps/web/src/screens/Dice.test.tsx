@@ -92,4 +92,14 @@ describe('DicePanel', () => {
     expect(li(1).classList.contains('is-me')).toBe(true);
     expect(li(0).classList.contains('is-me')).toBe(false);
   });
+
+  it('the status keeps the previous line while a die spins', () => {
+    const before = [row('p1', 'Оля', [5], false), row('p2', 'Петро', [], true)];
+    const after = [row('p1', 'Оля', [5], false), row('p2', 'Петро', [3], false)];
+    const view = render(<DicePanel dice={info(before)} spinning={new Set()} />);
+    view.rerender(<DicePanel dice={info(after, { done: true })} spinning={new Set(['p2'])} />);
+    expect(document.querySelector('.dice-status')!.textContent).toBe('Кидають: Петро');
+    view.rerender(<DicePanel dice={info(after, { done: true })} spinning={new Set()} />);
+    expect(document.querySelector('.dice-status')!.textContent).toBe('Порядок визначено');
+  });
 });
