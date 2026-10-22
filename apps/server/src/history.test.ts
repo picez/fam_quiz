@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
-import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, match, single, text, withId } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, match, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
@@ -470,7 +470,8 @@ describe('host history: board', () => {
 
 describe('host history: answers', () => {
   async function start(quiz: object, scheduler?: FakeScheduler) {
-    const local = await buildApp({ db: await createTestDb(), auth: TEST_AUTH, ...(scheduler === undefined ? {} : { scheduler }) });
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, ...(scheduler === undefined ? {} : { scheduler }) });
     const send = (url: string, payload: object, cookie?: string) =>
       local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
     const host = await signUp(local.app, 'Ведуча');
@@ -489,7 +490,7 @@ describe('host history: answers', () => {
         questions: { question: { type: string }; responses: unknown[] }[];
       };
     };
-    return { local, room, enter, detail };
+    return { local, room, enter, detail, localDb };
   }
 
   it('history returns each player answer with the question snapshot, a match answer as links', async () => {
@@ -510,6 +511,28 @@ describe('host history: answers', () => {
       { nickname: 'Олена', answer: right, accepted: true },
       { nickname: 'Тарас', answer: swapped, accepted: false },
     ]);
+    await local.app.close();
+  });
+
+  it('a game with a video question shows in the history like any other', async () => {
+    const { local, room, enter, detail, localDb } = await start(makeQuiz([withVideo(single, { id: 'dQw4w9WgXcQ', start: 42 })], { speedBonus: false }));
+    const olena = await enter('Олена');
+    const taras = await enter('Тарас');
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    local.manager.answer(room, olena, { type: 'single', optionId: 'b' });
+    local.manager.answer(room, taras, { type: 'single', optionId: 'a' });
+    step('next');
+    step('next');
+    const result = await detail();
+    expect(result.questions[0].question).toMatchObject({ video: { id: 'dQw4w9WgXcQ', start: 42 } });
+    expect(result.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', accepted: true },
+      { nickname: 'Тарас', accepted: false },
+    ]);
+    const rows = await localDb.select().from(answer);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.timeMs).toBeGreaterThanOrEqual(0);
     await local.app.close();
   });
 

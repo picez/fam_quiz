@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
+import { blitzRound, boardRound, makeQuiz, makeRoundsQuiz, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
   FINISHED_TTL_MS,
@@ -142,6 +142,23 @@ describe('playing', () => {
     expect(manager.answer(room, taras.playerId, wrong)).toEqual({ ok: true });
     expect(room.state.phase).toBe('locked');
     expect(room.state.players.map((p) => p.score)).toEqual([750, 0]);
+  });
+
+  it('a video question sets no question timer and closes when both players answered', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeQuiz([withVideo(single)]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(scheduler.pending()).toEqual([]);
+    scheduler.advance(600_000);
+    expect(room.state.phase).toBe('question');
+    expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    expect(manager.answer(room, taras.playerId, wrong)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
   });
 
   it('locks the question when the time runs out', () => {
@@ -506,6 +523,31 @@ describe('board rounds', () => {
     expect(room.state.phase).toBe('board');
     expect(manager.pick(room, anna.playerId, 'c11')).toEqual({ ok: false, error: 'not_your_turn' });
     expect(manager.pick(room, bohdan.playerId, 'c11')).toEqual({ ok: true });
+  });
+
+  it('an absent answerer closes an untimed board cell after 30 s through the room timer', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(
+      makeRoundsQuiz([
+        boardRound('g1', [
+          { title: 'Міста', cells: [{ ...withVideo(withId(single, 'c11')), points: 100 }, cell('c12', 200)] },
+          { title: 'Річки', cells: [cell('c21', 100), cell('c22', 200)] },
+        ]),
+      ]),
+    );
+    manager.connect(room, HOST);
+    const anna = enter(manager, room, 'Анна');
+    enter(manager, room, 'Богдан');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.pick(room, anna.playerId, 'c11')).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    manager.disconnect(room, anna.identity);
+    scheduler.advance(29_999);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('locked');
   });
 
   it('a paused room keeps the absent chooser turn', () => {
