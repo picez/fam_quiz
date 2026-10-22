@@ -327,7 +327,9 @@ describe('StageScreen: blitz', () => {
       ],
       turn: { playerId: 'p2', nickname: 'Анна' },
       cell: null,
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
       ...over,
     });
@@ -387,23 +389,6 @@ describe('StageScreen: blitz', () => {
       expect(screen.getByText('Відповідає Анна')).toBeTruthy();
       expect(document.body.textContent).not.toContain('×');
     });
-
-    it('rolls the dice when the roll counter changes', () => {
-      const intro = (rolls: number) => (
-        <StageScreen
-          view={view({ phase: 'intro', round, board: boardOf({ turn: null, rolls }) })}
-          code="123456"
-          joinUrl="http://quiz.test/play/123456"
-          offsetMs={0}
-          hostOnline
-        />
-      );
-      const { container, rerender } = render(intro(0));
-      expect(container.querySelector('.is-rolling')).toBeNull();
-      expect(screen.getByText('Олена')).toBeTruthy();
-      rerender(intro(1));
-      expect(container.querySelector('.is-rolling')).not.toBeNull();
-    });
   });
 });
 
@@ -414,7 +399,9 @@ describe('StageScreen: spotlight', () => {
     order: [{ playerId: 'p2', nickname: 'Анна' }],
     turn: { playerId: 'p2', nickname: 'Анна' },
     cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const },
-    rolls: 0,
+    dice: null,
+    schedule: [],
+    scheduleRepeats: false,
     skipAt: null,
   };
   const picked = { playerId: 'p2', nickname: 'Анна', answer: { type: 'single' as const, optionId: 'a' } };
@@ -496,7 +483,9 @@ describe('StageScreen: match', () => {
       order: [{ playerId: 'p2', nickname: 'Анна' }],
       turn: { playerId: 'p2', nickname: 'Анна' },
       cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const },
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
     };
     const { container } = show(view({ phase: 'question', questionIndex: 0, question: matchQ, round, board, endsAt: Date.now() + 20_000 }));
@@ -511,7 +500,9 @@ describe('StageScreen: match', () => {
       order: [{ playerId: 'p2', nickname: 'Анна' }],
       turn: { playerId: 'p2', nickname: 'Анна' },
       cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const },
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
     };
     const at = { phase: 'question' as const, questionIndex: 0, round, board, endsAt: Date.now() + 20_000 };
@@ -530,7 +521,9 @@ describe('StageScreen: match', () => {
       order: [{ playerId: 'p1', nickname: 'Алла' }],
       turn: { playerId: 'p1', nickname: 'Алла' },
       cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'all' as const },
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
     };
     show(

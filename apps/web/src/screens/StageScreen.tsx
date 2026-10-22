@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
 import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
@@ -204,34 +203,8 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
   );
 }
 
-const DICE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-const ROLL_MS = 1500;
-
-/** Порядок ходів; коли ведучий кидає кубик, спершу 1,5 с крутиться кубик. */
+/** Порядок ходів поточного кола. */
 function Order({ board }: { board: BoardInfo }) {
-  const seen = useRef(board.rolls);
-  const [rolling, setRolling] = useState(false);
-  const [face, setFace] = useState(5);
-
-  useEffect(() => {
-    if (board.rolls === seen.current) return;
-    seen.current = board.rolls;
-    setRolling(true);
-    const spin = setInterval(() => setFace(Math.floor(Math.random() * DICE.length)), 120);
-    const stop = setTimeout(() => setRolling(false), ROLL_MS);
-    return () => {
-      clearInterval(spin);
-      clearTimeout(stop);
-    };
-  }, [board.rolls]);
-
-  if (rolling) {
-    return (
-      <p className="dice is-rolling" role="img" aria-label={t('diceLabel')}>
-        {DICE[face]}
-      </p>
-    );
-  }
   return (
     <ol className="turn-order">
       {board.order.map((entry) => (

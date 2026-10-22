@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, roundBrief, type Answer, type Phase, type Question } from '@quiz/shared';
 import { buzz } from './blitz';
 import { nameAnswer, pickCell } from './board';
+import { rollDie, startDice } from './board-dice';
+import { turnSchedule } from './board-turns';
 import { adjustTime } from './timing';
 import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, repick, setConnected, start, submitAnswer, type GameState } from './game';
 import { placeWager } from './final';
@@ -641,6 +643,56 @@ describe('board views', () => {
     expect(stageView(state).board?.skipAt).toBe(31_000);
     expect(stageView(must(pause(state, 2000))).board?.skipAt).toBeNull();
     expect(stageView(onBoard()).board?.skipAt).toBeNull();
+  });
+
+  /** rng, що дає задані грані кубика по черзі. */
+  const faces = (...values: number[]) => {
+    const queue = values.map((v) => (v - 1) / 6 + 0.01);
+    return () => queue.shift() ?? 0;
+  };
+  const roll = (state: GameState, id: string, face: number) => must(rollDie(state, id, faces(face)));
+  const boardIntro = () => must(start(lobbyWith(makeRoundsQuiz([field()]), 'Анна', 'Богдан', 'Віра')));
+  /** Анна 5, Богдан 5, Віра 2: Анна й Богдан перекидають. */
+  const tied = () => roll(roll(roll(must(startDice(boardIntro())), 'p1', 5), 'p2', 5), 'p3', 2);
+
+  it('everyone sees the dice rows in join order with every throw and who still rolls', () => {
+    const state = tied();
+    for (const view of [stageView(state), playerView(state, 'p3')!, hostView(state)]) {
+      expect(view.board?.dice).toEqual({
+        rows: [
+          { playerId: 'p1', nickname: 'Анна', throws: [5], waiting: true },
+          { playerId: 'p2', nickname: 'Богдан', throws: [5], waiting: true },
+          { playerId: 'p3', nickname: 'Віра', throws: [2], waiting: false },
+        ],
+        tieBreak: true,
+        done: false,
+      });
+      expect(view.board?.schedule).toEqual([]);
+    }
+  });
+
+  it('once the order is set the board view carries the circles with nicknames', () => {
+    const state = roll(roll(tied(), 'p2', 6), 'p1', 1);
+    const named = (id: string, nickname: string) => ({ playerId: id, nickname });
+    const { circles, repeats } = turnSchedule(state);
+    for (const view of [stageView(state), playerView(state, 'p1')!, hostView(state)]) {
+      expect(view.board?.dice).toMatchObject({ tieBreak: false, done: true });
+      expect(view.board?.dice?.rows.map((r) => r.throws)).toEqual([[5, 1], [5, 6], [2]]);
+      expect(view.board?.schedule[0]).toEqual({
+        number: 1,
+        order: [named('p2', 'Богдан'), named('p1', 'Анна'), named('p3', 'Віра')],
+        done: 0,
+      });
+      expect(view.board?.schedule).toHaveLength(circles.length);
+      expect(view.board?.scheduleRepeats).toBe(repeats);
+    }
+  });
+
+  it('without dice the board view has dice null and a schedule from the join order', () => {
+    const view = stageView(boardIntro()).board;
+    expect(view?.dice).toBeNull();
+    expect(view?.schedule[0].order.map((p) => p.nickname)).toEqual(['Анна', 'Богдан', 'Віра']);
+    expect(view?.schedule[0].done).toBe(0);
   });
 
   it('classic and blitz views carry no board data', () => {

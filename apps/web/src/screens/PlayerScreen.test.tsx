@@ -476,7 +476,9 @@ describe('PlayerScreen: blitz', () => {
       ],
       turn: { playerId: turn, nickname: turn === 'p1' ? 'Олена' : 'Анна' },
       cell: null,
-      rolls: 0,
+      dice: null,
+      schedule: [],
+      scheduleRepeats: false,
       skipAt: null,
       ...over,
     });
@@ -550,7 +552,9 @@ describe('PlayerScreen: blitz cell', () => {
     order: [anna],
     turn: { playerId: 'p2', nickname: 'Алла' },
     cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'blitz', answerMode: 'phone', penalty: 'none', ...over },
-    rolls: 0,
+    dice: null,
+    schedule: [],
+    scheduleRepeats: false,
     skipAt: null,
   });
   const blitzMe = (blitz: PlayerBlitz | null, extra = {}) => ({ ...me, blitz, ...extra });
@@ -622,7 +626,9 @@ describe('PlayerScreen: spotlight', () => {
     order: [turn],
     turn,
     cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const },
-    rolls: 0,
+    dice: null,
+    schedule: [],
+    scheduleRepeats: false,
     skipAt: null,
   });
   const anna = { playerId: 'p2', nickname: 'Анна' };

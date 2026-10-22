@@ -11,6 +11,7 @@ import {
   type BlitzRow,
   type BoardCellView,
   type BoardInfo,
+  type DiceInfo,
   type ChainInfo,
   type PlayerChain,
   type Choice,
@@ -36,7 +37,7 @@ import {
 import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type GameState, type PlayerState } from './game';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
-import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
+import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
 import { isTimed, limitMsOf, remainingOf } from './timing';
@@ -248,6 +249,7 @@ function boardInfo(state: GameState): BoardInfo | null {
   const open = currentBoardPlay(state);
   const turnId = state.phase === 'board' ? chooserOf(state) : (open?.board.chooserId ?? null);
   const cell = open === null ? undefined : findCell(round, open.board.cellId);
+  const schedule = turnSchedule(state);
   return {
     categories: round.categories.map((category) => ({
       id: category.id,
@@ -279,9 +281,25 @@ function boardInfo(state: GameState): BoardInfo | null {
             answerMode: open.board.answerMode,
             penalty: open.board.penalty,
           },
-    // Тимчасово до задачі 2: BoardInfo.rolls ще в зрізі.
-    rolls: 0,
+    dice: diceInfo(state),
+    schedule: schedule.circles.map((circle) => ({ ...circle, order: circle.order.map((id) => blitzPlayer(state, id)) })),
+    scheduleRepeats: schedule.repeats,
     skipAt: state.board.awaySince === null ? null : state.board.awaySince + BOARD_AWAY_MS,
+  };
+}
+
+/** Кидки кубиків для всіх: секретів тут немає. */
+function diceInfo(state: GameState): DiceInfo | null {
+  const dice = state.board?.dice ?? null;
+  if (dice === null) return null;
+  return {
+    rows: state.players.map((p) => ({
+      ...blitzPlayer(state, p.id),
+      throws: dice.throws[p.id] ?? [],
+      waiting: dice.waiting.includes(p.id),
+    })),
+    tieBreak: dice.tour.length > 0 && dice.tourNo > 1,
+    done: dice.tour.length === 0,
   };
 }
 

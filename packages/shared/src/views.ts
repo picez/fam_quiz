@@ -169,6 +169,33 @@ export interface BoardCellView {
   penalty: CellPenalty;
 }
 
+/** Рядок кидків кубика на заставці поля. */
+export interface DiceRow extends BlitzPlayer {
+  /** Усі кидки по черзі: перший тур, далі перекидання. */
+  throws: number[];
+  /** Має кинути в поточному турі. */
+  waiting: boolean;
+}
+
+/** Кидки кубиків на заставці поля; бачать усі. */
+export interface DiceInfo {
+  /** Гравці в порядку приєднання; рядки не переставляються. */
+  rows: DiceRow[];
+  /** Триває перекидання між тими, хто зрівнявся. */
+  tieBreak: boolean;
+  /** Порядок визначено. */
+  done: boolean;
+}
+
+/** Коло ходів у розкладі. */
+export interface TurnCircle {
+  /** Номер кола в раунді, від 1. */
+  number: number;
+  order: BlitzPlayer[];
+  /** Скільки гравців цього кола вже походили; у наступних колах 0. Хто на черзі — order[done], якщо turn не null. */
+  done: number;
+}
+
 export interface BoardInfo {
   categories: { id: string; title: string; cells: BoardCellView[] }[];
   /** Порядок поточного кола. */
@@ -185,7 +212,12 @@ export interface BoardInfo {
     answerMode: AnswerMode;
     penalty: CellPenalty;
   } | null;
-  rolls: number;
+  /** Кидки кубиків; null — кубики не кидають (порядок за приєднанням або ручний). */
+  dice: DiceInfo | null;
+  /** Розклад кіл: поточне й наступні; [] поки кидають кубики. */
+  schedule: TurnCircle[];
+  /** Кіл потрібно більше, ніж показано: далі ротація повторюється. */
+  scheduleRepeats: boolean;
   /** Мить автоматичного пропуску ходу відсутнього гравця; null — гравець на місці або пауза. */
   skipAt: number | null;
 }

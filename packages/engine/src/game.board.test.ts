@@ -1,7 +1,8 @@
 import type { Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell, setOrder, skipTurn } from './board';
-import { dropFromCircle } from './board-turns';
+import { startDice } from './board-dice';
+import { dropFromCircle, turnSchedule } from './board-turns';
 import { nextDeadline } from './blitz';
 import {
   acceptAnswer,
@@ -51,6 +52,51 @@ function finishCell(state: GameState): GameState {
   return current;
 }
 
+/** Поле 3×3: дев'ять клітинок по 100. */
+const nine = () =>
+  boardRound('g1', [
+    { title: 'A', cells: [q('a1', 100), q('a2', 100), q('a3', 100)] },
+    { title: 'B', cells: [q('b1', 100), q('b2', 100), q('b3', 100)] },
+    { title: 'C', cells: [q('d1', 100), q('d2', 100), q('d3', 100)] },
+  ]);
+
+describe('turn schedule', () => {
+  it('the intro shows enough circles to cover every cell', () => {
+    const intro = must(start(lobbyWith(makeRoundsQuiz([nine()]), 'Анна', 'Богдан', 'Віра')));
+    expect(turnSchedule(intro)).toEqual({
+      circles: [
+        { number: 1, order: ['p1', 'p2', 'p3'], done: 0 },
+        { number: 2, order: ['p2', 'p3', 'p1'], done: 0 },
+        { number: 3, order: ['p3', 'p1', 'p2'], done: 0 },
+      ],
+      repeats: false,
+    });
+  });
+
+  it('no more circles than players; the rest repeats', () => {
+    const intro = must(start(lobbyWith(makeRoundsQuiz([nine()]), 'Анна', 'Богдан')));
+    expect(turnSchedule(intro).circles.map((c) => c.order)).toEqual([['p1', 'p2'], ['p2', 'p1']]);
+    expect(turnSchedule(intro).repeats).toBe(true);
+  });
+
+  it('during a cell the schedule steps back to the chooser; on the board it points at the next chooser', () => {
+    let state = onBoard(nine(), { leaderboard: 'end' });
+    state = must(pickCell(state, null, 'a1', 0, Math.random));
+    expect(turnSchedule(state).circles[0]).toEqual({ number: 1, order: ['p1', 'p2', 'p3'], done: 0 });
+    state = finishCell(state);
+    expect(turnSchedule(state).circles[0]).toEqual({ number: 1, order: ['p1', 'p2', 'p3'], done: 1 });
+    state = finishCell(must(pickCell(state, null, 'a2', 0, Math.random)));
+    const third = must(pickCell(state, null, 'a3', 0, Math.random));
+    expect(turnSchedule(third).circles[0]).toEqual({ number: 1, order: ['p1', 'p2', 'p3'], done: 2 });
+    expect(turnSchedule(finishCell(third)).circles.map((c) => c.number)).toEqual([2, 3]);
+  });
+
+  it('no schedule while the dice tour is on', () => {
+    const intro = must(start(lobbyWith(makeRoundsQuiz([nine()]), 'Анна', 'Богдан')));
+    expect(turnSchedule(must(startDice(intro))).circles).toEqual([]);
+  });
+});
+
 describe('board turns', () => {
   it('a board round always starts with an intro and the join order', () => {
     const quiz = makeRoundsQuiz([field()]);
@@ -72,12 +118,7 @@ describe('board turns', () => {
   });
 
   it('turns rotate by one after every circle', () => {
-    const round = boardRound('g1', [
-      { title: 'A', cells: [q('a1', 100), q('a2', 100), q('a3', 100)] },
-      { title: 'B', cells: [q('b1', 100), q('b2', 100), q('b3', 100)] },
-      { title: 'C', cells: [q('d1', 100), q('d2', 100), q('d3', 100)] },
-    ]);
-    let state = onBoard(round, { leaderboard: 'end' });
+    let state = onBoard(nine(), { leaderboard: 'end' });
     const ids = ['a1', 'a2', 'a3', 'b1', 'b2', 'b3', 'd1', 'd2', 'd3'];
     const choosers: string[] = [];
     const circles: number[] = [];

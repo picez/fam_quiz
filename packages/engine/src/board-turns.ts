@@ -1,4 +1,5 @@
-import { boardCells, type BoardRound, type CellMark } from '@quiz/shared';
+import { boardCells, type BoardRound, type CellMark, type Phase } from '@quiz/shared';
+import { dicePending } from './board-dice';
 import type { BoardPlay, BoardState, GameState } from './game';
 import { answerPoints } from './score';
 
@@ -33,6 +34,50 @@ export function dropFromCircle(board: BoardState, playerId: string): BoardState 
   if (circle.length === 0 || done < circle.length) return { ...board, circle, done };
   const [first, ...rest] = circle;
   return { ...board, circle: [...rest, first], done: 0, circleNo: board.circleNo + 1 };
+}
+
+export interface ScheduleCircle {
+  number: number;
+  order: string[];
+  done: number;
+}
+
+/** Етапи, де клітинку вже вибрано й хід зсунуто: розклад відступає до того, хто вибрав. */
+const PICKED_PHASES: Phase[] = ['question', 'locked', 'reveal', 'leaderboard'];
+
+/** Перший гравець стає останнім, як в advanceTurn. */
+const rotate = (order: string[]) => (order.length === 0 ? order : [...order.slice(1), order[0]]);
+
+/** Розклад кіл від поточної позиції; [] без гравців або поки тур кубиків триває. */
+export function turnSchedule(state: GameState): { circles: ScheduleCircle[]; repeats: boolean } {
+  const board = state.board;
+  const n = board?.circle.length ?? 0;
+  if (board === null || n === 0 || dicePending(board)) return { circles: [], repeats: false };
+  let { circle, done, circleNo } = board;
+  const stepBack = PICKED_PHASES.includes(state.phase);
+  if (stepBack) {
+    if (done > 0) done -= 1;
+    else {
+      circle = [circle[n - 1], ...circle.slice(0, n - 1)];
+      done = n - 1;
+      circleNo = Math.max(1, circleNo - 1);
+    }
+  }
+  const left = unplayedCells(state) - (n - done - (stepBack ? 1 : 0));
+  const needed = 1 + Math.max(0, Math.ceil(left / n));
+  const shown = Math.min(needed, n);
+  const circles: ScheduleCircle[] = [{ number: circleNo, order: circle, done }];
+  for (let i = 1; i < shown; i++) {
+    circles.push({ number: circleNo + i, order: rotate(circles[i - 1].order), done: 0 });
+  }
+  return { circles, repeats: needed > shown };
+}
+
+/** Скільки клітинок поточного раунду ще не зіграно. */
+function unplayedCells(state: GameState): number {
+  const round = state.quiz.rounds[state.roundIndex];
+  if (round?.type !== 'board') return 0;
+  return boardCells(round).filter(({ cell }) => !cellPlayed(state, cell.question.id)).length;
 }
 
 /** Клітинка вже зіграна в поточному раунді. */
