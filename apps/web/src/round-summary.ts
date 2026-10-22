@@ -1,9 +1,9 @@
 import type { RoundBrief } from '@quiz/shared';
 import { t } from './i18n';
 
-function modifiers(brief: RoundBrief, lead: string[]): string {
+function modifiers(brief: RoundBrief, lead: string[], penaltyKey: 'summaryPenalty' | 'summaryPenaltyCells' = 'summaryPenalty'): string {
   const parts = [...lead];
-  if (brief.penalty) parts.push(t('summaryPenalty'));
+  if (brief.penalty) parts.push(t(penaltyKey));
   if (brief.streak !== null) {
     const { length, bonus } = brief.streak;
     parts.push(t(bonus.kind === 'percent' ? 'summaryStreakPercent' : 'summaryStreakFixed', { length, value: bonus.value }));
@@ -39,7 +39,7 @@ export function roundSummary(brief: RoundBrief): string[] {
     const lead: string[] = [];
     if (brief.marks) lead.push(t('summaryMarks'));
     if (brief.penaltyAll) lead.push(t('summaryPenaltyAll'));
-    lines.push(modifiers(brief, lead));
+    lines.push(modifiers(brief, lead, brief.blitzCells ? 'summaryPenaltyCells' : 'summaryPenalty'));
   }
   return lines.filter((line) => line !== '');
 }
