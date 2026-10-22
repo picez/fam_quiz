@@ -17,7 +17,7 @@ export function Menu() {
   const signIn: Item = {
     label: 'menuSignIn',
     icon: '🔑',
-    to: `/login?next=${encodeURIComponent(location.pathname)}`,
+    to: location.pathname === '/login' ? `/login${location.search}` : `/login?next=${encodeURIComponent(location.pathname + location.search)}`,
     active: (path) => path === '/login',
   };
   const items =

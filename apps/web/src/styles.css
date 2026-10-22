@@ -1921,6 +1921,18 @@ button.match-item {
 
 /* ---------- Меню ---------- */
 
+.with-menu {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.with-menu .app {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
 .menu {
   position: sticky;
   top: 0;

@@ -35,7 +35,7 @@ function show(path: string) {
       <Routes>
         <Route element={<WithMenu />}>
           <Route path="/login" element={<Go />} />
-          <Route path="*" element={<p>сторінка</p>} />
+          <Route path="*" element={<><p>сторінка</p><Go /></>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -73,5 +73,19 @@ describe('Menu', () => {
     vi.mocked(me).mockResolvedValue(OK);
     fireEvent.click(screen.getByRole('button', { name: 'далі' }));
     expect(await screen.findByRole('link', { name: 'Профіль' })).toBeTruthy();
+    vi.mocked(me).mockResolvedValue(OUT);
+    fireEvent.click(screen.getByRole('button', { name: 'далі' }));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+  });
+
+  it('sign in keeps the query of the page, and on the login page does not nest itself', async () => {
+    vi.mocked(me).mockResolvedValue(OUT);
+    const first = show('/history?x=1');
+    await screen.findByRole('link', { name: 'Увійти' });
+    expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fhistory%3Fx%3D1');
+    first.unmount();
+    show('/login?next=%2Fquizzes');
+    await screen.findByRole('link', { name: 'Увійти' });
+    expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fquizzes');
   });
 });
