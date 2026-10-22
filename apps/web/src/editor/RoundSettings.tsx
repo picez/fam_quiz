@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LIMITS, boardCells, cellAnswerMode, type Round, type RoundRules } from '@quiz/shared';
+import { LIMITS, boardCells, cellAnswerMode, rulesOf, type Round, type RoundRules } from '@quiz/shared';
 import { t } from '../i18n';
 import { applyRoundTime, withDefaultMode } from './draft';
 
@@ -26,13 +26,16 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
 export function RoundSettings({ round, index, onChange }: Props) {
   const [seconds, setSeconds] = useState<number>(LIMITS.defaultTime);
   const secondsValid = Number.isInteger(seconds) && seconds >= LIMITS.minTime && seconds <= LIMITS.maxTime;
-  const { rules } = round;
+  const rules = rulesOf(round);
   const { streak } = rules;
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
-  const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) =>
+  const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) => {
+    // У фіналі правил немає: їхніх елементів керування там не показано.
+    if (round.type === 'final') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
+  };
   const setPartial = (partial: number | null) => {
-    if (round.type !== 'blitz') onChange({ ...round, rules: { ...round.rules, partial } });
+    if (round.type === 'classic' || round.type === 'board') onChange({ ...round, rules: { ...round.rules, partial } });
   };
 
   return (
@@ -131,6 +134,8 @@ export function RoundSettings({ round, index, onChange }: Props) {
           </label>
         </>
       )}
+      {round.type !== 'final' && (
+        <>
       <label className="check">
         <input
           type="checkbox"
@@ -230,6 +235,8 @@ export function RoundSettings({ round, index, onChange }: Props) {
           ))}
         </select>
       </label>
+        </>
+      )}
     </details>
   );
 }

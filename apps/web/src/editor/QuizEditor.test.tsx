@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { quizSchema, roundQuestions, type BoardRound, type Quiz } from '@quiz/shared';
+import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
 import { newBoardRound, newClassicRound, newQuestion, newQuiz } from './draft';
 import { QuizEditor } from './QuizEditor';
@@ -810,7 +810,7 @@ describe('QuizEditor: cancelled drag', () => {
       await waitFor(() => expect(onSave).toHaveBeenCalled());
       const [round] = saved(onSave).rounds;
       expect(round.title).toBe('Розминка');
-      expect(round.rules).toEqual({
+      expect(rulesOf(round)).toEqual({
         penalty: 'minus',
         partial: 40,
         streak: { length: 3, bonus: { kind: 'fixed', value: 250 } },
@@ -825,7 +825,7 @@ describe('QuizEditor: cancelled drag', () => {
       fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
       click('Зберегти');
       await waitFor(() => expect(onSave).toHaveBeenCalled());
-      expect(saved(onSave).rounds[0].rules).toEqual({ penalty: 'none', partial: null, streak: null, multiplier: 1 });
+      expect(rulesOf(saved(onSave).rounds[0])).toEqual({ penalty: 'none', partial: null, streak: null, multiplier: 1 });
     });
   });
 });

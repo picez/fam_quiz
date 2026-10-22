@@ -13,6 +13,7 @@ import {
   cellAnswerMode,
   roundQuestions,
   roundSchema,
+  rulesOf,
   type BoardRound,
   type Quiz,
 } from './index';
@@ -491,5 +492,49 @@ describe('match question', () => {
     expect(valid(answerSchema, { type: 'match', links: Array.from({ length: 7 }, (_, i) => link(i)) })).toBe(false);
     expect(valid(answerSchema, { type: 'match', links: [{ left: '', right: 'z0' }] })).toBe(false);
     expect(valid(answerSchema, { type: 'match', links: [{ left: 'a0', right: 'z\u0000' }] })).toBe(false);
+  });
+});
+
+describe('final round', () => {
+  const finalR = (id: string, questions: object[], patch: object = {}) => ({
+    id,
+    type: 'final',
+    title: '',
+    shuffleOptions: false,
+    check: 'auto',
+    questions,
+    ...patch,
+  });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+
+  it('a quiz with a final round passes the schema', () => {
+    const quiz = quizOf([round('r', [single]), finalR('f', [{ ...single, id: 'f1' }])]);
+    expect(valid(quizSchema, quiz)).toBe(true);
+  });
+
+  it('a final round has exactly one valid question', () => {
+    expect(valid(roundSchema, finalR('f', []))).toBe(false);
+    expect(valid(roundSchema, finalR('f', [single, { ...single, id: 'q2' }]))).toBe(false);
+    expect(valid(roundSchema, finalR('f', [{ ...single, text: '' }]))).toBe(false);
+    expect(valid(roundSchema, finalR('f', [single]))).toBe(true);
+  });
+
+  it('a final round has no rules and rulesOf gives the defaults', () => {
+    const f = roundSchema.parse(finalR('f', [single]));
+    expect(rulesOf(f)).toEqual(DEFAULT_RULES);
+    const c = roundSchema.parse(round('r', [single], { rules: { ...DEFAULT_RULES, multiplier: 2 } }));
+    expect(rulesOf(c).multiplier).toBe(2);
+  });
+
+  it('question ids stay unique across a final and other rounds', () => {
+    const quiz = quizOf([round('r', [single]), finalR('f', [single])]);
+    const result = quizSchema.safeParse(quiz);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain('duplicate_question_ids');
+  });
+
+  it('roundQuestions of a final round is its one question', () => {
+    const f = roundSchema.parse(finalR('f', [single]));
+    expect(roundQuestions(f).map((q) => q.id)).toEqual(['q1']);
   });
 });

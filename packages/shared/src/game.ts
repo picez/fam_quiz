@@ -1,5 +1,5 @@
 /** intro — заставка раунду, round_end — підсумки раунду. */
-export type Phase = 'lobby' | 'intro' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished';
+export type Phase = 'lobby' | 'intro' | 'wager' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished';
 
 export type Grade = 'correct' | 'partial' | 'wrong';
 
@@ -15,6 +15,7 @@ export type ErrorCode =
   | 'time_over'
   | 'type_mismatch'
   | 'partial_disabled'
+  | 'wager_invalid'
   | 'not_in_queue'
   | 'already_queued'
   | 'no_attempts'

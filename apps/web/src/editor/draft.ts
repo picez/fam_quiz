@@ -16,6 +16,7 @@ import {
   type Question,
   type Quiz,
   type RoundRules,
+  rulesOf,
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
@@ -362,7 +363,7 @@ export function problemsOf(quiz: Quiz): string[] {
   draft.rounds.forEach((round, roundIndex) => {
     // З кількома раундами кожне повідомлення каже, у якому раунді шукати.
     const where = (text: string) => (several ? `${t('problemRound', { round: roundIndex + 1 })} ${text}` : text);
-    if (!roundRulesSchema.safeParse(round.rules).success) problems.push(where(t('problemRules')));
+    if (!roundRulesSchema.safeParse(rulesOf(round)).success) problems.push(where(t('problemRules')));
     if (round.type === 'board') {
       round.categories.forEach((category, categoryIndex) => {
         if (category.title === '') problems.push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })));

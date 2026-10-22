@@ -228,9 +228,32 @@ export function cellAnswerMode(round: BoardRound, cell: BoardCell): AnswerMode {
   return cell.answerMode ?? round.answerMode;
 }
 
-export const roundSchema = z.discriminatedUnion('type', [classicRoundSchema, blitzRoundSchema, boardRoundSchema]);
+/** Фінал: тема (title), таємні ставки й одне запитання для всіх. */
+export const finalRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('final'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  shuffleOptions: z.boolean(),
+  check: z.enum(['auto', 'manual']),
+  /** Рівно одне запитання. */
+  questions: z.array(questionSchema).length(1),
+});
+
+export type FinalRound = z.infer<typeof finalRoundSchema>;
+
+export const roundSchema = z.discriminatedUnion('type', [
+  classicRoundSchema,
+  blitzRoundSchema,
+  boardRoundSchema,
+  finalRoundSchema,
+]);
 
 export type Round = z.infer<typeof roundSchema>;
+
+/** Правила балів раунду; у фіналі правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1). */
+export function rulesOf(round: Round): RoundRules {
+  return round.type === 'final' ? DEFAULT_RULES : round.rules;
+}
 
 export const quizSettingsSchema = z.object({
   leaderboard: z.enum(['each', 'end']),

@@ -23,6 +23,7 @@ import {
   type Spotlight,
   type Standing,
   type StageView,
+  rulesOf,
 } from '@quiz/shared';
 import { currentRound, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
 import { attemptsUsed, blitzRulesOf } from './blitz';
@@ -87,7 +88,7 @@ function roundInfo(state: GameState): RoundInfo | null {
     total: state.quiz.rounds.length,
     title: round.title,
     type: round.type,
-    partial: round.rules.partial !== null,
+    partial: rulesOf(round).partial !== null,
   };
 }
 

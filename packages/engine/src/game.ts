@@ -11,6 +11,7 @@ import {
   type Quiz,
   type BoardRound,
   type Round,
+  rulesOf,
 } from '@quiz/shared';
 import { applyVerdict, blitzDone, blitzRulesOf, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
@@ -357,7 +358,7 @@ export function streakCounts(state: GameState, upTo: number): Record<string, num
   const last = state.plays[upTo - 1];
   if (last === undefined) return {};
   const round = state.quiz.rounds[last.roundIndex];
-  if (round.rules.streak === null) return {};
+  if (rulesOf(round).streak === null) return {};
   const counts: Record<string, number> = {};
   for (const player of state.players) {
     let count = 0;
@@ -388,7 +389,7 @@ function withTotals(state: GameState): GameState {
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
     if (index >= closedCount) return play;
-    const streak = state.quiz.rounds[play.roundIndex].rules.streak;
+    const streak = rulesOf(state.quiz.rounds[play.roundIndex]).streak;
     if (streak === null) return play;
     // Серія враховує і саме це запитання.
     const counters = streakCounts(state, index + 1);
@@ -486,8 +487,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     points: question.points,
     accuracy,
     speed,
-    multiplier: round.rules.multiplier,
-    penalty: round.rules.penalty,
+    multiplier: rulesOf(round).multiplier,
+    penalty: rulesOf(round).penalty,
   });
   const record: AnswerRecord = {
     answer,
@@ -533,7 +534,7 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
 
   const checked = checkAnswer(play.question, pending.answer);
   // Часткові бали лише за увімкненого правила; інакше неповна відповідь неправильна.
-  const accuracy = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && round.rules.partial !== null ? checked.accuracy : 0;
+  const accuracy = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && rulesOf(round).partial !== null ? checked.accuracy : 0;
   const points = boardPoints(round, play.board, accuracy);
   const record: AnswerRecord = {
     answer: pending.answer,
@@ -754,8 +755,8 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   if (board.kind === 'blitz') return fail('wrong_phase');
   if (phase === 'question' && board.answerMode !== 'voice' && board.answer === null) return fail('wrong_phase');
   if (playerId !== board.chooserId || !state.players.some((p) => p.id === playerId)) return fail('not_found');
-  if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
-  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
+  if (grade === 'partial' && rulesOf(round).partial === null) return fail('partial_disabled');
+  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
   const existing = recordOf(state, state.questionIndex, playerId);
   const limitMs = limitMsOf(play) ?? 0;
   const spentMs =
@@ -790,16 +791,16 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   if (round.type === 'blitz') return fail('wrong_phase');
   const record = recordOf(state, state.questionIndex, playerId);
   if (record === undefined) return fail('not_found');
-  if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
-  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
+  if (grade === 'partial' && rulesOf(round).partial === null) return fail('partial_disabled');
+  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
   const limit = limitMsOf(play);
   const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
   const points = answerPoints({
     points: question.points,
     accuracy,
     speed,
-    multiplier: round.rules.multiplier,
-    penalty: round.rules.penalty,
+    multiplier: rulesOf(round).multiplier,
+    penalty: rulesOf(round).penalty,
   });
   const updated: AnswerRecord = {
     ...record,

@@ -118,6 +118,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
 
   const addRound = (type: Round['type']) => {
+    // Кнопки «Фінал» ще немає (її додає редактор фіналу), тому 'final' поки що дає класичний раунд.
     setRounds([...rounds, type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : newClassicRound()]);
     selectRound(rounds.length);
   };

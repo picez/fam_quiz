@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
+import { DEFAULT_RULES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
 import { QUESTION_TYPES, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
 
@@ -331,7 +331,7 @@ describe('draft storage', () => {
       'quiz:draft:shared',
       JSON.stringify({ title: 'Стара', description: '', settings: {}, questions: [filled(newQuestion('boolean'))] }),
     );
-    const rules = loadDraft('shared')?.rounds[0].rules;
+    const rules = rulesOf(loadDraft('shared')!.rounds[0]);
     expect(rules).toEqual(DEFAULT_RULES);
     expect(rules).not.toBe(DEFAULT_RULES);
   });
