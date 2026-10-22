@@ -29,7 +29,7 @@ import { attemptsUsed, blitzRulesOf } from './blitz';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
-import { remainingOf } from './timing';
+import { isTimed, remainingOf } from './timing';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
@@ -71,7 +71,8 @@ function publicQuestion(state: GameState): PublicQuestion | null {
     type: question.type,
     text: question.text,
     imageUrl: question.imageUrl,
-    timeLimit: question.timeLimit,
+    timeLimit: isTimed(question) ? question.timeLimit : null,
+    video: question.video,
     points: question.points,
     choices,
     right,

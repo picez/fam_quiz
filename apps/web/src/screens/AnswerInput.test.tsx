@@ -16,6 +16,7 @@ const question = (over: Partial<PublicQuestion>): PublicQuestion => ({
   type: 'single',
   text: 'Запитання',
   imageUrl: null,
+  video: null,
   timeLimit: 20,
   points: 1000,
   choices: cities,

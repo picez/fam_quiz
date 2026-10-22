@@ -19,7 +19,7 @@ import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
 import { answerPoints, speedFactor, streakBonus } from './score';
-import { limitMsOf } from './timing';
+import { isTimed, limitMsOf, timeOver } from './timing';
 
 export interface PlayerState {
   id: string;
@@ -295,7 +295,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     plays: [...state.plays, play],
     presented: present(question, round.shuffleOptions, rng),
     startedAt: now,
-    endsAt: now + question.timeLimit * 1000,
+    endsAt: isTimed(question) ? now + question.timeLimit * 1000 : null,
     remainingMs: null,
     heldAt: null,
   };
@@ -381,9 +381,10 @@ function withTotals(state: GameState): GameState {
     for (const play of plays.slice(0, closedCount)) {
       const record = Object.hasOwn(play.answers, player.id) ? play.answers[player.id] : undefined;
       score += record ? record.points : 0;
-      // Час для рівного рахунку йде лише за класичні раунди.
-      if (state.quiz.rounds[play.roundIndex].type !== 'classic') continue;
-      totalTimeMs += record ? record.timeMs : limitMsOf(play);
+      // Час для рівного рахунку йде лише за класичні раунди й лише за запитання з таймером.
+      const limitMs = limitMsOf(play);
+      if (state.quiz.rounds[play.roundIndex].type !== 'classic' || limitMs === null) continue;
+      totalTimeMs += record ? record.timeMs : limitMs;
     }
     return { ...player, score, totalTimeMs, streak: counters[player.id] ?? 0 };
   });
@@ -444,12 +445,13 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   }
   if (round.type === 'board') return submitBoardAnswer(state, round, playerId, answer, now);
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
-  if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
+  if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
   if (question.type !== answer.type) return fail('type_mismatch');
 
   const timeMs = Math.max(0, now - state.startedAt);
   const { accepted, accuracy } = checkAnswer(question, answer);
-  const speed = speedFactor(timeMs, limitMsOf(play), round.type === 'classic' && round.speedBonus);
+  const limit = limitMsOf(play);
+  const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
   const points = answerPoints({
     points: question.points,
     accuracy,
@@ -478,7 +480,7 @@ function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string
   if (board === undefined || board.answerMode === 'voice') return fail('wrong_phase');
   if (playerId !== board.chooserId) return fail('not_your_turn');
   if (recordOf(state, state.questionIndex, playerId) !== undefined || board.answer !== null) return fail('already_answered');
-  if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
+  if (timeOver(state, play, now)) return fail('time_over');
   if (play.question.type !== answer.type) return fail('type_mismatch');
   return ok(holdAt(withBoard(state, { ...board, answer }), now));
 }
@@ -549,7 +551,7 @@ function submitBlitzAnswer(state: GameState, playerId: string, answer: Answer, n
   if (play.blitz === undefined || entry === undefined) return fail('not_in_queue');
   if (entry.answer !== null) return fail('already_answered');
   const clock = clockOf(state, now);
-  const limit = entry.deadline ?? state.endsAt;
+  const limit = entry.deadline ?? (isTimed(play.question) ? state.endsAt : Infinity);
   if (limit === null || clock > limit) return fail('time_over');
   if (play.question.type !== answer.type) return fail('type_mismatch');
 
@@ -611,7 +613,7 @@ function unansweredIsWrong(state: GameState): GameState {
   const points = boardPoints(round, play.board, 0);
   return withRecord(state, chooserId, {
     answer: play.board.answer,
-    timeMs: limitMsOf(play),
+    timeMs: limitMsOf(play) ?? 0,
     accepted: false,
     accuracy: 0,
     grade: 'wrong',
@@ -684,12 +686,23 @@ export function resume(state: GameState, now: number): Result {
     return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now)));
   }
   if (state.phase === 'question' && state.remainingMs !== null) {
-    const limitMs = limitMsOf(state.plays[state.questionIndex]);
+    const limitMs = limitMsOf(state.plays[state.questionIndex]) ?? 0;
     const endsAt = now + state.remainingMs;
     // startedAt зсувається так, щоб час відповіді не включав паузу.
     const resumed = { ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs };
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
     return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now)));
+  }
+  if (state.phase === 'question' && !isTimed(state.plays[state.questionIndex].question)) {
+    // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
+    const shift = now - (state.pausedAt ?? now);
+    const resumed = {
+      ...state,
+      paused: false,
+      pausedAt: null,
+      startedAt: state.startedAt === null ? null : state.startedAt + shift,
+    };
+    return ok(autoLock(settleQueue(shiftQueue(resumed, shift), now)));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.
@@ -709,7 +722,7 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
   const existing = recordOf(state, state.questionIndex, playerId);
-  const limitMs = limitMsOf(play);
+  const limitMs = limitMsOf(play) ?? 0;
   const spentMs =
     phase === 'question' && now !== undefined && state.startedAt !== null ? Math.max(0, clockOf(state, now) - state.startedAt) : limitMs;
   const points = boardPoints(round, board, accuracy);
@@ -744,7 +757,8 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   if (record === undefined) return fail('not_found');
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
-  const speed = speedFactor(record.timeMs, limitMsOf(play), round.type === 'classic' && round.speedBonus);
+  const limit = limitMsOf(play);
+  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
   const points = answerPoints({
     points: question.points,
     accuracy,

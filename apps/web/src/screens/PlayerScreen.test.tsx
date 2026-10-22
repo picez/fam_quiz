@@ -11,6 +11,7 @@ const publicQuestion = {
   type: 'single' as const,
   text: 'Столиця України?',
   imageUrl: null,
+  video: null,
   timeLimit: 20,
   points: 1000,
   right: [],

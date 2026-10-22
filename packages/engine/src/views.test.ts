@@ -3,7 +3,7 @@ import { DEFAULT_RULES, type Answer, type Phase, type Question } from '@quiz/sha
 import { buzz } from './blitz';
 import { pickCell } from './board';
 import { acceptAnswer, endRound, judge, lock, next, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
-import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints } from './testing/fixtures';
+import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints, withVideo } from './testing/fixtures';
 import { acceptAll, lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -45,6 +45,7 @@ describe('while a question is open', () => {
       text: 'Столиця України?',
       imageUrl: null,
       timeLimit: 20,
+      video: null,
       points: 1000,
       choices: [
         { id: 'a', text: 'Львів' },
@@ -637,5 +638,26 @@ describe('blitz cell views', () => {
     const judged = must(judge(state, 'p2', false, 2000));
     expect(stageView(judged).spotlight).toBeNull();
     expect(hostView(judged).blitz?.attempts).toMatchObject([{ playerId: 'p2', grade: 'wrong' }]);
+  });
+});
+
+describe('video views', () => {
+  const openWith = (question: Question) =>
+    must(start(lobbyWith(makeRoundsQuiz([classicRound('r1', [question])]), 'Анна', 'Богдан'), 0));
+
+  it('players see the video and no timer on a video question, never the correct answer', () => {
+    const state = openWith(withVideo(single, { id: 'dQw4w9WgXcQ', start: 90 }));
+    const stage = stageView(state);
+    expect(stage.question).toMatchObject({ video: { id: 'dQw4w9WgXcQ', start: 90 }, timeLimit: null });
+    expect(stage.endsAt).toBeNull();
+    expect(stage.remainingMs).toBeNull();
+    expect(playerView(state, 'p1')?.question?.video).toEqual({ id: 'dQw4w9WgXcQ', start: 90 });
+    expect(JSON.stringify(stage)).not.toContain('correctId');
+  });
+
+  it('a question without a video keeps its time limit and video null', () => {
+    const stage = stageView(openWith(single));
+    expect(stage.question).toMatchObject({ timeLimit: 20, video: null });
+    expect(stage.endsAt).toBe(20_000);
   });
 });
