@@ -1756,6 +1756,7 @@ async function chainGame() {
   await guess(taras, 'Корабель');
   await taras.getByText('Чекаємо на результати').waitFor();
   await taras.getByRole('heading', { name: /Ланцюжок пройдено за/ }).waitFor();
+  await expectNoSideScroll(taras, 'chain-phone-locked');
   await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
 
   // Розкриття: ланцюжок зеленим, рейтинг за часом.

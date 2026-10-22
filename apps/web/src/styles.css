@@ -2256,6 +2256,7 @@ button.match-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
+  container-type: inline-size;
 }
 
 /* Кожне слово в один рядок: на вузькому екрані клітинки стискаються, а не переносяться. */
@@ -2277,9 +2278,16 @@ button.match-item {
   font-family: var(--display);
 }
 
+/* Довге слово: вужчий шрифт, розмір від ширини рядка й кількості клітинок (--cells), щоб літери не наїжджали. */
 .chain-word.is-long {
   gap: 1px;
-  font-size: 0.75em;
+}
+
+.chain-word.is-long .chain-cell,
+.chain-word.is-long .chain-sep {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: min(1rem, calc((100cqi - 2.5rem) / var(--cells) * 1.5));
 }
 
 .chain-count {
@@ -2336,8 +2344,9 @@ button.match-item {
   font-size: 2rem;
 }
 
-.stage .chain-word.is-long .chain-cell {
-  font-size: 1.5rem;
+.stage .chain-word.is-long .chain-cell,
+.stage .chain-word.is-long .chain-sep {
+  font-size: min(2rem, calc((100cqi - 3rem) / var(--cells) * 1.5));
 }
 
 .stage .chain-count {

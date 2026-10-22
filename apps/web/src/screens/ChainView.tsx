@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import type { ChainInfo, ChainMask, PlayerChain, PublicQuestion } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
@@ -26,7 +26,12 @@ export function ChainWords({ first, masks, current, tone = '' }: { first: string
       {words.map(({ mask, className }, index) => {
         const long = mask.length > LONG_WORD;
         return (
-          <li key={index} className={long ? `${className} is-long` : className} aria-label={mask.map((c) => c ?? '_').join('')}>
+          <li
+            key={index}
+            className={long ? `${className} is-long` : className}
+            style={long ? ({ '--cells': mask.length } as CSSProperties) : undefined}
+            aria-label={mask.map((c) => c ?? '_').join('')}
+          >
             {mask.map((char, at) =>
               char === null ? (
                 <span key={at} className="chain-cell is-blank" aria-hidden="true">
