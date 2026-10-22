@@ -5,6 +5,7 @@ import {
   DEFAULT_SETTINGS,
   IMAGE_LIMITS,
   answerSchema,
+  guessSchema,
   joinSchema,
   questionSchema,
   questionsOf,
@@ -546,5 +547,62 @@ describe('final round', () => {
   it('roundQuestions of a final round is its one question', () => {
     const f = roundSchema.parse(finalR('f', [single]));
     expect(roundQuestions(f).map((q) => q.id)).toEqual(['q1']);
+  });
+});
+
+describe('chain question', () => {
+  const chainQ = (words: string[], patch: object = {}) => ({ id: 'c', type: 'chain', text: 'Ланцюжок', imageUrl: null, video: null,
+    timeLimit: 60, points: 1000, words, hintSeconds: 5, ...patch });
+  const W3 = ['Форель', 'Риба', 'Океан'];
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+
+  it('accepts a chain of 3 to 10 words', () => {
+    expect(valid(questionSchema, chainQ(W3))).toBe(true);
+    expect(valid(questionSchema, chainQ(Array.from({ length: 10 }, () => 'Слово')))).toBe(true);
+    expect(valid(questionSchema, chainQ(['Форель', 'Риба']))).toBe(false);
+    expect(valid(questionSchema, chainQ(Array.from({ length: 11 }, () => 'Слово')))).toBe(false);
+  });
+
+  it('chain words are letters with single spaces, hyphens or apostrophes between them', () => {
+    for (const word of ['Нью-Йорк', "м'ята", 'М’ята', 'Біла Церква', 'Ох']) expect(valid(questionSchema, chainQ(['Форель', word, 'Океан']))).toBe(true);
+    for (const word of ['Р', 'R2D2', '-Риба', 'Риба-', 'Біла  Церква', 'а'.repeat(31), '']) expect(valid(questionSchema, chainQ(['Форель', word, 'Океан']))).toBe(false);
+    expect((questionSchema.parse(chainQ(['  Форель ', 'Риба', 'Океан'])) as { words: string[] }).words[0]).toBe('Форель');
+  });
+
+  it('a hint adds 1 to 30 seconds', () => {
+    expect(valid(questionSchema, chainQ(W3, { hintSeconds: 1 }))).toBe(true);
+    expect(valid(questionSchema, chainQ(W3, { hintSeconds: 30 }))).toBe(true);
+    expect(valid(questionSchema, chainQ(W3, { hintSeconds: 0 }))).toBe(false);
+    expect(valid(questionSchema, chainQ(W3, { hintSeconds: 31 }))).toBe(false);
+  });
+
+  it('a chain cannot have a video', () => {
+    expect(issues(chainQ(W3, { video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('chain_video');
+  });
+
+  it('a chain plays only in classic and final rounds', () => {
+    const cat = (id: string) => ({ id, title: id, cells: [1, 2, 3].map((n) => ({ mark: 'none', question: { ...chainQ(W3), id: `${id}${n}` } })) });
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, categories: [cat('a'), cat('b'), cat('c')], answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES };
+    const blitz = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [chainQ(W3, { id: 'cb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [chainQ(W3, { id: 'cf' })] };
+    expect(valid(quizSchema, quizOf([round('r', [chainQ(W3, { id: 'cc' })])]))).toBe(true);
+    expect(valid(quizSchema, quizOf([round('r', [single]), final]))).toBe(true);
+    for (const bad of [blitz, board]) {
+      const parsed = quizSchema.safeParse(quizOf([round('r', [single]), bad]));
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues.map((i) => i.message)).toContain('chain_round');
+    }
+  });
+
+  it('answerSchema never accepts a chain summary and guessSchema limits the word', () => {
+    expect(valid(answerSchema, { type: 'chain', solved: 6, hints: 0, timeMs: 1 })).toBe(false);
+    expect(valid(guessSchema, { word: 'Риба' })).toBe(true);
+    expect(valid(guessSchema, { word: 'а'.repeat(31) })).toBe(false);
+    expect(valid(guessSchema, { word: 5 })).toBe(false);
   });
 });

@@ -17,4 +17,15 @@ export const answerSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-export type Answer = z.infer<typeof answerSchema>;
+export type SubmittedAnswer = z.infer<typeof answerSchema>;
+
+/** Підсумок ланцюжка гравця; його складає рушій, з телефона він не приходить. */
+export interface ChainAnswer {
+  type: 'chain';
+  solved: number;
+  hints: number;
+  /** Час зі штрафом, мс. */
+  timeMs: number;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer;

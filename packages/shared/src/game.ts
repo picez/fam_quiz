@@ -21,4 +21,7 @@ export type ErrorCode =
   | 'no_attempts'
   | 'not_your_turn'
   | 'cell_closed'
-  | 'time_limit';
+  | 'time_limit'
+  | 'wrong_word'
+  | 'no_hint'
+  | 'hint_late';

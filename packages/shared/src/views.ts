@@ -255,3 +255,6 @@ export interface HostView extends BaseView {
 }
 
 export type GameView = StageView | PlayerView | HostView;
+
+/** Маска слова ланцюжка: відкрита літера або null для закритої; розділювачі відкриті. */
+export type ChainMask = (string | null)[];
