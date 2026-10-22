@@ -18,10 +18,15 @@ export function cellLook(cell: Pick<BoardCellView, 'kind' | 'answerMode'>): Cell
   return cell.kind === 'blitz' ? 'blitz' : cell.answerMode === 'voice' ? 'voice' : 'normal';
 }
 
+/** Довжина найдовшого слова назви (після дефіса рядок і так переноситься): за нею CSS зменшує шрифт, щоб слово влізло цілим. */
+export function longestWord(title: string): number {
+  return Math.max(1, ...title.split(/[\s-]+/).map((word) => word.length));
+}
+
 /**
  * Спільне поле для пульта, телефона й сцени: стовпці — категорії, клітинки згори вниз.
  * Незіграні клітинки пофарбовані за видом (cellLook). На вузькому екрані поле прокручується
- * всередині .gb-scroll, а не сторінка; назви категорій переносяться на кілька рядків.
+ * всередині .gb-scroll, а не сторінка; назви категорій переносяться на кілька рядків цілими словами.
  */
 export function Board({ board, onPick, disabled = false }: Props) {
   // Стовпці беруть рядки сітки через subgrid: найдовша назва задає висоту рядка назв для всіх.
@@ -39,7 +44,9 @@ export function Board({ board, onPick, disabled = false }: Props) {
       >
         {board.categories.map((category) => (
           <div key={category.id} className="gb-col" style={{ gridRow: `span ${rows + 1}` }}>
-            <h3 className="gb-title">{category.title}</h3>
+            <h3 className="gb-title" style={{ '--gb-word': longestWord(category.title) } as CSSProperties}>
+              <span>{category.title}</span>
+            </h3>
             {category.cells.map((cell) => {
               if (cell.played) return <span key={cell.id} className="gb-cell is-played" aria-hidden="true" />;
               const look = cellLook(cell);

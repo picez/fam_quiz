@@ -77,6 +77,7 @@ describe('PlayerScreen', () => {
     expect(document.querySelector('iframe')?.getAttribute('src')).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
     expect(screen.queryByRole('timer')).toBeNull();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+    expect(document.querySelector('.video-mask')).not.toBeNull();
   });
 
   it('shows the nickname, the score and a waiting message in the lobby', () => {
@@ -267,7 +268,7 @@ describe('PlayerScreen: blitz', () => {
     blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, ...blitz },
   });
   const inBlitz = (meState: PlayerView['me']) =>
-    onQuestion({ round, question: { ...publicQuestion, type: 'text', choices: [] }, blitz: { queue: [], winner: null }, me: meState });
+    onQuestion({ round, question: { ...publicQuestion, type: 'text' as const, choices: [] }, blitz: { queue: [], winner: null }, me: meState });
 
   it('shows the buzz button and sends player:buzz', async () => {
     const send = show(inBlitz(blitzMe({ canBuzz: true })));
@@ -542,6 +543,15 @@ describe('PlayerScreen: spotlight', () => {
     expect(screen.getByText('Київ').closest('.choice')).not.toBeNull();
     expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
     expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+  });
+
+  it('the voice chooser on a text cell is told to answer aloud once', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const board = { ...boardOf(mine), cell: { ...boardOf(mine).cell!, answerMode: 'voice' as const } };
+    show(onQuestion({ round, board, question: { ...publicQuestion, type: 'text' as const, choices: [] } }));
+    expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+    expect(screen.queryByText('Гравець відповідає вголос')).toBeNull();
+    expect(document.querySelector('.spotlight-answer.is-waiting')).toBeNull();
   });
 
   it('a queued blitz player on a voice cell sees the options', () => {

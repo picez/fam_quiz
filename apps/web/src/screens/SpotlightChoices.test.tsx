@@ -54,7 +54,7 @@ describe('SpotlightChoices', () => {
   it('the waiting order list shows the labels above and below', () => {
     const labelled = { ...orderQ, orderLabels: { top: 'Захід', bottom: 'Схід' } };
     const { container } = render(<SpotlightChoices question={labelled} spotlight={null} reveal={null} />);
-    const list = container.querySelector('ol.spotlight-order') as HTMLElement;
+    const list = container.querySelector('ol.order') as HTMLElement;
     expect(container.querySelector('.order-label.is-top')?.textContent).toBe('↑ Захід');
     expect(container.querySelector('.order-label.is-bottom')?.textContent).toBe('↓ Схід');
     expect(list.previousElementSibling?.className).toContain('is-top');
@@ -85,8 +85,9 @@ describe('SpotlightChoices', () => {
 
   it('order without an answer lists the items in the shown order', () => {
     const { container } = render(<SpotlightChoices question={orderQ} spotlight={null} reveal={null} />);
-    const items = [...container.querySelectorAll('ol.order.spotlight-order li')].map((li) => li.textContent);
-    expect(items).toEqual(['Ужгород', 'Львів']);
+    const rows = [...container.querySelectorAll('ol.order li')];
+    expect(rows.map((li) => li.querySelector('.letter')?.textContent)).toEqual(['1', '2']);
+    expect(rows.map((li) => li.querySelector('.order-text')?.textContent)).toEqual(['Ужгород', 'Львів']);
     expect(container.querySelector('button')).toBeNull();
   });
 

@@ -239,7 +239,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
           ) : board !== null && voice && me.answer === null ? (
             <>
-              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice />
+              {/* Вибрав сам: досить «Відповідайте вголос», без «Гравець відповідає вголос» над ним. */}
+              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice placeholder={false} />
               <p className="lead">{t('answerAloud')}</p>
             </>
           ) : me.answer !== null ? (

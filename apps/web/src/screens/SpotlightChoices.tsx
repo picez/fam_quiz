@@ -15,6 +15,8 @@ interface Props {
   blink?: boolean;
   /** Відповідь уголос: замість місця для тексту — «Гравець відповідає вголос». */
   voice?: boolean;
+  /** Місце для текстової чи числової відповіді; гравцеві, що відповідає вголос сам, воно ні до чого. */
+  placeholder?: boolean;
   /** Ведучий на усній клітинці: варіанти single/multi/boolean стають кнопками позначки. */
   onName?: (answer: Answer | null) => void;
 }
@@ -26,7 +28,7 @@ function toneOf(spotlight: Spotlight): string {
 }
 
 /** Запитання для тих, хто не відповідає: варіанти лише для показу з кольором відповіді гравця. */
-export function SpotlightChoices({ question, spotlight, reveal, stats = null, blink = false, voice = false, onName }: Props) {
+export function SpotlightChoices({ question, spotlight, reveal, stats = null, blink = false, voice = false, placeholder = true, onName }: Props) {
   const answer = spotlight?.answer ?? null;
   const blinking = blink && spotlight !== null && spotlight.grade !== null ? ' is-blinking' : '';
   const tone = spotlight === null ? '' : `${toneOf(spotlight)}${blinking}`;
@@ -136,9 +138,10 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
       return (
         <>
           {labels !== null && labels.top !== '' && <p className="order-label is-top">↑ {labels.top}</p>}
-          <ol className="order spotlight-order">
-            {question.choices.map((choice) => (
+          <ol className="order">
+            {question.choices.map((choice, index) => (
               <li key={choice.id}>
+                <span className="letter">{index + 1}</span>
                 <span className="order-text">{choice.text}</span>
               </li>
             ))}
@@ -148,7 +151,7 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
       );
     }
     // Місце для відповіді словами чи числом; на розкритті його вже не треба.
-    if ((question.type !== 'text' && question.type !== 'numeric') || reveal !== null) return <></>;
+    if ((question.type !== 'text' && question.type !== 'numeric') || reveal !== null || !placeholder) return <></>;
     const wait = voice ? 'spotlightVoice' : question.type === 'numeric' ? 'spotlightWaitNumber' : 'spotlightWaitText';
     return <p className="spotlight-answer is-waiting">{t(wait)}</p>;
   }

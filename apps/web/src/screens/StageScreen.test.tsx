@@ -53,6 +53,16 @@ describe('StageScreen', () => {
     expect(screen.queryByRole('timer')).toBeNull();
   });
 
+  it('the video title is masked during the question and open at the reveal', () => {
+    const withVideo = { ...question, video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: withVideo, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('.video-mask')?.textContent).toBe('Назву відео приховано до відповіді');
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question: withVideo, reveal: full }));
+    expect(document.querySelector('iframe')).not.toBeNull();
+    expect(document.querySelector('.video-mask')).toBeNull();
+  });
+
   it('invites players with the address and the code split for reading aloud', () => {
     show(view());
     expect(screen.getByText('quiz.test')).toBeTruthy();
@@ -266,6 +276,13 @@ describe('StageScreen: blitz', () => {
       expect(container.textContent).not.toMatch(/×[23]/);
       expect(screen.getAllByText('Вибирає Анна').length).toBeGreaterThan(0);
       expect(container.querySelector('.is-turn')?.textContent).toContain('Анна');
+    });
+
+    it('the turn order is its own list, not the order-question list', () => {
+      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
+      const turns = container.querySelector('ol.turn-order');
+      expect(turns?.querySelector('li.is-turn')?.textContent).toBe('Анна');
+      expect(container.querySelector('ol.order')).toBeNull();
     });
 
     it('the board stage shows the legend beside the board', () => {
@@ -573,9 +590,13 @@ describe('StageScreen final', () => {
     expect(screen.getByText('10 запитань · 30–60 с на кожне')).toBeTruthy();
   });
 
-  it('a question shows the full time and waits for the host when held', () => {
-    show(view({ phase: 'question', questionIndex: 0, question, endsAt: null, remainingMs: 45_000, limitMs: 60_000, held: true }));
+  it('a question shows the full time, and the host wait in its place when held', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: null, remainingMs: 45_000, limitMs: 60_000 }));
     expect(screen.getByText('/ 60 с')).toBeTruthy();
+    cleanup();
+    const { container } = show(view({ phase: 'question', questionIndex: 0, question, endsAt: null, remainingMs: 45_000, limitMs: 60_000, held: true }));
     expect(screen.getByText('Чекає рішення ведучого')).toBeTruthy();
+    expect(screen.queryByText('/ 60 с')).toBeNull();
+    expect(container.querySelector('.timer-bar')).not.toBeNull();
   });
 });

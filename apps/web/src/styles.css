@@ -10,6 +10,7 @@
   --voice: #9b8cff;
   --cell-blitz: rgb(255 179 0 / 0.2);
   --cell-voice: rgb(155 140 255 / 0.22);
+  --video-mask: #000;
   --pending: #ff7a1a;
   --panel: rgb(255 255 255 / 0.05);
   --line: rgb(245 241 230 / 0.16);
@@ -187,7 +188,7 @@ a {
   display: flex;
   align-items: center;
   padding: 0 1rem;
-  background: #000;
+  background: var(--video-mask);
   color: var(--dim);
   font-size: 0.875rem;
   pointer-events: auto;
@@ -522,6 +523,9 @@ button.choice {
 .order {
   display: grid;
   gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .order li {
@@ -675,11 +679,18 @@ button.choice {
 
 /* ---------- Табло відліку ---------- */
 
+/* Пластини й напис в одному рядку, смужка під ними. Стовпець напису вузький (стан стає в кілька рядків), але не
+   переносить напис у новий рядок: текст переноситься всередині. */
 .timer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: auto minmax(min-content, 5.5rem);
+  align-items: center;
+  justify-content: start;
   gap: 0.25rem 0.5rem;
+}
+
+.timer:not(:has(.timer-label)) {
+  grid-template-columns: auto;
 }
 
 .timer-flaps {
@@ -687,13 +698,41 @@ button.choice {
   gap: 0.25rem;
 }
 
-.timer-total {
+/* Місце для «/ 30 с» або стану годинника: невидимі ::before (стан) і ::after (повний час) лежать у тій
+   самій клітинці, тож розмір не залежить від стану. */
+.timer-label {
+  display: grid;
+  min-width: 0;
+}
+
+.timer-label::before,
+.timer-label::after,
+.timer-label > span {
+  grid-area: 1 / 1;
+}
+
+.timer-label > span {
+  align-self: center;
+}
+
+.timer-label::before {
+  content: attr(data-held);
+  visibility: hidden;
+}
+
+.timer-label::after {
+  content: attr(data-total);
+  visibility: hidden;
+}
+
+.timer-total,
+.timer-label::after {
   color: var(--dim);
   font-family: var(--display);
 }
 
 .timer-bar {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   height: 0.375rem;
   border-radius: 999px;
   background: var(--line);
@@ -713,10 +752,11 @@ button.choice {
   }
 }
 
-.timer-status {
-  flex-basis: 100%;
+.timer-status,
+.timer-label::before {
   color: var(--pending);
   font-size: 0.875rem;
+  line-height: 1.2;
 }
 
 .round-facts {
@@ -1796,12 +1836,20 @@ a.banner {
   border-bottom: 2px solid var(--amber);
   color: var(--amber);
   font-family: var(--display);
-  font-size: 0.875rem;
   line-height: 1.15;
   text-align: center;
-  /* Вузький стовпець: спершу перенос за складами, розрив слова — лише в крайньому разі. */
-  hyphens: auto;
-  overflow-wrap: anywhere;
+  /* Ширина назви — контейнер для шрифту в span; на самому стовпці це зламало б subgrid. */
+  container-type: inline-size;
+  overflow-wrap: break-word;
+  hyphens: manual;
+}
+
+/* Шрифт меншає, доки найдовше слово (--gb-word задає Board) не влізе в стовпець цілим; на кириличних
+   словниках переносів браузерам покладатися не можна. Розрив посеред слова — лише нижче 0,625 rem. */
+.gb-title > span {
+  min-width: 0;
+  max-width: 100%;
+  font-size: max(0.625rem, min(var(--gb-title-size, 0.875rem), calc(100cqi / (var(--gb-word, 1) * 0.9))));
 }
 
 .gb-cell {
@@ -1897,7 +1945,7 @@ a.banner {
 }
 
 .host .gb-title {
-  font-size: 1rem;
+  --gb-title-size: 1rem;
 }
 
 .host .gb-cell {
@@ -1919,7 +1967,7 @@ a.banner {
 /* Шрифт назв, цін і позначок залежить від ширини стовпця (--gb-col; --cols задає Board): на 8 категорій
    короткі назви не рвуться посеред слова, а ціна не налазить на позначки в кутах клітинки. */
 .stage .gb-title {
-  font-size: clamp(0.875rem, calc(var(--gb-col) * 0.15), 2rem);
+  --gb-title-size: clamp(0.875rem, calc(var(--gb-col) * 0.15), 2rem);
 }
 
 .stage .gb-cell {
@@ -1956,9 +2004,9 @@ a.banner {
 
 /* Легенда: лише ті види й позначки, що є на полі. */
 .gb-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.375rem;
   margin: 0.75rem 0 0;
   padding: 0;
   list-style: none;
@@ -1967,12 +2015,13 @@ a.banner {
 
 .gb-legend li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.375rem;
 }
 
 .gb-swatch {
   flex: none;
+  margin-top: 0.2em;
   width: 1rem;
   height: 1rem;
   border: 1px solid var(--line);
@@ -1989,8 +2038,12 @@ a.banner {
   border-color: var(--voice);
 }
 
+.host .gb-legend {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.375rem 1rem;
+}
+
 .stage .gb-legend {
-  flex-direction: column;
   margin-top: 0;
   font-size: clamp(1rem, 1.4vw, 1.5rem);
 }
@@ -2052,7 +2105,7 @@ a.banner {
   }
 
   .gb-title {
-    font-size: 1rem;
+    --gb-title-size: 1rem;
   }
 
   .gb-cell {
@@ -2068,7 +2121,7 @@ a.banner {
   justify-content: center;
 }
 
-.order {
+.turn-order {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -2079,31 +2132,21 @@ a.banner {
   counter-reset: turn;
 }
 
-.order li {
+.turn-order li {
   counter-increment: turn;
   padding: 0.375rem 0.875rem;
   border: 1px solid var(--line);
   border-radius: 999px;
 }
 
-.order li::before {
+.turn-order li::before {
   content: counter(turn) '. ';
   color: var(--dim);
 }
 
-.order li.is-turn {
+.turn-order li.is-turn {
   border-color: var(--amber);
   color: var(--amber);
-}
-
-/* Порядок для тих, хто не відповідає: стовпчик карток з номерами, як у полі відповіді. */
-.spotlight-order {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.spotlight-order li {
-  border-radius: 0.75rem;
 }
 
 .dice {

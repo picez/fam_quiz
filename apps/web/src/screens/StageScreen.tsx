@@ -217,7 +217,7 @@ function Order({ board }: { board: BoardInfo }) {
     );
   }
   return (
-    <ol className="order">
+    <ol className="turn-order">
       {board.order.map((entry) => (
         <li key={entry.playerId} className={entry.playerId === board.turn?.playerId ? 'is-turn' : undefined}>
           {entry.nickname}

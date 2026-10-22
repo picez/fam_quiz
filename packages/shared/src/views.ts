@@ -156,7 +156,7 @@ export interface BoardInfo {
   order: BlitzPlayer[];
   /** Чий хід: хто вибирає (board) або відповідає (question…reveal). */
   turn: BlitzPlayer | null;
-  /** Вибрана клітинка поточного запитання (category — назва категорії); її позначку видно всім. */
+  /** Вибрана клітинка поточного запитання (category — назва категорії). */
   cell: {
     id: string;
     category: string;

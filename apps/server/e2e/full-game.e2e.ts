@@ -2174,9 +2174,14 @@ async function clarityGame() {
   expect(await taras.locator('.choice').allTextContents()).toEqual(['AЛьвів', 'BКиїв', 'CОдеса']);
   await shot(taras, 'spotlight-before-answer-phone-other');
   await stage.locator('.bar', { hasText: 'Клітинка 1 з 24 · лишилося 23' }).waitFor();
+  const before = (await taras.locator('.choice').first().boundingBox())!;
   await olya.getByRole('button', { name: /Київ/ }).click();
   for (const page of [taras, stage]) await page.locator('.choice.is-pending', { hasText: 'Київ' }).waitFor();
   await stage.getByText('Чекає рішення ведучого', exact).waitFor();
+  // Стан годинника стає на місце «/ 20 с»: варіанти в Тараса не з’їжджають.
+  await taras.locator('.timer-status', { hasText: 'Чекає рішення ведучого' }).waitFor();
+  expect((await taras.locator('.choice').first().boundingBox())!.y, 'the phone does not jump when held').toBe(before.y);
+  await shot(taras, 'held-phone-other');
   await click(host, 'Прийняти');
   for (const page of [stage, taras]) await page.locator('.choice.is-correct.is-blinking', { hasText: 'Київ' }).waitFor();
   await shot(stage, 'verdict-blink-stage');

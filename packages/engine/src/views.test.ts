@@ -737,6 +737,14 @@ describe('video views', () => {
     expect(JSON.stringify(stage)).not.toContain('correctId');
   });
 
+  it('an untimed video question has no full time in the question phase', () => {
+    const state = openWith(withVideo(single, { id: 'dQw4w9WgXcQ', start: 90 }));
+    expect(state.phase).toBe('question');
+    expect(stageView(state).limitMs).toBeNull();
+    expect(playerView(state, 'p1')?.limitMs).toBeNull();
+    expect(hostView(state).limitMs).toBeNull();
+  });
+
   it('the host sees when an absent answerer will close an untimed cell', () => {
     const cells = [withVideo(withPoints(withId(single, 'c11'), 100)), withPoints(withId(single, 'c12'), 200)];
     const intro = must(start(lobbyWith(makeRoundsQuiz([boardRound('g1', [{ title: 'A', cells }])]), 'Анна', 'Богдан', 'Віра')));

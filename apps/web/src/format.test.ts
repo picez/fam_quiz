@@ -37,11 +37,11 @@ describe('picture options', () => {
     };
     expect(choiceLabel(pics.options[1], 1)).toBe('Картинка B');
     expect(choiceLabel(pics.options[0], 0)).toBe('Львів');
-    expect(answerText({ type: 'single', optionId: 'b' }, pics)).toBe('Картинка B');
+    expect(answerText({ type: 'single', optionId: 'b' }, pics)).toBe('картинка');
     expect(answerText({ type: 'single', optionId: 'b' }, pics, [{ id: 'b' }, { id: 'a' }, { id: 'c' }])).toBe('Картинка A');
     expect(correctText(pics)).toBe('B. картинка');
     expect(pickedText({ type: 'single', optionId: 'b' }, [pics.options[1], pics.options[0]])).toBe('Картинка A');
-    expect(choicesOf(pics)[1]).toEqual({ id: 'b', text: 'Картинка B', imageUrl: '/uploads/abcdefabcdefabcd.png' });
+    expect(choicesOf(pics)[1]).toEqual({ id: 'b', text: 'картинка', imageUrl: '/uploads/abcdefabcdefabcd.png' });
   });
 });
 

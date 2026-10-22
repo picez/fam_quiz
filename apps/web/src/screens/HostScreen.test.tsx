@@ -935,6 +935,23 @@ describe('HostScreen timer and round facts', () => {
     expect(screen.getAllByText('Пауза').length).toBeGreaterThan(0);
   });
 
+  it('the host timer says the answer waits for the host', () => {
+    show(during('question', single, { endsAt: null, remainingMs: 20_000, limitMs: 30_000, held: true }));
+    const timer = screen.getByRole('timer');
+    expect(timer.querySelector('.timer-status')?.textContent).toBe('Чекає рішення ведучого');
+    expect(timer.querySelector('.timer-total')).toBeNull();
+  });
+
+  it('the video title is masked during the question and open at the reveal', () => {
+    const untimed = { ...publicOf(single), video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('.video-mask')).not.toBeNull();
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('iframe')).not.toBeNull();
+    expect(document.querySelector('.video-mask')).toBeNull();
+  });
+
   it('no timer for a video question on the host', () => {
     const untimed = { ...publicOf(single), video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
     show(view({ phase: 'question', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));

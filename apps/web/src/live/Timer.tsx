@@ -32,6 +32,7 @@ export function Timer({ view, offsetMs, total = null, status = null }: Props) {
   const seconds = secondsLeft(view, offsetMs, now);
   if (seconds === null) return null;
   const pct = total === null ? 0 : Math.min(100, Math.max(0, ((seconds * 1000) / total) * 100));
+  const totalText = total === null ? '' : t('timerOf', { seconds: Math.round(total / 1000) });
   return (
     <div className="timer" role="timer" aria-label={String(seconds)}>
       <span className="timer-flaps">
@@ -44,13 +45,22 @@ export function Timer({ view, offsetMs, total = null, status = null }: Props) {
             </span>
           ))}
       </span>
-      {total !== null && <span className="timer-total">{t('timerOf', { seconds: Math.round(total / 1000) })}</span>}
+      {/* Стан стає на місце «/ 30 с». Невидимі ::before і ::after завжди тримають місце під обидва написи,
+          тож табло однакове й без стану, і зі станом: екран не стрибає. */}
+      {(total !== null || status !== null) && (
+        <span className="timer-label" data-held={t('timerHeld')} data-total={totalText}>
+          {status !== null ? (
+            <span className="timer-status">{t(status === 'paused' ? 'timerPaused' : 'timerHeld')}</span>
+          ) : (
+            <span className="timer-total">{totalText}</span>
+          )}
+        </span>
+      )}
       {total !== null && (
         <span className="timer-bar" aria-hidden="true">
           <span style={{ width: `${pct}%` }} />
         </span>
       )}
-      {status !== null && <span className="timer-status">{t(status === 'paused' ? 'timerPaused' : 'timerHeld')}</span>}
     </div>
   );
 }

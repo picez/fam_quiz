@@ -26,10 +26,13 @@ export function choiceLabel(choice: Choice, index: number): string {
 /** Варіанти з підписами замість порожнього тексту картинки. */
 const labelled = (choices: Choice[]): Choice[] => choices.map((choice, index) => ({ ...choice, text: choiceLabel(choice, index) }));
 
-/** Варіанти запитання для пошуку назв за id; для match — ліві й праві. Варіант-картинка підписаний літерою автора. */
+/**
+ * Варіанти запитання для пошуку назв за id; для match — ліві й праві. Порядок показу тут невідомий,
+ * а літера автора може не збігтися з тією, яку бачили гравці, тож варіант-картинка — просто «картинка».
+ */
 export function choicesOf(question: Question | null): Choice[] {
   if (question === null) return [];
-  if (question.type === 'single' || question.type === 'multi') return labelled(question.options);
+  if (question.type === 'single' || question.type === 'multi') return question.options.map((option) => ({ ...option, text: optionText(option.text) }));
   if (question.type === 'match') return question.pairs.flatMap((pair) => [pair.left, pair.right]);
   return question.type === 'order' ? question.items : [];
 }
