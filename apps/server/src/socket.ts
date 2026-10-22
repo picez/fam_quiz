@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import {
   answerSchema,
+  guessSchema,
   judgeSchema,
   kickSchema,
   orderSchema,
@@ -96,6 +97,17 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
     on('player:buzz', () => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       return manager.buzz(room, identity.playerId);
+    });
+
+    on('player:guess', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = guessSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.guess(room, identity.playerId, payload.data.word) : INVALID;
+    });
+
+    on('player:hint', () => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      return manager.hint(room, identity.playerId);
     });
 
     on('player:pick', (args) => {
