@@ -2232,14 +2232,13 @@ button.match-item {
 }
 .round-brief-lines {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 0;
   display: grid;
   gap: 0.375rem;
   color: var(--paper);
 }
 .stage .round-brief {
   font-size: clamp(1.125rem, 2vw, 2rem);
-  margin: 0 auto;
 }
 
 .editor-quiz { display: grid; gap: 0.875rem; margin-bottom: 0.75rem; }

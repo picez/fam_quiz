@@ -548,6 +548,12 @@ async function twoRounds() {
   for (const page of [stage, taras]) {
     await page.locator('.round-brief-note').getByText(ROUND_NOTE).waitFor();
     await page.locator('.round-brief-lines').getByText(PENALTY_STREAK).waitFor();
+    // Опис і рядки правил починаються на тій самій лінії, що й заголовок раунду.
+    const titleX = (await page.locator('h1').first().boundingBox())!.x;
+    const noteX = (await page.locator('.round-brief-note').boundingBox())!.x;
+    const lineX = (await page.locator('.round-brief-lines li').first().boundingBox())!.x;
+    expect(Math.abs(noteX - titleX)).toBeLessThanOrEqual(2);
+    expect(Math.abs(lineX - titleX)).toBeLessThanOrEqual(2);
   }
   await shot(stage, 'round-brief-stage');
   await expectNoSideScroll(taras, 'round-brief-phone-360');

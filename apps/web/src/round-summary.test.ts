@@ -6,7 +6,7 @@ describe('roundSummary', () => {
   it('a default classic round: everyone answers, faster is more', () => {
     expect(roundSummary({ ...emptyBrief('classic'), speedBonus: true })).toEqual([
       'Відповідають усі: бали отримує кожен, хто відповів правильно.',
-      'Якщо є таймер, що швидша правильна відповідь, то більше балів.',
+      'Якщо є таймер, швидша правильна відповідь дає більше балів.',
     ]);
   });
   it('a classic round lists the penalty, the streak and the multiplier on one line', () => {
