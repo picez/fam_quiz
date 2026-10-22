@@ -30,6 +30,8 @@ export const LIMITS = {
   maxPlayers: 50,
   nicknameMin: 2,
   nicknameMax: 20,
+  /** Найпізніша секунда початку відео (12 год). */
+  maxVideoStart: 43_200,
 } as const;
 
 /** Обмеження для зображень у запитаннях. */
@@ -41,6 +43,17 @@ export const IMAGE_LIMITS = {
 /** Адреса завантаженого зображення: лише власне сховище цього сайту. */
 export const IMAGE_URL = /^\/uploads\/[a-z0-9]{16,64}\.(jpg|png|webp)$/;
 
+/** Ідентифікатор відео YouTube. */
+export const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+
+export const videoSchema = z.object({
+  id: z.string().regex(YOUTUBE_ID),
+  /** Секунда, з якої починається відтворення. */
+  start: z.number().int().min(0).max(LIMITS.maxVideoStart),
+});
+
+export type Video = z.infer<typeof videoSchema>;
+
 const choice = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   text: z.string().trim().min(1).max(LIMITS.optionText).refine(isStorable, UNSTORABLE),
@@ -50,6 +63,8 @@ const base = {
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   text: z.string().trim().min(1).max(LIMITS.questionText).refine(isStorable, UNSTORABLE),
   imageUrl: z.string().regex(IMAGE_URL).nullable(),
+  /** Відео з YouTube; є відео — немає таймера запитання. Старі вікторини: null. */
+  video: videoSchema.nullable().default(null),
   timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
   points: z.number().int().min(0).max(LIMITS.maxPoints),
 };

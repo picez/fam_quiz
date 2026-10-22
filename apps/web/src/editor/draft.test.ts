@@ -190,7 +190,7 @@ describe('moveItem', () => {
 describe('spare empty rows', () => {
   const single = (texts: string[], correct: number): Quiz => {
     const options = texts.map((text, index) => ({ id: `o${index}`, text }));
-    return quizWith({ id: 'q1', type: 'single', text: 'Питання?', imageUrl: null, timeLimit: 20, points: 1000, options, correctId: `o${correct}` });
+    return quizWith({ id: 'q1', type: 'single', text: 'Питання?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: `o${correct}` });
   };
 
   it('drops an empty option left after the last Enter instead of refusing to save', () => {
@@ -213,7 +213,7 @@ describe('spare empty rows', () => {
           id: 'q1',
           type: 'multi',
           text: 'Питання?',
-          imageUrl: null,
+          imageUrl: null, video: null,
           timeLimit: 20,
           points: 1000,
           options: [
@@ -236,7 +236,7 @@ describe('spare empty rows', () => {
           id: 'q1',
           type: 'multi',
           text: 'Питання?',
-          imageUrl: null,
+          imageUrl: null, video: null,
           timeLimit: 20,
           points: 1000,
           options: [
@@ -251,13 +251,13 @@ describe('spare empty rows', () => {
 
   it('does not close a gap in the middle of an order question on its own', () => {
     const items = ['Один', '', 'Два', 'Три'].map((text, index) => ({ id: `i${index}`, text }));
-    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items });
+    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, video: null, timeLimit: 20, points: 1000, items });
     expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
   });
 
   it('drops empty items at the end of an order question while at least three remain', () => {
     const items = ['Один', 'Два', 'Три', ''].map((text, index) => ({ id: `i${index}`, text }));
-    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items });
+    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, video: null, timeLimit: 20, points: 1000, items });
     expect(problemsOf(quiz)).toEqual([]);
     const [question] = questionsOf(cleaned(quiz));
     expect(question.type === 'order' && question.items.map((item) => item.text)).toEqual(['Один', 'Два', 'Три']);

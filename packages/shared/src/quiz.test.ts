@@ -280,6 +280,51 @@ describe('question image address', () => {
   });
 });
 
+describe('question video', () => {
+  const cat = (id: string) => ({
+    id,
+    title: `Категорія ${id}`,
+    cells: Array.from({ length: 3 }, (_, i) => ({ mark: 'none', question: { ...single, id: `q-${id}-${i}` } })),
+  });
+
+  it('an old question without a video reads as video null', () => {
+    const quiz = quizSchema.parse({ title: 'Т', description: '', settings: DEFAULT_SETTINGS, rounds: [round('r1', [single])] });
+    expect(questionsOf(quiz)[0]!.video).toBeNull();
+    const board = roundSchema.parse({
+      id: 'b1',
+      type: 'board',
+      title: '',
+      shuffleOptions: false,
+      categories: [cat('c1'), cat('c2'), cat('c3')],
+      answerMode: 'phone',
+      check: 'auto',
+      rules: DEFAULT_RULES,
+    }) as BoardRound;
+    expect(board.categories[0]!.cells[0]!.question.video).toBeNull();
+  });
+
+  it('a question may have both an image and a video', () => {
+    const result = questionSchema.parse({
+      ...single,
+      imageUrl: '/uploads/abcdef0123456789.png',
+      video: { id: 'dQw4w9WgXcQ', start: 30 },
+    });
+    expect(result.video).toEqual({ id: 'dQw4w9WgXcQ', start: 30 });
+  });
+
+  it('a video other than an id and a start is refused', () => {
+    for (const video of [
+      { id: 'bad', start: 0 },
+      { id: 'dQw4w9WgXcQ', start: -1 },
+      { id: 'dQw4w9WgXcQ', start: 1.5 },
+      { id: 'dQw4w9WgXcQ', start: 43_201 },
+      { url: 'https://evil.example' },
+    ]) {
+      expect(valid(questionSchema, { ...single, video })).toBe(false);
+    }
+  });
+});
+
 describe('board round', () => {
   /** Категорія з count запитань; points різні, щоб бачити порядок. */
   const category = (id: string, count: number, patch: object = {}) => ({

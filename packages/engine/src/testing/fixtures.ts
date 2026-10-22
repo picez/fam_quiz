@@ -9,9 +9,10 @@ import {
   type Quiz,
   type QuizSettings,
   type Round,
+  type Video,
 } from '@quiz/shared';
 
-const base = { imageUrl: null, timeLimit: 20, points: 1000 };
+const base = { imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 
 export const single = {
   ...base,
@@ -126,6 +127,12 @@ export function blitzRound(
 
 /** Копія запитання з іншим id: поле збирають з однакових запитань. */
 export const withId = (question: Question, id: string): Question => ({ ...question, id });
+
+/** Копія запитання з відео. */
+export const withVideo = (question: Question, video: Video = { id: 'dQw4w9WgXcQ', start: 0 }): Question => ({
+  ...question,
+  video,
+});
 
 /** Копія запитання з іншою ціною. */
 export const withPoints = (question: Question, points: number): Question => ({ ...question, points });

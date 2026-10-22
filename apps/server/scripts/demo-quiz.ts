@@ -7,7 +7,7 @@ import { DEFAULT_RULES, type Question, type Quiz, type RoundRules } from '@quiz/
 
 let n = 0;
 const id = (prefix: string) => `${prefix}-${++n}`;
-const q = (text: string, points = 1000, timeLimit = 20) => ({ id: id('q'), text, imageUrl: null, timeLimit, points });
+const q = (text: string, points = 1000, timeLimit = 20) => ({ id: id('q'), text, imageUrl: null, video: null, timeLimit, points });
 const opts = (...texts: string[]) => texts.map((text, i) => ({ id: String.fromCharCode(97 + i), text }));
 
 export const single = (text: string, options: string[], correct: number, points?: number, time?: number): Question => ({

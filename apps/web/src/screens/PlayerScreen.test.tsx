@@ -24,7 +24,7 @@ const fullQuestion: Question = {
   id: 'q1',
   type: 'single',
   text: 'Столиця України?',
-  imageUrl: null,
+  imageUrl: null, video: null,
   timeLimit: 20,
   points: 1000,
   options: publicQuestion.choices,

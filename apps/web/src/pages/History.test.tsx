@@ -21,7 +21,7 @@ const summary: GameSummary = {
   questionCount: 6,
 };
 
-const base = { imageUrl: null, timeLimit: 20, points: 1000 };
+const base = { imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const singleQ: Question = {
   ...base,
   id: 'q1',
