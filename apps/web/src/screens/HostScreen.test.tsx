@@ -385,7 +385,9 @@ describe('HostScreen: blitz', () => {
     expect(list?.querySelectorAll('li')[0]?.classList.contains('is-pending')).toBe(false);
     expect(button('Прийняти')).toBeTruthy();
     expect(button('Перевибрати')).toBeTruthy();
-    expect(screen.queryByText('Черга')).toBeNull();
+    // Одна панель «Черга» — жива черга миттєвого бліцу; старих панелей черги й спроб немає.
+    expect(screen.getAllByText('Черга')).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Черга' }).closest('.panel')?.querySelector('ol.blitz-queue')).toBe(list);
     expect(screen.queryByText('Спроби')).toBeNull();
     expect(screen.getByText(/Відповіли 2 з 2/)).toBeTruthy();
   });

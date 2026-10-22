@@ -452,6 +452,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
       {view.question !== null && live && blitz !== null && instant && (
         <section className="panel">
+          <h2>{t('blitzQueue')}</h2>
           <BlitzQueue rows={blitz.rows} reserve={view.playerCount} question={view.question} blinking={blinking} highlightHead closed={phase !== 'question'} />
         </section>
       )}

@@ -470,7 +470,12 @@ describe('blitz views', () => {
     expect(playerView(state, 'p1')?.me).toMatchObject({ answer: wrong, blitz: { canAnswer: false, position: 1, grade: null } });
     state = must(acceptAnswer(state, 'p1', 2000));
     expect(playerView(state, 'p1')?.me).toMatchObject({ answer: wrong, blitz: { canAnswer: false, position: null, grade: 'wrong' } });
-    expect(playerView(must(pause(blitzGame(), 500)), 'p1')?.me.blitz?.canAnswer).toBe(false);
+  });
+
+  it('a pause keeps the answer input (the server refuses while paused)', () => {
+    const paused = must(pause(blitzGame(), 500));
+    expect(playerView(paused, 'p1')).toMatchObject({ paused: true, me: { blitz: { canAnswer: true } } });
+    expect(submitAnswer(paused, 'p1', wrong, 600)).toMatchObject({ ok: false });
   });
 
   it('after repick the head can answer again', () => {

@@ -582,6 +582,44 @@ describe('instant blitz', () => {
     expect(pendingOf(again)).toEqual({ playerId: 'p1', answer: right });
   });
 
+  it('repick past zero: the head may still answer in its window, a fresh answer is too late', () => {
+    let state = must(submitAnswer(open(), 'p1', wrong, 18_000));
+    state = must(repick(state, 'p1', 19_000));
+    expect(state.plays[0].blitz?.queue[0]).toMatchObject({ playerId: 'p1', answer: null, deadline: 34_000 });
+    state = tick(state, 25_000);
+    expect(state.phase).toBe('question');
+    state = must(submitAnswer(state, 'p1', right, 30_000));
+    expect(pendingOf(state)).toEqual({ playerId: 'p1', answer: right });
+    expect(submitAnswer(state, 'p2', right, 35_000)).toEqual({ ok: false, error: 'time_over' });
+    state = must(acceptAnswer(state, 'p1', 36_000));
+    expect(state.phase).toBe('locked');
+    expect(score(state, 'p1')).toBe(1000);
+  });
+
+  it('a repick window running out after zero is a wrong attempt, and the empty queue closes the question', () => {
+    let state = must(repick(must(submitAnswer(open(), 'p1', wrong, 18_000)), 'p1', 19_000));
+    state = tick(state, 34_000);
+    expect(state.plays[0].blitz?.attempts.map((a) => [a.playerId, a.grade])).toEqual([['p1', 'wrong']]);
+    expect(state.plays[0].blitz?.queue).toEqual([]);
+    expect(state.phase).toBe('locked');
+  });
+
+  it('pause: answers and verdicts are refused; resume shifts the repick window and leaves the pause out of answer times', () => {
+    let state = must(repick(must(submitAnswer(open(), 'p1', wrong, 1000)), 'p1', 3000));
+    expect(state.plays[0].blitz?.queue[0].deadline).toBe(18_000);
+    state = must(submitAnswer(state, 'p2', wrong, 4000));
+    const paused = must(pause(state, 5000));
+    expect(submitAnswer(paused, 'p3', right, 6000)).toEqual({ ok: false, error: 'paused' });
+    expect(submitAnswer(paused, 'p1', right, 6000)).toEqual({ ok: false, error: 'paused' });
+    const headAnswered = must(pause(must(submitAnswer(state, 'p1', wrong, 4500)), 5000));
+    expect(pendingOf(headAnswered)?.playerId).toBe('p1');
+    expect(acceptAnswer(headAnswered, 'p1', 6000)).toEqual({ ok: false, error: 'paused' });
+    state = must(resume(paused, 8000));
+    expect(state.plays[0].blitz?.queue[0].deadline).toBe(21_000);
+    state = must(submitAnswer(state, 'p3', right, 10_000));
+    expect(state.plays[0].blitz?.queue.find((e) => e.playerId === 'p3')?.timeMs).toBe(7000);
+  });
+
   it('stored attempts and answer window are ignored in an instant blitz', () => {
     let state = must(submitAnswer(open({ attempts: 3, answerWindow: 30 }), 'p1', wrong, 1000));
     expect(state.plays[0].blitz?.queue[0].deadline).toBeNull();

@@ -1768,6 +1768,33 @@ a.banner {
   color: var(--dim);
 }
 
+/* Сцена: черга читається з телевізора (розмір як у другорядного тексту сцени), але лишається компактною —
+   ширина обмежена, тож час і позначка стоять біля імені, а не на іншому краю екрана. Висота рядка в em,
+   тож зарезервований блок росте разом із шрифтом і так само нічого не зсуває. */
+.stage .blitz-queue.is-reserved {
+  --row-h: 1.9em;
+  width: min(100%, 26em);
+  font-size: clamp(1.125rem, 2vw, 2.25rem);
+}
+
+.stage .blitz-queue.is-reserved li {
+  gap: 0.6em;
+  padding: 0 0.4em;
+}
+
+.stage .blitz-queue.is-reserved .rank {
+  min-width: 1.2em;
+}
+
+.stage .blitz-queue .blitz-mark {
+  min-width: 1.2em;
+}
+
+.stage .blitz-queue .blitz-mark.is-pending,
+.stage .blitz-queue .blitz-mark.is-unchecked {
+  font-size: 0.7em;
+}
+
 /* Ведучий: голова, чию відповідь зараз перевіряють, помаранчева. */
 .blitz-queue li.is-pending {
   border-radius: 0.5rem;

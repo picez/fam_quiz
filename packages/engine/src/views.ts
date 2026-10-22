@@ -206,7 +206,8 @@ function playerBlitz(state: GameState, playerId: string): PlayerBlitz | null {
     // Під час утримання вікно не йде.
     deadline: index < 0 || state.heldAt !== null ? null : blitz.queue[index].deadline,
     // Миттєвий бліц: перша відповідь або нова після «Перевибрати» (голова без відповіді).
-    canAnswer: instant && running && ((index < 0 && used === 0) || (index === 0 && blitz.queue[0].answer === null)),
+    // Пауза не знімає права: поле лишається на місці вимкненим (набране не губиться), а сервер відмовить сам.
+    canAnswer: instant && state.phase === 'question' && ((index < 0 && used === 0) || (index === 0 && blitz.queue[0].answer === null)),
     grade: own.length === 0 ? null : own[own.length - 1].grade,
   };
 }

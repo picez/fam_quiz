@@ -415,6 +415,19 @@ describe('PlayerScreen: blitz', () => {
       vi.useRealTimers();
     });
 
+    it('a pause keeps the half-typed answer in place, only disabled', () => {
+      const props = { hostOnline: true, offsetMs: 0, send: vi.fn(async () => ({ ok: true as const })) };
+      const typed = { question: { ...publicQuestion, type: 'text' as const, choices: [] } };
+      const { rerender } = render(<PlayerScreen view={instantView({}, typed)} {...props} />);
+      const input = screen.getByRole('textbox') as HTMLInputElement;
+      fireEvent.change(input, { target: { value: 'Ки' } });
+      rerender(<PlayerScreen view={instantView({}, { ...typed, paused: true, endsAt: null, remainingMs: 9000 })} {...props} />);
+      const kept = screen.getByRole('textbox') as HTMLInputElement;
+      expect(kept).toBe(input);
+      expect(kept.value).toBe('Ки');
+      expect((kept.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
+    });
+
     it('a repicked head keeps answering past the round timer until its own window ends', () => {
       show(instantView({ canAnswer: true, position: 1, deadline: Date.now() + 15_000 }, { endsAt: Date.now() - 1000 }, {}, [row('p1', 'Олена', null)]));
       expect((screen.getByRole('button', { name: /Київ/ }).closest('fieldset') as HTMLFieldSetElement).disabled).toBe(false);
