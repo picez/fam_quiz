@@ -2,8 +2,8 @@ import { useState, type FormEvent } from 'react';
 import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
-import { RoundBriefing } from './RoundBriefing';
-import { Timer } from '../live/Timer';
+import { RoundBriefing, RoundFacts } from './RoundBriefing';
+import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -170,6 +170,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
+          <RoundFacts round={view.round} total={view.total} />
           <RoundBriefing brief={view.round.brief} description={view.round.description} />
         </>
       )}
@@ -193,7 +194,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <div className="question-head">
             <p className="meta">{questionLabel(view.round, view.questionIndex, view.total)}</p>
-            {!chainMine && <Timer view={view} offsetMs={offsetMs} />}
+            {!chainMine && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">

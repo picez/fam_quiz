@@ -3,9 +3,9 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
 import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
-import { RoundBriefing } from './RoundBriefing';
+import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { MatchColumns, PairList } from './MatchView';
-import { Timer } from '../live/Timer';
+import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
@@ -127,7 +127,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
       {view.board === null && answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
       <div className="stage-main">
         <h1 className={questionClass(question.text)}>{question.text}</h1>
-        {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
+        {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
       </div>
       {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} />}
       {!finalReveal && <QuestionImage url={question.imageUrl} />}
@@ -245,6 +245,7 @@ function Intro({ view }: { view: StageView }) {
     <div className="stage-board">
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
+      <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} />
       {view.board !== null && (
         <>

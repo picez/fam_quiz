@@ -78,7 +78,7 @@ describe('StageScreen', () => {
   it('shows the question with lettered options and the answer count', () => {
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, playerCount: 12, answeredCount: 7 }));
     expect(screen.getByText('Столиця України?')).toBeTruthy();
-    expect(screen.getByText('Запитання 1 з 3')).toBeTruthy();
+    expect(screen.getByText('Запитання 1 з 3 · лишилося 2')).toBeTruthy();
     expect(screen.getByText('Відповіли 7 з 12')).toBeTruthy();
     expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['AЛьвів', 'BКиїв']);
     expect(screen.getByRole('timer')).toBeTruthy();
@@ -524,5 +524,16 @@ describe('StageScreen final', () => {
     expect(screen.getByLabelText('Риба')).toBeTruthy();
     expect(document.querySelector('.chain-board .rank')).not.toBeNull();
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
+  it('the intro shows the round facts', () => {
+    show(view({ phase: 'intro', total: 10, round: { index: 0, total: 1, title: 'Місто', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: { min: 30, max: 60 } } }));
+    expect(screen.getByText('10 запитань · 30–60 с на кожне')).toBeTruthy();
+  });
+
+  it('a question shows the full time and waits for the host when held', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: null, remainingMs: 45_000, limitMs: 60_000, held: true }));
+    expect(screen.getByText('/ 60 с')).toBeTruthy();
+    expect(screen.getByText('Чекає рішення ведучого')).toBeTruthy();
   });
 });

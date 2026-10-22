@@ -1,5 +1,5 @@
 import type { Answer, CellMark, Choice, LobbyPlayer, PublicQuestion, Question, Round, RoundInfo } from '@quiz/shared';
-import { t } from './i18n';
+import { countText, t, type TextKey } from './i18n';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
 export const roundLabel = (title: string, index: number, type?: Round['type']): string => {
@@ -132,10 +132,32 @@ export function signed(value: number): string {
   return value > 0 ? `+${value}` : num(value);
 }
 
-/** Номер запитання в раунді; коли раундів кілька, поруч назва раунду. */
+/** Номер запитання в раунді, скільки лишилося й назва раунду, коли раундів кілька. */
 export function questionLabel(round: RoundInfo | null, index: number, total: number): string {
-  const base = t('questionOf', { index: index + 1, total });
-  return round !== null && round.total > 1 ? `${base}, ${t('roundN', { index: round.index + 1 })}` : base;
+  const board = round?.type === 'board';
+  const parts = [t(board ? 'cellOf' : 'questionOf', { index: index + 1, total })];
+  if (round?.type !== 'final') {
+    const left = total - index - 1;
+    parts.push(left > 0 ? t('leftCount', { count: left }) : t(board ? 'lastCell' : 'lastQuestion'));
+  }
+  if (round !== null && round.total > 1) parts.push(t('roundN', { index: round.index + 1 }));
+  return parts.join(' · ');
+}
+
+/** Факти заставки: «10 запитань · 30–60 с на кожне»; у фіналі їх немає. */
+export function roundFacts(round: RoundInfo, total: number): string | null {
+  if (round.type === 'final') return null;
+  const board = round.type === 'board';
+  const count = countText(board ? 'cellCount' : 'questionCount', total, { count: total });
+  const { times } = round;
+  const suffix = board ? 'Cell' : '';
+  const time =
+    times === null
+      ? t('noTimer')
+      : times.min === times.max
+      ? t(`timeEach${suffix}` as TextKey, { seconds: times.min })
+      : t(`timeRange${suffix}` as TextKey, { min: times.min, max: times.max });
+  return `${count} · ${time}`;
 }
 
 /** Серії гравців за id; показуються біля імені від двох правильних відповідей підряд. */

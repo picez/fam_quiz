@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Question } from '@quiz/shared';
-import { roundLabel, answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, secondsText, shownChoices } from './format';
+import { emptyBrief, type Question, type RoundInfo } from '@quiz/shared';
+import { questionLabel, roundFacts, roundLabel, answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, secondsText, shownChoices } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -98,5 +98,30 @@ describe('chain texts', () => {
     expect(answerText({ type: 'chain', solved: 1, hints: 0, timeMs: 20_000 }, chainQ)).toBe('Слів: 1 з 3');
     expect(answerText({ type: 'chain', solved: 1, hints: 0, timeMs: 20_000 }, null)).toBe('Слів: 1');
     expect(secondsText(5000)).toBe('5,0');
+  });
+});
+
+const info = (type: RoundInfo['type'], total = 1, times: RoundInfo['times'] = null): RoundInfo => ({
+  index: 0, total, title: '', type, partial: false, description: '', brief: emptyBrief(type), times,
+});
+
+describe('round facts and the question label', () => {
+  it('round facts: the count and the time per question', () => {
+    expect(roundFacts(info('classic', 1, { min: 30, max: 60 }), 10)).toBe('10 запитань · 30–60 с на кожне');
+    expect(roundFacts(info('blitz', 1, { min: 20, max: 20 }), 1)).toBe('1 запитання · 20 с на кожне');
+    expect(roundFacts(info('classic', 1, null), 3)).toBe('3 запитання · без таймера');
+    expect(roundFacts(info('board', 1, { min: 20, max: 20 }), 24)).toBe('24 клітинки · 20 с на кожну');
+    expect(roundFacts(info('board', 1, { min: 20, max: 40 }), 25)).toBe('25 клітинок · 20–40 с на кожну');
+    expect(roundFacts(info('final', 1, { min: 30, max: 30 }), 1)).toBeNull();
+  });
+
+  it('the question label says how many are left', () => {
+    expect(questionLabel(info('classic'), 2, 10)).toBe('Запитання 3 з 10 · лишилося 7');
+    expect(questionLabel(info('classic'), 9, 10)).toBe('Запитання 10 з 10 · останнє');
+    expect(questionLabel(info('board'), 4, 24)).toBe('Клітинка 5 з 24 · лишилося 19');
+    expect(questionLabel(info('board'), 23, 24)).toBe('Клітинка 24 з 24 · остання');
+    expect(questionLabel({ ...info('classic', 3), index: 1 }, 1, 5)).toBe('Запитання 2 з 5 · лишилося 3 · Раунд 2');
+    expect(questionLabel({ ...info('final', 3), index: 2 }, 0, 1)).toBe('Запитання 1 з 1 · Раунд 3');
+    expect(questionLabel(null, 0, 3)).toBe('Запитання 1 з 3 · лишилося 2');
   });
 });

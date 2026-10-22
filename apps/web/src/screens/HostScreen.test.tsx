@@ -863,3 +863,26 @@ describe('HostScreen final', () => {
     expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
   });
 });
+
+describe('HostScreen timer and round facts', () => {
+  it('the host sees the timer with the full time and its state', () => {
+    show(during('question', single, { endsAt: Date.now() + 20_000, limitMs: 30_000 }));
+    expect(screen.getByRole('timer')).toBeTruthy();
+    expect(screen.getByText('/ 30 с')).toBeTruthy();
+    cleanup();
+    show(during('question', single, { endsAt: null, remainingMs: 20_000, limitMs: 30_000, paused: true }));
+    expect(screen.getAllByText('Пауза').length).toBeGreaterThan(0);
+  });
+
+  it('no timer for a video question on the host', () => {
+    const untimed = { ...publicOf(single), video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));
+    expect(screen.queryByRole('timer')).toBeNull();
+  });
+
+  it('the host intro shows the round facts', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: 'Місто', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: { min: 30, max: 60 } };
+    show(view({ phase: 'intro', round, total: 10 }));
+    expect(screen.getByText('10 запитань · 30–60 с на кожне')).toBeTruthy();
+  });
+});

@@ -4,12 +4,13 @@ import { secondsLeft } from '../clock';
 import { ChainBoard } from './ChainView';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
-import { RoundBriefing } from './RoundBriefing';
+import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { InviteFriends } from './InviteFriends';
+import { Timer, timerStatus } from '../live/Timer';
 import { Standings } from './Standings';
 
 interface Props {
@@ -209,6 +210,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         <section className="panel">
           {round.total > 1 && <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>}
           <h1 className="question">{roundLabel(round.title, round.index, round.type)}</h1>
+          <RoundFacts round={round} total={view.total} />
           <RoundBriefing brief={round.brief} description={round.description} />
         </section>
       )}
@@ -292,7 +294,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       )}
 
       {timeShown && (
-        <div className="panel-actions">
+        <div className="panel-actions host-time">
+          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />
           <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
             {t('timeMinus')}
           </button>

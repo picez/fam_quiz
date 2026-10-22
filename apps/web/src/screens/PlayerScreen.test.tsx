@@ -646,3 +646,18 @@ describe('PlayerScreen final', () => {
     expect(screen.getByRole('heading', { name: 'Не встигли пройти ланцюжок' })).toBeTruthy();
   });
 });
+
+describe('PlayerScreen round facts', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: { min: 20, max: 20 } };
+
+  it('the phone intro shows the round facts', () => {
+    show(view({ phase: 'intro', total: 24, round }));
+    expect(screen.getByText('24 клітинки · 20 с на кожну')).toBeTruthy();
+  });
+
+  it('a board question shows the cell count and what is left', () => {
+    show(view({ phase: 'question', round, questionIndex: 4, total: 24, question: publicQuestion, endsAt: null, remainingMs: 20_000, limitMs: 20_000 }));
+    expect(screen.getByText('Клітинка 5 з 24 · лишилося 19')).toBeTruthy();
+    expect(screen.getByText('/ 20 с')).toBeTruthy();
+  });
+});
