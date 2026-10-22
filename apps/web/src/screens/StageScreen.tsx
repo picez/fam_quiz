@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import type { BoardInfo, StageView } from '@quiz/shared';
-import { LETTERS, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
+import type { BoardInfo, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
+import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { MatchColumns, PairList } from './MatchView';
 import { Timer } from '../live/Timer';
@@ -51,6 +51,27 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
         </ul>
       </div>
     </div>
+  );
+}
+
+/** Розкриті гравці фіналу по одному: ставка й рахунок; останній виділено. */
+function FinalReveal({ final, question }: { final: FinalInfo; question: FullQuestion | null }) {
+  return (
+    <>
+      <ol className="rows wager-list">
+        {final.shown.map((entry, index) => (
+          <li key={entry.playerId} className={index === final.shown.length - 1 ? 'wager-latest' : undefined}>
+            <span className="name">{entry.nickname}</span>
+            <span className="given">{answerText(entry.answer, question)}</span>
+            <span className="tag">{t('finalWagerTag', { wager: entry.wager })}</span>
+            <span className={entry.after >= entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
+              {`${entry.before} → ${entry.after}`}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {final.left > 0 && <p className="meta">{t('finalLeft', { left: final.left })}</p>}
+    </>
   );
 }
 
@@ -145,6 +166,7 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         </p>
       )}
       {reveal === null && hint !== null && <p className="lead">{hint}</p>}
+      {view.final !== null && view.phase === 'reveal' && <FinalReveal final={view.final} question={reveal} />}
       {reveal !== null && question.type !== 'match' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
@@ -189,8 +211,22 @@ function Order({ board }: { board: BoardInfo }) {
   );
 }
 
+function FinalStage({ view }: { view: StageView }) {
+  if (view.round === null || view.final === null) return null;
+  const { final } = view;
+  const theme = final.theme.trim() === '' ? t('finalLabel') : final.theme;
+  return (
+    <div className="stage-board">
+      <p className="meta">{t('finalLabel')}</p>
+      <h1 className="question wager-theme">{theme}</h1>
+      {view.phase === 'wager' && <p className="lead">{t('finalStageWagers', { placed: final.placed, total: final.total })}</p>}
+    </div>
+  );
+}
+
 function Intro({ view }: { view: StageView }) {
   if (view.round === null) return null;
+  if (view.round.type === 'final') return <FinalStage view={view} />;
   return (
     <div className="stage-board">
       <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
@@ -226,6 +262,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} />}
+      {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && (

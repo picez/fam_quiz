@@ -397,3 +397,43 @@ describe('StageScreen: match', () => {
     expect(screen.getByText('Мінус для всіх, хто не відповість правильно')).toBeTruthy();
   });
 });
+
+describe('StageScreen final', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false };
+  const info = { theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 };
+  const entry = (nickname: string, wager: number, before: number, after: number) => ({
+    playerId: nickname,
+    nickname,
+    answer: { type: 'single' as const, optionId: 'b' },
+    grade: 'correct' as const,
+    wager,
+    before,
+    after,
+  });
+
+  it('shows the theme and how many have wagered', () => {
+    show(view({ phase: 'wager', round, final: info }));
+    expect(screen.getByText('Космос')).toBeTruthy();
+    expect(screen.getByText('Ставки зроблено: 1 з 3')).toBeTruthy();
+  });
+
+  it('shows only revealed final players, the latest highlighted', () => {
+    show(
+      view({
+        phase: 'reveal',
+        round,
+        questionIndex: 0,
+        question,
+        reveal: full,
+        final: { ...info, shown: [entry('Віра', 100, 300, 400), entry('Богдан', 400, 400, 800)], left: 1 },
+      }),
+    );
+    expect(screen.getByText('Віра')).toBeTruthy();
+    expect(screen.getByText('Богдан').closest('li')?.className).toContain('wager-latest');
+    expect(screen.getByText('Віра').closest('li')?.className).not.toContain('wager-latest');
+    expect(screen.getByText('400 → 800')).toBeTruthy();
+    expect(screen.getByText('Ставка 400')).toBeTruthy();
+    expect(screen.getByText('Ще 1')).toBeTruthy();
+    expect(screen.queryByText('Анна')).toBeNull();
+  });
+});

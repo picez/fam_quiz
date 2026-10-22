@@ -521,3 +521,48 @@ describe('PlayerScreen: spotlight', () => {
     expect(screen.getByText('Київ — Дніпро')).toBeTruthy();
   });
 });
+
+describe('PlayerScreen final', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false };
+  const info = { theme: 'Космос', placed: 0, total: 2, shown: [], left: 0 };
+  const onWager = (limit: number, wager: number | null = null) =>
+    view({ phase: 'wager', round, final: info, me: { ...me, score: limit, final: { wager, limit } } });
+
+  it('places and changes a final wager within the limit', async () => {
+    const send = show(onWager(400));
+    expect(screen.getByText('Ваша ставка від 0 до 400')).toBeTruthy();
+    const field = screen.getByLabelText('Ставка') as HTMLInputElement;
+    expect(field.getAttribute('max')).toBe('400');
+    fireEvent.change(field, { target: { value: '300' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Поставити' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:wager', { amount: 300 }));
+    cleanup();
+    show(onWager(400, 300));
+    expect(screen.getByText('Ваша ставка: 300')).toBeTruthy();
+    expect(screen.getByLabelText('Ставка')).toBeTruthy();
+  });
+
+  it('a player with no points can only wager zero', async () => {
+    const send = show(onWager(0));
+    expect(screen.queryByLabelText('Ставка')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Поставити 0' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:wager', { amount: 0 }));
+  });
+
+  it('a player waits for their own reveal, then sees the signed wager', () => {
+    const base = { phase: 'reveal' as const, round, final: info, question: publicQuestion, reveal: fullQuestion, questionIndex: 0 };
+    show(view({ ...base, me: { ...me, score: 700, final: { wager: 300, limit: 700 } } }));
+    expect(screen.getByText('Чекаємо на розкриття')).toBeTruthy();
+    cleanup();
+    const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 300 };
+    show(view({ ...base, me: { ...me, score: 1000, result, final: { wager: 300, limit: 700 } } }));
+    expect(screen.getByText('+300')).toBeTruthy();
+    expect(screen.queryByText('Чекаємо на розкриття')).toBeNull();
+  });
+
+  it('the final question shows no points', () => {
+    show(onQuestion({ round, final: info, me: { ...me, final: { wager: 100, limit: 100 } } }));
+    expect(screen.queryByText(/1000/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+});
