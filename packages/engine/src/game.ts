@@ -17,6 +17,7 @@ import {
 import { applyVerdict, blitzDone, blitzRulesOf, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
+import { chainDone, scoreChain } from './chain';
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -85,6 +86,17 @@ export interface Play {
   board?: BoardPlay;
   /** Лише в запитанні раунду фіналу. */
   final?: FinalPlay;
+  /** Лише в запитанні-ланцюжку; гравця тут немає, поки він не торкався ланцюжка. */
+  chain?: Record<string, ChainProgress>;
+}
+
+/** Поступ гравця в ланцюжку слів. */
+export interface ChainProgress {
+  /** Скільки прихованих слів уже вгадано. */
+  solved: number;
+  /** Скільки літер поточного слова відкрито; від 1 (перша літера). */
+  shown: number;
+  hints: number;
 }
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
@@ -241,6 +253,10 @@ export function removePlayer(state: GameState, playerId: string): Result {
   const plays = state.plays.map((play): Play => {
     const { [playerId]: _removed, ...rest } = play.answers;
     const kept: Play = { ...play, answers: rest };
+    if (play.chain !== undefined) {
+      const { [playerId]: _progress, ...chain } = play.chain;
+      kept.chain = chain;
+    }
     if (play.final !== undefined) {
       const { [playerId]: _wager, ...wagers } = play.final.wagers;
       kept.final = { wagers, graded: play.final.graded.filter((id) => id !== playerId) };
@@ -556,7 +572,8 @@ function dropQueue(state: GameState): GameState {
 
 /** Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз. */
 function lockNow(state: GameState): GameState {
-  const closed = withCellPenalty(dropQueue(state));
+  // Бали за ланцюжок залежать від найшвидшого, тож рахуються лише тут, коли відомі часи всіх.
+  const closed = withCellPenalty(dropQueue(scoreChain(state)));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
@@ -566,7 +583,7 @@ function revealNow(state: GameState): GameState {
 }
 
 /** Закриває запитання, якщо відповіли всі підключені гравці (у бліці: якщо запитання вже вирішене). */
-function autoLock(state: GameState): GameState {
+export function autoLock(state: GameState): GameState {
   if (state.phase !== 'question' || state.paused) return state;
   if (state.plays[state.questionIndex]?.blitz !== undefined) return blitzDone(state, null) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
@@ -589,6 +606,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (state.paused) return fail('paused');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const play = state.plays[state.questionIndex];
+  // Ланцюжок проходять лише guessWord і takeHint: підсумок з телефона не приймається.
+  if (answer.type === 'chain' || play.question.type === 'chain') return fail('type_mismatch');
   const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
   if (play.blitz !== undefined) {
@@ -767,6 +786,8 @@ export function tick(state: GameState, now: number): GameState {
   const running = watchAway(releaseStaleHold(state, now), now);
   // Поки відповідь чекає на ведучого, годинник стоїть (і відлік відсутності теж).
   if (running.heldAt !== null) return running;
+  // Ланцюжок закривається, коли кожен пройшов або вичерпав свій час зі штрафом.
+  if (running.plays[running.questionIndex]?.question.type === 'chain' && chainDone(running, now)) return lockNow(running);
   // Звичайна клітинка без таймера закривається, коли гравець, чий хід, відсутній 30 секунд.
   const since = running.board?.awaySince ?? null;
   if (since !== null && awayWatched(running) !== null && now >= since + BOARD_AWAY_MS) return lockNow(running);
@@ -976,6 +997,8 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
 
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
+  // Ланцюжок перевіряється за літерами однозначно; зміна одного вердикту зсунула б бали інших.
+  if (state.plays[state.questionIndex]?.question.type === 'chain') return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
   if (current?.type === 'final') return overrideFinal(state, playerId, grade);
@@ -1016,7 +1039,7 @@ export function end(state: GameState): Result {
   // Поза фіналом closeFinal лише перераховує підсумки; у фіналі ще оцінює мовчання й розкриває всіх.
   return ok(
     closeFinal({
-      ...dropQueue(state),
+      ...dropQueue(scoreChain(state)),
       phase: 'finished',
       board: clearAway(state.board),
       paused: false,

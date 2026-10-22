@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type FinalRound, type Question, type RoundRules } from '@quiz/shared';
+import { guessWord } from './chain';
 import { placeWager } from './final';
 import {
   end,
@@ -20,7 +21,7 @@ import {
 import { pendingOf } from './hold';
 import { finalPoints } from './score';
 import { adjustTime, limitMsOf } from './timing';
-import { classicRound, finalRound, makeRoundsQuiz, order, single, withId, withPoints, withVideo } from './testing/fixtures';
+import { chain, classicRound, finalRound, makeRoundsQuiz, order, single, withId, withPoints, withVideo } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const right = { type: 'single', optionId: 'b' } as const;
@@ -346,5 +347,20 @@ describe('the final round', () => {
     const midReveal = must(end(must(next(toReveal(), 14_000, rng))));
     expect(midReveal.final?.order).toEqual(['p3', 'p2', 'p1']);
     expect(midReveal.final?.shown).toBe(3);
+  });
+
+  it('a chain final: finishing in time wins the wager, playing without finishing loses it, check manual is ignored', () => {
+    let s = toQuestion({ check: 'manual' }, chain);
+    s = ['Риба', 'Океан', 'Корабель'].reduce((current, word) => must(guessWord(current, 'p1', word, 15_000)), s);
+    s = must(guessWord(s, 'p2', 'Риба', 12_000));
+    expect(s.phase).toBe('question');
+    s = tick(s, 30_000);
+    expect(s.phase).toBe('locked');
+    s = must(next(s, 31_000, rng));
+    expect(s.phase).toBe('reveal');
+    expect(finalRecord(s, 'p1')).toMatchObject({ grade: 'correct', points: 500 });
+    expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'wrong', points: -400, answer: { type: 'chain', solved: 1 } });
+    expect(finalRecord(s, 'p3')).toMatchObject({ answer: null, points: 0 });
+    expect(override(s, 'p2', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerPoints, scorePoints, speedFactor, streakBonus } from './score';
+import { answerPoints, chainFactor, scorePoints, speedFactor, streakBonus } from './score';
 
 describe('speedFactor', () => {
   it('is 1 when the speed bonus is off', () => {
@@ -53,5 +53,14 @@ describe('streakBonus', () => {
 
   it('is a fixed amount', () => {
     expect(streakBonus(1500, { kind: 'fixed', value: 100 })).toBe(100);
+  });
+});
+
+describe('chainFactor', () => {
+  it('chain factor is 1 for the fastest, linear to a half at the limit', () => {
+    expect(chainFactor(5000, 5000, 20000)).toBe(1);
+    expect(chainFactor(20000, 5000, 20000)).toBe(0.5);
+    expect(chainFactor(12500, 5000, 20000)).toBeCloseTo(0.75);
+    expect(chainFactor(20000, 20000, 20000)).toBe(1);
   });
 });

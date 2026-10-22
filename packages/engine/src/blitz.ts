@@ -1,6 +1,7 @@
 import { DEFAULT_ANSWER_WINDOW, type ErrorCode } from '@quiz/shared';
 import { cellBlitzRules } from './board-cells';
 import { BOARD_AWAY_MS } from './board-turns';
+import { chainDeadline } from './chain';
 // З game.ts лише типи: game.ts сам викликає цей файл, цикл під час виконання не потрібен.
 import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
 import { clockOf, holdAt, thaw } from './hold';
@@ -178,10 +179,14 @@ export function nextDeadline(state: GameState, now: number): number | null {
   // Під час утримання годинник стоїть: tick нічого не змінить, доки ведучий не вирішить.
   if (state.phase !== 'question' || state.paused || state.heldAt !== null) return null;
   const away = state.board?.awaySince ?? null;
+  const play = state.plays[state.questionIndex];
+  // Особистий дедлайн ланцюжка раніший за endsAt на штраф гравця; хто вже пройшов, не чекає.
+  const chainers = Object.keys(play?.chain ?? {}).filter((id) => !Object.hasOwn(play.answers, id));
   const times = [
     state.endsAt,
     away === null ? null : away + BOARD_AWAY_MS,
-    ...(state.plays[state.questionIndex]?.blitz?.queue.map((e) => e.deadline) ?? []),
+    ...(play?.blitz?.queue.map((e) => e.deadline) ?? []),
+    ...chainers.map((id) => chainDeadline(state, id)),
   ];
   const upcoming = times.filter((time): time is number => time !== null && time > now);
   return upcoming.length === 0 ? null : Math.min(...upcoming);

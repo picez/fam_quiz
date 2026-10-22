@@ -30,3 +30,9 @@ export function streakBonus(basePoints: number, bonus: { kind: 'percent' | 'fixe
 export function finalPoints(wager: number, correct: boolean): number {
   return correct ? wager : 0 - wager;
 }
+
+/** Частка ціни за ланцюжок: 1 найшвидшому, лінійно до 0.5 на межі часу. */
+export function chainFactor(timeMs: number, fastestMs: number, limitMs: number): number {
+  if (limitMs <= fastestMs) return 1;
+  return Math.min(Math.max(1 - (0.5 * (timeMs - fastestMs)) / (limitMs - fastestMs), 0.5), 1);
+}
