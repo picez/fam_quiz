@@ -300,6 +300,9 @@ async function scenario() {
 
   // 1. Один варіант, із зображенням.
   await click(host, 'Почати гру');
+  await stage.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.').waitFor();
+  expect(await stage.getByText('Раунд 1 з 1').count()).toBe(0);
+  await click(host, 'Почати раунд');
   await olya.getByRole('button', { name: /Київ/ }).waitFor();
   for (const page of [stage, olya, host]) {
     const drawn = await page.locator('img.question-image').evaluate((image) => (image as unknown as { naturalWidth: number }).naturalWidth);
@@ -656,6 +659,15 @@ async function blitzGame() {
   await stage.getByText('Борис').waitFor();
 
   await click(host, 'Почати гру');
+  for (const page of [stage, anna, host]) {
+    await page.getByText('Бали отримує лише той, хто першим правильно відповість.').waitFor();
+    await page.getByText('Помилка: мінус ціна запитання').waitFor();
+  }
+  await shot(stage, 'blitz-intro-stage');
+  await shot(host, 'blitz-intro-host');
+  await boris.getByText('Бали отримує лише той, хто першим правильно відповість.').waitFor();
+  await expectNoSideScroll(boris, 'blitz-intro-phone-360');
+  await click(host, 'Почати раунд');
 
   // Запитання 1: Анна натискає першою й помиляється, Борис відповідає правильно.
   await click(anna, 'Відповісти');
@@ -754,6 +766,18 @@ async function boardGame() {
   // Однаковий час для всіх запитань раунду.
   await field(host, 'Секунд').fill('40');
   await click(host, 'Застосувати');
+
+  // Видалення запитання прямо в сітці: на мінімумі кнопка вимкнена з підказкою, з четвертим запитанням доступна.
+  const remove = host.getByRole('button', { name: 'Прибрати запитання', ...exact });
+  expect(await remove.isDisabled()).toBe(true);
+  await host.getByText('Щонайменше 3 запитання в категорії').waitFor();
+  await shot(host, 'editor-cell-remove-min');
+  await host.getByRole('button', { name: '+ Запитання', ...exact }).first().click();
+  expect(await remove.isDisabled()).toBe(false);
+  await shot(host, 'editor-cell-remove');
+  await remove.click();
+  expect(await host.getByRole('button', { name: /^Категорія 1, клітинка \d+:/ }).count()).toBe(3);
+  expect(await remove.isDisabled()).toBe(true);
 
   // Поле 3×3: категорії «Міста», «Річки», «Гори»; ціни 100, 200, 300 редактор ставить сам.
   const categories = ['Міста', 'Річки', 'Гори'];
@@ -1198,6 +1222,7 @@ async function videoGame() {
   await stage.getByText('Богдан').waitFor();
 
   await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
 
   // Запитання 1: плеєр скрізь, таймера ніде.
   const embed = 'iframe[src*="youtube-nocookie.com/embed/dQw4w9WgXcQ"]';
@@ -1526,6 +1551,7 @@ async function menuProfileFriends() {
 
   // 4. Гра: Оля вибирає правильне, Тарас неправильне.
   await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
   await olya.getByRole('button', { name: /Київ/ }).click();
   await taras.getByRole('button', { name: /Львів/ }).click();
   await click(host, 'Показати відповідь');
