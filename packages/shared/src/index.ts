@@ -8,3 +8,4 @@ export * from './events';
 export * from './history';
 export * from './text';
 export * from './youtube';
+export * from './profile';

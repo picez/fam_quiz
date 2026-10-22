@@ -117,3 +117,35 @@ describe('one answer row per blitz attempt (migration 0003)', () => {
     ).rejects.toThrow();
   });
 });
+
+describe('profiles schema (migration 0004)', () => {
+  it('removing a user removes their profile and every follow both ways', async () => {
+    const { follow, profile } = await import('./schema');
+    const db = await createTestDb();
+    for (const id of ['u1', 'u2', 'u3']) await db.insert(user).values({ id, name: id, email: `${id}@example.com` });
+    await db.insert(profile).values([
+      { userId: 'u1', nickname: 'Один', nicknameKey: 'один' },
+      { userId: 'u2', nickname: 'Два', nicknameKey: 'два' },
+    ]);
+    await db.insert(follow).values([
+      { followerId: 'u1', followeeId: 'u2' },
+      { followerId: 'u2', followeeId: 'u1' },
+      { followerId: 'u3', followeeId: 'u2' },
+    ]);
+
+    await db.delete(user).where(eq(user.id, 'u2'));
+
+    expect((await db.select().from(profile)).map((row) => row.userId)).toEqual(['u1']);
+    expect(await db.select().from(follow)).toEqual([]);
+  });
+
+  it('the profiles migration applies over an existing database', async () => {
+    const { ensureProfile } = await import('../profiles');
+    const { db, migrateRest } = await createTestDbUpTo('0003_blitz_attempts');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+
+    await migrateRest();
+
+    expect(await ensureProfile(db, 'u1')).toEqual({ id: 'u1', nickname: 'Олена', avatar: null });
+  });
+});

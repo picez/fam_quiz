@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
+import { deflateSync } from 'node:zlib';
+import { makeQuiz, single } from '@quiz/engine/testing';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
@@ -21,6 +23,48 @@ const PIXEL = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64',
 );
+
+/** Видимий тестовий аватар: непрозорий PNG 64×64, жовтий круг на синьому тлі (щоб знімки не скидалися на «порожнє коло»). */
+function avatarPng(): Buffer {
+  const size = 64;
+  const raw = Buffer.alloc((size * 3 + 1) * size);
+  for (let y = 0; y < size; y++) {
+    raw[y * (size * 3 + 1)] = 0;
+    for (let x = 0; x < size; x++) {
+      const inside = (x - 32) ** 2 + (y - 32) ** 2 < 18 ** 2;
+      const at = y * (size * 3 + 1) + 1 + x * 3;
+      [raw[at], raw[at + 1], raw[at + 2]] = inside ? [250, 204, 21] : [37, 99, 235];
+    }
+  }
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buffer: Buffer) => {
+    let c = 0xffffffff;
+    for (const byte of buffer) c = crcTable[(c ^ byte) & 0xff]! ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc(body), body.length + 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 const exact = { exact: true };
 // Відео з цим id повідомляє про помилку так само, як справжній плеєр.
 const BROKEN_VIDEO = 'AAAAAAAAAAA';
@@ -692,6 +736,12 @@ async function boardGame() {
   await shot(host, 'editor-desktop');
   await host.setViewportSize({ width: 390, height: 844 });
   await shot(host, 'editor-phone');
+  // Нижня панель меню не закриває липку кнопку «Зберегти».
+  await host.evaluate('window.scrollTo(0, Math.floor((document.documentElement.scrollHeight - innerHeight) / 2))');
+  const saveBox = (await host.getByRole('button', { name: 'Зберегти', ...exact }).boundingBox())!;
+  const menuBox = (await host.locator(MENU).boundingBox())!;
+  expect(saveBox.y, 'editor: Save is above the viewport').toBeGreaterThanOrEqual(0);
+  expect(saveBox.y + saveBox.height, 'editor: the menu covers Save').toBeLessThanOrEqual(menuBox.y + 0.5);
   await host.setViewportSize({ width: 1280, height: 900 });
   if (process.env.E2E_SHOTS === '1') {
     // Повне поле на 8 категорій для перевірки дизайну, потім повертаємо 3.
@@ -1147,6 +1197,194 @@ async function videoGame() {
   // Останнє запитання єдиного раунду: після «Далі» гра завершується сама.
   await click(host, 'Далі');
   await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('the menu stays off the game screens; a player’s profile counts the game, changes nickname and avatar, and gets a friend', async () => {
+  try {
+    await menuProfileFriends();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+const MENU = 'nav[aria-label="Меню"]';
+const menuLinks = async (page: Page) =>
+  (await page.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/^[^\p{L}]+/u, ''));
+
+/** Телефон: сторінка не гортається вбік, а нижня панель не закриває останній елемент. */
+async function expectPhoneFit(page: Page, name: string) {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+  const fit = (await page.evaluate(`(() => {
+    let last = document.querySelector('main') ?? document.body;
+    while (last.lastElementChild) last = last.lastElementChild;
+    return { wide: document.documentElement.scrollWidth <= innerWidth, bottom: last.getBoundingClientRect().bottom };
+  })()`)) as { wide: boolean; bottom: number };
+  const bar = await page.locator(MENU).boundingBox();
+  // Підписи карток статистики не розриваються посеред слова: кожне слово займає один рядок.
+  const split = (await page.evaluate(`(() => {
+    const broken = [];
+    for (const dt of document.querySelectorAll('.stat dt')) {
+      const node = dt.firstChild;
+      if (!node || node.nodeType !== 3) continue;
+      for (const match of node.textContent.matchAll(/\\S+/g)) {
+        const range = document.createRange();
+        range.setStart(node, match.index);
+        range.setEnd(node, match.index + match[0].length);
+        if (range.getClientRects().length > 1) broken.push(match[0]);
+      }
+    }
+    return broken;
+  })()`)) as string[];
+  expect(split, `${name}: stat label words are split`).toEqual([]);
+  expect(fit.wide, `${name}: horizontal scroll`).toBe(true);
+  expect(bar).not.toBeNull();
+  expect(fit.bottom, `${name}: the menu covers the last element`).toBeLessThanOrEqual(bar!.y + 0.5);
+  await shot(page, name);
+}
+
+const stat = (page: Page, label: string) =>
+  page.locator('.stat').filter({ has: page.locator('dt', { hasText: new RegExp(`^${label}$`) }) });
+
+async function menuProfileFriends() {
+  // 1. Відвідувач на телефоні: лише «Приєднатися» й «Увійти», панель унизу.
+  const visitor = await open('visitor', 390, 844);
+  await visitor.goto(base);
+  await visitor.locator(MENU).getByRole('link', { name: 'Увійти' }).waitFor();
+  expect(await menuLinks(visitor)).toEqual(['Приєднатися', 'Увійти']);
+  const barBox = (await visitor.locator(MENU).boundingBox())!;
+  expect(Math.abs(barBox.y + barBox.height - 844)).toBeLessThanOrEqual(2);
+  await shot(visitor, 'menu-visitor-phone');
+
+  // 2. Ведуча на комп'ютері: чотири пункти, рядок угорі.
+  const host = await open('host8', 1280, 900);
+  await host.goto(base);
+  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await click(host, 'Створити акаунт');
+  await field(host, 'Ваше ім’я').fill('Галина Ведуча');
+  await field(host, 'Email').fill('host8@example.com');
+  await field(host, 'Пароль').fill('correct horse battery');
+  await click(host, 'Зареєструватися');
+  await host.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
+  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Профіль']);
+  expect((await host.locator(MENU).boundingBox())!.y).toBeLessThanOrEqual(1);
+  await shot(host, 'menu-host-desktop');
+
+  const saved = await host.request.post(`${base}/api/quizzes`, { data: makeQuiz([single], { speedBonus: false }) });
+  expect(saved.ok()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  expect(await host.locator(MENU).count()).toBe(0);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage8', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  expect(await stage.locator(MENU).count()).toBe(0);
+
+  // 3. Гравець на телефоні: реєстрація з меню, повернення на «Приєднатися»; гість без акаунта.
+  const olya = await open('olya8', 390, 844);
+  await olya.goto(base);
+  await olya.locator(MENU).getByRole('link', { name: 'Увійти' }).click();
+  await click(olya, 'Створити акаунт');
+  await field(olya, 'Ваше ім’я').fill('Оля Гравець');
+  await field(olya, 'Email').fill('olya8@example.com');
+  await field(olya, 'Пароль').fill('correct horse battery');
+  await click(olya, 'Зареєструватися');
+  await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
+  await olya.locator(MENU).getByRole('link', { name: 'Приєднатися' }).click();
+  await field(olya, 'Код гри').fill(code);
+  await click(olya, 'Увійти');
+  await field(olya, 'Ваше ім’я').fill('Оля');
+  await click(olya, 'Увійти в гру');
+  await olya.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+  expect(await olya.locator(MENU).count()).toBe(0);
+
+  const taras = await open('taras8', 360, 740);
+  await join(taras, code, 'Тарас', false);
+  expect(await taras.locator(MENU).count()).toBe(0);
+  await stage.getByText('Тарас').waitFor();
+
+  // 4. Гра: Оля вибирає правильне, Тарас неправильне.
+  await click(host, 'Почати гру');
+  await olya.getByRole('button', { name: /Київ/ }).click();
+  await taras.getByRole('button', { name: /Львів/ }).click();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  expect(await stage.locator(MENU).count()).toBe(0);
+  expect(await host.locator(MENU).count()).toBe(0);
+
+  // 5. Профіль Олі.
+  await olya.goto(base);
+  await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).click();
+  await olya.getByRole('heading', { name: 'Статистика' }).waitFor();
+  expect(await stat(olya, 'гра').textContent()).toBe('1гра');
+  expect(await stat(olya, 'перемога').textContent()).toBe('1перемога');
+  expect(await stat(olya, 'правильних відповідей').textContent()).toBe('100%правильних відповідей');
+  for (const name of ['Перша гра', 'Перша перемога']) {
+    expect(await olya.locator('.achievements li:not(.locked)', { hasText: name }).count()).toBe(1);
+  }
+  expect(await olya.getByLabel('10 ігор (ще не отримано)', exact).count()).toBe(1);
+  await olya.locator('.profile-list li', { hasText: '«Тестова вікторина», 1 місце' }).waitFor();
+  await shot(olya, 'profile-own-phone');
+
+  await click(olya, 'Змінити нікнейм / аватар');
+  await field(olya, 'Нікнейм').fill('Зірка');
+  await olya.locator('.profile-editor input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: avatarPng() });
+  await olya.locator('.profile-editor img').waitFor();
+  await click(olya, 'Зберегти');
+  await olya.getByRole('heading', { name: 'Зірка' }).waitFor();
+  await olya.getByAltText('Аватар Зірка').first().waitFor();
+  await olya.getByRole('link', { name: 'Мій публічний профіль' }).click();
+  await olya.waitForURL(/\/profile\/[^/]+$/);
+  const publicUrl = olya.url();
+  const olyaId = publicUrl.slice(publicUrl.lastIndexOf('/') + 1);
+  await olya.getByText('email приховано').waitFor();
+
+  // Телефон 375 пікселів: без прокручування вбік, панель не закриває кінець сторінки.
+  await expectPhoneFit(olya, 'profile-public-phone-375');
+  await olya.goto(base);
+  await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
+  await expectPhoneFit(olya, 'home-phone-375');
+  await olya.goto(`${base}/profile`);
+  await olya.getByRole('heading', { name: 'Статистика' }).waitFor();
+  await expectPhoneFit(olya, 'profile-own-phone-375');
+  await visitor.setViewportSize({ width: 375, height: 812 });
+  await visitor.goto(base);
+  await visitor.locator(MENU).getByRole('link', { name: 'Увійти' }).waitFor();
+  await expectPhoneFit(visitor, 'home-visitor-phone-375');
+
+  // 6. Ведуча відкриває публічний профіль Олі і додає її в друзі.
+  await host.goto(publicUrl);
+  await host.getByRole('heading', { name: 'Зірка' }).waitFor();
+  await host.getByText('email приховано').waitFor();
+  expect(await host.content()).not.toContain('olya8@example.com');
+  await shot(host, 'profile-public-desktop');
+  await host.getByRole('button', { name: 'Додати в друзі', ...exact }).click();
+  await host.getByText('У друзях', exact).waitFor();
+
+  await host.locator(MENU).getByRole('link', { name: 'Профіль' }).click();
+  await host.getByRole('heading', { name: 'Статистика' }).waitFor();
+  expect(await stat(host, 'проведена гра').textContent()).toBe('1проведена гра');
+  expect(await host.locator('.achievements li:not(.locked)', { hasText: 'Ведучий' }).count()).toBe(1);
+  const friend = host.locator('.friend-list a', { hasText: 'Зірка' });
+  await friend.waitFor();
+  await shot(host, 'profile-own-desktop');
+  await friend.click();
+  await host.waitForURL(`${base}/profile/${olyaId}`);
+  await host.getByRole('heading', { name: 'Зірка' }).waitFor();
+
+  // 7. Приватність через API: у відповіді немає приватних ключів.
+  const response = await host.request.get(`${base}/api/profiles/${olyaId}`);
+  expect(response.ok()).toBe(true);
+  const body = (await response.json()) as Record<string, unknown>;
+  for (const key of ['email', 'quizzes', 'friends', 'wins']) expect(body).not.toHaveProperty(key);
 
   expect(problems).toEqual([]);
 }

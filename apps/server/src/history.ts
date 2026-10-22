@@ -228,14 +228,21 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
   };
 }
 
-export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[]> {
-  const rows = await db
+export interface AnswerMark {
+  questionIndex: number;
+  attempt: number;
+  accepted: boolean;
+}
+
+/** Ігри гравця з акаунта, найновіші першими, з рядками його відповідей; limit null — усі. */
+export async function playerGames(db: Db, userId: string, limit: number | null): Promise<{ played: PlayedGame; marks: AnswerMark[] }[]> {
+  const query = db
     .select({ participant, game })
     .from(participant)
     .innerJoin(game, eq(participant.gameId, game.id))
     .where(eq(participant.userId, userId))
-    .orderBy(desc(game.startedAt))
-    .limit(LIMIT);
+    .orderBy(desc(game.startedAt));
+  const rows = limit === null ? await query : await query.limit(limit);
   if (rows.length === 0) return [];
 
   const players = await playerCounts(
@@ -255,17 +262,24 @@ export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[
   return rows.map((row) => {
     const mine = answers.filter((a) => a.participantId === row.participant.id);
     return {
-      gameId: row.game.id,
-      title: row.game.title,
-      status: row.game.status,
-      startedAt: row.game.startedAt.toISOString(),
-      nickname: row.participant.nickname,
-      score: row.participant.score,
-      rank: row.participant.rank,
-      playerCount: players.get(row.game.id) ?? 0,
-      correct: distinct(mine.filter((a) => a.accepted).map((a) => a.questionIndex)),
-      answered: distinct(mine.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.questionIndex)),
-      questionsPlayed: row.game.questionsPlayed,
+      played: {
+        gameId: row.game.id,
+        title: row.game.title,
+        status: row.game.status,
+        startedAt: row.game.startedAt.toISOString(),
+        nickname: row.participant.nickname,
+        score: row.participant.score,
+        rank: row.participant.rank,
+        playerCount: players.get(row.game.id) ?? 0,
+        correct: distinct(mine.filter((a) => a.accepted).map((a) => a.questionIndex)),
+        answered: distinct(mine.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.questionIndex)),
+        questionsPlayed: row.game.questionsPlayed,
+      },
+      marks: mine.map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
     };
   });
+}
+
+export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[]> {
+  return (await playerGames(db, userId, LIMIT)).map((g) => g.played);
 }

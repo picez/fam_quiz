@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authProviders, deleteQuiz, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadImage } from './api';
+import { authProviders, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -106,5 +106,13 @@ describe('sign-in with Google', () => {
       callbackURL: '/host/123456',
       errorCallbackURL: '/login',
     });
+  });
+
+  it('follow sends PUT without a body and unfollow sends DELETE', async () => {
+    const fetchMock = respond(204);
+    expect(await follow('u 2')).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith('/api/me/friends/u%202', { method: 'PUT', headers: undefined, body: undefined });
+    await unfollow('u 2');
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/me/friends/u%202', { method: 'DELETE', headers: undefined, body: undefined });
   });
 });

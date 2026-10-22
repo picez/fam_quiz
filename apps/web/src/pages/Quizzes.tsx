@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, signOut, type QuizSummary } from '../api';
+import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, type QuizSummary } from '../api';
 import { demoQuiz } from '../demo-quiz';
 import { errorText, t } from '../i18n';
 import { clearLastGame, loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
@@ -102,19 +102,8 @@ export function Quizzes() {
       await reload();
     });
 
-  const leave = async () => {
-    await signOut();
-    navigate('/');
-  };
-
   return (
     <main className="app wide">
-      <header className="bar">
-        <span>{account.account.name}</span>
-        <button type="button" className="btn btn-small" onClick={leave}>
-          {t('signOut')}
-        </button>
-      </header>
       <h1 className="brand">{t('quizzesTitle')}</h1>
 
       {running !== null && (
@@ -130,12 +119,6 @@ export function Quizzes() {
         <button type="button" className="btn" disabled={busy} onClick={addDemo}>
           {t('addDemo')}
         </button>
-        <Link className="btn btn-quiet" to="/history">
-          {t('historyTitle')}
-        </Link>
-        <Link className="btn btn-quiet" to="/me">
-          {t('myGamesTitle')}
-        </Link>
       </div>
 
       {error !== null && (

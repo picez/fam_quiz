@@ -117,7 +117,15 @@ describe('History', () => {
     vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
     open('/history');
     expect(await screen.findByText(/Тут з’являться ігри, які ви провели/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Мої вікторини' }).getAttribute('href')).toBe('/quizzes');
+  });
+
+  it('switches between hosted and played games', () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
+    open('/history');
+    const hosted = screen.getByRole('link', { name: 'Проведені' });
+    expect(hosted.getAttribute('href')).toBe('/history');
+    expect(hosted.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: 'Зіграні' }).getAttribute('href')).toBe('/me');
   });
 
   it('sends a visitor to sign in and back to the history afterwards', async () => {

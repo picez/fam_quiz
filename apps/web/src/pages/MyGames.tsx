@@ -1,37 +1,21 @@
-import type { PlayedGame } from '@quiz/shared';
-import { Link, Navigate } from 'react-router-dom';
+import { gameStats } from '@quiz/shared';
+import { Navigate } from 'react-router-dom';
 import { myHistory } from '../api';
 import { formatDate } from '../format';
 import { countText, t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
-
-/** Зведення з отриманого списку: кількість ігор, перемог і частка правильних відповідей. */
-function summarize(games: PlayedGame[]) {
-  const asked = games.reduce((sum, game) => sum + game.questionsPlayed, 0);
-  const correct = games.reduce((sum, game) => sum + game.correct, 0);
-  return {
-    games: games.length,
-    // Перемога: перше місце в завершеній грі, де було кого випередити і є хоч якісь бали.
-    // Інакше «перемогою» стала б гра наодинці чи гра, яку закрили до першої відповіді.
-    wins: games.filter((game) => game.status === 'finished' && game.rank === 1 && game.score > 0 && game.playerCount > 1).length,
-    accuracy: asked === 0 ? null : Math.round((correct / asked) * 100),
-  };
-}
+import { HistoryTabs } from './HistoryTabs';
 
 export function MyGames() {
   const state = usePrivateData(myHistory);
 
   if (state.status === 'signed-out') return <Navigate to="/login?next=%2Fme" replace />;
 
-  const summary = state.status === 'ready' && state.data.length > 0 ? summarize(state.data) : null;
+  const summary = state.status === 'ready' && state.data.length > 0 ? gameStats(state.data) : null;
 
   return (
     <main className="app wide">
-      <header className="bar">
-        <Link className="quiet-link" to="/">
-          {t('backHome')}
-        </Link>
-      </header>
+      <HistoryTabs />
       <h1 className="brand">{t('myGamesTitle')}</h1>
 
       {state.status === 'loading' && <p className="meta">{t('loading')}</p>}

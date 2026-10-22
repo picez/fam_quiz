@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { roundQuestions } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, me, signOut } from '../api';
+import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, me } from '../api';
 import { loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
 import { Quizzes } from './Quizzes';
 
@@ -14,7 +14,6 @@ vi.mock('../api', () => ({
   createQuiz: vi.fn(),
   deleteQuiz: vi.fn(),
   createGame: vi.fn(),
-  signOut: vi.fn(),
 }));
 
 const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com' };
@@ -61,7 +60,6 @@ describe('Quizzes', () => {
     open();
     expect(await screen.findByText('Географія')).toBeTruthy();
     expect(screen.getByText('Запитань: 6')).toBeTruthy();
-    expect(screen.getByText('Олена')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Редагувати' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByRole('link', { name: 'Нова вікторина' }).getAttribute('href')).toBe('/quizzes/new');
   });
@@ -111,12 +109,10 @@ describe('Quizzes', () => {
     await waitFor(() => expect(listQuizzes).toHaveBeenCalledTimes(2));
   });
 
-  it('signs out and returns home', async () => {
-    vi.mocked(signOut).mockResolvedValue({ ok: true });
+  it('has no sign-out button: it moved to the profile', async () => {
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Вийти' }));
-    expect(await screen.findByText('головна')).toBeTruthy();
-    expect(signOut).toHaveBeenCalled();
+    await screen.findByText('Географія');
+    expect(screen.queryByRole('button', { name: 'Вийти' })).toBeNull();
   });
 });
 

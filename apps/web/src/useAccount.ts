@@ -8,8 +8,8 @@ export type AccountState =
   | { status: 'unknown'; error: string }
   | { status: 'signed-in'; account: Account };
 
-/** Хто зараз увійшов. Запитує сервер один раз під час появи сторінки. */
-export function useAccount(): AccountState {
+/** Хто увійшов. Запитує сервер під час появи й щоразу, коли змінюється refresh; до відповіді лишає попередній стан. */
+export function useAccount(refresh?: unknown): AccountState {
   const [state, setState] = useState<AccountState>({ status: 'loading' });
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export function useAccount(): AccountState {
     return () => {
       current = false;
     };
-  }, []);
+  }, [refresh]);
 
   return state;
 }
