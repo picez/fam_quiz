@@ -2,9 +2,9 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { boardRound, classicRound, makeQuiz, makeRoundsQuiz, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { chromium, type Browser, type Page } from 'playwright-core';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { blitzRound, boardRound, classicRound, makeQuiz, makeRoundsQuiz, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
@@ -88,8 +88,11 @@ function youtubeStub(url: string): string {
 let ctx: Awaited<ReturnType<typeof buildApp>>;
 let browser: Browser;
 let base: string;
+/** Проблеми (помилки консолі й сторінки) лише поточного тесту. */
 const problems: string[] = [];
 const pages = new Map<string, Page>();
+/** Браузерні контексти поточного тесту: закриваються після нього, щоб сокети старих ігор не жили далі. */
+const contexts: BrowserContext[] = [];
 const ARTIFACTS = resolve(import.meta.dirname, 'artifacts');
 
 /** Після невдачі лишає знімок кожного екрана: без нього причину не знайти. */
@@ -129,6 +132,16 @@ beforeAll(async () => {
   browser = await chromium.launch({ channel: process.env.E2E_CHANNEL ?? 'chrome', headless: true });
 });
 
+beforeEach(() => {
+  problems.length = 0;
+});
+
+afterEach(async () => {
+  await Promise.all(contexts.map((c) => c.close().catch(() => undefined)));
+  contexts.length = 0;
+  pages.clear();
+});
+
 afterAll(async () => {
   await browser?.close();
   await ctx?.app.close();
@@ -136,16 +149,17 @@ afterAll(async () => {
 
 async function open(name: string, width: number, height: number): Promise<Page> {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA' });
+  contexts.push(context);
   // YouTube не вантажиться з мережі: сторінка вбудовування підміняється заглушкою.
   await context.route(/youtube(-nocookie)?\.com|youtu\.be|ytimg\.com/, (route) =>
     route.fulfill({ contentType: 'text/html', body: youtubeStub(route.request().url()) }),
   );
   const page = await context.newPage();
-  page.on('pageerror', (error) => problems.push(`${name}: ${error.message}`));
+  page.on('pageerror', (error) => problems.push(`${name}: ${error.message} @ ${page.url()}`));
   page.on('console', (message) => {
     // Відвідувач без акаунта отримує 401 на запит «хто я»: це очікувана відповідь, а не збій.
     const expected = message.text().includes('401 (Unauthorized)');
-    if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()}`);
+    if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()} @ ${message.location().url}`);
   });
   page.on('dialog', (dialog) => void dialog.accept());
   pages.set(name, page);
@@ -598,7 +612,7 @@ async function twoRounds() {
   expect(problems).toEqual([]);
 }
 
-it('a blitz round: pending answers with re-pick, the queue decides, −15 s, the podium shows it', async () => {
+it('a blitz round: instant answers in a queue with re-pick, the queue decides, −15 s, the podium shows it', async () => {
   try {
     await blitzGame();
   } catch (error) {
@@ -628,8 +642,10 @@ async function blitzGame() {
 
   await openRoundSettings(host);
   await field(host, 'Штраф: мінус ціна запитання за хибну відповідь').check();
-  await host.locator('label.field', { hasText: 'Спроб на запитання' }).locator('select').selectOption('1');
   await host.locator('label.field', { hasText: 'Перевірка' }).locator('select').selectOption('auto');
+  // Автоматичний бліц миттєвий: спроба одна, вікна немає, тож цих полів у редакторі немає.
+  expect(await host.locator('label.field', { hasText: 'Спроб на запитання' }).count()).toBe(0);
+  expect(await host.locator('label.field', { hasText: 'Вікно відповіді' }).count()).toBe(0);
 
   await questionText(host).fill('Столиця України?');
   await field(host, 'Варіант 1').fill('Львів');
@@ -669,36 +685,39 @@ async function blitzGame() {
   await expectNoSideScroll(boris, 'blitz-intro-phone-360');
   await click(host, 'Почати раунд');
 
-  // Запитання 1: Анна натискає першою й помиляється, Борис відповідає правильно.
-  await click(anna, 'Відповісти');
-  await anna.getByText('Ви 1-й у черзі').waitFor();
+  // Запитання 1: Анна відповідає першою й помиляється, Борис відповідає правильно. Кнопки «Відповісти» немає: варіанти одразу.
+  await anna.getByRole('button', { name: /Львів/ }).waitFor();
+  expect(await anna.getByRole('button', { name: 'Відповісти', ...exact }).count()).toBe(0);
   await anna.getByRole('button', { name: /Львів/ }).click();
-  // Помаранчевий стан: відповідь Анни бачить уся кімната, ведучий вирішує.
-  await stage.getByText('Відповідає Анна').waitFor();
-  await stage.locator('.choice.is-pending', { hasText: 'Львів' }).waitFor();
+  // Сцена бачить у черзі лише ім'я: чужий вибір і рядок «Відповідає …» з'являються не раніше розкриття.
+  await stage.locator('.blitz-queue li', { hasText: 'Анна' }).waitFor();
+  expect(await stage.locator('.choice.is-pending').count()).toBe(0);
+  expect(await stage.getByText('Відповідає Анна').count()).toBe(0);
   await host.getByRole('button', { name: 'Прийняти', ...exact }).waitFor();
   await host.getByRole('button', { name: 'Перевибрати', ...exact }).waitFor();
-  await shot(host, 'blitz-pending-host');
-  await shot(stage, 'blitz-pending-stage');
-  await click(boris, 'Відповісти');
-  await boris.getByText('Ви 2-й у черзі').waitFor();
-  await boris.getByText('Відповідає Анна').waitFor();
-  await shot(boris, 'blitz-pending-phone-other');
-  // Перевибір: Анна знову вибирає, Борис відповідає зі своєї черги.
+  await shot(host, 'blitz-queue-host');
+  await shot(stage, 'blitz-queue-stage');
+  await boris.getByRole('button', { name: /Київ/ }).click();
+  await boris.getByText('Відповідь надіслано · ви 2-й у черзі').waitFor();
+  await shot(boris, 'blitz-queue-phone-other');
+  // Перевибір: Анна вибирає ще раз, Борис лишається другим.
   await click(host, 'Перевибрати');
+  await anna.getByText('Ведучий просить вибрати ще раз').waitFor();
   await anna.getByRole('button', { name: /Львів/ }).click();
-  await stage.locator('.choice.is-pending', { hasText: 'Львів' }).waitFor();
+  await anna.getByText('Ведучий перевіряє вашу відповідь').waitFor();
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Львів' }).waitFor();
   await click(host, 'Прийняти');
-  // Помилка Анни світиться червоним, правильного варіанта ще немає. Борис ще не відповів, тож наступним помаранчевим буде лише його вибір.
-  await stage.locator('.choice.is-wrong', { hasText: 'Львів' }).waitFor();
+  // Помилка Анни — ✗ у її рядку черги, правильного варіанта ще немає.
+  await stage.locator('.blitz-queue li', { hasText: 'Анна' }).locator('.blitz-mark.is-wrong').waitFor();
   expect(await stage.locator('.choice.is-correct').count()).toBe(0);
   await shot(stage, 'blitz-wrong-stage');
-  await boris.getByRole('button', { name: /Київ/ }).click();
-  await stage.locator('.choice.is-pending', { hasText: 'Київ' }).waitFor();
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Борис' }).waitFor();
   await click(host, 'Прийняти');
+  // Перша правильна відповідь закриває запитання: переможця видно ще до розкриття.
+  await stage.getByText('Першим правильно відповів: Борис').waitFor();
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
   await click(host, 'Показати відповідь');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
-  await stage.getByText('Першим правильно відповів: Борис').waitFor();
   await click(host, 'Далі');
   await click(host, 'Наступне запитання');
 
@@ -1060,21 +1079,25 @@ async function mixedBoard() {
   await stage.getByRole('list', { name: 'Види клітинок' }).waitFor();
   await cell(bohdan, 'Річки', 100).click();
   for (const page of [stage, alla, bohdan, vira]) await page.getByText('Бліц', exact).first().waitFor();
-  await bohdan.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
-  await alla.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+  // Телефонний бліц з автоперевіркою миттєвий: варіанти одразу в усіх, і в того, хто вибрав клітинку.
+  for (const page of [bohdan, alla]) {
+    await page.getByRole('button', { name: /Так/ }).waitFor();
+    expect(await page.getByRole('button', { name: 'Відповісти', ...exact }).count()).toBe(0);
+  }
   await shot(alla, 'blitz-cell-buzz-phone');
   await shot(bohdan, 'blitz-cell-buzz-chooser');
-  await click(alla, 'Відповісти');
-  await click(vira, 'Відповісти');
   await alla.getByRole('button', { name: /Ні/ }).click();
-  await stage.locator('.choice.is-pending', { hasText: 'Ні' }).waitFor();
+  await stage.locator('.blitz-queue li', { hasText: 'Алла' }).waitFor();
+  expect(await stage.locator('.choice.is-pending').count()).toBe(0);
   expect(await stage.locator('.choice.is-correct').count()).toBe(0);
-  await vira.getByText('Відповідає Алла').waitFor();
+  await vira.locator('.blitz-queue li', { hasText: 'Алла' }).waitFor();
   await shot(stage, 'blitz-cell-pending-stage');
   await shot(host, 'blitz-cell-pending-host');
   await shot(vira, 'blitz-cell-phone-other');
-  await click(host, 'Прийняти');
   await vira.getByRole('button', { name: /Так/ }).click();
+  await host.locator('.blitz-queue li', { hasText: 'Віра' }).waitFor();
+  await click(host, 'Прийняти');
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Віра' }).waitFor();
   await click(host, 'Прийняти');
   await click(host, 'Показати відповідь');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
@@ -1086,11 +1109,11 @@ async function mixedBoard() {
   await vira.getByText('Ваш хід: виберіть клітинку').waitFor();
   await cell(vira, 'Гори', 100).click();
   for (const page of [alla, bohdan, vira]) await page.getByText('Мінус для всіх, хто не відповість правильно').waitFor();
-  await click(bohdan, 'Відповісти');
   await bohdan.getByRole('button', { name: /Ні/ }).click();
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Богдан' }).waitFor();
   await click(host, 'Прийняти');
-  await click(vira, 'Відповісти');
   await vira.getByRole('button', { name: /Так/ }).click();
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Віра' }).waitFor();
   await click(host, 'Прийняти');
   await click(host, 'Показати відповідь');
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
@@ -2124,7 +2147,7 @@ async function clarityGame() {
   const legend = stage.getByRole('list', { name: 'Види клітинок' });
   for (const item of [
     'Звичайна',
-    'Бліц: відповідає перший, хто натисне',
+    'Бліц: бали першому, хто правильно відповість',
     'Відповідь уголос',
     '×2 — подвійна ціна',
     '×3 — потрійна ціна',
@@ -2223,6 +2246,262 @@ async function clarityGame() {
 
   // 10. Кінець гри.
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 7b: an instant blitz — options at once, a live queue with times, a wrong head then the next, the winner closes, nothing moves; a voice blitz keeps its button', async () => {
+  try {
+    await instantBlitzGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Верх кожного варіанта на екрані (px): варіанти не мають рухатися, поки росте черга. */
+const yOf = (page: Page) =>
+  page.locator('.choice').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+/** Блок черги: верх і висота (резерв не змінюється від кількості рядків). */
+const queueBox = (page: Page) =>
+  page.locator('.blitz-queue').evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return { top: Math.round(box.top), height: Math.round(box.height) };
+  });
+/** Верх кожного рядка черги (px). */
+const rowsY = (page: Page) =>
+  page.locator('.blitz-queue li').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+
+async function instantBlitzGame() {
+  const host = await open('host7b', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host7b@example.com');
+
+  // Старі значення вікна й спроб (20 с, 3 спроби) миттєвий бліц ігнорує: одна спроба, без вікна.
+  const capital = { ...single, id: 'q-capital', timeLimit: 30 };
+  const river = {
+    ...single,
+    id: 'q-river',
+    text: 'Найбільша річка?',
+    options: [
+      { id: 'a', text: 'Дніпро' },
+      { id: 'b', text: 'Дунай' },
+      { id: 'c', text: 'Десна' },
+    ],
+    correctId: 'a',
+    timeLimit: 30,
+  };
+  const data = {
+    ...makeRoundsQuiz([
+      blitzRound('r1', [capital, river], {
+        check: 'auto',
+        answerWindow: 20,
+        attempts: 3,
+        rules: { penalty: 'minus', partial: null, streak: null, multiplier: 1 },
+      }),
+      boardRound('r2', [
+        {
+          title: 'Міста',
+          cells: [
+            { kind: 'blitz', question: withPoints(withId(single, 'q-c100'), 100) },
+            { kind: 'blitz', answerMode: 'voice', question: withPoints(withId(single, 'q-c200'), 200) },
+            withPoints(withId(single, 'q-c300'), 300),
+          ],
+        },
+        // Поле потребує щонайменше трьох категорій; ці дві — звичайні клітинки.
+        ...['Річки', 'Гори'].map((title, column) => ({
+          title,
+          cells: [100, 200, 300].map((price) => withPoints(withId(single, `q-${column}-${price}`), price)),
+        })),
+      ]),
+    ]),
+    title: 'Миттєвий бліц',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage7b', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya7b', 375, 812);
+  const taras = await open('taras7b', 360, 740);
+  const ira = await open('ira7b', 390, 844);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+
+  const score = async (nickname: string) =>
+    Number(
+      (await host.locator('.rows > li:has(button)', { hasText: nickname }).locator('.score').first().textContent())!
+        .replace('−', '-')
+        .replace(/\s/g, ''),
+    );
+  const answerButton = (page: Page) => page.getByRole('button', { name: 'Відповісти', ...exact });
+
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+
+  // 1. Варіанти одразу, без кнопки «Відповісти».
+  for (const page of [olya, taras, ira]) {
+    await page.getByRole('button', { name: /Київ/ }).waitFor();
+    expect(await answerButton(page).count()).toBe(0);
+  }
+  await stage.locator('.blitz-queue', { hasText: 'Відповідей ще немає' }).waitFor();
+  await shot(olya, 'blitz7b-options-phone');
+  const olyaY = await yOf(olya);
+  const stageY = await yOf(stage);
+  expect(olyaY).toHaveLength(3);
+  expect(stageY).toHaveLength(3);
+  const olyaQueue = await queueBox(olya);
+  const stageQueue = await queueBox(stage);
+  expect(olyaQueue.height).toBeGreaterThan(0);
+
+  // 2. Черга з часом: Тарас, потім Іра. Іншим видно лише ім'я, час і позначку.
+  await taras.getByRole('button', { name: /Львів/ }).click();
+  for (const page of [stage, olya]) await page.locator('.blitz-queue li', { hasText: 'Тарас' }).waitFor();
+  const firstRow = { olya: (await rowsY(olya))[0], stage: (await rowsY(stage))[0] };
+  await ira.getByRole('button', { name: /Київ/ }).click();
+  for (const page of [stage, olya]) {
+    const rows = page.locator('.blitz-queue li');
+    await expect.poll(() => rows.count()).toBe(2);
+    expect(await rows.nth(0).innerText()).toContain('Тарас');
+    expect(await rows.nth(0).innerText()).toMatch(/\d+,\d с/);
+    expect(await rows.nth(1).innerText()).toContain('Іра');
+    expect(await page.locator('.blitz-queue .given').count()).toBe(0);
+  }
+  expect(await stage.locator('.blitz-queue').innerText()).not.toContain('Львів');
+  await taras.locator('.choice.is-pending', { hasText: 'Львів' }).waitFor();
+  await taras.getByText('Ведучий перевіряє вашу відповідь').waitFor();
+  await ira.getByText(/ви 2-й у черзі/).waitFor();
+  const hostRows = host.locator('.blitz-queue li');
+  await expect.poll(() => hostRows.count()).toBe(2);
+  const given = await host.locator('.blitz-queue .given').allInnerTexts();
+  expect(given[0]).toContain('Львів');
+  expect(given[1]).toContain('Київ');
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Тарас' }).waitFor();
+  expect(await hostRows.first().getAttribute('class')).toContain('is-pending');
+  await host.getByRole('button', { name: 'Прийняти', ...exact }).waitFor();
+  await host.getByRole('button', { name: 'Перевибрати', ...exact }).waitFor();
+  await shot(stage, 'blitz7b-queue-stage');
+  await shot(olya, 'blitz7b-queue-phone-other');
+  await shot(taras, 'blitz7b-queue-phone-mine');
+  // Пульт вищий за вікно: на повному знімку нижня панель кнопок інакше лягає на чергу.
+  await host.setViewportSize({ width: 1280, height: 1400 });
+  await shot(host, 'blitz7b-queue-host');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  // Нічого не рухається: варіанти, блок черги й перший рядок на своїх місцях.
+  expect(await yOf(olya)).toEqual(olyaY);
+  expect(await yOf(stage)).toEqual(stageY);
+  expect(await queueBox(olya)).toEqual(olyaQueue);
+  expect(await queueBox(stage)).toEqual(stageQueue);
+  expect((await rowsY(olya))[0]).toBe(firstRow.olya);
+  expect((await rowsY(stage))[0]).toBe(firstRow.stage);
+  await expectNoSideScroll(olya, 'blitz7b-queue-phone-375');
+
+  // 3. Хибна голова, далі наступний.
+  await click(host, 'Прийняти');
+  for (const page of [stage, olya]) await page.locator('.blitz-queue li', { hasText: 'Тарас' }).locator('.blitz-mark.is-wrong').waitFor();
+  await stage.locator('.blitz-mark.is-blinking').waitFor();
+  await taras.locator('.choice.is-wrong.is-blinking', { hasText: 'Львів' }).waitFor();
+  await taras.getByText('Неправильно — чекаємо інших').waitFor();
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Іра' }).waitFor();
+  await shot(stage, 'blitz7b-wrong-stage');
+  await shot(taras, 'blitz7b-wrong-phone-mine');
+  expect(await yOf(olya)).toEqual(olyaY);
+  expect(await yOf(stage)).toEqual(stageY);
+  expect(await queueBox(olya)).toEqual(olyaQueue);
+  expect(await queueBox(stage)).toEqual(stageQueue);
+
+  // 4. Переможець закриває запитання; хто що вибрав — лише з розкриттям.
+  await click(host, 'Прийняти');
+  for (const page of [stage, olya]) await page.getByText('Першим правильно відповів: Іра').waitFor();
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  expect(await olya.getByRole('button', { name: /Київ/ }).count()).toBe(0);
+  expect(await stage.locator('.blitz-queue .given').count()).toBe(0);
+  await shot(stage, 'blitz7b-winner-stage');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await stage.locator('.blitz-queue .given', { hasText: 'Львів' }).waitFor();
+  await stage.locator('.blitz-queue .given', { hasText: 'Київ' }).waitFor();
+  await stage.locator('.choice.is-correct', { hasText: 'Київ' }).waitFor();
+  await shot(stage, 'blitz7b-reveal-stage');
+  expect(await score('Іра')).toBe(1000);
+  expect(await score('Тарас')).toBe(-1000);
+  expect(await score('Оля')).toBe(0);
+  await click(host, 'Далі');
+  await click(host, 'Наступне запитання');
+
+  // 5. Усі помилилися: запитання закривається само.
+  await olya.getByRole('button', { name: /Дунай/ }).click();
+  await taras.getByRole('button', { name: /Десна/ }).click();
+  await ira.getByRole('button', { name: /Дунай/ }).click();
+  await expect.poll(() => host.locator('.blitz-queue li').count()).toBe(3);
+  for (const nickname of ['Оля', 'Тарас', 'Іра']) {
+    await host.locator('.blitz-queue li.is-pending', { hasText: nickname }).waitFor();
+    await click(host, 'Прийняти');
+  }
+  await stage.getByText('Ніхто не відповів правильно').waitFor();
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  expect(await host.getByRole('button', { name: 'Закрити запитання', ...exact }).count()).toBe(0);
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+
+  // Заставка поля.
+  await click(host, 'Наступний раунд');
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  const cell = (page: Page, category: string, price: number) =>
+    page.getByRole('button', { name: `${category}, ${price}`, ...exact });
+  const toBoard = async () => {
+    await click(host, 'Далі');
+    const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+    const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+    await Promise.race([next.waitFor(), picking.waitFor()]);
+    if (await next.isVisible()) await next.click();
+    await picking.waitFor();
+  };
+
+  // 6. Бліц-клітинка телефоном: варіанти одразу і в того, хто вибрав, і в інших.
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(olya, 'Міста', 100).click();
+  for (const page of [olya, taras]) {
+    await page.getByRole('button', { name: /Київ/ }).waitFor();
+    expect(await answerButton(page).count()).toBe(0);
+  }
+  await taras.getByRole('button', { name: /Київ/ }).click();
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Тарас' }).waitFor();
+  await click(host, 'Прийняти');
+  await stage.getByText('Першим правильно відповів: Тарас').waitFor();
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await shot(stage, 'blitz7b-cell-stage');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await toBoard();
+
+  // 7. Усний бліц лишається з кнопкою, і рядок «Відповідає …» не зсуває варіантів.
+  await taras.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(taras, 'Міста', 200).click();
+  for (const page of [olya, ira]) await answerButton(page).waitFor();
+  const iraY = await yOf(ira);
+  expect(iraY).toHaveLength(3);
+  await shot(ira, 'blitz7b-voice-button-phone');
+  await click(olya, 'Відповісти');
+  await ira.getByText('Відповідає Оля').waitFor();
+  expect(await yOf(ira)).toEqual(iraY);
+  await shot(ira, 'blitz7b-voice-answering-phone');
+  await click(host, 'Закрити клітинку');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await toBoard();
+
+  // 8. Кінець гри.
   await click(host, 'Завершити гру');
   await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
 

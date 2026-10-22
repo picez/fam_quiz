@@ -193,7 +193,7 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
           ))}
         </ol>
       )}
-      {view.blitz !== null && (view.phase === 'reveal' || (instant && view.phase === 'locked' && view.blitz.winner !== null)) && (
+      {view.blitz !== null && (view.phase === 'reveal' || (instant && view.phase === 'locked')) && (
         <p className="lead winner">
           {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}
         </p>

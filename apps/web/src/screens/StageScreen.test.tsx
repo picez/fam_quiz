@@ -282,6 +282,13 @@ describe('StageScreen: blitz', () => {
       expect(document.querySelectorAll('.choice .count').length).toBe(2);
     });
 
+    it('on locked without a winner the stage says nobody answered correctly, like the phones', () => {
+      const lost = rows.map((row) => ({ ...row, grade: 'wrong' as const }));
+      show(instantView({ phase: 'locked', blitz: { queue: [], winner: null, instant: true, rows: lost } }));
+      expect(screen.getByText('Ніхто не відповів правильно')).toBeTruthy();
+      expect(document.querySelector('.given')).toBeNull();
+    });
+
     it('a row blinks when its verdict arrives', () => {
       const { rerender } = show(instantView());
       expect(document.querySelector('.blitz-mark.is-blinking')).toBeNull();
