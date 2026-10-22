@@ -9,6 +9,7 @@ import { QuizEditor } from './QuizEditor';
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function open(initial: Quiz = newQuiz(), result: string | null = null) {
@@ -79,7 +80,6 @@ describe('QuizEditor', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
     const [again] = roundQuestions(onSave.mock.calls[1][0].rounds[0]);
     expect(again.type === 'single' && again.options[1]).not.toHaveProperty('imageUrl');
-    vi.unstubAllGlobals();
   });
 
   it('an order question takes optional top and bottom labels', async () => {

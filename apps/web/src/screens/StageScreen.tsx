@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import type { BoardInfo, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
+import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
 import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -59,14 +59,14 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
 }
 
 /** Розкриті гравці фіналу: найновіший зверху й виділений, щоб він завжди був на екрані. */
-function FinalReveal({ final, question }: { final: FinalInfo; question: FullQuestion | null }) {
+function FinalReveal({ final, question, presented }: { final: FinalInfo; question: FullQuestion | null; presented?: Choice[] }) {
   return (
     <>
       <ol className="rows wager-list">
         {[...final.shown].reverse().map((entry, index) => (
           <li key={entry.playerId} className={index === 0 ? 'wager-latest' : undefined}>
             <span className="name">{entry.nickname}</span>
-            <span className="given">{answerText(entry.answer, question)}</span>
+            <span className="given">{answerText(entry.answer, question, presented)}</span>
             <span className="tag">{t('finalWagerTag', { wager: entry.wager })}</span>
             <span className={entry.after === entry.before ? 'wager-delta' : entry.after > entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
               {`${entry.before} → ${entry.after}`}
@@ -133,7 +133,7 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
       </div>
-      {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} />}
+      {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} presented={view.question?.choices} />}
       {!finalReveal && <QuestionImage url={question.imageUrl} />}
       {!finalReveal && <YouTubePlayer video={question.video} masked={reveal === null} />}
       {finalReveal && question.type !== 'match' ? null : question.chain !== null ? (

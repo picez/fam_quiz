@@ -99,10 +99,16 @@ export function secondsText(ms: number): string {
   return (Math.round(ms / 100) / 10).toFixed(1).replace('.', ',');
 }
 
-/** Відповідь гравця словами. */
-export function answerText(answer: Answer | null, question: Question | null): string {
+/**
+ * Відповідь гравця словами.
+ * presented — варіанти в порядку показу: варіант-картинка підписується літерою, яку бачать гравці.
+ */
+export function answerText(answer: Answer | null, question: Question | null, presented?: { id: string }[]): string {
   if (answer === null) return '—';
-  const choices = choicesOf(question);
+  const choices =
+    presented !== undefined && question !== null && (question.type === 'single' || question.type === 'multi')
+      ? labelled(presented.flatMap(({ id }) => question.options.filter((option) => option.id === id)))
+      : choicesOf(question);
   const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
   switch (answer.type) {
     case 'single':

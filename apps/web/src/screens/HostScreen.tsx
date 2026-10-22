@@ -338,7 +338,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           <ul className="rows">
             <li>
               <span className="name">{pending.nickname}</span>
-              <span className="given">{answerText(pending.answer, correct)}</span>
+              <span className="given">{answerText(pending.answer, correct, view.question?.choices)}</span>
               <span className="tag is-pending">{t('pendingTitle')}</span>
             </li>
           </ul>
@@ -400,7 +400,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
             {final.pending.map((entry) => (
               <li key={entry.playerId}>
                 <span className="name">{entry.nickname}</span>
-                <span className="given">{answerText(entry.answer, correct)}</span>
+                <span className="given">{answerText(entry.answer, correct, view.question?.choices)}</span>
                 <span className="row-actions">
                   <button type="button" className="btn btn-small" onClick={() => grade(entry.playerId, 'correct')}>
                     {t('finalGradeCorrect')}
@@ -425,7 +425,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               return (
                 <li key={entry.playerId} className={entry.grade === 'correct' ? 'is-correct' : 'is-wrong'}>
                   <span className="name">{entry.nickname}</span>
-                  <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct)}</span>
+                  <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct, view.question?.choices)}</span>
                   <span className="tag">{num(entry.wager)}</span>
                   <span className="score">{`${num(entry.before)} → ${num(entry.after)}`}</span>
                   {revealed && (
@@ -470,7 +470,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                           </button>
                         </span>
                       ) : (
-                        <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct)}</span>
+                        <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct, view.question?.choices)}</span>
                       )}
                     </li>
                   ))}
@@ -485,7 +485,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 {blitz.attempts.map((attempt, index) => (
                   <li key={`${attempt.playerId}-${index}`}>
                     <span className="name">{attempt.nickname}</span>
-                    <span className="given">{attempt.answer === null ? t('blitzMissed') : answerText(attempt.answer, correct)}</span>
+                    <span className="given">{attempt.answer === null ? t('blitzMissed') : answerText(attempt.answer, correct, view.question?.choices)}</span>
                     <span className={attempt.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                       {t(attempt.grade === 'correct' ? 'accepted' : 'rejected')}
                     </span>
@@ -511,7 +511,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   return (
                     <>
                       <span className="given">
-                        {given !== null ? answerText(given, correct) : board.cell?.answerMode === 'voice' ? t('answeredAloud') : '—'}
+                        {given !== null ? answerText(given, correct, view.question?.choices) : board.cell?.answerMode === 'voice' ? t('answeredAloud') : '—'}
                       </span>
                       {response !== undefined && (
                         <>
@@ -573,7 +573,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               {view.responses.map((response) => (
                 <li key={response.playerId}>
                   <span className="name">{response.nickname}</span>
-                  <span className="given">{answerText(response.answer, correct)}</span>
+                  <span className="given">{answerText(response.answer, correct, view.question?.choices)}</span>
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
                   {!isFinal && (
                     <>

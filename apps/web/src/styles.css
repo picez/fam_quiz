@@ -1394,7 +1394,7 @@ a.banner {
   font-weight: 600;
 }
 
-.answer-row input {
+.answer-row > input {
   flex: 1 1 0;
   width: 0;
   min-width: 0;
@@ -1405,12 +1405,12 @@ a.banner {
   font: inherit;
 }
 
-.answer-row input::placeholder {
+.answer-row > input::placeholder {
   color: var(--dim);
   font-weight: 400;
 }
 
-.answer-row input:focus-visible {
+.answer-row > input:focus-visible {
   outline: none;
 }
 
@@ -1425,7 +1425,7 @@ a.banner {
 }
 
 .answer-row.is-correct .letter,
-.answer-row.is-correct input::placeholder {
+.answer-row.is-correct > input::placeholder {
   color: var(--stage);
 }
 
@@ -1527,7 +1527,7 @@ a.banner {
     padding-block: 0.375rem;
   }
 
-  .answer-row:has(.option-thumb, .option-image .error) input {
+  .answer-row:has(.option-thumb, .option-image .error) > input {
     flex-basis: calc(100% - 2.5rem);
   }
 }

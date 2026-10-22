@@ -159,6 +159,25 @@ describe('HostScreen', () => {
     expect(row?.textContent).toContain('900');
   });
 
+  it('names a picture answer by the letter players saw after a shuffle, like the correct answer', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const pictured: Question = { ...single, options: [{ id: 'a', text: 'Львів' }, { id: 'b', text: '', imageUrl: pic }], correctId: 'b' } as Question;
+    // Показано у зворотному порядку: картинка під літерою A, хоча в автора вона B.
+    const shown = [{ id: 'b', text: '', imageUrl: pic }, { id: 'a', text: 'Львів' }];
+    show(
+      during('reveal', pictured, {
+        question: { ...publicOf(pictured), choices: shown },
+        responses: [
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false },
+        ],
+      }),
+    );
+    expect(screen.getByText('Правильна відповідь: A. картинка')).toBeTruthy();
+    const given = screen.getByText('Картинка A');
+    expect(given.className).toBe('given');
+    expect(given.closest('li')?.textContent).toContain('Олена');
+  });
+
   it('lets the host accept or reject text answers on reveal', () => {
     const responses = [
       { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false },
