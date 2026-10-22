@@ -45,6 +45,17 @@ describe('InviteFriends', () => {
     expect(link.getAttribute('target')).toBe('_blank');
   });
 
+  it('shows an error when the room invites cannot be read, and clears it on close', async () => {
+    vi.mocked(getRoomInvites).mockResolvedValue({ ok: false, error: 'offline' });
+    render(<InviteFriends code="123456" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Запросити друзів' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    fireEvent.click(screen.getByRole('button', { name: 'Згорнути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Запросити друзів' }));
+    expect(screen.getByText('Завантажуємо…')).toBeTruthy();
+    await screen.findByRole('alert');
+  });
+
   it('shows the error text when inviting fails', async () => {
     vi.mocked(inviteFriends).mockResolvedValue({ ok: false, error: 'wrong_phase' });
     render(<InviteFriends code="123456" />);

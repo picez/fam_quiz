@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { getMyProfile, signOut } from '../api';
 import { formatDate } from '../format';
@@ -9,6 +9,7 @@ import { Avatar } from '../profile/Avatar';
 import { ProfileEditor } from '../profile/ProfileEditor';
 import { InviteList } from '../profile/InviteList';
 import { StatsView } from '../profile/StatsView';
+import { useAccount } from '../useAccount';
 import { announceInvitesChanged, useInvites } from '../useInvites';
 import { usePrivateData } from '../usePrivateData';
 
@@ -19,8 +20,13 @@ export function Profile() {
   const [version, setVersion] = useState(0);
   const [editing, setEditing] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const invites = useInvites(true, version);
+  const account = useAccount();
+  const invites = useInvites(account.status === 'signed-in', version);
   const [gone, setGone] = useState<string[]>([]);
+  // Код, якого сервер уже не віддає, забуваємо: повторно виданий код має знову з'явитися.
+  useEffect(() => {
+    setGone((codes) => (codes.some((code) => !invites.some((invite) => invite.code === code)) ? codes.filter((code) => invites.some((invite) => invite.code === code)) : codes));
+  }, [invites]);
   const fresh = usePrivateData(getMyProfile, String(version));
   // Під час оновлення лишаємо попередні дані: сторінка не блимає й не губить прокрутку.
   const last = useRef<typeof fresh | null>(null);

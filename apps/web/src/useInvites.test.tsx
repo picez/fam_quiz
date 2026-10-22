@@ -38,6 +38,15 @@ describe('useInvites', () => {
     expect(getMyInvites).toHaveBeenCalledTimes(2);
   });
 
+  it('refetches when the tab becomes visible', async () => {
+    renderHook(() => useInvites(true));
+    await act(async () => {});
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(getMyInvites).toHaveBeenCalledTimes(2);
+  });
+
   it('stays off when disabled and refetches on the changed event', async () => {
     const { rerender } = renderHook(({ on }) => useInvites(on), { initialProps: { on: false } });
     await act(async () => {});

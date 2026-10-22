@@ -2425,8 +2425,10 @@ button.match-item {
     position: relative;
   }
 
-  .menu-badge {
+  .menu a .menu-badge {
     position: absolute;
+    font-size: 0.75rem;
+    line-height: 1;
     top: 0.2rem;
     left: calc(50% + 0.4rem);
   }

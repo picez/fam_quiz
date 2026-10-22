@@ -31,11 +31,16 @@ export function useInvites(enabled: boolean, refresh?: unknown): GameInvite[] {
     const timer = setInterval(() => {
       if (document.visibilityState !== 'hidden') load();
     }, INVITES_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
     window.addEventListener(INVITES_CHANGED, load);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       current = false;
       clearInterval(timer);
       window.removeEventListener(INVITES_CHANGED, load);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [enabled, refresh]);
 

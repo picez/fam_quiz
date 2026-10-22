@@ -85,6 +85,26 @@ describe('Profile', () => {
     await waitFor(() => expect(screen.queryByText('Галина запрошує: «Кіно», код 123 456')).toBeNull());
   });
 
+  it('keeps the invite and shows an error when dismissing fails', async () => {
+    vi.mocked(getMyInvites).mockResolvedValue({
+      ok: true,
+      data: [{ code: '123456', title: 'Кіно', host: { id: 'h1', nickname: 'Галина', avatar: null }, invitedAt: '2026-10-23T10:00:00.000Z' }],
+    });
+    vi.mocked(dismissInvite).mockResolvedValue({ ok: false, error: 'offline' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Відхилити' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    expect(screen.getByText('Галина запрошує: «Кіно», код 123 456')).toBeTruthy();
+  });
+
+  it('does not ask for invites when signed out', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    vi.mocked(getMyInvites).mockClear();
+    open();
+    await screen.findByText(/на \/login/);
+    expect(getMyInvites).not.toHaveBeenCalled();
+  });
+
   it('has no invite block without invites', async () => {
     open();
     await screen.findByText('o@example.com');
