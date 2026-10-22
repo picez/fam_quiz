@@ -8,6 +8,7 @@ import {
   type Answer,
   type BlitzInfo,
   type BlitzPlayer,
+  type BlitzRow,
   type BoardCellView,
   type BoardInfo,
   type ChainInfo,
@@ -32,8 +33,8 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BoardPlay, type GameState, type PlayerState } from './game';
-import { attemptsUsed, blitzRulesOf } from './blitz';
+import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type GameState, type PlayerState } from './game';
+import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
 import { pendingOf } from './hold';
@@ -152,13 +153,38 @@ function blitzWinner(state: GameState, attempts: { playerId: string; grade: stri
   return won === undefined ? null : blitzPlayer(state, won.playerId);
 }
 
-/** Черга й переможець для сцени й гравців: без відповідей, переможець лише після розкриття. */
-function blitzInfo(state: GameState): BlitzInfo | null {
+/**
+ * Жива черга миттєвого бліцу: розглянуті спроби, потім нерозглянуті, потім не перевірені до закриття.
+ * showPicks — чи показувати вибір (ведучому завжди, сцені й гравцям з розкриття).
+ */
+function blitzRows(state: GameState, blitz: BlitzPlay, showPicks: boolean): BlitzRow[] {
+  const row = (playerId: string, timeMs: number, grade: BlitzRow['grade'], answer: Answer | null): BlitzRow => ({
+    ...blitzPlayer(state, playerId),
+    timeMs,
+    grade,
+    answer: showPicks ? answer : null,
+  });
+  return [
+    ...blitz.attempts.map((a) => row(a.playerId, a.timeMs, a.grade, a.answer)),
+    ...[...blitz.queue, ...blitz.dropped].map((e) => row(e.playerId, e.timeMs, null, e.answer)),
+  ];
+}
+
+/**
+ * Черга й переможець. Сцені й гравцям без відповідей: переможець з розкриття (у миттєвому бліці вже з locked,
+ * бо його ім'я відповіді не розкриває), вибір у рядках — з розкриття. Ведучому все одразу.
+ */
+function blitzInfo(state: GameState, forHost: boolean): BlitzInfo | null {
   const open = currentBlitz(state);
   if (open === null) return null;
+  const instant = isInstant(open.rules);
+  const revealed = isRevealed(state);
+  const showWinner = forHost || revealed || (instant && state.phase === 'locked');
   return {
     queue: open.blitz.queue.map((entry) => blitzPlayer(state, entry.playerId)),
-    winner: isRevealed(state) ? blitzWinner(state, open.blitz.attempts) : null,
+    winner: showWinner ? blitzWinner(state, open.blitz.attempts) : null,
+    instant,
+    rows: instant ? blitzRows(state, open.blitz, forHost || revealed) : [],
   };
 }
 
@@ -166,27 +192,35 @@ function playerBlitz(state: GameState, playerId: string): PlayerBlitz | null {
   const open = currentBlitz(state);
   if (open === null) return null;
   const { play, blitz, rules } = open;
+  const instant = isInstant(rules);
   const index = blitz.queue.findIndex((entry) => entry.playerId === playerId);
   const used = attemptsUsed(play, playerId);
   const left = rules.attempts === null ? null : Math.max(0, rules.attempts - used);
+  const running = state.phase === 'question' && !state.paused;
+  const own = blitz.attempts.filter((attempt) => attempt.playerId === playerId);
   return {
     position: index < 0 ? null : index + 1,
     attemptsUsed: used,
     attemptsLeft: left,
-    canBuzz: state.phase === 'question' && !state.paused && index < 0 && (left === null || left > 0),
+    canBuzz: !instant && running && index < 0 && (left === null || left > 0),
     // Під час утримання вікно не йде.
     deadline: index < 0 || state.heldAt !== null ? null : blitz.queue[index].deadline,
+    // Миттєвий бліц: перша відповідь або нова після «Перевибрати» (голова без відповіді).
+    // Пауза не знімає права: поле лишається на місці вимкненим (набране не губиться), а сервер відмовить сам.
+    canAnswer: instant && state.phase === 'question' && ((index < 0 && used === 0) || (index === 0 && blitz.queue[0].answer === null)),
+    grade: own.length === 0 ? null : own[own.length - 1].grade,
   };
 }
 
 function hostBlitz(state: GameState): HostBlitz | null {
+  const info = blitzInfo(state, true);
   const open = currentBlitz(state);
-  if (open === null) return null;
+  if (info === null || open === null) return null;
   const { blitz, rules } = open;
   return {
+    ...info,
     voice: rules.check === 'voice',
     manual: rules.check !== 'auto',
-    winner: blitzWinner(state, blitz.attempts),
     queue: blitz.queue.map((e) => ({ ...blitzPlayer(state, e.playerId), answer: e.answer, deadline: e.deadline })),
     attempts: blitz.attempts.map((a) => ({
       ...blitzPlayer(state, a.playerId),
@@ -261,14 +295,19 @@ function hostBoard(state: GameState): HostBoard | null {
   };
 }
 
-/** Відповідь одного гравця для всіх ролей: поле з телефонами й бліц. Правильної відповіді тут немає. */
-function spotlightOf(state: GameState): Spotlight | null {
+/**
+ * Відповідь одного гравця для всіх ролей: поле з телефонами й бліц. Правильної відповіді тут немає.
+ * У миттєвому бліці вибір видно лише в черзі: сцені й гравцям spotlight немає, ведучому — лише голова, що чекає.
+ */
+function spotlightOf(state: GameState, forHost: boolean): Spotlight | null {
+  const instant = currentBlitz(state);
+  if (instant !== null && isInstant(instant.rules) && !forHost) return null;
   const pending = pendingOf(state);
   if (pending !== null) return { ...blitzPlayer(state, pending.playerId), answer: pending.answer, grade: null };
   const blitz = currentBlitz(state);
   if (blitz !== null) {
     // Усна відповідь звучить у залі: на телефоні її немає.
-    if (blitz.rules.check === 'voice') return null;
+    if (blitz.rules.check === 'voice' || isInstant(blitz.rules)) return null;
     const last = blitz.blitz.attempts[blitz.blitz.attempts.length - 1];
     return last === undefined ? null : { ...blitzPlayer(state, last.playerId), answer: last.answer, grade: last.grade };
   }
@@ -438,7 +477,8 @@ function playerChain(state: GameState, playerId: string): PlayerChain | null {
   };
 }
 
-function base(state: GameState) {
+/** Спільна частина зрізу; forHost — для ведучого (черга з вибором, spotlight голови миттєвого бліцу). */
+function base(state: GameState, forHost: boolean) {
   // Під час утримання годинник стоїть: клієнти не рахують від endsAt.
   const held = state.heldAt !== null;
   const remainingMs = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.remainingMs;
@@ -457,9 +497,9 @@ function base(state: GameState) {
     held,
     playerCount: state.players.length,
     answeredCount: Object.keys(currentAnswers(state)).length,
-    blitz: blitzInfo(state),
+    blitz: blitzInfo(state, forHost),
     board: boardInfo(state),
-    spotlight: spotlightOf(state),
+    spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
     chain: currentRound(state)?.type === 'final' ? null : chainInfo(state),
   };
@@ -504,7 +544,7 @@ function revealStats(state: GameState, question: Question): RevealStats {
 export function stageView(state: GameState): StageView {
   const revealed = isRevealed(state) ? currentQuestion(state) : null;
   return {
-    ...base(state),
+    ...base(state, false),
     role: 'stage',
     players: state.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected, streak: shownStreak(state, p) })),
     reveal: revealed,
@@ -514,8 +554,14 @@ export function stageView(state: GameState): StageView {
   };
 }
 
+/**
+ * Відповідь гравця з черги бліцу: нерозглянута в черзі або не перевірена до закриття (dropped).
+ * Скинуте натискання без відповіді не підміняє підсумок попередньої спроби.
+ */
 function blitzAnswer(state: GameState, playerId: string): Answer | null | undefined {
-  const entry = currentBlitz(state)?.blitz.queue.find((e) => e.playerId === playerId);
+  const blitz = currentBlitz(state)?.blitz;
+  const entry =
+    blitz?.queue.find((e) => e.playerId === playerId) ?? blitz?.dropped.find((e) => e.playerId === playerId && e.answer !== null);
   return entry === undefined ? undefined : entry.answer;
 }
 
@@ -533,7 +579,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   const concealed = state.phase === 'locked' || (state.phase === 'reveal' && !finalShown(state, playerId));
   const hidden = concealed && record !== undefined ? record.points : 0;
   return {
-    ...base(state),
+    ...base(state, false),
     role: 'player',
     me: {
       id: player.id,
@@ -581,7 +627,7 @@ export function hostView(state: GameState): HostView {
     ];
   });
   return {
-    ...base(state),
+    ...base(state, true),
     role: 'host',
     players: state.players.map((p) => ({
       id: p.id,

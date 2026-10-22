@@ -121,8 +121,8 @@ export const eruditeQuiz: Quiz = {
       title: 'Бліц: дурні запитання',
       description: 'Запитання з підступом. Перший, хто правильно відповість, забирає бали, а за помилку бали знімаються.',
       shuffleOptions: true,
-      answerWindow: 20,
-      attempts: 2,
+      answerWindow: null,
+      attempts: 1,
       check: 'auto',
       rules: { ...rules({ penalty: 'minus' }), partial: null },
       questions: [

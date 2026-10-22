@@ -23,6 +23,8 @@ export function roundSummary(brief: RoundBrief): string[] {
     lines.push(t('summaryClassic'));
     if (brief.speedBonus) lines.push(t('summarySpeed'));
     lines.push(modifiers(brief, []));
+  } else if (brief.type === 'blitz' && brief.instant) {
+    lines.push(t('summaryBlitz'), t('summaryBlitzInstant'), modifiers(brief, []));
   } else if (brief.type === 'blitz') {
     const window = brief.answerWindow === null ? t('summaryBlitzNoWindow') : t('summaryBlitzWindow', { count: brief.answerWindow });
     lines.push(t('summaryBlitz'), t('summaryBlitzHow', { window }));

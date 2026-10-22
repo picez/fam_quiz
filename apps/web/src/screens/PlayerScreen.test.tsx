@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
+import { emptyBrief, type BlitzRow, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS } from './verdict-blink';
@@ -265,10 +265,10 @@ describe('PlayerScreen: blitz', () => {
   const blitzMe = (blitz: Partial<NonNullable<PlayerView['me']['blitz']>>, over: Partial<PlayerView['me']> = {}) => ({
     ...me,
     ...over,
-    blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, ...blitz },
+    blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null, ...blitz },
   });
   const inBlitz = (meState: PlayerView['me']) =>
-    onQuestion({ round, question: { ...publicQuestion, type: 'text' as const, choices: [] }, blitz: { queue: [], winner: null }, me: meState });
+    onQuestion({ round, question: { ...publicQuestion, type: 'text' as const, choices: [] }, blitz: { queue: [], winner: null, instant: false, rows: [] }, me: meState });
 
   it('shows the buzz button and sends player:buzz', async () => {
     const send = show(inBlitz(blitzMe({ canBuzz: true })));
@@ -313,13 +313,13 @@ describe('PlayerScreen: blitz', () => {
   it('names the current head, not the last wrong answer, as answering', () => {
     const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
     const head = { playerId: 'p1', nickname: 'Олена' };
-    show(onQuestion({ round, spotlight, blitz: { queue: [head], winner: null }, me: blitzMe({ position: 1 }) }));
+    show(onQuestion({ round, spotlight, blitz: { queue: [head], winner: null, instant: false, rows: [] }, me: blitzMe({ position: 1 }) }));
     expect(screen.queryByText(/Відповідає/)).toBeNull();
     cleanup();
-    show(onQuestion({ round, spotlight, blitz: { queue: [{ playerId: 'p3', nickname: 'Віра' }], winner: null }, me: blitzMe({}) }));
+    show(onQuestion({ round, spotlight, blitz: { queue: [{ playerId: 'p3', nickname: 'Віра' }], winner: null, instant: false, rows: [] }, me: blitzMe({}) }));
     expect(screen.getByText('Відповідає Віра')).toBeTruthy();
     cleanup();
-    show(onQuestion({ round, spotlight, blitz: { queue: [], winner: null }, me: blitzMe({}) }));
+    show(onQuestion({ round, spotlight, blitz: { queue: [], winner: null, instant: false, rows: [] }, me: blitzMe({}) }));
     expect(screen.queryByText(/Відповідає/)).toBeNull();
   });
 
@@ -331,11 +331,130 @@ describe('PlayerScreen: blitz', () => {
         round,
         question: publicQuestion,
         reveal: fullQuestion,
-        blitz: { queue: [], winner: { playerId: 'p2', nickname: 'Тарас' } },
+        blitz: { queue: [], winner: { playerId: 'p2', nickname: 'Тарас' }, instant: false, rows: [] },
         me: blitzMe({}),
       }),
     );
     expect(screen.getByText('Першим правильно відповів: Тарас')).toBeTruthy();
+  });
+
+  describe('instant blitz', () => {
+    const kyiv = { type: 'single' as const, optionId: 'b' };
+    const instantView = (
+      blitz: Partial<PlayerBlitz>,
+      over: Partial<PlayerView> = {},
+      meOver: Partial<PlayerView['me']> = {},
+      rows: BlitzRow[] = [],
+    ) =>
+      onQuestion({
+        round,
+        blitz: { queue: rows.filter((row) => row.grade === null), winner: null, instant: true, rows },
+        me: blitzMe({ canAnswer: true, ...blitz }, meOver),
+        ...over,
+      });
+    const row = (playerId: string, nickname: string, grade: BlitzRow['grade'], timeMs = 2000): BlitzRow => ({ playerId, nickname, timeMs, grade, answer: null });
+
+    it('instant blitz: options at once without the buzz button; a tap sends the answer', () => {
+      const send = show(instantView({}));
+      expect(screen.queryByRole('button', { name: 'Відповісти' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      expect(send).toHaveBeenCalledWith('player:answer', kyiv);
+    });
+
+    it('after sending, the own pick is orange in the same list and the status line says the place', () => {
+      show(instantView({ canAnswer: false, position: 2 }, {}, { answer: kyiv }, [row('p2', 'Анна', null), row('p1', 'Олена', null)]));
+      expect(document.querySelector('.choice.is-pending')?.textContent).toContain('Київ');
+      expect(screen.getByText('Відповідь надіслано · ви 2-й у черзі')).toBeTruthy();
+      expect(document.querySelector('ol.blitz-queue')).not.toBeNull();
+    });
+
+    it('the own wrong verdict blinks; other rows show no picks', () => {
+      vi.useFakeTimers();
+      const props = { hostOnline: true, offsetMs: 0, send: vi.fn(async () => ({ ok: true as const })) };
+      const sent = instantView({ canAnswer: false, position: 1 }, {}, { answer: kyiv }, [row('p1', 'Олена', null), row('p2', 'Анна', null)]);
+      const { rerender } = render(<PlayerScreen view={sent} {...props} />);
+      const judged = instantView({ canAnswer: false, position: null, grade: 'wrong' }, {}, { answer: kyiv }, [row('p1', 'Олена', 'wrong'), row('p2', 'Анна', null)]);
+      rerender(<PlayerScreen view={judged} {...props} />);
+      expect(document.querySelector('.choice.is-wrong.is-blinking')?.textContent).toContain('Київ');
+      expect(document.querySelector('.blitz-queue .blitz-mark.is-blinking')).not.toBeNull();
+      expect(document.querySelector('.blitz-queue .given')).toBeNull();
+      expect(screen.getByText('Неправильно — чекаємо інших')).toBeTruthy();
+      vi.useRealTimers();
+    });
+
+    it('no answering line above the question in an instant blitz', () => {
+      show(instantView({}, {}, {}, [row('p2', 'Анна', null)]));
+      expect(screen.queryByText(/Відповідає/)).toBeNull();
+    });
+
+    it('after repick the options are tappable again with a note', () => {
+      show(instantView({ canAnswer: true, position: 1, deadline: Date.now() + 15_000 }, {}, {}, [row('p1', 'Олена', null)]));
+      expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+      expect(screen.getByText('Ведучий просить вибрати ще раз')).toBeTruthy();
+      // Відлік вікна — у рядку стану, а не окремим блоком над ним: черга під ним не стрибає.
+      const statusRow = document.querySelector('.blitz-status-row');
+      expect(statusRow?.querySelector('.timer')).not.toBeNull();
+      expect(statusRow?.querySelector('p.blitz-status')).not.toBeNull();
+      expect(statusRow?.nextElementSibling?.matches('ol.blitz-queue')).toBe(true);
+    });
+
+    it('once the time is over, a player who has not answered sees the options locked in place and a calm note', () => {
+      vi.useFakeTimers();
+      const props = { hostOnline: true, offsetMs: 0, send: vi.fn(async () => ({ ok: true as const })) };
+      render(<PlayerScreen view={instantView({}, { endsAt: Date.now() + 1000 })} {...props} />);
+      const before = screen.getByRole('button', { name: /Київ/ });
+      expect((before.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(false);
+      act(() => vi.advanceTimersByTime(1500));
+      const after = screen.getByRole('button', { name: /Київ/ });
+      // Той самий елемент: варіанти не перебудовуються й не зсуваються.
+      expect(after).toBe(before);
+      expect((after.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
+      expect(screen.getByText('Час вийшов — відповіді більше не приймаються')).toBeTruthy();
+      fireEvent.click(after);
+      expect(props.send).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('a pause keeps the half-typed answer in place, only disabled', () => {
+      const props = { hostOnline: true, offsetMs: 0, send: vi.fn(async () => ({ ok: true as const })) };
+      const typed = { question: { ...publicQuestion, type: 'text' as const, choices: [] } };
+      const { rerender } = render(<PlayerScreen view={instantView({}, typed)} {...props} />);
+      const input = screen.getByRole('textbox') as HTMLInputElement;
+      fireEvent.change(input, { target: { value: 'Ки' } });
+      rerender(<PlayerScreen view={instantView({}, { ...typed, paused: true, endsAt: null, remainingMs: 9000 })} {...props} />);
+      const kept = screen.getByRole('textbox') as HTMLInputElement;
+      expect(kept).toBe(input);
+      expect(kept.value).toBe('Ки');
+      expect((kept.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
+    });
+
+    it('a repicked head keeps answering past the round timer until its own window ends', () => {
+      show(instantView({ canAnswer: true, position: 1, deadline: Date.now() + 15_000 }, { endsAt: Date.now() - 1000 }, {}, [row('p1', 'Олена', null)]));
+      expect((screen.getByRole('button', { name: /Київ/ }).closest('fieldset') as HTMLFieldSetElement).disabled).toBe(false);
+    });
+
+    it('on locked the winner is shown with the queue; on reveal the own pick and the correct answer are coloured', () => {
+      const rows = [row('p1', 'Олена', 'wrong'), row('p3', 'Богдан', 'correct')];
+      const blitz = { queue: [], winner: { playerId: 'p3', nickname: 'Богдан' }, instant: true, rows };
+      const meState = blitzMe({ grade: 'wrong' }, { answer: kyiv });
+      show(view({ phase: 'locked', questionIndex: 0, round, question: publicQuestion, blitz, me: meState }));
+      expect(screen.getByText('Першим правильно відповів: Богдан')).toBeTruthy();
+      expect(document.querySelector('ol.blitz-queue')).not.toBeNull();
+      cleanup();
+      show(view({ phase: 'reveal', questionIndex: 0, round, question: publicQuestion, reveal: fullQuestion, blitz, me: meState }));
+      expect(document.querySelector('.choice.is-correct')?.textContent).toContain('Київ');
+      expect(document.querySelector('ol.blitz-queue')).not.toBeNull();
+    });
+  });
+
+  it('the button blitz keeps the buzz button and always reserves the answering line', () => {
+    show(inBlitz(blitzMe({ canBuzz: true })));
+    expect(screen.getByRole('button', { name: 'Відповісти' })).toBeTruthy();
+    const line = document.querySelector('p.answering-line');
+    expect(line?.textContent).toBe('');
+    cleanup();
+    show({ ...inBlitz(blitzMe({ canBuzz: true })), blitz: { queue: [{ playerId: 'p2', nickname: 'Анна' }], winner: null, instant: false, rows: [] } });
+    expect(document.querySelector('p.answering-line')?.textContent).toBe('Відповідає Анна');
   });
 
   describe('board round', () => {
@@ -435,7 +554,7 @@ describe('PlayerScreen: blitz cell', () => {
     skipAt: null,
   });
   const blitzMe = (blitz: PlayerBlitz | null, extra = {}) => ({ ...me, blitz, ...extra });
-  const canBuzz = { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null };
+  const canBuzz = { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null, canAnswer: false, grade: null };
 
   it('on a blitz cell every player gets the buzz button, the chooser too', () => {
     for (const id of ['p1', 'p2']) {
@@ -481,7 +600,7 @@ describe('PlayerScreen: blitz cell', () => {
         reveal: fullQuestion,
         round,
         board: blitzBoard(),
-        blitz: { queue: [], winner: { playerId: 'p3', nickname: 'Віра' } },
+        blitz: { queue: [], winner: { playerId: 'p3', nickname: 'Віра' }, instant: false, rows: [] },
         me: blitzMe(canBuzz, { result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: -200 } }),
       }),
     );
@@ -556,7 +675,7 @@ describe('PlayerScreen: spotlight', () => {
 
   it('a queued blitz player on a voice cell sees the options', () => {
     const board = { ...boardOf(anna), cell: { ...boardOf(anna).cell!, kind: 'blitz' as const, answerMode: 'voice' as const } };
-    const queued = { position: 2, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null };
+    const queued = { position: 2, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null };
     show(onQuestion({ round, board, me: { ...me, blitz: queued } }));
     expect(screen.getByText('Київ').closest('.choice')).not.toBeNull();
     expect(screen.getByText('Ви 2-й у черзі')).toBeTruthy();

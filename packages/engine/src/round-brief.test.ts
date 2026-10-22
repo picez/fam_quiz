@@ -12,13 +12,9 @@ describe('roundBrief', () => {
     expect(roundBrief(round)).toEqual({ ...emptyBrief('classic'), speedBonus: true, penalty: true, streak, multiplier: 2 });
   });
 
-  it('describes a blitz round', () => {
-    expect(roundBrief(blitzRound('b1', [single], { answerWindow: 15, attempts: 1 }))).toEqual({
-      ...emptyBrief('blitz'),
-      attempts: 1,
-      answerWindow: 15,
-    });
-    expect(roundBrief(blitzRound('b1', [single], { answerWindow: null, attempts: null }))).toEqual(emptyBrief('blitz'));
+  it('an automatic blitz is instant: one attempt, no window, whatever was stored', () => {
+    expect(roundBrief(blitzRound('b1', [single], { answerWindow: 30, attempts: 3 }))).toEqual({ ...emptyBrief('blitz'), instant: true, attempts: 1 });
+    expect(roundBrief(blitzRound('b1', [single], { check: 'manual', answerWindow: 15, attempts: 2 }))).toEqual({ ...emptyBrief('blitz'), attempts: 2, answerWindow: 15 });
   });
 
   it('describes a board round', () => {

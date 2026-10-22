@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
+import { useEffect, useState, type FormEvent } from 'react';
+import type { Answer, PlayerBlitz, PlayerView, Spotlight } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -10,7 +10,8 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
-import { useVerdictBlink } from './verdict-blink';
+import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
+import { BlitzQueue } from './BlitzQueue';
 import { Standings } from './Standings';
 import { ChainPlay, ChainWords } from './ChainView';
 
@@ -121,6 +122,36 @@ function FinalResult({ view }: { view: PlayerView }) {
   );
 }
 
+/**
+ * true, коли час уже вийшов: endsAt у минулому за годинником сервера (той самий offsetMs, що й у Timer)
+ * або на паузі не лишилося ні мілісекунди. Перемикається таймером, без щосекундних перемальовувань.
+ */
+function useTimeOver(endsAt: number | null, remainingMs: number | null, offsetMs: number): boolean {
+  const passed = () => (remainingMs !== null ? remainingMs <= 0 : endsAt !== null && endsAt <= Date.now() + offsetMs);
+  const [over, setOver] = useState(passed);
+  useEffect(() => {
+    setOver(passed());
+    if (remainingMs !== null || endsAt === null) return;
+    const left = endsAt - (Date.now() + offsetMs);
+    if (left <= 0) return;
+    const id = setTimeout(() => setOver(true), left);
+    return () => clearTimeout(id);
+    // passed читає лише ці три значення.
+  }, [endsAt, remainingMs, offsetMs]);
+  return over;
+}
+
+/** Рядок стану миттєвого бліцу під варіантами: власне місце в черзі чи вердикт. */
+function instantStatus(blitz: PlayerBlitz, timeOver: boolean): string {
+  if (blitz.canAnswer && timeOver) return t('blitzTimeOver');
+  if (blitz.canAnswer && blitz.position === 1) return t('blitzRepickAgain');
+  if (blitz.position === 1) return t('blitzMineChecking');
+  if (blitz.position !== null) return t('blitzMineQueued', { position: blitz.position });
+  if (blitz.grade === 'wrong') return t('blitzMineWrong');
+  if (blitz.grade === 'correct') return t('blitzMineCorrect');
+  return '';
+}
+
 export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
@@ -138,13 +169,27 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   // Червона відповідь бліцу вже минула, тож її автор не «відповідає».
   // На бліц-клітинці вибравший лише обирає: відповідає голова черги.
   const blitzCell = board?.cell?.kind === 'blitz';
-  const answering =
-    (spotlight?.grade === null ? spotlight : null) ?? (blitzCell ? null : board?.turn) ?? view.blitz?.queue[0] ?? null;
+  // Миттєвий бліц: усі відповідають разом, рядка «Відповідає …» немає, голову видно в черзі.
+  const instant = view.blitz?.instant === true;
+  const answering = instant
+    ? null
+    : ((spotlight?.grade === null ? spotlight : null) ?? (blitzCell ? null : board?.turn) ?? view.blitz?.queue[0] ?? null);
   const othersAnswer = answering !== null && answering.playerId !== me.id;
   const myPending = spotlight !== null && spotlight.grade === null && spotlight.playerId === me.id;
   const voice = board?.cell?.answerMode === 'voice';
   // Хук на рівні екрана: миготіння має пережити зміну гілки question → reveal.
-  const blink = useVerdictBlink(spotlight);
+  // У миттєвому бліці власний вибір стоїть на місці варіантів і мигає вердиктом, як чужий spotlight деінде.
+  const own: Spotlight | null =
+    instant && me.answer !== null ? { playerId: me.id, nickname: me.nickname, answer: me.answer, grade: me.blitz?.grade ?? null } : null;
+  const blink = useVerdictBlink(instant ? own : spotlight);
+  const rowBlink = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
+  // Після «Перевибрати» голова відповідає у власному вікні, навіть коли загальний час уже вийшов.
+  const repickEnd = me.blitz?.position === 1 && me.blitz.deadline !== null ? me.blitz.deadline : null;
+  const timeOver = useTimeOver(repickEnd ?? view.endsAt, repickEnd !== null ? null : view.remainingMs, offsetMs);
+  const queue =
+    instant && view.blitz !== null ? (
+      <BlitzQueue rows={view.blitz.rows} reserve={view.playerCount} question={question} blinking={rowBlink} closed={phase !== 'question'} />
+    ) : null;
 
   const pick = async (cellId: string) => {
     const result = await send('player:pick', { cellId });
@@ -207,13 +252,44 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {board.cell.kind === 'blitz' && <span className="cell-mark">{t('cellBlitz')}</span>}
             </p>
           )}
-          {board !== null && <BlitzCellNotes board={board} />}
-          {othersAnswer && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
+          {board !== null && <BlitzCellNotes board={board} instant={view.blitz?.instant === true} />}
+          {me.blitz !== null && !instant ? (
+            // Бліц з кнопкою: рядок завжди займає місце, тож поява голови черги не зсуває запитання.
+            <p className="lead answering-line">{othersAnswer ? t('boardAnswering', { name: answering.nickname }) : ''}</p>
+          ) : (
+            othersAnswer && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>
+          )}
           <h1 className={questionClass(question.text)}>{question.text}</h1>
           <QuestionImage url={question.imageUrl} />
           <YouTubePlayer video={question.video} masked={view.reveal === null} />
           {chainMine && me.chain !== null ? (
             <ChainPlay chain={me.chain} question={question} paused={view.paused} offsetMs={offsetMs} send={send} />
+          ) : instant && me.blitz !== null ? (
+            <>
+              {me.blitz.canAnswer ? (
+                // Після нуля поле лишається на місці, лише вимкнене: варіанти не стрибають, а сервер однаково відмовив би.
+                <fieldset className="inputs" disabled={view.paused || timeOver}>
+                  <AnswerInput
+                    key={`${view.questionIndex}-${me.blitz.position ?? 0}-${me.answer === null}`}
+                    question={question}
+                    onSubmit={(answer) => {
+                      if (!timeOver) void submit(answer);
+                    }}
+                  />
+                </fieldset>
+              ) : (
+                <SpotlightChoices question={question} spotlight={own} reveal={null} blink={blink} />
+              )}
+              {/* Відлік вікна стоїть у рядку стану з зарезервованою висотою: ні поява, ні зникнення не зсувають черги. */}
+              <div className="blitz-status-row">
+                {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
+                {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
+                  <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
+                )}
+                <p className="blitz-status">{instantStatus(me.blitz, timeOver)}</p>
+              </div>
+              {queue}
+            </>
           ) : myPending ? (
             <section className="sent">
               <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
@@ -267,6 +343,16 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <h2>{me.chain.timeMs !== null ? t('chainDone', { time: secondsText(me.chain.timeMs) }) : t('chainOutOfTime')}</h2>
               <p className="lead">{t('chainWaitResults')}</p>
             </section>
+          ) : instant ? (
+            <>
+              {/* Миттєвий бліц: власний вибір і черга з вердиктами; чужий вибір — лише з розкриття. */}
+              {question !== null && <SpotlightChoices question={question} spotlight={own} reveal={null} blink={blink} />}
+              {queue}
+              <p className="winner">
+                {view.blitz?.winner ? t('blitzWinner', { name: view.blitz.winner.nickname }) : t('blitzNoWinner')}
+              </p>
+              <p className="lead">{t('waitReveal')}</p>
+            </>
           ) : (
             <>
               {/* Поле й бліц: варіанти з помаранчевою відповіддю чи позначкою ведучого лишаються до розкриття. */}
@@ -293,9 +379,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           ) : (
             <>
               {/* Вибравший і бліц: варіанти з кольором вердикту над власним результатом; вердикт уже в Result, тож без voice. */}
-              {spotlight !== null && question !== null && (
-                <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />
-              )}
+              {instant
+                ? question !== null && <SpotlightChoices question={question} spotlight={own} reveal={view.reveal} blink={blink} voice={false} />
+                : spotlight !== null &&
+                  question !== null && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
+              {queue}
               <Result view={view} />
             </>
           )}

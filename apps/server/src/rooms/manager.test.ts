@@ -232,7 +232,7 @@ function blitzPlaying(options: Parameters<typeof blitzRound>[2] = {}) {
 
 describe('blitz', () => {
   it('a blitz window expiry is scheduled and burns the attempt', () => {
-    const { manager, room, scheduler, olena } = blitzPlaying({ answerWindow: 5, attempts: 2 });
+    const { manager, room, scheduler, olena } = blitzPlaying({ check: 'manual', answerWindow: 5, attempts: 2 });
     expect(manager.buzz(room, olena.playerId)).toEqual({ ok: true });
     expect(scheduler.pending()).toEqual([5000]);
 
@@ -297,7 +297,7 @@ describe('blitz', () => {
   });
 
   it('a pending blitz answer stops the window timer until the host decides', () => {
-    const { manager, room, scheduler, olena, taras } = blitzPlaying({ answerWindow: 5, attempts: 2 });
+    const { manager, room, scheduler, olena, taras } = blitzPlaying({ check: 'manual', answerWindow: 5, attempts: 2 });
     manager.buzz(room, olena.playerId);
     scheduler.advance(1000);
     expect(manager.answer(room, olena.playerId, wrong)).toEqual({ ok: true });
@@ -307,7 +307,7 @@ describe('blitz', () => {
     expect(room.state.plays[0].blitz?.attempts).toEqual([]);
     expect(room.state.plays[0].blitz?.queue[0]).toMatchObject({ playerId: olena.playerId, answer: wrong });
 
-    expect(manager.host(room, { type: 'accept', playerId: olena.playerId })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'judge', playerId: olena.playerId, correct: false })).toEqual({ ok: true });
     expect(room.state.plays[0].blitz?.attempts).toMatchObject([{ playerId: olena.playerId, grade: 'wrong' }]);
     // Тарас натиснув під час утримання: його вікно (5 с) почалося лише зараз.
     expect(scheduler.pending()).toEqual([5000]);
@@ -613,7 +613,7 @@ describe('board rounds', () => {
     expect(room.state.phase).toBe('question');
   });
 
-  it('a blitz cell runs through the room: buzz from any player, accept, close', () => {
+  it('a blitz cell runs through the room: an answer from any player, accept, close', () => {
     const scheduler = new FakeScheduler();
     const manager = new RoomManager(scheduler, () => 0.5);
     const room = manager.create(
@@ -625,7 +625,6 @@ describe('board rounds', () => {
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(manager.pick(room, anna.playerId, 'c11')).toEqual({ ok: true });
-    expect(manager.buzz(room, bohdan.playerId)).toEqual({ ok: true });
     expect(manager.answer(room, bohdan.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'accept', playerId: bohdan.playerId })).toEqual({ ok: true });
     expect(room.state.phase).toBe('locked');

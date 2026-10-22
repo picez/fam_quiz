@@ -16,6 +16,12 @@ describe('roundSummary', () => {
       'Помилка: мінус ціна запитання · Серія з 2 правильних: +20% · Усі бали ×2',
     ]);
   });
+  it('an instant blitz explains answering at once with one attempt', () => {
+    expect(roundSummary({ ...emptyBrief('blitz'), instant: true, attempts: 1 })).toEqual([
+      'Бали отримує лише той, хто першим правильно відповість.',
+      'Відповідайте одразу, без кнопки: одна спроба, відповіді перевіряються в порядку надходження.',
+    ]);
+  });
   it('a blitz round says that only the first right answer scores', () => {
     expect(roundSummary({ ...emptyBrief('blitz'), attempts: 1, answerWindow: 15 })).toEqual([
       'Бали отримує лише той, хто першим правильно відповість.',

@@ -217,28 +217,94 @@ describe('StageScreen: blitz', () => {
   ];
 
   it('shows the blitz queue and the winner at the reveal', () => {
-    show(view({ phase: 'question', round, questionIndex: 0, question, blitz: { queue, winner: null } }));
+    show(view({ phase: 'question', round, questionIndex: 0, question, blitz: { queue, winner: null, instant: false, rows: [] } }));
     expect(screen.getByText('Олена')).toBeTruthy();
     expect(screen.getByText('Тарас')).toBeTruthy();
     expect(screen.getByText('Перевіряємо')).toBeTruthy();
     cleanup();
 
-    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: queue[1] } }));
+    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: queue[1], instant: false, rows: [] } }));
     expect(screen.getByText('Першим правильно відповів: Тарас')).toBeTruthy();
     cleanup();
 
-    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: null } }));
+    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: null, instant: false, rows: [] } }));
     expect(screen.getByText('Ніхто не відповів правильно')).toBeTruthy();
   });
 
   it('names the current head, not the last wrong answer, as answering', () => {
     const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
-    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [queue[0]], winner: null } }));
+    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [queue[0]], winner: null, instant: false, rows: [] } }));
     expect(screen.getByText('Відповідає Олена')).toBeTruthy();
     expect(screen.queryByText('Відповідає Тарас')).toBeNull();
     cleanup();
-    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [], winner: null } }));
+    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [], winner: null, instant: false, rows: [] } }));
     expect(screen.queryByText(/Відповідає/)).toBeNull();
+  });
+
+  describe('instant blitz', () => {
+    const instantRound: RoundInfo = { ...round, brief: { ...emptyBrief('blitz'), instant: true } };
+    const rows = [
+      { playerId: 'p1', nickname: 'Оля', timeMs: 2400, grade: 'wrong' as const, answer: null },
+      { playerId: 'p2', nickname: 'Петро', timeMs: 3100, grade: null, answer: null },
+    ];
+    const instantView = (over: Partial<StageView> = {}) =>
+      view({ phase: 'question', round: instantRound, questionIndex: 0, question, playerCount: 3, answeredCount: 2, blitz: { queue: [], winner: null, instant: true, rows }, ...over });
+
+    it('the stage shows no picks and no answering line in an instant blitz until the reveal', () => {
+      show(instantView());
+      const list = document.querySelector('ol.blitz-queue');
+      expect(list?.textContent).toContain('Оля');
+      expect(list?.textContent).toContain('2,4 с');
+      expect(list?.textContent).toContain('✗');
+      expect(document.querySelector('.given')).toBeNull();
+      expect(screen.queryByText(/Відповідає/)).toBeNull();
+      expect(document.querySelector('.choice.is-pending')).toBeNull();
+      expect(screen.getByText(/Відповіли 2 з 3/)).toBeTruthy();
+    });
+
+    it('on locked the stage shows the winner, on reveal the picks and the correct option', () => {
+      const won = [{ ...rows[0], grade: 'wrong' as const }, { ...rows[1], grade: 'correct' as const }];
+      show(instantView({ phase: 'locked', blitz: { queue: [], winner: { playerId: 'p2', nickname: 'Петро' }, instant: true, rows: won } }));
+      expect(screen.getByText('Першим правильно відповів: Петро')).toBeTruthy();
+      expect(document.querySelector('.given')).toBeNull();
+      cleanup();
+      const open = won.map((row, index) => ({ ...row, answer: { type: 'single' as const, optionId: index === 0 ? 'a' : 'b' } }));
+      show(
+        instantView({
+          phase: 'reveal',
+          reveal: full,
+          stats: { answered: 2, accepted: 1, counts: { a: 1, b: 1 } },
+          blitz: { queue: [], winner: { playerId: 'p2', nickname: 'Петро' }, instant: true, rows: open },
+        }),
+      );
+      expect(document.querySelectorAll('.blitz-queue .given').length).toBe(2);
+      expect(document.querySelector('.choice.is-correct')).not.toBeNull();
+      expect(document.querySelectorAll('.choice .count').length).toBe(2);
+    });
+
+    it('on locked without a winner the stage says nobody answered correctly, like the phones', () => {
+      const lost = rows.map((row) => ({ ...row, grade: 'wrong' as const }));
+      show(instantView({ phase: 'locked', blitz: { queue: [], winner: null, instant: true, rows: lost } }));
+      expect(screen.getByText('Ніхто не відповів правильно')).toBeTruthy();
+      expect(document.querySelector('.given')).toBeNull();
+    });
+
+    it('a row blinks when its verdict arrives', () => {
+      const { rerender } = show(instantView());
+      expect(document.querySelector('.blitz-mark.is-blinking')).toBeNull();
+      const graded = rows.map((row) => (row.playerId === 'p2' ? { ...row, grade: 'correct' as const } : row));
+      rerender(
+        <StageScreen view={instantView({ blitz: { queue: [], winner: null, instant: true, rows: graded } })} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />,
+      );
+      expect(document.querySelector('.blitz-mark.is-blinking')).not.toBeNull();
+    });
+
+    it('the button blitz reserves the answering line', () => {
+      show(view({ phase: 'question', round, questionIndex: 0, question, blitz: { queue: [], winner: null, instant: false, rows: [] } }));
+      const line = document.querySelector('p.answering-line');
+      expect(line).not.toBeNull();
+      expect(line?.textContent).toBe('');
+    });
   });
 
   describe('board round', () => {
@@ -474,7 +540,7 @@ describe('StageScreen: match', () => {
         question,
         round,
         board,
-        blitz: { queue: [{ playerId: 'p2', nickname: 'Богдан' }], winner: null },
+        blitz: { queue: [{ playerId: 'p2', nickname: 'Богдан' }], winner: null, instant: false, rows: [] },
         endsAt: Date.now() + 20_000,
       }),
     );

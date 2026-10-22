@@ -112,15 +112,47 @@ function blitzCell(cell: Partial<BoardCell> = {}, options = {}): GameState {
   return picked([{ question: c11, kind: 'blitz', ...cell }, c12], options);
 }
 
-/** Натискання (якщо ще не в черзі), відповідь і «Прийняти». */
+/** Відповідь у миттєвій бліц-клітинці й «Прийняти». */
 function answered(state: GameState, playerId: string, answer: typeof b | typeof a, now: number): GameState {
+  return must(acceptAnswer(must(submitAnswer(state, playerId, answer, now)), playerId, now));
+}
+
+/** Бліц-клітинка з ручною перевіркою: кнопка «Відповісти», вікно й спроб без обмежень. */
+const manualCell = (cell: Partial<BoardCell> = {}) => blitzCell(cell, { check: 'manual' });
+
+/** Бліц-клітинка з кнопкою: натискання (якщо ще не в черзі), відповідь (b — правильна) і оцінка ведучого. */
+function judged(state: GameState, playerId: string, correct: boolean, now: number): GameState {
   const queued = state.plays[0].blitz?.queue.some((e) => e.playerId === playerId) ? state : must(buzz(state, playerId, now));
-  return must(acceptAnswer(must(submitAnswer(queued, playerId, answer, now)), playerId, now));
+  return must(judge(must(submitAnswer(queued, playerId, correct ? b : a, now)), playerId, correct, now));
 }
 
 describe('blitz cell', () => {
-  it('everyone including the chooser may buzz', () => {
-    let state = must(buzz(blitzCell(), 'p1', 1000));
+  it('a phone blitz cell is instant: the chooser and the others answer at once, once each', () => {
+    expect(buzz(blitzCell(), 'p1', 1000)).toEqual({ ok: false, error: 'wrong_phase' });
+    let state = must(submitAnswer(blitzCell(), 'p2', a, 1000));
+    state = must(submitAnswer(state, 'p1', b, 1500));
+    expect(state.plays[0].blitz?.queue.map((e) => [e.playerId, e.deadline])).toEqual([['p2', null], ['p1', null]]);
+    expect(submitAnswer(state, 'p2', b, 1800)).toEqual({ ok: false, error: 'already_answered' });
+    state = must(acceptAnswer(state, 'p2', 2000));
+    expect(submitAnswer(state, 'p2', b, 2100)).toEqual({ ok: false, error: 'already_answered' });
+    state = must(acceptAnswer(state, 'p1', 2200));
+    expect(state.phase).toBe('locked');
+    expect(scores(state)).toEqual([200, 0, 0]);
+  });
+
+  it('a voice blitz cell still needs a buzz', () => {
+    const state = blitzCell({ answerMode: 'voice' });
+    expect(buzz(state, 'p2', 1000).ok).toBe(true);
+    expect(submitAnswer(state, 'p2', b, 1000)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('a blitz cell with manual check keeps the buzz and the window', () => {
+    const state = must(buzz(blitzCell({}, { check: 'manual' }), 'p2', 1000));
+    expect(state.plays[0].blitz?.queue[0].deadline).toBe(16000);
+  });
+
+  it('with manual check everyone including the chooser may buzz', () => {
+    let state = must(buzz(manualCell(), 'p1', 1000));
     state = must(buzz(state, 'p2', 2000));
     expect(state.plays[0].blitz?.queue.map((e) => e.playerId)).toEqual(['p1', 'p2']);
     expect(state.plays[0].blitz?.queue[0].deadline).toBe(16000);
@@ -146,22 +178,22 @@ describe('blitz cell', () => {
     expect(score(answered(blitzCell({ mark: 'x3' }, options), 'p2', b, 1000), 'p2')).toBe(600);
   });
 
-  it('a wrong answer passes the queue on and the wrong player may buzz again at the end', () => {
-    let state = must(buzz(blitzCell(), 'p2', 1000));
+  it('with manual check a wrong answer passes the queue on and the wrong player may buzz again at the end', () => {
+    let state = must(buzz(manualCell(), 'p2', 1000));
     state = must(buzz(state, 'p3', 1500));
-    state = answered(state, 'p2', a, 2000);
+    state = judged(state, 'p2', false, 2000);
     expect(state.plays[0].blitz?.queue.map((e) => e.playerId)).toEqual(['p3']);
     expect(state.plays[0].blitz?.attempts).toMatchObject([{ playerId: 'p2', grade: 'wrong', points: 0 }]);
     state = must(buzz(state, 'p2', 3000));
     expect(state.plays[0].blitz?.queue.map((e) => e.playerId)).toEqual(['p3', 'p2']);
-    state = answered(state, 'p3', a, 4000);
-    state = answered(state, 'p2', a, 5000);
+    state = judged(state, 'p3', false, 4000);
+    state = judged(state, 'p2', false, 5000);
     expect(state.phase).toBe('question');
     expect(buzz(state, 'p2', 6000).ok).toBe(true);
   });
 
-  it('after the timer no new buzz is taken and the queue is still decided in order', () => {
-    let state = must(buzz(blitzCell(), 'p2', 10000));
+  it('with manual check after the timer no new buzz is taken and the queue is still decided in order', () => {
+    let state = must(buzz(manualCell(), 'p2', 10000));
     expect(state.plays[0].blitz?.queue[0].deadline).toBe(25000);
     state = must(buzz(state, 'p3', 19000));
     state = tick(state, 21000);
@@ -169,9 +201,9 @@ describe('blitz cell', () => {
     expect(buzz(state, 'p1', 21000)).toEqual({ ok: false, error: 'time_over' });
     state = must(submitAnswer(state, 'p2', a, 22000));
     expect(state.heldAt).toBe(22000);
-    state = must(acceptAnswer(state, 'p2', 22000));
+    state = must(judge(state, 'p2', false, 22000));
     expect(state.plays[0].blitz?.queue[0].playerId).toBe('p3');
-    state = must(acceptAnswer(must(submitAnswer(state, 'p3', b, 22000)), 'p3', 22000));
+    state = must(judge(must(submitAnswer(state, 'p3', b, 22000)), 'p3', true, 22000));
     expect(state.phase).toBe('locked');
     expect(score(state, 'p3')).toBe(100);
   });
@@ -187,7 +219,7 @@ describe('blitz cell', () => {
   });
 
   it('the host closes the cell at any time, a pending answer gives nothing', () => {
-    const state = must(submitAnswer(must(buzz(blitzCell(), 'p2', 1000)), 'p2', b, 2000));
+    const state = must(submitAnswer(blitzCell(), 'p2', b, 2000));
     expect(pendingOf(state)).toMatchObject({ playerId: 'p2' });
     const closed = must(lock(state));
     expect(closed.phase).toBe('locked');
@@ -197,7 +229,7 @@ describe('blitz cell', () => {
   });
 
   it('the turn moves on as usual after a blitz cell', () => {
-    let state = must(lock(must(buzz(blitzCell(), 'p2', 1000))));
+    let state = must(lock(must(submitAnswer(blitzCell(), 'p2', a, 1000))));
     while (state.phase !== 'board') state = must(next(state, 2000));
     expect(chooserOf(state)).toBe('p2');
   });
@@ -229,31 +261,29 @@ describe('blitz cell', () => {
   });
 
   it('judge is refused on an auto-checked phone blitz cell', () => {
-    const state = must(submitAnswer(must(buzz(blitzCell(), 'p2', 1000)), 'p2', b, 2000));
+    const state = must(submitAnswer(blitzCell(), 'p2', b, 2000));
     expect(judge(state, 'p2', true, 3000)).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
-  it('repick on a blitz cell lets the head answer again from the same window', () => {
-    let state = must(submitAnswer(must(buzz(blitzCell(), 'p2', 1000)), 'p2', a, 3000));
+  it('with manual check repick on a blitz cell lets the head answer again from the same window', () => {
+    let state = must(submitAnswer(must(buzz(manualCell(), 'p2', 1000)), 'p2', a, 3000));
     expect(state.heldAt).toBe(3000);
     state = must(repick(state, 'p2', 9000));
     expect(state.heldAt).toBeNull();
     expect(state.plays[0].blitz?.queue[0].deadline).toBe(22000);
-    state = must(acceptAnswer(must(submitAnswer(state, 'p2', b, 10000)), 'p2', 10000));
+    state = must(judge(must(submitAnswer(state, 'p2', b, 10000)), 'p2', true, 10000));
     expect(score(state, 'p2')).toBe(100);
   });
 
   it('a host grade is refused on a blitz cell', () => {
-    const revealed = must(next(must(lock(must(buzz(blitzCell(), 'p2', 1000)))), 2000));
+    const revealed = must(next(must(lock(must(submitAnswer(blitzCell(), 'p2', b, 1000)))), 2000));
     expect(revealed.phase).toBe('reveal');
     expect(override(revealed, 'p2', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
     expect(override(revealed, 'p1', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('kicking the chooser or the pending head keeps a blitz cell going', () => {
-    let state = must(buzz(blitzCell(), 'p2', 1000));
-    state = must(buzz(state, 'p3', 1500));
-    state = must(submitAnswer(state, 'p2', a, 2000));
+    let state = must(submitAnswer(blitzCell(), 'p2', a, 2000));
     state = must(submitAnswer(state, 'p3', b, 2500));
     state = must(removePlayer(state, 'p2'));
     expect(pendingOf(state)).toMatchObject({ playerId: 'p3' });
@@ -288,7 +318,7 @@ describe('blitz cell penalty', () => {
   });
 
   it('closing the cell with a pending answer gives nobody points and charges everyone once', () => {
-    const state = must(submitAnswer(must(buzz(minus(), 'p2', 1000)), 'p2', b, 2000));
+    const state = must(submitAnswer(minus(), 'p2', b, 2000));
     expect(pendingOf(state)).toMatchObject({ playerId: 'p2' });
     const closed = must(lock(state));
     const revealed = must(next(closed, 3000));

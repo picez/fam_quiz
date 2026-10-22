@@ -212,7 +212,7 @@ describe('history: blitz attempts', () => {
   it('history counts a player with two blitz attempts once', async () => {
     const host = await signUp(ctx.app, 'Ведуча');
     const olena = await signUp(ctx.app, 'Олена');
-    const quiz = makeRoundsQuiz([blitzRound('b1', [single], { attempts: 2 })]);
+    const quiz = makeRoundsQuiz([blitzRound('b1', [single], { attempts: 2, check: 'manual' })]);
     const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
     const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
     const joinAs = async (nickname: string, cookie?: string) =>
@@ -225,7 +225,7 @@ describe('history: blitz attempts', () => {
     const attempt = (playerId: string, optionId: string) => {
       expect(ctx.manager.buzz(room, playerId)).toEqual({ ok: true });
       expect(ctx.manager.answer(room, playerId, { type: 'single', optionId })).toEqual({ ok: true });
-      expect(ctx.manager.host(room, { type: 'accept', playerId })).toEqual({ ok: true });
+      expect(ctx.manager.host(room, { type: 'judge', playerId, correct: optionId === 'b' })).toEqual({ ok: true });
     };
 
     expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
@@ -466,7 +466,6 @@ describe('host history: board', () => {
     step('next');
     expect(ctx.manager.pick(room, ids['Анна'], 'c11')).toEqual({ ok: true });
     for (const [nickname, optionId] of [['Анна', 'a'], ['Богдан', 'b']] as const) {
-      expect(ctx.manager.buzz(room, ids[nickname])).toEqual({ ok: true });
       expect(ctx.manager.answer(room, ids[nickname], { type: 'single', optionId })).toEqual({ ok: true });
       expect(ctx.manager.host(room, { type: 'accept', playerId: ids[nickname] })).toEqual({ ok: true });
     }
@@ -647,7 +646,7 @@ describe('host history: answers', () => {
 
   it('history lists a missed blitz attempt with a null answer', async () => {
     const scheduler = new FakeScheduler();
-    const { local, room, enter, detail } = await start(makeRoundsQuiz([blitzRound('b1', [single], { answerWindow: 5 })]), scheduler);
+    const { local, room, enter, detail } = await start(makeRoundsQuiz([blitzRound('b1', [single], { answerWindow: 5, check: 'manual' })]), scheduler);
     const olena = await enter('Олена');
     expect(local.manager.host(room, { type: 'start' })).toEqual({ ok: true });
     expect(local.manager.host(room, { type: 'next' })).toEqual({ ok: true });
