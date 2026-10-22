@@ -33,7 +33,7 @@ const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: Ho
 };
 
 /** Етапи, на яких раунд ще триває й його можна завершити достроково. */
-const IN_ROUND: HostView['phase'][] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
+const IN_ROUND: HostView['phase'][] = ['intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
 /** Відлік до автоматичного пропуску ходу відсутнього гравця. */
 function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView; offsetMs: number }) {
@@ -62,7 +62,18 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const inRound = round !== null && IN_ROUND.includes(phase);
   const lastRound = round !== null && round.index === round.total - 1;
   const live = phase !== 'lobby' && phase !== 'finished';
-  const main = MAIN_ACTION[phase];
+  const final = view.final;
+  const isFinal = round?.type === 'final';
+  const base = MAIN_ACTION[phase];
+  // У фіналі свої підписи головної кнопки; без розкритих гравців «Далі» лишається звичайним.
+  const main =
+    isFinal && phase === 'intro'
+      ? { label: 'finalStart' as const, event: 'host:next' as const }
+      : isFinal && phase === 'wager'
+        ? { label: 'finalShowQuestion' as const, event: 'host:next' as const }
+        : isFinal && phase === 'reveal' && final !== null && final.left > 0
+          ? { label: 'finalNextPlayer' as const, event: 'host:next' as const }
+          : base;
   const blitz = view.blitz;
   const board = view.board;
   const chooserId = board?.turn?.playerId ?? null;
@@ -81,7 +92,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const secondsNow = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
   const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
-  const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz';
+  const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz' && !isFinal;
 
   const act = async (event: HostEvent, payload?: unknown) => {
     const result = await send(event, payload);
@@ -332,6 +343,75 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
+      {phase === 'wager' && final !== null && (
+        <section className="panel">
+          <h2>{t('finalPlaced', { placed: final.placed, total: final.total })}</h2>
+          <ul className="rows wager-list">
+            {final.wagers.map((entry) => (
+              <li key={entry.playerId}>
+                <span className="name">{entry.nickname}</span>
+                <span className="given">{entry.wager === null ? t('finalThinking') : num(entry.wager)}</span>
+                <span className="meta">{t('finalLimit', { limit: num(entry.limit) })}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {final !== null && (phase === 'locked' || phase === 'reveal') && final.pending.length > 0 && (
+        <section className="panel">
+          <h2>{t('pendingTitle')}</h2>
+          <ul className="rows">
+            {final.pending.map((entry) => (
+              <li key={entry.playerId}>
+                <span className="name">{entry.nickname}</span>
+                <span className="given">{answerText(entry.answer, correct)}</span>
+                <span className="row-actions">
+                  <button type="button" className="btn btn-small" onClick={() => grade(entry.playerId, 'correct')}>
+                    {t('finalGradeCorrect')}
+                  </button>
+                  <button type="button" className="btn btn-small" onClick={() => grade(entry.playerId, 'wrong')}>
+                    {t('finalGradeWrong')}
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {phase === 'reveal' && final !== null && (
+        <section className="panel">
+          <h2>{t('finalRevealed', { shown: final.shown.length, total: final.total })}</h2>
+          <ul className="rows wager-list">
+            {final.entries.map((entry) => {
+              const revealed = final.shown.some((shown) => shown.playerId === entry.playerId);
+              const waiting = final.pending.some((item) => item.playerId === entry.playerId);
+              return (
+                <li key={entry.playerId} className={entry.grade === 'correct' ? 'is-correct' : 'is-wrong'}>
+                  <span className="name">{entry.nickname}</span>
+                  <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct)}</span>
+                  <span className="tag">{num(entry.wager)}</span>
+                  <span className="score">{`${num(entry.before)} → ${num(entry.after)}`}</span>
+                  {revealed && (
+                    <span className={entry.grade === 'correct' ? 'tag is-correct' : 'tag is-wrong'}>{entry.grade === 'correct' ? '✓' : '✗'}</span>
+                  )}
+                  {entry.answer !== null && !waiting && (
+                    <button
+                      type="button"
+                      className="btn btn-small"
+                      onClick={() => grade(entry.playerId, entry.grade === 'correct' ? 'wrong' : 'correct')}
+                    >
+                      {t(entry.grade === 'correct' ? 'finalGradeWrong' : 'finalGradeCorrect')}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {view.question !== null && live && blitz !== null && (
         <>
           {/* Після закриття запитання черги вже немає: лишаються тільки спроби. */}
@@ -430,22 +510,37 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
-      {view.question !== null && live && blitz === null && board === null && (
+      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
-          {view.responses.length === 0 ? (
+          {view.responses.length === 0 && !isFinal ? (
             <p className="meta">{t('noResponses')}</p>
           ) : (
             <ul className="rows">
+              {/* До розкриття записи фіналу містять лише тих, хто відповів: мовчазних видно як гравці мінус відповіді. */}
+              {isFinal &&
+                view.players
+                  .filter((player) => !view.responses.some((response) => response.playerId === player.id))
+                  .map((player) => (
+                    <li key={`silent-${player.id}`}>
+                      <span className="name">{player.nickname}</span>
+                      <span className="given">{t(phase === 'question' ? 'finalThinking' : 'finalSilent')}</span>
+                    </li>
+                  ))}
               {view.responses.map((response) => (
                 <li key={response.playerId}>
                   <span className="name">{response.nickname}</span>
                   <span className="given">{answerText(response.answer, correct)}</span>
-                  <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
-                    {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
-                    {response.overridden && `, ${t('changedByHost')}`}
-                  </span>
-                  <span className="score">{num(response.points)}</span>
+                  {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
+                  {!isFinal && (
+                    <>
+                      <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
+                        {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
+                        {response.overridden && `, ${t('changedByHost')}`}
+                      </span>
+                      <span className="score">{num(response.points)}</span>
+                    </>
+                  )}
                   {response.streakBonus > 0 && <span className="streak-bonus">{t('streakBonusLine', { points: response.streakBonus })}</span>}
                   {canGrade && (
                     <>

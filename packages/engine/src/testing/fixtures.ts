@@ -5,6 +5,7 @@ import {
   type BoardRound,
   type BoardCell,
   type ClassicRound,
+  type FinalRound,
   type Question,
   type Quiz,
   type QuizSettings,
@@ -123,6 +124,15 @@ export function blitzRound(
     ...options,
     questions,
   };
+}
+
+/** Типові: title '', shuffleOptions false, check 'auto'. */
+export function finalRound(
+  id: string,
+  question: Question,
+  options: Partial<Omit<FinalRound, 'id' | 'type' | 'questions'>> = {},
+): FinalRound {
+  return { id, type: 'final', title: '', shuffleOptions: false, check: 'auto', ...options, questions: [question] };
 }
 
 /** Копія запитання з іншим id: поле збирають з однакових запитань. */

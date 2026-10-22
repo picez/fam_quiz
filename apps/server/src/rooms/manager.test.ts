@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, makeQuiz, makeRoundsQuiz, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
   FINISHED_TTL_MS,
@@ -623,5 +623,25 @@ describe('board rounds', () => {
     expect(manager.host(room, { type: 'accept', playerId: anna.playerId })).toEqual({ ok: true });
     expect(room.state.phase).toBe('reveal');
     expect(room.state.players.find((p) => p.id === anna.playerId)?.score).toBe(200);
+  });
+  it('final wagers go through the manager and open the question when everyone placed', () => {
+    const { manager } = setup();
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), finalRound('f', withId(single, 'f1'))]);
+    const own = manager.create(quiz);
+    manager.connect(own, HOST);
+    const a = enter(manager, own, 'Олена');
+    const b = enter(manager, own, 'Тарас');
+    expect(manager.wager(own, a.playerId, 0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(manager.host(own, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(own, { type: 'next' })).toEqual({ ok: true });
+    manager.answer(own, a.playerId, correct);
+    manager.answer(own, b.playerId, correct);
+    for (let i = 0; i < 4; i++) expect(manager.host(own, { type: 'next' })).toEqual({ ok: true });
+    expect(own.state.phase).toBe('wager');
+    expect(manager.wager(own, a.playerId, 0)).toEqual({ ok: true });
+    expect(own.state.phase).toBe('wager');
+    expect(manager.wager(own, b.playerId, 0)).toEqual({ ok: true });
+    expect(own.state.phase).toBe('question');
+    expect(manager.wager(own, a.playerId, 5)).toEqual({ ok: false, error: 'wrong_phase' });
   });
 });

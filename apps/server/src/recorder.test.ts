@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { blitzRound, boardRound, bool, classicRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, classicRound, finalRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
 import type { Db } from './db/client';
 import { answer, game, participant, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
@@ -518,5 +518,52 @@ describe('recorder: board', () => {
       ]),
     );
     expect(answers).toHaveLength(3);
+  });
+  it('a final answer is stored with its signed wager and silence as a points row', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus: false }), finalRound('f', withId(single, 'f1'))]);
+    const room = manager.create(quiz, HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const p1 = enter('Олена');
+    const p2 = enter('Тарас');
+    const host = (type: 'start' | 'lock' | 'next') => expect(manager.host(room, { type })).toEqual({ ok: true });
+    host('start');
+    host('next');
+    manager.answer(room, p1, correct);
+    manager.answer(room, p2, correct);
+    for (const phase of ['reveal', 'round_end', 'intro', 'wager']) {
+      host('next');
+      expect(room.state.phase).toBe(phase);
+    }
+    expect(manager.wager(room, p1, 300)).toEqual({ ok: true });
+    expect(manager.wager(room, p2, 200)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    expect(manager.wager(room, p1, 5)).toEqual({ ok: false, error: 'wrong_phase' });
+    manager.answer(room, p1, correct);
+    host('lock');
+    host('next');
+    expect(room.state.phase).toBe('reveal');
+
+    await recorder.idle();
+    const rows = () => db.select().from(answer).where(eq(answer.questionIndex, 1)).orderBy(asc(answer.points));
+    expect((await rows()).map((a) => [a.participantId === p1 ? 'p1' : 'p2', a.attempt, a.payload, a.points, a.accepted])).toEqual([
+      ['p2', -1, null, -200, false],
+      ['p1', 0, correct, 300, true],
+    ]);
+
+    expect(manager.host(room, { type: 'override', playerId: p1, grade: 'wrong' })).toEqual({ ok: true });
+    await recorder.idle();
+    const after = await rows();
+    expect(after.find((a) => a.participantId === p1)).toMatchObject({ points: -300, accepted: false, overridden: true });
+    const [saved] = await db.select().from(participant).where(eq(participant.id, p1));
+    expect(saved.score).toBe(1000 - 300);
   });
 });

@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
+import { playToEnd } from './testing/final-game';
 import { game, participant, profile, user } from './db/schema';
 import { ensureProfile, profileFacts, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
@@ -189,5 +190,30 @@ describe('profile facts', () => {
     const facts = await profileFacts(db, playerId);
     expect(facts.stats.games).toBe(101);
     expect(earned(facts.achievements)).toEqual(['first_game', 'games_10', 'games_50']);
+  });
+  it('a final answer counts like any answer in profile stats, silence does not break a perfect game', async () => {
+    const classic = ['s1', 's2', 's3', 's4', 's5'].map((id) => withId(single, id));
+    const quiz = makeRoundsQuiz([classicRound('r1', classic, { speedBonus: false }), finalRound('f', withId(single, 'f1'))]);
+    const host = await signUp(ctx.app, 'Ведуча');
+    const play = async (name: string, finalAnswers: (id: string) => string[]) => {
+      const player = await signUp(ctx.app, name);
+      const { game: created } = await startGame(ctx.app, quiz, host.cookie);
+      const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: name }, player.cookie)).json() as { playerId: string };
+      const room = ctx.manager.get(created.code);
+      if (room === undefined) throw new Error('room missing');
+      ctx.manager.connect(room, { role: 'player', playerId });
+      playToEnd(ctx.manager, room, [playerId], finalAnswers(playerId), () => 0);
+      expect(room.state.phase).toBe('finished');
+      await ctx.recorder.idle();
+      return profileFacts(db, await idOf(player.email));
+    };
+
+    const silent = await play('Мовчазна', () => []);
+    expect(silent.stats.accuracy).toBe(83);
+    expect(earned(silent.achievements)).toContain('perfect_game');
+
+    const right = await play('Впевнена', (id) => [id]);
+    expect(right.stats.accuracy).toBe(100);
+    expect(earned(right.achievements)).toEqual(expect.arrayContaining(['perfect_game', 'streak_5']));
   });
 });

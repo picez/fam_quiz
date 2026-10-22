@@ -7,6 +7,7 @@ import {
   overrideSchema,
   pendingSchema,
   pickSchema,
+  wagerSchema,
   socketAuthSchema,
   timeSchema,
   type AckResult,
@@ -101,6 +102,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = pickSchema.safeParse(payloadOf(args));
       return payload.success ? manager.pick(room, identity.playerId, payload.data.cellId) : INVALID;
+    });
+
+    on('player:wager', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = wagerSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.wager(room, identity.playerId, payload.data.amount) : INVALID;
     });
 
     for (const type of SIMPLE_HOST_ACTIONS) {

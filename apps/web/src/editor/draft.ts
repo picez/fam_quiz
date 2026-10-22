@@ -12,10 +12,12 @@ import {
   type BoardCategory,
   type BoardRound,
   type ClassicRound,
+  type FinalRound,
   type Round,
   type Question,
   type Quiz,
   type RoundRules,
+  rulesOf,
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
@@ -164,6 +166,11 @@ export function newBlitzRound(): BlitzRound {
     rules: { ...defaultRules(), partial: null },
     questions: [newQuestion('single')],
   };
+}
+
+/** Новий раунд «Фінал»: одне запитання, автоматична перевірка; правил балів у ньому немає. */
+export function newFinalRound(): FinalRound {
+  return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [newQuestion('single')] };
 }
 
 /** Нова клітинка поля: порожнє запитання, ціна на сотню вища за попередню (не більше максимуму). */
@@ -362,7 +369,7 @@ export function problemsOf(quiz: Quiz): string[] {
   draft.rounds.forEach((round, roundIndex) => {
     // З кількома раундами кожне повідомлення каже, у якому раунді шукати.
     const where = (text: string) => (several ? `${t('problemRound', { round: roundIndex + 1 })} ${text}` : text);
-    if (!roundRulesSchema.safeParse(round.rules).success) problems.push(where(t('problemRules')));
+    if (round.type !== 'final' && !roundRulesSchema.safeParse(rulesOf(round)).success) problems.push(where(t('problemRules')));
     if (round.type === 'board') {
       round.categories.forEach((category, categoryIndex) => {
         if (category.title === '') problems.push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })));

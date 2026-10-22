@@ -57,7 +57,9 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
   const attempts = state.plays[index].blitz?.attempts.filter((a) => a.playerId === playerId);
   if (attempts === undefined) {
     const { answer: payload, timeMs, accepted, points, streakBonus, overridden } = record;
-    return [{ attempt: 0, payload, timeMs, accepted, points, streakBonus, overridden }];
+    // Мовчання у фіналі — рядок балів без відповіді, як штраф бліц-клітинки; ставка дорівнює |points|.
+    const silent = state.plays[index].final !== undefined && payload === null;
+    return [{ attempt: silent ? PENALTY_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden }];
   }
   const rows = attempts.map((attempt, number) => {
     // Бонус серії належить виграшній спробі; бали спроби в журналі бліцу його не містять.

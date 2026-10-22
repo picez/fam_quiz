@@ -72,7 +72,11 @@ function looksLikeQuiz(value: unknown): value is Quiz {
     rounds.every((round) => {
       if (typeof round !== 'object' || round === null) return false;
       const { id, type, title: roundTitle, rules, questions, categories } = round as Record<string, unknown>;
-      const common = typeof id === 'string' && typeof roundTitle === 'string' && typeof rules === 'object' && rules !== null;
+      const common =
+        typeof id === 'string' &&
+        typeof roundTitle === 'string' &&
+        // У фіналі правил немає.
+        (type === 'final' || (typeof rules === 'object' && rules !== null));
       if (type === 'board') return common && Array.isArray(categories) && categories.length > 0 && categories.every(looksLikeCategory);
       return common && Array.isArray(questions) && questions.length > 0 && questions.every(looksLikeQuestion);
     })
@@ -96,7 +100,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
           return { ...rest, categories: categories.map(reviveCategory) };
         }
         const questions = round.questions.map(revive);
-        if (round.type === 'blitz') return { ...round, questions };
+        if (round.type === 'blitz' || round.type === 'final') return { ...round, questions };
         return {
           ...round,
           // Чернетка старого формату могла не мати цих полів.

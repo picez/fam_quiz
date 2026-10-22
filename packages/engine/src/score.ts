@@ -25,3 +25,8 @@ export function answerPoints({ points, accuracy, speed, multiplier, penalty }: A
 export function streakBonus(basePoints: number, bonus: { kind: 'percent' | 'fixed'; value: number }): number {
   return bonus.kind === 'percent' ? Math.round((basePoints * bonus.value) / 100) : bonus.value;
 }
+
+/** Бали фіналу: правильно — +ставка, неправильно або без відповіді — −ставка (без −0 за нульову ставку). */
+export function finalPoints(wager: number, correct: boolean): number {
+  return correct ? wager : 0 - wager;
+}

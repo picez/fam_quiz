@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Question } from '@quiz/shared';
-import { answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, shownChoices } from './format';
+import { roundLabel, answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, shownChoices } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -83,4 +83,9 @@ describe('match questions', () => {
     const shown = shownChoices({ choices: [{ id: 'a', text: 'Київ' }], right: [{ id: 'x', text: 'Дніпро' }] } as never);
     expect(shown.map((c) => c.id)).toEqual(['a', 'x']);
   });
+});
+
+it('an untitled final round is called «Фінал»', () => {
+  expect(roundLabel('', 3, 'final')).toBe('Фінал');
+  expect(roundLabel('Космос', 3, 'final')).toBe('Космос');
 });

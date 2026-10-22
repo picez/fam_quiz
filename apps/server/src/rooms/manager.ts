@@ -15,6 +15,7 @@ import {
   override,
   pause,
   pickCell,
+  placeWager,
   playerView,
   removePlayer,
   repick,
@@ -228,6 +229,11 @@ export class RoomManager {
   pick(room: Room, playerId: string, cellId: string): AckResult {
     if (!this.alive(room)) return GONE;
     return this.apply(room, pickCell(room.state, playerId, cellId, this.now(), this.rng));
+  }
+
+  wager(room: Room, playerId: string, amount: number): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, placeWager(room.state, playerId, amount, this.now(), this.rng));
   }
 
   host(room: Room, action: HostAction): AckResult {

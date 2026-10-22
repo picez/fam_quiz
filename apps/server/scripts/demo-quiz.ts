@@ -2,7 +2,7 @@ import { DEFAULT_RULES, type Question, type Quiz, type RoundRules } from '@quiz/
 
 /**
  * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match),
- * усіма раундами (класичний, бліц, поле) і варіантами правил.
+ * усіма раундами (класичний, бліц, поле, фінал зі ставками) і варіантами правил.
  */
 
 let n = 0;
@@ -238,6 +238,14 @@ export const demoQuiz: Quiz = {
           ],
         },
       ],
+    },
+    {
+      id: 'r-final',
+      type: 'final',
+      title: 'Фінал: Космос',
+      shuffleOptions: true,
+      check: 'auto',
+      questions: [single('Яка планета найбільша в Сонячній системі?', ['Сатурн', 'Юпітер', 'Нептун', 'Земля'], 1, 1000, 30)],
     },
   ],
 };

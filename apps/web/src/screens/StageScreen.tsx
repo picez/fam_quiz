@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import type { BoardInfo, StageView } from '@quiz/shared';
-import { LETTERS, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
+import type { BoardInfo, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
+import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { MatchColumns, PairList } from './MatchView';
 import { Timer } from '../live/Timer';
@@ -54,6 +54,27 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
   );
 }
 
+/** Розкриті гравці фіналу: найновіший зверху й виділений, щоб він завжди був на екрані. */
+function FinalReveal({ final, question }: { final: FinalInfo; question: FullQuestion | null }) {
+  return (
+    <>
+      <ol className="rows wager-list">
+        {[...final.shown].reverse().map((entry, index) => (
+          <li key={entry.playerId} className={index === 0 ? 'wager-latest' : undefined}>
+            <span className="name">{entry.nickname}</span>
+            <span className="given">{answerText(entry.answer, question)}</span>
+            <span className="tag">{t('finalWagerTag', { wager: entry.wager })}</span>
+            <span className={entry.after === entry.before ? 'wager-delta' : entry.after > entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
+              {`${entry.before} → ${entry.after}`}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {final.left > 0 && <p className="meta">{t('finalLeft', { left: final.left })}</p>}
+    </>
+  );
+}
+
 function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   const { question, reveal, stats } = view;
   if (question === null) return null;
@@ -74,6 +95,8 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   // На бліц-клітинці вибравший лише обирає: відповідає голова черги.
   const blitzCell = view.board?.cell?.kind === 'blitz';
   const answering = pendingSpot ?? (blitzCell ? null : view.board?.turn) ?? view.blitz?.queue[0] ?? null;
+  // Розкриття фіналу йде по одному гравцю: відео, картинка й варіанти зникають, щоб список був на екрані.
+  const finalReveal = view.final !== null && view.phase === 'reveal';
   const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
@@ -102,9 +125,10 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
       </div>
-      <QuestionImage url={question.imageUrl} />
-      <YouTubePlayer video={question.video} />
-      {spotlit ? (
+      {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} />}
+      {!finalReveal && <QuestionImage url={question.imageUrl} />}
+      {!finalReveal && <YouTubePlayer video={question.video} />}
+      {finalReveal && question.type !== 'match' ? null : spotlit ? (
         <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} />
       ) : question.type === 'match' ? (
         reveal === null ? (
@@ -189,8 +213,22 @@ function Order({ board }: { board: BoardInfo }) {
   );
 }
 
+function FinalStage({ view }: { view: StageView }) {
+  if (view.round === null || view.final === null) return null;
+  const { final } = view;
+  const theme = final.theme.trim() === '' ? t('finalLabel') : final.theme;
+  return (
+    <div className="stage-board">
+      <p className="meta">{t('finalLabel')}</p>
+      <h1 className="question wager-theme">{theme}</h1>
+      {view.phase === 'wager' && <p className="lead">{t('finalStageWagers', { placed: final.placed, total: final.total })}</p>}
+    </div>
+  );
+}
+
 function Intro({ view }: { view: StageView }) {
   if (view.round === null) return null;
+  if (view.round.type === 'final') return <FinalStage view={view} />;
   return (
     <div className="stage-board">
       <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
@@ -226,6 +264,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} />}
+      {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && (

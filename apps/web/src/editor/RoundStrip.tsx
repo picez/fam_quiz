@@ -58,6 +58,9 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
             <button type="button" className="btn btn-small" onClick={() => add('board')}>
               {t('roundTypeBoard')}
             </button>
+            <button type="button" className="btn btn-small" onClick={() => add('final')}>
+              {t('roundTypeFinal')}
+            </button>
           </>
         )}
         {several && (

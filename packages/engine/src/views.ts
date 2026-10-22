@@ -10,6 +10,9 @@ import {
   type BoardInfo,
   type CellMark,
   type Choice,
+  type FinalEntry,
+  type FinalInfo,
+  type HostFinal,
   type HostBlitz,
   type HostBoard,
   type PlayerBlitz,
@@ -23,8 +26,9 @@ import {
   type Spotlight,
   type Standing,
   type StageView,
+  rulesOf,
 } from '@quiz/shared';
-import { currentRound, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
+import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
 import { attemptsUsed, blitzRulesOf } from './blitz';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
 import { pendingOf } from './hold';
@@ -34,7 +38,7 @@ import { isTimed, remainingOf } from './timing';
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
 // У цих етапах запитання ще (або вже) немає: журнал показує лише останнє зігране.
-const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'board', 'round_end'];
+const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'board', 'wager', 'round_end'];
 
 /** Чи є поточне запитання. На finished останнє зігране показуємо, лише якщо воно з поточного раунду (інакше гру завершено з intro). */
 function inQuestion(state: GameState): boolean {
@@ -87,7 +91,7 @@ function roundInfo(state: GameState): RoundInfo | null {
     total: state.quiz.rounds.length,
     title: round.title,
     type: round.type,
-    partial: round.rules.partial !== null,
+    partial: rulesOf(round).partial !== null,
   };
 }
 
@@ -265,6 +269,93 @@ function spotlightOf(state: GameState): Spotlight | null {
   return { ...blitzPlayer(state, open.board.chooserId), answer: record.answer, grade: record.grade };
 }
 
+const FINAL_PHASES: Phase[] = ['intro', 'wager', 'question', 'locked', 'reveal'];
+
+/** Раунд фіналу в етапі, де показують дані фіналу; інакше null. */
+function finalRoundOf(state: GameState) {
+  const round = currentRound(state);
+  return round?.type === 'final' && state.final !== null && FINAL_PHASES.includes(state.phase)
+    ? { round, final: state.final }
+    : null;
+}
+
+/** Записи гравців із записом на запитання фіналу; після входу в reveal — у порядку розкриття, інакше в порядку гравців. */
+function finalEntries(state: GameState): FinalEntry[] {
+  const open = finalRoundOf(state);
+  const play = inQuestion(state) ? state.plays[state.questionIndex] : undefined;
+  if (open === null || play?.final === undefined) return [];
+  const wagers = play.final.wagers;
+  const entries = state.players.flatMap((player): FinalEntry[] => {
+    const record = recordOf(state, state.questionIndex, player.id);
+    if (record === undefined) return [];
+    return [
+      {
+        playerId: player.id,
+        nickname: player.nickname,
+        answer: record.answer,
+        grade: record.grade,
+        wager: Object.hasOwn(wagers, player.id) ? wagers[player.id] : 0,
+        before: player.score - record.points,
+        after: player.score,
+      },
+    ];
+  });
+  const place = (id: string) => {
+    const index = open.final.order.indexOf(id);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return open.final.order.length === 0 ? entries : [...entries].sort((a, b) => place(a.playerId) - place(b.playerId));
+}
+
+function finalInfo(state: GameState): FinalInfo | null {
+  const open = finalRoundOf(state);
+  if (open === null) return null;
+  const reveal = state.phase === 'reveal';
+  return {
+    theme: open.round.title,
+    placed: state.players.filter((p) => Object.hasOwn(open.final.wagers, p.id)).length,
+    total: state.players.length,
+    shown: reveal ? finalEntries(state).filter((entry) => finalShown(state, entry.playerId)) : [],
+    left: reveal ? Math.max(0, open.final.order.length - open.final.shown) : 0,
+  };
+}
+
+function hostFinal(state: GameState): HostFinal | null {
+  const info = finalInfo(state);
+  const open = finalRoundOf(state);
+  if (info === null || open === null) return null;
+  const manual = open.round.check === 'manual';
+  const graded = state.plays[state.questionIndex]?.final?.graded ?? [];
+  const entries = finalEntries(state);
+  return {
+    ...info,
+    wagers: state.players.map((p) => ({
+      playerId: p.id,
+      nickname: p.nickname,
+      wager: Object.hasOwn(open.final.wagers, p.id) ? open.final.wagers[p.id] : null,
+      limit: Object.hasOwn(open.final.limits, p.id) ? open.final.limits[p.id] : 0,
+    })),
+    entries,
+    manual,
+    pending: manual
+      ? entries.flatMap((entry) =>
+          entry.answer === null || graded.includes(entry.playerId)
+            ? []
+            : [{ playerId: entry.playerId, nickname: entry.nickname, answer: entry.answer }],
+        )
+      : [],
+  };
+}
+
+function playerFinal(state: GameState, playerId: string): { wager: number | null; limit: number } | null {
+  const open = finalRoundOf(state);
+  if (open === null) return null;
+  return {
+    wager: Object.hasOwn(open.final.wagers, playerId) ? open.final.wagers[playerId] : null,
+    limit: Object.hasOwn(open.final.limits, playerId) ? open.final.limits[playerId] : 0,
+  };
+}
+
 function base(state: GameState) {
   // Під час утримання годинник стоїть: клієнти не рахують від endsAt.
   const held = state.heldAt !== null;
@@ -284,6 +375,7 @@ function base(state: GameState) {
     blitz: blitzInfo(state),
     board: boardInfo(state, false),
     spotlight: spotlightOf(state),
+    final: finalInfo(state),
   };
 }
 
@@ -330,7 +422,8 @@ export function stageView(state: GameState): StageView {
     role: 'stage',
     players: state.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected, streak: shownStreak(state, p) })),
     reveal: revealed,
-    stats: revealed !== null ? revealStats(state, revealed) : null,
+    // У фіналі лічильники видали б результат ще не розкритих гравців.
+    stats: revealed !== null && currentRound(state)?.type !== 'final' ? revealStats(state, revealed) : null,
     standings: publicStandings(state),
   };
 }
@@ -350,7 +443,9 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   const revealed = isRevealed(state);
   const standings = publicStandings(state);
   // На етапі locked бали за поточне запитання ще не показуємо: це видало б правильність до розкриття.
-  const hidden = state.phase === 'locked' && record !== undefined ? record.points : 0;
+  // У фіналі рахунок гравця змінюється лише в мить його розкриття.
+  const concealed = state.phase === 'locked' || (state.phase === 'reveal' && !finalShown(state, playerId));
+  const hidden = concealed && record !== undefined ? record.points : 0;
   return {
     ...base(state),
     role: 'player',
@@ -363,7 +458,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
       answer: queued === undefined ? (record?.answer ?? pending) : queued,
       result:
-        revealed && record !== undefined
+        revealed && record !== undefined && finalShown(state, playerId)
           ? {
               accepted: record.accepted,
               accuracy: record.accuracy,
@@ -373,6 +468,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
             }
           : null,
       blitz: playerBlitz(state, playerId),
+      final: playerFinal(state, playerId),
     },
     reveal: revealed ? currentQuestion(state) : null,
     standings,
@@ -411,6 +507,7 @@ export function hostView(state: GameState): HostView {
     responses,
     blitz: hostBlitz(state),
     board: hostBoard(state),
+    final: hostFinal(state),
     standings: rankPlayers(state.players),
   };
 }

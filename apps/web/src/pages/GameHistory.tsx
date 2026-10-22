@@ -94,6 +94,18 @@ export function GameHistory() {
                         </>
                       )}
                       <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
+                      {question.final !== null && (
+                        <div className="wager-list">
+                          <h4>{t('historyFinal')}</h4>
+                          <ul>
+                            {question.final.entries.map((entry, at) => (
+                              <li key={at} className={entry.accepted ? 'is-correct' : 'is-wrong'}>
+                                {t('finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) })}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       {question.responses.length > 0 && (
                         <details className="responses">
                           <summary>{t('responsesTitle', { count: question.responses.length })}</summary>

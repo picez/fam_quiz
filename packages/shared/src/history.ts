@@ -59,6 +59,10 @@ export interface GameQuestionResult {
   question: Question;
   /** Відповіді в порядку: учасник за турнірною таблицею, потім номер спроби. */
   responses: GameResponse[];
+  /** Запитання фіналу: ставки й результати учасників за турнірною таблицею; null поза фіналом. */
+  final: {
+    entries: { nickname: string; answer: Answer | null; wager: number; points: number; accepted: boolean }[];
+  } | null;
 }
 
 /** Зіграна гра очима ведучого. */

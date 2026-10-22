@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { quizSchema, roundQuestions, type BoardRound, type Quiz } from '@quiz/shared';
+import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
 import { newBoardRound, newClassicRound, newQuestion, newQuiz } from './draft';
 import { QuizEditor } from './QuizEditor';
@@ -20,7 +20,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал') => {
   click('+ Раунд');
   click(type);
 };
@@ -810,7 +810,7 @@ describe('QuizEditor: cancelled drag', () => {
       await waitFor(() => expect(onSave).toHaveBeenCalled());
       const [round] = saved(onSave).rounds;
       expect(round.title).toBe('Розминка');
-      expect(round.rules).toEqual({
+      expect(rulesOf(round)).toEqual({
         penalty: 'minus',
         partial: 40,
         streak: { length: 3, bonus: { kind: 'fixed', value: 250 } },
@@ -825,7 +825,7 @@ describe('QuizEditor: cancelled drag', () => {
       fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
       click('Зберегти');
       await waitFor(() => expect(onSave).toHaveBeenCalled());
-      expect(saved(onSave).rounds[0].rules).toEqual({ penalty: 'none', partial: null, streak: null, multiplier: 1 });
+      expect(rulesOf(saved(onSave).rounds[0])).toEqual({ penalty: 'none', partial: null, streak: null, multiplier: 1 });
     });
   });
 });
@@ -1071,5 +1071,50 @@ describe('QuizEditor: YouTube video', () => {
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: 30 });
+  });
+});
+
+describe('QuizEditor: final round', () => {
+  const addFinal = () => {
+    open();
+    addRound('Фінал');
+  };
+
+  it('adds a final round with a theme and a question and saves it', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Фінал');
+    fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
+    fill(t('finalTheme'), 'Космос');
+    fill('Текст запитання', 'Яка планета перша від Сонця?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
+    expect(screen.queryByRole('button', { name: t('addQuestion') })).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(quiz.rounds[1]).toMatchObject({ type: 'final', title: 'Космос', check: 'auto' });
+    expect(roundQuestions(quiz.rounds[1])).toHaveLength(1);
+  });
+
+  it('final settings show only the theme, shuffle and check', () => {
+    addFinal();
+    expect(screen.getByLabelText(t('finalTheme'))).toBeTruthy();
+    expect(screen.getByLabelText(t('shuffleOptions'))).toBeTruthy();
+    expect(screen.getByLabelText(t('finalCheck'))).toBeTruthy();
+    for (const key of ['speedBonus', 'ruleMinus', 'ruleStreak', 'ruleMultiplier'] as const) {
+      expect(screen.queryByLabelText(t(key)), key).toBeNull();
+    }
+    expect(screen.queryByText(t('sameTimeTitle'))).toBeNull();
+  });
+
+  it('a final question with a video hides the time field', () => {
+    addFinal();
+    expect(screen.getByLabelText('Час, с')).toBeTruthy();
+    fill('Відео з YouTube', 'https://youtu.be/dQw4w9WgXcQ');
+    expect(screen.queryByLabelText('Час, с')).toBeNull();
   });
 });

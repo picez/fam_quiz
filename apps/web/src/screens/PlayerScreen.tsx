@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { Answer, PlayerBlitz, PlayerView } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, signed } from '../format';
 import { errorText, t } from '../i18n';
@@ -40,6 +40,77 @@ function Result({ view }: { view: PlayerView }) {
           {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}
         </p>
       )}
+    </section>
+  );
+}
+
+/** Ставка гравця у фіналі: числове поле (його можна змінити) або єдина ставка 0. */
+function WagerForm({
+  final,
+  send,
+  onError,
+}: {
+  final: { wager: number | null; limit: number };
+  send: Send;
+  onError: (message: string | null) => void;
+}) {
+  const [value, setValue] = useState(final.wager === null ? '' : String(final.wager));
+  const place = async (amount: number) => {
+    const result = await send('player:wager', { amount });
+    onError(result.ok ? null : errorText(result.error));
+  };
+  const amount = value.trim() === '' ? Number.NaN : Number(value);
+  const valid = Number.isInteger(amount) && amount >= 0 && amount <= final.limit;
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (valid) void place(amount);
+  };
+  return (
+    <section className="wager-form">
+      {final.limit > 0 ? (
+        <form onSubmit={submit}>
+          <p className="lead">{t('finalWagerPrompt', { limit: final.limit })}</p>
+          <label className="field">
+            <span className="meta">{t('finalWagerLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={final.limit}
+              step={1}
+              placeholder={t('finalWagerPlaceholder', { limit: final.limit })}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+            />
+          </label>
+          <button type="submit" className="btn btn-primary" disabled={!valid}>
+            {t('finalPlace')}
+          </button>
+        </form>
+      ) : (
+        <>
+          <p className="lead">{t('finalZeroScore')}</p>
+          <button type="button" className="btn btn-primary" onClick={() => void place(0)}>
+            {t('finalPlaceZero')}
+          </button>
+        </>
+      )}
+      {final.wager !== null && <p className="wager-mine">{t('finalMyWager', { wager: final.wager })}</p>}
+    </section>
+  );
+}
+
+/** Результат гравця у фіналі: «+ставка» або «−ставка» і новий рахунок; до свого розкриття очікування. */
+function FinalResult({ view }: { view: PlayerView }) {
+  const { result } = view.me;
+  if (result === null) return <p className="lead">{t('finalWaitReveal')}</p>;
+  const won = result.grade === 'correct';
+  return (
+    <section className={`result ${won ? 'is-correct' : 'is-wrong'}`}>
+      <h2>{t(won ? 'resultCorrect' : 'resultWrong')}</h2>
+      <p className="wager-delta">{signed(result.points)}</p>
+      <p>{t('finalNewScore', { score: num(view.me.score) })}</p>
+      {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
     </section>
   );
 }
@@ -92,6 +163,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
+        </>
+      )}
+
+      {phase === 'wager' && me.final !== null && (
+        <>
+          {view.round !== null && <p className="meta">{roundLabel(view.round.title, view.round.index, view.round.type)}</p>}
+          <WagerForm key={me.final.limit} final={me.final} send={send} onError={setError} />
         </>
       )}
 
@@ -169,7 +247,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'reveal' && (
         <>
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
-          {board !== null && !chooserIsMe && view.blitz === null ? (
+          {view.final !== null ? (
+            <FinalResult view={view} />
+          ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
               {question !== null && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} />}
               <h2>{t('boardAnswered', { name: chooserName })}</h2>

@@ -10,7 +10,9 @@ import {
   type Question,
   type Quiz,
   type BoardRound,
+  type FinalRound,
   type Round,
+  rulesOf,
 } from '@quiz/shared';
 import { applyVerdict, blitzDone, blitzRulesOf, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
@@ -18,7 +20,7 @@ import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, ent
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
-import { answerPoints, speedFactor, streakBonus } from './score';
+import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { isTimed, limitMsOf, timeOver } from './timing';
 
 export interface PlayerState {
@@ -81,6 +83,28 @@ export interface Play {
   extraMs: number;
   /** Клітинка поля, з якої відкрито запитання. */
   board?: BoardPlay;
+  /** Лише в запитанні раунду фіналу. */
+  final?: FinalPlay;
+}
+
+/** Фінал поточного раунду; null поза раундом фіналу. */
+export interface FinalState {
+  /** Межа ставки: max(0, рахунок) на вході в етап wager. */
+  limits: Record<string, number>;
+  /** Ставки; гравця без ставки тут немає. */
+  wagers: Record<string, number>;
+  /** Порядок розкриття; заповнюється на вході в reveal. */
+  order: string[];
+  /** Скільки гравців з order уже розкрито. */
+  shown: number;
+}
+
+/** Запитання фіналу в журналі. */
+export interface FinalPlay {
+  /** Ставка кожного гравця на мить відкриття запитання (без ставки — 0). */
+  wagers: Record<string, number>;
+  /** Кого ведучий уже оцінив вручну (check 'manual'). */
+  graded: string[];
 }
 
 /** Стан ходів у раунді поля. */
@@ -144,6 +168,8 @@ export interface GameState {
   board: BoardState | null;
   /** Відколи годинник запитання стоїть, бо відповідь чекає на ведучого; null — іде. */
   heldAt: number | null;
+  /** Фінал поточного раунду; null поза раундом фіналу. */
+  final: FinalState | null;
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -167,6 +193,7 @@ export function createGame(quiz: Quiz): GameState {
     pausedAt: null,
     board: null,
     heldAt: null,
+    final: null,
   };
 }
 
@@ -213,19 +240,35 @@ export function removePlayer(state: GameState, playerId: string): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const plays = state.plays.map((play): Play => {
     const { [playerId]: _removed, ...rest } = play.answers;
-    if (play.blitz === undefined) return { ...play, answers: rest };
+    const kept: Play = { ...play, answers: rest };
+    if (play.final !== undefined) {
+      const { [playerId]: _wager, ...wagers } = play.final.wagers;
+      kept.final = { wagers, graded: play.final.graded.filter((id) => id !== playerId) };
+    }
+    if (play.blitz === undefined) return kept;
     const blitz = {
       queue: play.blitz.queue.filter((e) => e.playerId !== playerId),
       attempts: play.blitz.attempts.filter((a) => a.playerId !== playerId),
       buzzed: play.blitz.buzzed.filter((id) => id !== playerId),
     };
-    return { ...play, answers: rest, blitz };
+    return { ...kept, blitz };
   });
   // Гравець зникає з кола; відлік відсутності скидається, його заново ставить tick.
   const board = state.board === null ? null : { ...dropFromCircle(state.board, playerId), awaySince: null };
-  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board };
+  const final = state.final === null ? null : dropFromFinal(state.final, playerId);
+  // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
+  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final };
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
+}
+
+/** Гравець зникає з меж, ставок і порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */
+function dropFromFinal(final: FinalState, playerId: string): FinalState {
+  const { [playerId]: _limit, ...limits } = final.limits;
+  const { [playerId]: _wager, ...wagers } = final.wagers;
+  const index = final.order.indexOf(playerId);
+  const shown = index !== -1 && index < final.shown ? final.shown - 1 : final.shown;
+  return { limits, wagers, order: final.order.filter((id) => id !== playerId), shown };
 }
 
 export function setConnected(state: GameState, playerId: string, connected: boolean, now: number): Result {
@@ -330,6 +373,89 @@ export function openQuestion(state: GameState, question: Question, now: number, 
   );
 }
 
+/** Відкриває запитання фіналу; ставка кожного гравця знімається на цю мить, хто не поставив — грає з 0. */
+export function openFinalQuestion(state: GameState, now: number, rng: Rng): GameState {
+  const round = currentRound(state);
+  if (round?.type !== 'final' || state.final === null) return state;
+  const placed = state.final.wagers;
+  const wagers = Object.fromEntries(state.players.map((p) => [p.id, Object.hasOwn(placed, p.id) ? placed[p.id] : 0]));
+  const opened = openQuestion(state, round.questions[0], now, rng);
+  return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers, graded: [] } });
+}
+
+/** Замінює поточне запитання в журналі. */
+function withCurrentPlay(state: GameState, play: Play): GameState {
+  return { ...state, plays: state.plays.map((p, index) => (index === state.questionIndex ? play : p)) };
+}
+
+/** Запитання фіналу поточного раунду, якщо його вже відкрито; інакше undefined. */
+function finalPlayOf(state: GameState): (Play & { final: FinalPlay }) | undefined {
+  const play = state.plays[state.questionIndex];
+  if (state.final === null || play?.final === undefined || play.roundIndex !== state.roundIndex) return undefined;
+  return { ...play, final: play.final };
+}
+
+/** Ставка гравця, знята на відкритті запитання фіналу. */
+function wagerOf(final: FinalPlay, playerId: string): number {
+  return Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
+}
+
+/**
+ * Чи розкрито результат гравця у фіналі поточного запитання (для зрізів).
+ * Поза фіналом і без відкритого запитання фіналу — true; на question і locked — false;
+ * на reveal — лише для гравців, яких уже розкрито (перші `shown` в order).
+ */
+export function finalShown(state: GameState, playerId: string): boolean {
+  // Без відкритого запитання фіналу (зокрема, раунд завершено на ставках) розкривати нічого.
+  if (state.final === null || finalPlayOf(state) === undefined) return true;
+  if (state.phase === 'question' || state.phase === 'locked') return false;
+  const index = state.final.order.indexOf(playerId);
+  return index !== -1 && index < state.final.shown;
+}
+
+/** Кожен гравець без запису на запитання фіналу отримує «неправильно» без відповіді й −ставка. */
+function settleFinal(state: GameState): GameState {
+  const play = finalPlayOf(state);
+  if (play === undefined) return state;
+  let settled = state;
+  for (const player of state.players) {
+    if (recordOf(state, state.questionIndex, player.id) !== undefined) continue;
+    const points = finalPoints(wagerOf(play.final, player.id), false);
+    settled = withRecord(settled, player.id, {
+      answer: null,
+      timeMs: limitMsOf(play) ?? 0,
+      accepted: false,
+      accuracy: 0,
+      grade: 'wrong',
+      basePoints: points,
+      streakBonus: 0,
+      points,
+      overridden: false,
+    });
+  }
+  return settled;
+}
+
+/**
+ * Мовчання оцінюється, рахунки перераховуються, а порядок розкриття фіксується (якщо його ще немає):
+ * за зростанням рахунку до фіналу, за рівності в порядку приєднання.
+ */
+function settleFinalWithOrder(state: GameState): GameState {
+  const totals = withTotals(settleFinal(state));
+  if (totals.final === null || totals.final.order.length > 0) return totals;
+  const before = (player: PlayerState) => player.score - (recordOf(totals, totals.questionIndex, player.id)?.points ?? 0);
+  // Array.prototype.sort стабільний: рівні лишаються в порядку state.players.
+  const order = [...totals.players].sort((a, b) => before(a) - before(b)).map((p) => p.id);
+  return { ...totals, final: { ...totals.final, order } };
+}
+
+/** Після відкриття запитання фіналу дострокове завершення оцінює всіх і вважає всіх розкритими. */
+function closeFinal(state: GameState): GameState {
+  if (finalPlayOf(state) === undefined) return withTotals(state);
+  const settled = settleFinalWithOrder(state);
+  return settled.final === null ? settled : { ...settled, final: { ...settled.final, shown: settled.final.order.length } };
+}
+
 /** Скидає відлік відсутності гравця, чий хід. */
 function clearAway(board: BoardState | null): BoardState | null {
   return board === null ? null : { ...board, awaySince: null };
@@ -357,7 +483,7 @@ export function streakCounts(state: GameState, upTo: number): Record<string, num
   const last = state.plays[upTo - 1];
   if (last === undefined) return {};
   const round = state.quiz.rounds[last.roundIndex];
-  if (round.rules.streak === null) return {};
+  if (rulesOf(round).streak === null) return {};
   const counts: Record<string, number> = {};
   for (const player of state.players) {
     let count = 0;
@@ -388,7 +514,7 @@ function withTotals(state: GameState): GameState {
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
     if (index >= closedCount) return play;
-    const streak = state.quiz.rounds[play.roundIndex].rules.streak;
+    const streak = rulesOf(state.quiz.rounds[play.roundIndex]).streak;
     if (streak === null) return play;
     // Серія враховує і саме це запитання.
     const counters = streakCounts(state, index + 1);
@@ -454,10 +580,10 @@ function autoLock(state: GameState): GameState {
 export function start(state: GameState, now: number, rng: Rng = Math.random): Result {
   if (state.phase !== 'lobby') return fail('wrong_phase');
   if (state.players.length === 0) return fail('no_players');
-  const isBoard = state.quiz.rounds[0]?.type === 'board';
-  const first = { ...state, roundIndex: 0, board: isBoard ? initBoard(state) : null };
-  // Вікторина з одним раундом обходиться без заставки, як і раніше; раунд поля завжди з заставкою.
-  if (state.quiz.rounds.length > 1 || isBoard) return ok({ ...first, phase: 'intro' });
+  const type = state.quiz.rounds[0]?.type;
+  const first = enterRound({ ...state, roundIndex: 0 });
+  // Вікторина з одним раундом обходиться без заставки, як і раніше; поле й фінал завжди з заставкою.
+  if (state.quiz.rounds.length > 1 || type === 'board' || type === 'final') return ok({ ...first, phase: 'intro' });
   return ok(advance(first, now, rng));
 }
 
@@ -474,6 +600,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     return submitBlitzAnswer(state, playerId, answer, now);
   }
   if (round.type === 'board') return submitBoardAnswer(state, round, playerId, answer, now);
+  if (round.type === 'final') return submitFinalAnswer(state, round, playerId, answer, now);
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
   if (question.type !== answer.type) return fail('type_mismatch');
@@ -486,8 +613,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     points: question.points,
     accuracy,
     speed,
-    multiplier: round.rules.multiplier,
-    penalty: round.rules.penalty,
+    multiplier: rulesOf(round).multiplier,
+    penalty: rulesOf(round).penalty,
   });
   const record: AnswerRecord = {
     answer,
@@ -495,6 +622,32 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     accepted,
     accuracy,
     grade: gradeOf(accuracy),
+    basePoints: points,
+    streakBonus: 0,
+    points,
+    overridden: false,
+  };
+  return ok(autoLock(withRecord(state, playerId, record)));
+}
+
+/**
+ * Відповідь у фіналі: лише «правильно» (+ставка) або «неправильно» (−ставка), без часткових балів.
+ * За ручної перевірки запис тимчасовий («неправильно»), доки ведучий не оцінить.
+ */
+function submitFinalAnswer(state: GameState, round: FinalRound, playerId: string, answer: Answer, now: number): Result {
+  const play = state.plays[state.questionIndex];
+  if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
+  if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
+  if (play.question.type !== answer.type) return fail('type_mismatch');
+  const wager = play.final === undefined ? 0 : wagerOf(play.final, playerId);
+  const correct = round.check === 'auto' && checkAnswer(play.question, answer).accuracy === 1;
+  const points = finalPoints(wager, correct);
+  const record: AnswerRecord = {
+    answer,
+    timeMs: Math.max(0, now - state.startedAt),
+    accepted: correct,
+    accuracy: correct ? 1 : 0,
+    grade: correct ? 'correct' : 'wrong',
     basePoints: points,
     streakBonus: 0,
     points,
@@ -533,7 +686,7 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
 
   const checked = checkAnswer(play.question, pending.answer);
   // Часткові бали лише за увімкненого правила; інакше неповна відповідь неправильна.
-  const accuracy = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && round.rules.partial !== null ? checked.accuracy : 0;
+  const accuracy = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && rulesOf(round).partial !== null ? checked.accuracy : 0;
   const points = boardPoints(round, play.board, accuracy);
   const record: AnswerRecord = {
     answer: pending.answer,
@@ -658,9 +811,20 @@ function unansweredIsWrong(state: GameState): GameState {
   });
 }
 
-/** Ходи раунду поля починаються з нуля. */
+/** Ходи раунду поля й ставки фіналу починаються з нуля. */
 function enterRound(state: GameState): GameState {
-  return { ...state, board: state.quiz.rounds[state.roundIndex]?.type === 'board' ? initBoard(state) : null };
+  const type = state.quiz.rounds[state.roundIndex]?.type;
+  return {
+    ...state,
+    board: type === 'board' ? initBoard(state) : null,
+    final: type === 'final' ? { limits: {}, wagers: {}, order: [], shown: 0 } : null,
+  };
+}
+
+/** Заставка фіналу → таємні ставки; межа ставки max(0, рахунок), таймера немає. */
+function enterWager(state: GameState, final: FinalState): GameState {
+  const limits = Object.fromEntries(state.players.map((p) => [p.id, Math.max(0, p.score)]));
+  return { ...state, phase: 'wager', startedAt: null, endsAt: null, remainingMs: null, final: { ...final, limits } };
 }
 
 export function next(state: GameState, now: number, rng: Rng = Math.random): Result {
@@ -668,10 +832,19 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   switch (state.phase) {
     case 'intro':
       if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
+      if (state.final !== null) return ok(enterWager(state, state.final));
       return ok(advance(state, now, rng));
+    case 'wager':
+      return ok(openFinalQuestion(state, now, rng));
     case 'locked':
+      if (finalPlayOf(state) !== undefined) return ok(settleFinalWithOrder({ ...state, phase: 'reveal' }));
       return ok(currentRound(state)?.type === 'board' ? withTotals(unansweredIsWrong({ ...state, phase: 'reveal' })) : { ...state, phase: 'reveal' });
     case 'reveal':
+      if (state.final !== null && finalPlayOf(state) !== undefined) {
+        // Гравці розкриваються по одному; рейтингу між запитаннями після фіналу немає.
+        if (state.final.shown < state.final.order.length) return ok({ ...state, final: { ...state.final, shown: state.final.shown + 1 } });
+        return ok(finishRound(state));
+      }
       if (currentRound(state)?.type === 'board') {
         if (!hasActiveCells(state)) return ok(finishRound(state));
         return ok(state.quiz.settings.leaderboard === 'each' ? { ...state, phase: 'leaderboard' } : enterBoard(state, now));
@@ -690,14 +863,16 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   }
 }
 
-const IN_ROUND: Phase[] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
+const IN_ROUND: Phase[] = ['intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
 /** Ведучий завершує раунд достроково; незіграні запитання раунду так і лишаються незіграними. */
 export function endRound(state: GameState, now: number): Result {
   if (!IN_ROUND.includes(state.phase)) return fail('wrong_phase');
   // Відкрите запитання спершу закривається й оцінюється, як при lock.
   const closed = state.phase === 'question' ? lockNow(state) : state;
-  return ok(finishRound({ ...closed, paused: false, startedAt: null, endsAt: null, remainingMs: null }));
+  // Після відкриття запитання фіналу мовчання оцінюється, а всіх вважають розкритими.
+  const settled = finalPlayOf(closed) !== undefined ? closeFinal(closed) : closed;
+  return ok(finishRound({ ...settled, paused: false, startedAt: null, endsAt: null, remainingMs: null }));
 }
 
 export function pause(state: GameState, now: number): Result {
@@ -754,8 +929,8 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   if (board.kind === 'blitz') return fail('wrong_phase');
   if (phase === 'question' && board.answerMode !== 'voice' && board.answer === null) return fail('wrong_phase');
   if (playerId !== board.chooserId || !state.players.some((p) => p.id === playerId)) return fail('not_found');
-  if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
-  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
+  if (grade === 'partial' && rulesOf(round).partial === null) return fail('partial_disabled');
+  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
   const existing = recordOf(state, state.questionIndex, playerId);
   const limitMs = limitMsOf(play) ?? 0;
   const spentMs =
@@ -778,10 +953,35 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   return ok(board.answer !== null ? revealNow(graded) : lockNow(graded));
 }
 
+/** Оцінка ведучого у фіналі: після закриття й на розкритті; лише для гравця з відповіддю, без «частково». */
+function overrideFinal(state: GameState, playerId: string, grade: Grade): Result {
+  const play = finalPlayOf(state);
+  if (play === undefined || (state.phase !== 'locked' && state.phase !== 'reveal')) return fail('wrong_phase');
+  const record = recordOf(state, state.questionIndex, playerId);
+  if (!state.players.some((p) => p.id === playerId) || record === undefined || record.answer === null) return fail('not_found');
+  if (grade === 'partial') return fail('partial_disabled');
+  const correct = grade === 'correct';
+  const points = finalPoints(wagerOf(play.final, playerId), correct);
+  const updated: AnswerRecord = {
+    ...record,
+    accepted: correct,
+    accuracy: correct ? 1 : 0,
+    grade,
+    basePoints: points,
+    streakBonus: 0,
+    points,
+    overridden: state.phase === 'reveal',
+  };
+  const graded = play.final.graded.includes(playerId) ? play.final.graded : [...play.final.graded, playerId];
+  const recorded = withRecord(state, playerId, updated);
+  return ok(withTotals(withCurrentPlay(recorded, { ...recorded.plays[recorded.questionIndex], final: { ...play.final, graded } })));
+}
+
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
+  if (current?.type === 'final') return overrideFinal(state, playerId, grade);
   if (state.phase !== 'reveal') return fail('wrong_phase');
   const play = state.plays[state.questionIndex];
   const { question, roundIndex } = play;
@@ -790,16 +990,16 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   if (round.type === 'blitz') return fail('wrong_phase');
   const record = recordOf(state, state.questionIndex, playerId);
   if (record === undefined) return fail('not_found');
-  if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
-  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
+  if (grade === 'partial' && rulesOf(round).partial === null) return fail('partial_disabled');
+  const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
   const limit = limitMsOf(play);
   const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
   const points = answerPoints({
     points: question.points,
     accuracy,
     speed,
-    multiplier: round.rules.multiplier,
-    penalty: round.rules.penalty,
+    multiplier: rulesOf(round).multiplier,
+    penalty: rulesOf(round).penalty,
   });
   const updated: AnswerRecord = {
     ...record,
@@ -816,8 +1016,9 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
 
 export function end(state: GameState): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
+  // Поза фіналом closeFinal лише перераховує підсумки; у фіналі ще оцінює мовчання й розкриває всіх.
   return ok(
-    withTotals({
+    closeFinal({
       ...dropQueue(state),
       phase: 'finished',
       board: clearAway(state.board),
