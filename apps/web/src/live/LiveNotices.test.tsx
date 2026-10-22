@@ -53,6 +53,43 @@ describe('LiveNotices', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('uses the synced clock: a device two seconds behind still shows it for four seconds', () => {
+    render(<AdjustmentToast notice={notice({ at: NOW + 2000 })} offsetMs={2000} />);
+    expect(screen.queryByRole('status')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_MS - 1);
+    });
+    expect(screen.queryByRole('status')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('a notice three seconds old shows for the remaining second', () => {
+    render(<AdjustmentToast notice={notice({ at: NOW - 3000 })} offsetMs={0} />);
+    act(() => {
+      vi.advanceTimersByTime(999);
+    });
+    expect(screen.queryByRole('status')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('a late offset sync does not shorten or drop a fresh notice', () => {
+    const { rerender } = render(<AdjustmentToast notice={notice({ at: NOW + 2000 })} offsetMs={0} />);
+    rerender(<AdjustmentToast notice={notice({ at: NOW + 2000 })} offsetMs={2000} />);
+    expect(screen.queryByRole('status')).not.toBeNull();
+  });
+
+  it('unmounting clears the timer', () => {
+    const { unmount } = render(<AdjustmentToast notice={notice()} offsetMs={0} />);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('the notice is fixed and does not push the content', () => {
     const { container } = render(<AdjustmentToast notice={notice()} offsetMs={0} />);
     expect(container.children).toHaveLength(1);

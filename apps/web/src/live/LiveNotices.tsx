@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AdjustmentNotice, BlitzPlayer } from '@quiz/shared';
 import { signed } from '../format';
 import { t } from '../i18n';
@@ -9,13 +9,16 @@ export const NOTICE_MS = 4000;
 /** Видиме сповіщення: нове (seq або at змінилися) і молодше за NOTICE_MS за часом сервера; ховається таймером. */
 export function useNotice(notice: AdjustmentNotice | null, offsetMs: number): AdjustmentNotice | null {
   const [shown, setShown] = useState<AdjustmentNotice | null>(null);
+  // Зсув годинника доходить після першого зрізу; ефект читає найсвіжіший.
+  const offsetRef = useRef(offsetMs);
+  offsetRef.current = offsetMs;
   const key = notice === null ? null : `${notice.seq}-${notice.at}`;
   useEffect(() => {
     if (notice === null) {
       setShown(null);
       return;
     }
-    const left = NOTICE_MS - (Date.now() + offsetMs - notice.at);
+    const left = NOTICE_MS - (Date.now() + offsetRef.current - notice.at);
     if (left <= 0) {
       setShown(null);
       return;
@@ -23,7 +26,7 @@ export function useNotice(notice: AdjustmentNotice | null, offsetMs: number): Ad
     setShown(notice);
     const timer = setTimeout(() => setShown(null), left);
     return () => clearTimeout(timer);
-    // Ключ — єдина ознака нового сповіщення; offsetMs перераховується з кожним оновленням і не має його перезапускати.
+    // Ключ — єдина ознака нового сповіщення; notice і offsetMs читаються в мить його появи.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return shown;

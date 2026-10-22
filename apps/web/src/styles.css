@@ -3248,7 +3248,7 @@ button.match-item {
 /* Сповіщення про бали й значки дебафів: position: fixed, тож ніщо на екрані не зсувається. */
 .live-notice {
   position: fixed;
-  top: 0.75rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
@@ -3273,12 +3273,13 @@ button.match-item {
 
 .stage-debuffs {
   position: fixed;
-  top: 0.75rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
   right: 0.75rem;
   z-index: 50;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 30vw;
   gap: 0.4rem;
   margin: 0;
   padding: 0;
