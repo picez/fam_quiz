@@ -1,5 +1,5 @@
 import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty } from '@quiz/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { t } from '../i18n';
 import { moveItem, newBoardCategory, newBoardQuestion } from './draft';
 import { QuestionEditor } from './QuestionEditor';
@@ -20,7 +20,8 @@ const pick = <T extends string>(values: readonly T[], value: string, fallback: T
 const toMark = (value: string): CellMark => (value === 'x2' ? 'x2' : value === 'x3' ? 'x3' : 'none');
 
 /**
- * Редактор поля: стовпці-категорії з клітинками, під ними кнопка нового запитання;
+ * Редактор поля: стовпці-категорії з клітинками, під ними кнопка нового запитання,
+ * а під стовпцем вибраної клітинки ще й «Прибрати запитання» (вимкнена на мінімумі, з підказкою);
  * вибрана клітинка відкривається внизу з позначкою й звичайним редактором запитання.
  */
 export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true }: Props) {
@@ -34,6 +35,8 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
   const { cells } = categories[category];
   const index = Math.min(picked.index, cells.length - 1);
   const current = cells[index];
+  const hintId = useId();
+  const atMin = cells.length <= LIMITS.minCategoryQuestions;
   const room = roomForMore && categories.reduce((sum, c) => sum + c.cells.length, 0) < LIMITS.maxQuestions;
 
   const setCategories = (next: BoardCategory[]) => onChange({ ...round, categories: next });
@@ -121,6 +124,24 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
                   {t('boardAddCell')}
                 </button>
               )}
+              {columnIndex === category && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-small btn-danger"
+                    disabled={atMin}
+                    aria-describedby={atMin ? hintId : undefined}
+                    onClick={removeCell}
+                  >
+                    {t('boardRemoveCell')}
+                  </button>
+                  {atMin && (
+                    <p id={hintId} className="meta board-edit-hint">
+                      {t('boardCellMinHint', { min: LIMITS.minCategoryQuestions })}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           ))}
           {categories.length < LIMITS.maxCategories && (
@@ -180,11 +201,6 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           >
             {t('moveDownShort')}
           </button>
-          {cells.length > LIMITS.minCategoryQuestions && (
-            <button type="button" className="btn btn-small btn-danger" onClick={removeCell}>
-              {t('boardRemoveCell')}
-            </button>
-          )}
         </div>
       </section>
     </div>

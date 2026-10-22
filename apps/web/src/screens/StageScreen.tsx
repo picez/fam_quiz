@@ -233,7 +233,7 @@ function Intro({ view }: { view: StageView }) {
   if (view.round.type === 'final') return <FinalStage view={view} />;
   return (
     <div className="stage-board">
-      <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>
+      {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundBriefing brief={view.round.brief} description={view.round.description} />
       {view.board !== null && (

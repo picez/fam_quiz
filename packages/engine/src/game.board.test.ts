@@ -39,7 +39,7 @@ const field = () =>
 /** Гра на етапі вибору клітинки (після заставки). */
 function onBoard(round = field(), settings = {}): GameState {
   const quiz = makeRoundsQuiz([round], settings);
-  const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0));
+  const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра')));
   return must(next(intro, 0));
 }
 
@@ -53,7 +53,7 @@ function finishCell(state: GameState): GameState {
 describe('board turns', () => {
   it('a board round always starts with an intro and the join order', () => {
     const quiz = makeRoundsQuiz([field()]);
-    const state = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0));
+    const state = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра')));
     expect(state.phase).toBe('intro');
     expect(state.board?.circle).toEqual(['p1', 'p2', 'p3']);
     expect(state.board?.done).toBe(0);
@@ -61,7 +61,7 @@ describe('board turns', () => {
 
   it('the host sets the order or rolls the dice before the round starts', () => {
     const quiz = makeRoundsQuiz([field()]);
-    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра')));
     expect(must(setOrder(intro, ['p3', 'p1', 'p2'])).board?.circle).toEqual(['p3', 'p1', 'p2']);
     expect(setOrder(intro, ['p1', 'p2'])).toEqual({ ok: false, error: 'not_found' });
     expect(setOrder(intro, ['p1', 'p2', 'p9'])).toEqual({ ok: false, error: 'not_found' });
@@ -146,7 +146,7 @@ describe('board turns', () => {
 
   it('the host can end the board round while a player is choosing', () => {
     const quiz = makeRoundsQuiz([field(), classicRound('r2', [single])]);
-    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан'), 0));
+    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан')));
     const choosing = must(next(intro, 0));
     expect(choosing.phase).toBe('board');
     const ended = must(endRound(choosing, 0));
@@ -160,7 +160,7 @@ describe('board turns', () => {
   it('awaySince is cleared when the turn is picked or the round ends', () => {
     const quiz = makeRoundsQuiz([field(), classicRound('r2', [single])]);
     const lobby = lobbyWith(quiz, 'Анна', 'Богдан', 'Віра');
-    const intro = must(start(must(setConnected(lobby, 'p1', false, 0)), 0));
+    const intro = must(start(must(setConnected(lobby, 'p1', false, 0))));
     const away = must(next(intro, 5000));
     expect(away.board?.awaySince).toBe(5000);
     expect(must(pickCell(away, null, 'c11', 6000, Math.random)).board?.awaySince).toBeNull();
@@ -173,7 +173,7 @@ describe('board turns', () => {
     expect(pickCell(paused, null, 'c11', 0, Math.random)).toEqual({ ok: false, error: 'paused' });
     expect(skipTurn(paused, 0)).toEqual({ ok: false, error: 'paused' });
     const quiz = makeRoundsQuiz([field()]);
-    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра')));
     expect(setOrder(intro, ['p1', 'p1', 'p2'])).toEqual({ ok: false, error: 'not_found' });
   });
 });

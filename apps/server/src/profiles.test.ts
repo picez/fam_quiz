@@ -130,6 +130,7 @@ describe('profile facts', () => {
     const step = (type: 'start' | 'lock' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
 
     step('start');
+    step('next');
     ctx.manager.answer(room, olenaId, { type: 'single', optionId: 'b' });
     ctx.manager.answer(room, tarasId, { type: 'single', optionId: 'a' });
     step('next');

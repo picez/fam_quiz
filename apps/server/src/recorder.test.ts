@@ -80,9 +80,20 @@ describe('recorder', () => {
     expect(answers).toEqual([]);
   });
 
+  it('records a game ended on the first intro without answers', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    ctx.host('end');
+    const { games, answers } = await ctx.saved();
+    expect(games).toHaveLength(1);
+    expect(games[0]).toMatchObject({ status: 'finished', questionsPlayed: 0, plays: [] });
+    expect(answers).toEqual([]);
+  });
+
   it('saves answers and scores once a question is closed, not on every answer', async () => {
     const ctx = await setup();
     ctx.host('start');
+    ctx.host('next');
     await ctx.recorder.idle();
     const writes = vi.spyOn(ctx.db, 'transaction');
 
@@ -107,6 +118,7 @@ describe('recorder', () => {
   it('saves a manual change of a grade', async () => {
     const ctx = await setup();
     ctx.host('start');
+    ctx.host('next');
     playFirstQuestion(ctx);
     ctx.host('next');
     expect(ctx.manager.host(ctx.room, { type: 'override', playerId: ctx.taras, grade: 'correct' })).toEqual({ ok: true });
@@ -122,6 +134,7 @@ describe('recorder', () => {
   it('saves the final places when the game ends', async () => {
     const ctx = await setup();
     ctx.host('start');
+    ctx.host('next');
     playFirstQuestion(ctx);
     ctx.host('next');
     ctx.host('next');
@@ -144,6 +157,7 @@ describe('recorder', () => {
   it('drops a removed player and their answers from the saved game', async () => {
     const ctx = await setup();
     ctx.host('start');
+    ctx.host('next');
     playFirstQuestion(ctx);
     expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.taras })).toEqual({ ok: true });
 
@@ -163,6 +177,7 @@ describe('recorder', () => {
   it('keeps the game going when the database fails and catches up on the next save', async () => {
     const ctx = await setup();
     ctx.host('start');
+    ctx.host('next');
     await ctx.recorder.idle();
 
     const transaction = vi.spyOn(ctx.db, 'transaction').mockRejectedValueOnce(new Error('database is down'));
@@ -207,6 +222,7 @@ describe('recorder: when saving fails', () => {
   it('writes every missed question once the database is back after a longer outage', async () => {
     const ctx = await setup();
     ctx.host('start');
+    ctx.host('next');
     await ctx.recorder.idle();
 
     const outage = down(ctx.db).mockRejectedValue(new Error('database is down'));
@@ -233,6 +249,7 @@ describe('recorder: when saving fails', () => {
   it('tries again by itself when nothing else happens in the room', async () => {
     const ctx = await setup(undefined, 10);
     ctx.host('start');
+    ctx.host('next');
     await ctx.recorder.idle();
 
     down(ctx.db).mockRejectedValueOnce(new Error('database is down'));
@@ -250,6 +267,7 @@ describe('recorder: when saving fails', () => {
   it('still saves the final result when the last save failed and the room has since closed', async () => {
     const ctx = await setup(undefined, 10);
     ctx.host('start');
+    ctx.host('next');
     playFirstQuestion(ctx);
     ctx.host('next');
     await ctx.recorder.idle();
@@ -273,6 +291,7 @@ describe('recorder: when saving fails', () => {
   it('gives up quietly after repeated failures instead of retrying forever', async () => {
     const ctx = await setup(undefined, 1, 4);
     ctx.host('start');
+    ctx.host('next');
     await ctx.recorder.idle();
     const outage = down(ctx.db).mockRejectedValue(new Error('database is down'));
     playFirstQuestion(ctx);
@@ -288,6 +307,7 @@ describe('recorder: manual decisions', () => {
   it('saves a decision that leaves the score unchanged', async () => {
     const ctx = await setup();
     ctx.host('start');
+    ctx.host('next');
     playFirstQuestion(ctx);
     ctx.host('next');
     await ctx.recorder.idle();
@@ -383,6 +403,7 @@ describe('recorder: blitz', () => {
     const olena = enter('Олена');
     enter('Тарас');
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     const answers = async () => {
       await recorder.idle();
       return db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.attempt));

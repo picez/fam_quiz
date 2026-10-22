@@ -239,6 +239,7 @@ const uk = {
   boardPenaltyAll: 'Мінус для всіх',
   boardCellBlitzSuffix: ' бліц',
   boardRemoveCell: 'Прибрати запитання',
+  boardCellMinHint: 'Щонайменше {min} запитання в категорії',
   boardCellUp: 'Запитання вище в категорії',
   boardCellDown: 'Запитання нижче в категорії',
   boardRemoveCellConfirm: 'Прибрати запитання разом із його текстом?',

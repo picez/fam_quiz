@@ -12,20 +12,20 @@ import {
   tick,
 } from './game';
 import { makeQuiz, match, numeric, order, single, text } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { lobbyWith, must, startRound } from './testing/helpers';
 
 const T0 = 1_000_000;
 const quiz = makeQuiz([single, text]);
 const correct = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
 
-const started = () => must(start(lobbyWith(quiz, 'Олена', 'Тарас'), T0));
+const started = () => startRound(lobbyWith(quiz, 'Олена', 'Тарас'), T0);
 const scores = (state: { players: { score: number; totalTimeMs: number }[] }) =>
   state.players.map((p) => [p.score, p.totalTimeMs]);
 
 describe('start', () => {
   it('requires at least one player', () => {
-    expect(start(createGame(quiz), T0)).toEqual({ ok: false, error: 'no_players' });
+    expect(start(createGame(quiz))).toEqual({ ok: false, error: 'no_players' });
   });
 
   it('opens the first question with a deadline', () => {
@@ -38,7 +38,7 @@ describe('start', () => {
   });
 
   it('cannot be called twice', () => {
-    expect(start(started(), T0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(start(started())).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('closes the room to new players', () => {
@@ -66,7 +66,7 @@ describe('submitAnswer', () => {
 
   it('grades an answer by its accuracy', () => {
     const quizOfNumbers = makeQuiz([numeric], { speedBonus: false });
-    let state = must(start(lobbyWith(quizOfNumbers, 'Олена', 'Тарас', 'Ірина'), T0));
+    let state = startRound(lobbyWith(quizOfNumbers, 'Олена', 'Тарас', 'Ірина'), T0);
     state = must(submitAnswer(state, 'p1', { type: 'numeric', value: 2061 }, T0 + 1000));
     state = must(submitAnswer(state, 'p2', { type: 'numeric', value: 2111 }, T0 + 1000));
     state = must(submitAnswer(state, 'p3', { type: 'numeric', value: 1 }, T0 + 1000));
@@ -76,7 +76,7 @@ describe('submitAnswer', () => {
 
   it('gives full points regardless of time when the speed bonus is off', () => {
     const flat = makeQuiz([single], { speedBonus: false });
-    const state = must(submitAnswer(must(start(lobbyWith(flat, 'Олена', 'Тарас'), T0)), 'p1', correct, T0 + 19_000));
+    const state = must(submitAnswer(startRound(lobbyWith(flat, 'Олена', 'Тарас'), T0), 'p1', correct, T0 + 19_000));
     expect(recordOf(state, 0, 'p1')?.points).toBe(1000);
   });
 
@@ -180,7 +180,7 @@ describe('next', () => {
 
   it('skips the leaderboard when it is shown only at the end', () => {
     const atEnd = makeQuiz([single, text], { leaderboard: 'end' });
-    const locked = must(lock(must(start(lobbyWith(atEnd, 'Олена'), T0))));
+    const locked = must(lock(startRound(lobbyWith(atEnd, 'Олена'), T0)));
     const reveal = must(next(locked, T0));
     const second = must(next(reveal, T0 + 1000));
     expect(second.phase).toBe('question');
@@ -195,24 +195,24 @@ describe('next', () => {
 describe('presented order', () => {
   it('never shows order items in the correct order', () => {
     const identity = () => 0.999;
-    const state = must(start(lobbyWith(makeQuiz([order]), 'Олена'), T0, identity));
+    const state = startRound(lobbyWith(makeQuiz([order]), 'Олена'), T0, identity);
     expect(state.presented).toEqual(['l', 'k', 'h', 'u']);
   });
 
   it('presents the right column of a match question shuffled even without shuffleOptions', () => {
     const rolls = [0.5, 0];
-    const state = must(start(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => rolls.shift() ?? 0));
+    const state = startRound(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => rolls.shift() ?? 0);
     expect(state.presented).toEqual(['z', 'x', 'y']);
   });
 
   it('never shows the right column in the author order', () => {
-    const state = must(start(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => 0.999));
+    const state = startRound(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => 0.999);
     expect(state.presented).toEqual(['y', 'z', 'x']);
   });
 
   it('shuffles options when the quiz asks for it', () => {
     const shuffled = makeQuiz([single], { shuffleOptions: true });
-    const state = must(start(lobbyWith(shuffled, 'Олена'), T0, () => 0));
+    const state = startRound(lobbyWith(shuffled, 'Олена'), T0, () => 0);
     expect(state.presented).toEqual(['b', 'c', 'a']);
   });
 });

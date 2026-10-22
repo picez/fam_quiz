@@ -15,13 +15,12 @@ import {
   repick,
   resume,
   setConnected,
-  start,
   submitAnswer,
   tick,
   type GameState,
 } from './game';
 import { classicRound, blitzRound, makeRoundsQuiz, single, text } from './testing/fixtures';
-import { acceptAll, lobbyWith, must } from './testing/helpers';
+import { acceptAll, lobbyWith, must, startRound } from './testing/helpers';
 
 const right = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
@@ -32,7 +31,7 @@ type Options = Partial<Omit<BlitzRound, 'id' | 'type' | 'questions'>>;
 /** Гра з одним раундом бліцу, перше запитання відкрите в момент 0. */
 function open(options: Options = {}, questions = [single, text]): GameState {
   const quiz = makeRoundsQuiz([blitzRound('b1', questions, options)]);
-  return must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0));
+  return startRound(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0);
 }
 
 /** Натискання й відповідь одного гравця; ведучий тисне «Прийняти». */
@@ -253,7 +252,7 @@ describe('blitz manual check, pause, kick and deadlines', () => {
   it('judge is refused on pause and in a classic round', () => {
     let state = must(submitAnswer(must(buzz(manual(), 'p1', 1000)), 'p1', right, 1500));
     expect(judge(must(pause(state, 2000)), 'p1', true, 2100)).toEqual({ ok: false, error: 'paused' });
-    state = must(start(lobbyWith(makeRoundsQuiz([classicRound('c1', [single])]), 'Анна'), 0));
+    state = startRound(lobbyWith(makeRoundsQuiz([classicRound('c1', [single])]), 'Анна'), 0);
     expect(judge(state, 'p1', true, 100)).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
@@ -317,7 +316,7 @@ describe('blitz manual check, pause, kick and deadlines', () => {
     expect(nextDeadline(state, 6000)).toBe(20000);
     expect(nextDeadline(state, 20000)).toBeNull();
     expect(nextDeadline(must(pause(state, 2000)), 2000)).toBeNull();
-    state = must(start(lobbyWith(makeRoundsQuiz([classicRound('c1', [single])]), 'Анна'), 0));
+    state = startRound(lobbyWith(makeRoundsQuiz([classicRound('c1', [single])]), 'Анна'), 0);
     expect(nextDeadline(state, 0)).toBe(20000);
   });
 

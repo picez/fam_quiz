@@ -158,6 +158,13 @@ describe('StageScreen: rounds', () => {
     expect(within(screen.getByRole('list', { name: 'Як нараховуються бали' })).getAllByRole('listitem')).toHaveLength(2);
   });
 
+  it('the intro of a one-round quiz shows the rules without a round counter', () => {
+    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 1');
+    expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
+    expect(screen.queryByText('Раунд 1 з 1')).toBeNull();
+  });
+
   it('names an untitled round «Раунд N» in the intro heading', () => {
     show(view({ phase: 'intro', round: { ...round, index: 1, title: '' } }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 2');

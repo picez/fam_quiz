@@ -5,7 +5,7 @@ import { pickCell } from './board';
 import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
 import { placeWager } from './final';
 import { blitzRound, boardRound, bool, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints, withVideo } from './testing/fixtures';
-import { acceptAll, lobbyWith, must } from './testing/helpers';
+import { acceptAll, lobbyWith, must, startRound } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
 const T0 = 1_000_000;
@@ -14,7 +14,7 @@ const correct = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
 
 const lobby = () => lobbyWith(quiz, 'Олена', 'Тарас');
-const open = () => must(start(lobby(), T0));
+const open = () => startRound(lobby(), T0);
 const oneAnswered = () => must(submitAnswer(open(), 'p1', correct, T0 + 10_000));
 const locked = () => must(submitAnswer(oneAnswered(), 'p2', wrong, T0 + 10_000));
 const reveal = () => must(next(locked(), T0 + 20_000));
@@ -96,12 +96,12 @@ describe('while a question is open', () => {
   });
 
   it('presents order items in the shuffled order', () => {
-    const state = must(start(lobbyWith(makeQuiz([order]), 'Олена'), T0, () => 0.999));
+    const state = startRound(lobbyWith(makeQuiz([order]), 'Олена'), T0, () => 0.999);
     expect(stageView(state).question?.choices.map((c) => c.id)).toEqual(['l', 'k', 'h', 'u']);
   });
 
   it('shows a match question as left in author order and right in the presented order', () => {
-    const state = must(start(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => 0.999));
+    const state = startRound(lobbyWith(makeQuiz([match]), 'Олена'), T0, () => 0.999);
     const right = [
       { id: 'y', text: 'Полтва' },
       { id: 'z', text: 'Уж' },
@@ -120,7 +120,7 @@ describe('while a question is open', () => {
   });
 
   it('does not leak the pairs of a match question to the stage or to players', () => {
-    const state = must(start(lobbyWith(makeQuiz([match]), 'Олена'), T0));
+    const state = startRound(lobbyWith(makeQuiz([match]), 'Олена'), T0);
     expect(JSON.stringify(stageView(state).question)).not.toContain('pairs');
     expect(JSON.stringify(playerView(state, 'p1')?.question)).not.toContain('pairs');
     expect(stageView(state).reveal).toBeNull();
@@ -131,7 +131,7 @@ describe('while a question is open', () => {
   });
 
   it('does not leak accepted spellings of a text question', () => {
-    const state = must(start(lobbyWith(makeQuiz([text]), 'Олена'), T0));
+    const state = startRound(lobbyWith(makeQuiz([text]), 'Олена'), T0);
     expect(JSON.stringify(playerView(state, 'p1'))).not.toContain('Одеса');
     expect(JSON.stringify(stageView(state))).not.toContain('Одеса');
   });
@@ -164,7 +164,7 @@ describe('after the question is locked', () => {
   });
 
   it('ignores unknown option ids of a multi-choice answer in statistics', () => {
-    const open = must(start(lobbyWith(makeQuiz([multi]), 'Олена'), T0));
+    const open = startRound(lobbyWith(makeQuiz([multi]), 'Олена'), T0);
     const forged = must(submitAnswer(open, 'p1', { type: 'multi', optionIds: ['a', 'zzz'] }, T0 + 1000));
     expect(stageView(must(next(forged, T0 + 2000))).stats?.counts).toEqual({ a: 1 });
   });
@@ -207,7 +207,7 @@ describe('rounds', () => {
     }
     return current;
   };
-  const started = () => must(start(lobbyWith(twoRounds(), 'Олена', 'Тарас'), T0));
+  const started = () => must(start(lobbyWith(twoRounds(), 'Олена', 'Тарас')));
   const atIntro2 = () => goTo(started(), 'intro', 1);
 
   it('every role sees the round description and its rules brief on the intro', () => {
@@ -215,7 +215,7 @@ describe('rounds', () => {
       { ...blitzRound('b1', [single], { attempts: 2 }), description: 'Хто швидший' },
       classicRound('c1', [single]),
     ]);
-    const state = must(start(lobbyWith(quiz, 'Анна'), T0));
+    const state = must(start(lobbyWith(quiz, 'Анна')));
     for (const view of [stageView(state), hostView(state), playerView(state, state.players[0].id)]) {
       expect(view?.round).toMatchObject({ description: 'Хто швидший', brief: roundBrief(quiz.rounds[0]) });
     }
@@ -297,7 +297,7 @@ describe('rounds', () => {
     const streakQuiz = makeRoundsQuiz([
       classicRound('r1', questions, { rules: { ...DEFAULT_RULES, penalty: 'minus', streak: { length: 2, bonus: { kind: 'percent', value: 50 } } } }),
     ]);
-    let state = must(start(lobbyWith(streakQuiz, 'Олена', 'Тарас'), T0));
+    let state = startRound(lobbyWith(streakQuiz, 'Олена', 'Тарас'), T0);
     state = must(submitAnswer(state, 'p1', correct, T0));
     state = must(submitAnswer(state, 'p2', wrong, T0));
     state = goTo(state, 'question', 0);
@@ -319,7 +319,7 @@ describe('rounds', () => {
 
 describe('blitz views', () => {
   const blitzGame = (options: Parameters<typeof blitzRound>[2] = {}) =>
-    must(start(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single, text], options)]), 'Анна', 'Богдан', 'Віра'), 0));
+    startRound(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single, text], options)]), 'Анна', 'Богдан', 'Віра'), 0);
   const nicknames = (queue: { nickname: string }[] | undefined) => queue?.map((entry) => entry.nickname);
 
   it('stage and players see the blitz queue but not the winner before the reveal', () => {
@@ -421,7 +421,7 @@ describe('board views', () => {
       options,
     );
   const onBoard = (options = {}): GameState => {
-    const intro = must(start(lobbyWith(makeRoundsQuiz([field(options)]), 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([field(options)]), 'Анна', 'Богдан', 'Віра')));
     return must(next(intro, 0));
   };
   const picked = (cell: string, options = {}) => must(pickCell(onBoard(options), null, cell, 0, Math.random));
@@ -476,7 +476,7 @@ describe('board views', () => {
   it('players see a cell kind and answer mode only after the cell opens', () => {
     const cells = [{ question: q('c11', 100), kind: 'blitz' as const, penalty: 'all' as const, answerMode: 'voice' as const }, q('c12', 200), q('c13', 300)];
     const round = boardRound('g1', [{ title: 'A', cells }], { answerMode: 'phone' });
-    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра')));
     const state = must(next(intro, 0));
     // Зведення правил раунду (round.brief) навмисно каже, що в полі є голос і бліц-клітинки; секретні лише клітинки.
     const withoutBrief = (view: object) => JSON.stringify({ ...view, round: null });
@@ -495,7 +495,7 @@ describe('board views', () => {
 
   it('the host grades by hand on a voice cell even in a phone round', () => {
     const round = boardRound('g1', [{ title: 'A', cells: [{ question: q('c11', 100), answerMode: 'voice' }, q('c12', 200)] }], { answerMode: 'phone', check: 'auto' });
-    const state = must(next(must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0)), 0));
+    const state = must(next(must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'))), 0));
     expect(hostView(must(pickCell(state, null, 'c11', 0, Math.random))).board?.manual).toBe(true);
     expect(hostView(must(pickCell(state, null, 'c12', 0, Math.random))).board?.manual).toBe(false);
   });
@@ -521,7 +521,7 @@ describe('board views', () => {
     expect(stageView(open()).board).toBeNull();
     expect(playerView(open(), 'p1')?.board).toBeNull();
     expect(hostView(open()).board).toBeNull();
-    const blitz = must(start(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single])]), 'Анна'), 0));
+    const blitz = startRound(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single])]), 'Анна'), 0);
     expect(stageView(blitz).board).toBeNull();
   });
 });
@@ -530,13 +530,13 @@ describe('spotlight views', () => {
   const field = (options = {}, question: Question = single) =>
     boardRound('g1', [{ title: 'Міста', cells: [withId(question, 'c11')] }], options);
   const picked = (options = {}, question: Question = single) => {
-    const intro = must(start(lobbyWith(makeRoundsQuiz([field(options, question)]), 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([field(options, question)]), 'Анна', 'Богдан', 'Віра')));
     return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
   };
   const answered = (options = {}, answer: Answer = wrong, question: Question = single) =>
     must(submitAnswer(picked(options, question), 'p1', answer, 5000));
   const blitzGame = (options: Parameters<typeof blitzRound>[2] = {}) =>
-    must(start(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single, text], options)]), 'Анна', 'Богдан', 'Віра'), 0));
+    startRound(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single, text], options)]), 'Анна', 'Богдан', 'Віра'), 0);
 
   it('everyone sees the pending board answer in orange and the stopped timer', () => {
     const state = answered();
@@ -640,7 +640,7 @@ describe('blitz cell views', () => {
   const field = (cell = {}) =>
     boardRound('g1', [{ title: 'Міста', cells: [{ kind: 'blitz', question: withId(single, 'c11'), ...cell }, withId(text, 'c12')] }]);
   const picked = (cell = {}) => {
-    const intro = must(start(lobbyWith(makeRoundsQuiz([field(cell)]), 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([field(cell)]), 'Анна', 'Богдан', 'Віра')));
     return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
   };
 
@@ -667,7 +667,7 @@ describe('blitz cell views', () => {
 
 describe('video views', () => {
   const openWith = (question: Question) =>
-    must(start(lobbyWith(makeRoundsQuiz([classicRound('r1', [question])]), 'Анна', 'Богдан'), 0));
+    startRound(lobbyWith(makeRoundsQuiz([classicRound('r1', [question])]), 'Анна', 'Богдан'), 0);
 
   it('players see the video and no timer on a video question, never the correct answer', () => {
     const state = openWith(withVideo(single, { id: 'dQw4w9WgXcQ', start: 90 }));
@@ -681,7 +681,7 @@ describe('video views', () => {
 
   it('the host sees when an absent answerer will close an untimed cell', () => {
     const cells = [withVideo(withPoints(withId(single, 'c11'), 100)), withPoints(withId(single, 'c12'), 200)];
-    const intro = must(start(lobbyWith(makeRoundsQuiz([boardRound('g1', [{ title: 'A', cells }])]), 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([boardRound('g1', [{ title: 'A', cells }])]), 'Анна', 'Богдан', 'Віра')));
     const state = must(setConnected(must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random)), 'p1', false, 1000));
     expect(hostView(state).phase).toBe('question');
     expect(hostView(state).board?.skipAt).toBe(31_000);
@@ -708,7 +708,7 @@ describe('final round views', () => {
       ],
       { leaderboard: 'end' },
     );
-    let s = must(start(lobbyWith(quizFinal, 'Анна', 'Богдан', 'Віра'), 0, rng));
+    let s = must(start(lobbyWith(quizFinal, 'Анна', 'Богдан', 'Віра')));
     s = must(next(s, 0, rng));
     s = must(submitAnswer(s, 'p1', correct, 1000));
     s = must(next(must(lock(s)), 2000, rng));

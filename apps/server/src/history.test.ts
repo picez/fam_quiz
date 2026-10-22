@@ -46,6 +46,7 @@ async function playedGame() {
   const step = (type: 'start' | 'lock' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
 
   step('start');
+  step('next');
   ctx.manager.answer(room, olenaId, { type: 'single', optionId: 'b' });
   ctx.manager.answer(room, tarasId, { type: 'single', optionId: 'a' });
   step('next');
@@ -227,6 +228,7 @@ describe('history: blitz attempts', () => {
     };
 
     expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(ctx.manager.host(room, { type: 'next' })).toEqual({ ok: true });
     attempt(olenaId, 'a');
     attempt(tarasId, 'c');
     attempt(olenaId, 'b');
@@ -502,6 +504,7 @@ describe('host history: answers', () => {
     const swapped: Answer = { type: 'match', links: [{ left: 'a', right: 'y' }, { left: 'b', right: 'x' }, { left: 'c', right: 'z' }] };
     const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
     step('start');
+    step('next');
     local.manager.answer(room, olena, right);
     local.manager.answer(room, taras, swapped);
     step('next');
@@ -521,6 +524,7 @@ describe('host history: answers', () => {
     const taras = await enter('Тарас');
     const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
     step('start');
+    step('next');
     local.manager.answer(room, olena, { type: 'single', optionId: 'b' });
     local.manager.answer(room, taras, { type: 'single', optionId: 'a' });
     step('next');
@@ -542,6 +546,7 @@ describe('host history: answers', () => {
     const { local, room, enter, detail } = await start(makeRoundsQuiz([blitzRound('b1', [single], { answerWindow: 5 })]), scheduler);
     const olena = await enter('Олена');
     expect(local.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(local.manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(local.manager.buzz(room, olena)).toEqual({ ok: true });
     scheduler.advance(5000);
     expect(room.state.phase).toBe('locked');

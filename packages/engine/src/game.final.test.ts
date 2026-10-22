@@ -49,7 +49,7 @@ function quizWith(final: Partial<Omit<FinalRound, 'id' | 'type' | 'questions'>> 
  * q2 (400): p2 правильно, p3 неправильно (−400), p1 мовчить. Рахунки 1000, 400, −400.
  */
 function toRoundEnd(final: Partial<Omit<FinalRound, 'id' | 'type' | 'questions'>> = {}, question: Question = f1, rules: Partial<RoundRules> = {}): GameState {
-  let s = must(start(lobbyWith(quizWith(final, question, rules), 'Анна', 'Богдан', 'Віра'), 0, rng));
+  let s = must(start(lobbyWith(quizWith(final, question, rules), 'Анна', 'Богдан', 'Віра')));
   s = must(next(s, 0, rng));
   s = must(submitAnswer(s, 'p1', right, 1000));
   s = must(next(must(lock(s)), 2000, rng));
@@ -101,7 +101,7 @@ describe('the final round', () => {
 
   it('a quiz that starts with a final still opens with an intro and zero limits', () => {
     const quiz = makeRoundsQuiz([finalRound('f', f1)]);
-    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан'), 0, rng));
+    const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан')));
     expect(intro.phase).toBe('intro');
     expect(intro.final).toEqual({ limits: {}, wagers: {}, order: [], shown: 0 });
     const wager = must(next(intro, 1000, rng));
@@ -249,7 +249,7 @@ describe('the final round', () => {
 
   it('ties in the reveal order follow the join order', () => {
     const quiz = makeRoundsQuiz([finalRound('f', f1)]);
-    let s = must(next(must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0, rng)), 1000, rng));
+    let s = must(next(must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'))), 1000, rng));
     s = must(next(s, 2000, rng));
     s = must(submitAnswer(s, 'p2', right, 3000));
     s = must(next(must(lock(s)), 4000, rng));

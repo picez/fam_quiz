@@ -117,6 +117,7 @@ describe('a round over real sockets', () => {
     const { host, stage, olena, taras } = await lobby();
 
     expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
     const question = await until(olena, inPhase('question'));
     expect(question.question?.text).toBe('Столиця України?');
     expect(JSON.stringify(question)).not.toContain('correctId');
@@ -138,6 +139,7 @@ describe('a round over real sockets', () => {
   it('lets the host end the round: the last round ends the game', async () => {
     const { host, olena } = await lobby();
     await send(host, 'host:start');
+    await send(host, 'host:next');
     await until(olena, inPhase('question'));
     expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
     expect(await send(olena, 'host:end-round')).toEqual({ ok: false, error: 'forbidden' });
@@ -158,6 +160,7 @@ describe('a round over real sockets', () => {
   it('refuses a partial grade in a round without partial points', async () => {
     const { host, olena, taras, tarasJoin } = await lobby();
     await send(host, 'host:start');
+    await send(host, 'host:next');
     await until(olena, inPhase('question'));
     await send(olena, 'player:answer', correct);
     await send(taras, 'player:answer', wrong);
@@ -195,6 +198,7 @@ describe('permissions and bad input', () => {
   it('rejects malformed payloads', async () => {
     const { host, olena } = await lobby();
     await send(host, 'host:start');
+    await send(host, 'host:next');
     await until(olena, inPhase('question'));
     expect(await send(olena, 'player:answer', { type: 'single' })).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(host, 'host:kick', { player: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
@@ -204,6 +208,7 @@ describe('permissions and bad input', () => {
   it('host:time is accepted only from the host and only with ±15', async () => {
     const { host, olena } = await lobby();
     await send(host, 'host:start');
+    await send(host, 'host:next');
     await until(olena, inPhase('question'));
     expect(await send(olena, 'host:time', { seconds: 15 })).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(host, 'host:time', { seconds: 10 })).toEqual({ ok: false, error: 'invalid_payload' });
@@ -213,6 +218,7 @@ describe('permissions and bad input', () => {
   it('host:accept and host:repick are accepted only from the host', async () => {
     const { host, olena } = await lobby();
     await send(host, 'host:start');
+    await send(host, 'host:next');
     await until(olena, inPhase('question'));
     expect(await send(olena, 'host:accept', { playerId: 'p1' })).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(olena, 'host:repick', { playerId: 'p1' })).toEqual({ ok: false, error: 'forbidden' });
@@ -226,6 +232,7 @@ describe('permissions and bad input', () => {
     const game = (await startGame(ctx.app, makeRoundsQuiz([blitzRound('b1', [single], { check: 'manual' })]))).game;
     const { host, stage, olena, olenaJoin } = await lobby(game);
     await send(host, 'host:start');
+    await send(host, 'host:next');
     await until(olena, inPhase('question'));
 
     expect(await send(host, 'player:buzz')).toEqual({ ok: false, error: 'forbidden' });
@@ -262,6 +269,7 @@ describe('permissions and bad input', () => {
     raw('host:kick');
 
     expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
     expect((await until(olena, inPhase('question'))).phase).toBe('question');
   });
 });
@@ -270,6 +278,7 @@ describe('reconnecting and kicking', () => {
   it('lets a player come back with the same token and receive the current state', async () => {
     const { game, host, olena, olenaJoin } = await lobby();
     await send(host, 'host:start');
+    await send(host, 'host:next');
     await until(olena, inPhase('question'));
     await send(olena, 'player:answer', correct);
 

@@ -2,7 +2,7 @@ import { DEFAULT_RULES, type RoundRules } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { lock, next, override, recordOf, start, submitAnswer, type GameState } from './game';
 import { classicRound, makeQuiz, makeRoundsQuiz, single, text } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { lobbyWith, must, startRound } from './testing/helpers';
 
 const T0 = 1_000_000;
 const right = { type: 'single', optionId: 'b' } as const;
@@ -27,14 +27,14 @@ describe('penalty', () => {
   const quiz = makeQuiz([single], { speedBonus: false, rules: rules({ penalty: 'minus' }) });
 
   it('takes points for a wrong answer', () => {
-    const open = must(start(lobbyWith(quiz, 'Олена', 'Тарас'), T0));
+    const open = startRound(lobbyWith(quiz, 'Олена', 'Тарас'), T0);
     const state = must(submitAnswer(must(submitAnswer(open, 'p1', wrong, T0)), 'p2', right, T0));
     expect(recordOf(state, 0, 'p1')?.points).toBe(-1000);
     expect(state.players.map((p) => p.score)).toEqual([-1000, 1000]);
   });
 
   it('does not take points from a player who did not answer', () => {
-    const open = must(start(lobbyWith(quiz, 'Олена', 'Тарас'), T0));
+    const open = startRound(lobbyWith(quiz, 'Олена', 'Тарас'), T0);
     const state = must(lock(must(submitAnswer(open, 'p1', wrong, T0))));
     expect(state.players.map((p) => p.score)).toEqual([-1000, 0]);
   });
@@ -43,7 +43,7 @@ describe('penalty', () => {
 describe('multiplier', () => {
   it('multiplies points for a correct answer', () => {
     const quiz = makeQuiz([single], { speedBonus: false, rules: rules({ multiplier: 2 }) });
-    const state = must(submitAnswer(must(start(lobbyWith(quiz, 'Олена'), T0)), 'p1', right, T0));
+    const state = must(submitAnswer(startRound(lobbyWith(quiz, 'Олена'), T0), 'p1', right, T0));
     expect(recordOf(state, 0, 'p1')?.points).toBe(2000);
   });
 });
@@ -54,7 +54,7 @@ describe('streak', () => {
   const bonuses = (state: GameState) => state.plays.map((p) => p.answers.p1?.streakBonus);
 
   it('adds a bonus from the streak length on', () => {
-    let state = toQuestion(must(start(lobbyWith(quiz, 'Олена'), T0)));
+    let state = toQuestion(must(start(lobbyWith(quiz, 'Олена'))));
     state = toQuestion(play(state, right));
     state = toQuestion(play(state, right));
     state = must(submitAnswer(state, 'p1', right, T0));
@@ -64,7 +64,7 @@ describe('streak', () => {
   });
 
   it('is broken by a missing answer', () => {
-    let state = toQuestion(must(start(lobbyWith(quiz, 'Олена'), T0)));
+    let state = toQuestion(must(start(lobbyWith(quiz, 'Олена'))));
     state = toQuestion(play(state, right));
     state = toQuestion(play(state, null));
     state = must(submitAnswer(state, 'p1', right, T0));
@@ -76,7 +76,7 @@ describe('streak', () => {
     const round = (id: string, ids: string[]) =>
       classicRound(id, copies(...ids), { speedBonus: false, rules: rules({ streak }) });
     const quiz2 = makeRoundsQuiz([round('r1', ['a1', 'a2']), round('r2', ['b1', 'b2'])]);
-    let state = toQuestion(must(start(lobbyWith(quiz2, 'Олена'), T0)));
+    let state = toQuestion(must(start(lobbyWith(quiz2, 'Олена'))));
     state = toQuestion(play(state, right));
     state = must(submitAnswer(state, 'p1', right, T0));
     expect(state.players[0].streak).toBe(2);
@@ -89,7 +89,7 @@ describe('streak', () => {
   });
 
   it('is recalculated when the host overrides the last answer', () => {
-    let state = toQuestion(must(start(lobbyWith(quiz, 'Олена'), T0)));
+    let state = toQuestion(must(start(lobbyWith(quiz, 'Олена'))));
     state = toQuestion(play(state, right));
     state = toQuestion(play(state, right));
     state = play(state, right);
@@ -105,7 +105,7 @@ describe('streak', () => {
 describe('override with a partial grade', () => {
   const reveal = (partial: number | null) => {
     const quiz = makeQuiz([text], { speedBonus: false, rules: rules({ partial }) });
-    const open = must(start(lobbyWith(quiz, 'Олена'), T0));
+    const open = startRound(lobbyWith(quiz, 'Олена'), T0);
     return must(next(must(submitAnswer(open, 'p1', { type: 'text', value: 'Адеса' }, T0)), T0));
   };
 

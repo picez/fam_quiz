@@ -6,12 +6,13 @@ import {
   next,
   pause,
   recordOf,
+  resume,
   roundQuestionNumber,
   start,
   submitAnswer,
   type GameState,
 } from './game';
-import { bool, classicRound, makeQuiz, makeRoundsQuiz, numeric, single, text } from './testing/fixtures';
+import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, numeric, single, text } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const T0 = 1_000_000;
@@ -21,7 +22,7 @@ const quiz = makeRoundsQuiz(
   { leaderboard: 'end' },
 );
 
-const intro = () => must(start(lobbyWith(quiz, 'Олена', 'Тарас'), T0));
+const intro = () => must(start(lobbyWith(quiz, 'Олена', 'Тарас')));
 const firstQuestion = () => must(next(intro(), T0));
 /** Закрити поточне запитання й перейти до розкриття. */
 const toReveal = (state: GameState) => must(next(must(lock(state)), T0));
@@ -66,11 +67,23 @@ describe('rounds', () => {
     expect(finished.plays.map((play) => play.question.id)).toEqual([single.id, text.id, bool.id, numeric.id]);
   });
 
-  it('starts a quiz of one round straight with its first question', () => {
-    const state = must(start(lobbyWith(makeQuiz([single, text]), 'Олена'), T0));
-    expect(state.phase).toBe('question');
-    expect(state.roundIndex).toBe(0);
-    expect(state.plays).toHaveLength(1);
+  it('starts every quiz with the intro of its first round, even a quiz of one round', () => {
+    for (const quiz of [makeQuiz([single, text]), makeRoundsQuiz([blitzRound('b1', [single])])]) {
+      const intro = must(start(lobbyWith(quiz, 'Олена')));
+      expect(intro).toMatchObject({ phase: 'intro', roundIndex: 0, plays: [], endsAt: null });
+      const open = must(next(intro, T0 + 5_000));
+      expect(open).toMatchObject({ phase: 'question', roundIndex: 0, questionIndex: 0, startedAt: T0 + 5_000 });
+      expect(open.plays).toHaveLength(1);
+    }
+  });
+
+  it('pauses and ends the game from the intro of the only round', () => {
+    const intro = must(start(lobbyWith(makeQuiz([single, text]), 'Олена')));
+    const paused = must(pause(intro, T0));
+    expect(next(paused, T0)).toEqual({ ok: false, error: 'paused' });
+    const ended = must(endRound(must(resume(paused, T0)), T0));
+    expect(ended.plays).toHaveLength(0);
+    expect(ended.players[0].score).toBe(0);
   });
 });
 
@@ -100,7 +113,7 @@ describe('endRound', () => {
     expect(must(endRound(intro(), T0)).phase).toBe('round_end');
     expect(must(endRound(toReveal(firstQuestion()), T0)).phase).toBe('round_end');
     const each = makeRoundsQuiz([classicRound('r1', [single, text]), classicRound('r2', [bool])]);
-    const leaderboard = after(must(next(must(start(lobbyWith(each, 'Олена'), T0)), T0)));
+    const leaderboard = after(must(next(must(start(lobbyWith(each, 'Олена'))), T0)));
     expect(leaderboard.phase).toBe('leaderboard');
     expect(must(endRound(leaderboard, T0)).phase).toBe('round_end');
   });

@@ -577,14 +577,11 @@ function autoLock(state: GameState): GameState {
   return everyoneAnswered ? lockNow(state) : state;
 }
 
-export function start(state: GameState, now: number, rng: Rng = Math.random): Result {
+/** Кожна гра починається із заставки першого раунду; перше запитання відкриває `next`. */
+export function start(state: GameState): Result {
   if (state.phase !== 'lobby') return fail('wrong_phase');
   if (state.players.length === 0) return fail('no_players');
-  const type = state.quiz.rounds[0]?.type;
-  const first = enterRound({ ...state, roundIndex: 0 });
-  // Вікторина з одним раундом обходиться без заставки, як і раніше; поле й фінал завжди з заставкою.
-  if (state.quiz.rounds.length > 1 || type === 'board' || type === 'final') return ok({ ...first, phase: 'intro' });
-  return ok(advance(first, now, rng));
+  return ok({ ...enterRound({ ...state, roundIndex: 0 }), phase: 'intro' });
 }
 
 export function submitAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {

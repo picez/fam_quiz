@@ -28,7 +28,7 @@ const b = { type: 'single', optionId: 'b' } as const;
 
 function picked(cells: Parameters<typeof boardRound>[1][number]['cells'], options = {}): GameState {
   const round = boardRound('g1', [{ title: 'A', cells }], options);
-  const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0));
+  const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра')));
   return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
 }
 
@@ -292,7 +292,7 @@ describe('streak bonus on a blitz cell of another player', () => {
     const round = boardRound('g1', [{ title: 'A', cells: [c11, { question: c12, kind: 'blitz', penalty: 'all' }] }], {
       rules: { ...DEFAULT_RULES, streak: { length: 1, bonus } },
     });
-    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра')));
     let state = must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
     state = must(acceptAnswer(must(submitAnswer(state, 'p1', b, 1000)), 'p1', 1000));
     while (state.phase !== 'board') state = must(next(state, 2000));
