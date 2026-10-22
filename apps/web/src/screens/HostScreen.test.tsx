@@ -241,6 +241,13 @@ describe('HostScreen: rounds', () => {
     expect(screen.getByText('Якщо є таймер, швидша правильна відповідь дає більше балів.')).toBeTruthy();
   });
 
+  it('the intro of a one-round quiz has no round counter', () => {
+    show(view({ phase: 'intro', round: round({ total: 1, title: '', brief: { ...emptyBrief('classic'), speedBonus: true } }) }));
+    expect(screen.queryByText(/Раунд 1 з 1/)).toBeNull();
+    expect(button('Почати раунд')).toBeTruthy();
+    expect(screen.getByText('Якщо є таймер, швидша правильна відповідь дає більше балів.')).toBeTruthy();
+  });
+
   it('offers «next round» after the round results', () => {
     const send = show(view({ phase: 'round_end', round: round(), questionIndex: 1 }));
     fireEvent.click(button('Наступний раунд'));

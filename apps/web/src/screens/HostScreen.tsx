@@ -197,7 +197,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
       <p className="meta">
         {t(`phase_${phase}`)}
-        {round !== null && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
+        {round !== null && round.total > 1 && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
         {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&
           `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
@@ -205,7 +205,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
       {phase === 'intro' && round !== null && (
         <section className="panel">
-          <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>
+          {round.total > 1 && <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>}
           <h1 className="question">{roundLabel(round.title, round.index, round.type)}</h1>
           <RoundBriefing brief={round.brief} description={round.description} />
         </section>

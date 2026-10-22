@@ -220,6 +220,13 @@ describe('PlayerScreen: rounds', () => {
     expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
   });
 
+  it('the intro of a one-round quiz has no round counter', () => {
+    show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true } } }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 1');
+    expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
+    expect(screen.queryByText('Раунд 1 з 1')).toBeNull();
+  });
+
   it('shows the round results with the place', () => {
     const standings = [
       { participantId: 'p2', nickname: 'Тарас', score: 900, totalTimeMs: 1, rank: 1 },
