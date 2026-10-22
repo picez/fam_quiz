@@ -14,6 +14,7 @@ vi.mock('./pages/Host', () => ({ Host: () => <p>Host</p> }));
 vi.mock('./pages/Login', () => ({ Login: () => <p>Login</p> }));
 vi.mock('./pages/MyGames', () => ({ MyGames: () => <p>MyGames</p> }));
 vi.mock('./pages/Play', () => ({ Play: () => <p>Play</p> }));
+vi.mock('./pages/Profile', () => ({ Profile: () => <p>Profile</p> }));
 vi.mock('./pages/Quizzes', () => ({ Quizzes: () => <p>Quizzes</p> }));
 vi.mock('./pages/Stage', () => ({ Stage: () => <p>Stage</p> }));
 
