@@ -1,8 +1,20 @@
 import { normalizeText } from '@quiz/engine';
-import { LIMITS, nicknameSchema, type ProfileCard, type ProfileUpdate } from '@quiz/shared';
-import { eq } from 'drizzle-orm';
+import {
+  LIMITS,
+  gameStats,
+  isWin,
+  nicknameSchema,
+  type Achievement,
+  type ProfileCard,
+  type ProfileStats,
+  type ProfileUpdate,
+  type ProfileWin,
+} from '@quiz/shared';
+import { and, count, eq } from 'drizzle-orm';
+import { achievementsOf, bestStreak, isPerfect } from './achievements';
 import type { Db } from './db/client';
-import { profile, user } from './db/schema';
+import { game, profile, quiz, user } from './db/schema';
+import { playerGames } from './history';
 
 export const DEFAULT_NICKNAME = 'Гравець';
 
@@ -81,4 +93,35 @@ function isUniqueViolation(error: unknown): boolean {
     if ((current as { code?: unknown }).code === UNIQUE_VIOLATION) return true;
   }
   return false;
+}
+
+export const WINS_SHOWN = 20;
+
+/** Статистика, ачівки й останні перемоги (не більше WINS_SHOWN, найновіші першими). */
+export async function profileFacts(
+  db: Db,
+  userId: string,
+): Promise<{ stats: ProfileStats; achievements: Achievement[]; wins: ProfileWin[] }> {
+  const games = await playerGames(db, userId, null);
+  const [quizzes] = await db.select({ n: count() }).from(quiz).where(eq(quiz.ownerId, userId));
+  const [hosted] = await db
+    .select({ n: count() })
+    .from(game)
+    .where(and(eq(game.hostId, userId), eq(game.status, 'finished')));
+
+  const played = games.map((g) => g.played);
+  const stats = { ...gameStats(played), quizzes: quizzes.n, hosted: hosted.n };
+  const achievements = achievementsOf({
+    games: stats.games,
+    wins: stats.wins,
+    hosted: stats.hosted,
+    bestStreak: games.reduce((best, g) => Math.max(best, bestStreak(g.marks)), 0),
+    perfectGames: games.filter(isPerfect).length,
+  });
+  const wins = played
+    .filter(isWin)
+    .slice(0, WINS_SHOWN)
+    // isWin гарантує rank === 1.
+    .map((g) => ({ gameId: g.gameId, title: g.title, startedAt: g.startedAt, rank: g.rank ?? 1 }));
+  return { stats, achievements, wins };
 }
