@@ -83,6 +83,14 @@ describe('HostScreen', () => {
     expect(screen.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href')).toBe('http://quiz.test/stage/123456#s');
   });
 
+  it('the invite button is only in the lobby', () => {
+    show(view());
+    expect(screen.getByRole('button', { name: 'Запросити друзів' })).toBeTruthy();
+    cleanup();
+    show(during('question', single));
+    expect(screen.queryByRole('button', { name: 'Запросити друзів' })).toBeNull();
+  });
+
   it('starts the game, and cannot start without players', () => {
     const send = show(view());
     fireEvent.click(button('Почати гру'));

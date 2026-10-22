@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, type OwnProfile } from '@quiz/shared';
-import { findProfile, follow, getMyProfile, me, saveMyProfile, signOut, uploadImage } from '../api';
+import { dismissInvite, findProfile, follow, getMyInvites, getMyProfile, me, saveMyProfile, signOut, uploadImage } from '../api';
 import { formatDate } from '../format';
 import { Profile } from './Profile';
 
@@ -15,6 +15,8 @@ vi.mock('../api', () => ({
   follow: vi.fn(),
   uploadImage: vi.fn(),
   signOut: vi.fn(),
+  getMyInvites: vi.fn(),
+  dismissInvite: vi.fn(),
 }));
 
 const mine: OwnProfile = {
@@ -36,6 +38,8 @@ beforeEach(() => {
   vi.mocked(saveMyProfile).mockResolvedValue({ ok: true, data: { id: 'u1', nickname: 'Зірка', avatar: null } });
   vi.mocked(follow).mockResolvedValue({ ok: true });
   vi.mocked(signOut).mockResolvedValue({ ok: true });
+  vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(dismissInvite).mockResolvedValue({ ok: true });
 });
 afterEach(cleanup);
 
@@ -64,6 +68,27 @@ describe('Profile', () => {
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Тарас/ }).getAttribute('href')).toBe('/profile/u2');
     expect(screen.getByRole('link', { name: 'Мій публічний профіль' }).getAttribute('href')).toBe('/profile/u1');
+  });
+
+  it('shows invites at the top with join and dismiss', async () => {
+    vi.mocked(getMyInvites).mockResolvedValue({
+      ok: true,
+      data: [{ code: '123456', title: 'Кіно', host: { id: 'h1', nickname: 'Галина', avatar: null }, invitedAt: '2026-10-23T10:00:00.000Z' }],
+    });
+    const { container } = open();
+    await screen.findByRole('heading', { name: 'Вас запросили' });
+    expect(container.querySelectorAll('h2')[0]?.textContent).toBe('Вас запросили');
+    expect(screen.getByText('Галина запрошує: «Кіно», код 123 456')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Приєднатися' }).getAttribute('href')).toBe('/play/123456');
+    fireEvent.click(screen.getByRole('button', { name: 'Відхилити' }));
+    await waitFor(() => expect(dismissInvite).toHaveBeenCalledWith('123456'));
+    await waitFor(() => expect(screen.queryByText('Галина запрошує: «Кіно», код 123 456')).toBeNull());
+  });
+
+  it('has no invite block without invites', async () => {
+    open();
+    await screen.findByText('o@example.com');
+    expect(screen.queryByRole('heading', { name: 'Вас запросили' })).toBeNull();
   });
 
   it('shows empty sections', async () => {

@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { t, type TextKey } from '../i18n';
 import { useAccount } from '../useAccount';
+import { useInvites } from '../useInvites';
 
 type Item = { label: TextKey; icon: string; to: string; active: (path: string) => boolean };
 
@@ -14,6 +15,7 @@ const PROFILE: Item = { label: 'menuProfile', icon: '👤', to: '/profile', acti
 export function Menu() {
   const location = useLocation();
   const account = useAccount(location.key);
+  const invites = useInvites(account.status === 'signed-in', location.key);
   const signIn: Item = {
     label: 'menuSignIn',
     icon: '🔑',
@@ -29,6 +31,11 @@ export function Menu() {
         <Link key={item.label} to={item.to} aria-current={item.active(location.pathname) ? 'page' : undefined}>
           <span aria-hidden="true">{item.icon}</span>
           {t(item.label)}
+          {item === PROFILE && invites.length > 0 && (
+            <span className="menu-badge" aria-label={t('invitesBadge', { count: invites.length })}>
+              {invites.length}
+            </span>
+          )}
         </Link>
       ))}
     </nav>

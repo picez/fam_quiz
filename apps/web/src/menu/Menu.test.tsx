@@ -2,16 +2,19 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { me } from '../api';
+import { getMyInvites, me } from '../api';
+import { announceInvitesChanged } from '../useInvites';
 import { WithMenu } from './WithMenu';
 
-vi.mock('../api', () => ({ me: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn() }));
 
 const OK = { ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' } as const;
 const OUT = { ok: false, error: 'unauthorized' } as const;
 
 beforeEach(() => {
   vi.mocked(me).mockReset();
+  vi.mocked(getMyInvites).mockReset();
+  vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
 });
 afterEach(cleanup);
 
@@ -87,5 +90,34 @@ describe('Menu', () => {
     show('/login?next=%2Fquizzes');
     await screen.findByRole('link', { name: 'Увійти' });
     expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fquizzes');
+  });
+
+  describe('invites badge', () => {
+    const invite = (code: string) => ({ code, title: 'Кіно', host: { id: 'h', nickname: 'Галина', avatar: null }, invitedAt: '2026-10-23T10:00:00.000Z' });
+
+    it('shows the number of invites on the profile item', async () => {
+      vi.mocked(me).mockResolvedValue(OK);
+      vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [invite('111111'), invite('222222')] });
+      show('/quizzes');
+      const badge = await screen.findByLabelText('Запрошень: 2');
+      expect(badge.textContent).toBe('2');
+      cleanup();
+
+      vi.mocked(getMyInvites).mockClear();
+      vi.mocked(me).mockResolvedValue(OUT);
+      show('/quizzes');
+      await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+      expect(getMyInvites).not.toHaveBeenCalled();
+    });
+
+    it('dismissing an invite updates the menu badge at once', async () => {
+      vi.mocked(me).mockResolvedValue(OK);
+      vi.mocked(getMyInvites).mockResolvedValueOnce({ ok: true, data: [invite('111111')] });
+      show('/quizzes');
+      await screen.findByLabelText('Запрошень: 1');
+      vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
+      announceInvitesChanged();
+      await vi.waitFor(() => expect(screen.queryByLabelText('Запрошень: 1')).toBeNull());
+    });
   });
 });
