@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { questionsOf, quizSchema } from '@quiz/shared';
 import { demoQuiz } from './demo-quiz';
+import { partyQuiz } from './party-quiz';
 
 describe('the seeded demo quiz', () => {
   it('is valid and shows every question type including pairs', () => {
@@ -11,5 +12,13 @@ describe('the seeded demo quiz', () => {
       if (question.type !== 'match') continue;
       for (const pair of question.pairs) expect(pair.right.id).not.toBe(pair.left.id.replace('l', 'r'));
     }
+  });
+
+  it('has a video question in the classic and the blitz round', () => {
+    const rounds = demoQuiz.rounds.filter((r) => questionsOf({ ...demoQuiz, rounds: [r] }).some((q) => q.video !== null));
+    expect(rounds.map((r) => r.type).sort()).toEqual(['blitz', 'classic']);
+    expect(questionsOf(demoQuiz).filter((q) => q.video !== null).length).toBeGreaterThanOrEqual(2);
+    expect(questionsOf(partyQuiz()).filter((q) => q.video !== null).length).toBeGreaterThanOrEqual(1);
+    expect(quizSchema.safeParse(partyQuiz()).success).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { LETTERS } from '../format';
 import { t, type TextKey } from '../i18n';
 import { ImageField } from './ImageField';
+import { VideoField } from './VideoField';
 import { QUESTION_TYPES, changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 
@@ -372,6 +373,11 @@ function Body({ question, onChange }: Props) {
   }
 }
 
+/** Чи час у межах: поки ні, поле часу видно й для запитання з відео, щоб автор міг його виправити. */
+function timeInLimits(timeLimit: number): boolean {
+  return Number.isInteger(timeLimit) && timeLimit >= LIMITS.minTime && timeLimit <= LIMITS.maxTime;
+}
+
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
 export function QuestionEditor({ question, onChange }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
@@ -396,6 +402,11 @@ export function QuestionEditor({ question, onChange }: Props) {
 
       <div className="stage-card">
         <ImageField url={question.imageUrl} onChange={(imageUrl) => latest.current.onChange({ ...latest.current.question, imageUrl })} />
+        <VideoField
+          key={question.id}
+          video={question.video}
+          onChange={(video) => latest.current.onChange({ ...latest.current.question, video })}
+        />
         <label className="field question-field">
           <span>{t('questionText')}</span>
           <textarea
@@ -410,7 +421,11 @@ export function QuestionEditor({ question, onChange }: Props) {
       </div>
 
       <div className="pair">
-        <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
+        {question.video === null || !timeInLimits(question.timeLimit) ? (
+          <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
+        ) : (
+          <p className="meta">{t('noTimerHint')}</p>
+        )}
         <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />
       </div>
     </div>

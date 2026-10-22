@@ -149,7 +149,35 @@ a {
   height: 7rem;
 }
 
-.image-field {
+/* Плеєр відео: пропорція наперед, щоб варіанти відповіді не стрибали. */
+.question-video {
+  width: 100%;
+  max-width: 36rem;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: rgb(0 0 0 / 0.25);
+}
+
+.question-video iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.stage .question-video {
+  max-width: 960px;
+}
+
+.video-unavailable {
+  margin: 0;
+  color: var(--dim);
+}
+
+.image-field,
+.video-field {
   display: grid;
   gap: 0.5rem;
 }

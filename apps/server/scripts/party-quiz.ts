@@ -1,5 +1,5 @@
 import { DEFAULT_RULES, type Question, type Quiz } from '@quiz/shared';
-import { bool, cell, multi, numeric, order, rules, single, textQ } from './demo-quiz';
+import { bool, cell, multi, numeric, order, rules, single, textQ, video } from './demo-quiz';
 
 /** Вечірня вікторина: дивні факти, міфи, хронологія, «Своя гра» 5×5 і фінальний удар. */
 /** images: ключ картинки → адреса /uploads/…; без картинки запитання лишається текстовим. */
@@ -139,7 +139,7 @@ export const partyQuiz = (images: Record<string, string> = {}): Quiz => {
           cells: [
             cell(single('Як звати чарівника з окулярами і шрамом?', ['Гендальф', 'Гаррі Поттер', 'Мерлін'], 1, 100)),
             cell(textQ('Яка країна подарувала світу K-pop?', ['Корея', 'Південна Корея'], 200)),
-            cell(single('Скільки друзів у серіалі «Друзі»?', ['5', '6', '7'], 1, 300)),
+            cell(video(single('Як звати співака на цьому відео?', ['Фредді Мерк’юрі', 'Мік Джаггер', 'Елтон Джон'], 0, 300), 'fJ9rUzIMcZQ', 60)),
             cell(order('Фільми «Зоряних війн» за датою виходу', ['Нова надія', 'Імперія завдає удару у відповідь', 'Прихована загроза', 'Пробудження Сили'], 400, 40)),
             cell(textQ('Пісня, з якою Джамала перемогла на Євробаченні-2016?', ['1944'], 500), 'x3'),
           ],

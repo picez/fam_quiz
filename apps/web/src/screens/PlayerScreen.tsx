@@ -7,6 +7,7 @@ import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board } from './Board';
 import { QuestionImage } from './QuestionImage';
+import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
 
@@ -118,6 +119,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           {othersAnswer && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           <h1 className={questionClass(question.text)}>{question.text}</h1>
           <QuestionImage url={question.imageUrl} />
+          <YouTubePlayer video={question.video} />
           {myPending ? (
             <section className="sent">
               <SpotlightChoices question={question} spotlight={spotlight} reveal={null} />

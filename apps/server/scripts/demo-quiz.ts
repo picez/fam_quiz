@@ -7,7 +7,7 @@ import { DEFAULT_RULES, type Question, type Quiz, type RoundRules } from '@quiz/
 
 let n = 0;
 const id = (prefix: string) => `${prefix}-${++n}`;
-const q = (text: string, points = 1000, timeLimit = 20) => ({ id: id('q'), text, imageUrl: null, timeLimit, points });
+const q = (text: string, points = 1000, timeLimit = 20) => ({ id: id('q'), text, imageUrl: null, video: null, timeLimit, points });
 const opts = (...texts: string[]) => texts.map((text, i) => ({ id: String.fromCharCode(97 + i), text }));
 
 export const single = (text: string, options: string[], correct: number, points?: number, time?: number): Question => ({
@@ -58,6 +58,9 @@ export const match = (text: string, pairs: [string, string][], points?: number, 
   };
 };
 
+/** Додає до запитання відео з YouTube: id і секунда початку. */
+export const video = (question: Question, id: string, start = 0): Question => ({ ...question, video: { id, start } });
+
 export const rules = (patch: Partial<RoundRules>): RoundRules => ({ ...DEFAULT_RULES, ...patch });
 export const cell = (
   question: Question,
@@ -86,6 +89,7 @@ export const demoQuiz: Quiz = {
       rules: DEFAULT_RULES,
       questions: [
         single('Столиця України?', ['Львів', 'Київ', 'Харків', 'Одеса'], 1),
+        video(single('Хто співає цю пісню?', ['Rick Astley', 'Elton John', 'Phil Collins', 'Sting'], 0), 'dQw4w9WgXcQ', 43),
         multi('Які з цих тварин — ссавці?', ['Дельфін', 'Акула', 'Кажан', 'Пінгвін', 'Кит'], [0, 2, 4]),
         bool('Сонце — це зірка.', true, 500, 10),
         textQ('Найдовша річка України?', ['Дніпро', 'Днепр', 'Dnipro'], 1000, 30),
@@ -138,6 +142,7 @@ export const demoQuiz: Quiz = {
         numeric('Скільки секунд у годині?', 3600, 0, 700, 20),
         multi('Що з цього — кольори прапора України?', ['Синій', 'Червоний', 'Жовтий', 'Зелений'], [0, 2], 700, 20),
         order('Пори року з зими', ['Зима', 'Весна', 'Літо', 'Осінь'], 800, 25),
+        video(single('Назвіть гурт', ['Queen', 'ABBA', 'The Beatles', 'Pink Floyd'], 0), 'fJ9rUzIMcZQ'),
       ],
     },
     {

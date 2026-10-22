@@ -22,6 +22,24 @@ const PIXEL = Buffer.from(
   'base64',
 );
 const exact = { exact: true };
+// Відео з цим id повідомляє про помилку так само, як справжній плеєр.
+const BROKEN_VIDEO = 'AAAAAAAAAAA';
+
+/** Сторінка вбудовування замість YouTube: для BROKEN_VIDEO помилкою відповідає лише після команди addEventListener на onError (як справжній плеєр); на «listening» усі відповідають initialDelivery. */
+function youtubeStub(url: string): string {
+  const failing = url.includes(BROKEN_VIDEO)
+    ? `addEventListener('message', (e) => {
+        let m; try { m = JSON.parse(e.data); } catch { return; }
+        if (m.event === 'command' && m.func === 'addEventListener' && Array.isArray(m.args) && m.args.includes('onError'))
+          parent.postMessage(JSON.stringify({ event: 'onError', info: 150, id: m.id, channel: 'widget' }), '*');
+      });`
+    : '';
+  const script = `<script>addEventListener('message', (e) => {
+    let m; try { m = JSON.parse(e.data); } catch { return; }
+    if (m.event === 'listening') parent.postMessage(JSON.stringify({ event: 'initialDelivery', id: m.id, channel: 'widget' }), '*');
+  });${failing}</script>`;
+  return `<!doctype html><title>stub</title>${script}`;
+}
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
 let browser: Browser;
@@ -74,6 +92,10 @@ afterAll(async () => {
 
 async function open(name: string, width: number, height: number): Promise<Page> {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA' });
+  // YouTube не вантажиться з мережі: сторінка вбудовування підміняється заглушкою.
+  await context.route(/youtube(-nocookie)?\.com|youtu\.be|ytimg\.com/, (route) =>
+    route.fulfill({ contentType: 'text/html', body: youtubeStub(route.request().url()) }),
+  );
   const page = await context.newPage();
   page.on('pageerror', (error) => problems.push(`${name}: ${error.message}`));
   page.on('console', (message) => {
@@ -1013,6 +1035,118 @@ async function mixedBoard() {
   const gory = played.filter({ hasText: 'Гори · 100' });
   expect(await gory.textContent()).toMatch(/Бліц/);
   expect(await gory.textContent()).toMatch(/Віра: \+400, Алла: −200, Богдан: −200/);
+
+  expect(problems).toEqual([]);
+}
+
+it('a video question: link with a preview in the editor, no timer anywhere, closes when everyone answered; an unavailable video', async () => {
+  try {
+    await videoGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function videoGame() {
+  const host = await open('host7', 1280, 900);
+
+  await host.goto(base);
+  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await click(host, 'Створити акаунт');
+  await field(host, 'Ваше ім’я').fill('Марта Ведуча');
+  await field(host, 'Email').fill('host7@example.com');
+  await field(host, 'Пароль').fill('correct horse battery');
+  await click(host, 'Зареєструватися');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Вікторина з відео');
+
+  // Запитання 1: неправильне посилання, потім правильне з часом; поля часу немає.
+  await questionText(host).fill('Хто співає цю пісню?');
+  await field(host, 'Варіант 1').fill('Rick Astley');
+  await field(host, 'Варіант 2').fill('Sting');
+  await field(host, 'Правильний: варіант 1').click();
+  await field(host, 'Відео з YouTube').fill('https://www.example.com/x');
+  await host.getByText('Це не посилання на відео YouTube').waitFor();
+  await field(host, 'Відео з YouTube').fill('https://youtu.be/dQw4w9WgXcQ?t=1m30s');
+  await host.getByText('Це не посилання на відео YouTube').waitFor({ state: 'hidden' });
+  const preview = await host.locator('.video-field iframe').getAttribute('src');
+  expect(preview).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
+  expect(preview).toContain('start=90');
+  expect(preview).not.toContain('autoplay');
+  expect(await host.getByLabel('Час, с', exact).count()).toBe(0);
+  await shot(host, 'video-editor');
+
+  // Запитання 2: так чи ні з відео, яке не відтворюється.
+  await click(host, 'Додати запитання');
+  await click(host, 'так чи ні');
+  await questionText(host).fill('Так чи ні?');
+  await click(host, 'Правильна відповідь: Так');
+  await field(host, 'Відео з YouTube').fill(`https://www.youtube.com/watch?v=${BROKEN_VIDEO}`);
+
+  // «Однаковий час» запитання з відео пропускає: поле часу в першому так і не з'являється.
+  await openRoundSettings(host);
+  await field(host, 'Секунд').fill('40');
+  await click(host, 'Застосувати');
+  await host.getByRole('button', { name: /^Запитання 1 / }).click();
+  expect(await host.getByLabel('Час, с', exact).count()).toBe(0);
+
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Вікторина з відео' }).waitFor();
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage7', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const alla = await open('alla7', 390, 844);
+  const bohdan = await open('bohdan7', 360, 740);
+  await join(alla, code, 'Алла', false);
+  await join(bohdan, code, 'Богдан', false);
+  await stage.getByText('Богдан').waitFor();
+
+  await click(host, 'Почати гру');
+
+  // Запитання 1: плеєр скрізь, таймера ніде.
+  const embed = 'iframe[src*="youtube-nocookie.com/embed/dQw4w9WgXcQ"]';
+  for (const page of [stage, host, alla, bohdan]) await page.locator(embed).waitFor();
+  for (const page of [stage, host, alla, bohdan]) expect(await page.getByRole('timer').count()).toBe(0);
+  expect(await host.getByRole('button', { name: '−15 с', ...exact }).count()).toBe(0);
+  expect(await host.getByRole('button', { name: '+15 с', ...exact }).count()).toBe(0);
+  await shot(stage, 'video-stage');
+  await shot(alla, 'video-phone');
+  await shot(host, 'video-host');
+
+  // Позначаємо iframe сцени й пульта: після закриття це має бути той самий елемент (плеєр не перемонтовується).
+  for (const page of [stage, host]) await page.locator(embed).evaluate((frame) => frame.setAttribute('data-mark', 'same'));
+
+  await alla.getByRole('button', { name: /Rick Astley/ }).click();
+  await host.getByRole('button', { name: 'Закрити запитання', ...exact }).waitFor();
+  expect(await host.getByRole('button', { name: 'Показати відповідь', ...exact }).count()).toBe(0);
+  await bohdan.getByRole('button', { name: /Sting/ }).click();
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  for (const page of [stage, host]) await page.locator(`${embed}[data-mark="same"]`).waitFor();
+
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  for (const page of [stage, host]) await page.locator(`${embed}[data-mark="same"]`).waitFor();
+  // Бонусу за швидкість немає: рівно 1000.
+  const allaScore = host.locator('li', { hasText: 'Алла' }).locator('.score').first();
+  expect((await allaScore.textContent())!.replace(/\s/g, '')).toBe('1000');
+  await click(host, 'Далі');
+  await click(host, 'Наступне запитання');
+
+  // Запитання 2: відео недоступне, плеєра немає.
+  for (const page of [stage, alla, bohdan]) await page.getByText('Відео недоступне').waitFor();
+  for (const page of [stage, alla, bohdan]) expect(await page.locator('iframe').count()).toBe(0);
+  await shot(alla, 'video-unavailable-phone');
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  // Останнє запитання єдиного раунду: після «Далі» гра завершується сама.
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
 
   expect(problems).toEqual([]);
 }

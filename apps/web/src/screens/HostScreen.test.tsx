@@ -14,9 +14,9 @@ const options = [
   { id: 'a', text: 'Львів' },
   { id: 'b', text: 'Київ' },
 ];
-const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
-const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
-const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [] });
+const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
+const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
+const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [] });
 
 const players = [
   { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0 },
@@ -64,6 +64,15 @@ function show(current: HostView, send: Send = vi.fn(async () => ({ ok: true as c
 const button = (name: string | RegExp) => screen.getByRole('button', { name }) as HTMLButtonElement;
 
 describe('HostScreen', () => {
+  it('a video question has the player, the close button and no ±15 s', () => {
+    const untimed = { ...publicOf(single), video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('iframe')).not.toBeNull();
+    expect(button('Закрити запитання')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '−15 с' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '+15 с' })).toBeNull();
+  });
+
   it('shows the code, the players and their connection state in the lobby', () => {
     show(view());
     expect(screen.getByText('123 456')).toBeTruthy();
@@ -404,6 +413,24 @@ describe('HostScreen: blitz', () => {
       cleanup();
       show(onBoard({ players: away, paused: true }, boardOf({ skipAt: null })));
       expect(screen.getByText('Олена відключений, гра на паузі, хід чекає')).toBeTruthy();
+    });
+
+    it('the host sees the countdown when an absent answerer will close an untimed cell', () => {
+      const away = three.map((p) => (p.id === 'p1' ? { ...p, connected: false } : p));
+      const untimed = { ...publicOf(single), video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+      show(
+        view({
+          phase: 'question',
+          questionIndex: 0,
+          question: untimed,
+          correct: single,
+          round: boardRound,
+          players: away,
+          playerCount: 3,
+          board: boardOf({ skipAt: Date.now() + 20_000 }),
+        }),
+      );
+      expect(screen.getByText(/Олена відключений, клітинка закриється через 20 с/)).toBeTruthy();
     });
 
     it('grades a voice answer during the question', async () => {

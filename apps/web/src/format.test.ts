@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Question } from '@quiz/shared';
 import { answerText, choicesOf, correctPairs, correctText, formatDate, pairTexts, shownChoices } from './format';
 
-const base = { id: 'q', text: '?', imageUrl: null, timeLimit: 20, points: 1000 };
+const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
   { id: 'a', text: 'Львів' },
   { id: 'b', text: 'Київ' },

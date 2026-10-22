@@ -10,8 +10,8 @@ const choices = [
   { id: 'a', text: 'Львів' },
   { id: 'b', text: 'Київ' },
 ];
-const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, timeLimit: 20, points: 1000, choices, right: [] };
-const full: Question = { id: 'q1', type: 'single', text: question.text, imageUrl: null, timeLimit: 20, points: 1000, options: choices, correctId: 'b' };
+const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [] };
+const full: Question = { id: 'q1', type: 'single', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, options: choices, correctId: 'b' };
 
 const view = (over: Partial<StageView> = {}): StageView => ({
   role: 'stage',
@@ -41,6 +41,14 @@ const show = (current: StageView, hostOnline = true) =>
   );
 
 describe('StageScreen', () => {
+  it('the stage shows the image and the video together, without a timer', () => {
+    const both = { ...question, imageUrl: '/uploads/a.png', video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
+    show(view({ phase: 'question', questionIndex: 0, question: both, endsAt: null, remainingMs: null }));
+    expect(document.querySelector('img.question-image')).not.toBeNull();
+    expect(document.querySelector('iframe')).not.toBeNull();
+    expect(screen.queryByRole('timer')).toBeNull();
+  });
+
   it('invites players with the address and the code split for reading aloud', () => {
     show(view());
     expect(screen.getByText('quiz.test')).toBeTruthy();
@@ -305,6 +313,7 @@ describe('StageScreen: match', () => {
     type: 'match' as const,
     text: 'Пари',
     imageUrl: null,
+    video: null,
     timeLimit: 20,
     points: 100,
     choices: [
@@ -323,6 +332,7 @@ describe('StageScreen: match', () => {
     type: 'match',
     text: 'Пари',
     imageUrl: null,
+    video: null,
     timeLimit: 20,
     points: 100,
     pairs: [

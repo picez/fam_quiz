@@ -213,6 +213,17 @@ describe('serving the web client', () => {
     await served.app.close();
   });
 
+  it('pages carry no security policy that would block the YouTube player', async () => {
+    const webRoot = mkdtempSync(joinPath(tmpdir(), 'quiz-web-'));
+    writeFileSync(joinPath(webRoot, 'index.html'), '<!doctype html><title>quiz</title>');
+    const served = await buildApp({ db, auth: TEST_AUTH, webRoot });
+    const page = await served.app.inject({ method: 'GET', url: '/play/123456' });
+    expect(page.statusCode).toBe(200);
+    // If a page CSP is ever added, it must allow frame-src https://www.youtube-nocookie.com.
+    expect(page.headers['content-security-policy']).toBeUndefined();
+    await served.app.close();
+  });
+
   it('answers JSON 404 for unknown routes when no client is configured', async () => {
     const response = await ctx.app.inject({ method: 'GET', url: '/play/123456' });
     expect(response.statusCode).toBe(404);

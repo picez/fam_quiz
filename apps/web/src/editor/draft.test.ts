@@ -190,7 +190,7 @@ describe('moveItem', () => {
 describe('spare empty rows', () => {
   const single = (texts: string[], correct: number): Quiz => {
     const options = texts.map((text, index) => ({ id: `o${index}`, text }));
-    return quizWith({ id: 'q1', type: 'single', text: 'Питання?', imageUrl: null, timeLimit: 20, points: 1000, options, correctId: `o${correct}` });
+    return quizWith({ id: 'q1', type: 'single', text: 'Питання?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: `o${correct}` });
   };
 
   it('drops an empty option left after the last Enter instead of refusing to save', () => {
@@ -214,6 +214,7 @@ describe('spare empty rows', () => {
           type: 'multi',
           text: 'Питання?',
           imageUrl: null,
+          video: null,
           timeLimit: 20,
           points: 1000,
           options: [
@@ -237,6 +238,7 @@ describe('spare empty rows', () => {
           type: 'multi',
           text: 'Питання?',
           imageUrl: null,
+          video: null,
           timeLimit: 20,
           points: 1000,
           options: [
@@ -251,13 +253,13 @@ describe('spare empty rows', () => {
 
   it('does not close a gap in the middle of an order question on its own', () => {
     const items = ['Один', '', 'Два', 'Три'].map((text, index) => ({ id: `i${index}`, text }));
-    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items });
+    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, video: null, timeLimit: 20, points: 1000, items });
     expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
   });
 
   it('drops empty items at the end of an order question while at least three remain', () => {
     const items = ['Один', 'Два', 'Три', ''].map((text, index) => ({ id: `i${index}`, text }));
-    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, timeLimit: 20, points: 1000, items });
+    const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, video: null, timeLimit: 20, points: 1000, items });
     expect(problemsOf(quiz)).toEqual([]);
     const [question] = questionsOf(cleaned(quiz));
     expect(question.type === 'order' && question.items.map((item) => item.text)).toEqual(['Один', 'Два', 'Три']);
@@ -482,6 +484,51 @@ describe('applyRoundTime', () => {
     expect(boardCells(after).map((c) => [c.cell.mark, c.cell.question.points])).toEqual(
       boardCells(board).map((c) => [c.cell.mark, c.cell.question.points]),
     );
+  });
+});
+
+describe('video questions in the draft', () => {
+  const v = { id: 'dQw4w9WgXcQ', start: 30 };
+
+  it('the same time for the round skips video questions', () => {
+    const a = { ...newQuestion('single'), timeLimit: 20 };
+    const b = { ...newQuestion('boolean'), timeLimit: 25, video: v };
+    const classic = { ...newClassicRound(), questions: [a, b] };
+    const applied = applyRoundTime(classic, 40);
+    expect(applied).toEqual({ ...classic, questions: [{ ...a, timeLimit: 40 }, b] });
+
+    const board = newBoardRound();
+    const first = boardCells(board)[0].cell.question;
+    const marked = {
+      ...board,
+      categories: board.categories.map((category, ci) => ({
+        ...category,
+        cells: category.cells.map((cell, i) => (ci === 0 && i === 0 ? { ...cell, question: { ...cell.question, video: v, timeLimit: 33 } } : cell)),
+      })),
+    };
+    const after = applyRoundTime(marked, 90);
+    if (after.type !== 'board') throw new Error('unexpected type');
+    const cells = boardCells(after);
+    expect(cells[0].cell.question.timeLimit).toBe(33);
+    expect(cells.slice(1).every((c) => c.cell.question.timeLimit === 90)).toBe(true);
+    expect(first.video).toBeNull();
+  });
+
+  it('a new question has no video and changing its type keeps the video', () => {
+    expect(newQuestion('single').video).toBeNull();
+    expect(changeType({ ...newQuestion('single'), video: v }, 'text').video).toEqual(v);
+  });
+
+  it('a stored draft keeps a valid video and drops anything else', () => {
+    const load = (video: unknown) => {
+      const quiz = quizWith({ ...newQuestion('boolean'), text: 'Так?', ...(video === undefined ? {} : { video }) } as Question);
+      if (video === undefined) delete (quiz.rounds[0] as { questions: Record<string, unknown>[] }).questions[0].video;
+      sessionStorage.setItem('quiz:draft:vid', JSON.stringify(quiz));
+      return roundQuestions(loadDraft('vid')!.rounds[0])[0].video;
+    };
+    expect(load(v)).toEqual(v);
+    expect(load({ url: 'x' })).toBeNull();
+    expect(load(undefined)).toBeNull();
   });
 });
 

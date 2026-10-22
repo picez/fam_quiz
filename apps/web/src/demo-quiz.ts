@@ -1,6 +1,6 @@
 import type { Quiz } from '@quiz/shared';
 
-const base = { imageUrl: null, timeLimit: 20, points: 1000 };
+const base = { imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 
 /** Коротка вікторина, що показує всі типи запитань. */
 export const demoQuiz: Quiz = {

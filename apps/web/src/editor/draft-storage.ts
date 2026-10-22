@@ -4,6 +4,7 @@ import {
   CELL_MARKS,
   CELL_PENALTIES,
   upgradeQuiz,
+  videoSchema,
   type BoardCategory,
   type Question,
   type Quiz,
@@ -17,7 +18,8 @@ const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
 const numberOr = (value: unknown) => (typeof value === 'number' ? value : Number.NaN);
 
 function revive(question: Question): Question {
-  const base = { ...question, timeLimit: numberOr(question.timeLimit), points: numberOr(question.points) };
+  const video = videoSchema.safeParse(question.video).success ? question.video : null;
+  const base = { ...question, video, timeLimit: numberOr(question.timeLimit), points: numberOr(question.points) };
   return base.type === 'numeric'
     ? { ...base, correct: numberOr(base.correct), tolerance: numberOr(base.tolerance) }
     : base;

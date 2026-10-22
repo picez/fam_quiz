@@ -1,4 +1,4 @@
-import type { ErrorCode } from '@quiz/shared';
+import type { ErrorCode, Question } from '@quiz/shared';
 import type { GameState, Play, Result } from './game';
 
 const fail = (error: ErrorCode): Result => ({ ok: false, error });
@@ -10,9 +10,22 @@ export const MIN_REMAINING_MS = 5_000;
 /** Після «+15 с» на таймері лишається не більше. */
 export const MAX_REMAINING_MS = 120_000;
 
-/** Повний час запитання з урахуванням змін ведучого. */
-export function limitMsOf(play: Play): number {
-  return play.question.timeLimit * 1000 + play.extraMs;
+/** Чи має запитання таймер: запитання з відео його не має. */
+export function isTimed(question: Question): boolean {
+  // Запитання без поля video (сирий рядок із сховища) — без відео.
+  return question.video == null;
+}
+
+/** Повний час запитання з урахуванням змін ведучого; null — без таймера. */
+export function limitMsOf(play: Play): number | null {
+  return isTimed(play.question) ? play.question.timeLimit * 1000 + play.extraMs : null;
+}
+
+/** Чи сплив час запитання на мить clock: без startedAt — так; без таймера — ніколи; інакше clock > endsAt (endsAt null — так). */
+export function timeOver(state: GameState, play: Play, clock: number): boolean {
+  if (state.startedAt === null) return true;
+  if (!isTimed(play.question)) return false;
+  return state.endsAt === null || clock > state.endsAt;
 }
 
 /** Залишок таймера поточного запитання; null — не етап question або таймера немає. */

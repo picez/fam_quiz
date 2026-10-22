@@ -23,7 +23,7 @@ import { newId } from './new-id';
 export type QuestionType = Question['type'];
 export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match'] as const;
 
-type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'timeLimit' | 'points'>;
+type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points'>;
 
 const blank = () => ({ id: newId(), text: '' });
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -57,7 +57,7 @@ function build(common: Common, type: QuestionType): Question {
 
 export function newQuestion(type: QuestionType): Question {
   return build(
-    { id: newId(), text: '', imageUrl: null, timeLimit: LIMITS.defaultTime, points: LIMITS.defaultPoints },
+    { id: newId(), text: '', imageUrl: null, video: null, timeLimit: LIMITS.defaultTime, points: LIMITS.defaultPoints },
     type,
   );
 }
@@ -65,8 +65,8 @@ export function newQuestion(type: QuestionType): Question {
 /** Змінює тип, зберігаючи текст, час і бали; між single і multi зберігаються й варіанти. */
 export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === type) return question;
-  const { id, text, imageUrl, timeLimit, points } = question;
-  const common: Common = { id, text, imageUrl, timeLimit, points };
+  const { id, text, imageUrl, video, timeLimit, points } = question;
+  const common: Common = { id, text, imageUrl, video, timeLimit, points };
 
   if (question.type === 'single' && type === 'multi') {
     return { ...common, type, options: question.options, correctIds: [question.correctId] };
@@ -78,9 +78,9 @@ export function changeType(question: Question, type: QuestionType): Question {
   return build(common, type);
 }
 
-/** Ставить timeLimit усім запитанням раунду; у полі — усім клітинкам усіх категорій. Меж не перевіряє: їх стереже кнопка в налаштуваннях. */
+/** Ставить timeLimit усім запитанням раунду; у полі — усім клітинкам усіх категорій. Запитання з відео пропускає: вони без таймера, а їхній час повернеться, якщо прибрати відео. Меж не перевіряє: їх стереже кнопка в налаштуваннях. */
 export function applyRoundTime(round: Round, seconds: number): Round {
-  const timed = (question: Question): Question => ({ ...question, timeLimit: seconds });
+  const timed = (question: Question): Question => (question.video === null ? { ...question, timeLimit: seconds } : question);
   if (round.type === 'board') {
     return {
       ...round,

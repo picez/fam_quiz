@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { Grade, Phase } from './game';
-import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round } from './quiz';
+import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video } from './quiz';
 import type { Standing } from './standing';
 
 export interface Choice {
@@ -13,7 +13,9 @@ export interface PublicQuestion {
   type: Question['type'];
   text: string;
   imageUrl: string | null;
-  timeLimit: number;
+  /** null — запитання без таймера (з відео). */
+  timeLimit: number | null;
+  video: Video | null;
   points: number;
   choices: Choice[];
   /** Праві елементи пар у порядку показу; [] для інших типів. */

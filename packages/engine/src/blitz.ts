@@ -1,10 +1,11 @@
-import type { ErrorCode } from '@quiz/shared';
+import { DEFAULT_ANSWER_WINDOW, type ErrorCode } from '@quiz/shared';
 import { cellBlitzRules } from './board-cells';
 import { BOARD_AWAY_MS } from './board-turns';
 // З game.ts лише типи: game.ts сам викликає цей файл, цикл під час виконання не потрібен.
 import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
 import { clockOf, holdAt, thaw } from './hold';
 import { answerPoints } from './score';
+import { isTimed, timeOver } from './timing';
 
 const refuse = (error: ErrorCode): Result => ({ ok: false, error });
 
@@ -25,7 +26,8 @@ export function blitzRulesOf(state: GameState, play: Play): BlitzRules | null {
   if (round?.type === 'blitz') {
     const { multiplier, penalty } = round.rules;
     return {
-      answerWindow: round.answerWindow,
+      // Без таймера запитання вікно потрібне завжди, інакше мовчазна голова тримала б чергу без кінця.
+      answerWindow: round.answerWindow ?? (isTimed(play.question) ? null : DEFAULT_ANSWER_WINDOW),
       attempts: round.attempts,
       check: round.check,
       points: (_playerId, correct) =>
@@ -71,8 +73,8 @@ export function buzz(state: GameState, playerId: string, now: number): Result {
   if (!state.players.some((p) => p.id === playerId)) return refuse('not_found');
   // Під час утримання натискання стає в чергу за замороженим годинником: його вікно піде після зняття утримання.
   const clock = clockOf(state, now);
-  if (state.endsAt === null || clock > state.endsAt) return refuse('time_over');
   const { play, blitz, rules } = open;
+  if (timeOver(state, play, clock)) return refuse('time_over');
   if (blitz.queue.some((entry) => entry.playerId === playerId)) return refuse('already_queued');
   if (!hasAttemptsLeft(rules, play, playerId)) return refuse('no_attempts');
   const entry: BuzzEntry = {
@@ -174,8 +176,13 @@ export function nextDeadline(state: GameState, now: number): number | null {
     return since + BOARD_AWAY_MS > now ? since + BOARD_AWAY_MS : null;
   }
   // Під час утримання годинник стоїть: tick нічого не змінить, доки ведучий не вирішить.
-  if (state.phase !== 'question' || state.paused || state.endsAt === null || state.heldAt !== null) return null;
-  const times = [state.endsAt, ...(state.plays[state.questionIndex]?.blitz?.queue.map((e) => e.deadline) ?? [])];
+  if (state.phase !== 'question' || state.paused || state.heldAt !== null) return null;
+  const away = state.board?.awaySince ?? null;
+  const times = [
+    state.endsAt,
+    away === null ? null : away + BOARD_AWAY_MS,
+    ...(state.plays[state.questionIndex]?.blitz?.queue.map((e) => e.deadline) ?? []),
+  ];
   const upcoming = times.filter((time): time is number => time !== null && time > now);
   return upcoming.length === 0 ? null : Math.min(...upcoming);
 }

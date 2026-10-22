@@ -19,7 +19,7 @@ import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
 import { answerPoints, speedFactor, streakBonus } from './score';
-import { limitMsOf } from './timing';
+import { isTimed, limitMsOf, timeOver } from './timing';
 
 export interface PlayerState {
   id: string;
@@ -236,7 +236,32 @@ export function setConnected(state: GameState, playerId: string, connected: bool
   if (state.phase === 'board' && state.board !== null && !state.paused && chooserOf(state) === playerId) {
     return ok({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } });
   }
+  // На звичайній клітинці без таймера так само, але відлік не стартує, поки відповідь чекає на ведучого.
+  const watched = state.phase === 'question' && !state.paused && awayWatched(state) === playerId;
+  if (watched && state.board !== null && (connected || state.heldAt === null)) {
+    return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }));
+  }
   return ok(autoLock(changed));
+}
+
+/** Гравець, чия відсутність закриває запитання: той, хто вибрав звичайну клітинку без таймера; інакше null. */
+function awayWatched(state: GameState): string | null {
+  if (state.phase !== 'question') return null;
+  const play = state.plays[state.questionIndex];
+  const board = play?.board;
+  if (board === undefined || board.kind !== 'normal' || isTimed(play.question)) return null;
+  return state.players.some((p) => p.id === board.chooserId) ? board.chooserId : null;
+}
+
+/**
+ * Ставить відлік відсутності (awaySince = now), якщо гравець, за яким стежать, відключений, а відліку ще немає.
+ * Сервер викликає tick лише за дедлайном, тож відлік ставлять і самі дії, після яких він має піти.
+ */
+function watchAway(state: GameState, now: number): GameState {
+  if (state.paused || state.heldAt !== null || state.board === null || state.board.awaySince !== null) return state;
+  const watched = awayWatched(state);
+  const away = watched !== null && state.players.some((p) => p.id === watched && !p.connected);
+  return away ? { ...state, board: { ...state.board, awaySince: now } } : state;
 }
 
 export type Rng = () => number;
@@ -288,20 +313,24 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(board !== undefined ? { board } : {}),
     ...(round.type === 'blitz' || board?.kind === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
   };
-  return {
-    ...state,
-    phase: 'question',
-    questionIndex: state.plays.length,
-    plays: [...state.plays, play],
-    presented: present(question, round.shuffleOptions, rng),
-    startedAt: now,
-    endsAt: now + question.timeLimit * 1000,
-    remainingMs: null,
-    heldAt: null,
-  };
+  // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
+  return watchAway(
+    {
+      ...state,
+      phase: 'question',
+      questionIndex: state.plays.length,
+      plays: [...state.plays, play],
+      presented: present(question, round.shuffleOptions, rng),
+      startedAt: now,
+      endsAt: isTimed(question) ? now + question.timeLimit * 1000 : null,
+      remainingMs: null,
+      heldAt: null,
+    },
+    now,
+  );
 }
 
-/** Відлік відсутності має сенс лише на етапі board. */
+/** Скидає відлік відсутності гравця, чий хід. */
 function clearAway(board: BoardState | null): BoardState | null {
   return board === null ? null : { ...board, awaySince: null };
 }
@@ -381,9 +410,10 @@ function withTotals(state: GameState): GameState {
     for (const play of plays.slice(0, closedCount)) {
       const record = Object.hasOwn(play.answers, player.id) ? play.answers[player.id] : undefined;
       score += record ? record.points : 0;
-      // Час для рівного рахунку йде лише за класичні раунди.
-      if (state.quiz.rounds[play.roundIndex].type !== 'classic') continue;
-      totalTimeMs += record ? record.timeMs : limitMsOf(play);
+      // Час для рівного рахунку йде лише за класичні раунди й лише за запитання з таймером.
+      const limitMs = limitMsOf(play);
+      if (state.quiz.rounds[play.roundIndex].type !== 'classic' || limitMs === null) continue;
+      totalTimeMs += record ? record.timeMs : limitMs;
     }
     return { ...player, score, totalTimeMs, streak: counters[player.id] ?? 0 };
   });
@@ -400,7 +430,8 @@ function dropQueue(state: GameState): GameState {
 
 /** Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз. */
 function lockNow(state: GameState): GameState {
-  return withTotals({ ...withCellPenalty(dropQueue(state)), phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null });
+  const closed = withCellPenalty(dropQueue(state));
+  return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
 /** Закриває запитання поля й одразу розкриває оцінку: так відповідь світиться зеленим або червоним. */
@@ -444,12 +475,13 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   }
   if (round.type === 'board') return submitBoardAnswer(state, round, playerId, answer, now);
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
-  if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
+  if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
   if (question.type !== answer.type) return fail('type_mismatch');
 
   const timeMs = Math.max(0, now - state.startedAt);
   const { accepted, accuracy } = checkAnswer(question, answer);
-  const speed = speedFactor(timeMs, limitMsOf(play), round.type === 'classic' && round.speedBonus);
+  const limit = limitMsOf(play);
+  const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
   const points = answerPoints({
     points: question.points,
     accuracy,
@@ -478,7 +510,7 @@ function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string
   if (board === undefined || board.answerMode === 'voice') return fail('wrong_phase');
   if (playerId !== board.chooserId) return fail('not_your_turn');
   if (recordOf(state, state.questionIndex, playerId) !== undefined || board.answer !== null) return fail('already_answered');
-  if (state.startedAt === null || state.endsAt === null || now > state.endsAt) return fail('time_over');
+  if (timeOver(state, play, now)) return fail('time_over');
   if (play.question.type !== answer.type) return fail('type_mismatch');
   return ok(holdAt(withBoard(state, { ...board, answer }), now));
 }
@@ -530,7 +562,8 @@ export function repick(state: GameState, playerId: string, now: number): Result 
   }
   const board = play.board;
   if (board === undefined) return fail('wrong_phase');
-  return ok(thaw(withBoard(state, { ...board, answer: null }), now));
+  // Гравець міг піти, поки відповідь чекала: тепер відлік відсутності рушає.
+  return ok(watchAway(thaw(withBoard(state, { ...board, answer: null }), now), now));
 }
 
 /** Замінює клітинку в поточному запитанні поля. */
@@ -549,7 +582,7 @@ function submitBlitzAnswer(state: GameState, playerId: string, answer: Answer, n
   if (play.blitz === undefined || entry === undefined) return fail('not_in_queue');
   if (entry.answer !== null) return fail('already_answered');
   const clock = clockOf(state, now);
-  const limit = entry.deadline ?? state.endsAt;
+  const limit = entry.deadline ?? (isTimed(play.question) ? state.endsAt : Infinity);
   if (limit === null || clock > limit) return fail('time_over');
   if (play.question.type !== answer.type) return fail('type_mismatch');
 
@@ -581,9 +614,12 @@ export function lock(state: GameState): Result {
 export function tick(state: GameState, now: number): GameState {
   if (state.phase === 'board' && state.board !== null) return state.paused ? state : tickBoard(state, state.board, now);
   if (state.phase !== 'question' || state.paused) return state;
-  const running = releaseStaleHold(state, now);
-  // Поки відповідь чекає на ведучого, годинник стоїть.
+  const running = watchAway(releaseStaleHold(state, now), now);
+  // Поки відповідь чекає на ведучого, годинник стоїть (і відлік відсутності теж).
   if (running.heldAt !== null) return running;
+  // Звичайна клітинка без таймера закривається, коли гравець, чий хід, відсутній 30 секунд.
+  const since = running.board?.awaySince ?? null;
+  if (since !== null && awayWatched(running) !== null && now >= since + BOARD_AWAY_MS) return lockNow(running);
   if (running.plays[running.questionIndex]?.blitz !== undefined) {
     const settled = settleQueue(running, now);
     return blitzDone(settled, now) ? lockNow(settled) : settled;
@@ -611,7 +647,7 @@ function unansweredIsWrong(state: GameState): GameState {
   const points = boardPoints(round, play.board, 0);
   return withRecord(state, chooserId, {
     answer: play.board.answer,
-    timeMs: limitMsOf(play),
+    timeMs: limitMsOf(play) ?? 0,
     accepted: false,
     accuracy: 0,
     grade: 'wrong',
@@ -684,12 +720,24 @@ export function resume(state: GameState, now: number): Result {
     return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now)));
   }
   if (state.phase === 'question' && state.remainingMs !== null) {
-    const limitMs = limitMsOf(state.plays[state.questionIndex]);
+    const limitMs = limitMsOf(state.plays[state.questionIndex]) ?? 0;
     const endsAt = now + state.remainingMs;
     // startedAt зсувається так, щоб час відповіді не включав паузу.
     const resumed = { ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs };
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
     return ok(autoLock(settleQueue(shiftQueue(resumed, now - (state.pausedAt ?? now)), now)));
+  }
+  if (state.phase === 'question' && !isTimed(state.plays[state.questionIndex].question)) {
+    // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
+    const shift = now - (state.pausedAt ?? now);
+    const resumed = {
+      ...state,
+      paused: false,
+      pausedAt: null,
+      startedAt: state.startedAt === null ? null : state.startedAt + shift,
+    };
+    // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(resumed, shift), now)), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.
@@ -709,7 +757,7 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
   const existing = recordOf(state, state.questionIndex, playerId);
-  const limitMs = limitMsOf(play);
+  const limitMs = limitMsOf(play) ?? 0;
   const spentMs =
     phase === 'question' && now !== undefined && state.startedAt !== null ? Math.max(0, clockOf(state, now) - state.startedAt) : limitMs;
   const points = boardPoints(round, board, accuracy);
@@ -744,7 +792,8 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   if (record === undefined) return fail('not_found');
   if (grade === 'partial' && round.rules.partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (round.rules.partial ?? 0) / 100 : 0;
-  const speed = speedFactor(record.timeMs, limitMsOf(play), round.type === 'classic' && round.speedBonus);
+  const limit = limitMsOf(play);
+  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
   const points = answerPoints({
     points: question.points,
     accuracy,
