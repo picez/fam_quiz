@@ -12,6 +12,7 @@
   --cell-voice: rgb(155 140 255 / 0.22);
   --video-mask: #000;
   --pending: #ff7a1a;
+  --pending-soft: rgb(255 122 26 / 0.18);
   --panel: rgb(255 255 255 / 0.05);
   --line: rgb(245 241 230 / 0.16);
   --display: 'Unbounded Variable', system-ui, sans-serif;
@@ -969,7 +970,8 @@ button.choice {
 @media (prefers-reduced-motion: no-preference) {
   .choice.is-blinking.is-wrong,
   .is-blinking.is-correct,
-  .is-blinking.is-wrong {
+  .is-blinking.is-wrong,
+  .blitz-mark.is-blinking {
     animation: verdict-blink 0.5s ease-in-out 6;
   }
 
@@ -1690,6 +1692,101 @@ a.banner {
 
 .blitz-queue {
   margin-top: 1rem;
+}
+
+/* Жива черга миттєвого бліцу: висота зарезервована під min(гравців, 6) рядків, тож нові відповіді
+   нічого не зсувають; більше рядків прокручується всередині блоку. Кожен рядок — один рядок тексту. */
+.blitz-queue.is-reserved {
+  --row-h: 2.75rem;
+  gap: 0;
+  min-height: calc(var(--rows) * var(--row-h));
+  max-height: calc(var(--rows) * var(--row-h));
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.blitz-queue.is-reserved li {
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  height: var(--row-h);
+  padding: 0 0.5rem;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.blitz-queue.is-reserved .rank {
+  min-width: 1.5rem;
+}
+
+.blitz-queue.is-reserved .name,
+.blitz-queue.is-reserved .given {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+}
+
+.blitz-queue.is-reserved .given {
+  flex: 1;
+  color: var(--dim);
+}
+
+.blitz-queue .time {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.blitz-queue .blitz-mark {
+  flex: none;
+  min-width: 1.25rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.blitz-queue .blitz-mark.is-correct {
+  color: var(--correct);
+}
+
+.blitz-queue .blitz-mark.is-wrong {
+  color: var(--signal);
+}
+
+.blitz-queue .blitz-mark.is-pending,
+.blitz-queue .blitz-mark.is-unchecked {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.blitz-queue .blitz-mark.is-pending {
+  color: var(--pending);
+}
+
+.blitz-queue .blitz-mark.is-unchecked {
+  color: var(--dim);
+}
+
+/* Ведучий: голова, чию відповідь зараз перевіряють, помаранчева. */
+.blitz-queue li.is-pending {
+  border-radius: 0.5rem;
+  background: var(--pending-soft);
+  box-shadow: inset 3px 0 0 var(--pending);
+}
+
+.blitz-queue li.is-empty {
+  color: var(--dim);
+  border-bottom: 0;
+}
+
+/* Рядки стану завжди займають місце: їхня поява не зсуває варіантів. */
+.blitz-status,
+.answering-line {
+  min-height: 1.5em;
+}
+
+.blitz-status {
+  margin: 0.75rem 0 0;
+  font-weight: 600;
+  text-align: center;
 }
 
 .winner {

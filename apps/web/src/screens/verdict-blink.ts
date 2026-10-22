@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Spotlight } from '@quiz/shared';
+import type { BlitzRow, Spotlight } from '@quiz/shared';
 
 /** Скільки мигає вердикт: шість циклів по 0,5 с. */
 export const BLINK_MS = 3000;
@@ -32,4 +32,44 @@ export function useVerdictBlink(spotlight: Spotlight | null): boolean {
   }, [key]);
 
   return blink;
+}
+
+/**
+ * playerId рядків черги, у яких вердикт з'явився менше ніж BLINK_MS тому; під час першого показу — порожньо.
+ * scope — номер запитання: той самий вердикт того самого гравця в наступному запитанні знову мигає.
+ */
+export function useBlinkingRows(rows: BlitzRow[], scope: number): ReadonlySet<string> {
+  const graded = rows.filter((row) => row.grade !== null).map((row) => ({ key: `${scope}|${row.playerId}|${row.grade}`, playerId: row.playerId }));
+  const signature = graded.map((row) => row.key).join(' ');
+  const seen = useRef<Set<string> | null>(null);
+  if (seen.current === null) seen.current = new Set(graded.map((row) => row.key));
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const [blinking, setBlinking] = useState<ReadonlySet<string>>(() => new Set());
+
+  useEffect(() => {
+    const known = seen.current ?? new Set<string>();
+    const fresh = graded.filter((row) => !known.has(row.key));
+    if (fresh.length === 0) return;
+    for (const row of fresh) known.add(row.key);
+    setBlinking((current) => new Set([...current, ...fresh.map((row) => row.playerId)]));
+    // Кожен рядок гасне за власним відліком: новий вердикт посеред миготіння не продовжує чужий.
+    for (const { playerId } of fresh) {
+      clearTimeout(timers.current.get(playerId));
+      timers.current.set(
+        playerId,
+        setTimeout(() => {
+          timers.current.delete(playerId);
+          setBlinking((current) => new Set([...current].filter((id) => id !== playerId)));
+        }, BLINK_MS),
+      );
+    }
+    // graded виводиться з signature.
+  }, [signature]);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach((timer) => clearTimeout(timer));
+  }, []);
+
+  return blinking;
 }
