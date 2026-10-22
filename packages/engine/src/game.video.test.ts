@@ -19,7 +19,7 @@ import {
 import { pendingOf } from './hold';
 import { adjustTime, isTimed, limitMsOf } from './timing';
 import { blitzRound, boardRound, classicRound, makeRoundsQuiz, single, withId, withPoints, withVideo } from './testing/fixtures';
-import { acceptAll, lobbyWith, must } from './testing/helpers';
+import { acceptAll, lobbyWith, must, startRound } from './testing/helpers';
 import type { BlitzRound, BoardCell, Question } from '@quiz/shared';
 
 const right = { type: 'single', optionId: 'b' } as const;
@@ -31,13 +31,13 @@ type BlitzOptions = Partial<Omit<BlitzRound, 'id' | 'type' | 'questions'>>;
 /** Класичний раунд, перше запитання відкрите в момент 0; гравці Анна p1, Богдан p2. */
 function openClassic(questions: Question[] = [clip], speedBonus = true): GameState {
   const quiz = makeRoundsQuiz([classicRound('r1', questions, { speedBonus })]);
-  return must(start(lobbyWith(quiz, 'Анна', 'Богдан'), 0));
+  return startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0);
 }
 
 /** Бліц-раунд, перше запитання відкрите в момент 0; гравці Анна p1, Богдан p2. */
 function openBlitz(options: BlitzOptions = {}, questions: Question[] = [clip]): GameState {
   const quiz = makeRoundsQuiz([blitzRound('b1', questions, options)]);
-  return must(start(lobbyWith(quiz, 'Анна', 'Богдан'), 0));
+  return startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0);
 }
 
 const queueOf = (state: GameState) => state.plays[state.questionIndex].blitz?.queue ?? [];
@@ -165,7 +165,7 @@ describe('a video on the board', () => {
   /** Поле як у game.board-cells.test.ts: c11 з відео за 100, c12 за 200; p1 вибрав c11 у момент 0; гравці p1, p2, p3. */
   function picked(cell: Partial<BoardCell> = {}): GameState {
     const round = boardRound('g1', [{ title: 'A', cells: [{ question: withVideo(q('c11', 100)), ...cell }, q('c12', 200)] }]);
-    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра')));
     return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
   }
   const points = (state: GameState, playerId: string) => state.plays[0].answers[playerId]?.points;
@@ -233,7 +233,7 @@ describe('a video on the board', () => {
   it('the countdown starts when an absent answerer is picked for, or their answer is sent back', () => {
     // Ведучий вибирає клітинку за відсутнього гравця: відлік іде з моменту відкриття.
     const round = boardRound('g1', [{ title: 'A', cells: [withVideo(q('c11', 100)), q('c12', 200)] }]);
-    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан')));
     const offline = must(setConnected(must(next(intro, 0)), 'p1', false, 0));
     const opened = must(pickCell(offline, null, 'c11', 5000, Math.random));
     expect(opened.phase).toBe('question');

@@ -1,5 +1,5 @@
 import type { Quiz } from '@quiz/shared';
-import { acceptAnswer, addPlayer, createGame, type GameState, type Result } from '../game';
+import { acceptAnswer, addPlayer, createGame, next, start, type GameState, type Result, type Rng } from '../game';
 import { pendingOf } from '../hold';
 
 export function must(result: Result): GameState {
@@ -13,6 +13,11 @@ export function lobbyWith(quiz: Quiz, ...nicknames: string[]): GameState {
     (state, nickname, index) => must(addPlayer(state, { id: `p${index + 1}`, nickname })),
     createGame(quiz),
   );
+}
+
+/** Ведучий тисне «Почати гру», а тоді «Почати раунд» у той самий момент: відкрито перше запитання. */
+export function startRound(lobby: GameState, now: number, rng?: Rng): GameState {
+  return must(next(must(start(lobby)), now, rng));
 }
 
 /** Ведучий тисне «Прийняти», доки є відповідь, що чекає на рішення. */

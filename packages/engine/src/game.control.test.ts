@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { end, lock, next, override, pause, recordOf, resume, start, submitAnswer, tick } from './game';
+import { end, lock, next, override, pause, recordOf, resume, submitAnswer, tick } from './game';
 import { makeQuiz, single, text } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { lobbyWith, must, startRound } from './testing/helpers';
 
 const T0 = 1_000_000;
 const correct = { type: 'single', optionId: 'b' } as const;
-const started = () => must(start(lobbyWith(makeQuiz([single, text]), 'Олена', 'Тарас'), T0));
+const started = () => startRound(lobbyWith(makeQuiz([single, text]), 'Олена', 'Тарас'), T0);
 
 describe('pause and resume', () => {
   it('freezes the remaining time of an open question', () => {
@@ -56,7 +56,7 @@ describe('pause and resume', () => {
 describe('override', () => {
   const textQuiz = makeQuiz([text]);
   const onReveal = () => {
-    const open = must(start(lobbyWith(textQuiz, 'Олена', 'Тарас'), T0));
+    const open = startRound(lobbyWith(textQuiz, 'Олена', 'Тарас'), T0);
     const first = must(submitAnswer(open, 'p1', { type: 'text', value: 'одеса' }, T0 + 10_000));
     const locked = must(submitAnswer(first, 'p2', { type: 'text', value: 'Адеса' }, T0 + 10_000));
     return must(next(locked, T0 + 20_000));
@@ -89,12 +89,12 @@ describe('override', () => {
   });
 
   it('is allowed only on reveal', () => {
-    const locked = must(lock(must(start(lobbyWith(textQuiz, 'Олена'), T0))));
+    const locked = must(lock(startRound(lobbyWith(textQuiz, 'Олена'), T0)));
     expect(override(locked, 'p1', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('reports a player who gave no answer', () => {
-    const reveal = must(next(must(lock(must(start(lobbyWith(textQuiz, 'Олена'), T0)))), T0));
+    const reveal = must(next(must(lock(startRound(lobbyWith(textQuiz, 'Олена'), T0))), T0));
     expect(override(reveal, 'p1', 'correct')).toEqual({ ok: false, error: 'not_found' });
   });
 });

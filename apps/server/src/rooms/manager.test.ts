@@ -40,6 +40,7 @@ function playing() {
   const olena = enter(ctx.manager, ctx.room, 'Олена');
   const taras = enter(ctx.manager, ctx.room, 'Тарас');
   expect(ctx.manager.host(ctx.room, { type: 'start' })).toEqual({ ok: true });
+  expect(ctx.manager.host(ctx.room, { type: 'next' })).toEqual({ ok: true });
   return { ...ctx, olena, taras };
 }
 
@@ -152,6 +153,7 @@ describe('playing', () => {
     const olena = enter(manager, room, 'Олена');
     const taras = enter(manager, room, 'Тарас');
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(scheduler.pending()).toEqual([]);
     scheduler.advance(600_000);
     expect(room.state.phase).toBe('question');
@@ -223,6 +225,7 @@ function blitzPlaying(options: Parameters<typeof blitzRound>[2] = {}) {
   const olena = enter(manager, room, 'Олена');
   const taras = enter(manager, room, 'Тарас');
   expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+  expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
   expect(room.state.phase).toBe('question');
   return { scheduler, manager, room, olena, taras };
 }
@@ -323,6 +326,7 @@ describe('blitz', () => {
     const room = manager.create(makeRoundsQuiz([blitzRound('b1', [single], { check: 'manual', answerWindow: 5 })]));
     const olena = enter(manager, room, 'Олена');
     manager.host(room, { type: 'start' });
+    manager.host(room, { type: 'next' });
     manager.buzz(room, olena.playerId);
     manager.answer(room, olena.playerId, correct);
 
@@ -449,6 +453,7 @@ describe('timer drift', () => {
     const room = manager.create(makeQuiz([single]));
     enter(manager, room, 'Олена');
     manager.host(room, { type: 'start' });
+    manager.host(room, { type: 'next' });
 
     scheduler.advance(20_000);
     expect(room.state.phase).toBe('locked');

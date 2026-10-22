@@ -241,7 +241,7 @@ export class RoomManager {
     const state = room.state;
     switch (action.type) {
       case 'start':
-        return this.apply(room, start(state, this.now(), this.rng));
+        return this.apply(room, start(state));
       case 'lock':
         return this.apply(room, lock(state));
       case 'next':

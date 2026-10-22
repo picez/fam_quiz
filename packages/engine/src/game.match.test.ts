@@ -4,7 +4,7 @@ import { buzz } from './blitz';
 import { pickCell } from './board';
 import { acceptAnswer, next, override, start, submitAnswer, type GameState } from './game';
 import { blitzRound, boardRound, makeQuiz, makeRoundsQuiz, match, withId, withPoints } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { lobbyWith, must, startRound } from './testing/helpers';
 
 const right: Answer = {
   type: 'match',
@@ -27,7 +27,7 @@ const score = (state: GameState, id: string) => state.players.find((p) => p.id =
 describe('match question in a classic round', () => {
   it('a classic round scores a correct match fully and a wrong one with nothing', () => {
     const quiz = makeQuiz([match], { speedBonus: false });
-    let state = must(start(lobbyWith(quiz, 'Олена', 'Тарас'), 0));
+    let state = startRound(lobbyWith(quiz, 'Олена', 'Тарас'), 0);
     state = must(submitAnswer(state, 'p1', right, 1000));
     state = must(submitAnswer(state, 'p2', wrong, 1000));
     expect(state.phase).toBe('locked');
@@ -38,7 +38,7 @@ describe('match question in a classic round', () => {
 
   it('the host can grade a wrong match answer as partial when the round allows it', () => {
     const quiz = makeQuiz([match], { speedBonus: false, rules: { ...DEFAULT_RULES, partial: 50 } });
-    let state = must(start(lobbyWith(quiz, 'Олена', 'Тарас'), 0));
+    let state = startRound(lobbyWith(quiz, 'Олена', 'Тарас'), 0);
     state = must(submitAnswer(state, 'p1', right, 1000));
     state = must(submitAnswer(state, 'p2', wrong, 1000));
     state = must(next(state, 2000));
@@ -52,7 +52,7 @@ describe('match question in a classic round', () => {
 describe('match question in a blitz round', () => {
   it('a blitz round accepts a match answer from the head of the queue', () => {
     const quiz = makeRoundsQuiz([blitzRound('b1', [match])]);
-    let state = must(start(lobbyWith(quiz, 'Анна', 'Богдан'), 0));
+    let state = startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0);
     state = must(buzz(state, 'p1', 100));
     state = must(submitAnswer(state, 'p1', right, 200));
     expect(state.phase).toBe('question');
@@ -70,7 +70,7 @@ describe('match question on the board', () => {
   const cell = withPoints(withId(match, 'c11'), 300);
   const picked = (options = {}) => {
     const round = boardRound('g1', [{ title: 'Міста', cells: [cell] }], options);
-    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0));
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра')));
     return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
   };
 

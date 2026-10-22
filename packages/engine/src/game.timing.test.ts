@@ -3,14 +3,14 @@ import { buzz } from './blitz';
 import { lock, next, pause, recordOf, resume, start, submitAnswer, type GameState } from './game';
 import { adjustTime } from './timing';
 import { blitzRound, boardRound, classicRound, makeRoundsQuiz, single } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { lobbyWith, must, startRound } from './testing/helpers';
 
 const right = { type: 'single', optionId: 'b' } as const;
 
 /** Класичний раунд, `single` з timeLimit 20 і points 1000, відкрито в момент 0. */
 function open(speedBonus = true): GameState {
   const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus })]);
-  return must(start(lobbyWith(quiz, 'Анна', 'Богдан'), 0));
+  return startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0);
 }
 
 describe('host time changes', () => {
@@ -57,7 +57,7 @@ describe('host time changes', () => {
 
   it('the blitz answer window is not changed', () => {
     const quiz = makeRoundsQuiz([blitzRound('b1', [single], { answerWindow: 15 })]);
-    const buzzed = must(buzz(must(start(lobbyWith(quiz, 'Анна', 'Богдан'), 0)), 'p1', 1000));
+    const buzzed = must(buzz(startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0), 'p1', 1000));
     expect(buzzed.plays[0].blitz?.queue[0].deadline).toBe(16_000);
     const adjusted = must(adjustTime(buzzed, 15, 2000));
     expect(adjusted.endsAt).toBe(35_000);
@@ -66,7 +66,7 @@ describe('host time changes', () => {
 
   it('adjustTime is refused outside a running question', () => {
     const quiz = makeRoundsQuiz([boardRound('g1', [{ title: 'A', cells: [{ ...single, id: 'c11' }] }])]);
-    const intro = must(start(lobbyWith(quiz, 'Анна'), 0));
+    const intro = must(start(lobbyWith(quiz, 'Анна')));
     expect(intro.phase).toBe('intro');
     expect(adjustTime(intro, 15, 0)).toEqual({ ok: false, error: 'wrong_phase' });
     const board = must(next(intro, 0));

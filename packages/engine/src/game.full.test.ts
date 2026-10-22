@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
 import type { Answer } from '@quiz/shared';
-import { next, start, submitAnswer, type GameState } from './game';
+import { next, submitAnswer, type GameState } from './game';
 import { makeQuiz } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { lobbyWith, must, startRound } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
 it('plays a whole quiz with every question type', () => {
@@ -19,7 +19,7 @@ it('plays a whole quiz with every question type', () => {
   ];
 
   let now = 1_000_000;
-  let state: GameState = must(start(lobbyWith(quiz, 'Олена', 'Тарас'), now));
+  let state: GameState = startRound(lobbyWith(quiz, 'Олена', 'Тарас'), now);
 
   rounds.forEach(([olena, taras, olenaPoints, tarasPoints], index) => {
     expect(state.phase).toBe('question');
