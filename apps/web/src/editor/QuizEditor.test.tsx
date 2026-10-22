@@ -1001,3 +1001,61 @@ describe('QuizEditor board focus and limits', () => {
     expect(screen.getByRole('button', { name: '+ Категорія' })).toHaveProperty('disabled', true);
   });
 });
+
+describe('QuizEditor: YouTube video', () => {
+  const LINK = 'Відео з YouTube';
+  const withVideoQuestion = (extra: Record<string, unknown>) => {
+    const quiz = newQuiz();
+    const [round] = quiz.rounds;
+    if (round.type === 'board') throw new Error('unexpected');
+    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...round.questions[0], text: 'Так?', ...extra }] }] } as Quiz;
+  };
+
+  it('a pasted YouTube link becomes a video with a preview and hides the time field', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Що за пісня?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    fill(LINK, 'https://youtu.be/dQw4w9WgXcQ?t=1m30s');
+    const frame = document.querySelector('iframe');
+    expect(frame?.getAttribute('src')).toContain('embed/dQw4w9WgXcQ');
+    expect(frame?.getAttribute('src')).toContain('start=90');
+    expect(screen.queryByLabelText('Час, с')).toBeNull();
+    expect(screen.getByText(/Без таймера/)).toBeTruthy();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ video: { id: 'dQw4w9WgXcQ', start: 90 }, timeLimit: 30 });
+  });
+
+  it('a wrong link is a field error and leaves the question without a video', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Що за пісня?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    fill(LINK, 'https://example.com/watch?v=dQw4w9WgXcQ');
+    expect(screen.getByRole('alert').textContent).toBe('Це не посилання на відео YouTube');
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(screen.getByLabelText('Час, с')).toBeTruthy();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(roundQuestions(saved(onSave).rounds[0])[0].video).toBeNull();
+  });
+
+  it('removing the video brings the time field back with the old time', () => {
+    open(withVideoQuestion({ type: 'boolean', correct: true, timeLimit: 45, video: { id: 'dQw4w9WgXcQ', start: 0 } }));
+    expect(screen.queryByLabelText('Час, с')).toBeNull();
+    click('Прибрати відео');
+    expect((screen.getByLabelText('Час, с') as HTMLInputElement).value).toBe('45');
+    expect((screen.getByLabelText(LINK) as HTMLInputElement).value).toBe('');
+  });
+
+  it('a question keeps its image when a video is added', async () => {
+    const { onSave } = open(withVideoQuestion({ type: 'boolean', correct: true, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png' }));
+    fill(LINK, 'https://youtu.be/dQw4w9WgXcQ');
+    expect(screen.getByAltText('Зображення до запитання')).toBeTruthy();
+    expect(document.querySelector('iframe')).not.toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', video: { id: 'dQw4w9WgXcQ', start: 0 } });
+  });
+});

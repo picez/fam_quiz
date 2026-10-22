@@ -78,9 +78,9 @@ export function changeType(question: Question, type: QuestionType): Question {
   return build(common, type);
 }
 
-/** Ставить timeLimit усім запитанням раунду; у полі — усім клітинкам усіх категорій. Меж не перевіряє: їх стереже кнопка в налаштуваннях. */
+/** Ставить timeLimit усім запитанням раунду; у полі — усім клітинкам усіх категорій. Запитання з відео пропускає: вони без таймера, а їхній час повернеться, якщо прибрати відео. Меж не перевіряє: їх стереже кнопка в налаштуваннях. */
 export function applyRoundTime(round: Round, seconds: number): Round {
-  const timed = (question: Question): Question => ({ ...question, timeLimit: seconds });
+  const timed = (question: Question): Question => (question.video === null ? { ...question, timeLimit: seconds } : question);
   if (round.type === 'board') {
     return {
       ...round,

@@ -176,7 +176,8 @@ a {
   color: var(--dim);
 }
 
-.image-field {
+.image-field,
+.video-field {
   display: grid;
   gap: 0.5rem;
 }
