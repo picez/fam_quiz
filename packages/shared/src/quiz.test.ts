@@ -573,6 +573,12 @@ describe('chain question', () => {
     expect((questionSchema.parse(chainQ(['  Форель ', 'Риба', 'Океан'])) as { words: string[] }).words[0]).toBe('Форель');
   });
 
+  it('a chain word typed in decomposed form (и + combining breve) is stored composed', () => {
+    const nfd = 'Гай'.normalize('NFD');
+    expect(nfd).not.toBe('Гай');
+    expect((questionSchema.parse(chainQ(['Форель', nfd, 'Океан'])) as { words: string[] }).words[1]).toBe('Гай');
+  });
+
   it('a hint adds 1 to 30 seconds', () => {
     expect(valid(questionSchema, chainQ(W3, { hintSeconds: 1 }))).toBe(true);
     expect(valid(questionSchema, chainQ(W3, { hintSeconds: 30 }))).toBe(true);

@@ -119,7 +119,7 @@ export const questionSchema = z
       type: z.literal('chain'),
       /** words[0] видно всім; решта приховані. */
       words: z
-        .array(z.string().trim().min(2).max(LIMITS.chainWord).regex(CHAIN_WORD).refine(isStorable, UNSTORABLE))
+        .array(z.string().trim().normalize('NFC').min(2).max(LIMITS.chainWord).regex(CHAIN_WORD).refine(isStorable, UNSTORABLE))
         .min(LIMITS.minChainWords)
         .max(LIMITS.maxChainWords),
       /** Скільки секунд додає гравцеві підказка. */

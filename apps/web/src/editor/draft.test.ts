@@ -660,6 +660,7 @@ describe('chain questions', () => {
     };
     expect(words(['Форель', ' Риба ', 'Біла   Церква', '', ''])).toEqual(['Форель', 'Риба', 'Біла Церква']);
     expect(words(['Форель', '', ''])).toEqual(['Форель', '', '']);
+    expect(words(['Форель', 'Гай'.normalize('NFD'), 'Океан'])).toEqual(['Форель', 'Гай', 'Океан']);
   });
 
   it('chain problems: an empty word, a word with digits, a hint out of range', () => {
@@ -668,6 +669,7 @@ describe('chain questions', () => {
     expect(problems({ words: ['Форель', '', 'Океан'] })).toEqual([t('problemEmptyWord', { index: 1 })]);
     expect(problems({ words: ['Форель', 'R2D2', 'Океан'] })).toEqual([t('problemChainWord', { index: 1 })]);
     expect(problems({ hintSeconds: 0 })).toEqual([t('problemHintSeconds', { index: 1 })]);
+    expect(problems({ words: ['Форель', 'Гай'.normalize('NFD'), 'Океан'] })).toEqual([]);
   });
 
   it('blitz and board rounds offer no chain type', () => {

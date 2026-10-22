@@ -276,7 +276,7 @@ export function cleaned(quiz: Quiz): Quiz {
         return { ...question, text, pairs: trimmed.slice(0, end) };
       }
       case 'chain': {
-        const words = question.words.map((word) => word.trim().replace(/\s+/g, ' '));
+        const words = question.words.map((word) => word.normalize('NFC').trim().replace(/\s+/g, ' '));
         let end = words.length;
         while (end > LIMITS.minChainWords && words[end - 1] === '') end -= 1;
         return { ...question, text, words: words.slice(0, end) };
@@ -341,7 +341,7 @@ function problemKey(question: Question): TextKey | null {
       break;
     case 'chain':
       if (question.words.some((word) => word === '')) return 'problemEmptyWord';
-      if (question.words.some((word) => word.length < 2 || word.length > LIMITS.chainWord || !CHAIN_WORD.test(word))) {
+      if (question.words.map((word) => word.normalize('NFC')).some((word) => word.length < 2 || word.length > LIMITS.chainWord || !CHAIN_WORD.test(word))) {
         return 'problemChainWord';
       }
       if (
