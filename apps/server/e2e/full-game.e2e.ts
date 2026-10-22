@@ -437,6 +437,9 @@ it('a two-round game with an early round end reaches the podium and shows both r
   }
 });
 
+const ROUND_NOTE = 'Тут помилка коштує балів #найнайнайнайскладнішийраунд';
+const PENALTY_STREAK = 'Помилка: мінус ціна запитання · Серія з 2 правильних: +20%';
+
 async function twoRounds() {
   const host = await open('host2', 1280, 900);
 
@@ -449,6 +452,25 @@ async function twoRounds() {
   await click(host, 'Зареєструватися');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Вікторина з раундами');
+
+  // Верх редактора: назва вікторини над смугою раундів на комп'ютері й на телефоні 375.
+  const titleAboveRounds = async (label: string) => {
+    const titleY = (await field(host, 'Назва вікторини').boundingBox())!.y;
+    const roundY = (await host.getByRole('button', { name: '+ Раунд', ...exact }).boundingBox())!.y;
+    expect(titleY, `${label}: title is not above the rounds`).toBeLessThan(roundY);
+  };
+  await titleAboveRounds('desktop');
+  await shot(host, 'editor-top-desktop');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await titleAboveRounds('phone 375');
+  await expectNoSideScroll(host, 'editor-top-phone-375');
+  // Липка панель «Зберегти» повністю видна над нижнім меню.
+  await host.evaluate('window.scrollTo(0, Math.floor((document.documentElement.scrollHeight - innerHeight) / 2))');
+  const save375 = (await host.getByRole('button', { name: 'Зберегти', ...exact }).boundingBox())!;
+  const menu375 = (await host.locator(MENU).boundingBox())!;
+  expect(save375.y, 'editor 375: Save is above the viewport').toBeGreaterThanOrEqual(0);
+  expect(save375.y + save375.height, 'editor 375: the menu covers Save').toBeLessThanOrEqual(menu375.y + 0.5);
+  await host.setViewportSize({ width: 1280, height: 900 });
 
   // Раунд 1 «Розминка»: два запитання, правила за замовчуванням.
   await openRoundSettings(host);
@@ -467,10 +489,15 @@ async function twoRounds() {
   await click(host, 'Класичний');
   await openRoundSettings(host);
   await field(host, 'Назва раунду').fill('Фінал');
+  await field(host, 'Опис раунду для гравців').fill(ROUND_NOTE);
   await field(host, 'Штраф: мінус ціна запитання за хибну відповідь').check();
   await field(host, 'Серії: бонус за правильні відповіді підряд').check();
   // Рендериться лише вибраний раунд, тож це налаштування саме другого.
   await host.locator('details.round-settings .round-streak select').first().selectOption('2');
+  const preview = host.locator('details.round-settings .round-brief-preview');
+  await preview.getByText(ROUND_NOTE).waitFor();
+  await preview.getByText(PENALTY_STREAK).waitFor();
+  await shot(host, 'editor-round-brief');
   await questionText(host).fill('Найбільша річка України?');
   await field(host, 'Варіант 1').fill('Дніпро');
   await field(host, 'Варіант 2').fill('Дунай');
@@ -504,6 +531,8 @@ async function twoRounds() {
   // Раунд 1: заставка, одне запитання, дострокове завершення.
   await click(host, 'Почати гру');
   await stage.getByText('Раунд 1 з 2').first().waitFor();
+  await stage.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.').waitFor();
+  expect(await stage.locator('.round-brief-note').count()).toBe(0);
   await click(host, 'Почати раунд');
   await olya.getByRole('button', { name: /Київ/ }).click();
   await taras.getByRole('button', { name: /Львів/ }).click();
@@ -516,6 +545,18 @@ async function twoRounds() {
   // Раунд 2: перше запитання без серії, але зі штрафом; друге — серія.
   await click(host, 'Наступний раунд');
   await stage.getByText('Раунд 2 з 2').first().waitFor();
+  for (const page of [stage, taras]) {
+    await page.locator('.round-brief-note').getByText(ROUND_NOTE).waitFor();
+    await page.locator('.round-brief-lines').getByText(PENALTY_STREAK).waitFor();
+    // Опис і рядки правил починаються на тій самій лінії, що й заголовок раунду.
+    const titleX = (await page.locator('h1').first().boundingBox())!.x;
+    const noteX = (await page.locator('.round-brief-note').boundingBox())!.x;
+    const lineX = (await page.locator('.round-brief-lines li').first().boundingBox())!.x;
+    expect(Math.abs(noteX - titleX)).toBeLessThanOrEqual(2);
+    expect(Math.abs(lineX - titleX)).toBeLessThanOrEqual(2);
+  }
+  await shot(stage, 'round-brief-stage');
+  await expectNoSideScroll(taras, 'round-brief-phone-360');
   await click(host, 'Почати раунд');
   await olya.getByRole('button', { name: /Дніпро/ }).click();
   await taras.getByRole('button', { name: /Дунай/ }).click();
@@ -1508,6 +1549,8 @@ async function menuProfileFriends() {
   await olya.locator('.profile-list li', { hasText: '«Тестова вікторина», 1 місце' }).waitFor();
   await shot(olya, 'profile-own-phone');
 
+  // Нікнейм за замовчуванням — лише ім'я з акаунта «Оля Гравець».
+  await olya.getByRole('heading', { name: 'Оля', exact: true }).waitFor();
   await click(olya, 'Змінити нікнейм / аватар');
   await field(olya, 'Нікнейм').fill('Зірка');
   await olya.locator('.profile-editor input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: avatarPng() });

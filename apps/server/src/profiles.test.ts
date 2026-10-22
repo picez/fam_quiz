@@ -14,13 +14,26 @@ const addUser = (db: Awaited<ReturnType<typeof createTestDb>>, id: string, name:
   db.insert(user).values({ id, name, email: `${id}@example.com` });
 
 describe('default nickname', () => {
-  it('makes a default nickname from the account name', async () => {
+  it('makes a default nickname from the first name of the account', async () => {
     const db = await createTestDb();
     await addUser(db, 'u1', 'Олена Петренко');
+    await addUser(db, 'u2', '  Олена   Коваль ');
+    await addUser(db, 'u3', 'Анна-Марія Шевченко');
 
-    expect(await ensureProfile(db, 'u1')).toEqual({ id: 'u1', nickname: 'Олена Петренко', avatar: null });
-    expect(await ensureProfile(db, 'u1')).toEqual({ id: 'u1', nickname: 'Олена Петренко', avatar: null });
-    expect(await db.select().from(profile)).toHaveLength(1);
+    expect(await ensureProfile(db, 'u1')).toEqual({ id: 'u1', nickname: 'Олена', avatar: null });
+    expect(await ensureProfile(db, 'u1')).toEqual({ id: 'u1', nickname: 'Олена', avatar: null });
+    expect((await ensureProfile(db, 'u2'))?.nickname).toBe('Олена 2');
+    expect((await ensureProfile(db, 'u3'))?.nickname).toBe('Анна-Марія');
+    expect(await db.select().from(profile)).toHaveLength(3);
+  });
+
+  it('falls back to the whole name when the first word is too short', async () => {
+    const db = await createTestDb();
+    await addUser(db, 'u1', 'Я Петро');
+    await addUser(db, 'u2', '   ');
+
+    expect((await ensureProfile(db, 'u1'))?.nickname).toBe('Я Петро');
+    expect((await ensureProfile(db, 'u2'))?.nickname).toBe('Гравець');
   });
 
   it('adds a number when the default nickname is taken', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type Answer, type Phase, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, roundBrief, type Answer, type Phase, type Question } from '@quiz/shared';
 import { buzz } from './blitz';
 import { pickCell } from './board';
 import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
@@ -210,6 +210,19 @@ describe('rounds', () => {
   const started = () => must(start(lobbyWith(twoRounds(), 'Олена', 'Тарас'), T0));
   const atIntro2 = () => goTo(started(), 'intro', 1);
 
+  it('every role sees the round description and its rules brief on the intro', () => {
+    const quiz = makeRoundsQuiz([
+      { ...blitzRound('b1', [single], { attempts: 2 }), description: 'Хто швидший' },
+      classicRound('c1', [single]),
+    ]);
+    const state = must(start(lobbyWith(quiz, 'Анна'), T0));
+    for (const view of [stageView(state), hostView(state), playerView(state, state.players[0].id)]) {
+      expect(view?.round).toMatchObject({ description: 'Хто швидший', brief: roundBrief(quiz.rounds[0]) });
+    }
+    const second = goTo(state, 'intro', 1);
+    expect(stageView(second).round?.description).toBe('');
+  });
+
   it('has no round in the lobby', () => {
     expect(stageView(lobbyWith(twoRounds(), 'Олена')).round).toBeNull();
   });
@@ -217,7 +230,15 @@ describe('rounds', () => {
   it('shows round info and no previous question in the intro of the second round', () => {
     const state = atIntro2();
     for (const view of [stageView(state), playerView(state, 'p1'), hostView(state)]) {
-      expect(view?.round).toEqual({ index: 1, total: 2, title: 'Фінал', type: 'classic', partial: true });
+      expect(view?.round).toEqual({
+        index: 1,
+        total: 2,
+        title: 'Фінал',
+        type: 'classic',
+        partial: true,
+        description: '',
+        brief: roundBrief(state.quiz.rounds[1]),
+      });
       expect(view?.question).toBeNull();
       expect(view?.total).toBe(2);
       expect(view?.answeredCount).toBe(0);
@@ -457,7 +478,9 @@ describe('board views', () => {
     const round = boardRound('g1', [{ title: 'A', cells }], { answerMode: 'phone' });
     const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'), 0));
     const state = must(next(intro, 0));
-    for (const json of [JSON.stringify(stageView(state)), JSON.stringify(playerView(state, 'p2'))]) {
+    // Зведення правил раунду (round.brief) навмисно каже, що в полі є голос і бліц-клітинки; секретні лише клітинки.
+    const withoutBrief = (view: object) => JSON.stringify({ ...view, round: null });
+    for (const json of [withoutBrief(stageView(state)), withoutBrief(playerView(state, 'p2')!)]) {
       expect(json).not.toContain(':"blitz"');
       expect(json).not.toContain('voice');
     }

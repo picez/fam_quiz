@@ -22,6 +22,7 @@ export const LIMITS = {
   maxQuizQuestions: 200,
   maxRounds: 10,
   roundTitle: 60,
+  roundDescription: 200,
   minCategories: 3,
   maxCategories: 8,
   minCategoryQuestions: 3,
@@ -149,6 +150,8 @@ export const classicRoundSchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   type: z.literal('classic'),
   title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки; старі вікторини без нього. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
   speedBonus: z.boolean(),
   shuffleOptions: z.boolean(),
   rules: roundRulesSchema,
@@ -165,6 +168,8 @@ export const blitzRoundSchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   type: z.literal('blitz'),
   title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки; старі вікторини без нього. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
   shuffleOptions: z.boolean(),
   /** Секунди на відповідь після натискання; null — до кінця таймера запитання. */
   answerWindow: z.number().int().min(5).max(120).nullable(),
@@ -210,6 +215,8 @@ export const boardRoundSchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   type: z.literal('board'),
   title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки; старі вікторини без нього. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
   shuffleOptions: z.boolean(),
   categories: z.array(boardCategorySchema).min(LIMITS.minCategories).max(LIMITS.maxCategories),
   /** Типовий спосіб для нових клітинок і для клітинок без власного. */
@@ -233,6 +240,8 @@ export const finalRoundSchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   type: z.literal('final'),
   title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки; старі вікторини без нього. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
   shuffleOptions: z.boolean(),
   check: z.enum(['auto', 'manual']),
   /** Рівно одне запитання. */

@@ -51,6 +51,16 @@ const many = (prefix: string, count: number) =>
 const valid = (schema: { safeParse: (v: unknown) => { success: boolean } }, value: unknown) =>
   schema.safeParse(value).success;
 
+describe('round description', () => {
+  it('a round may carry a description and old rounds without one still parse', () => {
+    const quiz = (patch: object) => ({ title: 'Т', description: '', settings: DEFAULT_SETTINGS, rounds: [round('r1', [single], patch)] });
+    expect(quizSchema.parse(quiz({})).rounds[0].description).toBeUndefined();
+    expect(quizSchema.parse(quiz({ description: '  Кіно 90-х  ' })).rounds[0].description).toBe('Кіно 90-х');
+    expect(valid(quizSchema, quiz({ description: 'а'.repeat(200) }))).toBe(true);
+    expect(valid(quizSchema, quiz({ description: 'а'.repeat(201) }))).toBe(false);
+  });
+});
+
 describe('questionSchema', () => {
   it('accepts a valid single-choice question', () => {
     expect(valid(questionSchema, single)).toBe(true);

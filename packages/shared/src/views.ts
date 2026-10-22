@@ -1,6 +1,7 @@
 import type { Answer } from './answer';
 import type { Grade, Phase } from './game';
 import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video } from './quiz';
+import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
 
 export interface Choice {
@@ -47,6 +48,9 @@ export interface RoundInfo {
   type: Round['type'];
   /** Чи ввімкнено ведучому ручну оцінку «частково». */
   partial: boolean;
+  /** Опис раунду від автора; '' — немає. */
+  description: string;
+  brief: RoundBrief;
 }
 
 export interface BlitzPlayer {
