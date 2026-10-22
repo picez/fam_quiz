@@ -146,6 +146,7 @@ const uk = {
   answererAwayClose: '{name} відключений, клітинка закриється через {seconds} с',
   videoTitle: 'Відео до запитання',
   videoUnavailable: 'Відео недоступне',
+  videoTitleHidden: 'Назву відео приховано до відповіді',
   boardAnswering: 'Відповідає {name}',
   timeMinus: '−15 с',
   timePlus: '+15 с',

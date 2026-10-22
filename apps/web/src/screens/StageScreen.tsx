@@ -132,7 +132,7 @@ function Question({ view, offsetMs, blink }: Pick<Props, 'view' | 'offsetMs'> & 
       </div>
       {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} />}
       {!finalReveal && <QuestionImage url={question.imageUrl} />}
-      {!finalReveal && <YouTubePlayer video={question.video} />}
+      {!finalReveal && <YouTubePlayer video={question.video} masked={reveal === null} />}
       {finalReveal && question.type !== 'match' ? null : question.chain !== null ? (
         reveal !== null && reveal.type === 'chain' ? (
           <ChainWords first={reveal.words[0]} masks={reveal.words.slice(1).map(fullMask)} tone="is-correct" />

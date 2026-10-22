@@ -25,6 +25,22 @@ describe('YouTubePlayer', () => {
     expect(url).not.toContain('autoplay');
   });
 
+  it('turns off annotations and fullscreen in the embed address', () => {
+    const url = youtubeEmbedUrl(video, 'https://quiz.example');
+    expect(url).toContain('iv_load_policy=3');
+    expect(url).toContain('fs=0');
+  });
+
+  it('covers the title band until reveal without reloading the player', () => {
+    const { rerender } = render(<YouTubePlayer video={video} masked />);
+    const frame = iframe();
+    expect(screen.getByText('Назву відео приховано до відповіді')).toBeTruthy();
+    expect(frame.hasAttribute('allowfullscreen')).toBe(false);
+    rerender(<YouTubePlayer video={video} masked={false} />);
+    expect(screen.queryByText('Назву відео приховано до відповіді')).toBeNull();
+    expect(iframe()).toBe(frame);
+  });
+
   it('renders nothing without a video', () => {
     const { container } = render(<YouTubePlayer video={null} />);
     expect(container.innerHTML).toBe('');

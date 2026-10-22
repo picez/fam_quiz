@@ -302,7 +302,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
           <QuestionImage url={view.question.imageUrl} />
-          <YouTubePlayer video={view.question.video} />
+          <YouTubePlayer video={view.question.video} masked={phase !== 'reveal'} />
           {(blitz !== null || board !== null) && (
             <>
               {canName && <p className="meta">{t('nameHint')}</p>}

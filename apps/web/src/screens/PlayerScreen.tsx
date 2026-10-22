@@ -211,7 +211,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           {othersAnswer && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           <h1 className={questionClass(question.text)}>{question.text}</h1>
           <QuestionImage url={question.imageUrl} />
-          <YouTubePlayer video={question.video} />
+          <YouTubePlayer video={question.video} masked={view.reveal === null} />
           {chainMine && me.chain !== null ? (
             <ChainPlay chain={me.chain} question={question} paused={view.paused} offsetMs={offsetMs} send={send} />
           ) : myPending ? (
