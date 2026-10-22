@@ -868,11 +868,17 @@ button.choice {
 
 /* Вердикт відповіді одного гравця мигає 3 с; селектор сильніший за .choice.is-correct вище. */
 @media (prefers-reduced-motion: no-preference) {
-  .choice.is-blinking.is-correct,
   .choice.is-blinking.is-wrong,
   .is-blinking.is-correct,
   .is-blinking.is-wrong {
     animation: verdict-blink 0.5s ease-in-out 6;
+  }
+
+  /* Поп розкриття лишається в списку: інакше він повторився б, коли is-blinking зникне. */
+  .choice.is-blinking.is-correct {
+    animation:
+      reveal 0.5s ease-out both,
+      verdict-blink 0.5s ease-in-out 6;
   }
 
   @keyframes verdict-blink {

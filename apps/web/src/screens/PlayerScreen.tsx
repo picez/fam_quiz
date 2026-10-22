@@ -267,7 +267,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <p className="lead">{t('chainWaitResults')}</p>
             </section>
           ) : (
-            <p className="lead">{t('waitReveal')}</p>
+            <>
+              {/* Поле й бліц: варіанти з помаранчевою відповіддю чи позначкою ведучого лишаються до розкриття. */}
+              {question !== null && (spotlight !== null || board !== null || view.blitz !== null) && (
+                <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+              )}
+              <p className="lead">{t('waitReveal')}</p>
+            </>
           )}
         </>
       )}
@@ -285,9 +291,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             </section>
           ) : (
             <>
-              {/* Вибравший і бліц: варіанти з кольором вердикту над власним результатом. */}
+              {/* Вибравший і бліц: варіанти з кольором вердикту над власним результатом; вердикт уже в Result, тож без voice. */}
               {spotlight !== null && question !== null && (
-                <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />
+                <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />
               )}
               <Result view={view} />
             </>

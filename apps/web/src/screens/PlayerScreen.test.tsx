@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
+import { BLINK_MS } from './verdict-blink';
 
 afterEach(cleanup);
 
@@ -560,6 +561,44 @@ describe('PlayerScreen: spotlight', () => {
     expect(document.querySelector('.is-blinking')).toBeNull();
     rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'correct' } }));
     expect(document.querySelector('.choice.is-blinking')).not.toBeNull();
+  });
+
+  it('a locked phone keeps the options with the orange answer', () => {
+    const spotlight = { ...anna, answer: { type: 'single' as const, optionId: 'a' }, grade: null };
+    show(view({ phase: 'locked', questionIndex: 0, question: publicQuestion, round, board: boardOf(anna), spotlight }));
+    expect(screen.getByText('Львів').closest('.choice')?.className).toContain('is-pending');
+    expect(screen.getByText('Чекаємо на правильну відповідь')).toBeTruthy();
+  });
+
+  it('question → locked → reveal blinks once, on reveal', () => {
+    vi.useFakeTimers();
+    try {
+      const answer = { type: 'single' as const, optionId: 'a' };
+      const at = (over: Partial<PlayerView>) => (
+        <PlayerScreen view={view({ questionIndex: 0, question: publicQuestion, round, board: boardOf(anna), ...over })} hostOnline offsetMs={0} send={vi.fn()} />
+      );
+      const { rerender } = render(at({ phase: 'question', endsAt: Date.now() + 20_000, spotlight: { ...anna, answer, grade: null } }));
+      rerender(at({ phase: 'locked', spotlight: { ...anna, answer, grade: null } }));
+      expect(document.querySelector('.choice.is-pending')).not.toBeNull();
+      expect(document.querySelector('.is-blinking')).toBeNull();
+      rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'wrong' } }));
+      expect(document.querySelector('.choice.is-wrong.is-blinking')).not.toBeNull();
+      act(() => vi.advanceTimersByTime(BLINK_MS));
+      expect(document.querySelector('.is-blinking')).toBeNull();
+      rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'wrong' } }));
+      expect(document.querySelector('.is-blinking')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a voice chooser sees the verdict once, in the result', () => {
+    const mine = { playerId: 'p1', nickname: 'Олена' };
+    const board = { ...boardOf(mine), cell: { ...boardOf(mine).cell!, answerMode: 'voice' as const } };
+    const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 100 };
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round, board, spotlight: { ...mine, answer: null, grade: 'correct' }, me: { ...me, result } }));
+    expect(screen.getByText('Правильно!')).toBeTruthy();
+    expect(screen.queryByText('Правильно')).toBeNull();
   });
 
   it('the first render with a verdict does not blink', () => {
