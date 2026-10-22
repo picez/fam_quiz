@@ -2431,3 +2431,9 @@ button.match-item {
     left: calc(50% + 0.4rem);
   }
 }
+
+.versus-recent {
+  margin: 1rem 0 0.5rem;
+  font-size: 1rem;
+  color: var(--dim);
+}
