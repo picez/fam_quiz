@@ -217,27 +217,27 @@ describe('StageScreen: blitz', () => {
   ];
 
   it('shows the blitz queue and the winner at the reveal', () => {
-    show(view({ phase: 'question', round, questionIndex: 0, question, blitz: { queue, winner: null } }));
+    show(view({ phase: 'question', round, questionIndex: 0, question, blitz: { queue, winner: null, instant: false, rows: [] } }));
     expect(screen.getByText('Олена')).toBeTruthy();
     expect(screen.getByText('Тарас')).toBeTruthy();
     expect(screen.getByText('Перевіряємо')).toBeTruthy();
     cleanup();
 
-    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: queue[1] } }));
+    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: queue[1], instant: false, rows: [] } }));
     expect(screen.getByText('Першим правильно відповів: Тарас')).toBeTruthy();
     cleanup();
 
-    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: null } }));
+    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, blitz: { queue: [], winner: null, instant: false, rows: [] } }));
     expect(screen.getByText('Ніхто не відповів правильно')).toBeTruthy();
   });
 
   it('names the current head, not the last wrong answer, as answering', () => {
     const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
-    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [queue[0]], winner: null } }));
+    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [queue[0]], winner: null, instant: false, rows: [] } }));
     expect(screen.getByText('Відповідає Олена')).toBeTruthy();
     expect(screen.queryByText('Відповідає Тарас')).toBeNull();
     cleanup();
-    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [], winner: null } }));
+    show(view({ phase: 'question', round, questionIndex: 0, question, spotlight, blitz: { queue: [], winner: null, instant: false, rows: [] } }));
     expect(screen.queryByText(/Відповідає/)).toBeNull();
   });
 
@@ -474,7 +474,7 @@ describe('StageScreen: match', () => {
         question,
         round,
         board,
-        blitz: { queue: [{ playerId: 'p2', nickname: 'Богдан' }], winner: null },
+        blitz: { queue: [{ playerId: 'p2', nickname: 'Богдан' }], winner: null, instant: false, rows: [] },
         endsAt: Date.now() + 20_000,
       }),
     );

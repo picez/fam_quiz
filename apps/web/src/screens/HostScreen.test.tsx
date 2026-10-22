@@ -350,6 +350,8 @@ describe('HostScreen: blitz', () => {
     voice: false,
     manual: true,
     winner: null,
+    instant: false,
+    rows: [],
     queue: [
       { playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Одеса' }, deadline: null },
       { playerId: 'p2', nickname: 'Тарас', answer: null, deadline: null },
@@ -534,7 +536,7 @@ describe('HostScreen: blitz', () => {
           players: three,
           endsAt: Date.now() + 20_000,
           board: boardOf({ manual: true, cell: { ...voiceCell, kind: 'blitz' } }),
-          blitz: { voice: true, manual: true, queue: [], winner: null, attempts: [] },
+          blitz: { voice: true, manual: true, queue: [], winner: null, attempts: [], instant: false, rows: [] },
         }),
       );
       expect(document.querySelector('.choices')).not.toBeNull();
@@ -677,7 +679,7 @@ describe('HostScreen: blitz', () => {
           round: boardRound,
           endsAt: Date.now() + 20_000,
           board: cellBoard({ manual: true, cell: { ...blitzCell, answerMode: 'voice' } }),
-          blitz: { voice: true, manual: true, queue: [head], winner: null, attempts: [] },
+          blitz: { voice: true, manual: true, queue: [head], winner: null, attempts: [], instant: false, rows: [] },
         }),
       );
       expect(screen.getByText('Відповідає Богдан')).toBeTruthy();
@@ -698,7 +700,7 @@ describe('HostScreen: blitz', () => {
           endsAt: Date.now() + 20_000,
           spotlight,
           board: cellBoard({ manual: true, cell: blitzCell, answer: spotlight.answer }),
-          blitz: { voice: false, manual: true, queue: [{ ...bob, answer: spotlight.answer, deadline: null }], winner: null, attempts: [] },
+          blitz: { voice: false, manual: true, queue: [{ ...bob, answer: spotlight.answer, deadline: null }], winner: null, attempts: [], instant: false, rows: [] },
         }),
       );
       expect(screen.queryByRole('button', { name: 'Частково' })).toBeNull();
@@ -729,7 +731,7 @@ describe('HostScreen: blitz', () => {
           round: blitzRound,
           endsAt: Date.now() + 20_000,
           spotlight: pendingSpot,
-          blitz: { voice: false, manual: true, queue: [head], winner: null, attempts: [] },
+          blitz: { voice: false, manual: true, queue: [head], winner: null, attempts: [], instant: false, rows: [] },
         }),
       );
       expect(screen.getAllByRole('button', { name: 'Неправильно' })).toHaveLength(1);

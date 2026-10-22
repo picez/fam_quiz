@@ -3,7 +3,7 @@ import { DEFAULT_RULES, roundBrief, type Answer, type Phase, type Question } fro
 import { buzz } from './blitz';
 import { nameAnswer, pickCell } from './board';
 import { adjustTime } from './timing';
-import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
+import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, repick, setConnected, start, submitAnswer, type GameState } from './game';
 import { placeWager } from './final';
 import { guessWord, takeHint } from './chain';
 import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, multi, order, single, text, withId, withPoints, withVideo } from './testing/fixtures';
@@ -391,6 +391,8 @@ describe('blitz views', () => {
       attemptsLeft: 2,
       canBuzz: false,
       deadline: 16500,
+      canAnswer: false,
+      grade: null,
     });
     expect(playerView(state, 'p3')?.me.blitz?.canBuzz).toBe(true);
     state = must(judge(must(submitAnswer(state, 'p2', wrong, 2000)), 'p2', false, 2000));
@@ -400,6 +402,8 @@ describe('blitz views', () => {
       attemptsLeft: 1,
       canBuzz: true,
       deadline: null,
+      canAnswer: false,
+      grade: 'wrong',
     });
   });
 
@@ -434,6 +438,65 @@ describe('blitz views', () => {
     const checked = hostView(state).blitz;
     expect(checked?.queue).toEqual([]);
     expect(checked?.attempts[0]).toMatchObject({ playerId: 'p1', grade: 'wrong', points: 0 });
+  });
+
+  it('stage and other players see names, times and verdicts in the instant queue but no picks before the reveal', () => {
+    let state = must(submitAnswer(blitzGame(), 'p1', wrong, 2400));
+    state = must(submitAnswer(state, 'p2', correct, 3100));
+    state = must(acceptAnswer(state, 'p1', 4000));
+    for (const view of [stageView(state), playerView(state, 'p3')!]) {
+      expect(view.blitz).toMatchObject({ instant: true, winner: null });
+      expect(view.blitz?.rows).toEqual([
+        { playerId: 'p1', nickname: 'Анна', timeMs: 2400, grade: 'wrong', answer: null },
+        { playerId: 'p2', nickname: 'Богдан', timeMs: 3100, grade: null, answer: null },
+      ]);
+      expect(view.spotlight).toBeNull();
+      expect(JSON.stringify(view)).not.toContain('"optionId"');
+    }
+    const closed = must(acceptAnswer(state, 'p2', 5000));
+    expect(closed.phase).toBe('locked');
+    expect(stageView(closed).blitz?.winner?.nickname).toBe('Богдан');
+    expect(playerView(closed, 'p3')?.blitz?.winner?.nickname).toBe('Богдан');
+    expect(JSON.stringify(stageView(closed))).not.toContain('"optionId"');
+    expect(JSON.stringify(playerView(closed, 'p3'))).not.toContain('"optionId"');
+    const revealed = must(next(closed, 6000));
+    expect(stageView(revealed).blitz?.rows.map((r) => r.answer)).toEqual([wrong, correct]);
+  });
+
+  it('the answerer sees their own pick and verdict, and can answer only once', () => {
+    let state = blitzGame();
+    expect(playerView(state, 'p1')?.me.blitz).toMatchObject({ canAnswer: true, canBuzz: false, position: null, grade: null });
+    state = must(submitAnswer(state, 'p1', wrong, 1000));
+    expect(playerView(state, 'p1')?.me).toMatchObject({ answer: wrong, blitz: { canAnswer: false, position: 1, grade: null } });
+    state = must(acceptAnswer(state, 'p1', 2000));
+    expect(playerView(state, 'p1')?.me).toMatchObject({ answer: wrong, blitz: { canAnswer: false, position: null, grade: 'wrong' } });
+    expect(playerView(must(pause(blitzGame(), 500)), 'p1')?.me.blitz?.canAnswer).toBe(false);
+  });
+
+  it('after repick the head can answer again', () => {
+    const state = must(repick(must(submitAnswer(blitzGame(), 'p1', wrong, 1000)), 'p1', 2000));
+    expect(playerView(state, 'p1')?.me).toMatchObject({ answer: null, blitz: { canAnswer: true, position: 1, deadline: 17_000 } });
+  });
+
+  it('an unchecked answer stays visible to its author after the question closes', () => {
+    const state = must(lock(must(submitAnswer(blitzGame(), 'p1', correct, 1000))));
+    expect(playerView(state, 'p1')?.me.answer).toEqual(correct);
+    expect(stageView(state).blitz?.rows).toEqual([{ playerId: 'p1', nickname: 'Анна', timeMs: 1000, grade: null, answer: null }]);
+  });
+
+  it('the host sees every pick and the head as the pending spotlight', () => {
+    let state = must(submitAnswer(blitzGame(), 'p1', wrong, 1000));
+    state = must(submitAnswer(state, 'p2', correct, 2000));
+    const host = hostView(state);
+    expect(host.blitz?.rows.map((r) => r.answer)).toEqual([wrong, correct]);
+    expect(host.spotlight).toMatchObject({ playerId: 'p1', answer: wrong, grade: null });
+    expect(hostView(must(lock(state))).spotlight).toBeNull();
+  });
+
+  it('the button blitz keeps its old view', () => {
+    const state = must(buzz(blitzGame({ check: 'manual' }), 'p1', 1000));
+    expect(stageView(state).blitz).toMatchObject({ instant: false, rows: [] });
+    expect(playerView(state, 'p2')?.me.blitz?.canAnswer).toBe(false);
   });
 
   it('classic views carry no blitz data', () => {
