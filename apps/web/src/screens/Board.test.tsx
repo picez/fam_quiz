@@ -58,6 +58,12 @@ describe('Board', () => {
     expect([...items].map((li) => li.textContent)).toEqual(['Звичайна', 'Бліц: відповідає перший, хто натисне', '×3 — потрійна ціна']);
   });
 
+  it('the legend counts played cells and lists the voice entry', () => {
+    render(<BoardLegend board={board([cell('c1', { played: true, kind: 'blitz', answerMode: 'voice' }), cell('c2', { answerMode: 'voice' })])} />);
+    const items = screen.getByRole('list', { name: 'Види клітинок' }).querySelectorAll('li');
+    expect([...items].map((li) => li.textContent)).toEqual(['Бліц: відповідає перший, хто натисне', 'Відповідь уголос', '🎤 Бліц уголос']);
+  });
+
   it('wraps the grid in a scroll box and gives every column the title row plus all cell rows', () => {
     const { container } = render(<Board board={board([cell('c1'), cell('c2'), cell('c3')], [cell('c4'), cell('c5')])} />);
     expect(container.querySelector('.gb-scroll > .gb')).not.toBeNull();

@@ -1634,6 +1634,13 @@ a.banner {
   min-width: 0;
 }
 
+/* Без subgrid колонка рахує рядки сама: --rows задає Board. */
+@supports not (grid-template-rows: subgrid) {
+  .gb-col {
+    grid-template-rows: auto repeat(var(--rows), var(--gb-cell-h));
+  }
+}
+
 .gb-title {
   display: flex;
   align-items: flex-end;
@@ -1838,7 +1845,8 @@ a.banner {
   font-size: clamp(1rem, 1.4vw, 1.5rem);
 }
 
-.board-with-legend {
+.stage-board.board-with-legend {
+  width: min(100%, 90rem);
   grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
   gap: 2rem;
   align-items: start;

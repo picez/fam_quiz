@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { BoardCellView, BoardInfo } from '@quiz/shared';
 import { markText } from '../format';
 import { t } from '../i18n';
@@ -30,9 +31,10 @@ export function Board({ board, onPick, disabled = false }: Props) {
       <div
         className="gb"
         style={{
+          '--rows': rows,
           gridTemplateColumns: `repeat(${board.categories.length}, minmax(var(--gb-col-min), 1fr))`,
           gridTemplateRows: `auto repeat(${rows}, var(--gb-cell-h))`,
-        }}
+        } as CSSProperties}
       >
         {board.categories.map((category) => (
           <div key={category.id} className="gb-col" style={{ gridRow: `span ${rows + 1}` }}>
