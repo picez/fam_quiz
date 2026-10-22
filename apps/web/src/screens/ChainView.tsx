@@ -7,6 +7,8 @@ import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
 
 const LETTER = /\p{L}/u;
+/** Слово довше за стільки клітинок стискається й отримує лічильник літер. */
+const LONG_WORD = 14;
 
 /** Повна маска слова для розкриття. */
 export function fullMask(word: string): ChainMask {
@@ -21,25 +23,33 @@ export function ChainWords({ first, masks, current, tone = '' }: { first: string
   ];
   return (
     <ol className={`chain-words ${tone}`.trim()}>
-      {words.map(({ mask, className }, index) => (
-        <li key={index} className={className} aria-label={mask.map((c) => c ?? '_').join('')}>
-          {mask.map((char, at) =>
-            char === null ? (
-              <span key={at} className="chain-cell is-blank" aria-hidden="true">
-                {' '}
+      {words.map(({ mask, className }, index) => {
+        const long = mask.length > LONG_WORD;
+        return (
+          <li key={index} className={long ? `${className} is-long` : className} aria-label={mask.map((c) => c ?? '_').join('')}>
+            {mask.map((char, at) =>
+              char === null ? (
+                <span key={at} className="chain-cell is-blank" aria-hidden="true">
+                  {' '}
+                </span>
+              ) : LETTER.test(char) ? (
+                <span key={at} className="chain-cell" aria-hidden="true">
+                  {char}
+                </span>
+              ) : (
+                <span key={at} className="chain-sep" aria-hidden="true">
+                  {char}
+                </span>
+              ),
+            )}
+            {long && (
+              <span className="chain-count" aria-hidden="true">
+                {mask.filter((char) => char === null || LETTER.test(char)).length}
               </span>
-            ) : LETTER.test(char) ? (
-              <span key={at} className="chain-cell" aria-hidden="true">
-                {char}
-              </span>
-            ) : (
-              <span key={at} className="chain-sep" aria-hidden="true">
-                {char}
-              </span>
-            ),
-          )}
-        </li>
-      ))}
+            )}
+          </li>
+        );
+      })}
     </ol>
   );
 }
@@ -84,6 +94,8 @@ export function ChainPlay({
   if (question.chain === null) return null;
   const left = secondsLeft({ endsAt: chain.deadline, remainingMs: chain.remainingMs }, offsetMs, now);
   const hintOff = !chain.canHint || paused || (left !== null && left <= chain.hintMs / 1000);
+  // Особистий час вийшов, а запитання ще відкрите: поле ховається, бо будь-яке слово сервер відхилить.
+  const out = !done && left === 0;
 
   const guess = async (event: FormEvent) => {
     event.preventDefault();
@@ -109,33 +121,44 @@ export function ChainPlay({
   };
 
   const hint = async () => {
-    const result = await send('player:hint');
-    setMiss(false);
-    setError(result.ok ? null : errorText(result.error));
-    input.current?.focus();
+    // Подвійний дотик не має коштувати дві підказки.
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      const result = await send('player:hint');
+      setMiss(false);
+      setError(result.ok ? null : errorText(result.error));
+    } finally {
+      busy.current = false;
+      input.current?.focus();
+    }
   };
 
   return (
     <section className="chain-play">
-      <Timer view={{ endsAt: chain.deadline, remainingMs: chain.remainingMs }} offsetMs={offsetMs} />
-      <ChainWords first={question.chain.first} masks={chain.masks} current={chain.solved} />
+      {!done && !out && <Timer view={{ endsAt: chain.deadline, remainingMs: chain.remainingMs }} offsetMs={offsetMs} />}
+      <ChainWords first={question.chain.first} masks={chain.masks} current={done ? undefined : chain.solved} />
       {done ? (
         <h2>{t('chainDone', { time: secondsText(chain.timeMs ?? 0) })}</h2>
+      ) : out ? (
+        <h2>{t('chainOutOfTime')}</h2>
       ) : (
         <>
           <form className="chain-form" onSubmit={(event) => void guess(event)}>
-            <input
-              ref={input}
-              type="text"
-              aria-label={t('chainGuessLabel')}
-              maxLength={30}
-              autoComplete="off"
-              autoCapitalize="none"
-              enterKeyHint="go"
-              value={word}
-              disabled={paused}
-              onChange={(event) => setWord(event.target.value)}
-            />
+            <label className="field">
+              <span className="meta">{t('chainGuessLabel')}</span>
+              <input
+                ref={input}
+                type="text"
+                maxLength={30}
+                autoComplete="off"
+                autoCapitalize="none"
+                enterKeyHint="go"
+                value={word}
+                disabled={paused}
+                onChange={(event) => setWord(event.target.value)}
+              />
+            </label>
             <button type="submit" className="btn btn-primary" disabled={paused}>
               {t('chainCheck')}
             </button>
@@ -160,13 +183,20 @@ export function ChainPlay({
   );
 }
 
+/** Місце за часом: рівні часи ділять місце; хто не пройшов, місця не має. */
+function rankOf(chain: ChainInfo, timeMs: number | null): string {
+  if (timeMs === null) return '—';
+  return String(1 + chain.rows.filter((row) => row.timeMs !== null && row.timeMs < timeMs).length);
+}
+
 /** Поступ або рейтинг (на reveal) гравців без літер. */
 export function ChainBoard({ chain, reveal }: { chain: ChainInfo; reveal: boolean }) {
   return (
     <ol className="rows chain-board">
-      {chain.rows.map((row, index) => (
-        <li key={row.playerId} className={row.timeMs === null ? 'is-out' : undefined}>
-          {reveal && <span className="rank">{index + 1}</span>}
+      {chain.rows.map((row) => (
+        // Під час запитання «не пройшов» означає «ще грає»: тьмяніє лише на розкритті.
+        <li key={row.playerId} className={reveal && row.timeMs === null ? 'is-out' : undefined}>
+          {reveal && <span className="rank">{rankOf(chain, row.timeMs)}</span>}
           <span className="name">{row.nickname}</span>
           <span className="tag">
             {row.timeMs === null

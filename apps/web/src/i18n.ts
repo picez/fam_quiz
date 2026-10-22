@@ -491,6 +491,7 @@ const uk = {
   chainMiss: 'Не те слово. Спробуйте ще.',
   chainDone: 'Ланцюжок пройдено за {time} с',
   chainOutOfTime: 'Не встигли пройти ланцюжок',
+  chainWaitResults: 'Чекаємо на результати',
   chainMyTime: 'Ваш час: {time} с',
   chainOnPhone: 'Вгадуйте слова ланцюжка на телефоні',
   chainFinishedOf: 'Пройшли {finished} з {total}',

@@ -106,6 +106,70 @@ describe('ChainView', () => {
     expect(screen.queryByLabelText('Наступне слово')).toBeNull();
   });
 
+  it('a long word stays on one line with a letter count; blanks are non-breaking spaces', () => {
+    const long = ['Н', ...Array.from({ length: 29 }, () => null)];
+    render(<ChainWords first="Форель" masks={[long, ['Р', null, null, null]]} />);
+    const word = screen.getByLabelText('Н' + '_'.repeat(29));
+    expect(word.classList.contains('is-long')).toBe(true);
+    expect(word.querySelector('.chain-count')?.textContent).toBe('30');
+    expect(word.querySelector('.chain-cell.is-blank')?.textContent).toBe(' ');
+    expect(screen.getByLabelText('Р___').classList.contains('is-long')).toBe(false);
+    expect(screen.getByLabelText('Р___').querySelector('.chain-count')).toBeNull();
+  });
+
+  it('the guess field has a visible label', () => {
+    play(chainOf());
+    const input = screen.getByLabelText('Наступне слово');
+    expect(input.closest('label.field')).toBeTruthy();
+  });
+
+  it('a double tap on the hint sends one hint', async () => {
+    let finish: (value: { ok: true }) => void = () => {};
+    const send = vi.fn<Send>(() => new Promise((resolve) => (finish = resolve)));
+    play(chainOf(), send);
+    const button = screen.getByRole('button', { name: 'Підказка (+5 с)' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(send).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ ok: true }));
+    fireEvent.click(button);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('when the own time is up the form and the timer give way to a message', () => {
+    play(chainOf({ deadline: Date.now() - 1000, canHint: false }));
+    expect(screen.getByRole('heading', { name: 'Не встигли пройти ланцюжок' })).toBeTruthy();
+    expect(screen.queryByLabelText('Наступне слово')).toBeNull();
+    expect(screen.queryByRole('timer')).toBeNull();
+  });
+
+  it('a finished player sees no personal timer', () => {
+    play(chainOf({ solved: 2, timeMs: 9000, canHint: false, deadline: Date.now() + 10_000 }));
+    expect(screen.queryByRole('timer')).toBeNull();
+  });
+
+  it('during the question nobody is dimmed and nobody is ranked', () => {
+    const chain: ChainInfo = { total: 3, rows: [{ playerId: 'p2', nickname: 'Тарас', solved: 1, hints: 0, timeMs: null, points: null }] };
+    render(<ChainBoard chain={chain} reveal={false} />);
+    expect(document.querySelector('.chain-board .is-out')).toBeNull();
+    expect(document.querySelector('.chain-board .rank')).toBeNull();
+  });
+
+  it('equal times share a place; the next time takes the place after them; non-finishers get a dash', () => {
+    const chain: ChainInfo = {
+      total: 3,
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', solved: 3, hints: 0, timeMs: 5000, points: 1000 },
+        { playerId: 'p2', nickname: 'Тарас', solved: 3, hints: 0, timeMs: 5000, points: 1000 },
+        { playerId: 'p3', nickname: 'Віра', solved: 3, hints: 0, timeMs: 7000, points: 900 },
+        { playerId: 'p4', nickname: 'Іван', solved: 1, hints: 0, timeMs: null, points: 0 },
+      ],
+    };
+    render(<ChainBoard chain={chain} reveal />);
+    const ranks = [...document.querySelectorAll('.chain-board .rank')].map((r) => r.textContent);
+    expect(ranks).toEqual(['1', '1', '3', '—']);
+  });
+
   it('ranks players by time at the reveal with points', () => {
     const chain: ChainInfo = {
       total: 3,

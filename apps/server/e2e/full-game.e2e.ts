@@ -1745,9 +1745,17 @@ async function chainGame() {
   await guess(taras, 'Риба');
   await guess(taras, 'Океан');
   await expectNoSideScroll(taras, 'chain-phone-360-long');
+  // Довге слово лишається в одному рядку (не вище за коротке), поле не менше 16 px, кнопки видно без прокручування.
+  const layout = await taras.evaluate(
+    "(() => { const words = [...document.querySelectorAll('.chain-play .chain-word')].map((w) => w.getBoundingClientRect().height); const input = document.querySelector('.chain-form input'); const buttons = [...document.querySelectorAll('.chain-form .btn')].map((b) => b.getBoundingClientRect().bottom); return { words, font: parseFloat(getComputedStyle(input).fontSize), bottom: Math.max(...buttons), viewport: window.innerHeight }; })()",
+  ) as { words: number[]; font: number; bottom: number; viewport: number };
+  expect(Math.max(...layout.words)).toBeLessThan(Math.min(...layout.words) * 1.5);
+  expect(layout.font).toBeGreaterThanOrEqual(16);
+  expect(layout.bottom).toBeLessThanOrEqual(layout.viewport);
   await guess(taras, LONG_WORD);
   await guess(taras, 'Корабель');
-  await taras.getByText('Чекаємо на правильну відповідь').waitFor();
+  await taras.getByText('Чекаємо на результати').waitFor();
+  await taras.getByRole('heading', { name: /Ланцюжок пройдено за/ }).waitFor();
   await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
 
   // Розкриття: ланцюжок зеленим, рейтинг за часом.

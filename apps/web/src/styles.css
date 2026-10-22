@@ -2254,24 +2254,41 @@ button.match-item {
 
 .chain-words {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
 }
 
+/* Кожне слово в один рядок: на вузькому екрані клітинки стискаються, а не переносяться. */
 .chain-word {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: flex-end;
   gap: 0.2rem;
+  min-width: 0;
 }
 
 .chain-cell {
-  min-width: 1.4em;
+  flex: 0 1 1.4em;
+  min-width: 0;
+  min-height: 1.2em;
+  line-height: 1.2;
   text-align: center;
   border-bottom: 2px solid var(--line);
   font-family: var(--display);
 }
 
-.chain-cell.is-blank {
-  line-height: 1.2;
+.chain-word.is-long {
+  gap: 1px;
+  font-size: 0.75em;
+}
+
+.chain-count {
+  flex: none;
+  align-self: center;
+  margin-left: 0.375rem;
+  color: var(--dim);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .chain-sep {
@@ -2298,8 +2315,7 @@ button.match-item {
   gap: 0.5rem;
 }
 
-.chain-form .btn,
-.chain-form input {
+.chain-form .btn {
   min-height: 44px;
 }
 
@@ -2318,4 +2334,12 @@ button.match-item {
 
 .stage .chain-cell {
   font-size: 2rem;
+}
+
+.stage .chain-word.is-long .chain-cell {
+  font-size: 1.5rem;
+}
+
+.stage .chain-count {
+  font-size: 1.25rem;
 }

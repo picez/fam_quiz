@@ -841,5 +841,8 @@ describe('HostScreen final', () => {
     expect(screen.getByRole('heading', { name: 'Ланцюжок' })).toBeTruthy();
     expect(document.querySelector('.chain-board')?.textContent).toContain('8,0 с');
     expect(document.querySelector('.chain-board')?.textContent).toContain('0 з 1');
+    // Бали ланцюжка рахуються при закритті: панель «Відповіді» з нулями не показується.
+    expect(document.querySelector('.chain-board .is-out')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
   });
 });

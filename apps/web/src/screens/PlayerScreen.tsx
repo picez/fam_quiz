@@ -11,7 +11,7 @@ import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { Standings } from './Standings';
-import { ChainPlay } from './ChainView';
+import { ChainPlay, ChainWords } from './ChainView';
 
 interface Props {
   view: PlayerView;
@@ -250,7 +250,16 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'locked' && (
         <>
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
-          <p className="lead">{t('waitReveal')}</p>
+          {/* У ланцюжку немає однієї правильної відповіді: гравець бачить свій результат і чекає на рейтинг. */}
+          {me.chain !== null && question !== null && question.chain !== null ? (
+            <section className="sent">
+              <ChainWords first={question.chain.first} masks={me.chain.masks} />
+              <h2>{me.chain.timeMs !== null ? t('chainDone', { time: secondsText(me.chain.timeMs) }) : t('chainOutOfTime')}</h2>
+              <p className="lead">{t('chainWaitResults')}</p>
+            </section>
+          ) : (
+            <p className="lead">{t('waitReveal')}</p>
+          )}
         </>
       )}
 

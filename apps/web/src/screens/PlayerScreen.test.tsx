@@ -623,4 +623,17 @@ describe('PlayerScreen final', () => {
     show(view({ phase: 'reveal', questionIndex: 0, question: chainQuestion, me: { ...me, chain } }));
     expect(screen.getByText('Ланцюжок пройдено за 12,3 с')).toBeTruthy();
   });
+
+  it('after a chain closes the phone shows the own result and waits for the results, not a correct answer', () => {
+    const chainQuestion = { ...publicQuestion, type: 'chain' as const, choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null]], hintSeconds: 5 } };
+    const done = { solved: 1, masks: [['Р', 'и', 'б', 'а']], hints: 0, hintMs: 5000, canHint: false, deadline: null, remainingMs: null, limitMs: 20_000, timeMs: 5_800 };
+    show(view({ phase: 'locked', questionIndex: 0, question: chainQuestion, me: { ...me, chain: done } }));
+    expect(screen.getByRole('heading', { name: 'Ланцюжок пройдено за 5,8 с' })).toBeTruthy();
+    expect(screen.getByLabelText('Риба')).toBeTruthy();
+    expect(screen.getByText('Чекаємо на результати')).toBeTruthy();
+    expect(screen.queryByText('Чекаємо на правильну відповідь')).toBeNull();
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: chainQuestion, me: { ...me, chain: { ...done, solved: 0, masks: [['Р', null, null, null]], timeMs: null } } }));
+    expect(screen.getByRole('heading', { name: 'Не встигли пройти ланцюжок' })).toBeTruthy();
+  });
 });

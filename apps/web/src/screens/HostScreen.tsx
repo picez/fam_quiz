@@ -520,7 +520,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
-      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && (
+      {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
+      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && !(view.chain !== null && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (
