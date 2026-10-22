@@ -21,6 +21,51 @@ export interface PublicQuestion {
   choices: Choice[];
   /** Праві елементи пар у порядку показу; [] для інших типів. */
   right: Choice[];
+  /** null для інших типів. */
+  chain: PublicChain | null;
+}
+
+export interface PublicChain {
+  first: string;
+  /** Маски прихованих слів для всіх: перша літера й розділювачі. */
+  masks: ChainMask[];
+  hintSeconds: number;
+}
+
+export interface ChainRow {
+  playerId: string;
+  nickname: string;
+  solved: number;
+  hints: number;
+  /** Час проходження зі штрафом; null — не пройшов. */
+  timeMs: number | null;
+  /** Бали за запитання; лише на reveal, інакше null. */
+  points: number | null;
+}
+
+export interface ChainInfo {
+  /** Скільки прихованих слів. */
+  total: number;
+  /** Пройшли за часом, далі за solved спаданням, далі в порядку гравців. */
+  rows: ChainRow[];
+}
+
+export interface PlayerChain {
+  solved: number;
+  /** Особисті маски: вгадані слова повністю, поточне з підказками, решта — перша літера. */
+  masks: ChainMask[];
+  hints: number;
+  hintMs: number;
+  /** question, не пауза, не пройшов, у поточному слові ще можна відкрити літеру (час клієнт перевіряє сам). */
+  canHint: boolean;
+  /** Особистий кінець часу: endsAt − штраф; null на паузі й поза question. */
+  deadline: number | null;
+  /** На паузі: max(0, remainingMs − штраф); інакше null. */
+  remainingMs: number | null;
+  /** Межа часу запитання з «±15 с». */
+  limitMs: number;
+  /** Час проходження зі штрафом; null — ще не пройшов. */
+  timeMs: number | null;
 }
 
 export interface RevealStats {
@@ -193,6 +238,8 @@ interface BaseView {
   spotlight: Spotlight | null;
   /** Фінал; null поза раундом фіналу й поза етапами intro, wager, question, locked, reveal. */
   final: FinalInfo | null;
+  /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
+  chain: ChainInfo | null;
 }
 
 export interface StageView extends BaseView {
@@ -224,6 +271,8 @@ export interface PlayerView extends BaseView {
     blitz: PlayerBlitz | null;
     /** Власна ставка й її межа; null поза фіналом. */
     final: { wager: number | null; limit: number } | null;
+    /** null поза запитанням-ланцюжком. */
+    chain: PlayerChain | null;
   };
   reveal: Question | null;
   standings: Standing[] | null;
@@ -251,6 +300,8 @@ export interface HostView extends BaseView {
   /** Як у BaseView, але позначки всіх клітинок видно завжди. */
   board: HostBoard | null;
   final: HostFinal | null;
+  /** Як у BaseView, але і у фіналі. */
+  chain: ChainInfo | null;
   standings: Standing[];
 }
 

@@ -9,6 +9,8 @@ import {
   type BoardCellView,
   type BoardInfo,
   type CellMark,
+  type ChainInfo,
+  type PlayerChain,
   type Choice,
   type FinalEntry,
   type FinalInfo,
@@ -31,10 +33,11 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type GameState, type PlayerState } from './game';
 import { attemptsUsed, blitzRulesOf } from './blitz';
+import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf } from './board-turns';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
-import { isTimed, remainingOf } from './timing';
+import { isTimed, limitMsOf, remainingOf } from './timing';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
@@ -81,6 +84,10 @@ function publicQuestion(state: GameState): PublicQuestion | null {
     points: question.points,
     choices,
     right,
+    chain:
+      question.type === 'chain'
+        ? { first: question.words[0], masks: question.words.slice(1).map((w) => maskWord(w, 1)), hintSeconds: question.hintSeconds }
+        : null,
   };
 }
 
@@ -359,6 +366,57 @@ function playerFinal(state: GameState, playerId: string): { wager: number | null
   };
 }
 
+/** Поточне запитання-ланцюжок із його грою; null поза запитанням або для інших типів. */
+function currentChain(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  return play?.question.type === 'chain' ? { play, question: play.question } : null;
+}
+
+/** Поступ усіх гравців без літер. */
+function chainInfo(state: GameState): ChainInfo | null {
+  const open = currentChain(state);
+  if (open === null) return null;
+  const rows = state.players.map((player) => {
+    const record = recordOf(state, state.questionIndex, player.id);
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      solved: chainOf(state, player.id).solved,
+      hints: chainOf(state, player.id).hints,
+      timeMs: record?.accepted ? record.timeMs : null,
+      points: state.phase === 'reveal' && record !== undefined ? record.points : null,
+    };
+  });
+  // sort стабільний: рівні лишаються в порядку гравців.
+  rows.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity) || b.solved - a.solved);
+  return { total: open.question.words.length - 1, rows };
+}
+
+/** Особисті маски, штраф і годинник гравця; чужих літер тут немає. */
+function playerChain(state: GameState, playerId: string): PlayerChain | null {
+  const open = currentChain(state);
+  if (open === null) return null;
+  const { solved, shown, hints } = chainOf(state, playerId);
+  const hidden = open.question.words.slice(1);
+  const record = recordOf(state, state.questionIndex, playerId);
+  const hintMs = hintMsOf(open.question);
+  const penalty = hints * hintMs;
+  const finished = record?.accepted === true;
+  return {
+    solved,
+    masks: hidden.map((word, i) => (i < solved ? [...word] : maskWord(word, i === solved ? shown : 1))),
+    hints,
+    hintMs,
+    canHint:
+      state.phase === 'question' && !state.paused && record === undefined && solved < hidden.length && shown < letterCount(hidden[solved]) - 1,
+    deadline: chainDeadline(state, playerId),
+    remainingMs: state.paused && state.phase === 'question' && state.remainingMs !== null ? Math.max(0, state.remainingMs - penalty) : null,
+    limitMs: limitMsOf(open.play) ?? 0,
+    timeMs: finished ? record.timeMs : null,
+  };
+}
+
 function base(state: GameState) {
   // Під час утримання годинник стоїть: клієнти не рахують від endsAt.
   const held = state.heldAt !== null;
@@ -379,6 +437,7 @@ function base(state: GameState) {
     board: boardInfo(state, false),
     spotlight: spotlightOf(state),
     final: finalInfo(state),
+    chain: currentRound(state)?.type === 'final' ? null : chainInfo(state),
   };
 }
 
@@ -472,6 +531,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
           : null,
       blitz: playerBlitz(state, playerId),
       final: playerFinal(state, playerId),
+      chain: playerChain(state, playerId),
     },
     reveal: revealed ? currentQuestion(state) : null,
     standings,
@@ -511,6 +571,7 @@ export function hostView(state: GameState): HostView {
     blitz: hostBlitz(state),
     board: hostBoard(state),
     final: hostFinal(state),
+    chain: chainInfo(state),
     standings: rankPlayers(state.players),
   };
 }
