@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BoardInfo, DiceInfo, DiceRow } from '@quiz/shared';
 import { t } from '../i18n';
+import { reducedMotion } from '../motion';
 import { TurnSchedule } from './TurnSchedule';
 
 /** Скільки крутиться кубик після кидка, мс. */
@@ -9,10 +10,6 @@ const FACE_MS = 120;
 const FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 /** Більше стількох рядків — дві колонки на сцені. */
 const MANY_ROWS = 4;
-
-function reducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 /**
  * id гравців, чий кубик зараз крутиться: кількість кидків зросла після першого показу.

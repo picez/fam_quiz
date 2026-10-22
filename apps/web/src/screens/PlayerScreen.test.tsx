@@ -72,6 +72,23 @@ function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send 
 }
 
 describe('PlayerScreen', () => {
+  it('a debuffed question wraps the answer area; other phones get the same zone without a debuff', () => {
+    const classes = () => [...document.querySelector('main')!.children].map((el) => el.className);
+    show(onQuestion({ me: { ...me, debuff: { kind: 'mirror', since: Date.now() } } }));
+    const zone = document.querySelector('[data-debuff="mirror"]')!;
+    expect(zone).not.toBeNull();
+    expect(zone.querySelector('h1.question')).not.toBeNull();
+    expect(zone.querySelectorAll('.choice')).toHaveLength(2);
+    const debuffed = classes();
+    cleanup();
+    show(onQuestion());
+    expect(document.querySelector('.debuff-zone')).not.toBeNull();
+    expect(document.querySelector('[data-debuff]')).toBeNull();
+    expect(document.querySelector('.debuff-zone h1.question')).not.toBeNull();
+    expect(classes()).toEqual(['bar', 'question-head', 'debuff-zone']);
+    expect(debuffed).toEqual(['bar', 'question-head', 'debuff-zone is-mirror']);
+  });
+
   it('a video question shows the player and no timer on the phone', () => {
     const withVideo = { ...publicQuestion, video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
     show(onQuestion({ question: withVideo, endsAt: null, remainingMs: null }));

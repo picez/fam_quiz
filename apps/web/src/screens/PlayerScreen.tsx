@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { Answer, DiceInfo, PlayerBlitz, PlayerView, Spotlight } from '@quiz/shared';
+import type { Answer, DiceInfo, PlayerBlitz, PlayerView, PublicQuestion, Spotlight } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -17,6 +17,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { BlitzQueue } from './BlitzQueue';
 import { Standings } from './Standings';
 import { ChainPlay, ChainWords } from './ChainView';
+import { DebuffZone, useDebuffQuestion } from './Debuffs';
 
 interface Props {
   view: PlayerView;
@@ -211,6 +212,8 @@ function instantStatus(blitz: PlayerBlitz, timeOver: boolean): string {
 export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
+  // Хук на рівні екрана: під «Дзеркалом» варіанти зсуваються по колу; інакше те саме запитання.
+  const shown = useDebuffQuestion(question, me.debuff);
 
   const submit = async (answer: Answer) => {
     const result = await send('player:answer', answer);
@@ -324,77 +327,80 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           ) : (
             othersAnswer && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>
           )}
-          <h1 className={questionClass(question.text)}>{question.text}</h1>
-          <QuestionImage url={question.imageUrl} />
-          <YouTubePlayer video={question.video} masked={view.reveal === null} />
-          {chainMine && me.chain !== null ? (
-            <ChainPlay chain={me.chain} question={question} paused={view.paused} offsetMs={offsetMs} send={send} />
-          ) : instant && me.blitz !== null ? (
-            <>
-              {me.blitz.canAnswer ? (
-                // Після нуля поле лишається на місці, лише вимкнене: варіанти не стрибають, а сервер однаково відмовив би.
-                <fieldset className="inputs" disabled={view.paused || timeOver}>
-                  <AnswerInput
-                    key={`${view.questionIndex}-${me.blitz.position ?? 0}-${me.answer === null}`}
-                    question={question}
-                    onSubmit={(answer) => {
-                      if (!timeOver) void submit(answer);
-                    }}
-                  />
-                </fieldset>
-              ) : (
-                <SpotlightChoices question={question} spotlight={own} reveal={null} blink={blink} />
-              )}
-              {/* Відлік вікна стоїть у рядку стану з зарезервованою висотою: ні поява, ні зникнення не зсувають черги. */}
-              <div className="blitz-status-row">
-                {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
-                {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
-                  <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
+          <DebuffZone debuff={me.debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
+            <h1 className={questionClass(question.text)}>{question.text}</h1>
+            <QuestionImage url={question.imageUrl} />
+            <YouTubePlayer video={question.video} masked={view.reveal === null} />
+            {chainMine && me.chain !== null ? (
+              <ChainPlay chain={me.chain} question={question} paused={view.paused} offsetMs={offsetMs} send={send} />
+            ) : instant && me.blitz !== null ? (
+              <>
+                {me.blitz.canAnswer ? (
+                  // Після нуля поле лишається на місці, лише вимкнене: варіанти не стрибають, а сервер однаково відмовив би.
+                  <fieldset className="inputs" disabled={view.paused || timeOver}>
+                    <AnswerInput
+                      key={`${view.questionIndex}-${me.blitz.position ?? 0}-${me.answer === null}`}
+                      question={shown ?? question}
+                      onSubmit={(answer) => {
+                        if (!timeOver) void submit(answer);
+                      }}
+                    />
+                  </fieldset>
+                ) : (
+                  <SpotlightChoices question={question} spotlight={own} reveal={null} blink={blink} />
                 )}
-                <p className="blitz-status">{instantStatus(me.blitz, timeOver)}</p>
-              </div>
-              {queue}
-            </>
-          ) : myPending ? (
-            <section className="sent">
-              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
-              <p className="lead">{t('pendingWait')}</p>
-            </section>
-          ) : me.blitz !== null ? (
-            <>
-              {(me.blitz.position === null || voice || (spotlight !== null && spotlight.playerId !== me.id)) && (
+                {/* Відлік вікна стоїть у рядку стану з зарезервованою висотою: ні поява, ні зникнення не зсувають черги. */}
+                <div className="blitz-status-row">
+                  {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
+                  {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
+                    <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
+                  )}
+                  <p className="blitz-status">{instantStatus(me.blitz, timeOver)}</p>
+                </div>
+                {queue}
+              </>
+            ) : myPending ? (
+              <section className="sent">
                 <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
-              )}
-              <BlitzTurn
-                view={view}
-                labelled={spotlight !== null && spotlight.playerId !== me.id}
-                blitz={me.blitz}
-                voice={voice}
-                offsetMs={offsetMs}
-                onSubmit={submit}
-                send={send}
-                onError={setError}
-              />
-            </>
-          ) : board !== null && !chooserIsMe ? (
-            <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
-          ) : board !== null && voice && me.answer === null ? (
-            <>
-              {/* Вибрав сам: досить «Відповідайте вголос», без «Гравець відповідає вголос» над ним. */}
-              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice placeholder={false} />
-              <p className="lead">{t('answerAloud')}</p>
-            </>
-          ) : me.answer !== null ? (
-            <section className="sent">
-              <h2>{t('answerSent')}</h2>
-              <p>{pickedText(me.answer, shownChoices(question))}</p>
-            </section>
-          ) : (
-            // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
-            <fieldset className="inputs" disabled={view.paused}>
-              <AnswerInput key={view.questionIndex} question={question} onSubmit={submit} />
-            </fieldset>
-          )}
+                <p className="lead">{t('pendingWait')}</p>
+              </section>
+            ) : me.blitz !== null ? (
+              <>
+                {(me.blitz.position === null || voice || (spotlight !== null && spotlight.playerId !== me.id)) && (
+                  <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+                )}
+                <BlitzTurn
+                  view={view}
+                  shown={shown ?? question}
+                  labelled={spotlight !== null && spotlight.playerId !== me.id}
+                  blitz={me.blitz}
+                  voice={voice}
+                  offsetMs={offsetMs}
+                  onSubmit={submit}
+                  send={send}
+                  onError={setError}
+                />
+              </>
+            ) : board !== null && !chooserIsMe ? (
+              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+            ) : board !== null && voice && me.answer === null ? (
+              <>
+                {/* Вибрав сам: досить «Відповідайте вголос», без «Гравець відповідає вголос» над ним. */}
+                <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice placeholder={false} />
+                <p className="lead">{t('answerAloud')}</p>
+              </>
+            ) : me.answer !== null ? (
+              <section className="sent">
+                <h2>{t('answerSent')}</h2>
+                <p>{pickedText(me.answer, shownChoices(question))}</p>
+              </section>
+            ) : (
+              // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
+              <fieldset className="inputs" disabled={view.paused}>
+                <AnswerInput key={view.questionIndex} question={shown ?? question} onSubmit={submit} />
+              </fieldset>
+            )}
+          </DebuffZone>
         </>
       )}
 
@@ -490,6 +496,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 /** Хід гравця в запитанні бліцу: кнопка, місце в черзі й поле відповіді. */
 function BlitzTurn({
   view,
+  shown,
   blitz,
   voice,
   labelled,
@@ -499,6 +506,8 @@ function BlitzTurn({
   onError,
 }: {
   view: PlayerView;
+  /** Запитання для поля відповіді (з урахуванням «Дзеркала»). */
+  shown: PublicQuestion;
   blitz: PlayerBlitz;
   voice: boolean;
   /** Над полем стоїть відповідь голови черги: власне поле підписуємо. */
@@ -536,7 +545,7 @@ function BlitzTurn({
           <>
             {labelled && <h2 className="meta">{t('blitzYourAnswer')}</h2>}
             <fieldset className="inputs" disabled={view.paused}>
-              <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={question} onSubmit={onSubmit} />
+              <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={shown} onSubmit={onSubmit} />
             </fieldset>
           </>
         )}

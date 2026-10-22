@@ -119,6 +119,10 @@ const uk = {
   debuff_mirror: 'Дзеркало',
   debuff_guests: 'Гості на екрані',
   debuff_mud: 'Брудний екран',
+  debuffCast: 'На вас наслано: {name}',
+  debuffTip_fog: 'Протріть екран пальцем, щоб розвіяти туман',
+  debuffTip_mud: 'Протріть плями пальцем',
+  debuffTip_freeze: 'Лід скоро трісне',
   accept: 'Зарахувати',
   // Бліц у грі
   buzz: 'Відповісти',
