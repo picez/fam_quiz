@@ -257,6 +257,12 @@ describe('StageScreen: blitz', () => {
       expect(container.querySelector('.is-turn')?.textContent).toContain('Анна');
     });
 
+    it('the board stage shows the legend beside the board', () => {
+      const { container } = show(view({ phase: 'board', round, board: boardOf() }));
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      expect(container.querySelector('.board-with-legend')?.contains(legend)).toBe(true);
+    });
+
     it('shows the cell and the chooser above the question', () => {
       show(
         view({

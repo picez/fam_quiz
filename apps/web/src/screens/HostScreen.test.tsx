@@ -422,6 +422,13 @@ describe('HostScreen: blitz', () => {
       expect(send).toHaveBeenCalledWith('host:order', { playerIds: ['p1', 'p2', 'p3'] });
     });
 
+    it('the host shows the legend under the board', () => {
+      show(onBoard());
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const scroll = document.querySelector('.gb-scroll') as HTMLElement;
+      expect(scroll.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('picks a cell for the chooser and skips a turn', async () => {
       const send = show(onBoard());
       expect(screen.getByText('Вибирає Олена')).toBeTruthy();

@@ -7,6 +7,9 @@
   --amber: #ffb300;
   --correct: #3ddcc0;
   --signal: #ff3d5a;
+  --voice: #9b8cff;
+  --cell-blitz: rgb(255 179 0 / 0.2);
+  --cell-voice: rgb(155 140 255 / 0.22);
   --pending: #ff7a1a;
   --panel: rgb(255 255 255 / 0.05);
   --line: rgb(245 241 230 / 0.16);
@@ -1552,21 +1555,29 @@ a.banner {
   gap: 0.875rem;
 }
 
-/* Ігрове поле на пульті, телефоні й сцені: стовпці-категорії однакової ширини, без горизонтальної прокрутки. */
+/* Ігрове поле на пульті, телефоні й сцені. На вузькому екрані стовпець не вужчий за 4,5 rem, тож 6–8 категорій
+   прокручуються всередині .gb-scroll, а сторінка ні. */
+.gb-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
 .gb {
+  --gb-col-min: 4.5rem;
+  --gb-cell-h: 3.25rem;
   display: grid;
   gap: 0.375rem;
   min-width: 0;
   width: 100%;
-  align-items: start;
+  align-items: stretch;
 }
 
+/* Стовпець бере рядки сітки поля: найдовша назва задає висоту рядка назв для всіх, клітинки стоять рівно. */
 .gb-col {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  /* Рядок назв однакової висоти в усіх стовпцях, тож клітинки стоять рівними рядами. */
-  grid-template-rows: 2.75rem;
-  grid-auto-rows: 2.75rem;
+  grid-template-rows: subgrid;
   gap: 0.375rem;
   min-width: 0;
 }
@@ -1575,16 +1586,16 @@ a.banner {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  align-self: end;
   margin: 0;
   padding: 0 0.125rem 0.25rem;
-  overflow: hidden;
   border-bottom: 2px solid var(--amber);
   color: var(--amber);
   font-family: var(--display);
-  font-size: 0.625rem;
-  line-height: 1.1;
+  font-size: 0.875rem;
+  line-height: 1.15;
   text-align: center;
-  /* Вузький стовпець на телефоні: спершу перенос за складами, розрив слова — лише в крайньому разі. */
+  /* Вузький стовпець: спершу перенос за складами, розрив слова — лише в крайньому разі. */
   hyphens: auto;
   overflow-wrap: anywhere;
 }
@@ -1601,8 +1612,19 @@ a.banner {
   background: var(--panel);
   color: var(--paper);
   font-family: var(--display);
-  font-size: 0.8125rem;
+  font-size: 1.0625rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Колір клітинки — її вид: бліц, відповідь уголос або звичайна. */
+.gb-cell.is-blitz {
+  background: var(--cell-blitz);
+  border-color: var(--amber);
+}
+
+.gb-cell.is-voice {
+  background: var(--cell-voice);
+  border-color: var(--voice);
 }
 
 .gb-cell.is-played {
@@ -1633,8 +1655,11 @@ a.banner {
   position: absolute;
   top: 0.125rem;
   right: 0.25rem;
+  padding: 0.0625rem 0.25rem;
+  border-radius: 0.25rem;
+  background: var(--stage);
   color: var(--amber);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
 }
@@ -1649,35 +1674,138 @@ a.banner {
   line-height: 1;
 }
 
-.stage .gb-kind {
-  top: 0.375rem;
-  left: 0.5rem;
+.gb-penalty {
+  position: absolute;
+  bottom: 0.125rem;
+  left: 0.25rem;
+  color: var(--signal);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.gb-voice {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.125rem;
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+.host .gb-title {
   font-size: 1rem;
 }
 
+.host .gb-cell {
+  font-size: 1.25rem;
+}
+
 .stage .gb {
+  --gb-col-min: 0px;
+  --gb-cell-h: clamp(4.5rem, 9vh, 7rem);
   gap: 0.625rem;
 }
 
 .stage .gb-col {
-  grid-template-rows: 3.5rem;
-  grid-auto-rows: 4.5rem;
   gap: 0.625rem;
 }
 
 .stage .gb-title {
-  font-size: 1.125rem;
+  font-size: clamp(1.25rem, 1.8vw, 2rem);
 }
 
 .stage .gb-cell {
   border-radius: 0.625rem;
-  font-size: 1.75rem;
+  font-size: clamp(1.75rem, 3vw, 3rem);
+}
+
+.stage .gb-kind {
+  top: 0.375rem;
+  left: 0.5rem;
+  font-size: 1.125rem;
 }
 
 .stage .gb-mark {
   top: 0.375rem;
   right: 0.5rem;
-  font-size: 1rem;
+  font-size: 1.125rem;
+}
+
+.stage .gb-penalty,
+.stage .gb-voice {
+  bottom: 0.375rem;
+  font-size: 1.125rem;
+}
+
+.stage .gb-penalty {
+  left: 0.5rem;
+}
+
+.stage .gb-voice {
+  right: 0.5rem;
+}
+
+/* Легенда: лише ті види й позначки, що є на полі. */
+.gb-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9375rem;
+}
+
+.gb-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.gb-swatch {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+}
+
+.gb-swatch.is-blitz {
+  background: var(--cell-blitz);
+  border-color: var(--amber);
+}
+
+.gb-swatch.is-voice {
+  background: var(--cell-voice);
+  border-color: var(--voice);
+}
+
+.stage .gb-legend {
+  flex-direction: column;
+  margin-top: 0;
+  font-size: clamp(1rem, 1.4vw, 1.5rem);
+}
+
+.board-with-legend {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  gap: 2rem;
+  align-items: start;
+}
+
+.board-with-legend .board-turn {
+  grid-column: 1 / -1;
+}
+
+.board-aside {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+@media (max-width: 700px) {
+  .board-with-legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .cell-mark {
@@ -1708,12 +1836,17 @@ a.banner {
 }
 
 @media (min-width: 600px) {
+  .gb {
+    --gb-col-min: 0px;
+    --gb-cell-h: 3.75rem;
+  }
+
   .gb-title {
-    font-size: 0.8125rem;
+    font-size: 1rem;
   }
 
   .gb-cell {
-    font-size: 1rem;
+    font-size: 1.25rem;
   }
 }
 

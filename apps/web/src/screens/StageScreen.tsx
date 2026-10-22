@@ -6,7 +6,7 @@ import { t } from '../i18n';
 import { RoundBriefing } from './RoundBriefing';
 import { MatchColumns, PairList } from './MatchView';
 import { Timer } from '../live/Timer';
-import { BlitzCellNotes, Board } from './Board';
+import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -258,10 +258,13 @@ function Intro({ view }: { view: StageView }) {
 
 function BoardStage({ board }: { board: BoardInfo }) {
   return (
-    <div className="stage-board">
+    <div className="stage-board board-with-legend">
       <Board board={board} />
-      <Order board={board} />
-      {board.turn !== null && <p className="lead">{t('boardChooser', { name: board.turn.nickname })}</p>}
+      <aside className="board-aside">
+        <BoardLegend board={board} />
+        <Order board={board} />
+      </aside>
+      {board.turn !== null && <p className="lead board-turn">{t('boardChooser', { name: board.turn.nickname })}</p>}
     </div>
   );
 }

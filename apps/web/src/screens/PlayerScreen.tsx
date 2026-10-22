@@ -6,7 +6,7 @@ import { RoundBriefing } from './RoundBriefing';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
-import { BlitzCellNotes, Board } from './Board';
+import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { QuestionImage } from './QuestionImage';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -185,6 +185,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <p className="lead">{chooserIsMe ? t('yourPick') : t('boardChooser', { name: chooserName })}</p>
           <Board board={board} onPick={chooserIsMe ? (cellId) => void pick(cellId) : undefined} disabled={view.paused} />
+          <BoardLegend board={board} />
         </>
       )}
 

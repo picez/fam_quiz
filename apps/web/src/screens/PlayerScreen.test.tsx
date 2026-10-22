@@ -361,6 +361,13 @@ describe('PlayerScreen: blitz', () => {
     });
     const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
 
+    it('the phone shows the legend under the board', () => {
+      show(view({ phase: 'board', round, board: boardOf('p2') }));
+      const legend = screen.getByRole('list', { name: 'Види клітинок' });
+      const scroll = document.querySelector('.gb-scroll') as HTMLElement;
+      expect(scroll.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('lets the chooser pick a cell and others wait', async () => {
       const send = show(view({ phase: 'board', round, board: boardOf('p1') }));
       expect(screen.getByText('Ваш хід: виберіть клітинку')).toBeTruthy();
