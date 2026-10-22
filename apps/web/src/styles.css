@@ -428,9 +428,9 @@ button.choice {
   padding-inline: 0.25rem;
 }
 
-/* Текст одразу після літери (картинки немає або вона не завантажилася) стоїть нижче за літеру. */
+/* Текст одразу після літери (картинки немає або вона не завантажилася) стоїть нижче за літеру; відступ у em росте з шрифтом сцени. */
 .choices.has-images .letter + .choice-text {
-  padding-top: 2rem;
+  padding-top: calc(0.75rem + 1.5em);
 }
 
 .letter {
@@ -1907,6 +1907,8 @@ a.banner {
 .stage .gb {
   --gb-col-min: 0px;
   --gb-cell-h: clamp(4.5rem, 9vh, 7rem);
+  /* Приблизна ширина стовпця: поле з легендою не ширше за 90rem, легенда й проміжки — близько 20rem. */
+  --gb-col: calc((min(100vw - 4rem, 90rem) - 20rem) / var(--cols, 4));
   gap: 0.625rem;
 }
 
@@ -1914,31 +1916,34 @@ a.banner {
   gap: 0.625rem;
 }
 
+/* Шрифт назв, цін і позначок залежить від ширини стовпця (--gb-col; --cols задає Board): на 8 категорій
+   короткі назви не рвуться посеред слова, а ціна не налазить на позначки в кутах клітинки. */
 .stage .gb-title {
-  font-size: clamp(1.25rem, 1.8vw, 2rem);
+  font-size: clamp(0.875rem, calc(var(--gb-col) * 0.15), 2rem);
 }
 
 .stage .gb-cell {
+  --gb-badge: clamp(0.75rem, calc(var(--gb-col) * 0.1), 1.125rem);
   border-radius: 0.625rem;
-  font-size: clamp(1.75rem, 3vw, 3rem);
+  font-size: clamp(1.25rem, calc(var(--gb-col) * 0.24), 3rem);
 }
 
 .stage .gb-kind {
   top: 0.375rem;
   left: 0.5rem;
-  font-size: 1.125rem;
+  font-size: var(--gb-badge);
 }
 
 .stage .gb-mark {
   top: 0.375rem;
   right: 0.5rem;
-  font-size: 1.125rem;
+  font-size: var(--gb-badge);
 }
 
 .stage .gb-penalty,
 .stage .gb-voice {
   bottom: 0.375rem;
-  font-size: 1.125rem;
+  font-size: var(--gb-badge);
 }
 
 .stage .gb-penalty {

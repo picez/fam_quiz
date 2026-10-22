@@ -32,6 +32,7 @@ export function Board({ board, onPick, disabled = false }: Props) {
         className="gb"
         style={{
           '--rows': rows,
+          '--cols': board.categories.length,
           gridTemplateColumns: `repeat(${board.categories.length}, minmax(var(--gb-col-min), 1fr))`,
           gridTemplateRows: `auto repeat(${rows}, var(--gb-cell-h))`,
         } as CSSProperties}
