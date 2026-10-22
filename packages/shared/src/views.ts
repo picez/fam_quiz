@@ -160,7 +160,7 @@ export interface FinalInfo {
 export interface HostFinal extends FinalInfo {
   /** Ставки всіх гравців; null — ще не поставив. */
   wagers: { playerId: string; nickname: string; wager: number | null; limit: number }[];
-  /** Записи всіх гравців незалежно від розкриття, у порядку розкриття (до reveal — у порядку гравців). */
+  /** Записи без урахування розкриття: до reveal лише тих, хто відповів (у порядку гравців), на reveal усіх, у порядку розкриття. */
   entries: FinalEntry[];
   manual: boolean;
   /** Відповіді, що чекають на ручну оцінку (manual, answer не null, гравця немає в graded). */

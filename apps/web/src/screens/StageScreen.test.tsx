@@ -431,9 +431,44 @@ describe('StageScreen final', () => {
     expect(screen.getByText('Віра')).toBeTruthy();
     expect(screen.getByText('Богдан').closest('li')?.className).toContain('wager-latest');
     expect(screen.getByText('Віра').closest('li')?.className).not.toContain('wager-latest');
+    // Найновіший зверху: він завжди на екрані.
+    expect(document.querySelector('.wager-list li')?.className).toContain('wager-latest');
     expect(screen.getByText('400 → 800')).toBeTruthy();
     expect(screen.getByText('Ставка 400')).toBeTruthy();
     expect(screen.getByText('Ще 1')).toBeTruthy();
     expect(screen.queryByText('Анна')).toBeNull();
+  });
+
+  it('hides the video and image during the reveal and keeps the answer', () => {
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    show(
+      view({
+        phase: 'reveal',
+        round,
+        questionIndex: 0,
+        question: { ...question, video, imageUrl: '/uploads/a.png' },
+        reveal: full,
+        final: { ...info, shown: [entry('Віра', 100, 300, 400)], left: 1 },
+      }),
+    );
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(document.querySelector('img')).toBeNull();
+    expect(screen.getByText(/Правильна відповідь/)).toBeTruthy();
+  });
+
+  it('the score delta is neutral when the score did not change', () => {
+    show(
+      view({
+        phase: 'reveal',
+        round,
+        questionIndex: 0,
+        question,
+        reveal: full,
+        final: { ...info, shown: [entry('Віра', 0, 300, 300)], left: 0 },
+      }),
+    );
+    const delta = screen.getByText('300 → 300');
+    expect(delta.className).not.toContain('is-up');
+    expect(delta.className).not.toContain('is-down');
   });
 });

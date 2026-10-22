@@ -132,7 +132,7 @@ export const participant = pgTable(
   (table) => [index('participant_game_idx').on(table.gameId), index('participant_user_idx').on(table.userId)],
 );
 
-/** Номер рядка answer зі балами без відповіді: штраф бліц-клітинки або мовчання у фіналі; спроби мають номери 0…n. */
+/** Номер рядка answer з балами без відповіді: штраф бліц-клітинки або мовчання у фіналі; спроби мають номери 0…n. */
 export const PENALTY_ATTEMPT = -1;
 
 export const answer = pgTable(

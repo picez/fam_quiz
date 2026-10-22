@@ -542,6 +542,33 @@ describe('PlayerScreen final', () => {
     expect(screen.getByLabelText('Ставка')).toBeTruthy();
   });
 
+  it('the wager field is styled, has a placeholder and the button waits for a valid amount', () => {
+    show(onWager(400));
+    const field = screen.getByLabelText('Ставка') as HTMLInputElement;
+    expect(field.closest('label')?.className).toContain('field');
+    expect(field.getAttribute('placeholder')).toBe('0–400');
+    const place = screen.getByRole('button', { name: 'Поставити' }) as HTMLButtonElement;
+    expect(place.disabled).toBe(true);
+    fireEvent.change(field, { target: { value: '401' } });
+    expect(place.disabled).toBe(true);
+    fireEvent.change(field, { target: { value: '-1' } });
+    expect(place.disabled).toBe(true);
+    fireEvent.change(field, { target: { value: '1.5' } });
+    expect(place.disabled).toBe(true);
+    fireEvent.change(field, { target: { value: '0' } });
+    expect(place.disabled).toBe(false);
+    fireEvent.change(field, { target: { value: '400' } });
+    expect(place.disabled).toBe(false);
+  });
+
+  it('shows the server wager error under the form', async () => {
+    const send = vi.fn(async () => ({ ok: false as const, error: 'wager_invalid' }));
+    show(onWager(400), { send });
+    fireEvent.change(screen.getByLabelText('Ставка'), { target: { value: '300' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Поставити' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Ставка має бути цілим числом від 0 до вашого рахунку.');
+  });
+
   it('a player with no points can only wager zero', async () => {
     const send = show(onWager(0));
     expect(screen.queryByLabelText('Ставка')).toBeNull();

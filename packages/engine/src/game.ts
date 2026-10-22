@@ -400,7 +400,11 @@ function wagerOf(final: FinalPlay, playerId: string): number {
   return Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
 }
 
-/** Чи розкрито результат гравця у фіналі поточного запитання (для зрізів). Поза фіналом — true. */
+/**
+ * Чи розкрито результат гравця у фіналі поточного запитання (для зрізів).
+ * Поза фіналом і без відкритого запитання фіналу — true; на question і locked — false;
+ * на reveal — лише для гравців, яких уже розкрито (перші `shown` в order).
+ */
 export function finalShown(state: GameState, playerId: string): boolean {
   // Без відкритого запитання фіналу (зокрема, раунд завершено на ставках) розкривати нічого.
   if (state.final === null || finalPlayOf(state) === undefined) return true;

@@ -393,7 +393,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct)}</span>
                   <span className="tag">{num(entry.wager)}</span>
                   <span className="score">{`${num(entry.before)} → ${num(entry.after)}`}</span>
-                  {revealed && <span className="tag is-correct">✓</span>}
+                  {revealed && (
+                    <span className={entry.grade === 'correct' ? 'tag is-correct' : 'tag is-wrong'}>{entry.grade === 'correct' ? '✓' : '✗'}</span>
+                  )}
                   {entry.answer !== null && !waiting && (
                     <button
                       type="button"
@@ -508,7 +510,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
-      {view.question !== null && live && blitz === null && board === null && (
+      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (
@@ -517,24 +519,28 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
             <ul className="rows">
               {/* До розкриття записи фіналу містять лише тих, хто відповів: мовчазних видно як гравці мінус відповіді. */}
               {isFinal &&
-                phase !== 'reveal' &&
                 view.players
                   .filter((player) => !view.responses.some((response) => response.playerId === player.id))
                   .map((player) => (
                     <li key={`silent-${player.id}`}>
                       <span className="name">{player.nickname}</span>
-                      <span className="given">{t('finalSilent')}</span>
+                      <span className="given">{t(phase === 'question' ? 'finalThinking' : 'finalSilent')}</span>
                     </li>
                   ))}
               {view.responses.map((response) => (
                 <li key={response.playerId}>
                   <span className="name">{response.nickname}</span>
                   <span className="given">{answerText(response.answer, correct)}</span>
-                  <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
-                    {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
-                    {response.overridden && `, ${t('changedByHost')}`}
-                  </span>
-                  <span className="score">{num(response.points)}</span>
+                  {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
+                  {!isFinal && (
+                    <>
+                      <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
+                        {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
+                        {response.overridden && `, ${t('changedByHost')}`}
+                      </span>
+                      <span className="score">{num(response.points)}</span>
+                    </>
+                  )}
                   {response.streakBonus > 0 && <span className="streak-bonus">{t('streakBonusLine', { points: response.streakBonus })}</span>}
                   {canGrade && (
                     <>

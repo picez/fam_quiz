@@ -193,6 +193,7 @@ const uk = {
   finalWagerPrompt: 'Ваша ставка від 0 до {limit}',
   finalWagerLabel: 'Ставка',
   finalPlace: 'Поставити',
+  finalWagerPlaceholder: '0–{limit}',
   finalMyWager: 'Ваша ставка: {wager}',
   finalZeroScore: 'Ваш рахунок не більший за 0: ставка лише 0',
   finalPlaceZero: 'Поставити 0',

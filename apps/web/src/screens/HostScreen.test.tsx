@@ -711,7 +711,48 @@ describe('HostScreen final', () => {
         ],
       }),
     );
-    expect(screen.getAllByText('не відповів')).toHaveLength(2);
+    expect(screen.getAllByText('ще думає')).toHaveLength(2);
+    expect(screen.queryByText('не відповів')).toBeNull();
+    // До рішення ведучого в рядку лише відповідь: жодного «не зараховано» чи балів.
+    expect(screen.queryByText('не зараховано')).toBeNull();
+    expect(screen.queryByText('зараховано')).toBeNull();
+  });
+
+  it('calls the silent players «не відповів» once the question is closed', () => {
+    show(during('locked', single, { round: finalRound, players: three, final: hostFinal(), responses: [] }));
+    expect(screen.getAllByText('не відповів')).toHaveLength(3);
+    expect(screen.queryByText('ще думає')).toBeNull();
+  });
+
+  it('has no ±15 s buttons in an untimed final', () => {
+    show(during('question', single, { round: finalRound, players: three, final: hostFinal(), endsAt: null, remainingMs: null }));
+    expect(screen.queryByRole('button', { name: '−15 с' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '+15 с' })).toBeNull();
+  });
+
+  it('lists each player once on the final reveal and marks wrong rows with a cross', () => {
+    show(
+      during('reveal', single, {
+        round: finalRound,
+        players: three,
+        responses: [
+          { playerId: 'p2', nickname: 'Богдан', answer: { type: 'single', optionId: 'a' }, grade: 'wrong', accepted: false, points: -200, streakBonus: 0, overridden: false, timeMs: 1000 },
+        ],
+        final: hostFinal({
+          left: 1,
+          shown: [entry('p2', 'Богдан', { grade: 'wrong', wager: 200, before: 500, after: 300 })],
+          entries: [
+            entry('p2', 'Богдан', { grade: 'wrong', wager: 200, before: 500, after: 300 }),
+            entry('p1', 'Анна', { before: 1000, after: 1300 }),
+          ],
+        }),
+      }),
+    );
+    expect(screen.queryByText('Відповіді')).toBeNull();
+    expect(screen.getAllByText('Богдан').filter((node) => node.closest('.rows li') !== null && node.className === 'name')).toHaveLength(2);
+    expect(document.querySelectorAll('.wager-list li .name')).toHaveLength(2);
+    expect(document.querySelector('.wager-list li.is-wrong .tag.is-wrong')?.textContent).toBe('✗');
+    expect(document.querySelector('.wager-list li.is-correct .tag.is-correct')).toBeNull();
   });
 
   it('reveals the next final player and regrades an entry', () => {
@@ -739,6 +780,18 @@ describe('HostScreen final', () => {
     expect(send).toHaveBeenCalledWith('host:next', undefined);
     fireEvent.click(button('Зарахувати'));
     expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p2', grade: 'correct' });
+  });
+
+  it('regrades a correct entry to wrong', () => {
+    const send = show(
+      during('reveal', single, {
+        round: finalRound,
+        players: three,
+        final: hostFinal({ left: 0, shown: [entry('p1', 'Анна')], entries: [entry('p1', 'Анна')] }),
+      }),
+    );
+    fireEvent.click(button('Не зараховувати'));
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'wrong' });
   });
 
   it('goes on with the usual next button once everyone is revealed', () => {

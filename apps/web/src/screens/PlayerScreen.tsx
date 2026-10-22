@@ -59,16 +59,18 @@ function WagerForm({
     const result = await send('player:wager', { amount });
     onError(result.ok ? null : errorText(result.error));
   };
+  const amount = value.trim() === '' ? Number.NaN : Number(value);
+  const valid = Number.isInteger(amount) && amount >= 0 && amount <= final.limit;
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void place(value.trim() === '' ? Number.NaN : Number(value));
+    if (valid) void place(amount);
   };
   return (
     <section className="wager-form">
       {final.limit > 0 ? (
         <form onSubmit={submit}>
           <p className="lead">{t('finalWagerPrompt', { limit: final.limit })}</p>
-          <label>
+          <label className="field">
             <span className="meta">{t('finalWagerLabel')}</span>
             <input
               type="number"
@@ -76,11 +78,12 @@ function WagerForm({
               min={0}
               max={final.limit}
               step={1}
+              placeholder={t('finalWagerPlaceholder', { limit: final.limit })}
               value={value}
               onChange={(event) => setValue(event.target.value)}
             />
           </label>
-          <button type="submit" className="btn btn-primary">
+          <button type="submit" className="btn btn-primary" disabled={!valid}>
             {t('finalPlace')}
           </button>
         </form>

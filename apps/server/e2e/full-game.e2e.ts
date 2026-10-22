@@ -1343,6 +1343,13 @@ async function finalGame() {
   expect(await row('Богдан').count()).toBe(0);
   await bohdan.getByText('Чекаємо на розкриття').waitFor();
   for (const page of [stage, bohdan]) expect(await bodyText(page)).not.toMatch(/Ставка 300|1300/);
+  // Найновіший розкритий рядок видно на екрані сцени без прокрутки.
+  const latest = await stage.locator('.wager-latest').boundingBox();
+  const viewport = stage.viewportSize();
+  expect(latest).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(latest!.y).toBeGreaterThanOrEqual(0);
+  expect(latest!.y + latest!.height).toBeLessThanOrEqual(viewport!.height);
   await shot(stage, 'final-reveal-stage');
   await click(host, 'Наступний гравець');
   await row('Богдан').waitFor();

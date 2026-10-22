@@ -54,17 +54,17 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
   );
 }
 
-/** Розкриті гравці фіналу по одному: ставка й рахунок; останній виділено. */
+/** Розкриті гравці фіналу: найновіший зверху й виділений, щоб він завжди був на екрані. */
 function FinalReveal({ final, question }: { final: FinalInfo; question: FullQuestion | null }) {
   return (
     <>
       <ol className="rows wager-list">
-        {final.shown.map((entry, index) => (
-          <li key={entry.playerId} className={index === final.shown.length - 1 ? 'wager-latest' : undefined}>
+        {[...final.shown].reverse().map((entry, index) => (
+          <li key={entry.playerId} className={index === 0 ? 'wager-latest' : undefined}>
             <span className="name">{entry.nickname}</span>
             <span className="given">{answerText(entry.answer, question)}</span>
             <span className="tag">{t('finalWagerTag', { wager: entry.wager })}</span>
-            <span className={entry.after >= entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
+            <span className={entry.after === entry.before ? 'wager-delta' : entry.after > entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
               {`${entry.before} → ${entry.after}`}
             </span>
           </li>
@@ -95,6 +95,8 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
   // На бліц-клітинці вибравший лише обирає: відповідає голова черги.
   const blitzCell = view.board?.cell?.kind === 'blitz';
   const answering = pendingSpot ?? (blitzCell ? null : view.board?.turn) ?? view.blitz?.queue[0] ?? null;
+  // Розкриття фіналу йде по одному гравцю: відео, картинка й варіанти зникають, щоб список був на екрані.
+  const finalReveal = view.final !== null && view.phase === 'reveal';
   const hint = voice ? null : question.type === 'order' ? t('orderOnPhone') : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
@@ -123,9 +125,10 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} />}
       </div>
-      <QuestionImage url={question.imageUrl} />
-      <YouTubePlayer video={question.video} />
-      {spotlit ? (
+      {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} />}
+      {!finalReveal && <QuestionImage url={question.imageUrl} />}
+      {!finalReveal && <YouTubePlayer video={question.video} />}
+      {finalReveal && question.type !== 'match' ? null : spotlit ? (
         <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} />
       ) : question.type === 'match' ? (
         reveal === null ? (
@@ -166,7 +169,6 @@ function Question({ view, offsetMs }: Pick<Props, 'view' | 'offsetMs'>) {
         </p>
       )}
       {reveal === null && hint !== null && <p className="lead">{hint}</p>}
-      {view.final !== null && view.phase === 'reveal' && <FinalReveal final={view.final} question={reveal} />}
       {reveal !== null && question.type !== 'match' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
