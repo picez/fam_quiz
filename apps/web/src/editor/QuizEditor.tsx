@@ -8,6 +8,7 @@ import {
   moveItem,
   newBlitzRound,
   newBoardRound,
+  newFinalRound,
   newClassicRound,
   newQuestion,
   problemsOf,
@@ -118,8 +119,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
 
   const addRound = (type: Round['type']) => {
-    // Кнопки «Фінал» ще немає (її додає редактор фіналу), тому 'final' поки що дає класичний раунд.
-    setRounds([...rounds, type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : newClassicRound()]);
+    const fresh =
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : newClassicRound();
+    setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };
 
@@ -222,7 +224,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             </label>
           </details>
 
-          {round.type !== 'board' && (
+          {round.type !== 'board' && round.type !== 'final' && (
             <>
               {/* На вузькому екрані список схований; ці кнопки гортають запитання й відкривають його. */}
               <div className="question-nav">
@@ -319,8 +321,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <QuestionEditor
               key={current.id}
               question={current}
+              showPoints={round.type !== 'final'}
               onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
             />
+            {round.type !== 'final' && (
             <div className="toolbar">
               <button type="button" className="btn btn-small" disabled={!roomForMore} onClick={duplicate}>
                 {t('duplicate')}
@@ -353,6 +357,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 {t('remove')}
               </button>
             </div>
+            )}
           </section>
         )}
       </div>

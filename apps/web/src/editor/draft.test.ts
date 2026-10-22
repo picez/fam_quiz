@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newQuestion, newQuiz, problemsOf } from './draft';
+import { QUESTION_TYPES, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -608,5 +608,37 @@ describe('board cell kinds and modes', () => {
     expect(back.categories[0].cells[0]).toMatchObject({ kind: 'blitz', answerMode: 'voice', penalty: 'all' });
     expect(back.categories[0].cells[1]).toMatchObject({ kind: 'normal', penalty: 'none' });
     expect(back.categories[0].cells[1].answerMode).toBeUndefined();
+  });
+});
+
+describe('final round drafts', () => {
+  const withFinal = (question: Question) => {
+    const quiz = newQuiz();
+    return { ...quiz, title: 'Гра', rounds: [{ ...newClassicRound(), questions: [filled(newQuestion('single'))] }, { ...newFinalRound(), title: 'Космос', questions: [question] }] } as Quiz;
+  };
+
+  it('newFinalRound passes the schema once its question is filled', () => {
+    const round = newFinalRound();
+    expect(round).toMatchObject({ type: 'final', title: '', shuffleOptions: false, check: 'auto' });
+    expect(round.questions).toHaveLength(1);
+    const quiz = withFinal(filled(round.questions[0]));
+    expect(problemsOf(quiz)).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+  });
+
+  it('a saved final draft comes back unchanged', () => {
+    const quiz = withFinal(filled(newQuestion('single')));
+    saveDraft('final-draft', quiz);
+    const back = loadDraft('final-draft');
+    expect(back!.rounds[1]).toEqual(quiz.rounds[1]);
+    expect('rules' in back!.rounds[1]).toBe(false);
+  });
+
+  it('problemsOf names the final question problem without checking rules', () => {
+    const problems = problemsOf(withFinal(newQuestion('single')));
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('Раунд 2');
+    expect(problems[0]).toContain('Запитання 1');
+    expect(problems.join()).not.toContain(t('problemRules'));
   });
 });

@@ -42,14 +42,15 @@ export function RoundSettings({ round, index, onChange }: Props) {
     <details className="rules round-settings">
       <summary>{t('roundSettings')}</summary>
       <label className="field">
-        <span>{t('roundTitleLabel')}</span>
+        <span>{t(round.type === 'final' ? 'finalTheme' : 'roundTitleLabel')}</span>
         <input
           value={round.title}
           maxLength={LIMITS.roundTitle}
-          placeholder={t('roundTitlePlaceholder', { index })}
+          placeholder={round.type === 'final' ? t('finalThemePlaceholder') : t('roundTitlePlaceholder', { index })}
           onChange={(event) => onChange({ ...round, title: event.target.value })}
         />
       </label>
+      {round.type !== 'final' && (
       <div className="same-time">
         <span>{t('sameTimeTitle')}</span>
         <label className="field">
@@ -67,6 +68,7 @@ export function RoundSettings({ round, index, onChange }: Props) {
           {t('sameTimeApply')}
         </button>
       </div>
+      )}
       {round.type === 'classic' && (
         <label className="check">
           <input type="checkbox" checked={round.speedBonus} onChange={(event) => onChange({ ...round, speedBonus: event.target.checked })} />
@@ -100,6 +102,15 @@ export function RoundSettings({ round, index, onChange }: Props) {
             </label>
           )}
         </>
+      )}
+      {round.type === 'final' && (
+        <label className="field">
+          <span>{t('finalCheck')}</span>
+          <select value={round.check} onChange={(event) => onChange({ ...round, check: event.target.value === 'manual' ? 'manual' : 'auto' })}>
+            <option value="auto">{t('blitzCheckAuto')}</option>
+            <option value="manual">{t('blitzCheckManual')}</option>
+          </select>
+        </label>
       )}
       {round.type === 'blitz' && (
         <>

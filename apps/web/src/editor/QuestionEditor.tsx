@@ -10,6 +10,8 @@ import { newId } from './new-id';
 interface Props {
   question: Question;
   onChange: (next: Question) => void;
+  /** Поле «Бали»; у фіналі бали ні на що не впливають, тому там його немає. */
+  showPoints?: boolean;
 }
 
 interface Row {
@@ -379,7 +381,7 @@ function timeInLimits(timeLimit: number): boolean {
 }
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange }: Props) {
+export function QuestionEditor({ question, onChange, showPoints = true }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
@@ -426,7 +428,7 @@ export function QuestionEditor({ question, onChange }: Props) {
         ) : (
           <p className="meta">{t('noTimerHint')}</p>
         )}
-        <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />
+        {showPoints && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
       </div>
     </div>
   );
