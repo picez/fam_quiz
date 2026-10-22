@@ -56,7 +56,7 @@ describe('host time changes', () => {
   });
 
   it('the blitz answer window is not changed', () => {
-    const quiz = makeRoundsQuiz([blitzRound('b1', [single], { answerWindow: 15 })]);
+    const quiz = makeRoundsQuiz([blitzRound('b1', [single], { answerWindow: 15, check: 'manual' })]);
     const buzzed = must(buzz(startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0), 'p1', 1000));
     expect(buzzed.plays[0].blitz?.queue[0].deadline).toBe(16_000);
     const adjusted = must(adjustTime(buzzed, 15, 2000));

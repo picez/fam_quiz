@@ -1,4 +1,5 @@
 import {
+  DEFAULT_ANSWER_WINDOW,
   LIMITS,
   type Answer,
   type AnswerMode,
@@ -14,7 +15,7 @@ import {
   type Round,
   rulesOf,
 } from '@quiz/shared';
-import { applyVerdict, blitzDone, blitzRulesOf, settleQueue, withPlay } from './blitz';
+import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { chainDone, scoreChain } from './chain';
@@ -49,11 +50,13 @@ export interface AnswerRecord {
   overridden: boolean;
 }
 
-/** Натискання «Відповісти» в бліці. */
+/** Натискання «Відповісти» в бліці або відповідь у миттєвому бліці. */
 export interface BuzzEntry {
   playerId: string;
   /** Час натискання. */
   at: number;
+  /** Від відкриття запитання до натискання (бліц з кнопкою) або до відповіді (миттєвий), мс; паузи й утримання його не змінюють. */
+  timeMs: number;
   /** Кінець вікна відповіді; null — до кінця таймера запитання. */
   deadline: number | null;
   answer: Answer | null;
@@ -157,6 +160,8 @@ export interface BlitzPlay {
   attempts: Attempt[];
   /** Хто натискав на цьому запитанні, без повторів; потрібне для серій, бо скинуті натискання зникають. */
   buzzed: string[];
+  /** Відповіді, які не розглядали (після переможця або закриття), у порядку черги; лише для показу, без балів. */
+  dropped: BuzzEntry[];
 }
 
 export interface GameState {
@@ -268,6 +273,7 @@ export function removePlayer(state: GameState, playerId: string): Result {
       queue: play.blitz.queue.filter((e) => e.playerId !== playerId),
       attempts: play.blitz.attempts.filter((a) => a.playerId !== playerId),
       buzzed: play.blitz.buzzed.filter((id) => id !== playerId),
+      dropped: play.blitz.dropped.filter((e) => e.playerId !== playerId),
     };
     return { ...kept, blitz };
   });
@@ -372,7 +378,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     answers: {},
     extraMs: 0,
     ...(board !== undefined ? { board } : {}),
-    ...(round.type === 'blitz' || board?.kind === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [] } } : {}),
+    ...(round.type === 'blitz' || board?.kind === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [], dropped: [] } } : {}),
   };
   // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
   return watchAway(
@@ -564,11 +570,12 @@ function withTotals(state: GameState): GameState {
   return { ...state, plays, players };
 }
 
-/** Нерозглянуті натискання бліцу зникають без балів і штрафу. */
+/** Нерозглянуті натискання бліцу переходять у dropped: лише для показу, без балів і штрафу. */
 function dropQueue(state: GameState): GameState {
   const play = state.plays[state.questionIndex];
   if (play?.blitz === undefined || play.blitz.queue.length === 0) return state;
-  const closed: Play = { ...play, blitz: { ...play.blitz, queue: [] } };
+  const { queue, dropped } = play.blitz;
+  const closed: Play = { ...play, blitz: { ...play.blitz, queue: [], dropped: [...dropped, ...queue] } };
   return withPlay(state, closed);
 }
 
@@ -725,7 +732,10 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
   return ok(revealNow(withRecord(state, pending.playerId, record)));
 }
 
-/** «Перевибрати»: відповідь знято, годинник (у бліці й вікно голови черги) іде з того самого залишку. */
+/**
+ * «Перевибрати»: відповідь знято, годинник (у бліці й вікно голови черги) іде з того самого залишку.
+ * У миттєвому бліці голова лишається на місці й отримує нове вікно DEFAULT_ANSWER_WINDOW від цієї миті.
+ */
 export function repick(state: GameState, playerId: string, now: number): Result {
   const pending = pendingOf(state);
   if (pending === null) return fail('wrong_phase');
@@ -733,7 +743,9 @@ export function repick(state: GameState, playerId: string, now: number): Result 
   if (state.paused) return fail('paused');
   const play = state.plays[state.questionIndex];
   if (play.blitz !== undefined) {
-    const queue = play.blitz.queue.map((e, index) => (index === 0 ? { ...e, answer: null } : e));
+    const rules = blitzRulesOf(state, play);
+    const deadline = rules !== null && isInstant(rules) ? { deadline: now + DEFAULT_ANSWER_WINDOW * 1000 } : {};
+    const queue = play.blitz.queue.map((e, index) => (index === 0 ? { ...e, answer: null, ...deadline } : e));
     return ok(thaw(withPlay(state, { ...play, blitz: { ...play.blitz, queue } }), now));
   }
   const board = play.board;
@@ -751,10 +763,16 @@ function withBoard(state: GameState, board: BoardPlay): GameState {
 /**
  * Відповідь у бліці записується в чергу. Коли гравець стане першим, вона чекає на ведучого,
  * а годинник запитання стоїть. Під час утримання вікно перевіряється за замороженим годинником.
+ * У миттєвому бліці відповідь сама ставить гравця в кінець черги, один раз за запитання.
  */
 function submitBlitzAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
   const play = state.plays[state.questionIndex];
   const entry = play.blitz?.queue.find((e) => e.playerId === playerId);
+  const rules = blitzRulesOf(state, play);
+  if (play.blitz !== undefined && rules !== null && isInstant(rules)) {
+    if ((entry !== undefined && entry.answer !== null) || attemptsUsed(play, playerId) > 0) return fail('already_answered');
+    if (entry === undefined) return joinInstant(state, play, play.blitz, playerId, answer, now);
+  }
   if (play.blitz === undefined || entry === undefined) return fail('not_in_queue');
   if (entry.answer !== null) return fail('already_answered');
   const clock = clockOf(state, now);
@@ -765,6 +783,15 @@ function submitBlitzAnswer(state: GameState, playerId: string, answer: Answer, n
   const queue = play.blitz.queue.map((e) => (e === entry ? { ...e, answer } : e));
   const answered: Play = { ...play, blitz: { ...play.blitz, queue } };
   return ok(settleQueue(withPlay(state, answered), clock));
+}
+
+/** Перша відповідь у миттєвому бліці: новий запис у кінці черги з часом від відкриття. */
+function joinInstant(state: GameState, play: Play, blitz: BlitzPlay, playerId: string, answer: Answer, now: number): Result {
+  if (timeOver(state, play, now)) return fail('time_over');
+  if (play.question.type !== answer.type) return fail('type_mismatch');
+  const entry: BuzzEntry = { playerId, at: now, timeMs: Math.max(0, now - (state.startedAt ?? now)), deadline: null, answer };
+  const buzzed = blitz.buzzed.includes(playerId) ? blitz.buzzed : [...blitz.buzzed, playerId];
+  return ok(settleQueue(withPlay(state, { ...play, blitz: { ...blitz, queue: [...blitz.queue, entry], buzzed } }), now));
 }
 
 /** Після рішення щодо голови черги бліцу запитання закривається, якщо воно вже вирішене. */

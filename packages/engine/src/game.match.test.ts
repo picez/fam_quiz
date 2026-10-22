@@ -1,6 +1,5 @@
 import { DEFAULT_RULES, type Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { buzz } from './blitz';
 import { pickCell } from './board';
 import { acceptAnswer, next, override, start, submitAnswer, type GameState } from './game';
 import { blitzRound, boardRound, makeQuiz, makeRoundsQuiz, match, withId, withPoints } from './testing/fixtures';
@@ -53,7 +52,6 @@ describe('match question in a blitz round', () => {
   it('a blitz round accepts a match answer from the head of the queue', () => {
     const quiz = makeRoundsQuiz([blitzRound('b1', [match])]);
     let state = startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0);
-    state = must(buzz(state, 'p1', 100));
     state = must(submitAnswer(state, 'p1', right, 200));
     expect(state.phase).toBe('question');
     state = must(acceptAnswer(state, 'p1', 300));

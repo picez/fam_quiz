@@ -1,5 +1,6 @@
-import type { Quiz } from '@quiz/shared';
-import { acceptAnswer, addPlayer, createGame, next, start, type GameState, type Result, type Rng } from '../game';
+import type { Answer, Quiz } from '@quiz/shared';
+import { blitzRulesOf, buzz, isInstant } from '../blitz';
+import { acceptAnswer, addPlayer, createGame, next, start, submitAnswer, type GameState, type Result, type Rng } from '../game';
 import { pendingOf } from '../hold';
 
 export function must(result: Result): GameState {
@@ -25,4 +26,12 @@ export function acceptAll(state: GameState, now: number): GameState {
   let current = state;
   while (pendingOf(current) !== null) current = must(acceptAnswer(current, pendingOf(current)?.playerId ?? '', now));
   return current;
+}
+
+/** Відповідь у бліці: з кнопкою спершу натискання, у миттєвому бліці лише відповідь. */
+export function sendBlitz(state: GameState, playerId: string, answer: Answer, now: number): GameState {
+  const play = state.plays[state.questionIndex];
+  const rules = play === undefined ? null : blitzRulesOf(state, play);
+  const queued = rules !== null && isInstant(rules) ? state : must(buzz(state, playerId, now));
+  return must(submitAnswer(queued, playerId, answer, now));
 }

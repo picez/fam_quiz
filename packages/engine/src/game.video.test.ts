@@ -3,6 +3,7 @@ import { buzz, nextDeadline } from './blitz';
 import { pickCell } from './board';
 import {
   acceptAnswer,
+  judge,
   lock,
   next,
   override,
@@ -116,15 +117,24 @@ describe('a classic question with a video', () => {
 });
 
 describe('a blitz question with a video', () => {
-  it('takes a buzz at any time and closes on the first correct answer', () => {
-    const buzzed = must(buzz(openBlitz({ answerWindow: 10 }), 'p1', 300_000));
+  it('an untimed instant blitz runs until someone wins or the host closes', () => {
+    let state = must(submitAnswer(openBlitz(), 'p1', wrong, 300_000));
+    expect(state.plays[0].blitz?.queue[0].deadline).toBeNull();
+    state = tick(state, 900_000);
+    expect(state.phase).toBe('question');
+    state = acceptAll(must(submitAnswer(state, 'p2', right, 901_000)), 902_000);
+    expect(state.phase).toBe('locked');
+  });
+
+  it('with manual check takes a buzz at any time and closes on the first correct answer', () => {
+    const buzzed = must(buzz(openBlitz({ answerWindow: 10, check: 'manual' }), 'p1', 300_000));
     expect(queueOf(buzzed)[0]?.deadline).toBe(310_000);
-    const answered = acceptAll(must(submitAnswer(buzzed, 'p1', right, 301_000)), 302_000);
+    const answered = must(judge(must(submitAnswer(buzzed, 'p1', right, 301_000)), 'p1', true, 302_000));
     expect(answered.phase).toBe('locked');
   });
 
-  it('the answer window still applies and nextDeadline sees it', () => {
-    const buzzed = must(buzz(openBlitz({ answerWindow: 10 }), 'p1', 1000));
+  it('with manual check the answer window still applies and nextDeadline sees it', () => {
+    const buzzed = must(buzz(openBlitz({ answerWindow: 10, check: 'manual' }), 'p1', 1000));
     expect(nextDeadline(buzzed, 1000)).toBe(11_000);
     const burnt = tick(buzzed, 11_000);
     expect(burnt.plays[0].blitz?.attempts).toMatchObject([{ playerId: 'p1', grade: 'wrong' }]);
@@ -132,27 +142,26 @@ describe('a blitz question with a video', () => {
     expect(burnt.phase).toBe('question');
   });
 
-  it('a blitz round without a window gives a silent head the default window on an untimed question', () => {
-    const buzzed = must(buzz(openBlitz({ answerWindow: null }), 'p1', 1000));
+  it('a manual blitz round without a window gives a silent head the default window on an untimed question', () => {
+    const buzzed = must(buzz(openBlitz({ answerWindow: null, check: 'manual' }), 'p1', 1000));
     expect(queueOf(buzzed)[0]?.deadline).toBe(16_000);
     const two = must(buzz(buzzed, 'p2', 2000));
     expect(queueOf(tick(two, 16_000))[0]?.playerId).toBe('p2');
 
-    const timed = must(buzz(openBlitz({ answerWindow: null }, [single]), 'p1', 1000));
+    const timed = must(buzz(openBlitz({ answerWindow: null, check: 'manual' }, [single]), 'p1', 1000));
     expect(queueOf(timed)[0]?.deadline).toBeNull();
   });
 
   it('a wrong answer does not close it, the host does', () => {
-    const buzzed = must(buzz(openBlitz({ attempts: null }), 'p1', 1000));
-    const wrongly = acceptAll(must(submitAnswer(buzzed, 'p1', wrong, 2000)), 3000);
+    const wrongly = acceptAll(must(submitAnswer(openBlitz(), 'p1', wrong, 2000)), 3000);
     expect(wrongly.phase).toBe('question');
     const locked = must(lock(wrongly));
     expect(locked.phase).toBe('locked');
     expect(locked.players.map((p) => p.score)).toEqual([0, 0]);
   });
 
-  it('pause on an untimed blitz question shifts the answer windows', () => {
-    const buzzed = must(buzz(openBlitz({ answerWindow: 10 }), 'p1', 1000));
+  it('pause on an untimed manual blitz question shifts the answer windows', () => {
+    const buzzed = must(buzz(openBlitz({ answerWindow: 10, check: 'manual' }), 'p1', 1000));
     expect(queueOf(buzzed)[0]?.deadline).toBe(11_000);
     const resumed = must(resume(must(pause(buzzed, 5000)), 65_000));
     expect(queueOf(resumed)[0]?.deadline).toBe(71_000);
@@ -253,9 +262,9 @@ describe('a video on the board', () => {
   });
 
   it('an untimed blitz cell closes on the first correct answer or by the host, with penalty for all once', () => {
-    const buzzed = must(buzz(picked({ kind: 'blitz', penalty: 'all' }), 'p2', 200_000));
-    expect(queueOf(buzzed)[0]?.deadline).toBe(215_000);
-    const locked = must(acceptAnswer(must(submitAnswer(buzzed, 'p2', right, 201_000)), 'p2', 202_000));
+    const answered = must(submitAnswer(picked({ kind: 'blitz', penalty: 'all' }), 'p2', right, 201_000));
+    expect(queueOf(answered)[0]?.deadline).toBeNull();
+    const locked = must(acceptAnswer(answered, 'p2', 202_000));
     expect(locked.phase).toBe('locked');
     const revealed = must(next(locked, 203_000));
     expect(revealed.phase).toBe('reveal');

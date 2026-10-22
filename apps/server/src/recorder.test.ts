@@ -427,25 +427,52 @@ describe('recorder: blitz', () => {
       return joined.playerId;
     };
     const olena = enter('Олена');
-    enter('Тарас');
+    const taras = enter('Тарас');
+    const ira = enter('Іра');
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     const answers = async () => {
       await recorder.idle();
-      return db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.attempt));
+      return db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.attempt), asc(answer.timeMs));
     };
-    return { scheduler, manager, room, olena, answers };
+    const participants = async () => {
+      await recorder.idle();
+      return db.select().from(participant);
+    };
+    return { scheduler, manager, room, olena, taras, ira, answers, participants };
   }
+
+  it('an instant blitz records one row per checked answer with its own time; unchecked answers are not recorded', async () => {
+    const { scheduler, manager, room, olena, taras, ira, answers, participants } = await blitzSetup({});
+    scheduler.advance(1000);
+    expect(manager.answer(room, olena, wrong)).toEqual({ ok: true });
+    scheduler.advance(1000);
+    expect(manager.answer(room, taras, correct)).toEqual({ ok: true });
+    scheduler.advance(500);
+    expect(manager.answer(room, ira, correct)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept', playerId: olena })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept', playerId: taras })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+
+    const rows = await answers();
+    expect(rows.map((a) => [a.participantId, a.attempt, a.timeMs, a.accepted])).toEqual([
+      [olena, 0, 1000, false],
+      [taras, 0, 2000, true],
+    ]);
+    const scores = Object.fromEntries((await participants()).map((p) => [p.nickname, p.score]));
+    expect(scores).toEqual({ Олена: 0, Тарас: 1000, Іра: 0 });
+    expect(rows.find((a) => a.participantId === taras)?.points).toBe(scores['Тарас']);
+  });
 
   it('each blitz attempt is stored as its own row', async () => {
     const risky = { penalty: 'minus', partial: null, streak: null, multiplier: 1 } as const;
-    const { manager, room, olena, answers } = await blitzSetup({ attempts: 2, rules: risky });
+    const { manager, room, olena, answers } = await blitzSetup({ attempts: 2, check: 'manual', rules: risky });
     expect(manager.buzz(room, olena)).toEqual({ ok: true });
     expect(manager.answer(room, olena, wrong)).toEqual({ ok: true });
-    expect(manager.host(room, { type: 'accept', playerId: olena })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'judge', playerId: olena, correct: false })).toEqual({ ok: true });
     expect(manager.buzz(room, olena)).toEqual({ ok: true });
     expect(manager.answer(room, olena, correct)).toEqual({ ok: true });
-    expect(manager.host(room, { type: 'accept', playerId: olena })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'judge', playerId: olena, correct: true })).toEqual({ ok: true });
     expect(room.state.phase).toBe('locked');
 
     const rows = await answers();
@@ -456,7 +483,7 @@ describe('recorder: blitz', () => {
   });
 
   it('a missed blitz window is stored with an empty payload', async () => {
-    const { scheduler, manager, room, olena, answers } = await blitzSetup({ answerWindow: 5 });
+    const { scheduler, manager, room, olena, answers } = await blitzSetup({ answerWindow: 5, check: 'manual' });
     expect(manager.buzz(room, olena)).toEqual({ ok: true });
     scheduler.advance(5000);
     expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
@@ -467,17 +494,17 @@ describe('recorder: blitz', () => {
 
   it('adds the streak bonus to the winning attempt only', async () => {
     const streaky = { penalty: 'minus', partial: null, streak: { length: 2, bonus: { kind: 'fixed', value: 100 } }, multiplier: 1 } as const;
-    const { manager, room, olena, answers } = await blitzSetup({ attempts: 2, rules: streaky });
+    const { manager, room, olena, answers } = await blitzSetup({ attempts: 2, check: 'manual', rules: streaky });
     manager.buzz(room, olena);
     manager.answer(room, olena, correct);
-    manager.host(room, { type: 'accept', playerId: olena });
+    manager.host(room, { type: 'judge', playerId: olena, correct: true });
     while (room.state.phase !== 'question') expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     manager.buzz(room, olena);
     manager.answer(room, olena, { type: 'text', value: 'Львів' });
-    manager.host(room, { type: 'accept', playerId: olena });
+    manager.host(room, { type: 'judge', playerId: olena, correct: false });
     manager.buzz(room, olena);
     manager.answer(room, olena, { type: 'text', value: 'Одеса' });
-    manager.host(room, { type: 'accept', playerId: olena });
+    manager.host(room, { type: 'judge', playerId: olena, correct: true });
     expect(room.state.phase).toBe('locked');
 
     const rows = await answers();
@@ -545,14 +572,16 @@ describe('recorder: board', () => {
   });
 
   it('a blitz cell records every attempt and one penalty row', async () => {
-    const round = boardRound('g1', [{ title: 'Міста', cells: [{ question: cell('c11', 100), kind: 'blitz', mark: 'x2', penalty: 'all' }, cell('c12', 200)] }]);
+    const cells = [{ question: cell('c11', 100), kind: 'blitz' as const, mark: 'x2' as const, penalty: 'all' as const }, cell('c12', 200)];
+    // Ручна перевірка: бліц з кнопкою дає кілька спроб одному гравцеві.
+    const round = boardRound('g1', [{ title: 'Міста', cells }], { check: 'manual' });
     const { manager, room, olena, taras, saved } = await boardSetup(round);
     expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
     // Тарас відповідає неправильно, потім правильно; Олена, що вибрала, лише платить.
     for (const answerGiven of [wrong, correct]) {
       expect(manager.buzz(room, taras)).toEqual({ ok: true });
       expect(manager.answer(room, taras, answerGiven)).toEqual({ ok: true });
-      expect(manager.host(room, { type: 'accept', playerId: taras })).toEqual({ ok: true });
+      expect(manager.host(room, { type: 'judge', playerId: taras, correct: answerGiven === correct })).toEqual({ ok: true });
     }
     expect(room.state.phase).toBe('locked');
 

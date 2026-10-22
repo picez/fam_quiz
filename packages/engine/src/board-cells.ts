@@ -7,14 +7,16 @@ import type { AnswerRecord, BoardPlay, GameState } from './game';
 export const CELL_OWN_BONUS = 2;
 
 /**
- * Черга бліц-клітинки: з телефона вікно DEFAULT_ANSWER_WINDOW і перевірка раунду, усно без вікна, голову оцінює ведучий.
- * Спроб без обмежень; неправильна спроба коштує 0 (штраф раунду не діє).
+ * Черга бліц-клітинки: з телефона й автоматичною перевіркою — миттєвий бліц (одна відповідь, без вікна);
+ * з телефона й ручною перевіркою — вікно DEFAULT_ANSWER_WINDOW і спроб без обмежень; усно без вікна, голову оцінює ведучий.
+ * Неправильна спроба коштує 0 (штраф раунду не діє).
  */
 export function cellBlitzRules(round: BoardRound, board: BoardPlay): BlitzRules {
   const voice = board.answerMode === 'voice';
+  const instant = !voice && round.check === 'auto';
   return {
-    answerWindow: voice ? null : DEFAULT_ANSWER_WINDOW,
-    attempts: null,
+    answerWindow: voice || instant ? null : DEFAULT_ANSWER_WINDOW,
+    attempts: instant ? 1 : null,
     check: voice ? 'voice' : round.check,
     points: (playerId, correct) =>
       correct
