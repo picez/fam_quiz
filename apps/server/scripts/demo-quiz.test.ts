@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { questionsOf, quizSchema } from '@quiz/shared';
 import { demoQuiz } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
+import { movieQuiz } from './movie-quiz';
 
 describe('the seeded demo quiz', () => {
   it('is valid and shows every question type including pairs', () => {
@@ -33,5 +34,14 @@ describe('the seeded demo quiz', () => {
     expect(last.type).toBe('final');
     expect(last.title).toBe('Фінал: Космос');
     expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+  });
+
+  it('the movie quiz is valid and covers every round type and the five films', () => {
+    expect(quizSchema.safeParse(movieQuiz).success).toBe(true);
+    expect(movieQuiz.rounds.map((r) => r.type)).toEqual(['classic', 'blitz', 'board', 'final']);
+    const types = new Set(questionsOf(movieQuiz).map((q) => q.type));
+    for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain']) expect(types.has(type as never)).toBe(true);
+    const board = movieQuiz.rounds.find((r) => r.type === 'board');
+    expect(board?.type === 'board' && board.categories.length).toBe(5);
   });
 });
