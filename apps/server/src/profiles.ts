@@ -5,16 +5,20 @@ import {
   isWin,
   nicknameSchema,
   type Achievement,
+  type OwnProfile,
   type ProfileCard,
   type ProfileStats,
+  type PublicProfile,
   type ProfileUpdate,
   type ProfileWin,
 } from '@quiz/shared';
-import { and, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
+import type { CurrentUser } from './account-routes';
 import { achievementsOf, bestStreak, isPerfect } from './achievements';
 import type { Db } from './db/client';
-import { game, profile, quiz, user } from './db/schema';
+import { follow, game, profile, quiz, user } from './db/schema';
 import { playerGames } from './history';
+import { listQuizzes } from './quizzes';
 
 export const DEFAULT_NICKNAME = 'Гравець';
 
@@ -73,8 +77,8 @@ export async function saveProfile(
   db: Db,
   userId: string,
   update: ProfileUpdate,
-): Promise<{ ok: true; profile: ProfileCard } | { ok: false; error: 'nickname_taken' }> {
-  await ensureProfile(db, userId);
+): Promise<{ ok: true; profile: ProfileCard } | { ok: false; error: 'nickname_taken' | 'not_found' }> {
+  if ((await ensureProfile(db, userId)) === null) return { ok: false, error: 'not_found' };
   try {
     const [row] = await db
       .update(profile)
@@ -124,4 +128,57 @@ export async function profileFacts(
     // isWin гарантує rank === 1.
     .map((g) => ({ gameId: g.gameId, title: g.title, startedAt: g.startedAt, rank: g.rank ?? 1 }));
   return { stats, achievements, wins };
+}
+
+/** Друзі (на кого підписаний), за нікнеймом. */
+export async function friendsOf(db: Db, userId: string): Promise<ProfileCard[]> {
+  const rows = await db
+    .select({ id: follow.followeeId, nickname: profile.nickname, avatar: profile.avatar })
+    .from(follow)
+    .innerJoin(profile, eq(profile.userId, follow.followeeId))
+    .where(eq(follow.followerId, userId))
+    .orderBy(asc(profile.nickname));
+  // Друг, якому профіль ще не створювали, теж має бути в списку.
+  const withProfile = new Set(rows.map((row) => row.id));
+  const all = await db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId));
+  for (const { id } of all) {
+    if (withProfile.has(id)) continue;
+    const created = await ensureProfile(db, id);
+    if (created) rows.push(created);
+  }
+  return rows.sort((a, b) => a.nickname.localeCompare(b.nickname));
+}
+
+export async function isFollowing(db: Db, followerId: string, followeeId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(follow)
+    .where(and(eq(follow.followerId, followerId), eq(follow.followeeId, followeeId)));
+  return row.n > 0;
+}
+
+/** Повний профіль власника; лише для нього. */
+export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfile> {
+  const base = await ensureProfile(db, current.id);
+  if (!base) throw new Error('profile of a signed-in user must exist');
+  const facts = await profileFacts(db, current.id);
+  const quizzes = (await listQuizzes(db, current.id)).map(({ id, title }) => ({ id, title }));
+  return {
+    ...base,
+    email: current.email,
+    stats: facts.stats,
+    achievements: facts.achievements,
+    quizzes,
+    wins: facts.wins,
+    friends: await friendsOf(db, current.id),
+  };
+}
+
+/** Публічна частина профілю; поля перелічено явно, щоб приватне не потрапило сюди випадково. null — такого користувача немає. */
+export async function publicProfile(db: Db, id: string, viewerId: string | null): Promise<PublicProfile | null> {
+  const base = await ensureProfile(db, id);
+  if (!base) return null;
+  const { stats, achievements } = await profileFacts(db, id);
+  const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
+  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following };
 }
