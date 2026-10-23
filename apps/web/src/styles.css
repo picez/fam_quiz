@@ -3272,8 +3272,19 @@ button.match-item {
   border-color: var(--notice-down);
 }
 
+/* Сцена тримає внизу постійний запас під сповіщення й значки: вони не накривають варіантів і таблиці. */
+.app.stage {
+  padding-bottom: max(4vh, 4.75rem);
+}
+
 .stage .live-notice {
-  font-size: 1.75rem;
+  bottom: 0.75rem;
+  padding: 0.35rem 1rem;
+  font-size: 1.5rem;
+}
+
+.stage .stage-debuffs {
+  bottom: 0.75rem;
 }
 
 .stage-debuffs {
