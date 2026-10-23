@@ -9,6 +9,9 @@ import { hostGame, hostGames, playerHistory } from './history';
 import type { RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
 
+/** Обмеження для маршрутів, якими можна перебирати коди ігор. */
+export const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
+
 export interface AccountDeps {
   db: Db;
   auth: Auth;
@@ -159,7 +162,7 @@ export async function registerAccountRoutes(
     });
   });
 
-  app.get<{ Params: { code: string } }>('/api/games/by-code/:code/host-access', async (request, reply) => {
+  app.get<{ Params: { code: string } }>('/api/games/by-code/:code/host-access', CODE_LIMIT, async (request, reply) => {
     // До перевірки користувача: відповідь однакова для всіх і не розкриває, чия гра.
     if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     const user = await currentUser(request);

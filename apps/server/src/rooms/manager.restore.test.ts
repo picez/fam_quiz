@@ -164,10 +164,13 @@ describe('eviction and reserved codes', () => {
     manager.setReserved(['123456']);
     codes.push(123456, 654321);
     expect(manager.create(makeQuiz([single])).code).toBe('654321');
-    expect(manager.restore(saved)?.code).toBe('123456');
-    // знято з резерву: тепер код зайнятий живою кімнатою, а не резервом
-    manager.setReserved([]);
+    const restored = manager.restore(saved);
+    expect(restored?.code).toBe('123456');
     codes.push(123456, 111111);
     expect(manager.create(makeQuiz([single])).code).toBe('111111');
+    // restore зняв код з резерву: коли кімната піде, код знову вільний (без нового setReserved)
+    manager.evict(restored!);
+    codes.push(123456);
+    expect(manager.create(makeQuiz([single])).code).toBe('123456');
   });
 });

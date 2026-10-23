@@ -1,6 +1,6 @@
 import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
 import type { Answer, BuffKind } from '@quiz/shared';
-import { and, eq, inArray, max, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
@@ -126,7 +126,11 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         startedAt: snapshot.startedAt,
         ...progress,
       })
-      .onConflictDoUpdate({ target: game.id, set: progress });
+      // Кімната, піднята після перезапуску вже завершеною, пише гру ще раз: мить фінішу лишається першою.
+      .onConflictDoUpdate({
+        target: game.id,
+        set: { ...progress, finishedAt: finished ? sql`coalesce(${game.finishedAt}, excluded.finished_at)` : null },
+      });
 
     // Вилучених гравців прибираємо разом з їхніми відповідями й коригуваннями (каскадом).
     const ids = state.players.map((player) => player.id);

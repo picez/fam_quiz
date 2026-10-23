@@ -174,6 +174,16 @@ describe('limits', () => {
     expect(statuses[20]).toBe(429);
   });
 
+  it('throttles host-access checks from one address like the other code checks', async () => {
+    const { code } = (await startGame(ctx.app, makeQuiz([single]))).game;
+    const statuses: number[] = [];
+    for (let i = 0; i < 121; i++) {
+      statuses.push((await ctx.app.inject({ method: 'GET', url: `/api/games/by-code/${code}/host-access` })).statusCode);
+    }
+    expect(statuses.slice(0, 120).every((status) => status === 404)).toBe(true);
+    expect(statuses[120]).toBe(429);
+  });
+
   it('counts code checks per client address when running behind a proxy', async () => {
     const proxied = await buildApp({ db, auth: TEST_AUTH, trustProxy: true });
     const { code } = (await startGame(proxied.app, makeQuiz([single]))).game;

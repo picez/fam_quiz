@@ -43,6 +43,9 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<stri
 const ROOM_CODE = /^\d{6}$/;
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
+/** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
+export const LOOKUPS_PER_MINUTE = 60;
+const LOOKUP_WINDOW_MS = 60_000;
 const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
@@ -56,13 +59,48 @@ function payloadOf(args: unknown[]): unknown {
   return typeof args[0] === 'function' ? undefined : args[0];
 }
 
+export interface SocketOptions {
+  /** Як у Fastify: true — довіряти X-Forwarded-For повністю, число — кількість проксі перед сервером. */
+  trustProxy?: boolean | number;
+  lookupsPerMinute?: number;
+}
+
+/** Адреса клієнта за тими самими правилами, що й request.ip у Fastify (proxy-addr). */
+export function clientAddress(socket: { handshake: { address: string; headers: Record<string, string | string[] | undefined> } }, trust: boolean | number): string {
+  const header = socket.handshake.headers['x-forwarded-for'];
+  const forwarded = (Array.isArray(header) ? header.join(',') : (header ?? ''))
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+  if (trust === false || trust === 0 || forwarded.length === 0) return socket.handshake.address;
+  if (trust === true) return forwarded[0];
+  const chain = [socket.handshake.address, ...forwarded.reverse()];
+  return chain[Math.min(trust, chain.length - 1)];
+}
+
 /** locate — де кімната: у пам'яті (або щойно піднята з бази), за живим іншим процесом (restarting) чи ніде. */
 export function attachSockets(
   server: HttpServer,
   manager: RoomManager,
   locate: (code: string) => Promise<Located>,
+  options: SocketOptions = {},
 ): GameServer {
   const io: GameServer = new Server(server, { serveClient: false });
+  const trust = options.trustProxy ?? false;
+  const allowed = options.lookupsPerMinute ?? LOOKUPS_PER_MINUTE;
+  /** Пошуки в базі за адресою у поточному вікні; вікно спливає — лічильник з нуля. */
+  const lookups = new Map<string, { count: number; until: number }>();
+  const mayLookUp = (address: string): boolean => {
+    const now = Date.now();
+    if (lookups.size > 10_000) for (const [key, value] of lookups) if (value.until <= now) lookups.delete(key);
+    const current = lookups.get(address);
+    if (current === undefined || current.until <= now) {
+      lookups.set(address, { count: 1, until: now + LOOKUP_WINDOW_MS });
+      return true;
+    }
+    current.count += 1;
+    return current.count <= allowed;
+  };
 
   io.use(async (socket, next) => {
     const auth = socketAuthSchema.safeParse(socket.handshake.auth);
@@ -70,7 +108,15 @@ export function attachSockets(
     // Коди кімнат — шість цифр: інший рядок не існує, і базу за ним не питаємо.
     if (!ROOM_CODE.test(auth.data.code)) return next(new Error('unauthorized'));
     // Кімнату ще веде стара версія (розгортання) або сервер зупиняється: клієнт перепідключиться пізніше.
-    if (manager.frozen || (await locate(auth.data.code)) === 'restarting') return next(new Error('restarting'));
+    if (manager.frozen) return next(new Error('restarting'));
+    // Коду немає в пам'яті — питаємо базу, але не частіше за ліміт з однієї адреси: перебір кодів
+    // інакше бив би в базу. Понад ліміт — restarting: справжній клієнт просто повторить згодом.
+    if (manager.get(auth.data.code) === undefined && !mayLookUp(clientAddress(socket, trust))) {
+      return next(new Error('restarting'));
+    }
+    const located = await locate(auth.data.code);
+    // Поки чекали на базу, сервер міг почати зупинку.
+    if (manager.frozen || located === 'restarting') return next(new Error('restarting'));
     const found = manager.identify(auth.data.code, auth.data.role, auth.data.token);
     if (found === null) return next(new Error('unauthorized'));
     socket.data.room = found.room;
@@ -108,6 +154,13 @@ export function attachSockets(
 
   io.on('connection', (socket) => {
     const { room, identity } = socket.data;
+    // Між рукостисканням і з'єднанням кімнату могли закрити чи віддати, а сервер — почати зупинку:
+    // клієнт перепідключиться й дізнається, що з грою.
+    if (manager.frozen || manager.get(room.code) !== room) {
+      socket.emit('restarting');
+      socket.disconnect(true);
+      return;
+    }
     manager.connect(room, identity);
     push(socket);
     socket.on('disconnect', () => manager.disconnect(room, identity));

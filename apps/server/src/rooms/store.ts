@@ -9,6 +9,8 @@ export const HEARTBEAT_MS = 5000;
 export const LEASE_MS = 20_000;
 export const MAX_AGE_MS = 24 * 60 * 60_000;
 const RETRY_MS = 5000;
+/** Запис кімнати, більший за це, журналюється як попередження: щось у стані росте без меж. */
+export const LARGE_ROOM_BYTES = 1024 * 1024;
 
 export interface RoomStoreOptions {
   instanceId: string;
@@ -19,6 +21,7 @@ export interface RoomStoreOptions {
   now?: () => number;
   saveDelayMs?: number;
   onError?: (error: unknown) => void;
+  onWarning?: (message: string) => void;
 }
 
 export type Located = 'here' | 'restarting' | 'none';
@@ -47,6 +50,7 @@ export class RoomStore {
   private readonly clock: (() => number) | null;
   private readonly saveDelayMs: number;
   private readonly onError: (error: unknown) => void;
+  private readonly onWarning: (message: string) => void;
   private readonly entries = new Map<Room, Entry>();
   /** Усе, на що чекає idle(): відкладені записи, записи й видалення в польоті. */
   private readonly pending = new Set<Promise<unknown>>();
@@ -58,8 +62,8 @@ export class RoomStore {
   private released = false;
   /** Коди рядків, що точно належать нам (записані чи підхоплені): за ними серцебиття помічає втрату оренди. */
   private readonly owned = new Set<string>();
-  /** Коди закритих кімнат, рядки яких ще не вдалося видалити: серцебиття тримає їх, щоб їх не підхопили. */
-  private readonly closing = new Set<string>();
+  /** Закриті кімнати (за кодом), рядки яких ще не вдалося видалити: серцебиття тримає їх, щоб їх не підхопили. */
+  private readonly closing = new Map<string, Room>();
 
   constructor(db: Db, manager: RoomManager, options: RoomStoreOptions) {
     this.db = db;
@@ -68,6 +72,7 @@ export class RoomStore {
     this.clock = options.now ?? null;
     this.saveDelayMs = options.saveDelayMs ?? SAVE_DELAY_MS;
     this.onError = options.onError ?? ((error) => console.error('Не вдалося зберегти кімнату:', error));
+    this.onWarning = options.onWarning ?? ((message) => console.warn(message));
     manager.onEvent((room, event) => {
       if (event.type === 'changed') this.schedule(room);
       else if (event.type === 'closed') this.closed(room);
@@ -112,7 +117,7 @@ export class RoomStore {
    */
   private async heartbeat(): Promise<void> {
     const held = [...this.owned].filter((code) => this.manager.get(code) !== undefined);
-    const codes = [...held, ...this.closing];
+    const codes = [...held, ...this.closing.keys()];
     if (codes.length === 0) return;
     const rows = await this.db
       .update(liveRoom)
@@ -177,6 +182,9 @@ export class RoomStore {
     // Після віддачі нові зміни вже не пишуться: кімнату може вести інший процес.
     if (release) this.released = true;
     for (const entry of this.entries.values()) this.clearTimer(entry);
+    // Спершу — рядки закритих кімнат, які ще не вдалося видалити: без серцебиття їх підхопила б
+    // наступна версія, і закрита гра встала б знову.
+    if (release) await Promise.all([...this.closing.values()].map((room) => this.removeRow(room).catch((error: unknown) => this.onError(error))));
     const owner = release ? null : this.me;
     await Promise.all(
       this.manager.rooms().map((room) =>
@@ -262,6 +270,8 @@ export class RoomStore {
     // Кімнату тим часом закрили або виселили — писати нічого.
     if (!this.alive(room)) return;
     const saved = this.manager.snapshot(room);
+    const bytes = Buffer.byteLength(JSON.stringify(saved));
+    if (bytes > LARGE_ROOM_BYTES) this.onWarning(`Кімната ${room.code} займає в базі ${Math.round(bytes / 1024)} КБ`);
     const at = this.at();
     const rows = await this.db
       .insert(liveRoom)
@@ -287,14 +297,10 @@ export class RoomStore {
     this.clearTimer(entry);
     entry.dirty = false;
     this.owned.delete(room.code);
-    this.closing.add(room.code);
+    this.closing.set(room.code, room);
     const remove = (): void => {
-      // Після записів у польоті: інакше запізнілий запис повернув би рядок закритої кімнати.
-      this.enqueue(room, async () => {
-        await this.db.delete(liveRoom).where(and(eq(liveRoom.code, room.code), eq(liveRoom.owner, this.me)));
-      }).then(
+      this.removeRow(room).then(
         () => {
-          this.closing.delete(room.code);
           if (entry.busy === 0 && this.entries.get(room) === entry) this.entries.delete(room);
         },
         (error: unknown) => {
@@ -305,6 +311,16 @@ export class RoomStore {
       );
     };
     remove();
+  }
+
+  /** Видалити рядок закритої кімнати після записів у польоті: інакше запізнілий запис повернув би його. */
+  private async removeRow(room: Room): Promise<void> {
+    await this.enqueue(room, async () => {
+      // Рядок уже видалено (наприклад, повтором раніше): більше нічого не робити.
+      if (this.closing.get(room.code) !== room) return;
+      await this.db.delete(liveRoom).where(and(eq(liveRoom.code, room.code), eq(liveRoom.owner, this.me)));
+      this.closing.delete(room.code);
+    });
   }
 
   private forget(room: Room): void {

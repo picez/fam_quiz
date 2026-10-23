@@ -206,6 +206,47 @@ describe('saving live rooms', () => {
     expect(await w.db.select().from(liveRoom)).toEqual([]);
   });
 
+  it('release first deletes the row of a closed room whose delete failed, so the next version cannot raise it', async () => {
+    const w = await world();
+    const errors: unknown[] = [];
+    const a = w.make('a', { onError: (error) => errors.push(error) });
+    const room = a.manager.create(makeQuiz([single]));
+    expect(a.manager.join(room.code, 'Олена').ok).toBe(true);
+    await a.store.idle();
+    const remove = vi.spyOn(w.db, 'delete').mockImplementationOnce(() => {
+      throw new Error('db down');
+    });
+    w.scheduler.advance(LOBBY_TTL_MS);
+    expect(a.manager.get(room.code)).toBeUndefined();
+    await a.store.idle();
+    expect(errors).toHaveLength(1);
+    expect(await rowOf(w.db, room.code)).toBeDefined();
+    remove.mockRestore();
+
+    await a.store.flushAll({ release: true });
+    a.store.stop();
+    expect(await w.db.select().from(liveRoom)).toEqual([]);
+    const b = w.make('b');
+    expect(await b.store.boot()).toBe(0);
+    expect(b.manager.get(room.code)).toBeUndefined();
+  });
+
+  it('warns when a saved room is larger than a megabyte', async () => {
+    const w = await world();
+    const warnings: string[] = [];
+    const a = w.make('a', { onWarning: (message) => warnings.push(message) });
+    const small = a.manager.create(makeQuiz([single]));
+    expect(a.manager.join(small.code, 'Олена').ok).toBe(true);
+    await a.store.idle();
+    expect(warnings).toEqual([]);
+    const quiz = makeQuiz([single]);
+    const big = a.manager.create({ ...quiz, title: 'я'.repeat(600_000) });
+    expect(a.manager.join(big.code, 'Олена').ok).toBe(true);
+    await a.store.idle();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(big.code);
+  });
+
   it('boot drops day-old rooms and aborts their games, and interrupts games without a saved room', async () => {
     const w = await world();
     const a = w.make('a');

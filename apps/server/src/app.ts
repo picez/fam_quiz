@@ -2,7 +2,7 @@ import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { joinSchema } from '@quiz/shared';
 import Fastify from 'fastify';
-import { registerAccountRoutes } from './account-routes';
+import { CODE_LIMIT, registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
 import type { Db } from './db/client';
 import { Invites, registerInviteRoutes } from './invites';
@@ -39,9 +39,6 @@ export interface AppOptions {
 
 const DEFAULT_MAX_ROOMS = 500;
 const BODY_LIMIT = 512 * 1024;
-
-/** Обмеження для маршрутів, якими можна перебирати коди ігор. */
-const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
 
 export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false });
@@ -121,10 +118,13 @@ export async function buildApp(options: AppOptions) {
     return reply.code(404).send({ error: 'not_found' });
   });
 
-  const io = attachSockets(app.server, manager, locate);
-  // Відкриті WebSocket-з'єднання не дали б HTTP-серверу завершитись.
+  const io = attachSockets(app.server, manager, locate, { trustProxy: options.trustProxy });
+  // Відкриті WebSocket-з'єднання (і довгі опитування) не дали б HTTP-серверу завершитись. io.close()
+  // закриває й транспорти engine.io, і рукостискання в польоті; не чекаємо на нього: він сам чекає на
+  // закриття HTTP-сервера, яке Fastify зробить після цього хука.
   app.addHook('preClose', async () => {
     io.disconnectSockets(true);
+    void io.close();
   });
 
   /** Зупинка без втрати ігор: заморозити, сказати клієнтам restarting, записати й віддати кімнати, закрити застосунок, дочекатися записувача. */

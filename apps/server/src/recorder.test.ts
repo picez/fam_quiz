@@ -283,6 +283,28 @@ describe('recorder', () => {
     expect((await ctx.saved()).answers.map((a) => a.questionIndex)).toEqual([0, 0, 1, 1]);
   });
 
+  it('a finished room restored after a restart keeps the moment the game finished', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    ctx.host('end');
+    expect(ctx.room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+    const earlier = new Date('2026-01-01T10:00:00Z');
+    await ctx.db.update(game).set({ finishedAt: earlier });
+
+    // Новий процес: свіжий менеджер і записувач над тією самою базою.
+    const saved = JSON.parse(JSON.stringify(ctx.manager.snapshot(ctx.room)));
+    ctx.manager.freeze();
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, ctx.db, (error) => errors.push(error));
+    expect(manager.restore(saved)).not.toBeNull();
+    await recorder.idle();
+    const games = await ctx.db.select().from(game);
+    expect(games[0]).toMatchObject({ status: 'finished', finishedAt: earlier });
+    expect(errors).toEqual([]);
+  });
+
   it('does not record a game that has no host account', async () => {
     const ctx = await setup();
     const anonymous = ctx.manager.create(makeQuiz([single]));

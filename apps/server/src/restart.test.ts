@@ -5,6 +5,7 @@ import { makeQuiz, single, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
+import { clientAddress, LOOKUPS_PER_MINUTE } from './socket';
 import type { Db } from './db/client';
 import { game, liveRoom } from './db/schema';
 import { TEST_AUTH, startGame } from './testing/accounts';
@@ -244,5 +245,42 @@ describe('a server restart', () => {
     expect(locate).not.toHaveBeenCalled();
     expect(await attempt(port, { code: '000000', role: 'player', token: 'x' })).toBe('unauthorized');
     expect(locate).toHaveBeenCalledTimes(1);
+  });
+  it('a shutdown that starts while the code is being looked up refuses the socket with restarting', async () => {
+    const db = await createTestDb();
+    const { ctx, port } = await boot(db, 'a');
+    const { game: started } = await startGame(ctx.app, makeQuiz([single, text]));
+    const original = ctx.store!.locate.bind(ctx.store!);
+    vi.spyOn(ctx.store!, 'locate').mockImplementation(async (code) => {
+      const where = await original(code);
+      ctx.manager.freeze();
+      return where;
+    });
+    expect(await attempt(port, { code: started.code, role: 'host', token: started.hostToken })).toBe('restarting');
+  });
+
+  it('limits database lookups of unknown codes per address; known codes are not counted', async () => {
+    const db = await createTestDb();
+    const { ctx, port } = await boot(db, 'a');
+    const { game: started } = await startGame(ctx.app, makeQuiz([single, text]));
+    const locate = vi.spyOn(ctx.store!, 'locate');
+    for (let i = 0; i < LOOKUPS_PER_MINUTE; i += 1) {
+      expect(await attempt(port, { code: String(100000 + i), role: 'player', token: 'x' })).toBe('unauthorized');
+    }
+    expect(await attempt(port, { code: '999999', role: 'player', token: 'x' })).toBe('restarting');
+    expect(locate).toHaveBeenCalledTimes(LOOKUPS_PER_MINUTE);
+    expect(await attempt(port, { code: started.code, role: 'host', token: started.hostToken })).toBe('state:lobby');
+  });
+
+  it('takes the client address from X-Forwarded-For only as far as the proxies are trusted', () => {
+    const socket = (forwarded?: string) => ({
+      handshake: { address: '10.0.0.1', headers: forwarded === undefined ? {} : { 'x-forwarded-for': forwarded } },
+    });
+    expect(clientAddress(socket('1.1.1.1, 2.2.2.2'), false)).toBe('10.0.0.1');
+    expect(clientAddress(socket(), 1)).toBe('10.0.0.1');
+    expect(clientAddress(socket('1.1.1.1, 2.2.2.2'), true)).toBe('1.1.1.1');
+    expect(clientAddress(socket('1.1.1.1, 2.2.2.2'), 1)).toBe('2.2.2.2');
+    expect(clientAddress(socket('1.1.1.1, 2.2.2.2'), 2)).toBe('1.1.1.1');
+    expect(clientAddress(socket('1.1.1.1'), 5)).toBe('1.1.1.1');
   });
 });
