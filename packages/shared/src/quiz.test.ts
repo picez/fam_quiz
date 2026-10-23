@@ -3,6 +3,13 @@ import {
   DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
+  BUFF_KINDS,
+  DEBUFF_KINDS,
+  READY_BUFFS,
+  allowedBuffs,
+  allowedDebuffs,
+  buffSchema,
+  retrySchema,
   IMAGE_LIMITS,
   answerSchema,
   finalRoundSchema,
@@ -855,5 +862,46 @@ describe('duels', () => {
     expect(LIMITS.maxDuelStake).toBe(5000);
     expect(LIMITS.defaultDuelStake).toBe(300);
     expect(LIMITS.maxDuelTries).toBe(30);
+  });
+});
+
+describe('buffs and debuffs in the settings', () => {
+  const baseQuiz = { title: 'Т', description: '', settings: DEFAULT_SETTINGS, rounds: [round('r1', [single])] };
+  const withPowers = (settings: object) => ({ ...baseQuiz, settings: { ...baseQuiz.settings, ...settings } });
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+
+  it('a quiz without power settings allows every debuff and no buff', () => {
+    const parsed = quizSchema.parse(baseQuiz);
+    expect(parsed.settings.debuffs).toBeUndefined();
+    expect(parsed.settings.buffs).toBeUndefined();
+    expect(allowedDebuffs(parsed)).toEqual([...DEBUFF_KINDS]);
+    expect(allowedBuffs(parsed)).toEqual([]);
+  });
+  it('keeps chosen debuffs and buffs in the canonical order', () => {
+    const parsed = quizSchema.parse(withPowers({ debuffs: ['mud', 'fog'], buffs: ['shield', 'fifty'] }));
+    expect(allowedDebuffs(parsed)).toEqual(['fog', 'mud']);
+    expect(allowedBuffs(parsed)).toEqual(['fifty', 'shield']);
+    expect(allowedDebuffs(quizSchema.parse(withPowers({ debuffs: [] })))).toEqual([]);
+  });
+  it('refuses unknown kinds, repeats and buffs that are not ready yet', () => {
+    expect(valid(quizSchema, withPowers({ debuffs: ['rain'] }))).toBe(false);
+    expect(issues(withPowers({ buffs: ['double', 'double'] }))).toContain('duplicate_powers');
+    expect(issues(withPowers({ debuffs: ['fog', 'fog'] }))).toContain('duplicate_powers');
+    expect(issues(withPowers({ buffs: ['swap'] }))).toContain('buff_unavailable');
+    expect(issues(withPowers({ buffs: ['audience', 'hint'] }))).toContain('buff_unavailable');
+    expect(valid(quizSchema, withPowers({ buffs: [...READY_BUFFS] }))).toBe(true);
+  });
+  it('buff events check their payloads', () => {
+    expect(valid(buffSchema, { kind: 'fifty' })).toBe(true);
+    expect(valid(buffSchema, { kind: 'magic' })).toBe(false);
+    expect(valid(retrySchema, { keep: true })).toBe(true);
+    expect(valid(retrySchema, { keep: 'yes' })).toBe(false);
+  });
+  it('all eight buff kinds are known, five are ready', () => {
+    expect(BUFF_KINDS).toHaveLength(8);
+    expect(READY_BUFFS).toEqual(['fifty', 'double', 'retry', 'time', 'shield']);
   });
 });

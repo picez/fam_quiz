@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { answerSchema, type Answer } from './answer';
-import { DEBUFF_KINDS, type ErrorCode } from './game';
+import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIMITS } from './quiz';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
@@ -50,6 +50,10 @@ export const adjustSchema = z.object({
 });
 /** Дебаф від ведучого. */
 export const debuffSchema = z.object({ playerId, kind: z.enum(DEBUFF_KINDS) });
+/** Баф, який гравець бере на поточне запитання. */
+export const buffSchema = z.object({ kind: z.enum(BUFF_KINDS) });
+/** Друга спроба після часткової першої: keep — залишити першу, інакше ще спроба. */
+export const retrySchema = z.object({ keep: z.boolean() });
 export const undebuffSchema = z.object({ playerId });
 /** Оголосити дуель суперникові. */
 export const declareSchema = z.object({ opponentId: playerId });
@@ -66,6 +70,10 @@ export interface ClientToServerEvents {
   'player:guess': (payload: z.infer<typeof guessSchema>, ack: Ack) => void;
   'player:hint': (ack: Ack) => void;
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;
+  /** Узяти баф на поточне запитання. */
+  'player:buff': (payload: z.infer<typeof buffSchema>, ack: Ack) => void;
+  /** Вибір після часткової першої відповіді другої спроби. */
+  'player:retry': (payload: z.infer<typeof retrySchema>, ack: Ack) => void;
   'player:buzz': (ack: Ack) => void;
   'player:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   /** Гравець кидає свій кубик на заставці раунду поля. */

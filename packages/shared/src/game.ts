@@ -13,6 +13,20 @@ export type AdjustmentSource = 'host' | 'duel';
 export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;
 export type DebuffKind = (typeof DEBUFF_KINDS)[number];
 
+/** Бафи: гравець бере сам на своєму телефоні, по одному кожного дозволеного на гру. */
+export const BUFF_KINDS = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'] as const;
+export type BuffKind = (typeof BUFF_KINDS)[number];
+/** Бафи, які вже працюють; решту редактор показує з позначкою «скоро», схема їх не приймає. */
+export const READY_BUFFS: readonly BuffKind[] = ['fifty', 'double', 'retry', 'time', 'shield'];
+
+/** armed — чекає першої відповіді; again — друга спроба відкрита; choice — перша часткова, гравець вибирає; done. */
+export type RetryStage = 'armed' | 'again' | 'choice' | 'done';
+
+/** Чому кнопку бафу зараз не натиснути. */
+export type BuffBlock =
+  | 'used' | 'taken' | 'answered' | 'time' | 'paused' | 'elsewhere' | 'not_chooser'
+  | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual';
+
 export type ErrorCode =
   | 'wrong_phase'
   | 'paused'
@@ -42,4 +56,8 @@ export type ErrorCode =
   | 'sort_stale'
   | 'duel_used'
   | 'duel_busy'
-  | 'duel_empty';
+  | 'duel_empty'
+  | 'not_allowed'
+  | 'buff_used'
+  | 'buff_busy'
+  | 'buff_unfit';
