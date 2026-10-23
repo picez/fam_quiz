@@ -519,6 +519,8 @@ interface BaseView {
   buffs: BuffTag[];
   /** Останній узятий баф у грі; null — не було. */
   buffNotice: BuffNotice | null;
+  /** Прибрані 50/50 варіанти вибравшого на клітинці поля (question, locked, reveal) — для всіх ролей; у класиці й без бафу []. */
+  removed: string[];
   /** Заставка поточного етапу (round/final — intro, question/cell — question, duel — duel, podium — finished); інакше null. */
   splash: SplashView | null;
   /** Гравці з додатковим часом без відповіді (етап question) — від миті, коли баф узято, а не лише після спільного кінця; інакше []. */

@@ -322,6 +322,12 @@ function currentBoardPlay(state: GameState) {
   return round?.type === 'board' && play?.board !== undefined ? { board: play.board, round } : null;
 }
 
+/** Прибрані 50/50 вибравшого відкритої клітинки поля; інакше []. Варіанти поля видно всім, правильний ніколи не прибирається. */
+function boardRemoved(state: GameState): string[] {
+  const open = currentBoardPlay(state);
+  return open === null ? [] : (buffOf(state.plays[state.questionIndex], open.board.chooserId)?.removed ?? []);
+}
+
 const BOARD_PHASES: Phase[] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
 /** Поле для всіх ролей: вид клітинок видно всім, формат запитань ні. */
@@ -791,6 +797,7 @@ function base(state: GameState, forHost: boolean) {
     duel: duelInfo(state, false),
     buffs: currentBuffs(state),
     buffNotice: lastBuff(state),
+    removed: boardRemoved(state),
     splash: splashView(state),
     overtime: overtimeRows(state),
     guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,

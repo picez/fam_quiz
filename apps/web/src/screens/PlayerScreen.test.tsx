@@ -49,6 +49,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  removed: [],
   splash: null,
   overtime: [],
   guide: null,

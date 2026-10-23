@@ -75,7 +75,8 @@ describe('buff views', () => {
     expect(removed).toEqual(['a', 'c']);
     expect(removed).not.toContain('b');
     expect(playerView(s, 'p2')?.me.buffs?.active).toBeNull();
-    for (const view of [stageView(s), hostView(s), playerView(s, 'p2')]) expect(JSON.stringify(view)).not.toContain('"removed"');
+    // У класиці спільне поле removed порожнє для всіх ролей — прибрані є лише в me.buffs самого гравця.
+    for (const view of [stageView(s), hostView(s), playerView(s, 'p2')]) expect(JSON.stringify(view)).not.toContain('"removed":["');
     for (const view of [stageView(s), playerView(s, 'p1'), playerView(s, 'p2')]) expect(JSON.stringify(view)).not.toContain('correctId');
   });
 
