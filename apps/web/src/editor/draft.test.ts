@@ -1004,6 +1004,17 @@ describe('hints and the spare pool in the draft', () => {
 });
 
 describe('spare drafts in storage', () => {
+  it('a hint that is not a string is dropped, a string hint stays', () => {
+    const good = { ...filled(newQuestion('boolean')), hint: 'Тече через Київ' };
+    const bad = { ...filled(newQuestion('boolean')), id: 'q-bad', hint: 42 };
+    const raw = JSON.parse(JSON.stringify(quizWith(good)));
+    raw.rounds[0].questions.push(bad);
+    sessionStorage.setItem('quiz:draft:badhint', JSON.stringify(raw));
+    const [kept, dropped] = roundQuestions(loadDraft('badhint')!.rounds[0]);
+    expect(kept.hint).toBe('Тече через Київ');
+    expect('hint' in dropped).toBe(false);
+  });
+
   it('a draft keeps the spare pool and drops a broken one', () => {
     const s1 = filled(newQuestion('boolean'));
     const quiz: Quiz = { ...quizWith(filled(newQuestion('boolean'))), spares: [s1] };

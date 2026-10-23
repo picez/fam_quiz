@@ -23,9 +23,17 @@ const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
 /** JSON не вміє зберігати NaN (порожнє числове поле) і перетворює його на null. */
 const numberOr = (value: unknown) => (typeof value === 'number' ? value : Number.NaN);
 
-function revive(question: Question): Question {
+function revive(stored: Question): Question {
+  // Підказка — лише рядок: зіпсоване значення зникає, а не ламає редактор.
+  const { hint, ...question } = stored;
   const video = videoSchema.safeParse(question.video).success ? question.video : null;
-  const base = { ...question, video, timeLimit: numberOr(question.timeLimit), points: numberOr(question.points) };
+  const base = {
+    ...question,
+    ...(typeof hint === 'string' ? { hint } : {}),
+    video,
+    timeLimit: numberOr(question.timeLimit),
+    points: numberOr(question.points),
+  } as Question;
   if (base.type === 'numeric') return { ...base, correct: numberOr(base.correct), tolerance: numberOr(base.tolerance) };
   if (base.type === 'sort') return { ...base, lockSeconds: numberOr(base.lockSeconds) };
   return base;

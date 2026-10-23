@@ -242,6 +242,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     // Знімок не змінюється, тож запитання з журналу в ньому є; перевірка лише від зіпсованого рядка.
     if (question === undefined) return [];
     const given = answers.filter((a) => a.questionIndex === index);
+    // Як на сцені: у класиці відповіді на запасні — інше запитання, лічильники їх не рахують; на полі рахують.
+    const main = ref?.cell !== undefined ? given : given.filter((a) => a.spareId === null);
     const round = quiz?.rounds[roundIndex];
     return [
       {
@@ -249,8 +251,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         roundIndex,
         text: question.text,
         type: question.type,
-        answered: distinct(given.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
-        accepted: distinct(given.filter((a) => a.accepted).map((a) => a.participantId)),
+        answered: distinct(main.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
+        accepted: distinct(main.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
         responses: responsesOf(given, standings, quiz?.spares ?? []),

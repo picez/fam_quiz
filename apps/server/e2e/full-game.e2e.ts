@@ -5075,13 +5075,13 @@ async function sparesGame() {
   await click(host, 'Почати раунд');
   for (const page of phones) {
     await page.locator('h1', { hasText: 'Найдовша річка України?' }).waitFor();
-    expect(await page.locator('.buff-row .buff-btn').allTextContents()).toEqual(['👥', '💡', '🔄']);
+    expect(await page.locator('.buff-row .buff-btn').allTextContents()).toEqual(['%', '?', '⇄']);
   }
   await takeBuff(olya, 'Підказка ведучого');
-  await panel(olya).getByText('💡 Тече через Київ', exact).waitFor();
+  await panel(olya).getByText('? Тече через Київ', exact).waitFor();
   await shot(olya, 'buff8b-hint-written');
   await expectNoSideScroll(olya, 'buff8b-hint-375');
-  await stage.locator('.stage-buffs li').getByText('💡 Оля', exact).waitFor();
+  await stage.locator('.stage-buffs li').getByText('? Оля', exact).waitFor();
   await stage.locator('.live-notice.is-buff').getByText('Оля: Підказка ведучого', exact).waitFor();
   for (const page of [stage, petro, ira]) expect(await page.content()).not.toContain('Тече через Київ');
   await pickOption(olya, 'Дніпро');
@@ -5133,7 +5133,7 @@ async function sparesGame() {
   await host.setViewportSize({ width: 1280, height: 900 });
   await card.locator('textarea').fill('Місто Лева');
   await card.getByRole('button', { name: 'Надіслати', ...exact }).click();
-  await panel(petro).getByText('💡 Місто Лева', exact).waitFor();
+  await panel(petro).getByText('? Місто Лева', exact).waitFor();
   await card.waitFor({ state: 'detached' });
   expect(await answerY(petro), 'the host hint moved the answer field').toBe(petroField);
   expect(await boxOf(petro, '.buff-panel'), 'the host hint resized the panel').toEqual(petroPanel);
@@ -5142,10 +5142,10 @@ async function sparesGame() {
   await olya.locator('h1', { hasText: 'Чорне море солоніше за Азовське?' }).waitFor();
   for (const name of ['Так', 'Ні']) await olya.getByRole('button', { name, ...exact }).waitFor();
   await olya.locator('.question-meta .spare-tag').getByText('Запасне запитання', exact).waitFor();
-  await olya.locator('.buff-why').getByText('🔄 Запасне запитання: щонайменше 20 с', exact).waitFor();
+  await olya.locator('.buff-why').getByText('⇄ Запасне запитання: щонайменше 20 с', exact).waitFor();
   await shot(olya, 'buff8b-swap-phone');
   await expectNoSideScroll(olya, 'buff8b-swap-375');
-  await stage.locator('.stage-buffs li').getByText('🔄 Оля відповідає на запасне', exact).waitFor();
+  await stage.locator('.stage-buffs li').getByText('⇄ Оля відповідає на запасне', exact).waitFor();
   await stage.locator('h1', { hasText: 'Столиця Галичини?' }).waitFor();
   for (const page of [stage, petro, ira]) expect(await page.content()).not.toContain('Чорне море');
   await shot(stage, 'buff8b-swap-stage');
@@ -5222,6 +5222,8 @@ async function sparesGame() {
   await vote(ira, 'Київ');
   await panel(petro).locator('.vote-row', { hasText: 'Київ' }).locator('.vote-pct').getByText('100 %', exact).waitFor();
   await shot(petro, 'buff8b-vote-board-pct');
+  // Усі варіанти влазять у панель сталої висоти: прокрутки всередині немає.
+  expect(await panel(petro).evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
   expect(await bodyText(stage)).not.toContain(' %');
   await pickOption(petro, 'Київ');
   await click(host, 'Прийняти');
@@ -5234,7 +5236,7 @@ async function sparesGame() {
   await ira.locator('h1', { hasText: 'Гори 100' }).waitFor();
   await takeBuff(ira, 'Заміна запитання');
   for (const page of [stage, ...phones]) await page.locator('h1', { hasText: 'Скільки днів у високосному році?' }).waitFor();
-  await stage.locator('.stage-buffs li').getByText('🔄 Іра: запасне запитання', exact).waitFor();
+  await stage.locator('.stage-buffs li').getByText('⇄ Іра: запасне запитання', exact).waitFor();
   await shot(stage, 'buff8b-swap-board-stage');
   await numericAnswer(ira, '366');
   await click(host, 'Прийняти');
@@ -5263,9 +5265,9 @@ async function sparesGame() {
     host
       .locator('.rows.stacked > li', { hasText: question })
       .locator('details.responses li', { has: host.locator('.responses-name', { hasText: nickname }) });
-  expect(await line('Найдовша річка', 'Оля').locator('.buff-tag').allTextContents()).toEqual(['💡']);
+  expect(await line('Найдовша річка', 'Оля').locator('.buff-tag').allTextContents()).toEqual(['?']);
   const olyaSpare = line('Столиця Галичини', 'Оля');
-  expect(await olyaSpare.locator('.buff-tag').allTextContents()).toEqual(['🔄']);
+  expect(await olyaSpare.locator('.buff-tag').allTextContents()).toEqual(['⇄']);
   expect(await olyaSpare.locator('.spare-tag').textContent()).toBe('запасне');
   expect(await olyaSpare.locator('.spare-text').textContent()).toBe('Запасне: Чорне море солоніше за Азовське?');
   expect(await olyaSpare.locator('.responses-answer').textContent()).toBe('Так');

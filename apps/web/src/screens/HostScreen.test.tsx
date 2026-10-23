@@ -811,6 +811,21 @@ describe('HostScreen: blitz', () => {
       expect(document.body.textContent).not.toContain('×');
     });
 
+    it("the chooser's row marks a spare answer and reads it against the spare", () => {
+      const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const responses = [
+        { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean' as const, value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 100, overridden: false, buff: 'swap' as const, spare },
+      ];
+      show(during('reveal', single, { round: boardRound, players: three, board: boardOf({ cell }), responses }));
+      const mark = screen.getByText('запасне');
+      expect(mark.className).toContain('spare-tag');
+      expect(mark.getAttribute('title')).toBe('Чорне море солоніше за Азовське?');
+      const row = mark.closest('li') as HTMLElement;
+      expect(row.querySelector('.name')?.textContent).toBe('Олена');
+      expect(row.querySelector('.given')?.textContent).toBe('Так');
+    });
+
     it('does not show a stale question number in the board phase', () => {
       show(onBoard({ questionIndex: 0 }));
       expect(document.body.textContent).not.toMatch(/Запитання \d/);

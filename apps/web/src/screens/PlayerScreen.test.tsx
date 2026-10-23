@@ -90,8 +90,9 @@ describe('PlayerScreen', () => {
     expect(document.querySelector('.debuff-zone')).not.toBeNull();
     expect(document.querySelector('[data-debuff]')).toBeNull();
     expect(document.querySelector('.debuff-zone h1.question')).not.toBeNull();
-    expect(classes()).toEqual(['bar', 'question-head', 'debuff-zone']);
-    expect(debuffed).toEqual(['bar', 'question-head', 'debuff-zone is-mirror']);
+    // Перший — постійний живий регіон аркуша голосування (невидимий).
+    expect(classes()).toEqual(['sr-only vote-live', 'bar', 'question-head', 'debuff-zone']);
+    expect(debuffed).toEqual(['sr-only vote-live', 'bar', 'question-head', 'debuff-zone is-mirror']);
   });
 
   it('a video question shows the player and no timer on the phone', () => {
@@ -1390,6 +1391,22 @@ describe('PlayerScreen: sort', () => {
     expect(screen.queryByText(/Чекаємо/)).toBeNull();
   });
 
+  it('my own clock is measured against the limit plus my extra time', () => {
+    const now = Date.now();
+    const active = { kind: 'time' as const, removed: [], retry: null, first: null, hint: null, votes: null, spare: false };
+    const { container } = render(
+      <PlayerScreen
+        view={onQuestion({ endsAt: now - 1000, limitMs: 20_000, me: { ...me, buffs: { ...buffs, active }, overtime: { deadline: now + 29_000, remainingMs: null } } })}
+        hostOnline
+        offsetMs={0}
+        send={vi.fn(async () => ({ ok: true as const }))}
+      />,
+    );
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('29');
+    expect(screen.getByText('/ 50 с')).toBeTruthy();
+    expect(parseFloat((container.querySelector('.timer-bar > span') as HTMLElement).style.width)).toBeCloseTo(58, 0);
+  });
+
   it('others see who the reveal waits for', () => {
     const now = Date.now();
     const overtime = [{ playerId: 'p2', nickname: 'Оля', deadline: now + 24_000, remainingMs: null }];
@@ -1463,8 +1480,15 @@ describe('PlayerScreen: buffs with others', () => {
       />,
     );
     expect(document.querySelector('.buff-panel')).toBe(panel);
-    expect(panel.textContent).toContain('💡 Місто на Дніпрі');
+    expect(panel.textContent).toContain('? Місто на Дніпрі');
     expect(shape()).toEqual(before);
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it('a hint given aloud says so in the panel', () => {
+    show(onQuestion({ me: { ...me, buffs: withActive(activeOf({ hint: { state: 'aloud', text: null } })) } }));
+    const panel = document.querySelector('.debuff-zone .buff-panel')!;
+    expect(panel.textContent).toBe('Ведучий підказав уголос');
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
   });
 
@@ -1476,7 +1500,7 @@ describe('PlayerScreen: buffs with others', () => {
     // Аркуш — поза зоною запитання, на рівні main; «Відповідь прийнято» на місці.
     expect(sheet.closest('.debuff-zone')).toBeNull();
     expect(sheet.parentElement?.tagName).toBe('MAIN');
-    expect(screen.getByText('Оля питає зал: як думаєте?')).toBeTruthy();
+    expect(sheet.querySelector('strong')?.textContent).toBe('Оля питає зал: як думаєте?');
     expect(document.querySelector('.debuff-zone .sent h2')?.textContent).toBe('Відповідь прийнято');
   });
 
@@ -1489,11 +1513,23 @@ describe('PlayerScreen: buffs with others', () => {
     expect(tag.textContent).toBe('Запасне запитання');
     // У тому самому рядку підпису, без нового блоку.
     expect(tag.parentElement?.className).toBe('meta');
-    expect(document.querySelector('.buff-why')?.textContent).toBe('🔄 Запасне запитання: щонайменше 20 с');
+    expect(document.querySelector('.buff-why')?.textContent).toBe('⇄ Запасне запитання: щонайменше 20 с');
     expect(document.querySelector('.buff-panel')).toBeNull();
     cleanup();
     show(onQuestion({ me: { ...me, buffs: withActive(null) } }));
     expect(document.querySelector('.spare-tag')).toBeNull();
+  });
+
+  it('after a swap the answer field starts empty', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const textQuestion = { ...publicQuestion, type: 'text' as const, choices: [] };
+    const main = onQuestion({ question: textQuestion, me: { ...me, buffs: withActive(null) } });
+    const { rerender } = render(<PlayerScreen view={main} hostOnline offsetMs={0} send={send} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Київ' } });
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('Київ');
+    const swapped = { ...main, question: { ...textQuestion, text: 'Найдовша річка?' }, me: { ...me, buffs: withActive(activeOf({ kind: 'swap', spare: true })) } };
+    rerender(<PlayerScreen view={swapped} hostOnline offsetMs={0} send={send} />);
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('');
   });
 
   it("another player's audience changes nothing on my screen", () => {

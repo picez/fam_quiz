@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Timer, timerStatus } from './Timer';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('Timer', () => {
   it('shows the remaining and the full time with a bar', () => {
@@ -34,6 +37,24 @@ describe('Timer', () => {
     expect(timer.querySelector('.timer-label')?.textContent).toBe('Чекає рішення ведучого');
     expect(timer.querySelector('.timer-label')?.getAttribute('data-total')).toBe('/ 30 с');
     expect(container.querySelector('.timer-total')).toBeNull();
+  });
+
+  it('never shows more than the full time', () => {
+    const { container } = render(<Timer view={{ endsAt: null, remainingMs: 30_400 }} offsetMs={0} total={30_000} />);
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('30');
+    expect((container.querySelector('.timer-bar > span') as HTMLElement).style.width).toBe('100%');
+  });
+
+  it('a re-render for another reason reads the current time, so the count never ticks back up', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const view = { endsAt: 1_010_000, remainingMs: null };
+    const { rerender } = render(<Timer view={view} offsetMs={0} total={30_000} />);
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('10');
+    // Час іде, а інтервал ще не спрацював; перемальовує зміна зсуву годинника.
+    vi.setSystemTime(1_005_000);
+    rerender(<Timer view={view} offsetMs={1} total={30_000} />);
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('5');
   });
 
   it('timerStatus: pause beats hold', () => {

@@ -69,6 +69,15 @@ describe('audience', () => {
     expect(castVote(s, 'p2', 'p1', words('Київ'), T0 + 3000)).toEqual({ ok: false, error: 'type_mismatch' });
   });
 
+  it('during a pause the vote clock stands: open past endsAt if paused before it, closed if paused after', () => {
+    const s = asking(); // endsAt = T0 + 17 000
+    const early = must(pause(s, T0 + 5000));
+    expect(voteOpen(early, 'p1', T0 + 60_000)).toBe(true);
+    const late = must(pause(s, T0 + 17_500));
+    expect(voteOpen(late, 'p1', T0 + 17_600)).toBe(false);
+    expect(voteOpen(late, 'p1', T0 + 1000)).toBe(false);
+  });
+
   it('audience fits simple types only and works on a board cell for everyone but the chooser', () => {
     const q4 = answer(toQ(4), 'p2', { type: 'order', itemIds: order.items.map((i) => i.id) }, T0 + 1000);
     expect(buffBlock(q4, 'p1', 'audience')).toBe('unfit_type');

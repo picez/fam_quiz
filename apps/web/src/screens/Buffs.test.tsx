@@ -6,7 +6,7 @@ import type { PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTal
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import type { Send } from '../live/types';
-import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
+import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, StageBuffs, VoteSheet } from './Buffs';
 
 const NOW = 1_000_000;
 
@@ -290,7 +290,7 @@ describe('BuffPanel', () => {
   it('the buff panel keeps its size for waiting, text, votes and guesses', () => {
     const cases: [PlayerActiveBuff, PublicQuestion, string][] = [
       [{ ...base, hint: { state: 'waiting', text: null } }, single, 'Ведучий думає…'],
-      [{ ...base, hint: { state: 'text', text: 'Д'.repeat(200) } }, single, `💡 ${'Д'.repeat(200)}`],
+      [{ ...base, hint: { state: 'text', text: 'Д'.repeat(200) } }, single, `? ${'Д'.repeat(200)}`],
       [{ ...base, hint: { state: 'aloud', text: null } }, single, 'Ведучий підказав уголос'],
       [audience(tally()), single, 'Чекаємо голосів…'],
       [audience(tally({ cast: 2, counts: { b: 1, c: 1 } })), single, 'Київ'],
@@ -314,6 +314,9 @@ describe('BuffPanel', () => {
     expect(panel).toMatch(/(^|[;\s])height:\s*6\.5rem/);
     expect(panel).not.toMatch(/min-height|max-height/);
     expect(panel).toMatch(/overflow-y:\s*auto/);
+    // До чотирьох варіантів — два стовпчики по два рядки: влазить без прокрутки; довгий текст обрізається.
+    expect(rule('.vote-rows')).toMatch(/grid-template-columns:\s*repeat\(2,/);
+    expect(rule('.vote-text')).toMatch(/text-overflow:\s*ellipsis/);
     // Інші бафи панелі не мають.
     const { container } = render(<BuffPanel active={{ ...base, kind: 'fifty' }} question={single} offsetMs={0} />);
     expect(container.innerHTML).toBe('');
@@ -365,19 +368,27 @@ describe('VoteSheet', () => {
 
   it('the vote sheet sends a ballot, thanks, and can be skipped', async () => {
     const { send, again } = sheet(prompt());
-    expect(screen.getByText('Оля питає зал: як думаєте?')).toBeTruthy();
+    expect(document.querySelector('.vote-sheet strong')?.textContent).toBe('Оля питає зал: як думаєте?');
+    const live = document.querySelector('.vote-live')!;
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(live.textContent).toBe('Оля питає зал: як думаєте?');
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
     });
     expect(send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'single', optionId: 'b' } });
-    expect(screen.getByText('Голос прийнято')).toBeTruthy();
+    expect(document.querySelector('.vote-thanks')?.textContent).toBe('Голос прийнято');
+    // Той самий живий регіон, що оголосив аркуш, оголошує й подяку: він не перемонтовується.
+    expect(document.querySelector('.vote-live')).toBe(live);
+    expect(live.textContent).toBe('Голос прийнято');
     // Зріз прибирає запрошення, а подяка ще стоїть 1,5 с.
     again(null);
-    expect(screen.getByText('Голос прийнято')).toBeTruthy();
+    expect(document.querySelector('.vote-thanks')?.textContent).toBe('Голос прийнято');
     act(() => {
       vi.advanceTimersByTime(1500);
     });
     expect(document.querySelector('.vote-sheet')).toBeNull();
+    expect(document.querySelector('.vote-live')).toBe(live);
+    expect(live.textContent).toBe('');
     cleanup();
 
     // «Пропустити» ховає аркуш; запрошення від іншого гравця — знову аркуш.
@@ -388,7 +399,7 @@ describe('VoteSheet', () => {
     skip.again(prompt());
     expect(document.querySelector('.vote-sheet')).toBeNull();
     skip.again(prompt({ asker: { playerId: 'p3', nickname: 'Петро' } }));
-    expect(screen.getByText('Петро питає зал: як думаєте?')).toBeTruthy();
+    expect(document.querySelector('.vote-sheet strong')?.textContent).toBe('Петро питає зал: як думаєте?');
     cleanup();
 
     // Час сплив — аркуш зник.
@@ -415,6 +426,26 @@ describe('VoteSheet', () => {
     expect(typed.send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'text', value: 'Львів' } });
   });
 
+  it('multi and numeric questions vote with their own inputs', async () => {
+    const multiQ: PublicQuestion = { ...single, type: 'multi' };
+    const many = sheet(prompt(), { q: multiQ });
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Одеса/ }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Голосувати' }));
+    });
+    expect(many.send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'multi', optionIds: ['b', 'c'] } });
+    cleanup();
+
+    const numericQ: PublicQuestion = { ...question, type: 'numeric' };
+    const number = sheet(prompt(), { q: numericQ });
+    fireEvent.change(document.querySelector('.vote-sheet input')!, { target: { value: '1991' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Голосувати' }));
+    });
+    expect(number.send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'numeric', value: 1991 } });
+  });
+
   it('the vote sheet is fixed and does not take room in the page', () => {
     sheet(prompt());
     expect(document.querySelector('.vote-sheet')).not.toBeNull();
@@ -422,5 +453,22 @@ describe('VoteSheet', () => {
     expect(body).toMatch(/position:\s*fixed/);
     expect(body).toMatch(/max-height:\s*60vh/);
     expect(body).toMatch(/overflow-y:\s*auto/);
+  });
+});
+
+describe('StageBuffs', () => {
+  it('the swap tag on the stage uses the spare colour', () => {
+    render(
+      <StageBuffs
+        buffs={[
+          { playerId: 'p1', nickname: 'Оля', kind: 'swap' },
+          { playerId: 'p2', nickname: 'Петро', kind: 'hint' },
+        ]}
+      />,
+    );
+    const [swap, hint] = [...document.querySelectorAll('.stage-buffs li')];
+    expect(swap.className).toBe('is-swap');
+    expect(hint.className).toBe('');
+    expect(rule('.stage-buffs li.is-swap')).toMatch(/var\(--spare-accent\)/);
   });
 });

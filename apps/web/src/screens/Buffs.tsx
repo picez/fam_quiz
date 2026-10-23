@@ -258,7 +258,7 @@ function VoteResults({ votes, question, offsetMs }: { votes: VoteTally; question
               return (
                 <li key={option.id} className="vote-row">
                   <span className="vote-bar" style={{ width: `${pct}%` }} aria-hidden="true" />
-                  <span className="vote-text">{option.text}</span> <span className="vote-pct">{`${pct} %`}</span>
+                  <span className="vote-text" title={option.text}>{option.text}</span> <span className="vote-pct">{`${pct} %`}</span>
                 </li>
               );
             })}
@@ -280,7 +280,7 @@ export function BuffPanel({ active, question, offsetMs }: { active: PlayerActive
       {active.kind === 'hint'
         ? hint !== null && (
             <p className="hint-text">
-              {hint.state === 'waiting' ? t('hintWaiting') : hint.state === 'aloud' ? t('hintAloud') : `💡 ${hint.text ?? ''}`}
+              {hint.state === 'waiting' ? t('hintWaiting') : hint.state === 'aloud' ? t('hintAloud') : `${BUFF_ICONS.hint} ${hint.text ?? ''}`}
             </p>
           )
         : active.votes !== null && <VoteResults votes={active.votes} question={question} offsetMs={offsetMs} />}
@@ -324,16 +324,30 @@ export function VoteSheet({
   const timeOver = useTimeOver(prompt?.endsAt ?? null, prompt?.remainingMs ?? null, offsetMs);
   const left = useLeftMs(prompt ?? { endsAt: null, remainingMs: null }, offsetMs);
 
+  const open = prompt !== null && !timeOver && !done.includes(prompt.asker.playerId);
+  const ask = prompt === null ? '' : t('voteAsk', { name: prompt.asker.nickname });
+  // Живий регіон стоїть постійно (поки є запитання): поява аркуша й «Голос прийнято» читаються вголос,
+  // хоча самі аркуші монтуються й зникають.
+  const live = (
+    <p className="sr-only vote-live" aria-live="polite" aria-atomic="true">
+      {thanks ? t('voteThanks') : open ? ask : ''}
+    </p>
+  );
+
   if (thanks) {
     return (
-      <section className="vote-sheet" role="status">
-        <p className="lead vote-thanks">{t('voteThanks')}</p>
-      </section>
+      <>
+        {live}
+        <section className="vote-sheet">
+          <p className="lead vote-thanks" aria-hidden="true">
+            {t('voteThanks')}
+          </p>
+        </section>
+      </>
     );
   }
-  if (prompt === null || timeOver || done.includes(prompt.asker.playerId)) return null;
+  if (!open || prompt === null) return live;
   const asker = prompt.asker.playerId;
-  const ask = t('voteAsk', { name: prompt.asker.nickname });
 
   const vote = (answer: Answer) => {
     if (sending || paused) return;
@@ -360,18 +374,21 @@ export function VoteSheet({
   };
 
   return (
-    <section className="vote-sheet" aria-label={ask}>
-      <p className="vote-sheet-head">
-        <strong>{ask}</strong>
-        <span className="vote-time">{t('votesLeft', { time: clockText(left) })}</span>
-      </p>
-      <fieldset className="inputs" disabled={paused || sending}>
-        <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
-      </fieldset>
-      <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
-        {t('voteSkip')}
-      </button>
-    </section>
+    <>
+      {live}
+      <section className="vote-sheet" aria-label={ask}>
+        <p className="vote-sheet-head">
+          <strong>{ask}</strong>
+          <span className="vote-time">{t('votesLeft', { time: clockText(left) })}</span>
+        </p>
+        <fieldset className="inputs" disabled={paused || sending}>
+          <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
+        </fieldset>
+        <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
+          {t('voteSkip')}
+        </button>
+      </section>
+    </>
   );
 }
 
@@ -417,8 +434,8 @@ export function SharedOvertime({ view, offsetMs }: { view: { endsAt: number | nu
 
 /**
  * Значки сцени: «½ Оля» біля кожного гравця, що взяв баф на це запитання; що баф зробив, сцена не знає.
- * Заміна в класиці — лише «🔄 Оля відповідає на запасне» (запасного в зрізі сцени немає);
- * на полі запасне вже на сцені як запитання клітинки — «🔄 Оля: запасне запитання».
+ * Заміна в класиці — лише «⇄ Оля відповідає на запасне» (запасного в зрізі сцени немає);
+ * на полі запасне вже на сцені як запитання клітинки — «⇄ Оля: запасне запитання».
  */
 export function StageBuffs({ buffs, board = false }: { buffs: BuffTag[]; board?: boolean }) {
   if (buffs.length === 0) return null;
@@ -429,7 +446,9 @@ export function StageBuffs({ buffs, board = false }: { buffs: BuffTag[]; board?:
   return (
     <ul className="stage-buffs" aria-label={t('stageBuffsLabel')}>
       {buffs.map((tag) => (
-        <li key={tag.playerId} title={buffName(tag.kind)}>{text(tag)}</li>
+        <li key={tag.playerId} className={tag.kind === 'swap' ? 'is-swap' : undefined} title={buffName(tag.kind)}>
+          {text(tag)}
+        </li>
       ))}
     </ul>
   );

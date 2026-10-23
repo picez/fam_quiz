@@ -2,7 +2,7 @@ import type { Answer, BuffKind, Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { castVote, giveHint, takeBuff } from './buffs';
 import { pickCell } from './board';
-import { acceptAnswer, lock, next, pause, start, submitAnswer, type GameState } from './game';
+import { acceptAnswer, lock, next, pause, removePlayer, start, submitAnswer, type GameState } from './game';
 import { T0, toBuffQuestion, toOthersCell, toOthersQuestion } from './testing/buffs';
 import { bool, boardRound, makeRoundsQuiz, single4, withId } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
@@ -56,6 +56,15 @@ describe('views: hints, votes and spares', () => {
     s = take(s, 'p2', 'hint', T0 + 1000);
     expect(hostView(s).hints).toHaveLength(1);
     expect(hostView(must(lock(s))).hints).toEqual([]);
+  });
+
+  it('kicking the asker takes the pending hint request away', () => {
+    let s = toNext(toOthersQuestion(), T0); // q2
+    s = take(s, 'p2', 'hint', T0 + 1000);
+    s = take(s, 'p3', 'hint', T0 + 2000);
+    expect(hostView(s).hints.map((h) => h.playerId)).toEqual(['p2', 'p3']);
+    s = must(removePlayer(s, 'p2'));
+    expect(hostView(s).hints.map((h) => h.playerId)).toEqual(['p3']);
   });
 
   it('votes reach only the asker and never carry the answer', () => {

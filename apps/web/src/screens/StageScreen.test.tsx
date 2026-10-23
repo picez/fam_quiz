@@ -468,7 +468,7 @@ describe('StageScreen: blitz', () => {
         }),
       );
       const list = screen.getByRole('list', { name: 'Бафи гравців' });
-      expect(list.textContent).toBe('🔄 Анна: запасне запитання');
+      expect(list.textContent).toBe('⇄ Анна: запасне запитання');
     });
   });
 });
@@ -949,7 +949,7 @@ describe('StageScreen final', () => {
     for (const phase of ['question', 'locked', 'reveal'] as const) {
       show(view({ phase, questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs, reveal: phase === 'reveal' ? full : null }));
       const list = screen.getByRole('list', { name: 'Бафи гравців' });
-      expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['🔄 Оля відповідає на запасне']);
+      expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['⇄ Оля відповідає на запасне']);
       // Сцена показує основне запитання: запасного в її зрізі немає.
       expect(screen.getByText('Столиця України?')).toBeTruthy();
       cleanup();
@@ -963,8 +963,17 @@ describe('StageScreen final', () => {
     ];
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs }));
     const list = screen.getByRole('list', { name: 'Бафи гравців' });
-    expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['💡 Петро', '👥 Іра']);
+    expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['? Петро', '% Іра']);
     expect(document.querySelector('.buff-panel, .hint-text, .vote-rows')).toBeNull();
+  });
+
+  it('the stage never shows a hint, not even at the reveal', () => {
+    const buffs = [{ playerId: 'p2', nickname: 'Петро', kind: 'hint' as const }];
+    for (const phase of ['question', 'locked', 'reveal'] as const) {
+      show(view({ phase, questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs, reveal: phase === 'reveal' ? { ...full, hint: 'Тече через Київ' } : null }));
+      expect(document.body.textContent).not.toContain('Тече через Київ');
+      cleanup();
+    }
   });
 
   it('the stage waits for a player with extra time', () => {

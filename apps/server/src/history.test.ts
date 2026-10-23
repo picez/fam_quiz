@@ -983,4 +983,21 @@ describe('history: spare questions', () => {
       ['Ліда', 'swap', null],
     ]);
   });
+
+  it('per-question counts leave out spare answers, like the stage', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const spare = { ...text, id: 's1', text: 'Запасне?' };
+    const { gameId } = await seedGame(db, {
+      hostId: account.id,
+      startedAt: new Date(2026, 1, 1),
+      snapshot: { ...makeQuiz([single]), spares: [spare] },
+      players: [
+        { userId: null, nickname: 'Олена', score: 1000, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 1000, buff: 'swap', spareId: 's1' }] },
+        { userId: null, nickname: 'Тарас', score: 0, rank: 2, rows: [{ questionIndex: 0, accepted: false, points: 0 }] },
+      ],
+    });
+    const detail = await hostGame(db, account.id, gameId);
+    expect(detail?.questions[0]).toMatchObject({ answered: 1, accepted: 0 });
+  });
 });
