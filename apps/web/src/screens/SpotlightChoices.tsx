@@ -1,5 +1,5 @@
-import type { Answer, PublicQuestion, Question, RevealStats, Spotlight } from '@quiz/shared';
-import { LETTERS, correctPairs, pairTexts, pickedText, shownChoices } from '../format';
+import type { Answer, Choice, PublicQuestion, Question, RevealStats, Spotlight } from '@quiz/shared';
+import { LETTERS, choiceLabel, correctPairs, pairTexts, pickedText, shownChoices } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
@@ -50,6 +50,9 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
     const colorOf = (id: string) => colorFor(correctIds.includes(id), pickedIds.includes(id));
     const classOf = (id: string) => ['choice', colorOf(id), removed.includes(id) ? 'is-removed' : ''].filter(Boolean).join(' ');
     const tag = (id: string) => removed.includes(id) && <span className="removed-tag">{t('removedTag')}</span>;
+    // Прибраний варіант читач екрана називає «Львів — прибрано» і як недоступний.
+    const a11y = (choice: Choice, index: number) =>
+      removed.includes(choice.id) ? { 'aria-label': t('choiceRemoved', { choice: choiceLabel(choice, index) }), 'aria-disabled': true } : {};
     if (onName !== undefined) {
       const tap = (id: string) => {
         if (question.type === 'single') return onName(pickedIds.includes(id) ? null : { type: 'single', optionId: id });
@@ -65,6 +68,7 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
               className={classOf(choice.id)}
               aria-pressed={pickedIds.includes(choice.id)}
               disabled={removed.includes(choice.id)}
+              {...a11y(choice, index)}
               onClick={() => tap(choice.id)}
             >
               <ChoiceFace choice={choice} letter={LETTERS[index]} />
@@ -78,7 +82,7 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
       <>
         <ul className={choicesClass(question.choices)}>
           {question.choices.map((choice, index) => (
-            <li key={choice.id} className={classOf(choice.id)}>
+            <li key={choice.id} className={classOf(choice.id)} {...a11y(choice, index)}>
               <ChoiceFace choice={choice} letter={LETTERS[index]} />
               {tag(choice.id)}
               {stats !== null && <span className="count">{stats.counts[choice.id] ?? 0}</span>}

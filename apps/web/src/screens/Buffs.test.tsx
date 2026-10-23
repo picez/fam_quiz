@@ -412,6 +412,20 @@ describe('VoteSheet', () => {
     expect(rule('.removed-tag')).toContain('position: absolute');
   });
 
+  it('a removed option fades its face but keeps a full-strength «прибрано» chip, larger on the stage and the host', () => {
+    // Тьмяніє лише вміст варіанта, не вся кнопка: інакше тьмяніє й позначка.
+    expect(rule('.choice.is-removed')).not.toContain('opacity');
+    expect(rule('.choice.is-removed > :not(.removed-tag, .count)')).toMatch(/opacity:\s*0\.\d+/);
+    expect(rule('.choice.is-removed > span:not(.letter, .removed-tag, .count)')).toContain('text-decoration: line-through');
+    const tag = rule('.removed-tag');
+    expect(tag).toContain('position: absolute');
+    expect(tag).toContain('background: var(--removed-tag)');
+    expect(tag).toContain('opacity: 1');
+    expect(tag).not.toContain('font-size: 0.75rem');
+    expect(rule('.stage .removed-tag')).toContain('font-size: clamp(');
+    expect(rule('.host .removed-tag')).toContain('font-size:');
+  });
+
   it('the vote sheet sends a ballot, thanks, and can be skipped', async () => {
     const { send, again } = sheet(prompt());
     expect(document.querySelector('.vote-sheet strong')?.textContent).toBe('Оля питає зал: як думаєте?');

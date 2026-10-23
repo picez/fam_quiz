@@ -4861,27 +4861,50 @@ label.powers-item {
   }
 }
 
-/* 50/50: прибраний варіант на своєму місці, тієї самої висоти; позначка «прибрано» поза потоком. */
+/* 50/50: прибраний варіант на своєму місці, тієї самої висоти; позначка «прибрано» поза потоком.
+   Тьмяніє лише вміст (літера, картинка, текст), а не вся кнопка — позначка лишається яскравою. */
 .choice.is-removed {
   position: relative;
-  opacity: 0.55;
+  border-style: dashed;
   cursor: default;
+}
+
+.choice.is-removed > :not(.removed-tag, .count) {
+  opacity: 0.45;
 }
 
 .choice.is-removed .choice-text,
 .choice.is-removed > span:not(.letter, .removed-tag, .count) {
   text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
 
 .removed-tag {
   position: absolute;
   top: 0.25rem;
   right: 0.375rem;
-  font-size: 0.75rem;
-  line-height: 1;
-  color: var(--removed-tag);
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--removed-tag);
+  color: var(--stage);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.2;
   text-decoration: none;
+  opacity: 1;
   pointer-events: none;
+}
+
+/* Телевізор: позначку видно з залу. */
+.stage .removed-tag {
+  top: 0.5vh;
+  right: 0.5vw;
+  padding: 0.2vh 0.8vw;
+  font-size: clamp(0.875rem, 1.4vw, 1.5rem);
+}
+
+.host .removed-tag {
+  font-size: 0.9375rem;
 }
 
 .buff-retry-actions {

@@ -38,6 +38,10 @@ describe('SpotlightChoices', () => {
     expect(removed[0].textContent).toContain('Львів');
     expect(removed[0].textContent).toContain('прибрано');
     expect(container.querySelectorAll('li.choice')).toHaveLength(4);
+    // Читач екрана чує, що варіант прибрано.
+    expect(removed[0].getAttribute('aria-label')).toBe('Львів — прибрано');
+    expect(removed[0].getAttribute('aria-disabled')).toBe('true');
+    expect(container.querySelector('li.choice:not(.is-removed)')?.hasAttribute('aria-label')).toBe(false);
     cleanup();
     // Ведучий на усній клітинці: прибраний варіант не позначити, решта — кнопки як були.
     const onName = vi.fn();
@@ -46,6 +50,9 @@ describe('SpotlightChoices', () => {
     expect(buttons.map((button) => button.disabled)).toEqual([true, false, false, false]);
     expect(buttons[0].className).toContain('is-removed');
     expect(within(buttons[0]).getByText('прибрано')).toBeTruthy();
+    expect(buttons[0].getAttribute('aria-label')).toBe('Львів — прибрано');
+    expect(buttons[0].getAttribute('aria-disabled')).toBe('true');
+    expect(buttons[1].hasAttribute('aria-label')).toBe(false);
     fireEvent.click(buttons[0]);
     expect(onName).not.toHaveBeenCalled();
     fireEvent.click(buttons[1]);
