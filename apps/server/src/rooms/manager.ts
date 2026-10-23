@@ -117,15 +117,22 @@ function sameToken(given: string, expected: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export interface RoomManagerOptions {
+  /** Заставки переходів (8c); main.ts і наскрізні тести вмикають, модульні тести сервера — ні. */
+  transitions?: boolean;
+}
+
 export class RoomManager {
   private readonly scheduler: Scheduler;
   private readonly rng: () => number;
+  private readonly transitions: boolean;
   private readonly rooms = new Map<string, Room>();
   private readonly listeners = new Set<RoomListener>();
 
-  constructor(scheduler: Scheduler, rng: () => number = Math.random) {
+  constructor(scheduler: Scheduler, rng: () => number = Math.random, options: RoomManagerOptions = {}) {
     this.scheduler = scheduler;
     this.rng = rng;
+    this.transitions = options.transitions ?? false;
   }
 
   now(): number {
@@ -154,7 +161,7 @@ export class RoomManager {
       hostUserId,
       quizId,
       playerUsers: new Map(),
-      state: createGame(quiz),
+      state: createGame(quiz, { transitions: this.transitions }),
       playerTokens: new Map(),
       connections: new Map(),
       deadline: null,
@@ -320,7 +327,7 @@ export class RoomManager {
     const state = room.state;
     switch (action.type) {
       case 'start':
-        return this.apply(room, start(state));
+        return this.apply(room, start(state, this.now()));
       case 'lock':
         return this.apply(room, lock(state));
       case 'next':
@@ -332,7 +339,7 @@ export class RoomManager {
       case 'end-round':
         return this.apply(room, endRound(state, this.now()));
       case 'end':
-        return this.apply(room, end(state));
+        return this.apply(room, end(state, this.now()));
       case 'override':
         return this.apply(room, override(state, action.playerId, action.grade, this.now()));
       case 'dice':
@@ -397,7 +404,7 @@ export class RoomManager {
     this.scheduler.clearTimeout(room.absence);
     room.absence = this.scheduler.setTimeout(() => {
       room.absence = null;
-      if (this.alive(room)) this.apply(room, end(room.state));
+      if (this.alive(room)) this.apply(room, end(room.state, this.now()));
     }, HOST_ABSENCE_MS);
   }
 

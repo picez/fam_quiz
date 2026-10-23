@@ -88,6 +88,8 @@ const { app, recorder } = await buildApp({
   trustProxy: proxyTrust(process.env.TRUST_PROXY),
   storage,
   webRoot: existsSync(built) ? built : undefined,
+  // Єдине місце, де вмикаються заставки переходів справжньої гри (8c).
+  transitions: true,
 });
 await app.listen({ port, host: '0.0.0.0' });
 console.log(`Quiz server is listening on port ${port}`);

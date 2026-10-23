@@ -112,6 +112,25 @@ describe('connecting', () => {
   });
 });
 
+describe('transition splashes over real sockets', () => {
+  it('shows the round splash to the stage and refuses an answer before the question starts', async () => {
+    await ctx.app.close();
+    ctx = await buildApp({ db, auth: TEST_AUTH, transitions: true });
+    await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+    url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
+    const { host, stage, olena } = await lobby();
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    const intro = await until(stage, inPhase('intro'));
+    expect(intro.splash?.kind).toBe('round');
+    expect(intro.splash && intro.splash.until - intro.splash.at).toBe(2500);
+
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: false, error: 'not_started' });
+  });
+});
+
 describe('a round over real sockets', () => {
   it('plays a question from start to reveal without leaking the answer', async () => {
     const { host, stage, olena, taras } = await lobby();

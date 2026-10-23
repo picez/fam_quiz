@@ -393,6 +393,61 @@ describe('word chain', () => {
   });
 });
 
+describe('transition splashes', () => {
+  function splashed() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5, { transitions: true });
+    const room = manager.create(makeQuiz([single, text]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    return { scheduler, manager, room, olena };
+  }
+
+  it('the manager runs splashes only when asked', () => {
+    const { scheduler, manager, room, olena } = splashed();
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(room.state.splash?.kind).toBe('round');
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.splash?.kind).toBe('question');
+    expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: false, error: 'not_started' });
+    scheduler.advance(1200);
+    expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
+    expect(room.state.plays[0]?.answers[olena.playerId]?.timeMs).toBe(0);
+
+    // Без опції заставок немає, і відповідь приймається одразу.
+    const plain = playing();
+    expect(plain.room.state.splash).toBeNull();
+    expect(plain.manager.answer(plain.room, plain.olena.playerId, correct)).toEqual({ ok: true });
+  });
+
+  it('closes the question a full limit after the splash', () => {
+    const { scheduler, manager, room } = splashed();
+    manager.host(room, { type: 'start' });
+    manager.host(room, { type: 'next' });
+    scheduler.advance(1200 + 20_000 - 1);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('a host end and the host absence show «Підсумки»', () => {
+    const { scheduler, manager, room } = splashed();
+    manager.host(room, { type: 'start' });
+    manager.host(room, { type: 'next' });
+    expect(manager.host(room, { type: 'end' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('finished');
+    expect(room.state.splash?.kind).toBe('podium');
+
+    const gone = splashed();
+    gone.manager.host(gone.room, { type: 'start' });
+    gone.manager.disconnect(gone.room, HOST);
+    gone.scheduler.advance(HOST_ABSENCE_MS);
+    expect(gone.room.state.phase).toBe('finished');
+    expect(gone.room.state.splash?.kind).toBe('podium');
+    void scheduler;
+  });
+});
+
 describe('host absence', () => {
   it('pauses the game with the remaining time when the host connection drops', () => {
     const { manager, room, scheduler } = playing();
