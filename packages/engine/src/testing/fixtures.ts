@@ -102,6 +102,26 @@ export const chain = {
   hintSeconds: 5,
 } satisfies Question;
 
+/** Сортування: 100 балів за слово, підвисання 3 с; до типового списку makeQuiz не входить. */
+export const sortQ = {
+  ...base,
+  id: 'q9',
+  type: 'sort',
+  text: 'Овочі й фрукти',
+  points: 100,
+  lockSeconds: 3,
+  categories: [
+    { id: 'c1', text: 'Овочі' },
+    { id: 'c2', text: 'Фрукти' },
+  ],
+  words: [
+    { id: 'w1', text: 'Морква', categoryId: 'c1' },
+    { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+    { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+    { id: 'w4', text: 'Груша', categoryId: 'c2' },
+  ],
+} satisfies Question;
+
 export type RoundOptions = Partial<Pick<ClassicRound, 'title' | 'speedBonus' | 'shuffleOptions' | 'rules'>>;
 
 export function classicRound(id: string, questions: Question[], options: RoundOptions = {}): ClassicRound {
