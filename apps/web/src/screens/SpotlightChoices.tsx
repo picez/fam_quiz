@@ -19,7 +19,11 @@ interface Props {
   placeholder?: boolean;
   /** Ведучий на усній клітинці: варіанти single/multi/boolean стають кнопками позначки. */
   onName?: (answer: Answer | null) => void;
+  /** 50/50 на клітинці поля: прибрані варіанти закреслені з позначкою «прибрано» (лише показ). */
+  removed?: string[];
 }
+
+const NONE: string[] = [];
 
 /** Колір відповіді гравця: помаранчевий, поки ведучий не вирішив, потім зелений або червоний. */
 function toneOf(spotlight: Spotlight): string {
@@ -28,7 +32,7 @@ function toneOf(spotlight: Spotlight): string {
 }
 
 /** Запитання для тих, хто не відповідає: варіанти лише для показу з кольором відповіді гравця. */
-export function SpotlightChoices({ question, spotlight, reveal, stats = null, blink = false, voice = false, placeholder = true, onName }: Props) {
+export function SpotlightChoices({ question, spotlight, reveal, stats = null, blink = false, voice = false, placeholder = true, onName, removed = NONE }: Props) {
   const answer = spotlight?.answer ?? null;
   const blinking = blink && spotlight !== null && spotlight.grade !== null ? ' is-blinking' : '';
   const tone = spotlight === null ? '' : `${toneOf(spotlight)}${blinking}`;
@@ -44,6 +48,8 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
     const correctIds = reveal === null ? [] : reveal.type === 'single' ? [reveal.correctId] : reveal.type === 'multi' ? reveal.correctIds : [];
     const pickedIds = answer?.type === 'single' ? [answer.optionId] : answer?.type === 'multi' ? answer.optionIds : [];
     const colorOf = (id: string) => colorFor(correctIds.includes(id), pickedIds.includes(id));
+    const classOf = (id: string) => ['choice', colorOf(id), removed.includes(id) ? 'is-removed' : ''].filter(Boolean).join(' ');
+    const tag = (id: string) => removed.includes(id) && <span className="removed-tag">{t('removedTag')}</span>;
     if (onName !== undefined) {
       const tap = (id: string) => {
         if (question.type === 'single') return onName(pickedIds.includes(id) ? null : { type: 'single', optionId: id });
@@ -56,11 +62,13 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
             <button
               key={choice.id}
               type="button"
-              className={`choice ${colorOf(choice.id)}`.trim()}
+              className={classOf(choice.id)}
               aria-pressed={pickedIds.includes(choice.id)}
+              disabled={removed.includes(choice.id)}
               onClick={() => tap(choice.id)}
             >
               <ChoiceFace choice={choice} letter={LETTERS[index]} />
+              {tag(choice.id)}
             </button>
           ))}
         </div>
@@ -70,8 +78,9 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
       <>
         <ul className={choicesClass(question.choices)}>
           {question.choices.map((choice, index) => (
-            <li key={choice.id} className={`choice ${colorOf(choice.id)}`.trim()}>
+            <li key={choice.id} className={classOf(choice.id)}>
               <ChoiceFace choice={choice} letter={LETTERS[index]} />
+              {tag(choice.id)}
               {stats !== null && <span className="count">{stats.counts[choice.id] ?? 0}</span>}
             </li>
           ))}

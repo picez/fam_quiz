@@ -577,6 +577,33 @@ describe('PlayerScreen: blitz', () => {
       expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
     });
 
+    it('the chooser of a voice cell has the buff row, the buff panel and the struck-through removed options', () => {
+      const four = { ...publicQuestion, choices: [...publicQuestion.choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
+      const voiceCell = boardOf('p1', { cell: { ...cell, answerMode: 'voice' } });
+      const activeOf = (kind: 'fifty' | 'hint', removed: string[]) => ({ kind, removed, retry: null, first: null, hint: null, votes: null, spare: false });
+      const buffsOf = (kind: 'fifty' | 'hint', removed: string[]) => ({
+        slots: [
+          { kind: 'fifty' as const, state: kind === 'fifty' ? ('active' as const) : ('blocked' as const), block: kind === 'fifty' ? null : ('taken' as const) },
+          { kind: 'hint' as const, state: kind === 'hint' ? ('active' as const) : ('blocked' as const), block: kind === 'hint' ? null : ('taken' as const) },
+        ],
+        active: activeOf(kind, removed),
+      });
+      show(onQuestion({ round, question: four, board: voiceCell, removed: ['a', 'c'], me: { ...me, buffs: buffsOf('fifty', ['a', 'c']) } }));
+      expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+      expect(document.querySelectorAll('.buff-row button')).toHaveLength(2);
+      expect([...document.querySelectorAll('.choice.is-removed')].map((li) => li.textContent)).toEqual(['AЛьвівприбрано', 'CОдесаприбрано']);
+      cleanup();
+      show(onQuestion({ round, question: four, board: voiceCell, me: { ...me, buffs: buffsOf('hint', []) } }));
+      expect(document.querySelector('.buff-row')).not.toBeNull();
+      expect(document.querySelector('.buff-panel')).not.toBeNull();
+    });
+
+    it('a watcher of a board cell sees the removed options too', () => {
+      const four = { ...publicQuestion, choices: [...publicQuestion.choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
+      show(onQuestion({ round, question: four, board: boardOf('p2', { cell }), removed: ['b'] }));
+      expect([...document.querySelectorAll('.choice.is-removed')].map((li) => li.textContent)).toEqual(['BКиївприбрано']);
+    });
+
     it('tells the others who answered and shows the correct answer', () => {
       show(view({ phase: 'reveal', round, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, board: boardOf('p2', { cell }) }));
       expect(screen.getByText('Відповідав Анна')).toBeTruthy();

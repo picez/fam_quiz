@@ -51,6 +51,7 @@ function ChoiceButtons({
             onClick={() => onPick(choice.id)}
           >
             <ChoiceFace choice={choice} letter={LETTERS[index]} />
+            {gone && <span className="removed-tag">{t('removedTag')}</span>}
           </button>
         );
       })}

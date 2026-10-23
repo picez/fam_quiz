@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PublicQuestion, Question, Spotlight } from '@quiz/shared';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -30,6 +30,28 @@ const singleQ: PublicQuestion = {
 const spot = (answer: Spotlight['answer'], grade: Spotlight['grade']): Spotlight => ({ playerId: 'p1', nickname: 'Анна', answer, grade });
 
 describe('SpotlightChoices', () => {
+  it('the stage and the host see the removed options of a board cell', () => {
+    const single4q: PublicQuestion = { ...singleQ, choices: [...singleQ.choices, { id: 'd', text: 'Харків' }] };
+    const { container } = render(<SpotlightChoices question={single4q} spotlight={null} reveal={null} removed={['a']} />);
+    const removed = [...container.querySelectorAll('li.choice.is-removed')];
+    expect(removed).toHaveLength(1);
+    expect(removed[0].textContent).toContain('Львів');
+    expect(removed[0].textContent).toContain('прибрано');
+    expect(container.querySelectorAll('li.choice')).toHaveLength(4);
+    cleanup();
+    // Ведучий на усній клітинці: прибраний варіант не позначити, решта — кнопки як були.
+    const onName = vi.fn();
+    render(<SpotlightChoices question={single4q} spotlight={null} reveal={null} removed={['a']} onName={onName} />);
+    const buttons = screen.getAllByRole('button') as HTMLButtonElement[];
+    expect(buttons.map((button) => button.disabled)).toEqual([true, false, false, false]);
+    expect(buttons[0].className).toContain('is-removed');
+    expect(within(buttons[0]).getByText('прибрано')).toBeTruthy();
+    fireEvent.click(buttons[0]);
+    expect(onName).not.toHaveBeenCalled();
+    fireEvent.click(buttons[1]);
+    expect(onName).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+  });
+
   it('shows a typed answer for text, numeric and order questions', () => {
     const { container } = render(<SpotlightChoices question={textQ} spotlight={spot({ type: 'text', value: 'Одеса' }, null)} reveal={null} />);
     expect(container.querySelector('p.spotlight-answer.is-pending')?.textContent).toBe('Одеса');

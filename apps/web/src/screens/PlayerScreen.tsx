@@ -483,7 +483,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                     />
                   </fieldset>
                 ) : (
-                  <SpotlightChoices question={question} spotlight={own} reveal={null} blink={blink} />
+                  <SpotlightChoices removed={view.removed} question={question} spotlight={own} reveal={null} blink={blink} />
                 )}
                 {/* Відлік вікна стоїть у рядку стану з зарезервованою висотою: ні поява, ні зникнення не зсувають черги. */}
                 <div className="blitz-status-row">
@@ -497,13 +497,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </>
             ) : myPending ? (
               <section className="sent">
-                <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+                <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
                 <p className="lead">{t('pendingWait')}</p>
               </section>
             ) : me.blitz !== null ? (
               <>
                 {(me.blitz.position === null || voice || (spotlight !== null && spotlight.playerId !== me.id)) && (
-                  <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+                  <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
                 )}
                 <BlitzTurn
                   view={view}
@@ -519,11 +519,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                 />
               </>
             ) : board !== null && !chooserIsMe ? (
-              <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+              <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
             ) : board !== null && voice && me.answer === null ? (
               <>
                 {/* Вибрав сам: досить «Відповідайте вголос», без «Гравець відповідає вголос» над ним. */}
-                <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice placeholder={false} />
+                <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice placeholder={false} />
                 <p className="lead">{t('answerAloud')}</p>
               </>
             ) : me.answer !== null ? (
@@ -538,7 +538,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
               <fieldset className="inputs" disabled={locked}>
-                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed} onSubmit={submit} />
+                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.removed} onSubmit={submit} />
               </fieldset>
             )}
           </DebuffZone>
@@ -569,7 +569,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           ) : instant ? (
             <>
               {/* Миттєвий бліц: власний вибір і черга з вердиктами; чужий вибір — лише з розкриття. */}
-              {question !== null && <SpotlightChoices question={question} spotlight={own} reveal={null} blink={blink} />}
+              {question !== null && <SpotlightChoices removed={view.removed} question={question} spotlight={own} reveal={null} blink={blink} />}
               {queue}
               <p className="winner">
                 {view.blitz?.winner ? t('blitzWinner', { name: view.blitz.winner.nickname }) : t('blitzNoWinner')}
@@ -580,7 +580,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <>
               {/* Поле й бліц: варіанти з помаранчевою відповіддю чи позначкою ведучого лишаються до розкриття. */}
               {question !== null && (spotlight !== null || board !== null || view.blitz !== null) && (
-                <SpotlightChoices question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+                <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
               )}
               <p className="lead">{t('waitReveal')}</p>
             </>
@@ -595,7 +595,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <FinalResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
-              {question !== null && !isSort && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {question !== null && !isSort && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
               {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
@@ -603,9 +603,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <>
               {/* Вибравший і бліц: варіанти з кольором вердикту над власним результатом; вердикт уже в Result, тож без voice. */}
               {instant
-                ? question !== null && <SpotlightChoices question={question} spotlight={own} reveal={view.reveal} blink={blink} voice={false} />
+                ? question !== null && <SpotlightChoices removed={view.removed} question={question} spotlight={own} reveal={view.reveal} blink={blink} voice={false} />
                 : spotlight !== null &&
-                  question !== null && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
+                  question !== null && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
               {queue}
               <Result view={view} />
             </>

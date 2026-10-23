@@ -81,6 +81,29 @@ function row(buffs: PlayerBuffs, over: { paused?: boolean; timeOver?: boolean; s
 const why = () => document.querySelector('.buff-why')!;
 
 describe('Buffs', () => {
+  it('in a blitz the buff row is one compact line that says there are no buffs', () => {
+    const off = (block: 'off_blitz' | 'off_blitz_cell'): PlayerBuffs => ({
+      slots: [
+        { kind: 'fifty', state: 'blocked', block },
+        { kind: 'double', state: 'used', block: 'used' },
+        { kind: 'shield', state: 'blocked', block },
+      ],
+      active: null,
+    });
+    const { container, unmount } = row(off('off_blitz'));
+    expect(container.querySelector('.buff-row')).toBeNull();
+    expect(container.querySelectorAll('button')).toHaveLength(0);
+    expect(container.querySelector('.buff-bar.is-off .buff-off')?.textContent).toBe('У бліці бафів немає.');
+    unmount();
+    row(off('off_blitz_cell'));
+    expect(document.querySelector('.buff-off')?.textContent).toBe('На бліц-клітинках бафів немає.');
+    cleanup();
+    // У фіналі, ланцюжку й сортуванні — звичайний ряд неактивних кнопок.
+    row({ slots: [{ kind: 'fifty', state: 'blocked', block: 'off_final' }], active: null });
+    expect(document.querySelectorAll('.buff-row button')).toHaveLength(1);
+    expect(document.querySelector('.buff-off')).toBeNull();
+  });
+
   it('the buff row keeps its size in every state', () => {
     const shapes = [ready, active, used, blocked].map((buffs) => {
       const { container, unmount } = row(buffs);
@@ -366,6 +389,28 @@ describe('VoteSheet', () => {
     return { send, onError, again, ...result };
   }
 
+  it('the vote sheet is a compact strip that folds and unfolds', () => {
+    const { again } = sheet(prompt());
+    const toggle = screen.getByRole('button', { name: 'Згорнути' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(toggle);
+    expect(document.querySelector('.vote-sheet.is-collapsed')).not.toBeNull();
+    expect(document.querySelector('.vote-sheet')?.textContent).toContain('Оля питає зал: як думаєте?');
+    expect(screen.queryByRole('button', { name: 'Пропустити' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Розгорнути' }).getAttribute('aria-expanded')).toBe('false');
+    // Живий регіон лишається й у згорнутому аркуші.
+    expect(document.querySelector('.vote-live')?.textContent).toBe('Оля питає зал: як думаєте?');
+    fireEvent.click(screen.getByRole('button', { name: 'Розгорнути' }));
+    expect(screen.getByRole('button', { name: 'Пропустити' })).toBeTruthy();
+    // Нове запрошення від іншого гравця — аркуш знову розгорнутий.
+    fireEvent.click(screen.getByRole('button', { name: 'Згорнути' }));
+    again(prompt({ asker: { playerId: 'p2', nickname: 'Петро' } }));
+    expect(document.querySelector('.vote-sheet.is-collapsed')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Пропустити' })).toBeTruthy();
+    expect(rule('.vote-sheet')).toContain('max-height: 35vh');
+    expect(rule('.removed-tag')).toContain('position: absolute');
+  });
+
   it('the vote sheet sends a ballot, thanks, and can be skipped', async () => {
     const { send, again } = sheet(prompt());
     expect(document.querySelector('.vote-sheet strong')?.textContent).toBe('Оля питає зал: як думаєте?');
@@ -451,7 +496,7 @@ describe('VoteSheet', () => {
     expect(document.querySelector('.vote-sheet')).not.toBeNull();
     const body = rule('.vote-sheet');
     expect(body).toMatch(/position:\s*fixed/);
-    expect(body).toMatch(/max-height:\s*60vh/);
+    expect(body).toMatch(/max-height:\s*35vh/);
     expect(body).toMatch(/overflow-y:\s*auto/);
   });
 });

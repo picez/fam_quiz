@@ -221,7 +221,7 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
       ) : question.sort !== null ? (
         <SortReveal categories={question.sort.categories} question={reveal !== null && reveal.type === 'sort' ? reveal : null} total={question.sort.total} />
       ) : spotlit ? (
-        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} />
+        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} removed={view.removed} />
       ) : question.type === 'match' ? (
         reveal === null ? (
           <MatchColumns left={question.choices} right={question.right} />

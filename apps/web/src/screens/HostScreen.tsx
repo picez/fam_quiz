@@ -384,6 +384,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 blink={blink}
                 voice={board?.cell?.answerMode === 'voice'}
                 onName={canName ? name : undefined}
+                removed={view.removed}
               />
             </>
           )}

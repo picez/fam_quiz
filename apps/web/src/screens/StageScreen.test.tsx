@@ -496,6 +496,17 @@ describe('StageScreen: spotlight', () => {
   const picked = { playerId: 'p2', nickname: 'Анна', answer: { type: 'single' as const, optionId: 'a' } };
   const cls = (text: string) => screen.getByText(text).closest('.choice')?.className ?? '';
 
+  it('a board question on the stage marks the removed options', () => {
+    const four = { ...question, choices: [...choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
+    show(view({ phase: 'question', questionIndex: 0, question: four, round, board, endsAt: Date.now() + 20_000, removed: ['a', 'c'] }));
+    const removed = [...document.querySelectorAll('.choice.is-removed')];
+    expect(removed.map((li) => li.textContent)).toEqual(['AЛьвівприбрано', 'CОдесаприбрано']);
+    expect(document.querySelectorAll('.choice')).toHaveLength(4);
+    cleanup();
+    show(view({ phase: 'question', questionIndex: 0, question: four, endsAt: Date.now() + 20_000, removed: [] }));
+    expect(document.querySelector('.choice.is-removed')).toBeNull();
+  });
+
   it('colours the pending answer, then the verdict with the correct option at the reveal', () => {
     show(view({ phase: 'question', questionIndex: 0, question, round, board, endsAt: Date.now() + 20_000, spotlight: { ...picked, grade: null } }));
     expect(cls('Львів')).toContain('is-pending');

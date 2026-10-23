@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PublicQuestion } from '@quiz/shared';
 import { AnswerInput } from './AnswerInput';
@@ -33,6 +33,18 @@ function setup(over: Partial<PublicQuestion>) {
 const button = (name: string | RegExp) => screen.getByRole('button', { name }) as HTMLButtonElement;
 
 describe('AnswerInput', () => {
+  it('removed options are struck through with «прибрано» and keep their place', () => {
+    const single4q = question({ choices: [...cities, { id: 'd', text: 'Харків' }] });
+    render(<AnswerInput question={single4q} removed={['a', 'c']} onSubmit={() => {}} />);
+    const removed = screen.getAllByRole('button').filter((button) => button.classList.contains('is-removed'));
+    expect(removed).toHaveLength(2);
+    for (const button of removed) {
+      expect(button).toHaveProperty('disabled', true);
+      expect(within(button).getByText('прибрано')).toBeTruthy();
+    }
+    expect(screen.getAllByRole('button').map((button) => button.textContent?.replace('прибрано', ''))).toEqual(['AЛьвів', 'BКиїв', 'CОдеса', 'DХарків']);
+  });
+
   it('the order input shows what goes on top and at the bottom', () => {
     const { container } = render(<AnswerInput question={question({ type: 'order', orderLabels: { top: 'Захід', bottom: 'Схід' } })} onSubmit={vi.fn()} />);
     const list = container.querySelector('ol.order') as HTMLElement;

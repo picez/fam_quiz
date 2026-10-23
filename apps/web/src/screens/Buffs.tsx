@@ -116,6 +116,16 @@ export function BuffRow({
       });
   };
 
+  // Бліц і бліц-клітинка: замість ряду кнопок один компактний рядок — щільний бліц-екран не зсувається.
+  const blitzOff = buffs.slots.find((slot) => slot.block === 'off_blitz' || slot.block === 'off_blitz_cell');
+  if (blitzOff !== undefined && blitzOff.block !== null) {
+    return (
+      <div className="buff-bar is-off">
+        <p className="buff-off">{whyText(blitzOff.block, blitzOff.kind)}</p>
+      </div>
+    );
+  }
+
   const active = buffs.active;
   // Рядок пояснень тримає й «Неправильно, ще одна спроба»: підказка не зсуває варіантів.
   const idle =
@@ -317,6 +327,14 @@ export function VoteSheet({
   const [done, setDone] = useState<string[]>([]);
   const [thanks, setThanks] = useState(false);
   const [sending, setSending] = useState(false);
+  // Згорнутий аркуш — лише рядок запрошення; нове запрошення (інший гравець) знову розгорнуте.
+  const [collapsed, setCollapsed] = useState(false);
+  const askerId = prompt?.asker.playerId ?? null;
+  const [collapsedFor, setCollapsedFor] = useState(askerId);
+  if (collapsedFor !== askerId) {
+    setCollapsedFor(askerId);
+    setCollapsed(false);
+  }
   const mountedRef = useRef(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -381,17 +399,24 @@ export function VoteSheet({
   return (
     <>
       {live}
-      <section className="vote-sheet" aria-label={ask}>
+      <section className={collapsed ? 'vote-sheet is-collapsed' : 'vote-sheet'} aria-label={ask}>
         <p className="vote-sheet-head">
           <strong>{ask}</strong>
           <span className="vote-time">{t('votesLeft', { time: clockText(left) })}</span>
+          <button type="button" className="btn btn-small vote-toggle" aria-expanded={!collapsed} onClick={() => setCollapsed((now) => !now)}>
+            {t(collapsed ? 'voteExpand' : 'voteCollapse')}
+          </button>
         </p>
-        <fieldset className="inputs" disabled={paused || sending}>
-          <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
-        </fieldset>
-        <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
-          {t('voteSkip')}
-        </button>
+        {!collapsed && (
+          <>
+            <fieldset className="inputs" disabled={paused || sending}>
+              <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
+            </fieldset>
+            <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
+              {t('voteSkip')}
+            </button>
+          </>
+        )}
       </section>
     </>
   );
