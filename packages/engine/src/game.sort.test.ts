@@ -1,38 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type RoundRules } from '@quiz/shared';
 import { end, lock, next, override, pause, recordOf, removePlayer, resume, submitAnswer, type GameState } from './game';
 import { sortOf, sortWord } from './sort';
-import { makeQuiz, single, sortQ, withId } from './testing/fixtures';
+import { makeQuiz, single } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
+import { head, right, sortAll, toSort, wrong } from './testing/sort';
 
 const rng = () => 0;
-const q10 = withId(sortQ, 'q10');
 
-function quizWith(rules: Partial<RoundRules> = {}, speedBonus = false) {
-  return makeQuiz([sortQ, q10], { leaderboard: 'end', speedBonus, rules: { ...DEFAULT_RULES, ...rules } });
-}
-
-/** Гра з p1 «Анна» і p2 «Богдан»; перше сортування відкрито о 1000. */
-function toSort(rules: Partial<RoundRules> = {}, speedBonus = false): GameState {
-  return startRound(lobbyWith(quizWith(rules, speedBonus), 'Анна', 'Богдан'), 1000, rng);
-}
-
-const head = (s: GameState, id: string) => sortOf(s, id).queue[0];
-const categoryOf = (wordId: string) => sortQ.words.find((w) => w.id === wordId)?.categoryId ?? '';
-const right = (wordId: string) => categoryOf(wordId);
-const wrong = (wordId: string) => (categoryOf(wordId) === 'c1' ? 'c2' : 'c1');
 const record = (s: GameState, id: string) => recordOf(s, s.questionIndex, id);
 const scores = (s: GameState) => s.players.map((p) => p.score);
-
-/** Правильні ходи по голові черги, доки вона не порожня. */
-function sortAll(s: GameState, id: string, now: number): GameState {
-  let current = s;
-  while (sortOf(current, id).queue.length > 0 && record(current, id) === undefined) {
-    const w = head(current, id);
-    current = must(sortWord(current, id, w, right(w), now));
-  }
-  return current;
-}
 
 describe('sort', () => {
   it('the word order is shuffled once and the same for everyone', () => {

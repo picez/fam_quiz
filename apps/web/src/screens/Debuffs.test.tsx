@@ -30,6 +30,7 @@ const single: PublicQuestion = {
   right: [],
   orderLabels: null,
   chain: null,
+  sort: null,
 };
 const order: PublicQuestion = { ...single, type: 'order', orderLabels: { top: '', bottom: '' } };
 

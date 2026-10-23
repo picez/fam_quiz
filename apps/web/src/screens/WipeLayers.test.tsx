@@ -41,6 +41,7 @@ const single: PublicQuestion = {
   right: [],
   orderLabels: null,
   chain: null,
+  sort: null,
 };
 
 const zone = () => document.querySelector<HTMLElement>('.debuff-zone')!;

@@ -62,6 +62,7 @@ describe('while a question is open', () => {
       right: [],
       orderLabels: null,
       chain: null,
+      sort: null,
     });
     expect(view.endsAt).toBe(T0 + 20_000);
     expect(view.answeredCount).toBe(1);

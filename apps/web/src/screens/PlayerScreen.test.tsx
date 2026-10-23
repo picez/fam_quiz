@@ -15,7 +15,7 @@ const publicQuestion = {
   video: null,
   timeLimit: 20,
   points: 1000,
-  right: [], chain: null, orderLabels: null,
+  right: [], chain: null, sort: null, orderLabels: null,
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },
@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, debuff: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -45,6 +45,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   spotlight: null,
   final: null,
   chain: null,
+  sort: null,
   notice: null,
   round: null,
   questionIndex: -1,

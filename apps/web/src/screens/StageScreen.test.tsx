@@ -11,7 +11,7 @@ const choices = [
   { id: 'a', text: 'Львів' },
   { id: 'b', text: 'Київ' },
 ];
-const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [], chain: null, orderLabels: null };
+const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [], chain: null, sort: null, orderLabels: null };
 const full: Question = { id: 'q1', type: 'single', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, options: choices, correctId: 'b' };
 
 const view = (over: Partial<StageView> = {}): StageView => ({
@@ -23,6 +23,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   spotlight: null,
   final: null,
   chain: null,
+  sort: null,
   notice: null,
   debuffs: [],
   round: null,
@@ -496,6 +497,7 @@ describe('StageScreen: match', () => {
       { id: 'y', text: 'Полтва' },
     ],
     chain: null,
+    sort: null,
     orderLabels: null,
   };
   const matchFull: Question = {
