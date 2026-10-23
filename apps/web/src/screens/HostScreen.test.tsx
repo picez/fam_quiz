@@ -825,7 +825,7 @@ describe('HostScreen final', () => {
     { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0, debuff: null },
     { id: 'p3', nickname: 'Віра', connected: true, score: 300, streak: 0, debuff: null },
   ];
-  const info = { theme: 'Космос', placed: 2, total: 3, shown: [], left: 0 };
+  const info = { theme: 'Космос', placed: 2, total: 3, shown: [], left: 0, mode: 'classic' as const, bank: 0, split: null };
   const entry = (playerId: string, nickname: string, over: object = {}) => ({
     playerId,
     nickname,
@@ -835,9 +835,10 @@ describe('HostScreen final', () => {
     allIn: false,
     before: 1000,
     after: 1300,
+    share: null,
     ...over,
   });
-  const hostFinal = (over: object = {}) => ({ ...info, wagers: [], entries: [], manual: false, pending: [], ...over });
+  const hostFinal = (over: object = {}) => ({ ...info, wagers: [], entries: [], manual: false, pending: [], splitNext: false, ...over });
 
   it('shows who has wagered and opens the final question', () => {
     const send = show(

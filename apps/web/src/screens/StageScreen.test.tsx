@@ -606,7 +606,7 @@ describe('StageScreen: match', () => {
 
 describe('StageScreen final', () => {
   const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
-  const info = { theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 };
+  const info = { theme: 'Космос', placed: 1, total: 3, shown: [], left: 0, mode: 'classic' as const, bank: 0, split: null };
   const entry = (nickname: string, wager: number, before: number, after: number) => ({
     playerId: nickname,
     nickname,
@@ -616,6 +616,7 @@ describe('StageScreen final', () => {
     allIn: false,
     before,
     after,
+    share: null,
   });
 
   it('explains the wager on the intro only', () => {

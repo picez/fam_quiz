@@ -3,7 +3,8 @@ import { DEFAULT_RULES, type FinalRound, type Question } from '@quiz/shared';
 import { adjustScore } from './adjust';
 import { guessWord } from './chain';
 import { placeWager } from './final';
-import { finalOutcome, lock, next, override, recordOf, removePlayer, start, submitAnswer, tick, type GameState } from './game';
+import { end, endRound, finalOutcome, lock, needsSplit, next, override, recordOf, removePlayer, start, submitAnswer, tick, type GameState } from './game';
+import { hostView, playerView, stageView } from './views';
 import { chain, classicRound, finalRound, makeRoundsQuiz, single, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
@@ -52,6 +53,24 @@ function toBankQuestion(final: FinalOptions = {}): GameState {
   s = must(placeWager(s, 'p2', 400, 9500, rng));
   s = must(placeWager(s, 'p3', 200, 10_000, rng));
   expect(s.phase).toBe('question');
+  return s;
+}
+
+/** Банк: p1 неправильно, p2 і p3 правильно; reveal, порядок p2, p3, p1 (до фіналу 400 / 600 / 1000). */
+function toBankReveal(final: FinalOptions = {}): GameState {
+  let s = toBankQuestion(final);
+  s = must(submitAnswer(s, 'p1', wrong, 11_000));
+  s = must(submitAnswer(s, 'p2', right, 11_500));
+  s = must(submitAnswer(s, 'p3', right, 12_000));
+  s = must(next(s, 13_000, rng));
+  expect(s.final?.order).toEqual(['p2', 'p3', 'p1']);
+  return s;
+}
+
+/** Розкриває всіх гравців (без кроку розподілу). */
+function revealAll(state: GameState): GameState {
+  let s = state;
+  while (s.final !== null && s.final.shown < s.final.order.length) s = must(next(s, 14_000, rng));
   return s;
 }
 
@@ -122,5 +141,129 @@ describe('the shared bank final', () => {
     expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'wrong', points: -400 });
     expect(finalRecord(s, 'p3')).toMatchObject({ answer: null, points: 0 });
     expect(scores(s)).toEqual([1400, 0, -400]);
+  });
+});
+
+describe('the bank reveal', () => {
+  it('the bank reveal: losers pay in one by one, winners wait, the split comes last', () => {
+    let s = must(next(toBankReveal(), 14_000, rng)); // p2
+    let stage = stageView(s).final!;
+    expect(stage.mode).toBe('bank');
+    expect(stage.shown.map((e) => [e.nickname, e.before, e.after, e.allIn, e.share])).toEqual([['Богдан', 400, 400, true, null]]);
+    expect([stage.bank, stage.split]).toEqual([0, null]);
+    expect(playerView(s, 'p2')!.me).toMatchObject({ score: 400, result: { points: 0 } });
+    s = must(next(s, 15_000, rng)); // p3
+    s = must(next(s, 16_000, rng)); // p1
+    stage = stageView(s).final!;
+    expect(stage.shown.at(-1)).toMatchObject({ nickname: 'Анна', before: 1000, after: 0, allIn: true });
+    expect([stage.bank, stage.left]).toEqual([1000, 0]);
+    expect(playerView(s, 'p1')!.me).toMatchObject({ score: 0, result: { points: -1000 } });
+    expect(hostView(s).final?.splitNext).toBe(true);
+    s = must(next(s, 17_000, rng)); // розподіл
+    expect([s.phase, s.final?.split]).toEqual(['reveal', true]);
+    stage = stageView(s).final!;
+    expect(stage.split).toEqual({
+      bank: 1000,
+      refund: false,
+      shares: [
+        { playerId: 'p2', nickname: 'Богдан', wager: 400, share: 667 },
+        { playerId: 'p3', nickname: 'Віра', wager: 200, share: 333 },
+      ],
+    });
+    expect(stage.bank).toBe(1000);
+    expect(stage.shown.find((e) => e.playerId === 'p2')).toMatchObject({ after: 1067, share: 667 });
+    expect(stage.shown.find((e) => e.playerId === 'p1')).toMatchObject({ after: 0, share: null });
+    expect(playerView(s, 'p2')!.me).toMatchObject({ score: 1067, result: { points: 667 } });
+    expect(hostView(s).final?.splitNext).toBe(false);
+    expect(must(next(s, 18_000, rng)).phase).toBe('finished');
+  });
+
+  it('nothing about unrevealed players or the split leaks to the stage or phones', () => {
+    const s = must(next(toBankReveal(), 14_000, rng)); // p2
+    const stage = stageView(s);
+    for (const json of [JSON.stringify(stage), JSON.stringify(playerView(s, 'p3')), JSON.stringify(playerView(s, 'p2'))]) {
+      for (const leak of ['667', '1067', '333', '933']) expect(json).not.toContain(leak);
+    }
+    expect(stage.final?.bank).toBe(0);
+    expect(playerView(s, 'p1')!.me).toMatchObject({ score: 1000, result: null });
+    expect(playerView(s, 'p3')!.me).toMatchObject({ score: 600, result: null });
+    expect(stage.final).not.toHaveProperty('splitNext');
+    expect(playerView(s, 'p1')!.final).not.toHaveProperty('splitNext');
+    // Ведучий бачить справжні бали, як і досі.
+    expect(hostView(s).final?.entries.find((e) => e.playerId === 'p2')?.after).toBe(1067);
+  });
+
+  it('a refund: the losers scores come back on the split step', () => {
+    let s = toQuestion({ wagerMode: 'bank' });
+    s = must(submitAnswer(s, 'p1', wrong, 11_000));
+    s = must(submitAnswer(s, 'p3', wrong, 11_500));
+    s = must(next(must(lock(s)), 13_000, rng));
+    expect(s.final?.order).toEqual(['p3', 'p2', 'p1']);
+    s = revealAll(s);
+    let stage = stageView(s).final!;
+    expect(stage.bank).toBe(900);
+    expect(stage.split).toBeNull();
+    expect(stage.shown.find((e) => e.playerId === 'p2')).toMatchObject({ before: 400, after: 0 });
+    expect(playerView(s, 'p1')!.me.score).toBe(500);
+    expect(JSON.stringify(stageView(s))).not.toContain('refund');
+    expect(hostView(s).final?.splitNext).toBe(true);
+    s = must(next(s, 15_000, rng));
+    stage = stageView(s).final!;
+    expect(stage.split).toEqual({ bank: 900, refund: true, shares: [] });
+    expect(stage.shown.find((e) => e.playerId === 'p2')).toMatchObject({ after: 400, share: null });
+    expect(playerView(s, 'p1')!.me).toMatchObject({ score: 1000, result: { points: 0 } });
+    expect(must(next(s, 16_000, rng)).phase).toBe('finished');
+  });
+
+  it('the split step exists only when the bank is not empty', () => {
+    let s = toQuestion({ wagerMode: 'bank' });
+    for (const id of ['p1', 'p2', 'p3']) s = must(submitAnswer(s, id, right, 11_000));
+    s = must(next(s, 13_000, rng));
+    s = revealAll(s);
+    expect(needsSplit(s)).toBe(false);
+    expect(hostView(s).final?.splitNext).toBe(false);
+    expect(stageView(s).final?.bank).toBe(0);
+    expect(must(next(s, 15_000, rng)).phase).toBe('finished');
+
+    let c = toQuestion();
+    c = must(submitAnswer(c, 'p1', right, 11_000));
+    c = must(submitAnswer(c, 'p2', wrong, 11_500));
+    c = must(next(must(lock(c)), 13_000, rng));
+    for (let step = 0; step < 3; step += 1) {
+      expect(needsSplit(c)).toBe(false);
+      c = must(next(c, 14_000 + step, rng));
+    }
+    expect(needsSplit(c)).toBe(false);
+    expect(hostView(c).final?.splitNext).toBe(false);
+    expect(must(next(c, 15_000, rng)).phase).toBe('finished');
+  });
+
+  it('ending the round or the game during the bank reveal splits it', () => {
+    const revealed = must(next(toBankReveal(), 14_000, rng));
+    for (const ended of [must(endRound(revealed, 15_000)), must(end(revealed))]) {
+      expect(ended.final?.split).toBe(true);
+      expect(ended.final?.shown).toBe(3);
+      expect(scores(ended)).toEqual([0, 1067, 933]);
+      expect(playerView(ended, 'p2')!.me.score).toBe(1067);
+    }
+  });
+
+  it('the host regrades a revealed player and the bank follows', () => {
+    let s = toBankQuestion({ check: 'manual' });
+    s = must(submitAnswer(s, 'p1', wrong, 11_000));
+    s = must(submitAnswer(s, 'p2', right, 11_500));
+    s = must(submitAnswer(s, 'p3', right, 12_000));
+    s = must(override(s, 'p2', 'correct'));
+    s = must(override(s, 'p3', 'correct'));
+    s = must(next(s, 13_000, rng));
+    s = revealAll(s);
+    s = must(next(s, 15_000, rng));
+    expect(stageView(s).final?.split?.shares.map((e) => e.share)).toEqual([667, 333]);
+    s = must(override(s, 'p3', 'wrong'));
+    expect(finalRecord(s, 'p2')?.points).toBe(1200);
+    const stage = stageView(s).final!;
+    expect(stage.bank).toBe(1200);
+    expect(stage.split).toEqual({ bank: 1200, refund: false, shares: [{ playerId: 'p2', nickname: 'Богдан', wager: 400, share: 1200 }] });
+    expect(stage.shown.find((e) => e.playerId === 'p3')).toMatchObject({ before: 600, after: 400, share: null });
   });
 });

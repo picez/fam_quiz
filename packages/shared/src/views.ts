@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { DebuffKind, Grade, Phase } from './game';
-import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video } from './quiz';
+import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video, WagerMode } from './quiz';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
 
@@ -249,9 +249,20 @@ export interface FinalEntry {
   wager: number;
   /** Ставка дорівнювала всім балам (> 0). */
   allIn: boolean;
-  /** Рахунок до фіналу й після нього. */
+  /** Рахунок до фіналу й після нього; для сцени й телефонів «після» — лише те, що вже розкрито. */
   before: number;
   after: number;
+  /** Частка з банку після розподілу; null у класиці, до розподілу й для програвших. */
+  share: number | null;
+}
+
+/** Підсумок розподілу банку фіналу. */
+export interface FinalSplit {
+  bank: number;
+  /** Ніхто не виграв зі ставкою > 0: ставки повертаються. */
+  refund: boolean;
+  /** Переможці з часткою > 0, за спаданням частки. */
+  shares: { playerId: string; nickname: string; wager: number; share: number }[];
 }
 
 /** Фінал для всіх ролей: ставок і чужих результатів до розкриття тут немає. */
@@ -265,6 +276,12 @@ export interface FinalInfo {
   shown: FinalEntry[];
   /** Скільки ще не розкрито (лише reveal; інакше 0). */
   left: number;
+  /** Тип ставок раунду. */
+  mode: WagerMode;
+  /** Сума ставок розкритих програвших; 0 у класиці й поза reveal. */
+  bank: number;
+  /** Підсумок розподілу; null до кроку розподілу й у класиці. */
+  split: FinalSplit | null;
 }
 
 export interface HostFinal extends FinalInfo {
@@ -275,6 +292,8 @@ export interface HostFinal extends FinalInfo {
   manual: boolean;
   /** Відповіді, що чекають на ручну оцінку (manual, answer не null, гравця немає в graded). */
   pending: { playerId: string; nickname: string; answer: Answer }[];
+  /** Наступне «Далі» розподіляє банк (лише ведучому: на сцені це видало б, що хтось помилився). */
+  splitNext: boolean;
 }
 
 /** Останнє коригування від ведучого, для короткого сповіщення. */

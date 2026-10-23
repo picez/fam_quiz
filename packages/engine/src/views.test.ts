@@ -925,7 +925,7 @@ describe('final round views', () => {
     const s = must(placeWager(toWagers(), 'p1', 777, 9000, rng));
     expect(JSON.stringify(stageView(s))).not.toContain('777');
     expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('777');
-    expect(stageView(s).final).toEqual({ theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 });
+    expect(stageView(s).final).toEqual({ theme: 'Космос', placed: 1, total: 3, shown: [], left: 0, mode: 'classic', bank: 0, split: null });
     expect(playerView(s, 'p1')?.me.final).toEqual({ wager: 777, limit: 1000, allIn: false });
     expect(playerView(s, 'p3')?.me.final).toEqual({ wager: null, limit: 0, allIn: false });
   });
@@ -942,7 +942,7 @@ describe('final round views', () => {
     expect(s.final?.shown).toBe(1);
     const stage = stageView(s);
     expect(stage.final?.shown).toEqual([
-      { playerId: 'p3', nickname: 'Віра', answer: null, grade: 'wrong', wager: 0, allIn: false, before: -400, after: -400 },
+      { playerId: 'p3', nickname: 'Віра', answer: null, grade: 'wrong', wager: 0, allIn: false, before: -400, after: -400, share: null },
     ]);
     expect(stage.final?.left).toBe(2);
     expect(stage.stats).toBeNull();
@@ -1010,6 +1010,25 @@ describe('final round views', () => {
     expect(shown.find((e) => e.playerId === 'p1')?.allIn).toBe(true);
     expect(shown.find((e) => e.playerId === 'p2')?.allIn).toBe(false);
     expect(shown.find((e) => e.playerId === 'p3')?.allIn).toBe(false);
+  });
+
+  it('the classic reveal keeps before → after and no bank', () => {
+    let s = toReveal();
+    while (s.final !== null && s.final.shown < s.final.order.length) {
+      s = must(next(s, 14_000, rng));
+      const info = stageView(s).final;
+      expect(info).toMatchObject({ mode: 'classic', bank: 0, split: null });
+      expect(hostView(s).final?.splitNext).toBe(false);
+    }
+    const shown = stageView(s).final?.shown ?? [];
+    expect(shown.map((e) => [e.playerId, e.before, e.after, e.share])).toEqual([
+      ['p3', -400, -400, null],
+      ['p2', 400, 0, null],
+      ['p1', 1000, 1500, null],
+    ]);
+    expect(playerView(s, 'p1')?.me).toMatchObject({ score: 1500, result: { points: 500 } });
+    expect(playerView(s, 'p2')?.me).toMatchObject({ score: 0, result: { points: -400 } });
+    expect(must(next(s, 15_000, rng)).phase).toBe('finished');
   });
 
   it('the final has no spotlight and no partial button', () => {

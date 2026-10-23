@@ -121,6 +121,8 @@ export interface FinalState {
   order: string[];
   /** Скільки гравців з order уже розкрито. */
   shown: number;
+  /** Банк розподілено (крок після останнього розкриття); у класиці не використовується. */
+  split: boolean;
 }
 
 /** Запитання фіналу в журналі. */
@@ -520,6 +522,30 @@ export function withFinalPoints(state: GameState): GameState {
   return withCurrentPlay(state, { ...play, answers });
 }
 
+/** Раунд з банком, запитання відкрито, загальний банк > 0 і розподілу ще не було. */
+export function needsSplit(state: GameState): boolean {
+  const play = finalPlayOf(state);
+  if (play === undefined || state.final === null || state.final.split) return false;
+  const round = state.quiz.rounds[play.roundIndex];
+  return round.type === 'final' && round.wagerMode === 'bank' && (finalOutcome(state)?.bank ?? 0) > 0;
+}
+
+/**
+ * Бали фіналу гравця, які вже можна показати сцені й телефонам: поза фіналом — points запису;
+ * до розкриття гравця — 0; у банку до розподілу — помилка −ставка, правильно 0; далі — points запису.
+ */
+export function finalVisiblePoints(state: GameState, playerId: string): number {
+  const record = recordOf(state, state.questionIndex, playerId);
+  const points = record?.points ?? 0;
+  const play = finalPlayOf(state);
+  if (play === undefined || state.final === null) return points;
+  if (!finalShown(state, playerId)) return 0;
+  const round = state.quiz.rounds[play.roundIndex];
+  if (round.type !== 'final' || round.wagerMode !== 'bank' || state.final.split) return points;
+  // Частки й повернення залежать від усіх; до розподілу видно лише власну ставку в банку.
+  return record?.grade === 'correct' ? 0 : 0 - wagerOf(play.final, playerId);
+}
+
 /**
  * Чи розкрито результат гравця у фіналі поточного запитання (для зрізів).
  * Поза фіналом і без відкритого запитання фіналу — true; на question і locked — false;
@@ -569,11 +595,11 @@ function settleFinalWithOrder(state: GameState): GameState {
   return { ...totals, final: { ...totals.final, order } };
 }
 
-/** Після відкриття запитання фіналу дострокове завершення оцінює всіх і вважає всіх розкритими. */
+/** Після відкриття запитання фіналу дострокове завершення оцінює всіх, вважає всіх розкритими, а банк — розподіленим. */
 function closeFinal(state: GameState): GameState {
   if (finalPlayOf(state) === undefined) return withTotals(state);
   const settled = settleFinalWithOrder(state);
-  return settled.final === null ? settled : { ...settled, final: { ...settled.final, shown: settled.final.order.length } };
+  return settled.final === null ? settled : { ...settled, final: { ...settled.final, shown: settled.final.order.length, split: true } };
 }
 
 /** Скидає відлік відсутності гравця, чий хід. */
@@ -972,7 +998,7 @@ function enterRound(state: GameState): GameState {
   return {
     ...state,
     board: type === 'board' ? initBoard(state) : null,
-    final: type === 'final' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0 } : null,
+    final: type === 'final' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
   };
 }
 
@@ -998,6 +1024,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       if (state.final !== null && finalPlayOf(state) !== undefined) {
         // Гравці розкриваються по одному; рейтингу між запитаннями після фіналу немає.
         if (state.final.shown < state.final.order.length) return ok({ ...state, final: { ...state.final, shown: state.final.shown + 1 } });
+        // Після останнього гравця банк (якщо він не порожній) розподіляється окремим кроком.
+        if (needsSplit(state)) return ok({ ...state, final: { ...state.final, split: true } });
         return ok(finishRound(state));
       }
       if (currentRound(state)?.type === 'board') {

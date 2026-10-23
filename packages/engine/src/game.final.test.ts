@@ -91,7 +91,7 @@ describe('the final round', () => {
     expect(scores(roundEnd)).toEqual([1000, 400, -400]);
     const intro = must(next(roundEnd, 7000, rng));
     expect(intro.phase).toBe('intro');
-    expect(intro.final).toEqual({ limits: {}, wagers: {}, allIn: [], order: [], shown: 0 });
+    expect(intro.final).toEqual({ limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false });
     const wager = must(next(intro, 8000, rng));
     expect(wager.phase).toBe('wager');
     expect(wager.final?.limits).toEqual({ p1: 1000, p2: 400, p3: 0 });
@@ -105,7 +105,7 @@ describe('the final round', () => {
     const quiz = makeRoundsQuiz([finalRound('f', f1)]);
     const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан')));
     expect(intro.phase).toBe('intro');
-    expect(intro.final).toEqual({ limits: {}, wagers: {}, allIn: [], order: [], shown: 0 });
+    expect(intro.final).toEqual({ limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false });
     const wager = must(next(intro, 1000, rng));
     expect(wager.phase).toBe('wager');
     expect(wager.final?.limits).toEqual({ p1: 0, p2: 0 });

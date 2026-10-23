@@ -910,7 +910,7 @@ describe('PlayerScreen: spotlight', () => {
 
 describe('PlayerScreen final', () => {
   const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
-  const info = { theme: 'Космос', placed: 0, total: 2, shown: [], left: 0 };
+  const info = { theme: 'Космос', placed: 0, total: 2, shown: [], left: 0, mode: 'classic' as const, bank: 0, split: null };
   const onWager = (limit: number, wager: number | null = null) =>
     view({ phase: 'wager', round, final: info, me: { ...me, score: limit, final: { wager, limit, allIn: false } } });
 
