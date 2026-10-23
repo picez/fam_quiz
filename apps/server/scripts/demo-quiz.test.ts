@@ -71,10 +71,22 @@ describe('the seeded demo quiz', () => {
     expect(new Set(eruditeQuiz.rounds.map((r) => r.type))).toEqual(new Set(['classic', 'board', 'blitz', 'final']));
     const questions = questionsOf(eruditeQuiz);
     const types = new Set(questions.map((q) => q.type));
-    for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain']) expect(types.has(type as never)).toBe(true);
+    for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort']) expect(types.has(type as never)).toBe(true);
     expect(questions.some((q) => q.video !== null)).toBe(true);
     const categories = eruditeQuiz.rounds.flatMap((r) => (r.type === 'board' ? r.categories : []));
     expect(categories).toHaveLength(12);
+  });
+
+  it('the erudite quiz sorts animals in the warm-up and trees on the board', () => {
+    expect(quizSchema.safeParse(eruditeQuiz).success).toBe(true);
+    const warmup = eruditeQuiz.rounds.find((r) => r.id === 'e-warmup');
+    const animals = warmup?.type === 'classic' ? warmup.questions.find((q) => q.type === 'sort') : undefined;
+    expect(animals?.type === 'sort' && [animals.categories.length, animals.words.length]).toEqual([3, 9]);
+    const garden = eruditeQuiz.rounds
+      .flatMap((r) => (r.type === 'board' ? r.categories : []))
+      .find((c) => c.title === 'Сад і город');
+    const sortCell = garden?.cells.find((c) => c.question.type === 'sort');
+    expect(sortCell).toMatchObject({ mark: 'x2', kind: 'normal', answerMode: 'phone' });
   });
 });
 

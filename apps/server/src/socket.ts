@@ -13,6 +13,7 @@ import {
   pickSchema,
   wagerSchema,
   socketAuthSchema,
+  sortSchema,
   timeSchema,
   undebuffSchema,
   type AckResult,
@@ -107,6 +108,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = guessSchema.safeParse(payloadOf(args));
       return payload.success ? manager.guess(room, identity.playerId, payload.data.word) : INVALID;
+    });
+
+    on('player:sort', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = sortSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.sort(room, identity.playerId, payload.data.wordId, payload.data.categoryId) : INVALID;
     });
 
     on('player:hint', () => {

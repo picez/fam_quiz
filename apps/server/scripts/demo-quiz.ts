@@ -1,7 +1,7 @@
 import { DEFAULT_RULES, type Question, type Quiz, type RoundRules } from '@quiz/shared';
 
 /**
- * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match, chain),
+ * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match, chain, sort),
  * усіма раундами (класичний, бліц, поле, фінал зі ставками) і варіантами правил.
  */
 
@@ -65,6 +65,18 @@ export const chain = (text: string, words: string[], hintSeconds = 5, points?: n
   words,
   hintSeconds,
 });
+
+/** Сортування: categories — назви, words — [слово, індекс категорії]. */
+export const sort = (text: string, categories: string[], words: [string, number][], points?: number, time?: number, lockSeconds = 3): Question => {
+  const base = q(text, points, time);
+  return {
+    ...base,
+    type: 'sort',
+    categories: categories.map((name, i) => ({ id: `${base.id}-c${i}`, text: name })),
+    words: words.map(([word, category], i) => ({ id: `${base.id}-w${i}`, text: word, categoryId: `${base.id}-c${category}` })),
+    lockSeconds,
+  };
+};
 
 /** Додає до запитання відео з YouTube: id і секунда початку. */
 export const video = (question: Question, id: string, start = 0): Question => ({ ...question, video: { id, start } });

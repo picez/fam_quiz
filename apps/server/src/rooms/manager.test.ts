@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
+import { sortOf } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
   FINISHED_TTL_MS,
@@ -333,6 +334,33 @@ describe('blitz', () => {
     scheduler.advance(20_000);
     expect(room.state.phase).toBe('question');
     expect(scheduler.pending()).toEqual([]);
+  });
+});
+
+describe('sorting', () => {
+  it('closes the question when both players have sorted every word', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const room = manager.create(makeQuiz([sortQ]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const sortAll = (playerId: string) => {
+      for (let queue = sortOf(room.state, playerId).queue; queue.length > 0; queue = sortOf(room.state, playerId).queue) {
+        const word = sortQ.words.find((w) => w.id === queue[0]);
+        expect(manager.sort(room, playerId, queue[0], word?.categoryId ?? '')).toEqual({ ok: true });
+      }
+    };
+    sortAll(olena.playerId);
+    expect(room.state.phase).toBe('question');
+    sortAll(taras.playerId);
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('refuses a move from someone who is not a player', () => {
+    const { manager, room } = setup();
+    expect(manager.sort(room, 'nobody', 'w1', 'c1')).toMatchObject({ ok: false });
   });
 });
 
