@@ -4790,6 +4790,19 @@ label.powers-item {
   visibility: hidden;
 }
 
+/* На телефоні підпис запитання займає два рядки, тож «Чекаємо …» теж може перенестися на другий, щоб ім'я не різалося. */
+.question-meta .buff-wait {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.question-meta .buff-wait-time {
+  white-space: pre;
+}
+
 /* Сповіщення про баф — у тому ж стовпчику, під сповіщенням балів від ведучого: те піднімається на рядок. */
 .live-notice.is-buff {
   border-color: var(--buff-accent);
