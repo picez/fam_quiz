@@ -19,6 +19,7 @@ import { Standings } from './Standings';
 import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortWatch } from './SortView';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
+import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 
 interface Props {
   view: PlayerView;
@@ -331,9 +332,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 
   return (
     <main className="app player">
+      {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
+      <DuelBanner duel={view.duel} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <header className="bar">
         <span>{me.nickname}</span>
+        {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
+        <DuelButton duel={me.duel} paused={view.paused} send={send} onError={setError} />
         <strong className="score">{num(me.score)}</strong>
       </header>
 
@@ -344,6 +349,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       )}
 
       {phase === 'lobby' && <p className="lead">{t('inLobby')}</p>}
+
+      {phase === 'duel' && view.duel !== null && <DuelPlay view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
       {phase === 'intro' && view.round !== null && (
         <>

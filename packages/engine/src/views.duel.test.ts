@@ -122,6 +122,8 @@ describe('duel views', () => {
     expect(duelOf(category, 'p1')?.canPick).toBe(true);
     expect(duelOf(category, 'p2')?.canPick).toBe(false);
     expect(duelOf(category, 'p3')?.canPick).toBe(false);
+    // Сервер на паузі відмовляє у виборі: телефон не пропонує кнопок категорій.
+    expect(duelOf(must(pause(category, T0 + 4500)), 'p1')?.canPick).toBe(false);
     expect(stageView(category).duel?.categories).toEqual([
       { id: 'dc1', title: 'Столиці', left: 3 },
       { id: 'dc2', title: 'Хімія', left: 3 },

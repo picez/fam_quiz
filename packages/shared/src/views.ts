@@ -389,7 +389,7 @@ export interface PlayerDuel {
   tries: string[];
   /** Дуелянт, етап question, не пауза, запитання ще не виграно. */
   canAnswer: boolean;
-  /** Цей гравець оголосив дуель і зараз етап category. */
+  /** Цей гравець оголосив дуель, зараз етап category і не пауза. */
   canPick: boolean;
 }
 

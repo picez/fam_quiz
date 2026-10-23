@@ -685,7 +685,7 @@ function playerDuel(state: GameState, playerId: string): PlayerDuel | null {
     rights: closed ? null : { canDeclare: duel === null && !state.paused && opponents.length > 0, opponents },
     tries: duelist ? duelTries(state, playerId) : [],
     canAnswer: duelist && state.phase === 'duel' && duel.stage === 'question' && !state.paused && currentDuelPlay(state)?.winnerId === null,
-    canPick: state.phase === 'duel' && duel?.stage === 'category' && duel.challengerId === playerId,
+    canPick: state.phase === 'duel' && duel?.stage === 'category' && duel.challengerId === playerId && !state.paused,
   };
 }
 
