@@ -1,4 +1,14 @@
-import { allowedBuffs, rulesOf, type BuffBlock, type BuffKind, type Question, type RetryStage } from '@quiz/shared';
+import {
+  allowedBuffs,
+  rulesOf,
+  type BuffBlock,
+  type BuffKind,
+  type BuffNotice,
+  type BuffTag,
+  type Phase,
+  type Question,
+  type RetryStage,
+} from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import {
   autoLock,
@@ -79,6 +89,11 @@ function placeBlock(state: GameState, play: Play, playerId: string): 'elsewhere'
     if (board.chooserId !== playerId) return 'not_chooser';
   }
   return null;
+}
+
+/** Чи гравець відповідає на поточне запитання з телефона (є де брати бафи). */
+export function buffsHere(state: GameState, play: Play, playerId: string): boolean {
+  return placeBlock(state, play, playerId) === null;
 }
 
 /** Відповідь гравця вже надіслана або чекає на ведучого. */
@@ -217,4 +232,30 @@ export function applyBuff(record: AnswerRecord, buff: BuffPlay | null): AnswerRe
   const shielded = buff.kind === 'shield' && raw.basePoints < 0;
   const basePoints = doubled ? raw.basePoints * 2 : shielded ? 0 : raw.basePoints;
   return { ...raw, basePoints, points: basePoints + raw.streakBonus, buff: buff.kind };
+}
+
+/** Етапи, на яких значки бафів поточного запитання ще видно. */
+const TAGGED: Phase[] = ['question', 'locked', 'reveal'];
+
+/** Хто який баф узяв на поточне запитання, у порядку гравців; поза question, locked і reveal — []. */
+export function currentBuffs(state: GameState): BuffTag[] {
+  const play = state.plays[state.questionIndex];
+  if (!TAGGED.includes(state.phase) || play === undefined) return [];
+  return state.players.flatMap((p) => {
+    const buff = buffOf(play, p.id);
+    return buff === null ? [] : [{ playerId: p.id, nickname: p.nickname, kind: buff.kind }];
+  });
+}
+
+/** Останній узятий баф у грі: усі бафи журналу за at, потім за порядком гравців; seq — 1-базова позиція останнього. */
+export function lastBuff(state: GameState): BuffNotice | null {
+  const taken = state.plays.flatMap((play) =>
+    state.players.flatMap((p, order) => {
+      const buff = buffOf(play, p.id);
+      return buff === null ? [] : [{ at: buff.at, order, nickname: p.nickname, kind: buff.kind }];
+    }),
+  );
+  if (taken.length === 0) return null;
+  const last = [...taken].sort((a, b) => a.at - b.at || a.order - b.order)[taken.length - 1];
+  return { seq: taken.length, at: last.at, nickname: last.nickname, kind: last.kind };
 }
