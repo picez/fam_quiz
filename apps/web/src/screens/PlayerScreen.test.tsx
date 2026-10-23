@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -47,6 +47,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   chain: null,
   sort: null,
   notice: null,
+  duel: null,
   round: null,
   questionIndex: -1,
   total: 2,

@@ -13,6 +13,9 @@ import {
   type BoardCellView,
   type BoardInfo,
   type DiceInfo,
+  type DuelInfo,
+  type HostDuel,
+  type PlayerDuel,
   type ChainInfo,
   type DebuffKind,
   type PlayerChain,
@@ -46,6 +49,7 @@ import { activeDebuff, shownDebuff } from './debuffs';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { sortOf, sortsHere } from './sort';
+import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
@@ -54,7 +58,7 @@ import { isTimed, limitMsOf, remainingOf } from './timing';
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
 // У цих етапах запитання ще (або вже) немає: журнал показує лише останнє зігране.
-const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'board', 'wager', 'round_end'];
+const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'board', 'wager', 'round_end', 'duel'];
 
 /** Чи є поточне запитання. На finished останнє зігране показуємо, лише якщо воно з поточного раунду (інакше гру завершено з intro). */
 function inQuestion(state: GameState): boolean {
@@ -611,6 +615,80 @@ function playerSort(state: GameState, playerId: string): PlayerSort | null {
   };
 }
 
+/** Поточне запитання дуелі з його грою (етапи question, answer); інакше null. */
+function currentDuelPlay(state: GameState) {
+  const duel = state.duel;
+  const stage = duel?.stage;
+  if (duel === null || state.phase !== 'duel' || (stage !== 'question' && stage !== 'answer')) return null;
+  const play = duel.questions.at(-1);
+  return play === undefined ? null : play;
+}
+
+/** Неправильні спроби дуелянта в поточному запитанні дуелі; [] поза запитанням і для глядача. */
+function duelTries(state: GameState, playerId: string): string[] {
+  const play = currentDuelPlay(state);
+  return play !== null && Object.hasOwn(play.tries, playerId) ? play.tries[playerId] : [];
+}
+
+/**
+ * Дуель для всіх ролей. withAnswers — прийнятні написання й на етапі question (лише ведучому);
+ * сцені й гравцям вони йдуть лише на answer. Текстів спроб тут немає, лише їх кількість.
+ */
+function duelInfo(state: GameState, withAnswers: boolean): DuelInfo | null {
+  const duel = state.duel;
+  const duels = state.quiz.duels;
+  if (duel === null || duels === undefined) return null;
+  const { challengerId, opponentId, stage } = duel;
+  const question = duelQuestionOf(state);
+  const play = currentDuelPlay(state);
+  const answered = stage === 'answer' && play !== null;
+  const count = (id: string) => duel.questions.filter((q) => q.winnerId === id).length;
+  const categories = duelCategoriesLeft(state);
+  return {
+    challenger: blitzPlayer(state, challengerId),
+    opponent: blitzPlayer(state, opponentId),
+    stage,
+    categories,
+    category: categories.find((c) => c.id === duel.categoryId)?.title ?? null,
+    number: stage === 'question' || stage === 'answer' || stage === 'result' ? duel.questions.length : 0,
+    total: duel.categoryId === null ? duels.questionsPerDuel : duel.total,
+    question: question?.text ?? null,
+    accepted: question !== null && (withAnswers || stage === 'answer') ? question.accepted : null,
+    wins: { challenger: count(challengerId), opponent: count(opponentId) },
+    tries: { challenger: duelTries(state, challengerId).length, opponent: duelTries(state, opponentId).length },
+    questionWinner: answered && play.winnerId !== null ? blitzPlayer(state, play.winnerId) : null,
+    winningAnswer: answered ? play.answer : null,
+    winner: stage === 'result' && duel.winnerId !== null ? blitzPlayer(state, duel.winnerId) : null,
+    stake: duels.stake,
+    ending: duelEnds(state),
+  };
+}
+
+function hostDuel(state: GameState): HostDuel | null {
+  const info = duelInfo(state, true);
+  if (info === null || state.duel === null) return null;
+  return {
+    ...info,
+    tryTexts: { challenger: duelTries(state, state.duel.challengerId), opponent: duelTries(state, state.duel.opponentId) },
+  };
+}
+
+/** Кнопка «Дуель», власні спроби й права гравця; null — у вікторині немає дуелей. */
+function playerDuel(state: GameState, playerId: string): PlayerDuel | null {
+  if (state.quiz.duels === undefined) return null;
+  const duel = state.duel;
+  const closed =
+    !duelWindowOpen(state) || state.duelsDeclared.includes(playerId) || duelCategoriesLeft(state).every((c) => c.left === 0);
+  const opponents = state.players.filter((p) => p.id !== playerId).map((p) => blitzPlayer(state, p.id));
+  const duelist = duel !== null && (duel.challengerId === playerId || duel.opponentId === playerId);
+  return {
+    rights: closed ? null : { canDeclare: duel === null && !state.paused && opponents.length > 0, opponents },
+    tries: duelist ? duelTries(state, playerId) : [],
+    canAnswer: duelist && state.phase === 'duel' && duel.stage === 'question' && !state.paused && currentDuelPlay(state)?.winnerId === null,
+    canPick: state.phase === 'duel' && duel?.stage === 'category' && duel.challengerId === playerId,
+  };
+}
+
 /** Чи гравці в поточному фіналі: сцена й телефони не бачать чужого прогресу. */
 function inFinalRound(state: GameState): boolean {
   return currentRound(state)?.type === 'final';
@@ -632,7 +710,12 @@ function base(state: GameState, forHost: boolean) {
     question: publicQuestion(state),
     endsAt: held ? null : state.endsAt,
     remainingMs,
-    limitMs: state.phase === 'question' && play !== undefined ? limitMsOf(play) : null,
+    limitMs:
+      state.phase === 'question' && play !== undefined
+        ? limitMsOf(play)
+        : state.phase === 'duel' && state.duel?.stage === 'question' && state.quiz.duels !== undefined
+          ? state.quiz.duels.timeLimit * 1000
+          : null,
     held,
     playerCount: state.players.length,
     answeredCount: answeredCount(state),
@@ -643,6 +726,7 @@ function base(state: GameState, forHost: boolean) {
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     notice: lastNotice(state),
+    duel: duelInfo(state, false),
   };
 }
 
@@ -760,6 +844,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       debuff: playerDebuff(state, playerId),
+      duel: playerDuel(state, playerId),
     },
     reveal: revealed ? currentQuestion(state) : null,
     standings,
@@ -813,6 +898,7 @@ export function hostView(state: GameState): HostView {
     final: hostFinal(state),
     chain: chainInfo(state),
     sort: sortInfo(state),
+    duel: hostDuel(state),
     standings: rankPlayers(state.players),
   };
 }
