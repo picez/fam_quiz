@@ -7,7 +7,7 @@ import type { GameView } from './views';
 
 export type Role = 'host' | 'stage' | 'player';
 
-export type ServerErrorCode = 'unauthorized' | 'forbidden' | 'invalid_payload' | 'game_not_found';
+export type ServerErrorCode = 'unauthorized' | 'forbidden' | 'invalid_payload' | 'game_not_found' | 'restarting';
 
 export type AckResult = { ok: true } | { ok: false; error: ErrorCode | ServerErrorCode };
 export type Ack = (result: AckResult) => void;
@@ -142,4 +142,6 @@ export interface ServerToClientEvents {
   /** Повний зріз стану для ролі цього з'єднання. */
   state: (view: GameView, meta: StateMeta) => void;
   closed: (reason: CloseReason) => void;
+  /** Сервер зупиняється (нова версія) або кімнату веде інший процес: перепідключитися з тим самим токеном. */
+  restarting: () => void;
 }

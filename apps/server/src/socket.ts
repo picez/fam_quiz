@@ -77,6 +77,14 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       members.forEach(push);
       return;
     }
+    if (event.type === 'moved') {
+      // Кімнату веде інший процес: перепідключитися з тим самим токеном.
+      for (const socket of members) {
+        socket.emit('restarting');
+        socket.disconnect(true);
+      }
+      return;
+    }
     const leaving =
       event.type === 'kicked' ? members.filter((s) => s.data.identity.playerId === event.playerId) : members;
     for (const socket of leaving) {
