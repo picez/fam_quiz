@@ -6,8 +6,8 @@ export type DuelStage = 'declared' | 'category' | 'question' | 'answer' | 'resul
 
 export type Grade = 'correct' | 'partial' | 'wrong';
 
-/** Звідки коригування рахунку поза відповідями: бали від ведучого або дуель. */
-export type AdjustmentSource = 'host' | 'duel';
+/** Звідки коригування рахунку поза відповідями: бали від ведучого, дуель або купівля дебафу (9c). */
+export type AdjustmentSource = 'host' | 'duel' | 'debuff';
 
 /** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. */
 export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;
@@ -38,6 +38,9 @@ export const SPLASH_MS: Record<SplashKind, number> = { round: 2500, final: 3200,
 /** Скільки довше триває перегортання клітинки з ×2/×3: сюрприз після перегортання, мс. */
 export const CELL_SURPRISE_MS = 800;
 
+/** Чому гравцеві зараз не купити дебаф (бали — окремо, на кожному дебафі). */
+export type ShopBlock = 'phase' | 'paused' | 'bought';
+
 export type ErrorCode =
   | 'wrong_phase'
   | 'paused'
@@ -63,6 +66,8 @@ export type ErrorCode =
   | 'dice_pending'
   | 'points_invalid'
   | 'debuff_busy'
+  | 'points_short'
+  | 'debuff_bought'
   | 'sort_locked'
   | 'sort_stale'
   | 'duel_used'

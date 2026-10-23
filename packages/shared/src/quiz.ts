@@ -31,6 +31,10 @@ export const LIMITS = {
   categoryTitle: 40,
   orderLabel: 40,
   maxPlayers: 50,
+  /** Ціна дебафу для гравців (9c), балів. */
+  minDebuffPrice: 50,
+  maxDebuffPrice: 5000,
+  defaultDebuffPrice: 200,
   nicknameMin: 2,
   nicknameMax: 20,
   /** Найпізніша секунда початку відео (12 год). */
@@ -424,6 +428,12 @@ export const quizSettingsSchema = z.object({
   buffs: z.array(z.enum(BUFF_KINDS)).max(BUFF_KINDS.length).optional(),
   /** Пояснення для новачків (8d): «Як грати», пам'ятка раунду, підказка нового типу; немає поля — вимкнено. */
   newcomers: z.boolean().optional(),
+  /** Ціни дебафів для гравців; немає ключа — LIMITS.defaultDebuffPrice. */
+  debuffPrices: z
+    .partialRecord(z.enum(DEBUFF_KINDS), z.number().int().min(LIMITS.minDebuffPrice).max(LIMITS.maxDebuffPrice))
+    .optional(),
+  /** Чи можуть гравці купувати дебафи (9c); немає поля — можуть, якщо дебафи дозволені. */
+  debuffShop: z.boolean().optional(),
 });
 
 export type QuizSettings = z.infer<typeof quizSettingsSchema>;
@@ -491,6 +501,11 @@ export type Quiz = z.infer<typeof quizSchema>;
 export function allowedDebuffs(quiz: Pick<Quiz, 'settings'>): DebuffKind[] {
   const chosen = quiz.settings.debuffs;
   return chosen ? DEBUFF_KINDS.filter((kind) => chosen.includes(kind)) : [...DEBUFF_KINDS];
+}
+
+/** Ціна дебафу у вікторині для гравців (ведучий насилає безкоштовно). */
+export function debuffPrice(quiz: Pick<Quiz, 'settings'>, kind: DebuffKind): number {
+  return quiz.settings.debuffPrices?.[kind] ?? LIMITS.defaultDebuffPrice;
 }
 
 /** Дозволені готові бафи в порядку BUFF_KINDS. */

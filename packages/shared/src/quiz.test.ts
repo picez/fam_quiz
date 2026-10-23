@@ -9,6 +9,8 @@ import {
   allowedBuffs,
   allowedDebuffs,
   buffSchema,
+  buyDebuffSchema,
+  debuffPrice,
   retrySchema,
   voteSchema,
   hintSchema,
@@ -871,6 +873,45 @@ describe('duels', () => {
     expect(LIMITS.maxDuelStake).toBe(5000);
     expect(LIMITS.defaultDuelStake).toBe(300);
     expect(LIMITS.maxDuelTries).toBe(30);
+  });
+});
+
+describe('debuff prices', () => {
+  const quiz = (extra?: object) => ({
+    title: 'Т',
+    description: '',
+    settings: { leaderboard: 'each', ...extra },
+    rounds: [round('r1', [single])],
+  });
+
+  it('an old quiz without prices charges the default 200 for every debuff', () => {
+    const old = quizSchema.parse(quiz());
+    for (const kind of DEBUFF_KINDS) expect(debuffPrice(old, kind)).toBe(200);
+    expect(old.settings.debuffShop).toBeUndefined();
+  });
+
+  it('a price set by the host wins; the rest stay at the default', () => {
+    const parsed = quizSchema.parse(quiz({ debuffPrices: { fog: 100, shake: 5000 } }));
+    expect(debuffPrice(parsed, 'fog')).toBe(100);
+    expect(debuffPrice(parsed, 'shake')).toBe(5000);
+    expect(debuffPrice(parsed, 'mud')).toBe(200);
+  });
+
+  it('refuses prices out of 50…5000, fractions and unknown debuffs', () => {
+    for (const prices of [{ fog: 0 }, { fog: 49 }, { fog: 5001 }, { fog: 100.5 }, { fog: -200 }, { magic: 100 }]) {
+      expect(valid(quizSchema, quiz({ debuffPrices: prices })), JSON.stringify(prices)).toBe(false);
+    }
+  });
+
+  it('the shop flag is a boolean and nothing else', () => {
+    expect(valid(quizSchema, quiz({ debuffShop: false }))).toBe(true);
+    expect(valid(quizSchema, quiz({ debuffShop: 'no' }))).toBe(false);
+  });
+
+  it('the purchase event names the target and the kind', () => {
+    expect(valid(buyDebuffSchema, { targetId: 'p1', kind: 'fog' })).toBe(true);
+    expect(valid(buyDebuffSchema, { targetId: 'p1', kind: 'rain' })).toBe(false);
+    expect(valid(buyDebuffSchema, { kind: 'fog' })).toBe(false);
   });
 });
 
