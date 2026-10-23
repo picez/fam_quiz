@@ -64,7 +64,7 @@ import {
   answerLimitMs,
   buffBlock,
   buffOf,
-  buffsHere,
+  buffRowHere,
   buffsUsed,
   canVote,
   currentBuffs,
@@ -859,7 +859,7 @@ function overtimeRows(state: GameState): OvertimeRow[] {
 function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
   const allowed = allowedBuffs(state.quiz);
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
-  if (allowed.length === 0 || play === undefined || !buffsHere(state, play, playerId)) return null;
+  if (allowed.length === 0 || play === undefined || !buffRowHere(state, play, playerId)) return null;
   const own = buffOf(play, playerId);
   const used = buffsUsed(state, playerId);
   const slots = allowed.map((kind) => {

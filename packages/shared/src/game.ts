@@ -22,10 +22,11 @@ export const READY_BUFFS: readonly BuffKind[] = [...BUFF_KINDS];
 /** armed — чекає першої відповіді; again — друга спроба відкрита; choice — перша часткова, гравець вибирає; done. */
 export type RetryStage = 'armed' | 'again' | 'choice' | 'done';
 
-/** Чому кнопку бафу зараз не натиснути. */
+/** Чому кнопку бафу зараз не натиснути. off_* — у цьому запитанні бафів немає взагалі. */
 export type BuffBlock =
   | 'used' | 'taken' | 'answered' | 'time' | 'paused' | 'elsewhere' | 'not_chooser'
-  | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual'
+  | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_chain' | 'off_sort'
+  | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started';
 
 /** Заставки переходів (частина 8c). */

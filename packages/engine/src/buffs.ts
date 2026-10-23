@@ -97,23 +97,40 @@ function wrongOptions(question: Question): string[] {
   return [];
 }
 
-/** Чи гравець відповідає на поточне запитання з телефона: elsewhere — тут бафів немає; not_chooser — на полі відповідає інший; null — так. */
-function placeBlock(state: GameState, play: Play, playerId: string): 'elsewhere' | 'not_chooser' | null {
+type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_chain' | 'off_sort';
+
+/** Де гравець відповідає: null — тут бафи можна; not_chooser — на полі відповідає інший; elsewhere — немає де; off_* — тут бафів немає. */
+function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock | null {
   const round = state.quiz.rounds[play.roundIndex];
-  // Бліц, фінал, а ще ланцюжок і сортування, що рахуються окремо.
-  if (play.blitz !== undefined || round.type === 'blitz' || round.type === 'final') return 'elsewhere';
-  if (play.question.type === 'chain' || play.question.type === 'sort') return 'elsewhere';
-  const board = play.board;
   if (round.type === 'board') {
-    if (board === undefined || board.kind !== 'normal' || board.answerMode !== 'phone') return 'elsewhere';
+    const board = play.board;
+    if (board === undefined) return 'elsewhere';
+    if (board.kind === 'blitz') return 'off_blitz_cell';
+    // Звичайна клітинка — і з телефона, і вголос: бафи бере лише той, хто вибрав.
     if (board.chooserId !== playerId) return 'not_chooser';
-  }
+  } else if (play.blitz !== undefined || round.type === 'blitz') return 'off_blitz';
+  else if (round.type === 'final') return 'off_final';
+  // Ланцюжок і сортування рахуються окремо.
+  if (play.question.type === 'chain') return 'off_chain';
+  if (play.question.type === 'sort') return 'off_sort';
   return null;
 }
 
-/** Чи гравець відповідає на поточне запитання з телефона (є де брати бафи). */
+/** Причина «тут бафів немає взагалі». */
+function isOff(place: PlaceBlock | null): place is Exclude<PlaceBlock, 'elsewhere' | 'not_chooser'> {
+  return place !== null && place.startsWith('off_');
+}
+
+/** Чи гравець може брати бафи на поточному запитанні. */
 export function buffsHere(state: GameState, play: Play, playerId: string): boolean {
   return placeBlock(state, play, playerId) === null;
+}
+
+/** Чи показувати гравцеві ряд бафів: він відповідає на це запитання з телефона (зокрема там, де бафів немає). */
+export function buffRowHere(state: GameState, play: Play, playerId: string): boolean {
+  // Вибравший на усній клітинці відповідає вголос, але бафи бере з телефона.
+  const place = placeBlock(state, play, playerId);
+  return place !== 'elsewhere' && place !== 'not_chooser';
 }
 
 /** Відповідь гравця вже надіслана або чекає на ведучого. */
@@ -142,6 +159,8 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       if (question.type !== 'single' && question.type !== 'multi') return 'unfit_type';
       return fiftyCount(question) === 0 ? 'unfit_options' : null;
     case 'retry':
+      // Усну відповідь оцінює ведучий одразу: другої спроби не буває.
+      if (play.board?.answerMode === 'voice') return 'unfit_voice';
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
       return round.type === 'board' && round.check === 'manual' ? 'unfit_manual' : null;
     case 'time':
@@ -194,12 +213,15 @@ export function buffBlock(state: GameState, playerId: string, kind: BuffKind, no
   if (buffsUsed(state, playerId).includes(kind)) return 'used';
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
   if (play === undefined) return 'elsewhere';
+  const place = placeBlock(state, play, playerId);
+  // Де бафів немає взагалі, причина та сама за будь-якого стану — пауза чи відповідь її не підмінюють.
+  if (isOff(place)) return place;
   if (buffOf(play, playerId) !== null) return 'taken';
   if (hasAnswered(state, play, playerId)) return 'answered';
   if (!state.paused && now !== undefined && notStarted(state, now)) return 'not_started';
   if (!state.paused && now !== undefined && timeOverFor(state, play, playerId, now)) return 'time';
   if (state.paused) return 'paused';
-  return placeBlock(state, play, playerId) ?? fitBlock(state, play, playerId, kind);
+  return place ?? fitBlock(state, play, playerId, kind);
 }
 
 /** Узяти баф на поточне запитання. fifty тягне rng; time дає гравцеві особистий час понад спільний кінець. */
@@ -210,7 +232,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
   if (play === undefined) return fail('wrong_phase');
   const place = placeBlock(state, play, playerId);
-  if (place === 'elsewhere') return fail('wrong_phase');
+  if (place === 'elsewhere' || isOff(place)) return fail('wrong_phase');
   if (state.paused) return fail('paused');
   if (notStarted(state, now)) return fail('not_started');
   if (place === 'not_chooser') return fail('not_your_turn');

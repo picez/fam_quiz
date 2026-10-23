@@ -1,6 +1,7 @@
 import { cellAnswerMode, findCell, questionPrice, type Answer } from '@quiz/shared';
 import { advanceTurn, cellMultiplier, cellPlayed, chooserOf, enterBoard } from './board-turns';
 import { fail, ok, openQuestion, withCurrentPlay, type GameState, type Result, type Rng } from './game';
+import { questionFor } from './buffs';
 
 /** Порядок гравців можна міняти лише на заставці раунду поля. */
 function inBoardIntro(state: GameState): boolean {
@@ -61,7 +62,8 @@ export function nameAnswer(state: GameState, answer: Answer | null): Result {
   const board = play?.board;
   if (board === undefined || (state.phase !== 'question' && state.phase !== 'locked')) return fail('wrong_phase');
   if (board.kind === 'blitz' || board.answerMode !== 'voice') return fail('wrong_phase');
-  const { question } = play;
+  // Після заміни вибравший відповідає на запасне — ведучий позначає варіант запасного.
+  const question = questionFor(state, play, board.chooserId);
   if (answer === null || (answer.type === 'multi' && answer.optionIds.length === 0)) {
     const { named: _cleared, ...rest } = board;
     return ok(withCurrentPlay(state, { ...play, board: rest }));

@@ -155,18 +155,21 @@ describe('buffs', () => {
     const wrongPhase = { ok: false, error: 'wrong_phase' };
     const blitz = startRound(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single4])], { buffs }), 'Оля'), T0, rng0);
     expect(takeBuff(blitz, 'p1', 'double', T0, rng0)).toEqual(wrongPhase);
-    expect(buffBlock(blitz, 'p1', 'double')).toBe('elsewhere');
+    expect(buffBlock(blitz, 'p1', 'double')).toBe('off_blitz');
 
     const wager = must(next(must(start(lobbyWith(makeRoundsQuiz([finalRound('f1', single4)], { buffs }), 'Оля'))), T0, rng0));
     const final = must(next(wager, T0, rng0));
     expect(final.phase).toBe('question');
     expect(takeBuff(final, 'p1', 'double', T0, rng0)).toEqual(wrongPhase);
-    expect(buffBlock(final, 'p1', 'double')).toBe('elsewhere');
+    expect(buffBlock(final, 'p1', 'double')).toBe('off_final');
 
-    for (const question of [chain, sortQ]) {
+    for (const [question, reason] of [
+      [chain, 'off_chain'],
+      [sortQ, 'off_sort'],
+    ] as const) {
       const s = startRound(lobbyWith(makeQuiz([question], { buffs }), 'Оля'), T0, rng0);
       expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual(wrongPhase);
-      expect(buffBlock(s, 'p1', 'double')).toBe('elsewhere');
+      expect(buffBlock(s, 'p1', 'double')).toBe(reason);
     }
 
     const round = boardRound('g1', [
@@ -180,11 +183,11 @@ describe('buffs', () => {
       },
     ]);
     const board = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { buffs }), 'Оля', 'Петро'))), T0, rng0));
-    for (const cellId of ['c11', 'c12']) {
-      const s = must(pickCell(board, 'p1', cellId, T0, rng0));
-      expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual(wrongPhase);
-      expect(buffBlock(s, 'p1', 'double')).toBe('elsewhere');
-    }
+    const blitzCell = must(pickCell(board, 'p1', 'c11', T0, rng0));
+    expect(takeBuff(blitzCell, 'p1', 'double', T0, rng0)).toEqual(wrongPhase);
+    expect(buffBlock(blitzCell, 'p1', 'double')).toBe('off_blitz_cell');
+    // На усній клітинці бафи тепер діють.
+    expect(takeBuff(must(pickCell(board, 'p1', 'c12', T0, rng0)), 'p1', 'double', T0, rng0).ok).toBe(true);
     const cell = toBuffCell();
     expect(takeBuff(cell, 'p2', 'double', T0, rng0)).toEqual({ ok: false, error: 'not_your_turn' });
     expect(buffBlock(cell, 'p2', 'double')).toBe('not_chooser');

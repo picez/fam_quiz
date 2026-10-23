@@ -59,11 +59,12 @@ describe('buff views', () => {
     expect(slotsOf(must(pause(s, T0 + 2000)), 'p2')?.[2]).toEqual(['retry', 'blocked', 'paused']);
 
     const blitz = startRound(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single4])], { buffs }), 'Оля'), T0, rng0);
-    expect(playerView(blitz, 'p1')?.me.buffs).toBeNull();
+    // Ряд є й там, де бафів немає: усі кнопки неактивні з причиною.
+    expect(slotsOf(blitz, 'p1')?.map(([, state, block]) => [state, block])).toEqual(buffs.map(() => ['blocked', 'off_blitz']));
     const wager = must(next(must(start(lobbyWith(makeRoundsQuiz([finalRound('f1', single4)], { buffs }), 'Оля'))), T0, rng0));
     const final = must(next(wager, T0, rng0));
     expect(final.phase).toBe('question');
-    expect(playerView(final, 'p1')?.me.buffs).toBeNull();
+    expect(slotsOf(final, 'p1')?.map(([, state, block]) => [state, block])).toEqual(buffs.map(() => ['blocked', 'off_final']));
     const cell = toBuffCell();
     expect(playerView(cell, 'p2')?.me.buffs).toBeNull();
     expect(playerView(cell, 'p1')?.me.buffs?.slots).toHaveLength(5);
