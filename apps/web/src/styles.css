@@ -4740,15 +4740,31 @@ label.powers-item {
   gap: 0.75rem;
 }
 
-.buff-wait-slot {
-  min-height: 1.4em;
-}
-
-.buff-wait p {
+.buff-wait {
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: var(--buff-accent);
   font-weight: 700;
   line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Підпис запитання й «Чекаємо …» в одній клітинці сітки: висота — підпису, рядок очікування його лише заступає. */
+.question-meta {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.question-meta > * {
+  grid-area: 1 / 1;
+  align-self: center;
+}
+
+.question-meta .meta.is-hidden {
+  visibility: hidden;
 }
 
 /* Сповіщення про баф — у тому ж стовпчику, під сповіщенням балів від ведучого: те піднімається на рядок. */
@@ -4770,7 +4786,7 @@ label.powers-item {
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 0;
-  white-space: nowrap;
+  max-width: 60vw;
   font-size: clamp(1.1rem, 2vw, 1.75rem);
 }
 

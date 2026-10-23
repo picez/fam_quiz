@@ -257,4 +257,18 @@ describe('AnswerInput', () => {
     fireEvent.click(button('Відповісти'));
     expect(multi).toHaveBeenCalledWith({ type: 'multi', optionIds: ['b'] });
   });
+
+  it('an option picked before 50/50 removes it is dropped from the multi answer', () => {
+    const four = [...cities, { id: 'd', text: 'Харків' }];
+    const onSubmit = vi.fn();
+    const { rerender } = render(<AnswerInput question={question({ type: 'multi', choices: four })} onSubmit={onSubmit} />);
+    fireEvent.click(button(/Львів/));
+    rerender(<AnswerInput question={question({ type: 'multi', choices: four })} removed={['a']} onSubmit={onSubmit} />);
+    const lviv = screen.getByRole('button', { name: 'Львів — прибрано' });
+    expect(lviv.getAttribute('aria-pressed')).toBe('false');
+    expect(button('Відповісти').disabled).toBe(true);
+    fireEvent.click(button(/Київ/));
+    fireEvent.click(button('Відповісти'));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'multi', optionIds: ['b'] });
+  });
 });

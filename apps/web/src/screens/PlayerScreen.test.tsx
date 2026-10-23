@@ -1394,4 +1394,37 @@ describe('PlayerScreen: sort', () => {
     show(onQuestion({ endsAt: now - 1000, overtime, me: { ...me, buffs } }));
     expect(screen.getByText('Чекаємо: Оля · 0:24')).toBeTruthy();
   });
+
+  it('«waiting for» never adds height: it stands in the question head, also for a board watcher', () => {
+    const now = Date.now();
+    const overtime = [
+      { playerId: 'p2', nickname: 'Оля', deadline: now + 24_000, remainingMs: null },
+      { playerId: 'p3', nickname: 'Петро', deadline: now + 12_000, remainingMs: null },
+    ];
+    const shape = () => [...document.querySelector('main')!.children].map((el) => el.className);
+    // Без бафів у самого гравця (глядач на полі): me.buffs === null.
+    show(onQuestion({ endsAt: now + 5000, overtime }));
+    const before = shape();
+    cleanup();
+    show(onQuestion({ endsAt: now - 1000, overtime }));
+    expect(shape()).toEqual(before);
+    const line = document.querySelector('.question-head .buff-wait')!;
+    expect(line.textContent).toBe('Чекаємо: Оля · 0:24, Петро · 0:12');
+    // Рядок стоїть на місці підпису запитання, а підпис лишається (прихований) і тримає висоту.
+    expect(document.querySelector('.question-head .meta.is-hidden')).not.toBeNull();
+    cleanup();
+    show(onQuestion({ endsAt: now - 1000, overtime, me: { ...me, buffs } }));
+    expect(shape()).toEqual(before);
+  });
+
+  it('the again prompt does not push the options down', () => {
+    const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
+    const zoneShape = () => [...document.querySelector('.debuff-content, .debuff-zone')!.querySelectorAll('*')].map((el) => el.tagName);
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null } } } }));
+    const armed = zoneShape();
+    cleanup();
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first } } } }));
+    expect(zoneShape()).toEqual(armed);
+    expect(document.querySelector('.buff-why')?.textContent).toBe('Неправильно, ще одна спроба');
+  });
 });

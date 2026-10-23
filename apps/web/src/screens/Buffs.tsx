@@ -99,8 +99,15 @@ export function BuffRow({
   };
 
   const active = buffs.active;
+  // Рядок пояснень тримає й «Неправильно, ще одна спроба»: підказка не зсуває варіантів.
   const idle =
-    active === null ? '' : active.kind === 'time' ? t('overtimeMine') : t('buffTaken', { icon: BUFF_ICONS[active.kind], name: buffName(active.kind) });
+    active === null
+      ? ''
+      : active.retry === 'again'
+        ? t('retryAgain')
+        : active.kind === 'time'
+          ? t('overtimeMine')
+          : t('buffTaken', { icon: BUFF_ICONS[active.kind], name: buffName(active.kind) });
 
   return (
     <div className="buff-bar">
@@ -188,7 +195,10 @@ function clockText(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
-/** «Чекаємо: Оля · 0:24» — для сцени й телефонів, коли спільний час сплив. */
+/**
+ * «Чекаємо: Оля · 0:24» — для сцени, пульта й телефонів, коли спільний час сплив.
+ * Кілька гравців — в одному рядку («…, Петро · 0:12») з трикрапкою: рядок не росте вниз.
+ */
 export function OvertimeLine({ rows, offsetMs }: { rows: OvertimeRow[]; offsetMs: number }) {
   const [now, setNow] = useState(() => Date.now());
   const running = rows.some((row) => row.deadline !== null);
@@ -199,13 +209,15 @@ export function OvertimeLine({ rows, offsetMs }: { rows: OvertimeRow[]; offsetMs
     return () => clearInterval(id);
   }, [running]);
   if (rows.length === 0) return null;
+  const timeOf = (row: OvertimeRow) => clockText(row.remainingMs ?? (row.deadline === null ? 0 : row.deadline - (now + offsetMs)));
+  const [first, ...rest] = rows;
+  const text =
+    t('overtimeWait', { name: first.nickname, time: timeOf(first) }) +
+    rest.map((row) => `, ${t('overtimeWaitMore', { name: row.nickname, time: timeOf(row) })}`).join('');
   return (
-    <div className="buff-wait">
-      {rows.map((row) => {
-        const left = row.remainingMs ?? (row.deadline === null ? 0 : row.deadline - (now + offsetMs));
-        return <p key={row.playerId}>{t('overtimeWait', { name: row.nickname, time: clockText(left) })}</p>;
-      })}
-    </div>
+    <p className="buff-wait" title={text}>
+      {text}
+    </p>
   );
 }
 

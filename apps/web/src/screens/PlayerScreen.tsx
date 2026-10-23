@@ -377,15 +377,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'question' && question !== null && (
         <>
           <div className="question-head">
-            <p className="meta">{questionLabel(view.round, view.questionIndex, view.total)}</p>
+            {/* «Чекаємо …» стає на місце підпису (той лишається прихованим і тримає висоту): поява на спільному кінці нічого не зсуває. */}
+            <div className="question-meta">
+              <p className={waiting ? 'meta is-hidden' : 'meta'}>{questionLabel(view.round, view.questionIndex, view.total)}</p>
+              {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
+            </div>
             {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
           </div>
-          {/* Рядок «Чекаємо» в грі з бафами тримає місце весь час: його поява на спільному кінці нічого не зсуває. */}
-          {me.buffs !== null ? (
-            <div className="buff-wait-slot">{waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}</div>
-          ) : (
-            waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />
-          )}
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
@@ -479,13 +477,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               // Часткова перша відповідь: вибір замість поля відповіді.
               <RetryPrompt active={activeBuff} question={question} send={send} onError={setError} />
             ) : (
-              <>
-                {activeBuff !== null && retryStage === 'again' && <RetryPrompt active={activeBuff} question={question} send={send} onError={setError} />}
-                {/* На паузі поле лишається на місці, інакше гравець втратив би вже введене. */}
-                <fieldset className="inputs" disabled={view.paused}>
-                  <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}`} question={shown ?? question} removed={activeBuff?.removed} onSubmit={submit} />
-                </fieldset>
-              </>
+              // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
+              // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
+              <fieldset className="inputs" disabled={view.paused}>
+                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}`} question={shown ?? question} removed={activeBuff?.removed} onSubmit={submit} />
+              </fieldset>
             )}
           </DebuffZone>
         </>

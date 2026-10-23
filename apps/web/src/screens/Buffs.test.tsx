@@ -218,4 +218,23 @@ describe('Buffs', () => {
     const empty = render(<OvertimeLine rows={[]} offsetMs={0} />);
     expect(empty.container.firstChild).toBeNull();
   });
+
+  it('several players with extra time share one line', () => {
+    const { container } = render(
+      <OvertimeLine
+        rows={[
+          { playerId: 'p2', nickname: 'Оля', deadline: NOW + 24_000, remainingMs: null },
+          { playerId: 'p3', nickname: 'Петро', deadline: NOW + 12_000, remainingMs: null },
+        ]}
+        offsetMs={0}
+      />,
+    );
+    expect(container.querySelectorAll('p')).toHaveLength(1);
+    expect(container.textContent).toBe('Чекаємо: Оля · 0:24, Петро · 0:12');
+  });
+
+  it('the again prompt stands in the explanation line, not above the options', () => {
+    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 } } });
+    expect(why().textContent).toBe('Неправильно, ще одна спроба');
+  });
 });

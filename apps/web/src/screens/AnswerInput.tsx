@@ -57,11 +57,13 @@ function ChoiceButtons({
 function MultiInput({ question, onSubmit, removed }: Props) {
   const [picked, setPicked] = useState<string[]>([]);
   const toggle = (id: string) => setPicked((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
+  // Вибране до 50/50, а потім прибране, у відповідь не йде й не світиться вибраним.
+  const kept = removed === undefined ? picked : picked.filter((id) => !removed.includes(id));
   // Порядок як у запитанні, а не як натискав гравець.
-  const ordered = question.choices.map((choice) => choice.id).filter((id) => picked.includes(id));
+  const ordered = question.choices.map((choice) => choice.id).filter((id) => kept.includes(id));
   return (
     <>
-      <ChoiceButtons choices={question.choices} picked={picked} removed={removed} onPick={toggle} />
+      <ChoiceButtons choices={question.choices} picked={kept} removed={removed} onPick={toggle} />
       <button
         type="button"
         className="btn btn-primary"

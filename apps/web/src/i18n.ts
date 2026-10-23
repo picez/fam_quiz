@@ -303,6 +303,7 @@ const uk = {
   retryMore: 'Ще спроба',
   overtimeMine: '+30 с — ваш час',
   overtimeWait: 'Чекаємо: {name} · {time}',
+  overtimeWaitMore: '{name} · {time}',
   noWait: 'Не чекати',
   stageBuffsLabel: 'Бафи гравців',
   buffTagLabel: 'Баф: {name}',
