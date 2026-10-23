@@ -92,7 +92,7 @@ describe('Buffs', () => {
     });
     const { container, unmount } = row(off('off_blitz'));
     expect(container.querySelector('.buff-row')).toBeNull();
-    expect(container.querySelectorAll('button')).toHaveLength(1);
+    expect(container.querySelectorAll('button, [role="button"]')).toHaveLength(1);
     expect(container.querySelector('.buff-bar.is-off .buff-help')).not.toBeNull();
     expect(container.querySelector('.buff-bar.is-off .buff-off')?.textContent).toBe('У бліці бафів немає.');
     unmount();
@@ -541,16 +541,44 @@ describe('StageBuffs', () => {
     const sheet = screen.getByRole('dialog', { name: 'Бафи' });
     expect(within(sheet).getByText('Прибирає частину неправильних варіантів.')).toBeTruthy();
     expect(within(sheet).getByText('Де: запитання з варіантами — у класиці й на полі, і на усних клітинках.')).toBeTruthy();
-    expect(within(sheet).getByText('Інші гравці підказують, як думають; вам +15 с.')).toBeTruthy();
+    expect(within(sheet).getByText('Інші гравці підказують, як думають; якщо в запитання є таймер, вам +15 с.')).toBeTruthy();
     expect(within(sheet).queryByText(/Подвоює бали/)).toBeNull();
     expect(within(sheet).getByText('Не діють: бліц, бліц-клітинки, фінал, ланцюжок, сортування й дуелі.')).toBeTruthy();
     expect(document.activeElement).toBe(within(sheet).getByRole('button', { name: 'Закрити' }));
-    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(within(sheet).getByText('Кожен баф — раз за гру, не більше одного на запитання.')).toBeTruthy();
+    // Фокус ходить колом усередині аркуша.
+    const close = within(sheet).getByRole('button', { name: 'Закрити' });
+    fireEvent.keyDown(close, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(sheet, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(opener);
     fireEvent.click(opener);
     fireEvent.click(document.querySelector('.buff-help-backdrop')!);
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('the help sheet is portaled out of the debuff fieldset and «?» works while frozen', () => {
+    const { container } = render(
+      <fieldset className="debuff-content" disabled>
+        <BuffRow buffs={ready} paused={false} send={okSend()} onError={() => {}} />
+      </fieldset>,
+    );
+    const opener = screen.getByRole('button', { name: 'Що роблять бафи' });
+    expect(opener.tagName).not.toBe('BUTTON');
+    fireEvent.click(opener);
+    const sheet = screen.getByRole('dialog', { name: 'Бафи' });
+    expect(container.contains(sheet)).toBe(false);
+    expect(sheet.parentElement).toBe(document.body);
+  });
+
+  it('«?» sits on the note line, with a 44 px hit area', () => {
+    row(ready);
+    expect(document.querySelector('.buff-row .buff-help')).toBeNull();
+    expect(document.querySelector('.buff-line > .buff-help + .buff-why')).not.toBeNull();
+    expect(rule('.buff-help::after')).toMatch(/inset: -6px/);
   });
 
   it('a disabled button says exactly why', () => {

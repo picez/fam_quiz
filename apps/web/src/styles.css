@@ -4757,7 +4757,7 @@ label.powers-item {
   gap: 8px;
 }
 
-.buff-line .buff-row,
+.buff-line .buff-why,
 .buff-line .buff-off {
   flex: 1 1 auto;
   min-width: 0;
@@ -4777,6 +4777,16 @@ label.powers-item {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  /* Круг 2rem, але рядок не вищий за текст: зазор забирають поля. */
+  position: relative;
+  margin-block: -0.5rem;
+}
+
+/* Зона дотику 44 px навколо кола. */
+.buff-help::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
 }
 
 .buff-help-backdrop {
