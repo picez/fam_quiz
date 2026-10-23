@@ -49,6 +49,7 @@ import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { splitBank, type BankOutcome } from './bank';
 import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
+import { presentPlayers } from './present';
 import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
@@ -331,6 +332,11 @@ export interface GameState {
   splash: Splash | null;
   /** Сторінка «Як грати» (0-базова); поза етапом guide — 0. */
   guidePage: number;
+  /**
+   * Хто був на зв'язку в мить збереження кімнати перед перезапуском сервера (9b): поки гравець не повернувся
+   * (або його не вилучили), його чекають, як підключеного, — «усі відповіли» не закриває запитання без нього.
+   */
+  awaiting: string[];
 }
 
 export interface GameOptions {
@@ -371,6 +377,7 @@ export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
     transitions: options.transitions ?? false,
     splash: null,
     guidePage: 0,
+    awaiting: [],
   };
 }
 
@@ -476,6 +483,7 @@ export function removePlayer(state: GameState, playerId: string): Result {
     adjustments,
     debuffs,
     duelsDeclared,
+    awaiting: state.awaiting.filter((id) => id !== playerId),
   });
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
@@ -494,7 +502,8 @@ function dropFromFinal(final: FinalState, playerId: string): FinalState {
 export function setConnected(state: GameState, playerId: string, connected: boolean, now: number): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const players = state.players.map((p) => (p.id === playerId ? { ...p, connected } : p));
-  const changed = { ...state, players };
+  // Гравець повернувся після перезапуску (або вийшов знову): далі як звичайний гравець.
+  const changed = { ...state, players, awaiting: state.awaiting.filter((id) => id !== playerId) };
   // Відлік 30 секунд іде лише для гравця, чий хід, і не на паузі.
   if (state.phase === 'board' && state.board !== null && !state.paused && chooserOf(state) === playerId) {
     return ok({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } });
@@ -910,7 +919,7 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   if (state.plays[state.questionIndex]?.question.type === 'chain') return chainDone(state, now) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
-  const connected = state.players.filter((p) => p.connected);
+  const connected = presentPlayers(state);
   if (connected.length === 0) return state;
   const everyoneAnswered = connected.every((p) => recordOf(state, state.questionIndex, p.id) !== undefined);
   return everyoneAnswered ? lockNow(state) : state;

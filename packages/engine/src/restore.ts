@@ -16,10 +16,12 @@ export function suspend(state: GameState, at: number): GameState {
     if (paused.ok) s = paused.state;
   }
   // Спершу пауза, потім розрив: на паузі відлік відсутності не стартує, а autoLock нічого не закриває.
+  // Кого розрив забрав, того чекають, доки не повернеться: «усі відповіли» без них не закриває запитання.
+  const awaiting = [...s.awaiting, ...s.players.filter((p) => p.connected && !s.awaiting.includes(p.id)).map((p) => p.id)];
   for (const p of s.players) {
     if (!p.connected) continue;
     const off = setConnected(s, p.id, false, at);
     if (off.ok) s = off.state;
   }
-  return s;
+  return { ...s, awaiting };
 }
