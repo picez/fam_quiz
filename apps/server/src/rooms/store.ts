@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lt, ne, or, type SQL } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { liveRoom } from '../db/schema';
 import { markAborted, markInterrupted } from '../recorder';
@@ -12,7 +12,10 @@ const RETRY_MS = 5000;
 
 export interface RoomStoreOptions {
   instanceId: string;
-  /** Годинник для updated_at/heartbeat_at; типово Date.now (у тестах — годинник FakeScheduler). */
+  /**
+   * Годинник для updated_at/heartbeat_at і умов оренди. Типово — годинник бази (now()): старий і новий
+   * процеси під час розгортання порівнюють мітки одним годинником. У тестах — годинник FakeScheduler.
+   */
   now?: () => number;
   saveDelayMs?: number;
   onError?: (error: unknown) => void;
@@ -41,7 +44,7 @@ export class RoomStore {
   private readonly db: Db;
   private readonly manager: RoomManager;
   private readonly me: string;
-  private readonly now: () => number;
+  private readonly clock: (() => number) | null;
   private readonly saveDelayMs: number;
   private readonly onError: (error: unknown) => void;
   private readonly entries = new Map<Room, Entry>();
@@ -53,12 +56,16 @@ export class RoomStore {
   private ticking: Promise<void> | null = null;
   /** Кімнати віддано (SIGTERM) або сховище зупинено: більше нічого не пишемо й не підхоплюємо. */
   private released = false;
+  /** Коди рядків, що точно належать нам (записані чи підхоплені): за ними серцебиття помічає втрату оренди. */
+  private readonly owned = new Set<string>();
+  /** Коди закритих кімнат, рядки яких ще не вдалося видалити: серцебиття тримає їх, щоб їх не підхопили. */
+  private readonly closing = new Set<string>();
 
   constructor(db: Db, manager: RoomManager, options: RoomStoreOptions) {
     this.db = db;
     this.manager = manager;
     this.me = options.instanceId;
-    this.now = options.now ?? Date.now;
+    this.clock = options.now ?? null;
     this.saveDelayMs = options.saveDelayMs ?? SAVE_DELAY_MS;
     this.onError = options.onError ?? ((error) => console.error('Не вдалося зберегти кімнату:', error));
     manager.onEvent((room, event) => {
@@ -93,11 +100,39 @@ export class RoomStore {
 
   private async work(): Promise<void> {
     if (this.released) return;
-    const at = new Date(this.now());
-    await this.db.update(liveRoom).set({ heartbeatAt: at }).where(eq(liveRoom.owner, this.me));
+    await this.heartbeat();
     await this.purge(or(isNull(liveRoom.owner), ne(liveRoom.owner, this.me)));
     await this.adopt();
     await this.reserve();
+  }
+
+  /**
+   * Серцебиття лише рядків кімнат, які ми справді ведемо (і закритих, що ще видаляються). Кімнату,
+   * рядок якої вже не наш, виселяємо одразу, не чекаючи наступного запису.
+   */
+  private async heartbeat(): Promise<void> {
+    const held = [...this.owned].filter((code) => this.manager.get(code) !== undefined);
+    const codes = [...held, ...this.closing];
+    if (codes.length === 0) return;
+    const rows = await this.db
+      .update(liveRoom)
+      .set({ heartbeatAt: this.at() })
+      .where(and(eq(liveRoom.owner, this.me), inArray(liveRoom.code, codes)))
+      .returning({ code: liveRoom.code });
+    const kept = new Set(rows.map((row) => row.code));
+    for (const code of held) {
+      const room = this.manager.get(code);
+      // Поки чекали на базу, кімнату могли закрити або вже виселити записом.
+      if (kept.has(code) || room === undefined || !this.owned.has(code)) continue;
+      this.owned.delete(code);
+      this.manager.evict(room);
+    }
+  }
+
+  /** Мить зі зсувом: параметр за тестовим годинником або вираз над now() бази. */
+  private at(offsetMs = 0): SQL | Date {
+    if (this.clock !== null) return new Date(this.clock() + offsetMs);
+    return sql`(now() + ${String(offsetMs)}::integer * interval '1 millisecond')`;
   }
 
   /** Запускає tick кожні HEARTBEAT_MS (setInterval з unref). */
@@ -132,7 +167,7 @@ export class RoomStore {
     const [row] = await this.db
       .select({ code: liveRoom.code })
       .from(liveRoom)
-      .where(and(eq(liveRoom.code, code), gt(liveRoom.updatedAt, new Date(this.now() - MAX_AGE_MS))));
+      .where(and(eq(liveRoom.code, code), gt(liveRoom.updatedAt, this.at(-MAX_AGE_MS))));
     return row === undefined ? 'none' : 'restarting';
   }
 
@@ -227,7 +262,7 @@ export class RoomStore {
     // Кімнату тим часом закрили або виселили — писати нічого.
     if (!this.alive(room)) return;
     const saved = this.manager.snapshot(room);
-    const at = new Date(this.now());
+    const at = this.at();
     const rows = await this.db
       .insert(liveRoom)
       .values({ code: room.code, roomId: room.id, data: saved, owner, heartbeatAt: at, updatedAt: at })
@@ -238,19 +273,28 @@ export class RoomStore {
       })
       .returning({ code: liveRoom.code });
     // Кімнату веде інший процес (ми зависли довше за оренду): прибрати з пам'яті, сокети перепідключаться.
-    if (rows.length === 0) this.manager.evict(room);
+    if (rows.length === 0) {
+      this.owned.delete(room.code);
+      this.manager.evict(room);
+      return;
+    }
+    if (owner === this.me) this.owned.add(room.code);
+    else this.owned.delete(room.code);
   }
 
   private closed(room: Room): void {
     const entry = this.entry(room);
     this.clearTimer(entry);
     entry.dirty = false;
+    this.owned.delete(room.code);
+    this.closing.add(room.code);
     const remove = (): void => {
       // Після записів у польоті: інакше запізнілий запис повернув би рядок закритої кімнати.
       this.enqueue(room, async () => {
         await this.db.delete(liveRoom).where(and(eq(liveRoom.code, room.code), eq(liveRoom.owner, this.me)));
       }).then(
         () => {
+          this.closing.delete(room.code);
           if (entry.busy === 0 && this.entries.get(room) === entry) this.entries.delete(room);
         },
         (error: unknown) => {
@@ -264,6 +308,7 @@ export class RoomStore {
   }
 
   private forget(room: Room): void {
+    this.owned.delete(room.code);
     const entry = this.entries.get(room);
     if (entry === undefined) return;
     this.clearTimer(entry);
@@ -280,7 +325,7 @@ export class RoomStore {
 
   /** Видалити рядки, не змінені понад добу (where — додаткова умова), і перервати їхні ігри. */
   private async purge(where?: SQL): Promise<void> {
-    const old = lt(liveRoom.updatedAt, new Date(this.now() - MAX_AGE_MS));
+    const old = lt(liveRoom.updatedAt, this.at(-MAX_AGE_MS));
     const dropped = await this.db
       .delete(liveRoom)
       .where(where === undefined ? old : and(old, where))
@@ -294,36 +339,65 @@ export class RoomStore {
   /** Атомарно забрати вільні (віддані чи покинуті) рядки й підняти їхні кімнати. Повертає кількість піднятих. */
   private async adopt(where?: SQL): Promise<number> {
     if (this.released || this.manager.frozen) return 0;
-    const now = this.now();
     const free = and(
-      or(isNull(liveRoom.owner), lt(liveRoom.heartbeatAt, new Date(now - LEASE_MS))),
-      gt(liveRoom.updatedAt, new Date(now - MAX_AGE_MS)),
+      or(isNull(liveRoom.owner), lt(liveRoom.heartbeatAt, this.at(-LEASE_MS))),
+      gt(liveRoom.updatedAt, this.at(-MAX_AGE_MS)),
     );
     const rows = await this.db
       .update(liveRoom)
-      .set({ owner: this.me, heartbeatAt: new Date(now) })
+      .set({ owner: this.me, heartbeatAt: this.at() })
       .where(where === undefined ? free : and(free, where))
       .returning({ code: liveRoom.code, roomId: liveRoom.roomId, data: liveRoom.data });
     let restored = 0;
     const broken: typeof rows = [];
+    const unused: typeof rows = [];
     for (const row of rows) {
-      if (!isSavedRoom(row.data)) {
-        broken.push(row);
-        continue;
-      }
-      if (this.manager.restore(row.data) !== null) restored += 1;
+      const outcome = this.restoreRow(row.code, row.roomId, row.data);
+      if (outcome === 'restored') restored += 1;
+      else if (outcome === 'broken') broken.push(row);
+      else if (outcome === 'unused') unused.push(row);
+    }
+    // Узяте, але не підняте (код зайнятий іншою кімнатою, менеджер заморозили, поки чекали на базу) —
+    // віддаємо назад, інакше рядок висів би за нами без кімнати.
+    if (unused.length > 0) {
+      await this.db
+        .update(liveRoom)
+        .set({ owner: null })
+        .where(and(eq(liveRoom.owner, this.me), inArray(liveRoom.code, unused.map((row) => row.code))));
     }
     if (broken.length > 0) {
-      for (const row of broken) this.onError(new Error(`Кімнату ${row.code} не відновити: інша версія або зламаний запис`));
       await markAborted(
         this.db,
         broken.map((row) => row.roomId),
       );
-      for (const row of broken) {
-        await this.db.delete(liveRoom).where(and(eq(liveRoom.code, row.code), eq(liveRoom.owner, this.me)));
-      }
+      await this.db
+        .delete(liveRoom)
+        .where(and(eq(liveRoom.owner, this.me), inArray(liveRoom.code, broken.map((row) => row.code))));
     }
     return restored;
+  }
+
+  /** restored — піднято; ours — ця кімната вже в пам'яті (наша оренда спливала); unused — не піднято; broken — не відновити. */
+  private restoreRow(code: string, roomId: string, data: unknown): 'restored' | 'ours' | 'unused' | 'broken' {
+    if (!isSavedRoom(data)) {
+      this.onError(new Error(`Кімнату ${code} не відновити: інша версія або зламаний запис`));
+      return 'broken';
+    }
+    const live = this.manager.get(code);
+    if (live !== undefined) {
+      if (live.id !== roomId) return 'unused';
+      this.owned.add(code);
+      return 'ours';
+    }
+    try {
+      if (this.manager.restore(data) === null) return 'unused';
+    } catch (error) {
+      // Один зламаний запис не має зупиняти старт сервера.
+      this.onError(error);
+      return 'broken';
+    }
+    this.owned.add(code);
+    return 'restored';
   }
 
   /** Коди рядків, яких немає в пам'яті, не видаються новим кімнатам. */
