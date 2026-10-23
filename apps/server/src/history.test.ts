@@ -362,11 +362,11 @@ describe('gameTables', () => {
         score: 30,
         rank: 1,
         rows: expect.arrayContaining([
-          { roundIndex: 0, attempt: 0, accepted: true, points: 20 },
-          { roundIndex: 1, attempt: 0, accepted: true, points: 10 },
+          { roundIndex: 0, attempt: 0, accepted: true, points: 20, wager: null },
+          { roundIndex: 1, attempt: 0, accepted: true, points: 10, wager: null },
         ]),
       },
-      { participantId: p.b, userId: null, score: 10, rank: 2, rows: [{ roundIndex: 1, attempt: 1, accepted: false, points: 10 }] },
+      { participantId: p.b, userId: null, score: 10, rank: 2, rows: [{ roundIndex: 1, attempt: 1, accepted: false, points: 10, wager: null }] },
     ]);
     expect(players[0].rows).toHaveLength(2);
     expect(byId.get(ids.old)!.players).toEqual([{ participantId: p.c, userId: null, score: 0, rank: null, rows: [] }]);
@@ -684,6 +684,7 @@ describe('host history: answers', () => {
     const detail = await read();
     expect(detail.questions[0].final).toBeNull();
     expect(detail.questions[1].final).toEqual({
+      mode: 'classic',
       entries: [
         { nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, wager: 300, points: 300, accepted: true },
         { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false },
@@ -696,6 +697,64 @@ describe('host history: answers', () => {
     playToEnd(ctx.manager, room, [anna], [anna], stake);
     await ctx.recorder.idle();
     expect((await read()).questions[1].final?.entries.map((e) => e.nickname)).toEqual(['Анна']);
+  });
+
+  it('history shows the stored wager and the bank mode, totals match', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const quiz = makeRoundsQuiz([classicRound('r1', [withId(single, 's1')], { speedBonus: false }), finalRound('f', withId(single, 'f1'), { wagerMode: 'bank' })]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const join = async (nickname: string) =>
+      ((await post(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
+    const anna = await join('Анна');
+    const bohdan = await join('Богдан');
+    const vira = await join('Віра');
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    for (const playerId of [anna, bohdan, vira]) ctx.manager.connect(room, { role: 'player', playerId });
+    const stakes = new Map([[anna, 1000], [bohdan, 400], [vira, 200]]);
+    // Банк 1000 ділиться 400 : 200 — 666 і 333, залишок 1 найбільшій ставці.
+    playToEnd(ctx.manager, room, [anna, bohdan, vira], [bohdan, vira], (id) => stakes.get(id) ?? 0, undefined, [anna]);
+    expect(room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+
+    const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
+      standings: { participantId: string; score: number }[];
+      questions: { final: { mode: string; entries: { nickname: string; wager: number; points: number; accepted: boolean }[] } | null }[];
+    };
+    const final = detail.questions[1].final;
+    expect(final?.mode).toBe('bank');
+    expect(final?.entries.map(({ nickname, wager, points, accepted }) => ({ nickname, wager, points, accepted }))).toEqual([
+      { nickname: 'Богдан', wager: 400, points: 667, accepted: true },
+      { nickname: 'Віра', wager: 200, points: 333, accepted: true },
+      { nickname: 'Анна', wager: 1000, points: -1000, accepted: false },
+    ]);
+    expect(detail.questions[0].final).toBeNull();
+    const scores = new Map(room.state.players.map((p) => [p.id, p.score]));
+    expect(detail.standings.map((row) => row.score)).toEqual(detail.standings.map((row) => scores.get(row.participantId)));
+    expect(detail.standings.map((row) => row.score)).toEqual([1667, 1333, 0]);
+  });
+
+  it('old rows without a wager keep |points|', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    // Знімок старої гри: фінал без типу ставок читається як «Класичні».
+    const { wagerMode: _mode, ...oldFinal } = finalRound('f', withId(single, 'f1'));
+    const { gameId } = await seedGame(db, {
+      hostId: account.id,
+      startedAt: new Date(2026, 1, 1),
+      snapshot: makeRoundsQuiz([oldFinal as ReturnType<typeof finalRound>]),
+      players: [
+        { userId: null, nickname: 'Олена', score: 500, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 500 }] },
+        { userId: null, nickname: 'Тарас', score: -300, rank: 2, rows: [{ questionIndex: 0, accepted: false, points: -300 }] },
+      ],
+    });
+    const final = (await hostGame(db, account.id, gameId))?.questions[0].final;
+    expect(final?.mode).toBe('classic');
+    expect(final?.entries.map(({ nickname, wager, points }) => [nickname, wager, points])).toEqual([
+      ['Олена', 500, 500],
+      ['Тарас', 300, -300],
+    ]);
   });
 });
 
@@ -755,8 +814,8 @@ describe('history: score adjustments', () => {
     expect(table.players[0].participantId).toBe(participantIds[0]);
     expect(table.players[0].rows).toEqual(
       expect.arrayContaining([
-        { roundIndex: 0, attempt: 0, accepted: true, points: 1000 },
-        { roundIndex: 0, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points: -100 },
+        { roundIndex: 0, attempt: 0, accepted: true, points: 1000, wager: null },
+        { roundIndex: 0, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points: -100, wager: null },
       ]),
     );
     expect(table.players[0].rows).toHaveLength(2);

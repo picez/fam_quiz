@@ -75,12 +75,15 @@ export function wonBlitzRound(table: GameTable, participantId: string): boolean 
   });
 }
 
-/** У фінал-раунді є рядок учасника accepted && points > 0. */
+/**
+ * У фінал-раунді є рядок учасника accepted && (wager ?? points) > 0: правильна відповідь з ненульовою ставкою,
+ * навіть коли спільний банк був порожній. Старі рядки без ставки — за балами, як і було.
+ */
 export function hitFinal(table: GameTable, participantId: string): boolean {
   const me = table.players.find((p) => p.participantId === participantId);
   return (
     me !== undefined &&
-    table.roundTypes.some((type, index) => type === 'final' && me.rows.some((row) => row.roundIndex === index && row.accepted && row.points > 0))
+    table.roundTypes.some((type, index) => type === 'final' && me.rows.some((row) => row.roundIndex === index && row.accepted && (row.wager ?? row.points) > 0))
   );
 }
 

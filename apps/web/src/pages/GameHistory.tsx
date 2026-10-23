@@ -99,7 +99,7 @@ export function GameHistory() {
                         <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
                         {question.final !== null && (
                           <div className="wager-list">
-                            <h4>{t('historyFinal')}</h4>
+                            <h4>{t(question.final.mode === 'bank' ? 'historyFinalBank' : 'historyFinal')}</h4>
                             <ul>
                               {question.final.entries.map((entry, at) => (
                                 <li key={at} className={entry.accepted ? 'is-correct' : 'is-wrong'}>

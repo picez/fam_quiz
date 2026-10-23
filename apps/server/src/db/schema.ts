@@ -154,6 +154,8 @@ export const answer = pgTable(
     points: integer('points').notNull(),
     streakBonus: integer('streak_bonus').notNull().default(0),
     overridden: boolean('overridden').notNull(),
+    /** Ставка у фіналі; null поза фіналом і в старих іграх. */
+    wager: integer('wager'),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
 );

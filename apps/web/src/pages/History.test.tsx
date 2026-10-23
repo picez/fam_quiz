@@ -382,6 +382,7 @@ describe('GameHistory final', () => {
     const finalQuestion = {
       ...detail.questions[0],
       final: {
+        mode: 'classic' as const,
         entries: [
           { nickname: 'Анна', answer: null, wager: 300, points: 300, accepted: true },
           { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false },
@@ -395,5 +396,24 @@ describe('GameHistory final', () => {
     const loss = screen.getByText('Богдан: ставка 200, −200');
     expect(win.className).toContain('is-correct');
     expect(loss.className).toContain('is-wrong');
+  });
+
+  it('a bank final is titled as a shared bank and shows the stored wager', async () => {
+    const finalQuestion = {
+      ...detail.questions[0],
+      final: {
+        mode: 'bank' as const,
+        entries: [
+          { nickname: 'Богдан', answer: null, wager: 400, points: 667, accepted: true },
+          { nickname: 'Анна', answer: null, wager: 1000, points: -1000, accepted: false },
+        ],
+      },
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, rounds: [{ title: 'Космос', type: 'final' }], questions: [finalQuestion] } });
+    open('/history/g1');
+    expect(await screen.findByText('Ставки фіналу · спільний банк')).toBeTruthy();
+    expect(screen.queryByText('Ставки фіналу')).toBeNull();
+    expect(screen.getByText('Богдан: ставка 400, +667').className).toContain('is-correct');
+    expect(screen.getByText('Анна: ставка 1000, −1000').className).toContain('is-wrong');
   });
 });

@@ -6,6 +6,7 @@ import { answer, game, participant, scoreAdjustment, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
+import { playToEnd } from './testing/final-game';
 import { createTestDb } from './testing/test-db';
 
 const HOST = 'host-user';
@@ -709,5 +710,44 @@ describe('recorder: board', () => {
     expect(after.find((a) => a.participantId === p1)).toMatchObject({ points: -300, accepted: false, overridden: true });
     const [saved] = await db.select().from(participant).where(eq(participant.id, p1));
     expect(saved.score).toBe(1000 - 300);
+  });
+
+  it('the final rows keep the wager, the bank shares are the points', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus: false }), finalRound('f', withId(single, 'f1'), { wagerMode: 'bank' })]);
+    const room = manager.create(quiz, HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const [olena, hanna, taras, vira] = ['Олена', 'Ганна', 'Тарас', 'Віра'].map(enter);
+    const stakes = new Map([[olena, 1000], [hanna, 100], [taras, 400], [vira, 200]]);
+    // Олена помиляється, Ганна мовчить: банк 1100 ділиться 400 : 200, залишок — найбільшій ставці.
+    playToEnd(manager, room, [olena, hanna, taras, vira], [taras, vira], (id) => stakes.get(id) ?? 0, undefined, [olena]);
+    expect(room.state.phase).toBe('finished');
+    await recorder.idle();
+
+    const rows = await db.select().from(answer);
+    const name = new Map([[olena, 'Олена'], [hanna, 'Ганна'], [taras, 'Тарас'], [vira, 'Віра']]);
+    const final = rows.filter((a) => a.questionIndex === 1).map((a) => [name.get(a.participantId), a.wager, a.points]);
+    expect(final).toEqual(
+      expect.arrayContaining([
+        ['Олена', 1000, -1000],
+        ['Ганна', 100, -100],
+        ['Тарас', 400, 734],
+        ['Віра', 200, 366],
+      ]),
+    );
+    expect(final).toHaveLength(4);
+    expect(rows.filter((a) => a.questionIndex === 0).map((a) => a.wager)).toEqual([null, null, null, null]);
+    for (const saved of await db.select().from(participant)) {
+      const sum = rows.filter((a) => a.participantId === saved.id).reduce((total, a) => total + a.points, 0);
+      expect(sum).toBe(saved.score);
+    }
   });
 });

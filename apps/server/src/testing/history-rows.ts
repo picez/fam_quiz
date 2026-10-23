@@ -9,7 +9,8 @@ export interface SeedPlayer {
   nickname: string;
   score: number;
   rank: number | null;
-  rows?: { questionIndex: number; roundIndex?: number; attempt?: number; accepted: boolean; points: number }[];
+  /** wager — ставка фіналу; без неї рядок як у старих іграх (null). */
+  rows?: { questionIndex: number; roundIndex?: number; attempt?: number; accepted: boolean; points: number; wager?: number }[];
   /** Бали від ведучого; roundIndex і afterQuestion за замовчуванням 0. */
   adjustments?: { seq: number; roundIndex?: number; afterQuestion?: number; points: number }[];
 }
@@ -47,6 +48,7 @@ export async function seedGame(
           timeMs: 0,
           accepted: r.accepted,
           points: r.points,
+          wager: r.wager ?? null,
           overridden: false,
         })),
       );

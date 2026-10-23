@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { AdjustmentSource } from './game';
-import type { CellKind, Question, Round } from './quiz';
+import type { CellKind, Question, Round, WagerMode } from './quiz';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
 
@@ -62,6 +62,8 @@ export interface GameQuestionResult {
   responses: GameResponse[];
   /** Запитання фіналу: ставки й результати учасників за турнірною таблицею; null поза фіналом. */
   final: {
+    /** Тип ставок фіналу зі знімка. */
+    mode: WagerMode;
     entries: { nickname: string; answer: Answer | null; wager: number; points: number; accepted: boolean }[];
   } | null;
 }
