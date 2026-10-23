@@ -1024,6 +1024,39 @@ describe('PlayerScreen final', () => {
     expect(screen.getByText('Ставка 0 — частки з банку немає')).toBeTruthy();
   });
 
+  it('the bank note stays honest in the edge cases', () => {
+    const base = { phase: 'reveal' as const, round, question: publicQuestion, reveal: fullQuestion, questionIndex: 0 };
+    const state = (grade: 'correct' | 'wrong', wager: number, final: object) =>
+      view({
+        ...base,
+        final: { ...info, mode: 'bank' as const, ...final },
+        me: { ...me, score: 1000, result: { accepted: grade === 'correct', accuracy: grade === 'correct' ? 1 : 0, grade, streakBonus: 0, points: 0 }, final: { wager, limit: 1000, allIn: false } },
+      });
+    const note = () => document.querySelector('.wager-note')?.textContent;
+    // Переможець зі ставкою 0 ще до розподілу: частки не буде.
+    show(state('correct', 0, { bank: 500, left: 1, split: null }));
+    expect(note()).toBe('Ставка 0 — частки з банку немає');
+    cleanup();
+    // Усі праві: банк порожній, кроку розподілу не буде — чекати нічого.
+    show(state('correct', 500, { bank: 0, left: 0, split: null }));
+    expect(note()).toBe('Ставку збережено');
+    cleanup();
+    // Поки не всіх розкрито, банк ще може вирости.
+    show(state('correct', 500, { bank: 0, left: 2, split: null }));
+    expect(note()).toBe('Ставку збережено — чекаємо на розподіл банку');
+    cleanup();
+    // Правильна відповідь (зі ставкою 0) при поверненні: нейтрально, без «ніхто не відповів правильно».
+    show(state('correct', 0, { bank: 500, left: 0, split: { bank: 500, refund: true, shares: [] } }));
+    expect(note()).toBe('Ставки повертаються');
+    cleanup();
+    // Програвший зі ставкою 0 нічого в банк не віддав.
+    show(state('wrong', 0, { bank: 0, left: 1, split: null }));
+    expect(note()).toBe('Ставка 0 — рахунок без змін');
+    cleanup();
+    show(state('wrong', 300, { bank: 300, left: 1, split: null }));
+    expect(note()).toBe('Ставка пішла в банк');
+  });
+
   it('the final question shows no points', () => {
     show(onQuestion({ round, final: info, me: { ...me, final: { wager: 100, limit: 100, allIn: false } } }));
     expect(screen.queryByText(/1000/)).toBeNull();

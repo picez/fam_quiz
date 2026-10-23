@@ -138,29 +138,29 @@ function WagerForm({
           <p className="lead">{t('finalWagerPrompt', { limit: final.limit })}</p>
           {bank && <p className="meta">{t('finalBankRule')}</p>}
           <div className="wager-row">
-          <label className="field">
-            <span className="meta">{t('finalWagerLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={final.limit}
-              step={1}
-              placeholder={t('finalWagerPlaceholder', { limit: final.limit })}
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            className="btn btn-allin"
-            onClick={() => {
-              setValue(String(final.limit));
-              void place(final.limit, true);
-            }}
-          >
-            {t('finalAllIn')}
-          </button>
+            <label className="field">
+              <span className="meta">{t('finalWagerLabel')}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={final.limit}
+                step={1}
+                placeholder={t('finalWagerPlaceholder', { limit: final.limit })}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-allin"
+              onClick={() => {
+                setValue(String(final.limit));
+                void place(final.limit, true);
+              }}
+            >
+              {t('finalAllIn')}
+            </button>
           </div>
           <button type="submit" className="btn btn-primary" disabled={!valid}>
             {t('finalPlace')}
@@ -182,15 +182,25 @@ function WagerForm({
   );
 }
 
-/** Рядок під дельтою у спільному банку: одна з підказок за станом розподілу. */
+/**
+ * Рядок під дельтою у спільному банку: одна з підказок за станом розподілу.
+ * Ставка 0 нічого не віддає й нічого не ділить; при поверненні правильна відповідь чує нейтральне «Ставки повертаються».
+ */
 function bankNote(view: PlayerView, result: { grade: string }): string {
-  const split = view.final?.split ?? null;
-  if (split?.refund) return t('finalRefund');
-  if (result.grade !== 'correct') return t('finalLostToBank');
-  if (split === null) return t('finalKeptStake');
+  const final = view.final;
+  const split = final?.split ?? null;
+  const correct = result.grade === 'correct';
+  const wager = view.me.final?.wager ?? 0;
+  if (split?.refund) return t(correct ? 'finalRefundNote' : 'finalRefund');
+  if (!correct) return wager === 0 ? t('finalZeroStakeLost') : t('finalLostToBank');
+  if (wager === 0) return t('finalNoShare');
+  if (split === null) {
+    // Усіх розкрито, а банк порожній: кроку розподілу не буде, чекати нічого.
+    const noSplit = final !== null && final.left === 0 && final.bank === 0;
+    return t(noSplit ? 'finalStakeSaved' : 'finalKeptStake');
+  }
   const mine = split.shares.find((entry) => entry.playerId === view.me.id);
-  if (mine !== undefined) return t('finalBankShare', { share: num(mine.share) });
-  return view.me.final?.wager === 0 ? t('finalNoShare') : t('finalBankShare', { share: 0 });
+  return t('finalBankShare', { share: num(mine?.share ?? 0) });
 }
 
 /** Результат гравця у фіналі: «+ставка» або «−ставка» і новий рахунок; до свого розкриття очікування. */

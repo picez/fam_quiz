@@ -393,7 +393,8 @@ function finalEntries(state: GameState, visible: boolean): FinalEntry[] {
     const record = recordOf(state, state.questionIndex, player.id);
     if (record === undefined) return [];
     const before = player.score - record.points;
-    const won = outcome !== null && record.grade === 'correct' && Object.hasOwn(outcome.points, player.id);
+    // При поверненні ставок часток немає: сцена не показує «+0 з банку».
+    const won = outcome !== null && !outcome.refund && record.grade === 'correct' && Object.hasOwn(outcome.points, player.id);
     return [
       {
         playerId: player.id,

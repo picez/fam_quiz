@@ -509,8 +509,19 @@ export function finalOutcome(state: GameState): BankOutcome | null {
   return { bank: 0, refund: false, points };
 }
 
+/**
+ * Фінал скінчився: раунд закрито (round_end чи finished), а всіх гравців уже розкрито.
+ * Тоді записи фіналу сталі — вилучення чи коригування після фіналу не змінюють уже показаних часток банку.
+ */
+function finalFrozen(state: GameState): boolean {
+  if (state.phase !== 'round_end' && state.phase !== 'finished') return false;
+  const final = state.final;
+  return final !== null && final.order.length > 0 && final.shown >= final.order.length;
+}
+
 /** Перезаписує basePoints і points усіх записів поточного запитання фіналу за finalOutcome; поза ним — стан без змін. */
 export function withFinalPoints(state: GameState): GameState {
+  if (finalFrozen(state)) return state;
   const outcome = finalOutcome(state);
   if (outcome === null) return state;
   const play = state.plays[state.questionIndex];

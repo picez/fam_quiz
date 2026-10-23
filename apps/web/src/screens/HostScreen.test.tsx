@@ -978,6 +978,26 @@ describe('HostScreen final', () => {
     expect(document.querySelector('.wager-list li .allin-tag')?.textContent).toBe('ва-банк');
   });
 
+  it('the all-in tag has a fixed slot in every wager row', () => {
+    show(
+      view({
+        phase: 'wager',
+        round: finalRound,
+        players: three,
+        final: hostFinal({
+          wagers: [
+            { playerId: 'p1', nickname: 'Анна', wager: 1000, limit: 1000, allIn: true },
+            { playerId: 'p2', nickname: 'Богдан', wager: 100, limit: 400, allIn: false },
+          ],
+        }),
+      }),
+    );
+    const rows = [...document.querySelectorAll('.wager-list li')];
+    for (const li of rows) expect([...li.children].map((child) => child.className)).toEqual(['name', 'given', 'allin-slot', 'meta']);
+    expect(rows[0].querySelector('.allin-slot .allin-tag')?.textContent).toBe('ва-банк');
+    expect(rows[1].querySelector('.allin-slot')?.textContent).toBe('');
+  });
+
   it('the host splits the bank after the last reveal', () => {
     const send = show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 0, splitNext: true, mode: 'bank' }) }));
     fireEvent.click(button('Розділити банк'));
@@ -1017,6 +1037,18 @@ describe('HostScreen final', () => {
   it('shows the running bank before the split', () => {
     show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 1, mode: 'bank', bank: 1500 }) }));
     expect(screen.getByText('Банк: 1500')).toBeTruthy();
+  });
+
+  it('reserves the share slot before the split and keeps the refund meter short', () => {
+    const loser = entry('p1', 'Анна', { wager: 1000, before: 1000, after: 0 });
+    const final = (split: object | null) =>
+      hostFinal({ left: 0, mode: 'bank', bank: 1000, shown: [loser], entries: [loser], split: split as never });
+    show(during('reveal', single, { round: finalRound, players: three, final: final(null) }));
+    expect(document.querySelectorAll('.wager-list li .wager-share')).toHaveLength(1);
+    expect(document.querySelector('.wager-list li .wager-share')?.textContent).toBe('');
+    cleanup();
+    show(during('reveal', single, { round: finalRound, players: three, final: final({ bank: 1000, refund: true, shares: [] }) }));
+    expect(document.querySelector('.bank-meter')?.textContent).toBe('Ставки повернуто');
   });
 
   it('goes on with the usual next button once everyone is revealed', () => {

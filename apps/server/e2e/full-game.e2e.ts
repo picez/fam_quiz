@@ -3254,6 +3254,15 @@ async function bankGame() {
   const meter = stage.locator('.bank-meter');
   const meterSays = (text: string) => meter.getByText(text, exact).waitFor();
   const meterY = async () => (await meter.boundingBox())!.y;
+  const meterH = async () => (await meter.boundingBox())!.height;
+  // Розташування колонок рядка на сцені: розподіл і повернення ставок не мають нічого зсувати.
+  const columns = async (nickname: string) => {
+    const box = async (selector: string) => {
+      const b = (await row(nickname).locator(selector).boundingBox())!;
+      return [Math.round(b.x), Math.round(b.y), Math.round(b.width)];
+    };
+    return { given: await box('.given'), stake: await box('.wager-stake'), delta: await box('.wager-delta'), share: await box('.wager-share') };
+  };
 
   // 1. Класичний раунд: Оля 1500, Петро 1000, Іра 500, Марко 1000.
   await click(host, 'Почати гру');
@@ -3379,9 +3388,19 @@ async function bankGame() {
 
   // Розподіл: кнопку бачить лише ведучий; частки 642 і 858 (залишок 1 — Маркові з найбільшою ставкою).
   await host.getByRole('button', { name: 'Розділити банк', ...exact }).waitFor();
+  const beforeSplit = { petro: await columns('Петро'), ira: await columns('Іра') };
+  // «ВА-БАНК!» Іри живе в колонці імені: відповідь, ставка й рахунок стоять у тих самих колонках, що в Петра.
+  expect(beforeSplit.ira.given[0]).toBe(beforeSplit.petro.given[0]);
+  expect(beforeSplit.ira.stake[0]).toBe(beforeSplit.petro.stake[0]);
+  expect(beforeSplit.ira.delta[0]).toBe(beforeSplit.petro.delta[0]);
+  const hostShareBefore = (await host.locator('.wager-list li', { hasText: 'Петро' }).locator('.wager-share').boundingBox())!;
   await click(host, 'Розділити банк');
   await meterSays('Банк 1500 розділено');
   await expect.poll(() => rowText('Петро')).toContain('1000→1642');
+  expect({ petro: await columns('Петро'), ira: await columns('Іра') }).toEqual(beforeSplit);
+  await host.locator('.wager-list li', { hasText: 'Петро' }).getByText('+642 з банку', exact).waitFor();
+  const hostShareAfter = (await host.locator('.wager-list li', { hasText: 'Петро' }).locator('.wager-share').boundingBox())!;
+  expect([hostShareAfter.x, hostShareAfter.y, hostShareAfter.width]).toEqual([hostShareBefore.x, hostShareBefore.y, hostShareBefore.width]);
   expect(await rowText('Петро')).toContain('+642збанку');
   expect(await rowText('Марко')).toContain('1000→1858');
   expect(await rowText('Марко')).toContain('+858збанку');
@@ -3442,11 +3461,19 @@ async function bankGame() {
   await meterSays('Банк: 1100');
   expect(await rowText('Марко')).toContain('1858→1858');
   for (const page of [stage, ...phones]) expect(await visible(page)).not.toMatch(/ставки повертаються|Розділити/);
+  expect(await rowText('Іра')).not.toContain('убанк');
+  const beforeRefund = { olya: await columns('Оля'), meter: await meterH(), y: await meterY() };
 
   await click(host, 'Розділити банк');
-  await meterSays('Ніхто не відповів правильно — ставки повертаються');
+  // На сцені коротко й в один рядок; повне пояснення — на телефоні.
+  await meterSays('Ставки повернуто');
   await expect.poll(() => rowText('Оля')).toContain('500→500');
   expect(await rowText('Петро')).toContain('1642→1642');
+  expect(await rowText('Оля')).toContain('ставкуповернуто');
+  expect(await rowText('Петро')).toContain('ставкуповернуто');
+  expect(await rowText('Іра')).not.toMatch(/убанк|повернуто/);
+  expect(await visible(stage)).not.toMatch(/у банк|з банку/);
+  expect({ olya: await columns('Оля'), meter: await meterH(), y: await meterY() }).toEqual(beforeRefund);
   await olya.getByText('Ніхто не відповів правильно — ставки повертаються', exact).waitFor();
   await shot(stage, 'bank7e-refund-stage');
 

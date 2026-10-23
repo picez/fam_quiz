@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type FinalRound, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, type FinalRound, type Question, type Round } from '@quiz/shared';
 import { adjustScore } from './adjust';
 import { guessWord } from './chain';
 import { placeWager } from './final';
@@ -19,19 +19,20 @@ type FinalOptions = Partial<Omit<FinalRound, 'id' | 'type' | 'questions'>>;
 const scores = (state: GameState) => state.players.map((p) => p.score);
 const finalRecord = (state: GameState, playerId: string) => recordOf(state, state.plays.length - 1, playerId);
 
-function quizWith(final: FinalOptions = {}, question: Question = f1) {
+function quizWith(final: FinalOptions = {}, question: Question = f1, tail: Round[] = []) {
   return makeRoundsQuiz(
     [
       classicRound('r1', [single, q2], { speedBonus: false, rules: { ...DEFAULT_RULES, penalty: 'minus' } }),
       finalRound('f', question, final),
+      ...tail,
     ],
     { leaderboard: 'end' },
   );
 }
 
 /** Класичний раунд зіграно, гра на етапі ставок фіналу. Рахунки 1000, 400, −400. */
-function toWagers(final: FinalOptions = {}, question: Question = f1): GameState {
-  let s = must(start(lobbyWith(quizWith(final, question), 'Анна', 'Богдан', 'Віра')));
+function toWagers(final: FinalOptions = {}, question: Question = f1, tail: Round[] = []): GameState {
+  let s = must(start(lobbyWith(quizWith(final, question, tail), 'Анна', 'Богдан', 'Віра')));
   s = must(next(s, 0, rng));
   s = must(submitAnswer(s, 'p1', right, 1000));
   s = must(next(must(lock(s)), 2000, rng));
@@ -45,8 +46,8 @@ function toWagers(final: FinalOptions = {}, question: Question = f1): GameState 
 }
 
 /** Банк: Віра отримує 1000 від ведучого (межа 600); ставки 1000 / 400 / 200; запитання відкрито. */
-function toBankQuestion(final: FinalOptions = {}): GameState {
-  let s = toWagers({ wagerMode: 'bank', ...final });
+function toBankQuestion(final: FinalOptions = {}, tail: Round[] = []): GameState {
+  let s = toWagers({ wagerMode: 'bank', ...final }, f1, tail);
   s = must(adjustScore(s, 'p3', 1000, 8500));
   expect(s.final?.limits.p3).toBe(600);
   s = must(placeWager(s, 'p1', 1000, 9000, rng));
@@ -57,8 +58,8 @@ function toBankQuestion(final: FinalOptions = {}): GameState {
 }
 
 /** Банк: p1 неправильно, p2 і p3 правильно; reveal, порядок p2, p3, p1 (до фіналу 400 / 600 / 1000). */
-function toBankReveal(final: FinalOptions = {}): GameState {
-  let s = toBankQuestion(final);
+function toBankReveal(final: FinalOptions = {}, tail: Round[] = []): GameState {
+  let s = toBankQuestion(final, tail);
   s = must(submitAnswer(s, 'p1', wrong, 11_000));
   s = must(submitAnswer(s, 'p2', right, 11_500));
   s = must(submitAnswer(s, 'p3', right, 12_000));
@@ -246,6 +247,36 @@ describe('the bank reveal', () => {
       expect(scores(ended)).toEqual([0, 1067, 933]);
       expect(playerView(ended, 'p2')!.me.score).toBe(1067);
     }
+  });
+
+  it('a right answer with a zero stake gets no share on a refund', () => {
+    let s = toQuestion({ wagerMode: 'bank' });
+    s = must(submitAnswer(s, 'p1', wrong, 11_000));
+    s = must(submitAnswer(s, 'p2', wrong, 11_500));
+    s = must(submitAnswer(s, 'p3', right, 12_000));
+    s = must(next(s, 13_000, rng));
+    s = must(next(revealAll(s), 15_000, rng));
+    const stage = stageView(s).final!;
+    expect(stage.split).toMatchObject({ refund: true, shares: [] });
+    expect(stage.shown.find((e) => e.playerId === 'p3')).toMatchObject({ grade: 'correct', share: null });
+    expect(hostView(s).final?.entries.every((e) => e.share === null)).toBe(true);
+  });
+
+  it('kicking a loser after the bank final keeps the winners scores', () => {
+    const tail = [classicRound('r3', [withId(single, 'q3')], { speedBonus: false })];
+    let s = revealAll(toBankReveal({}, tail));
+    s = must(next(s, 15_000, rng));
+    expect(s.final?.split).toBe(true);
+    s = must(next(s, 16_000, rng));
+    expect(s.phase).toBe('round_end');
+    expect(scores(s)).toEqual([0, 1067, 933]);
+    const kicked = must(removePlayer(s, 'p1'));
+    expect(scores(kicked)).toEqual([1067, 933]);
+    expect([finalRecord(kicked, 'p2')?.points, finalRecord(kicked, 'p3')?.points]).toEqual([667, 333]);
+    const adjusted = must(adjustScore(kicked, 'p2', 10, 17_000));
+    expect(scores(adjusted)).toEqual([1077, 933]);
+    const ended = must(removePlayer(must(end(s)), 'p1'));
+    expect(scores(ended)).toEqual([1067, 933]);
   });
 
   it('the host regrades a revealed player and the bank follows', () => {

@@ -419,7 +419,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               <li key={entry.playerId}>
                 <span className="name">{entry.nickname}</span>
                 <span className="given">{entry.wager === null ? t('finalThinking') : num(entry.wager)}</span>
-                {entry.allIn && <span className="allin-tag">{t('finalAllInTag')}</span>}
+                {/* Стале місце для «ва-банк»: межа ставки в усіх рядках стоїть в одній колонці. */}
+                <span className="allin-slot">{entry.allIn && <span className="allin-tag">{t('finalAllInTag')}</span>}</span>
                 <span className="meta">{t('finalLimit', { limit: num(entry.limit) })}</span>
               </li>
             ))}
@@ -454,11 +455,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           <h2>{t('finalRevealed', { shown: final.shown.length, total: final.total })}</h2>
           {final.mode === 'bank' && (
             <p className="bank-meter" role="status">
-              {final.split === null
-                ? t('finalBank', { bank: num(final.bank) })
-                : final.split.refund
-                  ? t('finalRefund')
-                  : t('finalBankSplit', { bank: num(final.split.bank) })}
+              <span className="bank-meter-text">
+                {final.split === null
+                  ? t('finalBank', { bank: num(final.bank) })
+                  : final.split.refund
+                    ? t('finalRefundMeter')
+                    : t('finalBankSplit', { bank: num(final.split.bank) })}
+              </span>
             </p>
           )}
           <ul className="rows wager-list">
@@ -471,8 +474,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct, view.question?.choices)}</span>
                   <span className="tag">{num(entry.wager)}</span>
                   <span className="score">{`${num(entry.before)} → ${num(entry.after)}`}</span>
-                  {entry.allIn && <span className="allin-tag">{t('finalAllInTag')}</span>}
-                  {entry.share !== null && <span className="wager-share">{t('finalShare', { share: num(entry.share) })}</span>}
+                  <span className="allin-slot">{entry.allIn && <span className="allin-tag">{t('finalAllInTag')}</span>}</span>
+                  {/* Місце частки зарезервоване з першого розкриття: розподіл не зсуває рядки. */}
+                  {final.mode === 'bank' && (
+                    <span className="wager-share">{entry.share === null ? '' : t('finalBankShare', { share: num(entry.share) })}</span>
+                  )}
                   {revealed && (
                     <span className={entry.grade === 'correct' ? 'tag is-correct' : 'tag is-wrong'}>{entry.grade === 'correct' ? '✓' : '✗'}</span>
                   )}

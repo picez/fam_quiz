@@ -683,7 +683,28 @@ describe('StageScreen final', () => {
     expect(meter?.textContent).toBe('Банк 1500 розділено');
     again({ bank: 1500, left: 0, split: { bank: 1500, refund: true, shares: [] } });
     expect(document.querySelector('.bank-meter')).toBe(meter);
-    expect(meter?.textContent).toBe('Ніхто не відповів правильно — ставки повертаються');
+    // На сцені коротко, щоб лічильник лишався в один рядок; повний текст — на телефонах.
+    expect(meter?.textContent).toBe('Ставки повернуто');
+  });
+
+  it('refund rows say the stake came back, a zero stake has no suffix, nobody gets a share', () => {
+    const lost = { ...entry('Богдан', 500, 500, 500), grade: 'wrong' as const };
+    const zero = { ...entry('Віра', 0, 300, 300), grade: 'wrong' as const };
+    show(bankRevealView({ bank: 500, left: 0, shown: [zero, lost], split: { bank: 500, refund: true, shares: [] } }));
+    const row = (name: string) => screen.getByText(name).closest('li')!;
+    expect(row('Богдан').querySelector('.wager-stake')?.textContent).toBe('Ставка 500 · ставку повернуто');
+    expect(row('Віра').querySelector('.wager-stake')?.textContent).toBe('Ставка 0');
+    expect(document.body.textContent).not.toContain('у банк');
+    expect(document.body.textContent).not.toContain('з банку');
+    // Місце частки є в кожному рядку з першого розкриття, щоб розподіл нічого не зсував.
+    expect(document.querySelectorAll('.wager-list li .wager-share')).toHaveLength(2);
+  });
+
+  it('the all-in badge sits in the name column, so the other columns stay in place', () => {
+    show(bankRevealView({ bank: 0, left: 1, shown: [{ ...entry('Віра', 300, 300, 300), allIn: true }, entry('Богдан', 100, 400, 400)] }));
+    const rows = [...document.querySelectorAll('.wager-list li')];
+    for (const li of rows) expect([...li.children].map((child) => child.className)).toEqual(['wager-who', 'given', 'tag wager-stake', 'wager-delta', 'wager-share']);
+    expect(rows.find((li) => li.textContent?.includes('Віра'))?.querySelector('.wager-who .allin-badge')?.textContent).toBe('ВА-БАНК!');
   });
 
   it('bank rows say where the stake went and the share after the split', () => {
