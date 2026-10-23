@@ -247,6 +247,8 @@ export interface FinalEntry {
   answer: Answer | null;
   grade: Grade;
   wager: number;
+  /** Ставка дорівнювала всім балам (> 0). */
+  allIn: boolean;
   /** Рахунок до фіналу й після нього. */
   before: number;
   after: number;
@@ -266,8 +268,8 @@ export interface FinalInfo {
 }
 
 export interface HostFinal extends FinalInfo {
-  /** Ставки всіх гравців; null — ще не поставив. */
-  wagers: { playerId: string; nickname: string; wager: number | null; limit: number }[];
+  /** Ставки всіх гравців; null — ще не поставив. allIn — ставка дорівнює межі й більша за 0. */
+  wagers: { playerId: string; nickname: string; wager: number | null; limit: number; allIn: boolean }[];
   /** Записи без урахування розкриття: до reveal лише тих, хто відповів (у порядку гравців), на reveal усіх, у порядку розкриття. */
   entries: FinalEntry[];
   manual: boolean;
@@ -345,8 +347,8 @@ export interface PlayerView extends BaseView {
     answer: Answer | null;
     result: PlayerResult | null;
     blitz: PlayerBlitz | null;
-    /** Власна ставка й її межа; null поза фіналом. */
-    final: { wager: number | null; limit: number } | null;
+    /** Власна ставка й її межа; allIn — ставка дорівнює межі й більша за 0; null поза фіналом. */
+    final: { wager: number | null; limit: number; allIn: boolean } | null;
     /** null поза запитанням-ланцюжком. */
     chain: PlayerChain | null;
     /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера). */

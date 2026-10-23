@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type FinalRound, type Question, type RoundRules } from '@quiz/shared';
+import { adjustScore } from './adjust';
 import { guessWord } from './chain';
 import { placeWager } from './final';
 import {
@@ -90,7 +91,7 @@ describe('the final round', () => {
     expect(scores(roundEnd)).toEqual([1000, 400, -400]);
     const intro = must(next(roundEnd, 7000, rng));
     expect(intro.phase).toBe('intro');
-    expect(intro.final).toEqual({ limits: {}, wagers: {}, order: [], shown: 0 });
+    expect(intro.final).toEqual({ limits: {}, wagers: {}, allIn: [], order: [], shown: 0 });
     const wager = must(next(intro, 8000, rng));
     expect(wager.phase).toBe('wager');
     expect(wager.final?.limits).toEqual({ p1: 1000, p2: 400, p3: 0 });
@@ -104,7 +105,7 @@ describe('the final round', () => {
     const quiz = makeRoundsQuiz([finalRound('f', f1)]);
     const intro = must(start(lobbyWith(quiz, 'Анна', 'Богдан')));
     expect(intro.phase).toBe('intro');
-    expect(intro.final).toEqual({ limits: {}, wagers: {}, order: [], shown: 0 });
+    expect(intro.final).toEqual({ limits: {}, wagers: {}, allIn: [], order: [], shown: 0 });
     const wager = must(next(intro, 1000, rng));
     expect(wager.phase).toBe('wager');
     expect(wager.final?.limits).toEqual({ p1: 0, p2: 0 });
@@ -141,7 +142,7 @@ describe('the final round', () => {
     expect(s.startedAt).toBe(9300);
     expect(s.endsAt).toBe(9300 + 20_000);
     expect(last(s).question.id).toBe('f1');
-    expect(last(s).final).toEqual({ wagers: { p1: 600, p2: 400, p3: 0 }, graded: [] });
+    expect(last(s).final).toEqual({ wagers: { p1: 600, p2: 400, p3: 0 }, allIn: ['p2'], graded: [] });
     expect(placeWager(s, 'p1', 100, 9400, rng)).toEqual({ ok: false, error: 'wrong_phase' });
 
     let away = must(setConnected(toWagers(), 'p3', false, 8500));
@@ -157,7 +158,7 @@ describe('the final round', () => {
     const opened = must(next(s, 9500, rng));
     expect(opened.phase).toBe('question');
     expect(opened.startedAt).toBe(9500);
-    expect(last(opened).final).toEqual({ wagers: { p1: 500, p2: 0, p3: 0 }, graded: [] });
+    expect(last(opened).final).toEqual({ wagers: { p1: 500, p2: 0, p3: 0 }, allIn: [], graded: [] });
   });
 
   it('a correct answer adds the wager and a wrong or missing one subtracts it', () => {
@@ -319,7 +320,59 @@ describe('the final round', () => {
 
     let m = must(override(must(lock(must(submitAnswer(toQuestion({ check: 'manual' }), 'p1', right, 11_000)))), 'p1', 'correct'));
     m = must(removePlayer(m, 'p1'));
-    expect(last(m).final).toEqual({ wagers: { p2: 400, p3: 0 }, graded: [] });
+    expect(last(m).final).toEqual({ wagers: { p2: 400, p3: 0 }, allIn: ['p2'], graded: [] });
+  });
+
+  it('all-in stakes the whole limit and a plain wager drops it', () => {
+    let s = must(placeWager(toWagers(), 'p1', 0, 9000, rng, true));
+    expect(s.final?.wagers.p1).toBe(1000);
+    expect(s.final?.allIn).toEqual(['p1']);
+    s = must(placeWager(s, 'p1', 300, 9100, rng));
+    expect(s.final?.wagers.p1).toBe(300);
+    expect(s.final?.allIn).toEqual([]);
+  });
+
+  it('all-in follows host points during the wagers', () => {
+    let s = must(placeWager(toWagers(), 'p1', 0, 9000, rng, true));
+    s = must(adjustScore(s, 'p1', 200, 9100));
+    expect([s.final?.limits.p1, s.final?.wagers.p1]).toEqual([1200, 1200]);
+    s = must(adjustScore(s, 'p1', -500, 9200));
+    expect([s.final?.limits.p1, s.final?.wagers.p1]).toEqual([700, 700]);
+    s = must(adjustScore(s, 'p1', -800, 9300));
+    expect([s.final?.limits.p1, s.final?.wagers.p1, s.final?.allIn]).toEqual([0, 0, []]);
+    s = must(adjustScore(s, 'p1', 300, 9350));
+    expect([s.final?.limits.p1, s.final?.wagers.p1]).toEqual([200, 0]);
+    // Звичайна ставка не росте: p2 ставить 300, +500 → межа 900, ставка 300.
+    s = must(placeWager(s, 'p2', 300, 9400, rng));
+    s = must(adjustScore(s, 'p2', 500, 9500));
+    expect([s.final?.limits.p2, s.final?.wagers.p2]).toEqual([900, 300]);
+  });
+
+  it('all-in with a zero limit is a plain zero', () => {
+    const s = must(placeWager(toWagers(), 'p3', 0, 9000, rng, true));
+    expect([s.final?.wagers.p3, s.final?.allIn]).toEqual([0, []]);
+  });
+
+  it('the question remembers every stake of the whole limit, pressed or typed', () => {
+    let s = must(placeWager(toWagers(), 'p1', 0, 9000, rng, true));
+    s = must(placeWager(s, 'p2', 400, 9100, rng));
+    s = must(placeWager(s, 'p3', 0, 9200, rng));
+    expect(s.phase).toBe('question');
+    expect(last(s).final?.allIn).toEqual(['p1', 'p2']);
+    expect(last(toQuestion()).final?.allIn).toEqual(['p2']);
+  });
+
+  it('kicking a player drops the all-in mark', () => {
+    let w = must(placeWager(toWagers(), 'p1', 0, 9000, rng, true));
+    w = must(removePlayer(w, 'p1'));
+    expect(w.final?.allIn).toEqual([]);
+
+    let s = must(placeWager(toWagers(), 'p1', 0, 9000, rng, true));
+    s = must(placeWager(s, 'p2', 400, 9100, rng));
+    s = must(placeWager(s, 'p3', 0, 9200, rng));
+    s = must(removePlayer(s, 'p1'));
+    expect(s.final?.allIn).toEqual([]);
+    expect(last(s).final?.allIn).toEqual(['p2']);
   });
 
   it('ending the round during the wagers leaves no final records; ending after the question settles everyone', () => {

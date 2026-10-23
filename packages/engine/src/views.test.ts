@@ -926,8 +926,8 @@ describe('final round views', () => {
     expect(JSON.stringify(stageView(s))).not.toContain('777');
     expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('777');
     expect(stageView(s).final).toEqual({ theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 });
-    expect(playerView(s, 'p1')?.me.final).toEqual({ wager: 777, limit: 1000 });
-    expect(playerView(s, 'p3')?.me.final).toEqual({ wager: null, limit: 0 });
+    expect(playerView(s, 'p1')?.me.final).toEqual({ wager: 777, limit: 1000, allIn: false });
+    expect(playerView(s, 'p3')?.me.final).toEqual({ wager: null, limit: 0, allIn: false });
   });
 
   it('the reveal shows players one by one without spoilers', () => {
@@ -942,7 +942,7 @@ describe('final round views', () => {
     expect(s.final?.shown).toBe(1);
     const stage = stageView(s);
     expect(stage.final?.shown).toEqual([
-      { playerId: 'p3', nickname: 'Віра', answer: null, grade: 'wrong', wager: 0, before: -400, after: -400 },
+      { playerId: 'p3', nickname: 'Віра', answer: null, grade: 'wrong', wager: 0, allIn: false, before: -400, after: -400 },
     ]);
     expect(stage.final?.left).toBe(2);
     expect(stage.stats).toBeNull();
@@ -968,9 +968,9 @@ describe('final round views', () => {
     let host = hostView(s).final;
     expect(host?.manual).toBe(true);
     expect(host?.wagers).toEqual([
-      { playerId: 'p1', nickname: 'Анна', wager: 500, limit: 1000 },
-      { playerId: 'p2', nickname: 'Богдан', wager: null, limit: 400 },
-      { playerId: 'p3', nickname: 'Віра', wager: null, limit: 0 },
+      { playerId: 'p1', nickname: 'Анна', wager: 500, limit: 1000, allIn: false },
+      { playerId: 'p2', nickname: 'Богдан', wager: null, limit: 400, allIn: false },
+      { playerId: 'p3', nickname: 'Віра', wager: null, limit: 0, allIn: false },
     ]);
     s = must(placeWager(s, 'p2', 400, 9500, rng));
     s = must(placeWager(s, 'p3', 0, 10_000, rng));
@@ -989,6 +989,27 @@ describe('final round views', () => {
     expect(shown?.entries.map((e) => e.playerId)).toEqual(['p3', 'p2', 'p1']);
     expect(shown?.entries.find((e) => e.playerId === 'p1')).toMatchObject({ wager: 500, before: 1000, after: 1500, grade: 'correct' });
     expect(shown?.shown).toHaveLength(1);
+  });
+
+  it('all-in shows on the reveal, in the host wagers and in the own wager', () => {
+    let s = must(placeWager(toWagers(), 'p1', 0, 9000, rng, true));
+    s = must(placeWager(s, 'p2', 300, 9100, rng));
+    expect(hostView(s).final?.wagers.map((w) => [w.playerId, w.allIn])).toEqual([
+      ['p1', true],
+      ['p2', false],
+      ['p3', false],
+    ]);
+    expect(playerView(s, 'p1')?.me.final).toEqual({ wager: 1000, limit: 1000, allIn: true });
+    expect(playerView(s, 'p2')?.me.final).toEqual({ wager: 300, limit: 400, allIn: false });
+    expect(JSON.stringify(stageView(s))).not.toContain('allIn');
+    s = must(placeWager(s, 'p3', 0, 9200, rng));
+    s = must(submitAnswer(s, 'p1', correct, 11_000));
+    s = must(next(must(lock(s)), 13_000, rng));
+    while (s.final !== null && s.final.shown < s.final.order.length) s = must(next(s, 14_000, rng));
+    const shown = stageView(s).final?.shown ?? [];
+    expect(shown.find((e) => e.playerId === 'p1')?.allIn).toBe(true);
+    expect(shown.find((e) => e.playerId === 'p2')?.allIn).toBe(false);
+    expect(shown.find((e) => e.playerId === 'p3')?.allIn).toBe(false);
   });
 
   it('the final has no spotlight and no partial button', () => {

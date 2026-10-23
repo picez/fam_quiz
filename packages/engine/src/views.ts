@@ -35,7 +35,7 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type GameState, type PlayerState } from './game';
+import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type PlayerState } from './game';
 import { lastNotice } from './adjust';
 import { activeDebuff, shownDebuff } from './debuffs';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
@@ -387,6 +387,7 @@ function finalEntries(state: GameState): FinalEntry[] {
         answer: record.answer,
         grade: record.grade,
         wager: Object.hasOwn(wagers, player.id) ? wagers[player.id] : 0,
+        allIn: play.final?.allIn.includes(player.id) ?? false,
         before: player.score - record.points,
         after: player.score,
       },
@@ -421,12 +422,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const entries = finalEntries(state);
   return {
     ...info,
-    wagers: state.players.map((p) => ({
-      playerId: p.id,
-      nickname: p.nickname,
-      wager: Object.hasOwn(open.final.wagers, p.id) ? open.final.wagers[p.id] : null,
-      limit: Object.hasOwn(open.final.limits, p.id) ? open.final.limits[p.id] : 0,
-    })),
+    wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
     entries,
     manual,
     pending: manual
@@ -439,13 +435,16 @@ function hostFinal(state: GameState): HostFinal | null {
   };
 }
 
-function playerFinal(state: GameState, playerId: string): { wager: number | null; limit: number } | null {
+/** Ставка гравця (null — ще не поставив), межа й ознака ва-банку: ставка дорівнює межі й більша за 0. */
+function ownWager(final: FinalState, playerId: string): { wager: number | null; limit: number; allIn: boolean } {
+  const wager = Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : null;
+  const limit = Object.hasOwn(final.limits, playerId) ? final.limits[playerId] : 0;
+  return { wager, limit, allIn: wager !== null && wager > 0 && wager === limit };
+}
+
+function playerFinal(state: GameState, playerId: string): { wager: number | null; limit: number; allIn: boolean } | null {
   const open = finalRoundOf(state);
-  if (open === null) return null;
-  return {
-    wager: Object.hasOwn(open.final.wagers, playerId) ? open.final.wagers[playerId] : null,
-    limit: Object.hasOwn(open.final.limits, playerId) ? open.final.limits[playerId] : 0,
-  };
+  return open === null ? null : ownWager(open.final, playerId);
 }
 
 /** Поточне запитання-ланцюжок із його грою; null поза запитанням або для інших типів. */

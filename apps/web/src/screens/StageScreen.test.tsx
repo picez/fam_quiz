@@ -613,6 +613,7 @@ describe('StageScreen final', () => {
     answer: { type: 'single' as const, optionId: 'b' },
     grade: 'correct' as const,
     wager,
+    allIn: false,
     before,
     after,
   });

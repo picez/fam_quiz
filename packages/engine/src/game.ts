@@ -115,6 +115,8 @@ export interface FinalState {
   limits: Record<string, number>;
   /** Ставки; гравця без ставки тут немає. */
   wagers: Record<string, number>;
+  /** Хто натиснув «Ва-банк»: ставка йде за межею, поки триває етап ставок. */
+  allIn: string[];
   /** Порядок розкриття; заповнюється на вході в reveal. */
   order: string[];
   /** Скільки гравців з order уже розкрито. */
@@ -125,6 +127,8 @@ export interface FinalState {
 export interface FinalPlay {
   /** Ставка кожного гравця на мить відкриття запитання (без ставки — 0). */
   wagers: Record<string, number>;
+  /** Хто на мить відкриття запитання поставив усю межу (> 0), у порядку гравців. */
+  allIn: string[];
   /** Кого ведучий уже оцінив вручну (check 'manual'). */
   graded: string[];
 }
@@ -318,7 +322,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
     }
     if (play.final !== undefined) {
       const { [playerId]: _wager, ...wagers } = play.final.wagers;
-      kept.final = { wagers, graded: play.final.graded.filter((id) => id !== playerId) };
+      const without = (ids: string[]) => ids.filter((id) => id !== playerId);
+      kept.final = { wagers, allIn: without(play.final.allIn), graded: without(play.final.graded) };
     }
     if (play.blitz === undefined) return kept;
     const blitz = {
@@ -343,13 +348,14 @@ export function removePlayer(state: GameState, playerId: string): Result {
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
 
-/** Гравець зникає з меж, ставок і порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */
+/** Гравець зникає з меж, ставок, ва-банку й порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */
 function dropFromFinal(final: FinalState, playerId: string): FinalState {
   const { [playerId]: _limit, ...limits } = final.limits;
   const { [playerId]: _wager, ...wagers } = final.wagers;
   const index = final.order.indexOf(playerId);
   const shown = index !== -1 && index < final.shown ? final.shown - 1 : final.shown;
-  return { limits, wagers, order: final.order.filter((id) => id !== playerId), shown };
+  const without = (ids: string[]) => ids.filter((id) => id !== playerId);
+  return { ...final, limits, wagers, allIn: without(final.allIn), order: without(final.order), shown };
 }
 
 export function setConnected(state: GameState, playerId: string, connected: boolean, now: number): Result {
@@ -461,9 +467,12 @@ export function openFinalQuestion(state: GameState, now: number, rng: Rng): Game
   const round = currentRound(state);
   if (round?.type !== 'final' || state.final === null) return state;
   const placed = state.final.wagers;
-  const wagers = Object.fromEntries(state.players.map((p) => [p.id, Object.hasOwn(placed, p.id) ? placed[p.id] : 0]));
+  const wagers: Record<string, number> = Object.fromEntries(state.players.map((p) => [p.id, Object.hasOwn(placed, p.id) ? placed[p.id] : 0]));
+  const limits = state.final.limits;
+  // «ВА-БАНК!» — кожен, чия ставка дорівнює межі й більша за 0, натиснув він кнопку чи ввів суму.
+  const allIn = state.players.filter((p) => wagers[p.id] > 0 && Object.hasOwn(limits, p.id) && wagers[p.id] === limits[p.id]).map((p) => p.id);
   const opened = openQuestion(state, round.questions[0], now, rng);
-  return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers, graded: [] } });
+  return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers, allIn, graded: [] } });
 }
 
 /** Замінює поточне запитання в журналі; експортовано для board.ts. */
@@ -963,7 +972,7 @@ function enterRound(state: GameState): GameState {
   return {
     ...state,
     board: type === 'board' ? initBoard(state) : null,
-    final: type === 'final' ? { limits: {}, wagers: {}, order: [], shown: 0 } : null,
+    final: type === 'final' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0 } : null,
   };
 }
 

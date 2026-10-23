@@ -708,4 +708,23 @@ describe('board rounds', () => {
     expect(own.state.phase).toBe('question');
     expect(manager.wager(own, a.playerId, 5)).toEqual({ ok: false, error: 'wrong_phase' });
   });
+  it('an all-in wager through the manager stakes the whole limit', () => {
+    const { manager } = setup();
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), finalRound('f', withId(single, 'f1'))]);
+    const own = manager.create(quiz);
+    manager.connect(own, HOST);
+    const a = enter(manager, own, 'Олена');
+    const b = enter(manager, own, 'Тарас');
+    manager.host(own, { type: 'start' });
+    manager.host(own, { type: 'next' });
+    manager.answer(own, a.playerId, correct);
+    manager.answer(own, b.playerId, correct);
+    for (let i = 0; i < 4; i++) manager.host(own, { type: 'next' });
+    expect(own.state.phase).toBe('wager');
+    const limit = own.state.final?.limits[a.playerId] ?? 0;
+    expect(limit).toBeGreaterThan(0);
+    expect(manager.wager(own, a.playerId, 0, true)).toEqual({ ok: true });
+    expect(own.state.final?.wagers[a.playerId]).toBe(limit);
+    expect(own.state.final?.allIn).toEqual([a.playerId]);
+  });
 });

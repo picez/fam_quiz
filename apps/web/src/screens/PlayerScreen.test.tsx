@@ -912,7 +912,7 @@ describe('PlayerScreen final', () => {
   const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const info = { theme: 'Космос', placed: 0, total: 2, shown: [], left: 0 };
   const onWager = (limit: number, wager: number | null = null) =>
-    view({ phase: 'wager', round, final: info, me: { ...me, score: limit, final: { wager, limit } } });
+    view({ phase: 'wager', round, final: info, me: { ...me, score: limit, final: { wager, limit, allIn: false } } });
 
   it('places and changes a final wager within the limit', async () => {
     const send = show(onWager(400));
@@ -964,17 +964,17 @@ describe('PlayerScreen final', () => {
 
   it('a player waits for their own reveal, then sees the signed wager', () => {
     const base = { phase: 'reveal' as const, round, final: info, question: publicQuestion, reveal: fullQuestion, questionIndex: 0 };
-    show(view({ ...base, me: { ...me, score: 700, final: { wager: 300, limit: 700 } } }));
+    show(view({ ...base, me: { ...me, score: 700, final: { wager: 300, limit: 700, allIn: false } } }));
     expect(screen.getByText('Чекаємо на розкриття')).toBeTruthy();
     cleanup();
     const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 300 };
-    show(view({ ...base, me: { ...me, score: 1000, result, final: { wager: 300, limit: 700 } } }));
+    show(view({ ...base, me: { ...me, score: 1000, result, final: { wager: 300, limit: 700, allIn: false } } }));
     expect(screen.getByText('+300')).toBeTruthy();
     expect(screen.queryByText('Чекаємо на розкриття')).toBeNull();
   });
 
   it('the final question shows no points', () => {
-    show(onQuestion({ round, final: info, me: { ...me, final: { wager: 100, limit: 100 } } }));
+    show(onQuestion({ round, final: info, me: { ...me, final: { wager: 100, limit: 100, allIn: false } } }));
     expect(screen.queryByText(/1000/)).toBeNull();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
   });

@@ -832,6 +832,7 @@ describe('HostScreen final', () => {
     answer: { type: 'single' as const, optionId: 'b' },
     grade: 'correct' as const,
     wager: 300,
+    allIn: false,
     before: 1000,
     after: 1300,
     ...over,
@@ -846,9 +847,9 @@ describe('HostScreen final', () => {
         players: three,
         final: hostFinal({
           wagers: [
-            { playerId: 'p1', nickname: 'Анна', wager: 300, limit: 1000 },
-            { playerId: 'p2', nickname: 'Богдан', wager: 200, limit: 500 },
-            { playerId: 'p3', nickname: 'Віра', wager: null, limit: 300 },
+            { playerId: 'p1', nickname: 'Анна', wager: 300, limit: 1000, allIn: false },
+            { playerId: 'p2', nickname: 'Богдан', wager: 200, limit: 500, allIn: false },
+            { playerId: 'p3', nickname: 'Віра', wager: null, limit: 300, allIn: false },
           ],
         }),
       }),
