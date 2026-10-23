@@ -71,7 +71,7 @@ describe('guidePages', () => {
 
   it('duels when the quiz has a pool: after a third of the questions, questions per duel and the stake', () => {
     const quiz = { ...makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2'), withId(single, 'q3'), withId(single, 'q4')])], { debuffs: [] }), duels };
-    expect(guidePages(quiz).at(-1)).toEqual({ kind: 'duels', after: 2, questions: duels.questionsPerDuel, stake: duels.stake });
+    expect(guidePages(quiz).at(-1)).toEqual({ kind: 'duels', after: 2, questions: duels.questionsPerDuel, stake: duels.stake, final: false });
   });
 
   it('newcomersOn reads the flag; absent is off', () => {

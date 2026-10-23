@@ -15,7 +15,7 @@ export type GuidePage =
   | { kind: 'questions'; types: GuideType[] }
   | { kind: 'buffs'; buffs: BuffKind[] }
   | { kind: 'debuffs'; debuffs: DebuffKind[] }
-  | { kind: 'duels'; after: number; questions: number; stake: number };
+  | { kind: 'duels'; after: number; questions: number; stake: number; final: boolean };
 
 /** Найбільше типів запитань на одній сторінці. */
 export const GUIDE_TYPES_PER_PAGE = 5;
@@ -55,7 +55,13 @@ export function guidePages(quiz: Quiz): GuidePage[] {
   if (debuffs.length > 0) pages.push({ kind: 'debuffs', debuffs });
   const after = duelThreshold(quiz);
   if (after !== null && quiz.duels) {
-    pages.push({ kind: 'duels', after, questions: quiz.duels.questionsPerDuel, stake: quiz.duels.stake });
+    pages.push({
+      kind: 'duels',
+      after,
+      questions: quiz.duels.questionsPerDuel,
+      stake: quiz.duels.stake,
+      final: quiz.rounds.some((round) => round.type === 'final'),
+    });
   }
   return pages;
 }

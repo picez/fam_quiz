@@ -53,12 +53,19 @@ export function roundHow(brief: RoundBrief): string[] {
   }
 }
 
+/** Мала перша літера, лише якщо друга теж мала: «Найбільший» → «найбільший», а «NASA» чи «ВВП» без змін. */
+export function lowerFirst(label: string): string {
+  const second = label.charAt(1);
+  const secondLower = second !== '' && second === second.toLocaleLowerCase('uk') && second !== second.toLocaleUpperCase('uk');
+  return secondLower ? label.charAt(0).toLocaleLowerCase('uk') + label.slice(1) : label;
+}
+
 /** Як відповідати на запитання цього типу; top — підпис верху порядку ('' — немає). */
 export function typeHow(type: Question['type'], top = ''): string {
   if (type === 'order') {
     const label = top.trim();
     if (label === '') return t('typeHow_order');
-    return t('typeHow_orderTop', { top: label.charAt(0).toLocaleLowerCase('uk') + label.slice(1) });
+    return t('typeHow_orderTop', { top: lowerFirst(label) });
   }
   return t(`typeHow_${type}` as TextKey);
 }
@@ -103,7 +110,8 @@ export function guidePageText(page: GuidePage): GuideText {
         items: page.debuffs.map((kind) => ({ icon: DEBUFF_ICONS[kind], name: debuffName(kind), line: t(`debuffGuide_${kind}` as TextKey), details: [] })),
       };
     case 'duels': {
-      const lead = [countText('guideDuelsWhen', page.after, { count: page.after }), t('guideDuelsHow'), t('guideDuelsWin', { count: page.questions })];
+      const when = `${countText('guideDuelsWhen', page.after, { count: page.after })} ${t(page.final ? 'guideDuelsCutoffFinal' : 'guideDuelsCutoffLast')}`;
+      const lead = [when, t('guideDuelsHow'), t('guideDuelsWin', { count: page.questions })];
       if (page.stake > 0) lead.push(countText('guideDuelsStake', page.stake, { stake: page.stake }));
       return { title: t('guideDuelsTitle'), lead, items: [] };
     }

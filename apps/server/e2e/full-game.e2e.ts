@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { blitzRound, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, multi, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, text as textQ, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { DEFAULT_RULES } from '@quiz/shared';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
@@ -5715,7 +5715,7 @@ async function newcomersGame() {
     await guideOn(page, 'Типи запитань');
     const text = (await page.locator('.guide').textContent()) ?? '';
     expect(text).toContain('Торкніться одного правильного варіанта.');
-    expect(text).toContain('Розставте рядки стрілками ↑ ↓: зверху — найбільший.');
+    expect(text).toContain('Розставте рядки стрілками ↑ ↓ (зверху — найбільший) і натисніть «Відповісти».');
   }
   expect(await noSideScroll(olya), 'guide8d-types-375: horizontal scroll').toBe(true);
   expect(await noSideScroll(petro), 'guide8d-types-360: horizontal scroll').toBe(true);
@@ -5824,6 +5824,78 @@ async function newcomersGame() {
   await splashOn(stage, 'podium');
   await afterSplash(stage);
   await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 8d: the densest «Як грати» pages — four kinds of rounds, five question types, all eight buffs, six debuffs and duels — fit the 1280×720 stage without scrolling', async () => {
+  try {
+    await denseGuide();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function denseGuide() {
+  const host = await open('host8d2', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host8d2@example.com');
+  const cells = ['Міста', 'Річки', 'Гори'].map((title, column) => ({
+    title,
+    cells: [100, 200, 300].map((price) => withPoints(withId(single, `b-${column}-${price}`), price)),
+  }));
+  const rounds = [
+    classicRound('r1', [single, multi, boolQ, textQ, numericQ, { ...order, topLabel: 'Захід', bottomLabel: 'Схід' }, matchQ]),
+    blitzRound('r2', [withId(single, 'z1'), withId(single, 'z2')]),
+    boardRound('r3', cells),
+    finalRound('r4', withId(single, 'f1'), { wagerMode: 'bank' }),
+  ];
+  const data = {
+    ...makeRoundsQuiz(rounds, {
+      newcomers: true,
+      buffs: ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'],
+      debuffs: ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'],
+    }),
+    title: 'Щільний гайд',
+    spares: [withId(single, 's1')],
+    duels: duelPool,
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Щільний гайд' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage8d2', 1280, 720);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya8d2', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await stage.getByText('Оля').waitFor();
+
+  await click(host, 'Почати гру');
+  const pages: [string, string, number][] = [
+    ['Відповідайте з телефона', 'phone', 0],
+    ['Раунди цієї гри', 'rounds', 4],
+    ['Типи запитань', 'types-5', 5],
+    ['Типи запитань', 'types-2', 2],
+    ['Бафи — ваші допомоги', 'buffs-8', 8],
+    ['Дебафи від ведучого', 'debuffs-6', 6],
+    ['Дуелі', 'duels', 0],
+  ];
+  for (const [at, [title, name, items]] of pages.entries()) {
+    await stage.locator('.guide-kicker', { hasText: `${at + 1} з ${pages.length}` }).waitFor();
+    await guideOn(stage, title);
+    expect(await stage.locator('.guide-item').count(), `guide8d-dense-${name}: items`).toBe(items);
+    await shot(stage, `guide8d-dense-${name}-stage`);
+    expect(await stage.evaluate('document.documentElement.scrollHeight <= innerHeight'), `guide8d-dense-${name}-stage: vertical scroll`).toBe(true);
+    if (at < pages.length - 1) await click(host, 'Далі');
+  }
+  expect(await stage.locator('.guide').textContent()).toContain('Викликати можна до фіналу.');
+  await click(host, 'До гри');
+  await stage.locator('.splash').first().waitFor();
 
   expect(problems).toEqual([]);
 }
