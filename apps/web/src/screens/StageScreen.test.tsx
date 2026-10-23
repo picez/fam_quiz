@@ -1136,7 +1136,8 @@ describe('StageScreen: splashes', () => {
 
     onCell(base);
     expect(document.querySelector('.splash-face.is-front .price')?.textContent).toBe('300');
-    expect(document.querySelector('.splash-face.is-back .splash-cell-marks')?.textContent).toBe('×2');
+    expect(document.querySelector('.splash-face.is-back .splash-cell-marks')).toBeNull();
+    expect(document.querySelector('.splash-surprise')?.textContent).toBe('×2!');
     expect(document.querySelector('.splash-face.is-blitz, .splash-face.is-voice')).toBeNull();
     // Запитання під шаром ще не почалося: aria-busy, поки йде перегортання.
     expect(document.querySelector('.stage-question')?.getAttribute('aria-busy')).toBe('true');

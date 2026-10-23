@@ -38,6 +38,7 @@
   --spare-accent: #ffcf5c;
   --vote-bar: rgb(126 224 255 / 0.22);
   --removed-tag: #ff9db0;
+  --surprise: #ffd23f;
   --guide-accent: #8fe3b0;
   --guide-accent-soft: rgb(143 227 176 / 0.14);
   /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
@@ -5506,6 +5507,37 @@ label.powers-item {
   color: var(--amber);
 }
 
+/* Сюрприз: штамп поверх звороту картки, невидимий, доки не закінчиться перегортання. */
+.splash-surprise {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(4rem, 10vw, 9rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--surprise);
+  text-shadow: 0 0 1.5rem rgb(0 0 0 / 0.6);
+  opacity: 1;
+  animation: splash-surprise-in calc(var(--splash-ms) - var(--splash-flip-ms)) linear calc(var(--splash-elapsed) + var(--splash-flip-ms)) both;
+}
+
+.splash.is-surprise .splash-flip {
+  animation-duration: var(--splash-flip-ms);
+}
+
+@keyframes splash-surprise-in {
+  0% {
+    opacity: 0;
+  }
+  30%,
+  100% {
+    opacity: 1;
+  }
+}
+
 .splash.is-phone .splash-face.is-front .price {
   font-size: 1.5rem;
 }
@@ -5595,6 +5627,23 @@ label.powers-item {
     100% {
       transform: rotate(calc(var(--spark) * 30deg)) translateY(-38vmin) scale(1);
       opacity: 0;
+    }
+  }
+
+  .splash-surprise {
+    animation-name: splash-surprise;
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  @keyframes splash-surprise {
+    0% {
+      opacity: 0;
+      transform: scale(1.6);
+    }
+    30%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 

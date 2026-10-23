@@ -167,7 +167,7 @@ describe('Splash', () => {
     expect(box.querySelector('.splash.is-cell .splash-face.is-front')?.textContent).toContain('300');
     const back = box.querySelector('.splash-face.is-back')?.textContent;
     expect(back).toContain('Міста · 300');
-    expect(back).toContain('×2');
+    expect(back).not.toContain('×2');
 
     box = show(stage({ phase: 'duel', duel, splash: at('duel') }));
     expect(box.querySelector('.splash.is-duel .splash-title')?.textContent).toBe('Дуель!');
@@ -178,6 +178,21 @@ describe('Splash', () => {
     box = show(stage({ phase: 'finished', splash: at('podium', 2500) }), 'phone');
     expect(box.querySelector('.splash.is-podium.is-phone .splash-title')?.textContent).toBe('Підсумки');
     expect(box.querySelector('.splash-sub')?.textContent).toBe('Хто ж переміг?');
+  });
+
+  it('a marked cell ends its flip with «×2!»', () => {
+    const now = Date.now();
+    const cellSplash = { kind: 'cell', at: now, until: now + 1800 } as const;
+    const withMark = (mark: 'x2' | 'x3' | 'none') =>
+      stage({ phase: 'question', round: { ...round, type: 'board' }, board: { ...board, cell: { ...board.cell!, mark } }, questionIndex: 0, splash: cellSplash });
+    const { container, unmount } = render(<Splash view={withMark('x2')} offsetMs={0} size="stage" />);
+    expect(container.querySelector('.splash.is-cell.is-surprise')).not.toBeNull();
+    expect(container.querySelector('.splash-surprise')?.textContent).toBe('×2!');
+    expect(container.querySelector('.splash')?.getAttribute('style')).toContain('--splash-flip-ms: 1000ms');
+    unmount();
+    const plain = render(<Splash view={withMark('none')} offsetMs={0} size="stage" />);
+    expect(plain.container.querySelector('.is-surprise')).toBeNull();
+    expect(plain.container.querySelector('.splash-surprise')).toBeNull();
   });
 
   it('the host chip shows only during a splash', () => {
@@ -209,6 +224,14 @@ function insideNoPreference(index: number): boolean {
 }
 
 describe('splash styles', () => {
+  it('the surprise moves only without reduced motion', () => {
+    expect(rule('.splash-surprise')).not.toContain('transform');
+    expect(rule('.splash-surprise')).toContain('opacity');
+    const at = css.indexOf('animation-name: splash-surprise;');
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(insideNoPreference(at)).toBe(true);
+  });
+
   it('the splash is a fixed layer and moves only without reduced motion', () => {
     expect(rule('.splash')).toContain('position: fixed');
     expect(rule('.splash')).toContain('inset: 0');

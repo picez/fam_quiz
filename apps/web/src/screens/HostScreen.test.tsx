@@ -808,11 +808,11 @@ describe('HostScreen: blitz', () => {
 
     it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
       const unmarked = boardOf().categories[0].cells.map((cell) => ({ ...cell, mark: 'none' as const }));
-      show(onBoard({}, boardOf({ categories: [{ id: 'k1', title: 'Міста', cells: unmarked }] })));
+      show(onBoard({}, boardOf({ categories: [{ id: 'k1', title: 'Міста', cells: unmarked }], marks: [] })));
       expect(document.body.textContent).not.toContain('×');
       cleanup();
       const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
-      show(during('question', single, { round: boardRound, players: three, board: boardOf({ cell }) }));
+      show(during('question', single, { round: boardRound, players: three, board: boardOf({ cell, marks: [] }) }));
       expect(screen.getByText('Відповідає Олена')).toBeTruthy();
       expect(document.body.textContent).not.toContain('×');
     });
