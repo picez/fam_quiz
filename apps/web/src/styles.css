@@ -26,7 +26,8 @@
   --mud: #5b3a1e;
   --mud-dark: #3e2612;
   --sort-zone: rgb(155 140 255 / 0.16);
-  --sort-lock: rgb(58 10 22 / 0.86);
+  --sort-lock: rgb(58 10 22 / 0.45);
+  --sort-lock-strip: rgb(58 10 22 / 0.94);
   --display: 'Unbounded Variable', system-ui, sans-serif;
   --body: 'Onest Variable', system-ui, sans-serif;
   color-scheme: dark;
@@ -3887,6 +3888,8 @@ button.sort-zone:disabled {
 }
 
 .sort-card {
+  position: relative;
+  z-index: 1;
   max-width: 100%;
   max-height: 100%;
   padding: 0.875rem 0.625rem;
@@ -3905,18 +3908,18 @@ button.sort-zone:disabled {
 }
 
 .sort-card.is-dragging {
-  position: relative;
-  z-index: 2;
+  z-index: 3;
   cursor: grabbing;
 }
 
+/* Тонування всієї середини лежить під карткою; відлік — смуга внизу над нею. Розмір середини не змінюється. */
 .sort-lock {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem;
+  align-items: flex-end;
+  justify-content: stretch;
+  margin: 0;
   border-radius: 0.875rem;
   background: var(--sort-lock);
   color: var(--paper);
@@ -3924,6 +3927,16 @@ button.sort-zone:disabled {
   text-align: center;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.sort-lock-text {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0 0 0.875rem 0.875rem;
+  background: var(--sort-lock-strip);
 }
 
 .sort-done {

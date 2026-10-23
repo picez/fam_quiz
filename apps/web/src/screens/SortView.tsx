@@ -84,6 +84,8 @@ export function SortPlay({
   const arenaRef = useRef<HTMLDivElement>(null);
   const pendingRef = useRef(false);
   const fallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Номер поточного ходу: запізніла відповідь на старий хід (після запасного тайм-ауту) не звільняє новий.
+  const tokenRef = useRef(0);
   const mountedRef = useRef(true);
   const dragRef = useRef<{ id: number; x: number; y: number } | null>(null);
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
@@ -133,7 +135,8 @@ export function SortPlay({
   const blocked = () =>
     pendingRef.current || zonesOff || sort.card === null || arenaRef.current?.closest('fieldset')?.disabled === true;
 
-  const release = () => {
+  const release = (token: number) => {
+    if (tokenRef.current !== token || !pendingRef.current) return;
     pendingRef.current = false;
     if (fallbackRef.current !== null) clearTimeout(fallbackRef.current);
     fallbackRef.current = null;
@@ -145,15 +148,17 @@ export function SortPlay({
     const card = sort.card;
     if (category === undefined || card === null || blocked()) return;
     pendingRef.current = true;
-    fallbackRef.current = setTimeout(release, PENDING_FALLBACK_MS);
+    const token = ++tokenRef.current;
+    fallbackRef.current = setTimeout(() => release(token), PENDING_FALLBACK_MS);
     if (!reducedMotion()) setFly({ wordId: card.id, pos });
     void send('player:sort', { wordId: card.id, categoryId: category.id })
       .then((result) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || tokenRef.current !== token) return;
         setError(result.ok || QUIET.has(result.error) ? null : errorText(result.error));
       })
       .finally(() => {
-        release();
+        if (tokenRef.current !== token) return;
+        release(token);
         if (mountedRef.current) setFly(null);
       });
   };
@@ -241,8 +246,9 @@ export function SortPlay({
           done && <p className="sort-done">{t('sortDone', { time: secondsText(sort.timeMs ?? 0) })}</p>
         )}
         {locked && (
+          // Тонування під карткою й смуга відліку внизу середини: картка, що трусить, лишається видимою.
           <p className="sort-lock" role="status">
-            {t('sortLocked', { seconds: lockSeconds })}
+            <span className="sort-lock-text">{t('sortLocked', { seconds: lockSeconds })}</span>
           </p>
         )}
       </Arena>

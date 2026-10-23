@@ -98,6 +98,25 @@ describe('SortView', () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it('a late reply to a timed-out move does not free a newer move in flight', async () => {
+    const replies: ((value: { ok: true }) => void)[] = [];
+    const send = vi.fn<Send>(() => new Promise((r) => replies.push(r)));
+    play(2, playerSort(), send);
+    fireEvent.click(zone('left'));
+    expect(send).toHaveBeenCalledTimes(1);
+    // Перша відповідь не прийшла: через 3 с картка знову приймає хід.
+    act(() => vi.advanceTimersByTime(3000));
+    fireEvent.click(zone('right'));
+    expect(send).toHaveBeenCalledTimes(2);
+    // Запізніла відповідь на перший хід не звільняє другий.
+    await act(async () => replies[0]({ ok: true }));
+    fireEvent.click(zone('right'));
+    expect(send).toHaveBeenCalledTimes(2);
+    await act(async () => replies[1]({ ok: true }));
+    fireEvent.click(zone('right'));
+    expect(send).toHaveBeenCalledTimes(3);
+  });
+
   it('arrow keys pick the zone in that position', async () => {
     const { send } = play(3);
     fireEvent.keyDown(document, { key: 'ArrowLeft' });
@@ -136,6 +155,10 @@ describe('SortView', () => {
     expect(card().classList.contains('is-shaking')).toBe(true);
     expect(card().textContent).toBe('Морква');
     expect(document.querySelector('.sort-lock')?.textContent).toBe('Помилка! Підвисання: 3 с');
+    // Відлік — смуга внизу середини, картка не під шаром і лежить над тонуванням.
+    expect(document.querySelector('.sort-lock')?.contains(card())).toBe(false);
+    expect(document.querySelector('.sort-lock-text')?.textContent).toBe('Помилка! Підвисання: 3 с');
+    expect(document.querySelector('.sort-center')?.contains(document.querySelector('.sort-lock'))).toBe(true);
     expect(zone('left').disabled).toBe(true);
     expect(zone('right').disabled).toBe(true);
     fireEvent.keyDown(document, { key: 'ArrowLeft' });
