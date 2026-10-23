@@ -2,6 +2,7 @@ import { LIMITS, duelCutoff, duelThreshold, type DuelQuestion, type Phase, type 
 import { adjustScore } from './adjust';
 import { textMatches } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
+import { notStarted, splashUntil, withSplash } from './splash';
 import { fail, next, ok, type DuelQuestionPlay, type DuelState, type GameState, type Result, type Rng } from './game';
 
 /** Етапи гри, на яких можна оголосити дуель. */
@@ -84,19 +85,23 @@ function runningDuel(state: GameState): DuelState | null {
   return state.phase === 'duel' ? state.duel : null;
 }
 
-/** Відкриває випадкове невикористане запитання категорії дуелі зі свіжим таймером; порожня категорія — null. */
+/**
+ * Відкриває випадкове невикористане запитання категорії дуелі зі свіжим таймером; порожня категорія — null.
+ * Вибране під час заставки «Дуель!» стартує після неї.
+ */
 function openDuelQuestion(state: GameState, duel: DuelState, now: number, rng: Rng): GameState | null {
   const pool = unusedOf(state, duel.categoryId ?? '');
   const duels = state.quiz.duels;
   if (pool.length === 0 || duels === undefined) return null;
   const question = pool[Math.floor(rng() * pool.length)];
   const play: DuelQuestionPlay = { questionId: question.id, tries: {}, winnerId: null, answer: null, timeMs: null };
+  const at = Math.max(now, splashUntil(state, 'duel') ?? now);
   return {
     ...state,
     duel: { ...duel, stage: 'question', questions: [...duel.questions, play] },
     duelUsed: [...state.duelUsed, question.id],
-    startedAt: now,
-    endsAt: now + duels.timeLimit * 1000,
+    startedAt: at,
+    endsAt: at + duels.timeLimit * 1000,
     remainingMs: null,
   };
 }
@@ -126,6 +131,7 @@ export function answerDuel(state: GameState, playerId: string, text: string, now
   const play = duel?.questions.at(-1);
   if (duel === null || duel.stage !== 'question' || play === undefined) return fail('wrong_phase');
   if (state.paused) return fail('paused');
+  if (notStarted(state, now)) return fail('not_started');
   if (playerId !== duel.challengerId && playerId !== duel.opponentId) return fail('not_your_turn');
   if (state.endsAt === null || now > state.endsAt) return fail('time_over');
   const tries = Object.hasOwn(play.tries, playerId) ? play.tries[playerId] : [];
@@ -184,10 +190,10 @@ export function duelDue(state: GameState): boolean {
   return state.duel?.stage === 'declared' && START_PHASES.includes(state.phase) && state.roundIndex < duelCutoff(state.quiz);
 }
 
-/** phase 'duel', stage 'category', returnPhase = поточний етап, годинник порожній. */
-export function beginDuel(state: GameState): GameState {
+/** phase 'duel', stage 'category', returnPhase = поточний етап, годинник порожній; з now — заставка «Дуель!». */
+export function beginDuel(state: GameState, now?: number): GameState {
   if (state.duel === null) return state;
-  return {
+  const begun: GameState = {
     ...state,
     phase: 'duel',
     duel: { ...state.duel, stage: 'category', returnPhase: state.phase },
@@ -195,6 +201,7 @@ export function beginDuel(state: GameState): GameState {
     endsAt: null,
     remainingMs: null,
   };
+  return now === undefined ? begun : withSplash(begun, 'duel', now);
 }
 
 /** next на етапі duel: answer → наступне запитання або підсумок; result → повернення; інакше wrong_phase. */

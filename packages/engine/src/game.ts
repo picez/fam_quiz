@@ -756,16 +756,22 @@ function clearAway(board: BoardState | null): BoardState | null {
   return board === null ? null : { ...board, awaySince: null };
 }
 
-/** Після останнього раунду гра закінчується, інакше показуються підсумки раунду. */
-function finishRound(state: GameState): GameState {
+/** Після останнього раунду гра закінчується (з now — заставка «Підсумки»), інакше показуються підсумки раунду. */
+function finishRound(state: GameState, now?: number): GameState {
   const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
-  return { ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) };
+  const finished: GameState = { ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) };
+  return isLastRound && now !== undefined ? withSplash(finished, 'podium', now) : finished;
+}
+
+/** Заставка входу в раунд: «Фінал» для фінального, «Раунд N» для решти; без now — без заставки. */
+function roundSplash(state: GameState, now?: number): GameState {
+  return now === undefined ? state : withSplash(state, currentRound(state)?.type === 'final' ? 'final' : 'round', now);
 }
 
 /** Відкриває наступне запитання раунду, а коли їх не лишилося, завершує раунд. */
 function advance(state: GameState, now: number, rng: Rng): GameState {
   const question = nextQuestion(state);
-  return question !== undefined ? openQuestion(state, question, now, rng) : finishRound(state);
+  return question !== undefined ? openQuestion(state, question, now, rng) : finishRound(state, now);
 }
 
 /**
@@ -904,11 +910,11 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   return everyoneAnswered ? lockNow(state) : state;
 }
 
-/** Кожна гра починається із заставки першого раунду; перше запитання відкриває `next`. */
-export function start(state: GameState): Result {
+/** Кожна гра починається із заставки першого раунду; без now (старі тести) — без заставки. Перше запитання відкриває `next`. */
+export function start(state: GameState, now?: number): Result {
   if (state.phase !== 'lobby') return fail('wrong_phase');
   if (state.players.length === 0) return fail('no_players');
-  return ok({ ...enterRound({ ...state, roundIndex: 0 }), phase: 'intro' });
+  return ok(roundSplash({ ...enterRound({ ...state, roundIndex: 0 }), phase: 'intro' }, now));
 }
 
 export function submitAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
@@ -1199,7 +1205,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   if (state.paused) return fail('paused');
   // Дуель вклинюється між кроками гри: оголошена стартує замість кроку, після підсумку гра йде далі.
   if (state.phase === 'duel') return advanceDuel(state, now, rng);
-  if (duelDue(state)) return ok(beginDuel(state));
+  if (duelDue(state)) return ok(beginDuel(state, now));
   switch (state.phase) {
     case 'intro':
       if (currentRound(state)?.type === 'board') return dicePending(state.board) ? fail('dice_pending') : ok(enterBoard(state, now));
@@ -1216,13 +1222,13 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
         if (state.final.shown < state.final.order.length) return ok({ ...state, final: { ...state.final, shown: state.final.shown + 1 } });
         // Після останнього гравця банк (якщо він не порожній) розподіляється окремим кроком.
         if (needsSplit(state)) return ok({ ...state, final: { ...state.final, split: true } });
-        return ok(finishRound(state));
+        return ok(finishRound(state, now));
       }
       if (currentRound(state)?.type === 'board') {
-        if (!hasActiveCells(state)) return ok(finishRound(state));
+        if (!hasActiveCells(state)) return ok(finishRound(state, now));
         return ok(state.quiz.settings.leaderboard === 'each' ? { ...state, phase: 'leaderboard' } : enterBoard(state, now));
       }
-      if (nextQuestion(state) === undefined) return ok(finishRound(state));
+      if (nextQuestion(state) === undefined) return ok(finishRound(state, now));
       if (state.quiz.settings.leaderboard === 'each') return ok({ ...state, phase: 'leaderboard' });
       return ok(advance(state, now, rng));
     case 'leaderboard':
@@ -1230,7 +1236,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       return ok(advance(state, now, rng));
     case 'round_end':
       // Нова серія в новому раунді починається з нуля.
-      return ok(withTotals(enterRound({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 })));
+      return ok(roundSplash(withTotals(enterRound({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 })), now));
     default:
       return fail('wrong_phase');
   }
@@ -1247,7 +1253,7 @@ export function endRound(state: GameState, now: number): Result {
   const closed = current.phase === 'question' ? lockNow(current) : current;
   // Після відкриття запитання фіналу мовчання оцінюється, а всіх вважають розкритими.
   const settled = finalPlayOf(closed) !== undefined ? closeFinal(closed) : closed;
-  return ok(finishRound({ ...settled, paused: false, startedAt: null, endsAt: null, remainingMs: null }));
+  return ok(finishRound({ ...settled, paused: false, startedAt: null, endsAt: null, remainingMs: null }, now));
 }
 
 export function pause(state: GameState, now: number): Result {
@@ -1410,20 +1416,20 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   return ok(withTotals(withRecord(state, playerId, updated)));
 }
 
-export function end(state: GameState): Result {
+/** Ведучий завершує гру; з now — заставка «Підсумки». */
+export function end(state: GameState, now?: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   // Поза фіналом closeFinal лише перераховує підсумки; у фіналі ще оцінює мовчання й розкриває всіх.
-  return ok(
-    closeFinal({
-      ...dropQueue(scoreSort(scoreChain(state))),
-      phase: 'finished',
-      board: clearAway(state.board),
-      paused: false,
-      startedAt: null,
-      endsAt: null,
-      remainingMs: null,
-      heldAt: null,
-      duel: null,
-    }),
-  );
+  const closed = closeFinal({
+    ...dropQueue(scoreSort(scoreChain(state))),
+    phase: 'finished',
+    board: clearAway(state.board),
+    paused: false,
+    startedAt: null,
+    endsAt: null,
+    remainingMs: null,
+    heldAt: null,
+    duel: null,
+  });
+  return ok(now === undefined ? closed : withSplash(closed, 'podium', now));
 }

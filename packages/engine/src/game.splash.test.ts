@@ -3,9 +3,11 @@ import { buzz } from './blitz';
 import { pickCell } from './board';
 import { castVote, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
-import { createGame, lock, next, pause, recordOf, resume, start, submitAnswer, tick, type GameState } from './game';
+import { answerDuel, declareDuel, pickDuelCategory } from './duel';
+import { createGame, end, endRound, lock, next, pause, recordOf, resume, start, submitAnswer, tick, type GameState } from './game';
 import { adjustTime, deadlineOf, overtimeOf } from './timing';
 import { othersQuiz } from './testing/buffs';
+import { toDeclarable } from './testing/duel';
 import { blitzRound, boardRound, classicRound, finalRound, makeRoundsQuiz, single, withId, withVideo } from './testing/fixtures';
 import { lobbyWith, lobbyWithSplash, must, openAt } from './testing/helpers';
 
@@ -159,5 +161,95 @@ describe('the question splash', () => {
     t = must(takeBuff(t, 'p1', 'time', T0 + 5000, rng0));
     expect(deadlineOf(t, t.plays[0], 'p1')).toBe(T0 + 51_200);
     expect(deadlineOf(t, t.plays[0], 'p2')).toBe(T0 + 21_200);
+  });
+});
+
+const on = (s: GameState): GameState => ({ ...s, transitions: true });
+
+/** Закриває поточне запитання й іде «Далі», доки не дійде до round_end або finished (о мить now). */
+function playOut(s: GameState, now: number): GameState {
+  let r = must(lock(s));
+  while (r.phase !== 'round_end' && r.phase !== 'finished') r = must(next(r, now, rng0));
+  return r;
+}
+
+describe('round, final, duel and podium splashes', () => {
+  it('a round starts with «Раунд N»; the host is never held by it', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), classicRound('r2', [withId(single, 'q2')])]);
+    let s = must(start(lobbyWithSplash(quiz, 'Анна'), T0));
+    expect(s.phase).toBe('intro');
+    expect(s.splash).toEqual({ kind: 'round', at: T0, until: T0 + 2500 });
+    s = must(next(s, T0 + 500, rng0)); // «Почати раунд» посеред заставки раунду
+    expect(s.splash).toEqual({ kind: 'question', at: T0 + 500, until: T0 + 1700 });
+    s = playOut(s, T0 + 30_000);
+    expect(s.phase).toBe('round_end');
+    s = must(next(s, T1, rng0));
+    expect(s.phase).toBe('intro');
+    expect(s.splash).toEqual({ kind: 'round', at: T1, until: T1 + 2500 });
+  });
+
+  it('the final gets its own longer splash', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), finalRound('f1', withId(single, 'qf'))]);
+    let s = playOut(must(next(must(start(lobbyWithSplash(quiz, 'Анна'), T0)), T0, rng0)), T0 + 30_000);
+    s = must(next(s, T1, rng0));
+    expect(s.phase).toBe('intro');
+    expect(s.splash).toEqual({ kind: 'final', at: T1, until: T1 + 3200 });
+    s = must(next(s, T1 + 5000, rng0));
+    expect(s.phase).toBe('wager');
+    s = must(next(s, T1 + 10_000, rng0));
+    expect(s.splash).toEqual({ kind: 'question', at: T1 + 10_000, until: T1 + 11_200 });
+    expect(s.startedAt).toBe(T1 + 11_200);
+  });
+
+  it('the last round ends with «Підсумки» before the podium, also on an early end', () => {
+    const one = () => must(next(must(start(lobbyWithSplash(makeRoundsQuiz([classicRound('r1', [single])]), 'Анна'), T0)), T0, rng0));
+    let s = must(next(must(lock(one())), T0 + 30_000, rng0)); // reveal
+    expect(s.phase).toBe('reveal');
+    s = must(next(s, T1, rng0));
+    expect(s.phase).toBe('finished');
+    expect(s.splash).toEqual({ kind: 'podium', at: T1, until: T1 + 2500 });
+
+    const early = must(endRound(one(), T1));
+    expect([early.phase, early.splash]).toEqual(['finished', { kind: 'podium', at: T1, until: T1 + 2500 }]);
+    const ended = must(end(one(), T1));
+    expect([ended.phase, ended.splash]).toEqual(['finished', { kind: 'podium', at: T1, until: T1 + 2500 }]);
+    expect(must(end(one())).splash).toEqual({ kind: 'question', at: T0, until: T0 + 1200 });
+
+    // Підсумки раунду заставки не мають; endRound не в останньому раунді — теж.
+    const two = makeRoundsQuiz([classicRound('r1', [single]), classicRound('r2', [withId(single, 'q2')])]);
+    const first = must(next(must(start(lobbyWithSplash(two, 'Анна'), T0)), T0, rng0));
+    const roundEnd = playOut(first, T0 + 30_000);
+    expect(roundEnd.phase).toBe('round_end');
+    expect(roundEnd.splash).toEqual({ kind: 'question', at: T0, until: T0 + 1200 });
+    expect(must(endRound(first, T1)).splash).toEqual({ kind: 'question', at: T0, until: T0 + 1200 });
+  });
+
+  it('a duel starts with «Дуель!»', () => {
+    const declared = must(declareDuel(on(toDeclarable()), 'p1', 'p2'));
+    const s = must(next(declared, T0 + 4000, rng0));
+    expect(s.phase).toBe('duel');
+    expect(s.splash).toEqual({ kind: 'duel', at: T0 + 4000, until: T0 + 6000 });
+  });
+
+  it('a duel category picked during the splash starts the duel clock after it', () => {
+    const started = must(next(must(declareDuel(on(toDeclarable()), 'p1', 'p2')), T0 + 4000, rng0));
+    const early = must(pickDuelCategory(started, null, 'dc1', T0 + 4500, rng0));
+    expect([early.startedAt, early.endsAt]).toEqual([T0 + 6000, T0 + 26_000]);
+    expect(answerDuel(early, 'p1', 'будь-що', T0 + 5000)).toEqual({ ok: false, error: 'not_started' });
+    const late = must(pickDuelCategory(started, null, 'dc1', T1, rng0));
+    expect([late.startedAt, late.endsAt]).toEqual([T1, T1 + 20_000]);
+    // Друге запитання дуелі стартує одразу.
+    const won = must(answerDuel(early, 'p1', 'Париж', T0 + 7000));
+    const second = must(next(won, T0 + 8000, rng0));
+    expect([second.startedAt, second.endsAt]).toEqual([T0 + 8000, T0 + 28_000]);
+  });
+
+  it('without transitions or now there are no splashes', () => {
+    expect(must(start(lobbyWith(classicQuiz(), 'Анна'), T0)).splash).toBeNull();
+    expect(must(start(lobbyWithSplash(classicQuiz(), 'Анна'))).splash).toBeNull();
+    const started = must(next(must(declareDuel(toDeclarable(), 'p1', 'p2')), T0 + 4000, rng0));
+    expect(started.splash).toBeNull();
+    expect(must(pickDuelCategory(started, null, 'dc1', T0 + 4500, rng0)).startedAt).toBe(T0 + 4500);
+    expect(must(end(openAt(lobbyWith(classicQuiz(), 'Анна'), T0), T1)).splash).toBeNull();
   });
 });
