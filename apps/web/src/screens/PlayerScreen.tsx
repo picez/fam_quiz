@@ -20,7 +20,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { BlitzQueue } from './BlitzQueue';
 import { Standings } from './Standings';
 import { ChainPlay, ChainWords } from './ChainView';
-import { SortPlay, SortWatch } from './SortView';
+import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { MenuLinks } from './MenuLinks';
@@ -599,8 +599,12 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
               {question !== null && !isSort && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
+              {isSort && question?.sort != null && (
+                <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} />
+              )}
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
-              {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+              {view.reveal !== null && !isSort && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
             <>

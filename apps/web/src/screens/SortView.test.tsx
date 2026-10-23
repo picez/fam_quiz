@@ -1,9 +1,22 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+// Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerSort, PublicQuestion, Question, SortInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
-import { SortBoard, SortPlay, SortReveal, swipeTarget, zonePositions } from './SortView';
+import { SortBoard, SortPlay, SortReveal, SortWatch, swipeTarget, zonePositions } from './SortView';
+
+const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+
+/** Тіло першого правила з точно цим селектором у styles.css. */
+function rule(selector: string): string {
+  const start = css.indexOf(`\n${selector} {`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  return css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -314,5 +327,28 @@ describe('SortBoard and SortReveal', () => {
     expect(document.querySelectorAll('.sort-reveal-col h3')).toHaveLength(2);
     expect(document.querySelectorAll('.sort-reveal-col li')).toHaveLength(0);
     expect(document.body.textContent).not.toContain('Морква');
+  });
+
+  it('a watcher on the board sees the categories, all words and who sorts', () => {
+    const row = (nickname: string, sorted: number) => ({ playerId: 'p2', nickname, sorted, misses: 0, timeMs: null, points: null });
+    const words = (texts: string[]) => texts.map((text, index) => ({ id: `w${index + 1}`, text }));
+    render(<SortWatch question={sortQuestion(4)} info={{ total: 4, rows: [row('Оля', 2)], winner: null, words: words(['Буряк', 'Груша', 'Морква', 'Яблуко']) }} />);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(within(screen.getByRole('list', { name: 'Слова' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Морква', 'Яблуко']);
+    expect(document.querySelector('ul.chips.sort-words')).not.toBeNull();
+    expect(screen.getByText('Оля сортує слова')).toBeTruthy();
+    expect(screen.getByText('2 з 4')).toBeTruthy();
+  });
+
+  it('a watcher without words gets no word list', () => {
+    render(<SortWatch question={sortQuestion(2)} info={{ total: 4, rows: [], winner: null, words: null }} />);
+    expect(document.querySelector('.sort-words')).toBeNull();
+  });
+
+  it('three and four categories get equal zones', () => {
+    expect(rule(".sort-arena[data-zones='4']")).toContain('grid-template-rows: repeat(3, minmax(0, 1fr))');
+    expect(rule(".sort-arena[data-zones='3']")).toContain('grid-template-rows: repeat(2, minmax(0, 1fr))');
+    expect(css).toContain(".sort-arena[data-zones='3'],\n.sort-arena[data-zones='4'] {\n  grid-template-columns: repeat(3, minmax(0, 1fr));");
+    expect(css).toContain(".sort-arena[data-zones='3'] .sort-zone[data-pos='left'],\n.sort-arena[data-zones='4'] .sort-zone[data-pos='left'] {\n  grid-column: 1;\n  grid-row: 2;");
   });
 });

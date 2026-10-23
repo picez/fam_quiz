@@ -263,7 +263,7 @@ export function SortPlay({
   );
 }
 
-/** Поле, глядач: категорії без кнопок і прогрес того, хто сортує; картки немає. */
+/** Поле, глядач: категорії без кнопок, прогрес того, хто сортує, і всі слова за абеткою; картки немає. */
 export function SortWatch({ question, info }: { question: PublicQuestion; info: SortInfo }) {
   const row = info.rows[0];
   return (
@@ -279,7 +279,19 @@ export function SortWatch({ question, info }: { question: PublicQuestion; info: 
         {row !== undefined && <p className="sort-watching">{t('sortWatching', { name: row.nickname })}</p>}
       </Arena>
       <p className="sort-progress">{t('sortProgress', { sorted: row?.sorted ?? 0, total: info.total })}</p>
+      {info.words !== null && <SortWords words={info.words} />}
     </section>
+  );
+}
+
+/** Слова сортування чипами (лише показ): глядачі поля й сцена до розкриття. */
+export function SortWords({ words }: { words: { id: string; text: string }[] }) {
+  return (
+    <ul className="chips sort-words" aria-label={t('sortWords')}>
+      {words.map((word) => (
+        <li key={word.id}>{word.text}</li>
+      ))}
+    </ul>
   );
 }
 

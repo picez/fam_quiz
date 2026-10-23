@@ -22,7 +22,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { MenuLinks } from './MenuLinks';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
-import { SortBoard, SortReveal } from './SortView';
+import { SortBoard, SortReveal, SortWords } from './SortView';
 
 interface Props {
   view: StageView;
@@ -220,7 +220,11 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
           <ChainWords first={question.chain.first} masks={question.chain.masks} />
         )
       ) : question.sort !== null ? (
-        <SortReveal categories={question.sort.categories} question={reveal !== null && reveal.type === 'sort' ? reveal : null} total={question.sort.total} />
+        <>
+          <SortReveal categories={question.sort.categories} question={reveal !== null && reveal.type === 'sort' ? reveal : null} total={question.sort.total} />
+          {/* Поле: до розкриття під категоріями — усі слова за абеткою. */}
+          {view.board !== null && reveal === null && view.sort?.words && <SortWords words={view.sort.words} />}
+        </>
       ) : spotlit ? (
         <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} removed={view.removed} />
       ) : question.type === 'match' ? (

@@ -3951,6 +3951,51 @@ button.sort-zone:disabled {
   grid-row: 2 / -1;
 }
 
+/* Три й чотири категорії — сітка «хрестом» з рівними клітинками; позиції зон і свайпи ті самі. */
+.sort-arena[data-zones='3'] {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.sort-arena[data-zones='4'] {
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+.sort-arena[data-zones='3'],
+.sort-arena[data-zones='4'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sort-arena[data-zones='3'] .sort-zone[data-pos='left'],
+.sort-arena[data-zones='4'] .sort-zone[data-pos='left'] {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.sort-arena[data-zones='3'] .sort-zone[data-pos='right'],
+.sort-arena[data-zones='4'] .sort-zone[data-pos='right'] {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.sort-arena[data-zones='3'] .sort-zone[data-pos='top'],
+.sort-arena[data-zones='4'] .sort-zone[data-pos='top'] {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+}
+
+.sort-arena[data-zones='4'] .sort-zone[data-pos='bottom'] {
+  grid-column: 2;
+  grid-row: 3;
+  min-height: 0;
+}
+
+.sort-arena[data-zones='3'] .sort-center,
+.sort-arena[data-zones='4'] .sort-center {
+  grid-column: 2;
+  grid-row: 2;
+}
+
 .sort-card {
   position: relative;
   z-index: 1;
@@ -4021,6 +4066,20 @@ button.sort-zone:disabled {
   font-weight: 600;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+/* Слова сортування на полі (глядачі й сцена): лише показ, переносяться рядками. */
+.sort-words {
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sort-play .sort-words li {
+  padding: 0.25rem 0.75rem;
+  font-size: 1rem;
 }
 
 .sort-hint {

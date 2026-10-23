@@ -1272,6 +1272,17 @@ describe('PlayerScreen: sort', () => {
     expect(screen.queryByText(/Відповідає Оля/)).toBeNull();
   });
 
+  it('a watcher sees all words on the board and how they fall into the categories at the reveal', () => {
+    const words = [{ id: 'w3', text: 'Буряк' }, { id: 'w4', text: 'Груша' }, { id: 'w1', text: 'Морква' }, { id: 'w2', text: 'Яблуко' }];
+    show(onQuestion({ round: boardRound, board: sortBoard, question: sortQ, sort: { ...info(), words }, me: { ...me, sort: null } }));
+    expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Морква', 'Яблуко']);
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, round: boardRound, board: sortBoard, question: sortQ, sort: { ...info({ points: 200 }), words }, reveal: fullSort, me: { ...me, sort: null } }));
+    expect(document.querySelectorAll('.sort-reveal.is-open li')).toHaveLength(4);
+    expect(document.querySelectorAll('.sort-reveal-col')).toHaveLength(2);
+    expect(document.querySelector('.sort-words')).toBeNull();
+  });
+
   it('after the sort the phone shows the own result and later the grouping', () => {
     show(view({ phase: 'locked', questionIndex: 0, question: sortQ, sort: info(), me: { ...me, sort: { ...mine, card: null, sorted: 4, canSort: false, timeMs: 8000 } } }));
     expect(screen.getByRole('heading', { name: 'Усі слова відсортовано за 8,0 с' })).toBeTruthy();

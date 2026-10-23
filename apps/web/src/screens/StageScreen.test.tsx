@@ -901,6 +901,18 @@ describe('StageScreen final', () => {
       expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
     });
 
+    it('the stage shows the board sort words until the reveal', () => {
+      const board = { cell: { category: 'Сад', price: 400, kind: 'normal', answerMode: 'phone', mark: 'none' }, turn: { playerId: 'p1', nickname: 'Анна' } } as unknown as BoardInfo;
+      const words = [{ id: 'w3', text: 'Буряк' }, { id: 'w4', text: 'Груша' }, { id: 'w1', text: 'Морква' }, { id: 'w2', text: 'Яблуко' }];
+      show(view({ phase: 'question', questionIndex: 0, question: sortQ, board, endsAt: Date.now() + 20_000, sort: { ...info, rows: [rows[0]], words } }));
+      expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Морква', 'Яблуко']);
+      expect(document.querySelector('.sort-reveal.is-open')).toBeNull();
+      cleanup();
+      show(view({ phase: 'reveal', questionIndex: 0, question: sortQ, board, reveal: fullSort, sort: { ...info, rows: [{ ...rows[0], points: 100 }], words } }));
+      expect(document.querySelector('.sort-words')).toBeNull();
+      expect(document.querySelector('.sort-reveal.is-open')).not.toBeNull();
+    });
+
     it("a board sort shows the chooser's progress, a blitz shows the winner, a final hides progress", () => {
       const board = { cell: { category: 'Сад', price: 400, kind: 'normal', answerMode: 'phone', mark: 'none' }, turn: { playerId: 'p1', nickname: 'Анна' } } as unknown as BoardInfo;
       show(view({ phase: 'question', questionIndex: 0, question: sortQ, board, endsAt: Date.now() + 20_000, sort: { ...info, rows: [rows[0]] } }));

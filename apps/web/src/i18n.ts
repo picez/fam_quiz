@@ -872,6 +872,7 @@ const uk = {
   sortZone: 'Категорія «{name}»',
   sortCard: 'Слово: {word}',
   sortWatching: '{name} сортує слова',
+  sortWords: 'Слова',
   sortPointsPerWord_one: '{points} бал за слово',
   sortPointsPerWord_few: '{points} бали за слово',
   sortPointsPerWord_many: '{points} балів за слово',
