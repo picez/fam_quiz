@@ -5133,9 +5133,10 @@ label.powers-item {
   }
 }
 
+/* Картка на всю ширину шару: заголовок 9rem («Запитання 1») ширший за 60rem, у вужчій картці слово ламалося б посеред літер. Підрядки мають свою межу 60rem. */
 .splash-card {
   position: relative;
-  max-width: min(100%, 60rem);
+  max-width: 100%;
 }
 
 .splash-title {

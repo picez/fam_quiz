@@ -221,6 +221,12 @@ describe('splash styles', () => {
     }
   });
 
+  // «Запитання» заголовком 9rem ширше за 60rem: у вужчій картці слово ламалося посеред літер («Запитанн / я 1»).
+  it('the title card takes the whole layer width, so «Запитання N» on the stage never breaks inside the word', () => {
+    expect(rule('.splash-card')).toContain('max-width: 100%');
+    expect(rule('.splash-card')).not.toContain('rem');
+  });
+
   it('the host chip is fixed and never shifts the console', () => {
     expect(rule('.splash-chip')).toContain('position: fixed');
     expect(rule('.splash-chip')).toContain('pointer-events: none');

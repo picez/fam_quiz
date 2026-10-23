@@ -117,10 +117,18 @@ async function afterSplash(...pages: Page[]) {
   await Promise.all(pages.map((page) => page.locator('.splash').waitFor({ state: 'detached' })));
 }
 
+/** Половина заставки минула (або її немає). */
+const SPLASH_MIDDLE = `(() => {
+  const fade = document.querySelector('.splash')?.getAnimations().find((a) => a.animationName === 'splash-fade');
+  return !fade || (fade.effect?.getComputedTiming().progress ?? 1) >= 0.5;
+})()`;
+
 /** Знімок екрана для перевірки дизайну: лише з E2E_SHOTS=1, у звичайному прогоні нічого не робить. Спершу чекає кінця заставки, якщо не просили саме кадр заставки. */
 async function shot(page: Page, name: string, { splash = false }: { splash?: boolean } = {}) {
   if (process.env.E2E_SHOTS !== '1') return;
   if (!splash) await afterSplash(page);
+  // Кадр заставки — з її середини: на початку шар ще напівпрозорий, а імена й картка ще в русі.
+  else await page.waitForFunction(SPLASH_MIDDLE, undefined, { timeout: 3000 }).catch(() => undefined);
   mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
   await page.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`), fullPage: true });
 }
@@ -161,8 +169,8 @@ afterAll(async () => {
   await ctx?.app.close();
 });
 
-async function open(name: string, width: number, height: number): Promise<Page> {
-  const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA' });
+async function open(name: string, width: number, height: number, options: { reducedMotion?: 'reduce' } = {}): Promise<Page> {
+  const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA', ...options });
   contexts.push(context);
   // YouTube не вантажиться з мережі: сторінка вбудовування підміняється заглушкою.
   await context.route(/youtube(-nocookie)?\.com|youtu\.be|ytimg\.com/, (route) =>
@@ -5283,6 +5291,270 @@ async function sparesGame() {
   expect(await iraSpare.locator('.spare-text').textContent()).toBe('Запасне: Скільки днів у високосному році?');
   expect(await iraSpare.locator('.responses-answer').textContent()).toBe('366');
   await shot(host, 'buff8b-history-host');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 8c: «Раунд N» on the stage and phones, «Запитання N» with the timer after it, ±15 s during a splash, a pause mid-splash, a flipping cell, «Дуель!», a festive final with a reconnect mid-splash, «Підсумки» before the podium, reduced motion', async () => {
+  try {
+    await transitionsGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Чекає шар заставки потрібного виду. */
+async function splashOn(page: Page, kind: string) {
+  await page.locator(`.splash.is-${kind}`).waitFor();
+}
+
+async function transitionsGame() {
+  const host = await open('host8c', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host8c@example.com');
+
+  const choice = (id: string, text: string, timeLimit: number, options: string[]) => ({
+    id,
+    type: 'single' as const,
+    text,
+    imageUrl: null,
+    video: null,
+    timeLimit,
+    points: 100,
+    options: options.map((option, at) => ({ id: `${id}o${at}`, text: option })),
+    correctId: `${id}o0`,
+  });
+  const LONG_ROUND = 'Столиці дуже далеких і дуже цікавих країн світу';
+  const cellQ = (category: string, price: number) => ({
+    ...withPoints(withId(single, `b-${category}-${price}`), price),
+    text: `${category} ${price}: столиця України?`,
+    timeLimit: 20,
+  });
+  const rounds = [
+    classicRound(
+      'r1',
+      [
+        choice('q1', 'Столиця Франції?', 20, ['Париж', 'Ліон', 'Марсель']),
+        choice('q2', 'Столиця Італії?', 20, ['Рим', 'Мілан', 'Неаполь']),
+        choice('q3', 'Столиця Іспанії?', 20, ['Мадрид', 'Барселона', 'Севілья']),
+      ],
+      { title: LONG_ROUND, speedBonus: false },
+    ),
+    boardRound(
+      'r2',
+      ['Міста', 'Річки', 'Гори'].map((title) => ({
+        title,
+        cells: [100, 200, 300].map((price) =>
+          title === 'Міста' && price === 300 ? { question: cellQ(title, price), mark: 'x2' as const } : cellQ(title, price),
+        ),
+      })),
+      { title: 'Поле', answerMode: 'phone', check: 'auto' },
+    ),
+    finalRound('r3', choice('f1', 'Перша людина в космосі?', 30, ['Гагарін', 'Армстронг']), { title: 'Космос' }),
+  ];
+  const duels = {
+    categories: [
+      {
+        id: 'dc1',
+        title: 'Мови',
+        questions: [
+          { id: 'd1', text: 'Hello українською?', accepted: ['привіт'] },
+          { id: 'd2', text: 'Thank you українською?', accepted: ['дякую'] },
+        ],
+      },
+    ],
+    questionsPerDuel: 1,
+    timeLimit: 20,
+    stake: 0,
+  };
+  const data = { ...makeRoundsQuiz(rounds, { leaderboard: 'end' }), title: 'Переходи', duels };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // Гра: сцена 1600 × 900, Оля 375, Петро 360, Іра 390 з «менше руху».
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Переходи' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage8c', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya8c', 375, 812);
+  const petro = await open('petro8c', 360, 740);
+  const calm = await open('calm8c', 390, 844, { reducedMotion: 'reduce' });
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(calm, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, calm];
+  const all = [stage, ...phones];
+  const splashText = async (page: Page) => (await page.locator('.splash').textContent()) ?? '';
+  const reveal = async () => {
+    await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+    await click(host, 'Показати відповідь');
+    for (const page of phones) await page.locator('section.result').first().waitFor();
+  };
+
+  // 1. «Раунд 1» з довгою назвою на сцені й меншим шаром на телефоні; пульт вільний.
+  await click(host, 'Почати гру');
+  await splashOn(stage, 'round');
+  expect(await splashText(stage)).toContain('Раунд 1');
+  expect(await splashText(stage)).toContain(LONG_ROUND);
+  await olya.locator('.splash.is-round.is-phone').waitFor();
+  expect(await noSideScroll(olya), 'transition8c-round-375: horizontal scroll').toBe(true);
+  expect(await host.locator('.splash').count(), 'the host console is covered').toBe(0);
+  await host.getByText('На екрані заставка', exact).waitFor();
+  expect(await host.getByRole('button', { name: 'Почати раунд', ...exact }).isEnabled()).toBe(true);
+  await Promise.all([shot(stage, 'transition8c-round-stage', { splash: true }), shot(olya, 'transition8c-round-375', { splash: true })]);
+  await afterSplash(stage, olya);
+  await stage.locator('.round-facts', { hasText: '3 запитання · 20 с' }).waitFor();
+  expect(await stage.locator('.splash').count()).toBe(0);
+  await host.getByText('На екрані заставка', exact).waitFor({ state: 'detached' });
+
+  // 2. «Запитання 1 з 3»; запитання вже стоїть під шаром і не зсувається; таймер — повний після заставки.
+  await click(host, 'Почати раунд');
+  await splashOn(stage, 'question');
+  await olya.locator('.splash.is-question.is-phone').waitFor();
+  const under = (await olya.evaluate(
+    "(() => ({ splash: document.querySelector('.splash') !== null, y: Math.round(document.querySelector('h1.question').getBoundingClientRect().top) }))()",
+  )) as { splash: boolean; y: number };
+  expect(under.splash, 'the question was measured after the splash').toBe(true);
+  expect(await splashText(stage)).toContain('Запитання 1');
+  expect(await splashText(stage)).toContain('з 3');
+  await petro.locator('.splash.is-question.is-phone').waitFor();
+  await Promise.all([shot(stage, 'transition8c-question-stage', { splash: true }), shot(petro, 'transition8c-question-360', { splash: true })]);
+  await afterSplash(olya, stage);
+  expect(Math.round((await olya.locator('h1.question').boundingBox())!.y), 'the question moved after the splash').toBe(under.y);
+  expect(await seconds(olya)).toBeGreaterThanOrEqual(19);
+  expect(await seconds(stage)).toBeGreaterThanOrEqual(19);
+  for (const page of phones) await pickOption(page, 'Париж');
+  await reveal();
+
+  // 3. «+15 с» посеред заставки рахується від старту запитання.
+  await click(host, 'Далі');
+  await splashOn(stage, 'question');
+  await click(host, '+15 с');
+  await afterSplash(stage);
+  expect(await host.getByRole('alert').count(), 'the host got an error for +15 s').toBe(0);
+  expect(await seconds(stage)).toBeGreaterThanOrEqual(34);
+  await afterSplash(...phones);
+  await pickOption(olya, 'Рим');
+  await pickOption(petro, 'Рим');
+  await pickOption(calm, 'Неаполь');
+  await reveal();
+
+  // Пауза посеред заставки: шару немає; після «Продовжити» догравається решта, таймер повний.
+  await click(host, 'Далі');
+  await host.getByRole('button', { name: 'Пауза', ...exact }).first().click();
+  await stage.locator('.banner', { hasText: 'Пауза' }).waitFor();
+  for (const page of all) expect(await page.locator('.splash').count(), 'a splash during the pause').toBe(0);
+  await shot(stage, 'transition8c-paused-stage');
+  await stage.waitForTimeout(2000);
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+  await splashOn(stage, 'question');
+  expect(await splashText(stage)).toContain('Запитання 3');
+  await afterSplash(...all);
+  expect(await seconds(stage)).toBeGreaterThanOrEqual(19);
+  for (const page of phones) await pickOption(page, 'Мадрид');
+  await reveal();
+
+  // 4. «Раунд 2» — у Іри лише проявлення; поле; клітинка перегортається.
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await splashOn(stage, 'round');
+  await splashOn(calm, 'round');
+  const motion = (await calm.evaluate(
+    "(() => ({ layer: getComputedStyle(document.querySelector('.splash')).animationName, card: getComputedStyle(document.querySelector('.splash-card')).animationName }))()",
+  )) as { layer: string; card: string };
+  expect(motion).toEqual({ layer: 'splash-fade', card: 'none' });
+  await shot(calm, 'transition8c-reduced-390', { splash: true });
+  await afterSplash(...all);
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await olya.getByRole('button', { name: 'Міста, 300', ...exact }).click();
+  await splashOn(stage, 'cell');
+  await olya.locator('.splash.is-cell.is-phone').waitFor();
+  const flip = (await stage.locator('.splash-flip').textContent()) ?? '';
+  expect(flip).toContain('Міста · 300');
+  expect(flip).toContain('×2');
+  await Promise.all([shot(stage, 'transition8c-cell-stage', { splash: true }), shot(olya, 'transition8c-cell-375', { splash: true })]);
+  await afterSplash(...all);
+  expect(await seconds(olya)).toBeGreaterThanOrEqual(19);
+  await pickOption(olya, 'Київ');
+  await click(host, 'Прийняти');
+  await olya.getByText('Правильно!').waitFor();
+
+  // 5. «Дуель!»: категорію ведучий вибирає ще під час заставки, таймер дуелі стартує після неї.
+  await duelButton(olya).click();
+  await olya.getByRole('dialog').getByRole('button', { name: 'Петро', ...exact }).click();
+  await host.getByText('Оголошено дуель: Оля — Петро', exact).waitFor();
+  await click(host, 'Почати дуель');
+  await splashOn(stage, 'duel');
+  rigged.push(1);
+  await host.locator('.duel-host').getByRole('button', { name: 'Мови · лишилося 2', ...exact }).click();
+  const pair = await splashText(stage);
+  for (const part of ['Дуель!', 'Оля', '⚔', 'Петро']) expect(pair).toContain(part);
+  await petro.locator('.splash.is-duel.is-phone').waitFor();
+  await Promise.all([shot(stage, 'transition8c-duel-stage', { splash: true }), shot(petro, 'transition8c-duel-360', { splash: true })]);
+  await afterSplash(stage);
+  await stage.locator('.duel-stage-question', { hasText: 'Hello українською?' }).waitFor();
+  expect(await seconds(stage)).toBeGreaterThanOrEqual(19);
+  await afterSplash(olya);
+  await duelAnswer(olya, 'привіт');
+  await stage.locator('.duel-stage-score', { hasText: '1 : 0' }).waitFor();
+  await click(host, 'Підсумок дуелі');
+  await click(host, 'Продовжити гру');
+  await stage.locator('.duel-stage').waitFor({ state: 'detached' });
+
+  // 6. Фінал: урочиста заставка; телефон перезавантажується посеред неї й продовжує з того самого місця.
+  await click(host, 'Завершити раунд');
+  await host.getByRole('button', { name: 'Наступний раунд', ...exact }).waitFor();
+  expect(await stage.locator('.splash').count(), 'round results have no splash').toBe(0);
+  await click(host, 'Наступний раунд');
+  await splashOn(stage, 'final');
+  const finalSeen = Date.now();
+  expect(await splashText(stage)).toContain('Фінал');
+  expect(await splashText(stage)).toContain('Космос');
+  await stage.locator('.splash-rays').waitFor();
+  await shot(stage, 'transition8c-final-stage', { splash: true });
+  // Перезавантаження локально триває ~50 мс: спершу частина заставки минає, щоб «з того самого місця» було видно.
+  await olya.waitForTimeout(Math.max(0, 600 - (Date.now() - finalSeen)));
+  await olya.reload();
+  await olya.locator('.splash.is-final').waitFor();
+  const style = (await olya.locator('.splash').getAttribute('style')) ?? '';
+  const resumedAt = Number.parseFloat(/--splash-elapsed:\s*(-?[\d.]+)ms/.exec(style)?.[1] ?? 'NaN');
+  expect(resumedAt, `the final splash started over after the reload: ${style}`).toBeLessThanOrEqual(-300);
+  await shot(olya, 'transition8c-final-reconnect-375', { splash: true });
+  await afterSplash(...all);
+  await click(host, 'Почати фінал');
+  // Остання ставка одразу відкриває запитання: підтвердження чекаємо лише в перших двох.
+  for (const page of phones) {
+    await page.getByLabel('Ставка', exact).fill('0');
+    await click(page, 'Поставити');
+    if (page !== calm) await page.getByText('Ваша ставка: 0').waitFor();
+  }
+  await splashOn(stage, 'question');
+  expect(await splashText(stage)).toContain('Запитання фіналу');
+  expect(await splashText(stage)).not.toContain('з 1');
+  await afterSplash(...all);
+  expect(await seconds(stage)).toBeGreaterThanOrEqual(29);
+  for (const page of phones) await pickOption(page, 'Гагарін');
+
+  // 7. «Підсумки» перед п'єдесталом.
+  await click(host, 'Показати відповідь');
+  for (let i = 0; i < phones.length; i++) await click(host, 'Наступний гравець');
+  await click(host, 'Далі');
+  await splashOn(stage, 'podium');
+  expect(await splashText(stage)).toContain('Підсумки');
+  expect(await splashText(stage)).toContain('Хто ж переміг?');
+  await olya.locator('.splash.is-podium.is-phone').waitFor();
+  await shot(stage, 'transition8c-podium-stage', { splash: true });
+  await afterSplash(stage, olya);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await shot(stage, 'transition8c-podium-after');
+  await expectNoSideScroll(olya, 'transition8c-phone-375');
 
   expect(problems).toEqual([]);
 }
