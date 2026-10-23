@@ -33,6 +33,9 @@ export const pickSchema = z.object({ cellId: z.string().min(1).max(64) });
 export const wagerSchema = z.object({ amount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), allIn: z.boolean().optional() });
 export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.maxPlayers) });
 export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).refine(isStorable, UNSTORABLE) });
+const id64 = z.string().min(1).max(64).refine(isStorable, UNSTORABLE);
+/** Хід сортування: слово з поточної картки в категорію; перевіряє рушій. */
+export const sortSchema = z.object({ wordId: id64, categoryId: id64 });
 /** Варіант, названий уголос на усній клітинці; null знімає позначку. */
 export const nameSchema = z.object({ answer: answerSchema.nullable() });
 /** Бали від ведучого: ціле, не нуль, за модулем не більше LIMITS.maxAdjust. */
@@ -54,6 +57,7 @@ export interface ClientToServerEvents {
   'player:answer': (answer: Answer, ack: Ack) => void;
   'player:guess': (payload: z.infer<typeof guessSchema>, ack: Ack) => void;
   'player:hint': (ack: Ack) => void;
+  'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;
   'player:buzz': (ack: Ack) => void;
   'player:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   /** Гравець кидає свій кубик на заставці раунду поля. */

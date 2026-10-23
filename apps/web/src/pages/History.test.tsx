@@ -417,3 +417,43 @@ describe('GameHistory final', () => {
     expect(screen.getByText('Анна: ставка 1000, −1000').className).toContain('is-wrong');
   });
 });
+
+describe('GameHistory sort', () => {
+  it('a sort question in the history', async () => {
+    const sortQ: Question = {
+      ...base,
+      id: 'q5',
+      type: 'sort',
+      text: 'Розкладіть',
+      lockSeconds: 3,
+      categories: [
+        { id: 'c1', text: 'Овочі' },
+        { id: 'c2', text: 'Фрукти' },
+      ],
+      words: [
+        { id: 'w1', text: 'Морква', categoryId: 'c1' },
+        { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+        { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+        { id: 'w4', text: 'Груша', categoryId: 'c2' },
+      ],
+    };
+    const sorted = (nickname: string, n: number, timeMs: number | null, misses: number) => ({
+      nickname,
+      answer: { type: 'sort' as const, sorted: n, total: 4, misses, timeMs },
+      accepted: n === 4,
+    });
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        questions: [
+          { index: 0, roundIndex: 0, text: 'Розкладіть', type: 'sort', answered: 2, accepted: 1, cell: null, question: sortQ, responses: [sorted('Олена', 4, 8000, 1), sorted('Тарас', 3, null, 0)], final: null },
+        ],
+      },
+    } as never);
+    open('/history/g1');
+    expect(await screen.findByText('Відсортовано 4 з 4 за 8,0 с, помилок: 1')).toBeTruthy();
+    expect(screen.getByText('Відсортовано 3 з 4, помилок: 0')).toBeTruthy();
+    expect(screen.getByText('Правильна відповідь: Овочі: Морква, Буряк; Фрукти: Яблуко, Груша')).toBeTruthy();
+  });
+});

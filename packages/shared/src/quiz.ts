@@ -40,6 +40,19 @@ export const LIMITS = {
   minHintSeconds: 1,
   maxHintSeconds: 30,
   defaultHintSeconds: 5,
+  minSortCategories: 2,
+  maxSortCategories: 4,
+  /** Назва категорії сортування: коротко, бо зона на краю телефона. */
+  sortCategory: 30,
+  minSortWords: 4,
+  maxSortWords: 20,
+  sortWord: 40,
+  /** «Підвисання» після помилки в сортуванні, секунди. */
+  minLockSeconds: 1,
+  maxLockSeconds: 10,
+  defaultLockSeconds: 3,
+  /** Типові бали за слово в сортуванні. */
+  defaultSortPoints: 100,
   /** Найбільша сума одного коригування балів ведучим (за модулем). */
   maxAdjust: 10_000,
 } as const;
@@ -142,6 +155,32 @@ export const questionSchema = z
       /** Скільки секунд додає гравцеві підказка. */
       hintSeconds: z.number().int().min(LIMITS.minHintSeconds).max(LIMITS.maxHintSeconds),
     }),
+    z.object({
+      ...base,
+      // points — бали за кожне правильно відсортоване слово.
+      type: z.literal('sort'),
+      categories: z
+        .array(
+          z.object({
+            id: z.string().min(1).refine(isStorable, UNSTORABLE),
+            text: z.string().trim().min(1).max(LIMITS.sortCategory).refine(isStorable, UNSTORABLE),
+          }),
+        )
+        .min(LIMITS.minSortCategories)
+        .max(LIMITS.maxSortCategories),
+      words: z
+        .array(
+          z.object({
+            id: z.string().min(1).refine(isStorable, UNSTORABLE),
+            text: z.string().trim().min(1).max(LIMITS.sortWord).refine(isStorable, UNSTORABLE),
+            categoryId: z.string(),
+          }),
+        )
+        .min(LIMITS.minSortWords)
+        .max(LIMITS.maxSortWords),
+      /** Секунди «підвисання» після помилки. */
+      lockSeconds: z.number().int().min(LIMITS.minLockSeconds).max(LIMITS.maxLockSeconds),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
@@ -151,9 +190,23 @@ export const questionSchema = z
           ? q.items.map((i) => i.id)
           : q.type === 'match'
             ? q.pairs.flatMap((p) => [p.left.id, p.right.id])
-            : [];
+            : q.type === 'sort'
+              ? [...q.categories.map((c) => c.id), ...q.words.map((w) => w.id)]
+              : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
     if (q.type === 'chain' && q.video !== null) ctx.addIssue({ code: 'custom', message: 'chain_video' });
+    if (q.type === 'sort') {
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'sort_video' });
+      const categoryIds = q.categories.map((c) => c.id);
+      if (!q.words.every((w) => categoryIds.includes(w.categoryId))) ctx.addIssue({ code: 'custom', message: 'unknown_category' });
+      if (!categoryIds.every((id) => q.words.some((w) => w.categoryId === id))) {
+        ctx.addIssue({ code: 'custom', message: 'sort_empty_category' });
+      }
+      if (hasDuplicates(q.words.map((w) => w.text.trim().toLocaleLowerCase('uk')))) {
+        ctx.addIssue({ code: 'custom', message: 'sort_duplicate_words' });
+      }
+      if (q.points * q.words.length > LIMITS.maxPoints) ctx.addIssue({ code: 'custom', message: 'sort_points' });
+    }
     if (q.type === 'single' && !ids.includes(q.correctId)) {
       ctx.addIssue({ code: 'custom', message: 'unknown_correct_id' });
     }
@@ -163,6 +216,11 @@ export const questionSchema = z
   });
 
 export type Question = z.infer<typeof questionSchema>;
+
+/** Ціна запитання: для сортування — найбільша сума (слова × бали за слово), інакше points. */
+export function questionPrice(question: Question): number {
+  return question.type === 'sort' ? question.points * question.words.length : question.points;
+}
 
 export const roundRulesSchema = z.object({
   penalty: z.enum(['none', 'minus']),
@@ -336,6 +394,11 @@ export const quizSchema = z
       }
       if (round.type === 'board') {
         for (const message of boardRoundIssues(round)) ctx.addIssue({ code: 'custom', message });
+        // Сортування на полі — лише звичайна клітинка з телефона.
+        const sortCell = boardCells(round).some(
+          ({ cell }) => cell.question.type === 'sort' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'),
+        );
+        if (sortCell) ctx.addIssue({ code: 'custom', message: 'sort_cell' });
       }
     }
   });

@@ -16,3 +16,4 @@ export * from './board-dice';
 export * from './board-cells';
 export * from './final';
 export * from './chain';
+export * from './sort';

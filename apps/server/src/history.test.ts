@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
-import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
-import { rankPlayers } from '@quiz/engine';
+import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, user } from './db/schema';
@@ -621,6 +621,61 @@ describe('host history: answers', () => {
       ['Тарас', 0],
     ]);
     await local.app.close();
+  });
+
+  it('history lists sort summaries and the board price of a sort cell', async () => {
+    const scheduler = new FakeScheduler();
+    type Started = Awaited<ReturnType<typeof start>>;
+    const sortWords = ({ local, room }: Started, playerId: string, count: number, wrongFirst = false) => {
+      const move = (right: boolean) => {
+        const head = sortOf(room.state, playerId).queue[0];
+        const category = sortQ.words.find((w) => w.id === head)?.categoryId ?? '';
+        local.manager.sort(room, playerId, head, right ? category : category === 'c1' ? 'c2' : 'c1');
+      };
+      if (wrongFirst) {
+        move(false);
+        scheduler.advance(3000);
+      }
+      for (let i = 0; i < count; i += 1) move(true);
+    };
+    const classic = await start(makeQuiz([sortQ], { speedBonus: false }), scheduler);
+    const olena = await classic.enter('Олена');
+    const taras = await classic.enter('Тарас');
+    const step = (type: 'start' | 'lock' | 'next') => expect(classic.local.manager.host(classic.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    sortWords(classic, olena, 4, true);
+    sortWords(classic, taras, 2);
+    step('lock');
+    step('next');
+    step('next');
+    const result = await classic.detail();
+    expect(result.questions[0].question.type).toBe('sort');
+    expect(result.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'sort', sorted: 4, total: 4, misses: 1 }, accepted: true },
+      { nickname: 'Тарас', answer: { type: 'sort', sorted: 2, total: 4, misses: 0 }, accepted: false },
+    ]);
+    expect(result.standings).toMatchObject([{ nickname: 'Олена', score: 400 }, { nickname: 'Тарас', score: 200 }]);
+    await classic.local.app.close();
+
+    const field = await start(
+      makeRoundsQuiz([
+        boardRound('g1', [
+          { title: 'Сортування', cells: [{ mark: 'x2', answerMode: 'phone', question: sortQ }, withId(single, 's1'), withId(single, 's2')] },
+          { title: 'Інше', cells: [withId(single, 's3'), withId(single, 's4'), withId(single, 's5')] },
+          { title: 'Ще', cells: [withId(single, 's6'), withId(single, 's7'), withId(single, 's8')] },
+        ]),
+      ]),
+      scheduler,
+    );
+    const anna = await field.enter('Анна');
+    expect(field.local.manager.host(field.room, { type: 'start' })).toEqual({ ok: true });
+    expect(field.local.manager.host(field.room, { type: 'next' })).toEqual({ ok: true });
+    expect(field.local.manager.pick(field.room, anna, sortQ.id)).toEqual({ ok: true });
+    sortWords(field, anna, 4);
+    const detail = await field.detail();
+    expect((detail.questions[0] as unknown as { cell: object }).cell).toMatchObject({ price: 400, multiplier: 2, points: 800 });
+    await field.local.app.close();
   });
 
   it('a game with a video question shows in the history like any other', async () => {

@@ -27,6 +27,13 @@ function filled(question: Question): Question {
       return { ...question, text, accepted: ['Відповідь'] };
     case 'chain':
       return { ...question, text, words: ['Форель', 'Риба', 'Океан'] };
+    case 'sort':
+      return {
+        ...question,
+        text,
+        categories: question.categories.map((c, i) => ({ ...c, text: `Категорія ${i + 1}` })),
+        words: question.words.map((w, i) => ({ ...w, text: `Слово ${i + 1}` })),
+      };
     default:
       return { ...question, text };
   }
@@ -59,7 +66,8 @@ describe('newQuestion', () => {
 describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
-    for (const type of QUESTION_TYPES) {
+    // Сортування має власні час і бали за слово: його перевіряє окремий тест нижче.
+    for (const type of QUESTION_TYPES.filter((candidate) => candidate !== 'sort')) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -148,12 +156,14 @@ describe('duplicateQuestion', () => {
       const source = filled(newQuestion(type));
       const copy = duplicateQuestion(source);
       expect(copy.id, type).not.toBe(source.id);
-      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
+      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, words: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
         ...source,
         id: '',
         options: undefined,
         items: undefined,
         pairs: undefined,
+        categories: undefined,
+        words: undefined,
         correctId: undefined,
         correctIds: undefined,
       });
@@ -714,5 +724,98 @@ describe('chain questions', () => {
   it('duplicating a chain copies its words', () => {
     const copy = duplicateQuestion(chain({ words: ['A1', 'B2', 'C3'] }));
     expect(copy.type === 'chain' && copy.words).toEqual(['A1', 'B2', 'C3']);
+  });
+});
+
+describe('sort questions in the editor', () => {
+  type Sort = Extract<Question, { type: 'sort' }>;
+  const shared = newQuestion('sort') as Sort;
+  const sortQ = (patch: Partial<Sort> = {}): Sort => {
+    const base = shared;
+    return {
+      ...base,
+      text: 'Розкладіть',
+      categories: base.categories.map((category, i) => ({ ...category, text: `Кат ${i + 1}` })),
+      words: base.words.map((word, i) => ({ ...word, text: `Слово${i + 1}` })),
+      ...patch,
+    };
+  };
+  const problemFor = (question: Question) => problemsOf(quizWith(question));
+
+  it('sort is offered in every round type', () => {
+    for (const type of ['classic', 'blitz', 'board', 'final'] as const) expect(questionTypesFor(type)).toContain('sort');
+    expect(questionTypesFor('classic')).toContain('chain');
+    expect(questionTypesFor('board')).not.toContain('chain');
+  });
+
+  it('a new sort question is valid once its texts are filled', () => {
+    const question = newQuestion('sort') as Sort;
+    expect(question.categories).toHaveLength(2);
+    expect(question.words).toHaveLength(4);
+    expect(question.words.map((word) => word.categoryId)).toEqual([0, 1, 0, 1].map((i) => question.categories[i].id));
+    expect(question.points).toBe(100);
+    expect(question.lockSeconds).toBe(3);
+    expect(question.timeLimit).toBeGreaterThanOrEqual(60);
+    expect(problemFor(question)).not.toEqual([]);
+    expect(problemFor(sortQ())).toEqual([]);
+  });
+
+  it('cleaning a sort trims texts and drops blank trailing words above the minimum', () => {
+    const base = sortQ();
+    const extra = [4, 5].map((i) => ({ id: `x${i}`, text: '', categoryId: base.categories[0].id }));
+    const question = sortQ({
+      categories: base.categories.map((category) => ({ ...category, text: ` ${category.text} ` })),
+      words: [...base.words.map((word) => ({ ...word, text: ` ${word.text} ` })), ...extra],
+    });
+    const [result] = questionsOf(cleaned(quizWith(question))) as Sort[];
+    expect(result.words).toHaveLength(4);
+    expect(result.words[0].text).toBe('Слово1');
+    expect(result.categories[0].text).toBe('Кат 1');
+  });
+
+  it('sort problems name the cause', () => {
+    const base = sortQ();
+    const [a, b] = base.categories;
+    expect(problemFor(sortQ({ words: base.words.map((w, i) => (i === 0 ? { ...w, text: '' } : w)) }))).toEqual([t('problemSortText', { index: 1 })]);
+    expect(problemFor(sortQ({ categories: [{ ...a, text: '' }, b] }))).toEqual([t('problemSortText', { index: 1 })]);
+    expect(problemFor(sortQ({ words: base.words.map((w) => ({ ...w, categoryId: a.id })) }))).toEqual([t('problemSortCategory', { index: 1 })]);
+    expect(problemFor(sortQ({ words: base.words.map((w, i) => ({ ...w, text: i < 2 ? 'Морква' : w.text })) }))).toEqual([t('problemSortDuplicate', { index: 1 })]);
+    const many = Array.from({ length: 20 }, (_, i) => ({ id: `w${i}`, text: `С${i}`, categoryId: i % 2 === 0 ? a.id : b.id }));
+    expect(problemFor(sortQ({ words: many, points: 101 }))).toEqual([t('problemSortPoints', { index: 1 })]);
+    expect(problemFor(sortQ({ lockSeconds: 0 }))).toEqual([t('problemLockSeconds', { index: 1 })]);
+  });
+
+  it('a sort draft round-trips with its categories, words and blank number fields', () => {
+    const base = sortQ();
+    const question = { ...base, lockSeconds: Number.NaN, points: Number.NaN };
+    saveDraft('sort-draft', quizWith(question));
+    const back = roundQuestions(loadDraft('sort-draft')!.rounds[0])[0];
+    expect(back?.type).toBe('sort');
+    if (back?.type !== 'sort') return;
+    expect(back.categories).toEqual(base.categories);
+    expect(back.words).toEqual(base.words);
+    expect(back.words.map((word) => word.categoryId)).toEqual(base.words.map((word) => word.categoryId));
+    // JSON робить NaN порожнім null: поле має лишитися порожнім числом, а не null.
+    expect(Number.isNaN(back.lockSeconds)).toBe(true);
+    expect(Number.isNaN(back.points)).toBe(true);
+  });
+
+  it('a sort in a final has no hidden per-word price to fix: the saved points fit the limit', () => {
+    const [a, b] = sortQ().categories;
+    const many = Array.from({ length: 20 }, (_, i) => ({ id: `w${i}`, text: `С${i}`, categoryId: i % 2 === 0 ? a.id : b.id }));
+    const question = sortQ({ words: many, points: 150 });
+    const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newFinalRound(), questions: [question] }] };
+    expect(problemsOf(quiz)).toEqual([]);
+    const saved = cleaned(quiz);
+    expect(roundQuestions(saved.rounds[0])[0]?.points).toBe(100);
+    expect(quizSchema.safeParse(saved).success).toBe(true);
+    // Поза фіналом ціна за слово видна й перевіряється, як і раніше.
+    expect(problemFor(question)).toEqual([t('problemSortPoints', { index: 1 })]);
+  });
+
+  it('changing to sort keeps the text and time, sets points per word', () => {
+    const single = { ...newQuestion('single'), text: 'Питання', timeLimit: 45, points: 1000 };
+    const result = changeType(single, 'sort');
+    expect(result).toMatchObject({ type: 'sort', text: 'Питання', timeLimit: 60, points: 100 });
   });
 });

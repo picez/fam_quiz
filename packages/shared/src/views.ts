@@ -27,6 +27,8 @@ export interface PublicQuestion {
   orderLabels: { top: string; bottom: string } | null;
   /** null для інших типів. */
   chain: PublicChain | null;
+  /** null для інших типів; слів і правильних категорій тут немає. */
+  sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
 }
 
 export interface PublicChain {
@@ -69,6 +71,45 @@ export interface PlayerChain {
   /** Межа часу запитання з «±15 с». */
   limitMs: number;
   /** Час проходження зі штрафом; null — ще не пройшов. */
+  timeMs: number | null;
+}
+
+export interface SortRow {
+  playerId: string;
+  nickname: string;
+  sorted: number;
+  misses: number;
+  /** Час повного сортування; null — ще не закінчив. */
+  timeMs: number | null;
+  /** Бали за запитання; лише на reveal, інакше null. */
+  points: number | null;
+}
+
+export interface SortInfo {
+  /** Скільки слів. */
+  total: number;
+  /** Під час запитання — у порядку гравців; з locked — закінчили за часом, далі за sorted спаданням, далі в порядку гравців. На полі — лише той, хто вибрав. */
+  rows: SortRow[];
+  /** Бліц: хто першим відсортував усе; з locked. null — ще ніхто або не бліц. */
+  winner: BlitzPlayer | null;
+}
+
+/** Сортування для самого гравця: лише власна поточна картка, правильних категорій немає. */
+export interface PlayerSort {
+  /** Поточна картка; null — усе відсортовано або запис уже є. */
+  card: { id: string; text: string } | null;
+  sorted: number;
+  total: number;
+  misses: number;
+  /** Кінець підвисання (час сервера); null — не підвисає або пауза. */
+  lockedUntil: number | null;
+  /** На паузі: залишок підвисання, мс; інакше null. */
+  lockRemainingMs: number | null;
+  /** Слово останньої помилки — для трусіння картки. */
+  missed: { id: string; text: string } | null;
+  /** question, не пауза, гравець відповідає тут, запису ще немає. */
+  canSort: boolean;
+  /** Час повного сортування; null — ще не закінчив. */
   timeMs: number | null;
 }
 
@@ -333,6 +374,8 @@ interface BaseView {
   final: FinalInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
   chain: ChainInfo | null;
+  /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
+  sort: SortInfo | null;
   /** Останнє коригування балів ведучим; null — не було. */
   notice: AdjustmentNotice | null;
 }
@@ -370,6 +413,8 @@ export interface PlayerView extends BaseView {
     final: { wager: number | null; limit: number; allIn: boolean } | null;
     /** null поза запитанням-ланцюжком. */
     chain: PlayerChain | null;
+    /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
+    sort: PlayerSort | null;
     /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера). */
     debuff: { kind: DebuffKind; since: number } | null;
   };
@@ -407,6 +452,8 @@ export interface HostView extends BaseView {
   final: HostFinal | null;
   /** Як у BaseView, але і у фіналі. */
   chain: ChainInfo | null;
+  /** Як у BaseView, але і у фіналі. */
+  sort: SortInfo | null;
   standings: Standing[];
 }
 

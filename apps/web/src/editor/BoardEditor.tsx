@@ -1,4 +1,4 @@
-import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty } from '@quiz/shared';
+import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty } from '@quiz/shared';
 import { useEffect, useId, useState } from 'react';
 import { t } from '../i18n';
 import { moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
@@ -97,7 +97,8 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
               )}
               {column.cells.map((cell, cellIndex) => {
                 const on = columnIndex === category && cellIndex === index;
-                const points = Number.isNaN(cell.question.points) ? t('boardPointsBlank') : String(cell.question.points);
+                const price = questionPrice(cell.question);
+                const points = Number.isNaN(price) ? t('boardPointsBlank') : String(price);
                 const mark = markText(cell.mark);
                 return (
                   <button
@@ -161,23 +162,29 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
             <option value="x3">{t('boardMarkX3')}</option>
           </select>
         </label>
-        <label className="field">
-          <span>{t('boardKind')}</span>
-          <select value={current.kind} onChange={(event) => setCell({ kind: pick<CellKind>(CELL_KINDS, event.target.value, 'normal') })}>
-            <option value="normal">{t('boardKindNormal')}</option>
-            <option value="blitz">{t('boardKindBlitz')}</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>{t('boardCellMode')}</span>
-          <select
-            value={cellAnswerMode(round, current)}
-            onChange={(event) => setCell({ answerMode: pick<AnswerMode>(ANSWER_MODES, event.target.value, 'phone') })}
-          >
-            <option value="phone">{t('boardAnswerPhone')}</option>
-            <option value="voice">{t('boardAnswerVoice')}</option>
-          </select>
-        </label>
+        {current.question.type === 'sort' ? (
+          <p className="meta">{t('sortCellNote')}</p>
+        ) : (
+          <>
+            <label className="field">
+              <span>{t('boardKind')}</span>
+              <select value={current.kind} onChange={(event) => setCell({ kind: pick<CellKind>(CELL_KINDS, event.target.value, 'normal') })}>
+                <option value="normal">{t('boardKindNormal')}</option>
+                <option value="blitz">{t('boardKindBlitz')}</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>{t('boardCellMode')}</span>
+              <select
+                value={cellAnswerMode(round, current)}
+                onChange={(event) => setCell({ answerMode: pick<AnswerMode>(ANSWER_MODES, event.target.value, 'phone') })}
+              >
+                <option value="phone">{t('boardAnswerPhone')}</option>
+                <option value="voice">{t('boardAnswerVoice')}</option>
+              </select>
+            </label>
+          </>
+        )}
         {current.kind === 'blitz' && (
           <label className="field">
             <span>{t('boardCellPenalty')}</span>
@@ -187,7 +194,14 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
             </select>
           </label>
         )}
-        <QuestionEditor key={current.question.id} question={current.question} types={questionTypesFor('board')} onChange={(question) => setCell({ question })} />
+        <QuestionEditor
+          key={current.question.id}
+          question={current.question}
+          types={questionTypesFor('board')}
+          onChange={(question) =>
+            setCell(question.type === 'sort' ? { question, kind: 'normal', answerMode: 'phone', penalty: 'none' } : { question })
+          }
+        />
         <div className="toolbar">
           <button type="button" className="btn btn-small" aria-label={t('boardCellUp')} disabled={index === 0} onClick={() => moveCell(index - 1)}>
             {t('moveUpShort')}

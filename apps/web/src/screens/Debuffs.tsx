@@ -22,13 +22,22 @@ export function freezeMs(limitMs: number | null): number {
   return limitMs === null ? FREEZE_MS : Math.min(FREEZE_MS, Math.floor(limitMs / 2));
 }
 
-/** Зсув варіантів по колу на step позицій (лише single/multi; інші типи без змін). */
-export function rotateChoices(question: PublicQuestion, step: number): PublicQuestion {
-  if (question.type !== 'single' && question.type !== 'multi') return question;
-  const n = question.choices.length;
+/** Зсув списку по колу на step позицій; той самий масив, якщо зсуву немає. */
+function rotate<T>(items: T[], step: number): T[] {
+  const n = items.length;
   const k = n === 0 ? 0 : ((step % n) + n) % n;
-  if (k === 0) return question;
-  return { ...question, choices: [...question.choices.slice(k), ...question.choices.slice(0, k)] };
+  return k === 0 ? items : [...items.slice(k), ...items.slice(0, k)];
+}
+
+/** Зсув варіантів по колу на step позицій (single/multi; у сортуванні — зони категорій; інші типи без змін). */
+export function rotateChoices(question: PublicQuestion, step: number): PublicQuestion {
+  if (question.type === 'sort' && question.sort !== null) {
+    const categories = rotate(question.sort.categories, step);
+    return categories === question.sort.categories ? question : { ...question, sort: { ...question.sort, categories } };
+  }
+  if (question.type !== 'single' && question.type !== 'multi') return question;
+  const choices = rotate(question.choices, step);
+  return choices === question.choices ? question : { ...question, choices };
 }
 
 /** Запитання для показу: під «Дзеркалом» варіанти зсуваються кожні MIRROR_SWAP_MS; інакше те саме запитання. */

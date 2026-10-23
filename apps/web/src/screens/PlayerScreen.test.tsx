@@ -15,7 +15,7 @@ const publicQuestion = {
   video: null,
   timeLimit: 20,
   points: 1000,
-  right: [], chain: null, orderLabels: null,
+  right: [], chain: null, sort: null, orderLabels: null,
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },
@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, debuff: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -45,6 +45,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   spotlight: null,
   final: null,
   chain: null,
+  sort: null,
   notice: null,
   round: null,
   questionIndex: -1,
@@ -1111,5 +1112,127 @@ describe('PlayerScreen round facts', () => {
   it('every phone shows the adjustment notice', () => {
     show(view({ notice: { seq: 3, at: Date.now(), nickname: 'Тарас', points: -100 } }));
     expect(screen.getByText('Ведучий: −100 — Тарас')).toBeTruthy();
+  });
+});
+
+describe('PlayerScreen: sort', () => {
+  const sortQ = {
+    ...publicQuestion,
+    type: 'sort' as const,
+    text: 'Розкладіть',
+    points: 100,
+    choices: [],
+    sort: { categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }], total: 4, lockSeconds: 3 },
+  };
+  const fullSort: Question = {
+    id: 'q1',
+    type: 'sort',
+    text: 'Розкладіть',
+    imageUrl: null,
+    video: null,
+    timeLimit: 60,
+    points: 100,
+    categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }],
+    words: [
+      { id: 'w1', text: 'Морква', categoryId: 'c1' },
+      { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+      { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+      { id: 'w4', text: 'Груша', categoryId: 'c2' },
+    ],
+    lockSeconds: 3,
+  };
+  const mine = {
+    card: { id: 'w1', text: 'Морква' },
+    sorted: 0,
+    total: 4,
+    misses: 0,
+    lockedUntil: null,
+    lockRemainingMs: null,
+    missed: null,
+    canSort: true,
+    timeMs: null,
+  };
+  const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
+  const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
+  const olya = { playerId: 'p2', nickname: 'Оля' };
+  const sortBoard: NonNullable<PlayerView['board']> = {
+    categories: [],
+    order: [olya],
+    turn: olya,
+    cell: { id: 'k1', category: 'Сад', price: 400, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+    dice: null,
+    schedule: [],
+    scheduleRepeats: false,
+    skipAt: null,
+  };
+  const info = (over = {}) => ({ total: 4, rows: [{ playerId: 'p2', nickname: 'Оля', sorted: 2, misses: 0, timeMs: null, points: null, ...over }], winner: null });
+
+  it('a sort question on the phone', () => {
+    const send = show(onQuestion({ question: sortQ, sort: info(), me: { ...me, sort: mine } }));
+    expect(document.querySelector('.debuff-zone .sort-play')).not.toBeNull();
+    expect(screen.getByRole('timer')).toBeTruthy();
+    expect(screen.getByText('100 балів за слово')).toBeTruthy();
+    expect(document.querySelector('.sort-card')?.textContent).toBe('Морква');
+    expect(document.querySelector('.inputs')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Категорія «Фрукти»' }));
+    expect(send).toHaveBeenCalledWith('player:sort', { wordId: 'w1', categoryId: 'c2' });
+  });
+
+  it('the per-word price uses the right plural and is gone in a final', () => {
+    show(onQuestion({ question: { ...sortQ, points: 2 }, sort: info(), me: { ...me, sort: mine } }));
+    expect(screen.getByText('2 бали за слово')).toBeTruthy();
+    cleanup();
+    show(onQuestion({ question: { ...sortQ, points: 1 }, sort: info(), me: { ...me, sort: mine } }));
+    expect(screen.getByText('1 бал за слово')).toBeTruthy();
+    cleanup();
+    const finalRound: RoundInfo = { index: 0, total: 1, title: 'Фінал', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
+    show(onQuestion({ round: finalRound, question: sortQ, sort: null, me: { ...me, sort: mine } }));
+    expect(document.querySelector('.sort-play')).not.toBeNull();
+    expect(document.querySelector('.sort-points')).toBeNull();
+    expect(screen.queryByText(/за слово/)).toBeNull();
+  });
+
+  it('a board sort: the chooser plays, the others watch', () => {
+    show(onQuestion({ round: boardRound, board: sortBoard, question: sortQ, sort: info(), me: { ...me, sort: null } }));
+    expect(screen.getByText('Оля сортує слова')).toBeTruthy();
+    expect(screen.getByText('2 з 4')).toBeTruthy();
+    expect(screen.getByText('Овочі')).toBeTruthy();
+    expect(screen.getByText('Фрукти')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Категорія/ })).toBeNull();
+    expect(document.querySelector('.sort-card')).toBeNull();
+    expect(document.querySelector('.inputs')).toBeNull();
+    expect(screen.queryByText(/Відповідає Оля/)).toBeNull();
+  });
+
+  it('after the sort the phone shows the own result and later the grouping', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: sortQ, sort: info(), me: { ...me, sort: { ...mine, card: null, sorted: 4, canSort: false, timeMs: 8000 } } }));
+    expect(screen.getByRole('heading', { name: 'Усі слова відсортовано за 8,0 с' })).toBeTruthy();
+    expect(screen.getByText('Чекаємо на розкриття')).toBeTruthy();
+    expect(screen.queryByText('Чекаємо на правильну відповідь')).toBeNull();
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: sortQ, sort: info(), me: { ...me, sort: { ...mine, sorted: 3, canSort: false } } }));
+    expect(screen.getByRole('heading', { name: 'Час вийшов: відсортовано 3 з 4' })).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'locked', round: blitzRound, questionIndex: 0, question: sortQ, sort: { ...info(), winner: olya }, me: { ...me, sort: { ...mine, sorted: 3, canSort: false } } }));
+    expect(screen.getByText('Найшвидше все відсортовано: Оля')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'locked', round: blitzRound, questionIndex: 0, question: sortQ, sort: info(), me: { ...me, sort: { ...mine, sorted: 3, canSort: false } } }));
+    expect(screen.getByText('Ніхто не встиг відсортувати всі слова')).toBeTruthy();
+    cleanup();
+    const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 400 };
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: sortQ,
+        sort: info({ points: 400 }),
+        reveal: fullSort,
+        me: { ...me, result, sort: { ...mine, card: null, sorted: 4, canSort: false, timeMs: 8000 } },
+      }),
+    );
+    expect(screen.getByText('Правильна відповідь: Овочі: Морква, Буряк; Фрукти: Яблуко, Груша')).toBeTruthy();
+    expect(screen.getByText('+400')).toBeTruthy();
+    expect(screen.getByText('Усі слова відсортовано за 8,0 с')).toBeTruthy();
+    expect(document.querySelector('.sort-columns')).toBeNull();
   });
 });

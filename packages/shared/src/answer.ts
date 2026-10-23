@@ -28,4 +28,14 @@ export interface ChainAnswer {
   timeMs: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer;
+/** Підсумок сортування гравця; складає рушій, з телефона не приходить. */
+export interface SortAnswer {
+  type: 'sort';
+  sorted: number;
+  total: number;
+  misses: number;
+  /** Час повного сортування, мс; null — не встиг. */
+  timeMs: number | null;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer;

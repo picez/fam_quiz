@@ -15,6 +15,7 @@ const question: PublicQuestion = {
   points: 100,
   right: [],
   chain: null,
+  sort: null,
   orderLabels: null,
   choices: [
     { id: 'a', text: 'Львів' },

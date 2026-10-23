@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { getGame } from '../api';
-import { answerText, choicesOf, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
+import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { t } from '../i18n';
 import { PairList } from '../screens/MatchView';
 import { usePrivateData } from '../usePrivateData';
@@ -108,6 +108,9 @@ export function GameHistory() {
                               ))}
                             </ul>
                           </div>
+                        )}
+                        {question.question.type === 'sort' && (
+                          <p className="meta">{t('correctAnswer', { answer: correctText(question.question) })}</p>
                         )}
                         {question.responses.length > 0 && (
                           <details className="responses">

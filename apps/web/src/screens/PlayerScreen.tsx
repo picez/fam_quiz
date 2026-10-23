@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Answer, DiceInfo, PlayerBlitz, PlayerView, PublicQuestion, Spotlight } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
-import { errorText, t } from '../i18n';
+import { countText, errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast } from '../live/LiveNotices';
 import { Timer, timerStatus } from '../live/Timer';
@@ -17,6 +17,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { BlitzQueue } from './BlitzQueue';
 import { Standings } from './Standings';
 import { ChainPlay, ChainWords } from './ChainView';
+import { SortPlay, SortWatch } from './SortView';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 
 interface Props {
@@ -45,6 +46,7 @@ function Result({ view }: { view: PlayerView }) {
       {view.me.chain !== null && (
         <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
       )}
+      {view.me.sort !== null && <SortOutcome view={view} />}
       {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
       {view.blitz !== null && (
         <p className="winner">
@@ -52,6 +54,32 @@ function Result({ view }: { view: PlayerView }) {
         </p>
       )}
     </section>
+  );
+}
+
+/** Власний підсумок сортування: час повного сортування або скільки встиг. */
+function sortOutcomeText(sort: NonNullable<PlayerView['me']['sort']>): string {
+  return sort.timeMs !== null
+    ? t('sortDone', { time: secondsText(sort.timeMs) })
+    : t('sortOutOfTime', { sorted: sort.sorted, total: sort.total });
+}
+
+/** Рядок підсумку сортування в результаті; у бліці — ще й переможець. */
+function SortOutcome({ view }: { view: PlayerView }) {
+  if (view.me.sort === null) return null;
+  return (
+    <>
+      <p>{sortOutcomeText(view.me.sort)}</p>
+      <SortWinner view={view} />
+    </>
+  );
+}
+
+/** Бліц-сортування: хто першим відсортував усе (ім'я відповідей не розкриває). */
+function SortWinner({ view }: { view: PlayerView }) {
+  if (view.round?.type !== 'blitz' || view.sort === null) return null;
+  return (
+    <p className="winner">{view.sort.winner === null ? t('sortNoWinner') : t('sortWinner', { name: view.sort.winner.nickname })}</p>
   );
 }
 
@@ -297,6 +325,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   };
 
   const chainMine = question?.type === 'chain' && me.chain !== null;
+  const isSort = question?.type === 'sort';
 
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
 
@@ -366,13 +395,19 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             // Бліц з кнопкою: рядок завжди займає місце, тож поява голови черги не зсуває запитання.
             <p className="lead answering-line">{othersAnswer ? t('boardAnswering', { name: answering.nickname }) : ''}</p>
           ) : (
-            othersAnswer && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>
+            othersAnswer && !isSort && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>
           )}
           <DebuffZone debuff={me.debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)}>{question.text}</h1>
             <QuestionImage url={question.imageUrl} />
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
-            {chainMine && me.chain !== null ? (
+            {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
+            {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
+            {isSort && me.sort !== null ? (
+              <SortPlay question={shown ?? question} sort={me.sort} paused={view.paused} offsetMs={offsetMs} send={send} />
+            ) : isSort ? (
+              view.sort !== null && <SortWatch question={question} info={view.sort} />
+            ) : chainMine && me.chain !== null ? (
               <ChainPlay chain={me.chain} question={question} paused={view.paused} offsetMs={offsetMs} send={send} />
             ) : instant && me.blitz !== null ? (
               <>
@@ -449,7 +484,18 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
           {/* У ланцюжку немає однієї правильної відповіді: гравець бачить свій результат і чекає на рейтинг. */}
-          {me.chain !== null && question !== null && question.chain !== null ? (
+          {isSort ? (
+            // Сортування: власний підсумок і очікування розкриття; глядач на полі бачить прогрес того, хто сортував.
+            <section className="sent">
+              {me.sort !== null ? (
+                <h2>{sortOutcomeText(me.sort)}</h2>
+              ) : (
+                question !== null && view.sort !== null && <SortWatch question={question} info={view.sort} />
+              )}
+              <SortWinner view={view} />
+              <p className="lead">{t('sortWaitResults')}</p>
+            </section>
+          ) : me.chain !== null && question !== null && question.chain !== null ? (
             <section className="sent">
               <ChainWords first={question.chain.first} masks={me.chain.masks} />
               <h2>{me.chain.timeMs !== null ? t('chainDone', { time: secondsText(me.chain.timeMs) }) : t('chainOutOfTime')}</h2>
@@ -484,7 +530,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <FinalResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
-              {question !== null && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {question !== null && !isSort && <SpotlightChoices question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
               {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>

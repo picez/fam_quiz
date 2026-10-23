@@ -21,6 +21,7 @@ const question: PublicQuestion = {
   right: [],
   orderLabels: null,
   chain: { first: 'Форель', masks: [['Р', null, null, null], ['О', null, null, null, null]], hintSeconds: 5 },
+  sort: null,
 };
 
 const chainOf = (over: Partial<PlayerChain> = {}): PlayerChain => ({

@@ -3525,3 +3525,449 @@ async function bankGame() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 7f: sorting — the editor, 2/3/4 zones by drag, tap and arrow, a mistake with a lock and a retry, stage progress without answers, the reveal by category, a board cell for the chooser only, a blitz won by the fastest, a final only for all words, the history', async () => {
+  try {
+    await sortGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Слово на 40 символів без пробілів: найгірший випадок для середини телефона з чотирма зонами. */
+const LONG_SORT = 'Найнайнайзолотистожовтогарячолистопадний';
+const SORT_ARROWS: Record<string, string> = { left: 'ArrowLeft', right: 'ArrowRight', top: 'ArrowUp', bottom: 'ArrowDown' };
+const sortZone = (page: Page, name: string) => page.getByRole('button', { name: `Категорія «${name}»`, ...exact });
+/** Текст поточної картки; null — картки немає. */
+const sortCard = async (page: Page) => (await page.evaluate("document.querySelector('.sort-card')?.textContent ?? null")) as string | null;
+/** Прямокутники зон у порядку сторінки, округлені до пікселя. */
+async function sortZoneBoxes(page: Page): Promise<number[][]> {
+  const zones = page.locator('.sort-zone');
+  const result: number[][] = [];
+  for (let i = 0; i < (await zones.count()); i++) {
+    const box = (await zones.nth(i).boundingBox())!;
+    result.push([box.x, box.y, box.width, box.height].map(Math.round));
+  }
+  return result;
+}
+
+/**
+ * Один хід сортування: дотик до зони, стрілка її позиції або перетягування картки мишею в зону.
+ * Чекає, поки картка зміниться, зникне або з'явиться підвисання. Хід, який телефон пропустив
+ * (відповідь сервера на попередній ще летіла), повторюється.
+ */
+async function sortBy(page: Page, how: 'tap' | 'key' | 'drag', zone: string) {
+  const before = await sortCard(page);
+  const target = sortZone(page, zone);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (how === 'tap') await target.click();
+    else if (how === 'key') await page.keyboard.press(SORT_ARROWS[(await target.getAttribute('data-pos'))!]!);
+    else {
+      const card = (await page.locator('.sort-card').boundingBox())!;
+      const to = (await target.boundingBox())!;
+      await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
+      await page.mouse.up();
+    }
+    const moved = await page
+      .waitForFunction(
+        `(() => { const card = document.querySelector('.sort-card'); return document.querySelector('.sort-lock') !== null || card === null || card.textContent !== ${JSON.stringify(before)}; })()`,
+        undefined,
+        { timeout: 2500 },
+      )
+      .then(
+        () => true,
+        () => false,
+      );
+    if (moved) return;
+  }
+  throw new Error(`sortBy(${how}, ${zone}): the card «${before}» did not move`);
+}
+
+async function sortGame() {
+  const host = await open('host7f', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host7f@example.com');
+
+  /** Правильна категорія кожного слова: лише в тесті, телефон її не знає. */
+  const where: Record<string, string> = {};
+  const sortQuestion = (id: string, text: string, categories: string[], words: [string, number][], points: number, lockSeconds: number, timeLimit: number) => {
+    for (const [word, at] of words) where[word] = categories[at]!;
+    return {
+      id,
+      type: 'sort' as const,
+      text,
+      imageUrl: null,
+      video: null,
+      timeLimit,
+      points,
+      lockSeconds,
+      categories: categories.map((category, at) => ({ id: `${id}-c${at}`, text: category })),
+      words: words.map(([word, at], index) => ({ id: `${id}-w${index}`, text: word, categoryId: `${id}-c${at}` })),
+    };
+  };
+  const s1Words = ['Морква', 'Яблуко', 'Буряк', 'Груша'];
+  const s1 = sortQuestion('s1', 'Овочі чи фрукти?', ['Овочі', 'Фрукти'], [['Морква', 0], ['Яблуко', 1], ['Буряк', 0], ['Груша', 1]], 100, 3, 60);
+  const s2Words = ['Кит', 'Сова', 'Щука', 'Кажан', 'Пінгвін', 'Карась'];
+  const s2 = sortQuestion('s2', 'Хто це?', ['Ссавці', 'Птахи', 'Риби'], [['Кит', 0], ['Сова', 1], ['Щука', 2], ['Кажан', 0], ['Пінгвін', 1], ['Карась', 2]], 50, 3, 60);
+  const s3 = sortQuestion('s3', 'Пори року', ['Зима', 'Весна', 'Літо', 'Осінь'], [['Січень', 0], ['Квітень', 1], ['Липень', 2], [LONG_SORT, 3]], 100, 1, 45);
+  const s4Words = ['Яблуня', 'Смородина', 'Вишня', 'Аґрус'];
+  const s4 = sortQuestion('s4', 'Дерево чи кущ?', ['Дерево', 'Кущ'], [['Яблуня', 0], ['Смородина', 1], ['Вишня', 0], ['Аґрус', 1]], 50, 3, 45);
+  const s5 = sortQuestion('s5', 'Чай чи кава?', ['Чай', 'Кава'], [['Капучино', 1], ['Улун', 0], ['Еспресо', 1], ['Пуер', 0]], 100, 3, 45);
+  const s6Words = ['Залізо', 'Кисень', 'Мідь', 'Сірка'];
+  const s6 = sortQuestion('s6', 'Метал чи неметал?', ['Метал', 'Неметал'], [['Залізо', 0], ['Кисень', 1], ['Мідь', 0], ['Сірка', 1]], 100, 3, 30);
+  const cellQ = (id: string, text: string, points: number) => ({ ...withPoints(withId(single, id), points), text, timeLimit: 30 });
+  const rounds = [
+    classicRound('r1', [s1, s2, s3], {
+      title: 'Розминка',
+      speedBonus: true,
+      rules: { penalty: 'minus', partial: null, streak: { length: 2, bonus: { kind: 'fixed', value: 100 } }, multiplier: 1 },
+    }),
+    boardRound(
+      'r2',
+      [
+        { title: 'Міста', cells: [cellQ('b11', 'Місто за 100?', 100), cellQ('b12', 'Місто за 200?', 200), cellQ('b13', 'Місто за 300?', 300)] },
+        { title: 'Сад', cells: [cellQ('b21', 'Сад за 100?', 100), cellQ('b22', 'Сад за 300?', 300), { question: s4, mark: 'x2', answerMode: 'phone' }] },
+        { title: 'Річки', cells: [cellQ('b31', 'Річка за 100?', 100), cellQ('b32', 'Річка за 200?', 200), cellQ('b33', 'Річка за 300?', 300)] },
+      ],
+      { title: 'Поле' },
+    ),
+    blitzRound('r3', [s5], { title: 'Бліц', check: 'auto' }),
+    finalRound('r4', s6, { title: 'Хімія', wagerMode: 'classic' }),
+  ];
+  const data = { ...makeRoundsQuiz(rounds, { leaderboard: 'end' }), title: 'Сортування' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Редактор: категорії, слова з категорією, бали за слово з сумою; підвисання 3 → 2.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Сортування' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.getByRole('button', { name: /^Запитання 1 Овочі чи фрукти\?/ }).click();
+  expect(await field(host, 'Категорія 1').inputValue()).toBe('Овочі');
+  expect(await field(host, 'Категорія 2').inputValue()).toBe('Фрукти');
+  for (const [index, word] of s1Words.entries()) {
+    expect(await field(host, `Слово ${index + 1}`).inputValue()).toBe(word);
+    expect(await host.getByLabel(`Категорія слова ${index + 1}`, exact).locator('option:checked').textContent()).toBe(where[word]);
+  }
+  expect(await field(host, 'Бали за слово').inputValue()).toBe('100');
+  await host.getByText('Разом до 400 балів (не більше 2000)', exact).waitFor();
+  const lock = field(host, 'Підвисання після помилки, с');
+  expect(await lock.inputValue()).toBe('3');
+  await lock.fill('2');
+  await shot(host, 'sort7f-editor-host');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'sort7f-editor-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  // Клітинка поля з сортуванням: ціна — найбільша сума (4 × 50), без перемикачів типу й способу.
+  await host.getByRole('button', { name: 'Поле', ...exact }).click();
+  await host.getByRole('button', { name: 'Категорія 2, клітинка 3: 200 ×2', ...exact }).click();
+  await host.getByText('Сортує лише той, хто вибрав клітинку, з телефона. Бали — за кожне відсортоване слово.', exact).waitFor();
+  expect(await host.locator('label.field', { hasText: 'Тип клітинки' }).count()).toBe(0);
+  expect(await host.locator('label.field', { hasText: 'Як відповідати' }).count()).toBe(0);
+  await shot(host, 'sort7f-editor-board-cell');
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // 2. Гра: сцена, Оля 375 px, Петро 360 px.
+  await host.locator('.quiz-list li', { hasText: 'Сортування' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage7f', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya7f', 375, 812);
+  const petro = await open('petro7f', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await stage.getByText('Петро').waitFor();
+
+  const hostScore = async (nickname: string) => (await host.locator('.player-row', { hasText: nickname }).locator('.score').textContent())!;
+  const scores = async () => [await hostScore('Оля'), await hostScore('Петро')];
+  /** До розкриття: у сторінці немає жодного слова, крім дозволеної картки. */
+  const noLeaks = async (page: Page, words: string[], allowed: string | null, label: string) => {
+    const html = await page.content();
+    for (const word of words) if (word !== allowed) expect(html, `${label}: «${word}» leaked`).not.toContain(word);
+  };
+  const zonesAt = async (page: Page) =>
+    Object.fromEntries(
+      await Promise.all(
+        (await page.locator('button.sort-zone').all()).map(async (zone) => [await zone.getAttribute('data-pos'), await zone.textContent()] as const),
+      ),
+    );
+  /** Сортує все правильно, поки є картка; повертає слова в тому порядку, як вони приходили. */
+  const sortRest = async (page: Page, how: 'tap' | 'key' | 'drag' = 'tap') => {
+    const seen: string[] = [];
+    for (let card = await sortCard(page); card !== null; card = await sortCard(page)) {
+      seen.push(card);
+      await sortBy(page, how, where[card]!);
+    }
+    return seen;
+  };
+  const stageRows = stage.locator('.sort-board li');
+  const stageRowsShape = async () => {
+    const result: number[] = [];
+    for (let i = 0; i < (await stageRows.count()); i++) result.push(Math.round((await stageRows.nth(i).boundingBox())!.height));
+    return result;
+  };
+  const toNextRound = async () => {
+    await click(host, 'Далі');
+    await click(host, 'Наступний раунд');
+  };
+  // Смужки прогресу плавно доростають (0,3 с): знімок — після того, як вони стали на місце.
+  const barsSettled = () =>
+    stage.waitForFunction("document.getAnimations().every((a) => a.playState === 'finished' || !a.effect?.target?.classList.contains('sort-bar-fill'))");
+
+  // 3. s1, дві зони: Оля сортує перетягуванням, дотиком і стрілками; зони не рухаються.
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+  await olya.locator('.sort-card').waitFor();
+  await petro.locator('.sort-card').waitFor();
+  expect(await zonesAt(olya)).toEqual({ left: 'Овочі', right: 'Фрукти' });
+  await expectNoSideScroll(olya, 'sort7f-phone-2');
+  await expectNoSideScroll(petro, 'sort7f-phone-2-360');
+  await stageRows.nth(1).waitFor();
+  expect(await stageRows.count()).toBe(2);
+  const rowsBefore = await stageRowsShape();
+  await noLeaks(stage, s1Words, null, 'stage s1');
+  await noLeaks(olya, s1Words, await sortCard(olya), 'olya s1');
+  await noLeaks(petro, s1Words, await sortCard(petro), 'petro s1');
+  // Порядок слів однаковий для всіх.
+  expect(await sortCard(petro)).toBe(await sortCard(olya));
+  const olyaZones = await sortZoneBoxes(olya);
+  for (const [index, how] of (['drag', 'tap', 'key', 'key'] as const).entries()) {
+    const card = (await sortCard(olya))!;
+    await noLeaks(olya, s1Words, card, `olya s1 move ${index + 1}`);
+    await sortBy(olya, how, where[card]!);
+    await olya.locator('.sort-progress', { hasText: `${index + 1} з 4` }).waitFor();
+    expect(await olya.locator('.sort-lock').count(), `olya s1: ${how} was a mistake`).toBe(0);
+    expect(await sortZoneBoxes(olya)).toEqual(olyaZones);
+  }
+  await olya.locator('.sort-done').waitFor();
+
+  // Петро помиляється: картка трусить, підвисання з відліком, дотик під час нього нічого не робить.
+  const missed = (await sortCard(petro))!;
+  const wrong = where[missed] === 'Овочі' ? 'Фрукти' : 'Овочі';
+  const petroZones = await sortZoneBoxes(petro);
+  const shook = petro.locator('.sort-card.is-shaking').waitFor({ timeout: 5000 });
+  await sortBy(petro, 'tap', wrong);
+  await shook;
+  await petro.locator('.sort-lock').getByText('Помилка! Підвисання: 2 с', exact).waitFor();
+  expect(await sortCard(petro)).toBe(missed);
+  expect(await sortZoneBoxes(petro)).toEqual(petroZones);
+  await shot(petro, 'sort7f-lock-phone');
+  await sortZone(petro, where[missed]!).click({ force: true });
+  expect(await petro.locator('.sort-progress').textContent()).toBe('0 з 4');
+  expect(await sortCard(petro)).toBe(missed);
+  // Сцена: прогрес обох без жодного слова; рядків стільки ж і тієї самої висоти.
+  await expect.poll(async () => (await stageRows.filter({ hasText: 'Петро' }).textContent()) ?? '').toContain('помилок: 1');
+  const olyaRow = (await stageRows.filter({ hasText: 'Оля' }).innerText()).replace(/\s+/g, ' ');
+  expect(olyaRow).toMatch(/4\/4 \d+(,\d)? с/);
+  expect(await stageRowsShape()).toEqual(rowsBefore);
+  await noLeaks(stage, s1Words, null, 'stage s1 progress');
+  await barsSettled();
+  await shot(stage, 'sort7f-stage-progress');
+  await shot(host, 'sort7f-host-progress');
+  // Пульт на телефоні 375 px: рядок з довгим іменем і помилками не дає бічної прокрутки, тисне лише ім'я.
+  await host.setViewportSize({ width: 375, height: 812 });
+  const petroRow = host.locator('.sort-board li', { hasText: 'Петро' });
+  const petroName = petroRow.locator('.name');
+  type NameCell = { textContent: string | null; dataset: Record<string, string | undefined>; scrollWidth: number; clientWidth: number };
+  await petroName.evaluate((el: NameCell) => {
+    el.dataset.was = el.textContent ?? '';
+    el.textContent = 'Петро Довгопрізвищенко-Найдовшеімʼяненко';
+  });
+  expect(await petroRow.innerText()).toContain('помилок: 1');
+  await expectNoSideScroll(host, 'sort7f-host-progress-375');
+  expect(await petroName.evaluate((el: NameCell) => el.scrollWidth > el.clientWidth), 'the long name is cut with an ellipsis').toBe(true);
+  await petroName.evaluate((el: NameCell) => {
+    el.textContent = el.dataset.was ?? '';
+  });
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await petro.locator('.sort-lock').waitFor({ state: 'detached', timeout: 5000 });
+  const petroOrder = await sortRest(petro);
+  expect(petroOrder.at(-1)).toBe(missed);
+  expect(petroOrder).toHaveLength(4);
+  // Обидва закінчили: запитання закривається саме.
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await noLeaks(stage, s1Words, null, 'stage s1 locked');
+  await click(host, 'Показати відповідь');
+  const column = (name: string) => stage.locator('.sort-reveal.is-open .sort-reveal-col', { has: stage.locator('h3', { hasText: name }) });
+  await column('Овочі').waitFor();
+  expect(await column('Овочі').locator('li').allTextContents()).toEqual(['Морква', 'Буряк']);
+  expect(await column('Фрукти').locator('li').allTextContents()).toEqual(['Яблуко', 'Груша']);
+  expect(await stage.evaluate('document.documentElement.scrollHeight <= innerHeight'), 'stage reveal scrolls').toBe(true);
+  await barsSettled();
+  await shot(stage, 'sort7f-stage-reveal');
+  await expect.poll(scores).toEqual(['400', '400']);
+
+  // 4. s2, три зони: «Риби» вгорі; Оля все, Петро три слова; ведучий закриває.
+  await click(host, 'Далі');
+  await petro.locator('h1', { hasText: 'Хто це?' }).waitFor();
+  await petro.locator('.sort-card').waitFor();
+  expect(await zonesAt(petro)).toEqual({ left: 'Ссавці', right: 'Птахи', top: 'Риби' });
+  await expectNoSideScroll(petro, 'sort7f-phone-3');
+  await noLeaks(stage, s2Words, null, 'stage s2');
+  await noLeaks(petro, s2Words, await sortCard(petro), 'petro s2');
+  await sortRest(olya, 'key');
+  await olya.locator('.sort-done').waitFor();
+  for (let i = 0; i < 3; i++) {
+    const card = (await sortCard(petro))!;
+    await sortBy(petro, i === 1 ? 'drag' : 'tap', where[card]!);
+  }
+  await petro.locator('.sort-progress', { hasText: '3 з 6' }).waitFor();
+  await noLeaks(stage, s2Words, null, 'stage s2 progress');
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  await expect.poll(scores).toEqual(['800', '550']);
+
+  // 5. s3, чотири зони, зменшений рух: помилка без трусіння, відлік видно; слово на 40 символів не розпирає екран.
+  await olya.emulateMedia({ reducedMotion: 'reduce' });
+  await click(host, 'Далі');
+  await olya.locator('h1', { hasText: 'Пори року' }).waitFor();
+  await olya.locator('.sort-card').waitFor();
+  expect(await zonesAt(olya)).toEqual({ left: 'Зима', right: 'Весна', top: 'Літо', bottom: 'Осінь' });
+  await shot(olya, 'sort7f-phone-4');
+  await expectNoSideScroll(petro, 'sort7f-phone-4-360');
+  const first = (await sortCard(olya))!;
+  await sortBy(olya, 'key', where[first] === 'Осінь' ? 'Зима' : 'Осінь');
+  await olya.locator('.sort-lock').getByText('Помилка! Підвисання: 1 с', exact).waitFor();
+  expect(await olya.locator('.sort-card').getAttribute('class')).toBe('sort-card');
+  await shot(olya, 'sort7f-reduced-lock');
+  await olya.locator('.sort-lock').waitFor({ state: 'detached', timeout: 5000 });
+  for (let card = await sortCard(olya); card !== null; card = await sortCard(olya)) {
+    if (card === LONG_SORT) {
+      await expectNoSideScroll(olya, 'sort7f-phone-4-375');
+      await expectApart(olya, '.sort-card', ['.sort-zone'], 's3 long word');
+    }
+    await sortBy(olya, 'key', where[card]!);
+  }
+  await olya.locator('.sort-done').waitFor();
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  await expect.poll(scores).toEqual(['1300', '550']);
+  await olya.emulateMedia({ reducedMotion: 'no-preference' });
+
+  // 6. Поле: сортує лише Оля, Петро бачить, хто сортує й скільки лишилося.
+  await toNextRound();
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await olya.getByRole('button', { name: 'Сад, 200', ...exact }).click();
+  await olya.locator('.sort-card').waitFor();
+  await petro.getByText('Оля сортує слова', exact).waitFor();
+  await petro.locator('.sort-progress', { hasText: '0 з 4' }).waitFor();
+  expect(await petro.locator('.sort-card').count()).toBe(0);
+  expect(await petro.locator('button.sort-zone').count()).toBe(0);
+  await noLeaks(petro, s4Words, null, 'petro board');
+  await noLeaks(stage, s4Words, null, 'stage board');
+  await expectNoSideScroll(petro, 'sort7f-board-watch-phone');
+  // Глядач бачить живий прогрес того, хто сортує; останнє слово одразу відкриває відповідь.
+  for (let i = 0; i < 3; i++) await sortBy(olya, 'tap', where[(await sortCard(olya))!]!);
+  await petro.locator('.sort-progress', { hasText: '3 з 4' }).waitFor();
+  await noLeaks(petro, s4Words, null, 'petro board progress');
+  await sortRest(olya);
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await expect.poll(async () => (await stageRows.filter({ hasText: 'Оля' }).textContent()) ?? '').toContain('4/4');
+  expect(await stageRows.count()).toBe(1);
+  await petro.getByText('Відповідав Оля', exact).waitFor();
+  await shot(stage, 'sort7f-board-stage');
+  await shot(petro, 'sort7f-board-reveal-phone');
+  await expect.poll(scores).toEqual(['1700', '550']);
+  await click(host, 'Далі');
+  const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+  const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+  await Promise.race([next.waitFor(), picking.waitFor()]);
+  if (await next.isVisible()) await next.click();
+  await picking.waitFor();
+  await click(host, 'Завершити раунд');
+  await click(host, 'Наступний раунд');
+
+  // 7. Бліц: Петро першим сортує все й забирає суму, Оля — нуль.
+  await click(host, 'Почати раунд');
+  await olya.locator('.sort-card').waitFor();
+  await petro.locator('.sort-card').waitFor();
+  await sortBy(olya, 'tap', where[(await sortCard(olya))!]!);
+  await sortRest(petro);
+  for (const page of [stage, olya, petro]) await page.getByText('Найшвидше все відсортовано: Петро', exact).waitFor();
+  await barsSettled();
+  await shot(stage, 'sort7f-blitz-winner');
+  await shot(olya, 'sort7f-blitz-winner-phone');
+  await click(host, 'Показати відповідь');
+  await expect.poll(scores).toEqual(['1700', '950']);
+
+  // 8. Фінал: Оля ставить 1000, Петро ва-банк; сцена не бачить прогресу.
+  await toNextRound();
+  await stage.getByRole('heading', { name: 'Хімія' }).waitFor();
+  await click(host, 'Почати фінал');
+  await olya.getByLabel('Ставка', exact).fill('1000');
+  await click(olya, 'Поставити');
+  await olya.getByText('Ваша ставка: 1000', exact).waitFor();
+  await click(petro, 'Ва-банк');
+  await olya.locator('.sort-card').waitFor();
+  await petro.locator('.sort-card').waitFor();
+  await sortRest(olya);
+  for (let i = 0; i < 3; i++) await sortBy(petro, 'tap', where[(await sortCard(petro))!]!);
+  await petro.locator('.sort-progress', { hasText: '3 з 4' }).waitFor();
+  expect(await stage.locator('.sort-board').count()).toBe(0);
+  expect(await bodyText(stage)).not.toContain('Усе відсортували');
+  await noLeaks(stage, s6Words, null, 'stage final');
+  await shot(stage, 'sort7f-final-stage');
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  const wager = (nickname: string) => stage.locator('.wager-list li', { hasText: nickname });
+  const flat = async (nickname: string) => ((await wager(nickname).textContent()) ?? '').replace(/\s/g, '');
+  await click(host, 'Наступний гравець');
+  await wager('Петро').waitFor();
+  expect(await flat('Петро')).toContain('950→0');
+  expect(await wager('Оля').count()).toBe(0);
+  await click(host, 'Наступний гравець');
+  await wager('Оля').waitFor();
+  expect(await flat('Оля')).toContain('1700→2700');
+  await shot(stage, 'sort7f-final-reveal');
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const standings = async (page: Page) => {
+    const rows = page.locator('.standings li');
+    await rows.first().waitFor();
+    const result: [string, string][] = [];
+    for (let i = 0; i < (await rows.count()); i++) {
+      result.push([(await rows.nth(i).locator('.name').textContent())!, (await rows.nth(i).locator('.score').textContent())!]);
+    }
+    return result;
+  };
+  const totals = await standings(stage);
+  expect(totals).toEqual([
+    ['Оля', '2700'],
+    ['Петро', '0'],
+  ]);
+
+  // 9. Історія: ті самі рахунки, підсумки сортування й правильний розклад.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Сортування/ }).click();
+  expect(await standings(host)).toEqual(totals);
+  const played = (text: string) => host.locator('.rows.stacked > li', { hasText: text });
+  const responses = async (text: string) => {
+    await played(text).getByText(/^Відповіді \(\d+\)$/).click();
+    return Object.fromEntries(
+      await Promise.all(
+        (await played(text).locator('.responses li').all()).map(
+          async (row) => [await row.locator('.responses-name').textContent(), await row.locator('.responses-answer').textContent()] as const,
+        ),
+      ),
+    );
+  };
+  const r1 = await responses('Овочі чи фрукти?');
+  expect(r1['Оля']).toMatch(/^Відсортовано 4 з 4 за \d+(,\d)? с, помилок: 0$/);
+  expect(r1['Петро']).toMatch(/^Відсортовано 4 з 4 за \d+(,\d)? с, помилок: 1$/);
+  expect((await responses('Хто це?'))['Петро']).toBe('Відсортовано 3 з 6, помилок: 0');
+  await played('Овочі чи фрукти?').getByText('Правильна відповідь: Овочі: Морква, Буряк; Фрукти: Яблуко, Груша', exact).waitFor();
+  const cellRow = (await played('Дерево чи кущ?').innerText()).replace(/\s+/g, ' ');
+  expect(cellRow).toContain('Сад · 200');
+  expect(cellRow).toContain('×2');
+  expect(cellRow).toContain('Оля: +400');
+  await shot(host, 'sort7f-history-host');
+
+  expect(problems).toEqual([]);
+}

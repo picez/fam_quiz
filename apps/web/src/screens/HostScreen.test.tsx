@@ -16,7 +16,7 @@ const options = [
 ];
 const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
 const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
-const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, orderLabels: null });
+const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null });
 
 const players = [
   { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0, debuff: null },
@@ -32,6 +32,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   spotlight: null,
   final: null,
   chain: null,
+  sort: null,
   notice: null,
   round: null,
   questionIndex: -1,
@@ -576,6 +577,53 @@ describe('HostScreen: blitz', () => {
       expect(button('Частково')).toBeTruthy();
     });
 
+    it('a sort cell has no grading buttons: the sort scores its words itself', () => {
+      const categories = [
+        { id: 'k1', text: 'Овочі' },
+        { id: 'k2', text: 'Фрукти' },
+      ];
+      const sortQ: Question = {
+        id: 'q9',
+        type: 'sort',
+        text: 'Розкладіть',
+        imageUrl: null,
+        video: null,
+        timeLimit: 60,
+        points: 100,
+        lockSeconds: 3,
+        categories,
+        words: [
+          { id: 'w1', text: 'Морква', categoryId: 'k1' },
+          { id: 'w2', text: 'Яблуко', categoryId: 'k2' },
+          { id: 'w3', text: 'Буряк', categoryId: 'k1' },
+          { id: 'w4', text: 'Груша', categoryId: 'k2' },
+        ],
+      };
+      const cell = { id: 'c1', category: 'Міста', price: 400, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const sort = { total: 4, winner: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 0, timeMs: null, points: null }] };
+      for (const phase of ['locked', 'reveal'] as const) {
+        show(
+          during(phase, sortQ, {
+            round: boardRound,
+            players: three,
+            board: boardOf({ cell }),
+            question: { ...publicOf(sortQ), choices: [], sort: { categories, total: 4, lockSeconds: 3 } },
+            sort,
+          }),
+        );
+        expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Частково' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Не зараховувати' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Прийняти' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Неправильно' })).toBeNull();
+        cleanup();
+      }
+      // Звичайна клітинка з телефона на locked оцінюється, як і раніше.
+      show(during('locked', single, { round: boardRound, players: three, board: boardOf({ cell }) }));
+      expect(button('Зарахувати')).toBeTruthy();
+      expect(button('Не зараховувати')).toBeTruthy();
+    });
+
     it('the host sees the options when one player answers', () => {
       const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
       const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };
@@ -1087,6 +1135,45 @@ describe('HostScreen final', () => {
     // Бали ланцюжка рахуються при закритті: панель «Відповіді» з нулями не показується.
     expect(document.querySelector('.chain-board .is-out')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+  });
+});
+
+describe('HostScreen sort', () => {
+  it('the host sees the progress and the grouping and can close the sort', () => {
+    const categories = [
+      { id: 'c1', text: 'Овочі' },
+      { id: 'c2', text: 'Фрукти' },
+    ];
+    const sortQ: Question = {
+      id: 'q4',
+      type: 'sort',
+      text: 'Розкладіть',
+      imageUrl: null,
+      video: null,
+      timeLimit: 60,
+      points: 100,
+      lockSeconds: 3,
+      categories,
+      words: [
+        { id: 'w1', text: 'Морква', categoryId: 'c1' },
+        { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+        { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+        { id: 'w4', text: 'Груша', categoryId: 'c2' },
+      ],
+    };
+    const info = { total: 4, winner: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 1, timeMs: null, points: null }] };
+    const send = vi.fn(async () => ({ ok: true as const }));
+    show(
+      view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'sort', choices: [], sort: { categories, total: 4, lockSeconds: 3 } }, correct: sortQ, endsAt: Date.now() + 20_000, sort: info }),
+      send,
+    );
+    expect(screen.getByRole('heading', { name: 'Сортування' })).toBeTruthy();
+    expect(document.querySelector('.sort-board')?.textContent).toContain('2/4');
+    expect(document.body.textContent).toContain('Овочі: Морква, Буряк; Фрукти: Яблуко, Груша');
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Закрити запитання' }));
+    expect(send).toHaveBeenCalledWith('host:lock', undefined);
   });
 });
 

@@ -20,9 +20,9 @@ const numberOr = (value: unknown) => (typeof value === 'number' ? value : Number
 function revive(question: Question): Question {
   const video = videoSchema.safeParse(question.video).success ? question.video : null;
   const base = { ...question, video, timeLimit: numberOr(question.timeLimit), points: numberOr(question.points) };
-  return base.type === 'numeric'
-    ? { ...base, correct: numberOr(base.correct), tolerance: numberOr(base.tolerance) }
-    : base;
+  if (base.type === 'numeric') return { ...base, correct: numberOr(base.correct), tolerance: numberOr(base.tolerance) };
+  if (base.type === 'sort') return { ...base, lockSeconds: numberOr(base.lockSeconds) };
+  return base;
 }
 
 const looksLikeQuestion = (q: unknown) =>

@@ -3,6 +3,7 @@ import {
   findCell,
   questionsOf,
   cellAnswerMode,
+  questionPrice,
   roundQuestions,
   type Round,
   type Answer,
@@ -15,6 +16,9 @@ import {
   type ChainInfo,
   type DebuffKind,
   type PlayerChain,
+  type PlayerSort,
+  type SortInfo,
+  type SortRow,
   type Choice,
   type FinalEntry,
   type FinalInfo,
@@ -41,6 +45,7 @@ import { lastNotice } from './adjust';
 import { activeDebuff, shownDebuff } from './debuffs';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
+import { sortOf, sortsHere } from './sort';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
@@ -95,6 +100,14 @@ function publicQuestion(state: GameState): PublicQuestion | null {
     chain:
       question.type === 'chain'
         ? { first: question.words[0], masks: question.words.slice(1).map((w) => maskWord(w, 1)), hintSeconds: question.hintSeconds }
+        : null,
+    sort:
+      question.type === 'sort'
+        ? {
+            categories: question.categories.map(({ id, text }) => ({ id, text })),
+            total: question.words.length,
+            lockSeconds: question.lockSeconds,
+          }
         : null,
   };
 }
@@ -261,7 +274,7 @@ function boardInfo(state: GameState): BoardInfo | null {
       cells: category.cells.map(
         (cell): BoardCellView => ({
           id: cell.question.id,
-          price: cell.question.points,
+          price: questionPrice(cell.question),
           played: cellPlayed(state, cell.question.id),
           mark: cell.mark,
           kind: cell.kind,
@@ -323,6 +336,8 @@ function hostBoard(state: GameState): HostBoard | null {
  * У миттєвому бліці вибір видно лише в черзі: сцені й гравцям spotlight немає, ведучому — лише голова, що чекає.
  */
 function spotlightOf(state: GameState, forHost: boolean): Spotlight | null {
+  // Сортування видно в SortInfo: підсумок одного гравця тут нічого не додає.
+  if (currentQuestion(state)?.type === 'sort') return null;
   const instant = currentBlitz(state);
   if (instant !== null && isInstant(instant.rules) && !forHost) return null;
   const pending = pendingOf(state);
@@ -453,14 +468,17 @@ function hostFinal(state: GameState): HostFinal | null {
   const open = finalRoundOf(state);
   if (info === null || open === null) return null;
   const manual = open.round.check === 'manual';
-  const graded = state.plays[state.questionIndex]?.final?.graded ?? [];
+  const play = state.plays[state.questionIndex];
+  const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
+  // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort';
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
     entries,
     manual,
-    pending: manual
+    pending: manual && gradable
       ? entries.flatMap((entry) =>
           entry.answer === null || graded.includes(entry.playerId)
             ? []
@@ -534,6 +552,70 @@ function playerChain(state: GameState, playerId: string): PlayerChain | null {
   };
 }
 
+/** Поточне запитання-сортування з його грою; null поза запитанням або для інших типів. */
+function currentSort(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  return play?.question.type === 'sort' ? { play, question: play.question } : null;
+}
+
+/** Прогрес гравців без слів; на полі — лише того, хто вибрав. */
+function sortInfo(state: GameState): SortInfo | null {
+  const open = currentSort(state);
+  if (open === null) return null;
+  const { play } = open;
+  const players = play.board === undefined ? state.players : state.players.filter((p) => p.id === play.board?.chooserId);
+  const rows = players.map((player): SortRow => {
+    const record = recordOf(state, state.questionIndex, player.id);
+    const progress = sortOf(state, player.id);
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      sorted: progress.sorted.length,
+      misses: progress.misses,
+      timeMs: record?.accepted ? record.timeMs : null,
+      points: state.phase === 'reveal' && record !== undefined ? record.points : null,
+    };
+  });
+  const blitz = state.quiz.rounds[play.roundIndex]?.type === 'blitz';
+  const closed = state.phase === 'locked' || state.phase === 'reveal';
+  // Під час запитання рядки стоять у порядку гравців, щоб сцена не стрибала; ранжування — з locked.
+  // sort стабільний: рівні лишаються в порядку гравців.
+  if (closed) rows.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity) || b.sorted - a.sorted);
+  const won = blitz && closed ? state.players.find((p) => recordOf(state, state.questionIndex, p.id)?.accepted) : undefined;
+  return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id) };
+}
+
+/** Власна поточна картка й стан гравця; чужих слів і правильних категорій тут немає. */
+function playerSort(state: GameState, playerId: string): PlayerSort | null {
+  const open = currentSort(state);
+  if (open === null || !sortsHere(state, open.play, playerId)) return null;
+  const progress = sortOf(state, playerId);
+  const record = recordOf(state, state.questionIndex, playerId);
+  const word = (id: string | null | undefined) => {
+    const found = id === null || id === undefined ? undefined : open.question.words.find((w) => w.id === id);
+    return found === undefined ? null : { id: found.id, text: found.text };
+  };
+  const paused = state.paused && state.pausedAt !== null;
+  const lock = progress.lockedUntil;
+  return {
+    card: record === undefined ? word(progress.queue[0]) : null,
+    sorted: progress.sorted.length,
+    total: open.question.words.length,
+    misses: progress.misses,
+    lockedUntil: paused ? null : lock,
+    lockRemainingMs: paused && lock !== null && state.pausedAt !== null ? Math.max(0, lock - state.pausedAt) : null,
+    missed: word(progress.missed),
+    canSort: state.phase === 'question' && !state.paused && record === undefined,
+    timeMs: record?.accepted ? record.timeMs : null,
+  };
+}
+
+/** Чи гравці в поточному фіналі: сцена й телефони не бачать чужого прогресу. */
+function inFinalRound(state: GameState): boolean {
+  return currentRound(state)?.type === 'final';
+}
+
 /** Спільна частина зрізу; forHost — для ведучого (черга з вибором, spotlight голови миттєвого бліцу). */
 function base(state: GameState, forHost: boolean) {
   // Під час утримання годинник стоїть: клієнти не рахують від endsAt.
@@ -553,14 +635,27 @@ function base(state: GameState, forHost: boolean) {
     limitMs: state.phase === 'question' && play !== undefined ? limitMsOf(play) : null,
     held,
     playerCount: state.players.length,
-    answeredCount: Object.keys(currentAnswers(state)).length,
+    answeredCount: answeredCount(state),
     blitz: blitzInfo(state, forHost),
     board: boardInfo(state),
     spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
-    chain: currentRound(state)?.type === 'final' ? null : chainInfo(state),
+    chain: inFinalRound(state) ? null : chainInfo(state),
+    sort: inFinalRound(state) ? null : sortInfo(state),
     notice: lastNotice(state),
   };
+}
+
+/**
+ * Скільки відповіли. У фіналі сортування — скільки зробили хоч один хід: лічильник записів
+ * видав би, скільки вже відсортували все (тобто відповіли правильно).
+ */
+function answeredCount(state: GameState): number {
+  const answered = Object.keys(currentAnswers(state));
+  const open = currentSort(state);
+  if (open === null || !inFinalRound(state)) return answered.length;
+  const moved = new Set([...Object.keys(open.play.sort ?? {}), ...answered]);
+  return state.players.filter((p) => moved.has(p.id)).length;
 }
 
 function isRevealed(state: GameState): boolean {
@@ -663,6 +758,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       blitz: playerBlitz(state, playerId),
       final: playerFinal(state, playerId),
       chain: playerChain(state, playerId),
+      sort: playerSort(state, playerId),
       debuff: playerDebuff(state, playerId),
     },
     reveal: revealed ? currentQuestion(state) : null,
@@ -716,6 +812,7 @@ export function hostView(state: GameState): HostView {
     board: hostBoard(state),
     final: hostFinal(state),
     chain: chainInfo(state),
+    sort: sortInfo(state),
     standings: rankPlayers(state.players),
   };
 }

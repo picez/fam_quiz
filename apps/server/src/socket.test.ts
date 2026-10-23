@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -405,6 +405,37 @@ describe('host presence', () => {
     const scene = await until(stage, (view) => view.chain?.rows.some((row) => row.timeMs !== null) === true);
     expect(scene.chain?.rows[0].timeMs).not.toBeNull();
   });
+  it('player:sort is player-only and validated', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([sortQ, single]))).game;
+    const { host, stage, olena } = await lobby(created);
+    expect(await send(host, 'player:sort', { wordId: 'w1', categoryId: 'c1' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:sort', { wordId: 'w1', categoryId: 'c1' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:sort')).toEqual({ ok: false, error: 'invalid_payload' });
+    for (const payload of [{ wordId: 5, categoryId: 'c1' }, { wordId: 'w1' }, { wordId: 'w1', categoryId: null }]) {
+      expect(await send(olena, 'player:sort', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:sort', { wordId: 'w1', categoryId: 'c1' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const view = await until(olena, (v) => v.role === 'player' && v.me.sort?.card != null);
+    if (view.role !== 'player' || view.me.sort?.card == null) throw new Error('no card');
+    const card = view.me.sort.card.id;
+    const category = sortQ.words.find((w) => w.id === card)?.categoryId ?? '';
+    const other = category === 'c1' ? 'c2' : 'c1';
+    expect(await send(olena, 'player:sort', { wordId: card, categoryId: other })).toEqual({ ok: true });
+    expect(await send(olena, 'player:sort', { wordId: card, categoryId: category })).toEqual({ ok: false, error: 'sort_locked' });
+    expect(await send(olena, 'player:answer', { type: 'sort' })).toMatchObject({ ok: false });
+  });
+
+  it('player:sort on a question of another type is a type mismatch', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([single]))).game;
+    const { host, olena } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:sort', { wordId: 'w1', categoryId: 'c1' })).toEqual({ ok: false, error: 'type_mismatch' });
+  });
+
   it('player:wager is player-only and validated', async () => {
     const { host, stage, olena } = await lobby();
     expect(await send(host, 'player:wager', { amount: 0 })).toEqual({ ok: false, error: 'forbidden' });

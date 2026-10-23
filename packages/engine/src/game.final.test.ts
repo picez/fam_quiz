@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type FinalRound, type Question, type RoundRules } from '@quiz/shared';
 import { adjustScore } from './adjust';
 import { guessWord } from './chain';
+import { sortOf, sortWord } from './sort';
 import { placeWager } from './final';
 import {
   end,
@@ -22,7 +23,7 @@ import {
 import { pendingOf } from './hold';
 import { finalPoints } from './score';
 import { adjustTime, limitMsOf } from './timing';
-import { chain, classicRound, finalRound, makeRoundsQuiz, order, single, withId, withPoints, withVideo } from './testing/fixtures';
+import { chain, classicRound, finalRound, makeRoundsQuiz, order, single, sortQ, withId, withPoints, withVideo } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const right = { type: 'single', optionId: 'b' } as const;
@@ -415,5 +416,31 @@ describe('the final round', () => {
     expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'wrong', points: -400, answer: { type: 'chain', solved: 1 } });
     expect(finalRecord(s, 'p3')).toMatchObject({ answer: null, points: 0 });
     expect(override(s, 'p2', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('a sort final is right only when every word is sorted in time', () => {
+    const sortWords = (start: GameState, playerId: string, count: number, now: number) => {
+      let s = start;
+      for (let i = 0; i < count; i += 1) {
+        const w = sortOf(s, playerId).queue[0];
+        s = must(sortWord(s, playerId, w, sortQ.words.find((x) => x.id === w)?.categoryId ?? '', now));
+      }
+      return s;
+    };
+    const play = (s: GameState) => sortWords(sortWords(s, 'p1', 4, 12_000), 'p2', 3, 13_000);
+
+    let s = play(toQuestion({ check: 'manual' }, sortQ));
+    expect(finalRecord(s, 'p1')).toMatchObject({ grade: 'correct', accepted: true, points: 500, answer: { type: 'sort', sorted: 4 } });
+    s = must(lock(s));
+    expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'wrong', accepted: false, points: -400, answer: { type: 'sort', sorted: 3 } });
+    s = must(next(s, 14_000, rng));
+    expect(finalRecord(s, 'p3')).toMatchObject({ answer: null, points: 0 });
+    expect(override(s, 'p2', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
+
+    let b = play(toQuestion({ wagerMode: 'bank' }, sortQ));
+    b = must(next(must(lock(b)), 14_000, rng));
+    expect(finalRecord(b, 'p1')).toMatchObject({ grade: 'correct', points: 400 });
+    expect(finalRecord(b, 'p2')).toMatchObject({ grade: 'wrong', points: -400 });
+    expect(scores(b)).toEqual([1400, 0, -400]);
   });
 });

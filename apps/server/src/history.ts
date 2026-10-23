@@ -1,4 +1,5 @@
 import {
+  questionPrice,
   questionsOf,
   findCell,
   roundQuestions,
@@ -101,7 +102,7 @@ function cellResult(
         })
       : [],
     category: found.category.title,
-    price: found.cell.question.points,
+    price: questionPrice(found.cell.question),
     multiplier: found.cell.mark === 'x2' ? 2 : found.cell.mark === 'x3' ? 3 : 1,
     chooser: nicknames.get(chooserId) ?? null,
     points: own.length === 0 ? null : own.reduce((sum, a) => sum + a.points, 0),

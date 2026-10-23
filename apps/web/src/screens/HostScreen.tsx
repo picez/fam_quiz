@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Answer, ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { ChainBoard } from './ChainView';
+import { SortBoard } from './SortView';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -90,10 +91,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const board = view.board;
   const chooserId = board?.turn?.playerId ?? null;
   // У полі оцінка йде одразу після відповіді вибравшого: у запитанні лише коли ведучий оцінює вручну.
+  // Сортування рахує бали за слова саме: ручної оцінки в нього немає (сервер її відхиляє).
   const canGradeBoard =
     board !== null &&
     blitz === null &&
     view.question !== null &&
+    view.question.type !== 'sort' &&
     chooserId !== null &&
     ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
   const voiceCell = blitz === null && board?.cell?.answerMode === 'voice';
@@ -610,8 +613,15 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
+      {view.sort !== null && (
+        <section className="panel">
+          <h2>{t('sortTitle')}</h2>
+          <SortBoard sort={view.sort} reveal={phase === 'reveal'} />
+        </section>
+      )}
+
       {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
-      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && !(view.chain !== null && !isFinal && phase === 'question') && (
+      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.sort !== null) && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (

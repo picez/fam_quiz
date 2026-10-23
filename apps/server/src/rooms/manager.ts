@@ -30,6 +30,7 @@ import {
   setDebuff,
   setOrder,
   skipTurn,
+  sortWord,
   startDice,
   stageView,
   start,
@@ -241,6 +242,11 @@ export class RoomManager {
   guess(room: Room, playerId: string, word: string): AckResult {
     if (!this.alive(room)) return GONE;
     return this.apply(room, guessWord(room.state, playerId, word, this.now()));
+  }
+
+  sort(room: Room, playerId: string, wordId: string, categoryId: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, sortWord(room.state, playerId, wordId, categoryId, this.now()));
   }
 
   hint(room: Room, playerId: string): AckResult {

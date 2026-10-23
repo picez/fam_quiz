@@ -129,6 +129,18 @@ describe('chain texts', () => {
   });
 });
 
+describe('sort texts', () => {
+  const sortQuestion: Question = { ...base, type: 'sort', timeLimit: 60, points: 100, lockSeconds: 3,
+    categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }],
+    words: [{ id: 'w1', text: 'Морква', categoryId: 'c1' }, { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+            { id: 'w3', text: 'Буряк', categoryId: 'c1' }, { id: 'w4', text: 'Груша', categoryId: 'c2' }] };
+  it('a sort answer and the sort grouping in words', () => {
+    expect(answerText({ type: 'sort', sorted: 4, total: 4, misses: 2, timeMs: 41_234 }, sortQuestion)).toBe('Відсортовано 4 з 4 за 41,2 с, помилок: 2');
+    expect(answerText({ type: 'sort', sorted: 3, total: 4, misses: 0, timeMs: null }, null)).toBe('Відсортовано 3 з 4, помилок: 0');
+    expect(correctText(sortQuestion)).toBe('Овочі: Морква, Буряк; Фрукти: Яблуко, Груша');
+  });
+});
+
 const info = (type: RoundInfo['type'], total = 1, times: RoundInfo['times'] = null): RoundInfo => ({
   index: 0, total, title: '', type, partial: false, description: '', brief: emptyBrief(type), times,
 });
