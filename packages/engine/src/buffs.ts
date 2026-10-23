@@ -126,6 +126,8 @@ export function canVote(state: GameState, voterId: string, askerId: string): boo
   if (play === undefined || voterId === askerId || !state.players.some((p) => p.id === voterId)) return false;
   // На полі голосують усі, крім вибравшого; у класиці — ті, хто вже відповів (перша спроба, що чекає другої, не рахується).
   if (play.board !== undefined) return voterId !== play.board.chooserId;
+  // Хто відповідав на запасне, бачив інше запитання: голос за основне від нього нічого не значить.
+  if (buffOf(play, voterId)?.spare !== undefined) return false;
   return recordOf(state, state.questionIndex, voterId) !== undefined;
 }
 

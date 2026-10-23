@@ -1,10 +1,11 @@
 import type { Answer, BuffKind, Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { castVote, giveHint, takeBuff } from './buffs';
-import { acceptAnswer, lock, next, pause, submitAnswer, type GameState } from './game';
+import { pickCell } from './board';
+import { acceptAnswer, lock, next, pause, start, submitAnswer, type GameState } from './game';
 import { T0, toBuffQuestion, toOthersCell, toOthersQuestion } from './testing/buffs';
-import { bool, single4 } from './testing/fixtures';
-import { must } from './testing/helpers';
+import { bool, boardRound, makeRoundsQuiz, single4, withId } from './testing/fixtures';
+import { lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
 const rng0 = () => 0;
@@ -128,7 +129,16 @@ describe('views: hints, votes and spares', () => {
   });
 
   it('a spare on a board cell is shown to everyone', () => {
-    let s = take(toOthersCell(), 'p1', 'swap', T0 + 1000);
+    let s = take(toOthersCell(), 'p1', 'swap', T0 + 15_000);
+    // Межа часу — запасного (max(решта, 20 с)), як у підрахунку балів, а не повна межа основного.
+    for (const view of [stageView(s), playerView(s, 'p1'), playerView(s, 'p2'), hostView(s)]) expect(view?.limitMs).toBe(20_000);
+    // Клітинка на 30 с, заміна на 5-й секунді: межа запасного 25 с, а не 30 с основного.
+    const round = boardRound('g1', [{ title: 'Міста', cells: [{ ...single4, id: 'c11', timeLimit: 30 }] }], { check: 'auto', answerMode: 'phone' });
+    const quiz = { ...makeRoundsQuiz([round], { leaderboard: 'end', buffs: ['swap'] }), spares: [withId(bool, 's1')] };
+    const cell = must(pickCell(must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро'))), T0)), 'p1', 'c11', T0, rng0));
+    expect(stageView(cell).limitMs).toBe(30_000);
+    const swapped = take(cell, 'p1', 'swap', T0 + 5000);
+    for (const view of [stageView(swapped), playerView(swapped, 'p1'), playerView(swapped, 'p2'), hostView(swapped)]) expect(view?.limitMs).toBe(25_000);
     expect(stageView(s).question?.text).toBe(bool.text);
     expect(stageView(s).question?.type).toBe('boolean');
     expect(playerView(s, 'p2')?.question?.text).toBe(bool.text);
@@ -146,6 +156,20 @@ describe('views: hints, votes and spares', () => {
     expect(stageView(s).stats).toEqual({ answered: 1, accepted: 1, counts: { true: 1 } });
     expect(playerView(s, 'p2')?.reveal).toMatchObject({ id: 's1' });
     expect(hostView(s).responses[0].spare).toMatchObject({ id: 's1' });
+  });
+
+  it('a player answering a spare is never asked to vote on the main question', () => {
+    let s = take(toOthersQuestion({ spares: [SPARE] }), 'p2', 'swap', T0 + 1000);
+    s = answer(s, 'p2', single('b'), T0 + 2000); // Петро відповів на запасне
+    s = answer(s, 'p3', single('c'), T0 + 2500);
+    s = take(s, 'p1', 'audience', T0 + 3000);
+    expect(playerView(s, 'p2')?.me.vote).toBeNull();
+    expect(playerView(s, 'p3')?.me.vote).not.toBeNull();
+    expect(castVote(s, 'p2', 'p1', single('b'), T0 + 4000)).toEqual({ ok: false, error: 'vote_denied' });
+    // Лише Петро з відповіддю, і та на запасне: голосувати нікому.
+    let lone = take(toOthersQuestion({ spares: [SPARE] }), 'p2', 'swap', T0 + 1000);
+    lone = answer(lone, 'p2', single('b'), T0 + 2000);
+    expect(takeBuff(lone, 'p1', 'audience', T0 + 3000, rng0)).toEqual({ ok: false, error: 'buff_unfit' });
   });
 
   it('a quiz without the new buffs changes nothing', () => {

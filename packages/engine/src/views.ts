@@ -769,7 +769,8 @@ function base(state: GameState, forHost: boolean) {
     remainingMs,
     limitMs:
       state.phase === 'question' && play !== undefined
-        ? limitMsOf(play)
+        ? // На полі із заміною всі бачать запасне — і його межу, ту саму, що в підрахунку балів.
+          play.board === undefined ? limitMsOf(play) : answerLimitMs(play, play.board.chooserId)
         : state.phase === 'duel' && state.duel?.stage === 'question' && state.quiz.duels !== undefined
           ? state.quiz.duels.timeLimit * 1000
           : null,
