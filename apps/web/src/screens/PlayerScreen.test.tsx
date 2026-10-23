@@ -1749,3 +1749,18 @@ describe('PlayerScreen: explanations for newcomers', () => {
     expect(screen.queryByText('Як проходить раунд')).toBeNull();
   });
 });
+
+describe('PlayerScreen: table and menu', () => {
+  const rows = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 0, rank: 1 }];
+  it('the header has «Таблиця» during a question, none in the lobby; «До меню» after the game', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
+    expect(document.querySelector('header.bar')?.contains(screen.getByRole('button', { name: 'Таблиця' }))).toBe(true);
+    expect(screen.queryByRole('link', { name: 'До меню' })).toBeNull();
+    cleanup();
+    show(view());
+    expect(screen.queryByRole('button', { name: 'Таблиця' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings: rows }));
+    expect(screen.getByRole('link', { name: 'До меню' }).getAttribute('href')).toBe('/');
+  });
+});

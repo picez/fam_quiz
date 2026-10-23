@@ -1550,3 +1550,14 @@ describe('HostScreen: «Як грати»', () => {
     expect(screen.queryByRole('button', { name: 'До гри' })).toBeNull();
   });
 });
+
+describe('HostScreen: after the game', () => {
+  it('after the game the host goes to the quizzes or the game history', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings: [] }));
+    expect(screen.getByRole('link', { name: 'До вікторин' }).getAttribute('href')).toBe('/quizzes');
+    expect(screen.getByRole('link', { name: 'Історія ігор' }).getAttribute('href')).toBe('/history');
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(screen.queryByRole('link', { name: 'До вікторин' })).toBeNull();
+  });
+});

@@ -23,6 +23,8 @@ import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortWatch } from './SortView';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
+import { MenuLinks } from './MenuLinks';
+import { TableButton } from './TableSheet';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 
 interface Props {
@@ -373,6 +375,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <span>{me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
         <DuelButton duel={me.duel} paused={view.paused || splashUp} send={send} onError={setError} />
+        {view.table !== null && <TableButton table={view.table} meId={me.id} />}
         <strong className="score">{num(me.score)}</strong>
       </header>
 
@@ -633,6 +636,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <h1 className="question">{t('gameOver')}</h1>
           {place}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
+          <MenuLinks role="player" />
         </>
       )}
 

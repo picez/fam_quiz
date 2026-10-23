@@ -20,6 +20,7 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
+import { MenuLinks } from './MenuLinks';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
 import { SortBoard, SortReveal } from './SortView';
 
@@ -330,6 +331,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
   const blink = useVerdictBlink(view.spotlight);
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
+  const splashNow = useSplash(view.splash, view.paused, offsetMs);
   return (
     <main className="app stage">
       <DuelBanner duel={view.duel} phase={view.phase} />
@@ -370,6 +372,8 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
           />
         </div>
       )}
+      {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}
+      {phase === 'finished' && splashNow === null && <MenuLinks role="stage" />}
     </main>
   );
 }

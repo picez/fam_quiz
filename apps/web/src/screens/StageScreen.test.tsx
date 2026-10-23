@@ -1260,3 +1260,13 @@ describe('StageScreen: explanations for newcomers', () => {
     expect(screen.queryByRole('note')).toBeNull();
   });
 });
+
+describe('StageScreen: menu', () => {
+  it('the podium has a small «До меню» in the corner', () => {
+    show(view({ phase: 'finished', questionIndex: 2, standings: [{ participantId: 'p1', nickname: 'Олена', score: 500, totalTimeMs: 1, rank: 1 }] }));
+    expect(document.querySelector('a.stage-menu')?.getAttribute('href')).toBe('/');
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(document.querySelector('a.stage-menu')).toBeNull();
+  });
+});
