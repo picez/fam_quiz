@@ -10,6 +10,8 @@ const { sockets, FakeSocket } = vi.hoisted(() => {
   /** Підставний сокет: тест сам вирішує, які події прийшли із сервера. */
   class FakeSocket {
     connected = true;
+    active = true;
+    connect() {}
     private handlers = new Map<string, ((...args: unknown[]) => void)[]>();
     on(event: string, handler: (...args: unknown[]) => void) {
       this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
@@ -57,6 +59,15 @@ function submitNickname(name: string) {
 }
 
 describe('Play', () => {
+  it('keeps the token and shows «Сервер перезапускається…» instead of «гри немає»', async () => {
+    savePlayer('123456', 'kept-token');
+    open();
+    act(() => sockets[0].fire('connect_error', new Error('restarting')));
+    expect(screen.getByText('Сервер перезапускається… Гра продовжиться сама.')).toBeTruthy();
+    expect(loadPlayer('123456')).toBe('kept-token');
+    expect(screen.queryByText(/Цієї гри вже немає/)).toBeNull();
+  });
+
   it('lets a kicked player join again without reloading the page', async () => {
     savePlayer('123456', 'old-token');
     vi.mocked(joinGame).mockResolvedValue({ ok: true, token: 'fresh-token', playerId: 'p9' });
