@@ -7,6 +7,7 @@ import { demoQuiz } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
+import { schoolQuiz } from './school-quiz';
 
 describe('order labels in the demo quizzes', () => {
   it('ocean and film-year orders carry labels', () => {
@@ -15,7 +16,7 @@ describe('order labels in the demo quizzes', () => {
     expect(oceans?.type === 'order' && [oceans.topLabel, oceans.bottomLabel]).toEqual(['Найбільший', 'Найменший']);
     const films = find('Розставте фільми за роком виходу');
     expect(films?.type === 'order' && [films.topLabel, films.bottomLabel]).toEqual(['Найраніше', 'Найпізніше']);
-    for (const quiz of [demoQuiz, movieQuiz, eruditeQuiz, partyQuiz()]) {
+    for (const quiz of [demoQuiz, movieQuiz, eruditeQuiz, schoolQuiz, partyQuiz()]) {
       for (const question of questionsOf(quiz)) {
         if (question.type === 'order') expect([question.text, question.topLabel, question.bottomLabel].every(Boolean)).toBe(true);
       }
@@ -141,5 +142,40 @@ describe('the erudite demo quiz buffs', () => {
   it('the erudite quiz has hints and a spare pool of every simple type', () => {
     expect(questionsOf(eruditeQuiz).filter((q) => q.hint).length).toBe(4);
     expect(eruditeQuiz.spares?.map((q) => q.type)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric']);
+  });
+});
+
+describe('the school quiz', () => {
+  const boards = schoolQuiz.rounds.filter((r) => r.type === 'board');
+  const price = (question: { type: string; points: number } & Record<string, unknown>) =>
+    question.type === 'sort' ? question.points * (question.words as unknown[]).length : question.points;
+
+  it('is valid, has two boards with the school and the fun themes, and a final', () => {
+    const parsed = quizSchema.safeParse(schoolQuiz);
+    expect(parsed.error?.issues ?? []).toEqual([]);
+    expect(schoolQuiz.rounds.map((r) => r.type)).toEqual(['board', 'board', 'final']);
+    expect(boards.map((b) => (b.type === 'board' ? b.categories.map((c) => c.title) : []))).toEqual([
+      ['Математика', 'Географія', 'Історія', 'Біологія', 'Зарубіжна література'],
+      ['Кіно', 'Серіали', 'Поп-культура', 'Мультфільми', 'Меми', 'Культурні явища'],
+    ]);
+  });
+
+  it('every category goes 100, 200, 300, 400, 500', () => {
+    for (const board of boards) {
+      if (board.type !== 'board') continue;
+      for (const category of board.categories) expect(category.cells.map((c) => price(c.question as never))).toEqual([100, 200, 300, 400, 500]);
+    }
+  });
+
+  it('gives all eight buffs, has hints, a spare of every simple type and a duel pool that persists', async () => {
+    expect(schoolQuiz.settings.buffs).toHaveLength(8);
+    expect(questionsOf(schoolQuiz).filter((q) => q.hint).length).toBeGreaterThanOrEqual(8);
+    expect(schoolQuiz.spares?.map((q) => q.type)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric']);
+    expect(schoolQuiz.duels?.categories.map((c) => c.questions.length)).toEqual([5, 5, 5]);
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'school-owner', name: 'Власник', email: 'school@example.com' });
+    const id = await createQuiz(db, 'school-owner', quizSchema.parse(schoolQuiz));
+    const loaded = await getQuiz(db, 'school-owner', id);
+    expect([loaded?.duels, loaded?.spares]).toEqual([schoolQuiz.duels, schoolQuiz.spares]);
   });
 });
