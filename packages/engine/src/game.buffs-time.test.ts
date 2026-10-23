@@ -1,10 +1,11 @@
 import { DEFAULT_RULES, READY_BUFFS, type Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
+import { pickCell } from './board';
 import { nextDeadline } from './blitz';
 import { chooseRetry, takeBuff } from './buffs';
-import { acceptAnswer, lock, next, pause, recordOf, removePlayer, resume, submitAnswer, tick, type GameState } from './game';
+import { acceptAnswer, lock, next, pause, recordOf, removePlayer, resume, start, submitAnswer, tick, type GameState } from './game';
 import { T0, toBuffCell, toBuffQuestion } from './testing/buffs';
-import { chain, makeQuiz, match, single4, sortQ, withVideo } from './testing/fixtures';
+import { boardRound, chain, makeQuiz, makeRoundsQuiz, match, numeric, single4, sortQ, withId, withVideo } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { adjustTime, closesAt, deadlineOf } from './timing';
 
@@ -111,6 +112,25 @@ describe('second try', () => {
     expect(takeBuff(manual, 'p1', 'retry', T0, rng0)).toEqual({ ok: false, error: 'buff_unfit' });
   });
 
+  it('second try on a board cell: keeping a partial first answer reveals it', () => {
+    const round = boardRound('g1', [{ title: 'Гори', cells: [withId(numeric, 'c11')] }], {
+      rules: { ...DEFAULT_RULES, partial: 50 },
+      check: 'auto',
+      answerMode: 'phone',
+    });
+    const quiz = makeRoundsQuiz([round], { leaderboard: 'end', buffs });
+    const board = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро'))), T0, rng0));
+    let s = take(must(pickCell(board, 'p1', 'c11', T0, rng0)), 'p1', 'retry', T0 + 500);
+    s = must(acceptAnswer(answer(s, 'p1', num(2111), T0 + 1000), 'p1', T0 + 2000));
+    expect(s.phase).toBe('question');
+    expect(s.plays[0].buffs?.p1.retry).toBe('choice');
+    s = must(chooseRetry(s, 'p1', true, T0 + 3000));
+    expect(s.phase).toBe('reveal');
+    expect(s.plays[0].answers.p1).toMatchObject({ grade: 'partial', accuracy: 0.75, buff: 'retry' });
+    expect(s.plays[0].buffs?.p1.retry).toBe('done');
+    expect(points(s, 'p1')).toBe(s.plays[0].answers.p1.points);
+  });
+
   it('second try fits auto-checked single, multi, boolean, text, numeric only', () => {
     const q4 = toNext(must(lock(toNext(must(lock(toQ2())), T0))), T0);
     expect(q4.plays[3].question.type).toBe('order');
@@ -185,6 +205,33 @@ describe('extra time', () => {
     const moved = must(adjustTime(take(toBuffQuestion(), 'p1', 'time', T0 + 1000), 15, T0 + 5000));
     expect(moved.endsAt).toBe(T0 + 35_000);
     expect(deadlineOf(moved, moved.plays[0], 'p1')).toBe(T0 + 65_000);
+  });
+
+  it('+15 s in overtime adds to the extra time only; the others stay closed', () => {
+    const s = take(toBuffQuestion(), 'p1', 'time', T0 + 1000);
+    const moved = must(adjustTime(s, 15, T0 + 30_000));
+    expect(moved.endsAt).toBe(T0 + 20_000);
+    expect(moved.plays[0].overtime?.p1).toBe(45_000);
+    expect(deadlineOf(moved, moved.plays[0], 'p1')).toBe(T0 + 65_000);
+    expect(submitAnswer(moved, 'p2', pick('b'), T0 + 30_001)).toEqual({ ok: false, error: 'time_over' });
+    expect(submitAnswer(moved, 'p1', pick('b'), T0 + 64_000).ok).toBe(true);
+    expect(closesAt(moved)).toBe(T0 + 65_000);
+    expect(adjustTime(s, -15, T0 + 30_000)).toEqual({ ok: false, error: 'time_limit' });
+
+    // Не більше MAX_REMAINING_MS особистого залишку.
+    let capped = s;
+    for (let i = 0; i < 7; i += 1) capped = must(adjustTime(capped, 15, T0 + 30_000));
+    expect(deadlineOf(capped, capped.plays[0], 'p1')).toBe(T0 + 150_000);
+    expect(adjustTime(capped, 15, T0 + 30_000)).toEqual({ ok: false, error: 'time_limit' });
+
+    // На паузі посеред додаткового часу — так само лише додатковий.
+    const paused = must(adjustTime(must(pause(s, T0 + 30_000)), 15, T0 + 40_000));
+    expect(paused.remainingMs).toBe(0);
+    expect(paused.plays[0].overtime?.p1).toBe(35_000);
+
+    // Додатковий час уже витрачено або гравець відповів — як раніше.
+    const answered = answer(answer(s, 'p1', pick('b'), T0 + 2000), 'p2', pick('b'), T0 + 2000);
+    expect(must(adjustTime(answered, 15, T0 + 20_000)).endsAt).toBe(T0 + 35_000);
   });
 
   it('the host does not wait: lock closes the question, a missing answer is absent', () => {

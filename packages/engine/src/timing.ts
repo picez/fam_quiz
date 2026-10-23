@@ -43,6 +43,12 @@ export function adjustTime(state: GameState, seconds: number, now: number): Resu
   const remaining = remainingOf(state, now);
   if (remaining === null) return fail('wrong_phase');
   const delta = seconds * 1000;
+  // Спільний час сплив, а хтось ще в додатковому: «+15 с» додається лише до його залишку, решта лишаються закриті.
+  if (remaining === 0 && delta > 0) {
+    const extended = extendOvertime(state, delta, now);
+    if (extended === 'time_limit') return fail('time_limit');
+    if (extended !== null) return { ok: true, state: extended };
+  }
   let next: number;
   if (delta < 0) {
     if (remaining <= MIN_REMAINING_MS) return fail('time_limit');
@@ -56,6 +62,27 @@ export function adjustTime(state: GameState, seconds: number, now: number): Resu
   );
   if (state.heldAt !== null) return { ok: true, state: { ...state, plays, endsAt: state.heldAt + next } };
   return { ok: true, state: state.paused ? { ...state, plays, remainingMs: next } : { ...state, plays, endsAt: now + next } };
+}
+
+/**
+ * «+15 с» після спільного кінця: кожен гравець без запису, у кого лишився додатковий час, отримує ще delta
+ * (особистий залишок не більше MAX_REMAINING_MS). null — у додатковому часі нікого немає; time_limit — усім уже максимум.
+ */
+function extendOvertime(state: GameState, delta: number, now: number): GameState | 'time_limit' | null {
+  const play = state.plays[state.questionIndex];
+  if (play?.overtime === undefined) return null;
+  // На паузі overtime уже зменшено на витрачене (trimOvertime), endsAt немає.
+  const clock = state.heldAt ?? now;
+  const spent = state.endsAt === null ? 0 : Math.max(0, clock - state.endsAt);
+  const waiting = Object.entries(play.overtime).filter(
+    ([id, ms]) => ms > spent && state.players.some((p) => p.id === id) && !Object.hasOwn(play.answers, id),
+  );
+  if (waiting.length === 0) return null;
+  if (waiting.every(([, ms]) => ms - spent >= MAX_REMAINING_MS)) return 'time_limit';
+  const overtime = { ...play.overtime };
+  for (const [id, ms] of waiting) overtime[id] = Math.min(spent + MAX_REMAINING_MS, ms + delta);
+  const plays = state.plays.map((p, index) => (index === state.questionIndex ? { ...p, overtime } : p));
+  return { ...state, plays };
 }
 
 /** Додатковий час гравця понад спільний кінець, мс; 0 — немає. */
