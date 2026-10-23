@@ -8,6 +8,7 @@ import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
 import { schoolQuiz } from './school-quiz';
+import { mosaicQuiz } from './mosaic-quiz';
 
 describe('order labels in the demo quizzes', () => {
   it('ocean and film-year orders carry labels', () => {
@@ -177,5 +178,63 @@ describe('the school quiz', () => {
     const id = await createQuiz(db, 'school-owner', quizSchema.parse(schoolQuiz));
     const loaded = await getQuiz(db, 'school-owner', id);
     expect([loaded?.duels, loaded?.spares]).toEqual([schoolQuiz.duels, schoolQuiz.spares]);
+  });
+});
+
+describe('the mosaic quiz', () => {
+  const boards = mosaicQuiz.rounds.filter((r) => r.type === 'board');
+  const price = (question: { type: string; points: number } & Record<string, unknown>) =>
+    question.type === 'sort' ? question.points * (question.words as unknown[]).length : question.points;
+  /** Тексти всіх запитань вікторини: раунди, запасні й дуелі. */
+  const texts = (quiz: typeof mosaicQuiz) => [
+    ...questionsOf(quiz).map((q) => q.text),
+    ...(quiz.spares ?? []).map((q) => q.text),
+    ...(quiz.duels?.categories ?? []).flatMap((c) => c.questions.map((q) => q.text)),
+  ];
+
+  it('is valid, has a warm-up with every type, three boards, a blitz and a final', () => {
+    const parsed = quizSchema.safeParse(mosaicQuiz);
+    expect(parsed.error?.issues ?? []).toEqual([]);
+    expect(mosaicQuiz.rounds.map((r) => r.type)).toEqual(['classic', 'board', 'blitz', 'board', 'board', 'final']);
+    const warmup = mosaicQuiz.rounds[0];
+    const types = new Set(warmup.type === 'classic' ? warmup.questions.map((q) => q.type) : []);
+    for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort']) expect(types.has(type as never)).toBe(true);
+    const blitz = mosaicQuiz.rounds[2];
+    expect(blitz.type === 'blitz' && [blitz.check, blitz.answerWindow, blitz.attempts, blitz.questions.length]).toEqual(['auto', null, 1, 10]);
+    expect(boards.map((b) => (b.type === 'board' ? b.categories.map((c) => c.title) : []))).toEqual([
+      ['Космос', 'Тварини', 'Кухні світу', 'Мови й слова', 'Винаходи', 'Спорт'],
+      ['Музика', 'Живопис і архітектура', 'Міфи й легенди', 'Ігри (відео й настільні)', 'Українські традиції', 'Мода й бренди'],
+      ['Тіло людини', 'Гроші й економіка', 'Транспорт', 'Хімія навколо нас', 'Рекорди й дивні факти'],
+    ]);
+    expect(questionsOf(mosaicQuiz).length).toBeGreaterThanOrEqual(100);
+  });
+
+  it('every category goes 100, 200, 300, 400, 500', () => {
+    for (const board of boards) {
+      if (board.type !== 'board') continue;
+      for (const category of board.categories) expect(category.cells.map((c) => price(c.question as never))).toEqual([100, 200, 300, 400, 500]);
+    }
+  });
+
+  it('gives all eight buffs, has hints, a spare of every simple type and a duel pool that persists', async () => {
+    expect(allowedBuffs(mosaicQuiz)).toEqual([...READY_BUFFS]);
+    expect(questionsOf(mosaicQuiz).filter((q) => q.hint).length).toBeGreaterThanOrEqual(10);
+    expect(mosaicQuiz.spares?.map((q) => q.type)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric']);
+    expect(mosaicQuiz.spares?.every((q) => q.video === null)).toBe(true);
+    expect(mosaicQuiz.duels?.categories.map((c) => c.questions.length)).toEqual([5, 5, 5]);
+    expect([mosaicQuiz.duels?.questionsPerDuel, mosaicQuiz.duels?.timeLimit, mosaicQuiz.duels?.stake]).toEqual([3, 30, 300]);
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'mosaic-owner', name: 'Власник', email: 'mosaic@example.com' });
+    const id = await createQuiz(db, 'mosaic-owner', quizSchema.parse(mosaicQuiz));
+    const loaded = await getQuiz(db, 'mosaic-owner', id);
+    expect([loaded?.duels, loaded?.spares]).toEqual([mosaicQuiz.duels, mosaicQuiz.spares]);
+  });
+
+  it('repeats no question text of the other demo quizzes', () => {
+    const norm = (text: string) => text.trim().toLocaleLowerCase('uk');
+    const others = new Set([demoQuiz, partyQuiz(), movieQuiz, eruditeQuiz, schoolQuiz].flatMap(texts).map(norm));
+    const own = texts(mosaicQuiz).map(norm);
+    expect(own.filter((text) => others.has(text))).toEqual([]);
+    expect(new Set(own).size).toBe(own.length);
   });
 });
