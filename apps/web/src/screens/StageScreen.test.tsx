@@ -29,6 +29,8 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   buffNotice: null,
   splash: null,
   overtime: [],
+  guide: null,
+  newcomers: false,
   duel: null,
   debuffs: [],
   round: null,
@@ -1207,5 +1209,32 @@ describe('StageScreen: splashes', () => {
     show(view({ phase: 'question', round, questionIndex: 0, question, paused: true, splash: at('question', 1200) }));
     expect(document.querySelector('.splash')).toBeNull();
     expect(screen.getByRole('status').textContent).toBeTruthy();
+  });
+});
+
+describe('StageScreen: «Як грати»', () => {
+  it('shows the guide page, no splash and no lobby', () => {
+    const guide = { page: 0, pages: [{ kind: 'phone' as const }, { kind: 'questions' as const, types: [{ type: 'single' as const, top: '' }] }] };
+    const { container } = show(view({ phase: 'guide', guide, newcomers: true }));
+    expect(screen.getByRole('heading', { name: 'Відповідайте з телефона' })).toBeTruthy();
+    expect(container.querySelector('.guide.is-stage')).not.toBeNull();
+    expect(container.querySelector('.splash')).toBeNull();
+    expect(container.querySelector('.stage-lobby')).toBeNull();
+  });
+});
+
+describe('StageScreen: explanations for newcomers', () => {
+  const round: RoundInfo = { index: 0, total: 2, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
+  it('the intro has the round reminder only with explanations on', () => {
+    show(view({ phase: 'intro', round, newcomers: true }));
+    expect(screen.getByText('Як проходить раунд')).toBeTruthy();
+    expect(screen.getByText(/кубик/)).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'intro', round }));
+    expect(screen.queryByText('Як проходить раунд')).toBeNull();
+  });
+  it('the stage never shows the type tip', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, newcomers: true }));
+    expect(screen.queryByRole('note')).toBeNull();
   });
 });

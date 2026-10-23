@@ -170,6 +170,7 @@ describe('the school quiz', () => {
 
   it('gives all eight buffs, has hints, a spare of every simple type and a duel pool that persists', async () => {
     expect(schoolQuiz.settings.buffs).toHaveLength(8);
+    expect(schoolQuiz.settings.newcomers).toBe(true);
     expect(questionsOf(schoolQuiz).filter((q) => q.hint).length).toBeGreaterThanOrEqual(8);
     expect(schoolQuiz.spares?.map((q) => q.type)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric']);
     expect(schoolQuiz.duels?.categories.map((c) => c.questions.length)).toEqual([5, 5, 5]);
@@ -178,6 +179,11 @@ describe('the school quiz', () => {
     const id = await createQuiz(db, 'school-owner', quizSchema.parse(schoolQuiz));
     const loaded = await getQuiz(db, 'school-owner', id);
     expect([loaded?.duels, loaded?.spares]).toEqual([schoolQuiz.duels, schoolQuiz.spares]);
+    expect(loaded?.settings.newcomers).toBe(true);
+  });
+
+  it('only the school quiz turns explanations on', () => {
+    for (const quiz of [demoQuiz, movieQuiz, eruditeQuiz, mosaicQuiz, partyQuiz()]) expect(quiz.settings.newcomers).toBeUndefined();
   });
 });
 

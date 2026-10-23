@@ -1,6 +1,7 @@
 import type { Answer } from './answer';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, SplashKind } from './game';
 import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video, WagerMode } from './quiz';
+import type { GuidePage } from './guide';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
 
@@ -522,6 +523,16 @@ interface BaseView {
   splash: SplashView | null;
   /** Гравці з додатковим часом без відповіді (етап question) — від миті, коли баф узято, а не лише після спільного кінця; інакше []. */
   overtime: OvertimeRow[];
+  /** Етап guide: сторінки й поточна; інакше null. */
+  guide: GuideView | null;
+  /** Пояснення для новачків увімкнено (пам'ятка раунду на intro). */
+  newcomers: boolean;
+}
+
+/** «Як грати»: поточна сторінка й усі сторінки цієї вікторини. */
+export interface GuideView {
+  page: number;
+  pages: GuidePage[];
 }
 
 /** Заставка переходу: вид і час сервера початку й кінця; клієнт показує її, поки годинник сервера < until. */
@@ -574,6 +585,8 @@ export interface PlayerView extends BaseView {
     buffs: PlayerBuffs | null;
     /** Власний особистий кінець, якщо він пізніший за спільний (етап question); інакше null. */
     overtime: { deadline: number | null; remainingMs: number | null } | null;
+    /** Тип поточного запитання, якщо воно перше такого типу в грі й гравець відповідає з телефона; лише етап question і з поясненнями. Інакше null. */
+    tip: Question['type'] | null;
     /** Відкрите голосування, у якому гравець може й ще не голосував; null — немає. */
     vote: VotePrompt | null;
   };

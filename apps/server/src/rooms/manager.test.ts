@@ -946,3 +946,22 @@ describe('personal deadline of the swap buff', () => {
     expect(room.state.phase).toBe('locked');
   });
 });
+
+describe('«Як грати»', () => {
+  it('start opens the guide for a quiz with explanations; next pages, guide-skip leaves; plain quizzes start as before', () => {
+    const { manager } = setup();
+    const room = manager.create(makeRoundsQuiz([classicRound('r1', [single])], { newcomers: true }));
+    manager.connect(room, HOST);
+    enter(manager, room, 'Олена');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect([room.state.phase, room.state.guidePage]).toEqual(['guide', 0]);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.guidePage).toBe(1);
+    expect(manager.host(room, { type: 'guide-skip' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('intro');
+    expect(manager.host(room, { type: 'guide-skip' })).toEqual({ ok: false, error: 'wrong_phase' });
+
+    const plain = playing();
+    expect(plain.room.state.phase).toBe('question');
+  });
+});

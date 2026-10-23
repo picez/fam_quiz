@@ -1,5 +1,5 @@
 /** intro — заставка раунду, round_end — підсумки раунду. */
-export type Phase = 'lobby' | 'intro' | 'wager' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished' | 'duel';
+export type Phase = 'lobby' | 'guide' | 'intro' | 'wager' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished' | 'duel';
 
 /** declared — оголошена, чекає кінця поточного запитання; далі етапи самої дуелі. */
 export type DuelStage = 'declared' | 'category' | 'question' | 'answer' | 'result';

@@ -1640,3 +1640,35 @@ describe('QuizEditor hints and spares', () => {
     expect('hint' in roundQuestions(onSave.mock.calls[1][0].rounds[0])[0]).toBe(false);
   });
 });
+
+describe('QuizEditor: explanations for newcomers', () => {
+  it('the flag is off by default and is written only when on', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    const box = screen.getByLabelText('Пояснення для новачків') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    fireEvent.click(box);
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect('newcomers' in saved(onSave).settings).toBe(false);
+  });
+
+  it('turning it on saves newcomers: true and a saved quiz opens with it checked', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    fireEvent.click(screen.getByLabelText('Пояснення для новачків'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const quiz = saved(onSave);
+    expect(quiz.settings.newcomers).toBe(true);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    cleanup();
+    open(quiz);
+    expect((screen.getByLabelText('Пояснення для новачків') as HTMLInputElement).checked).toBe(true);
+  });
+});

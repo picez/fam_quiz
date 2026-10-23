@@ -10,3 +10,4 @@ export * from './history';
 export * from './text';
 export * from './youtube';
 export * from './profile';
+export * from './guide';

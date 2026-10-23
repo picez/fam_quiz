@@ -22,6 +22,7 @@ import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
 import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
 import { BuffToast } from '../live/LiveNotices';
 import { SplashChip } from '../live/Splash';
+import { GuidePageView } from '../live/Guide';
 import { HostDuelPanel } from './DuelView';
 
 interface Props {
@@ -39,6 +40,7 @@ type HostEvent = keyof ClientToServerEvents;
 /** Єдина головна дія кожного етапу. */
 const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: HostEvent }>> = {
   lobby: { label: 'start', event: 'host:start' },
+  guide: { label: 'next', event: 'host:next' },
   intro: { label: 'startRound', event: 'host:next' },
   question: { label: 'lock', event: 'host:lock' },
   locked: { label: 'reveal', event: 'host:next' },
@@ -80,6 +82,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const final = view.final;
   const isFinal = round?.type === 'final';
   const base = MAIN_ACTION[phase];
+  // «Як грати»: на останній сторінці «Далі» веде до гри, тож окрема «До гри» вже не потрібна.
+  const guide = phase === 'guide' ? view.guide : null;
+  const guideLast = guide !== null && guide.page >= guide.pages.length - 1;
   // У фіналі свої підписи головної кнопки; без розкритих гравців «Далі» лишається звичайним.
   const duelStage = view.duel?.stage ?? null;
   const main =
@@ -99,7 +104,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           ? { label: 'finalSplitBank' as const, event: 'host:next' as const }
           : isFinal && phase === 'reveal' && final !== null && final.left > 0
             ? { label: 'finalNextPlayer' as const, event: 'host:next' as const }
-            : base;
+            : phase === 'guide' && guideLast
+              ? { label: 'guideToGame' as const, event: 'host:next' as const }
+              : base;
   const blitz = view.blitz;
   const board = view.board;
   const chooserId = board?.turn?.playerId ?? null;
@@ -260,12 +267,18 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
       </p>
 
+      {guide !== null && (
+        <section className="panel">
+          <GuidePageView guide={guide} size="host" />
+        </section>
+      )}
+
       {phase === 'intro' && round !== null && (
         <section className="panel">
           {round.total > 1 && <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>}
           <h1 className="question">{roundLabel(round.title, round.index, round.type)}</h1>
           <RoundFacts round={round} total={view.total} />
-          <RoundBriefing brief={round.brief} description={round.description} />
+          <RoundBriefing brief={round.brief} description={round.description} newcomers={view.newcomers} />
         </section>
       )}
 
@@ -804,6 +817,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               {t(view.paused ? 'resume' : 'pause')}
             </button>
           </>
+        )}
+        {guide !== null && !guideLast && !view.paused && (
+          <button type="button" className="btn" disabled={stepping} onClick={() => step('host:guide-skip')}>
+            {t('guideToGame')}
+          </button>
         )}
         {main !== undefined && !view.paused && (
           <button

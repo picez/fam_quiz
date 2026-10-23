@@ -192,6 +192,13 @@ describe('quizSchema', () => {
     expect(valid(quizSchema, quiz)).toBe(true);
   });
 
+  it('an old quiz without the newcomers flag parses unchanged; the flag is a boolean', () => {
+    expect(quizSchema.parse(quiz).settings).toEqual(quiz.settings);
+    expect('newcomers' in quizSchema.parse(quiz).settings).toBe(false);
+    expect(quizSchema.safeParse({ ...quiz, settings: { ...quiz.settings, newcomers: true } }).success).toBe(true);
+    expect(quizSchema.safeParse({ ...quiz, settings: { ...quiz.settings, newcomers: 'так' } }).success).toBe(false);
+  });
+
   it('rejects a quiz without questions', () => {
     expect(valid(quizSchema, { ...quiz, rounds: [round('r1', [])] })).toBe(false);
   });

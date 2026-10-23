@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Answer, DiceInfo, PlayerBlitz, PlayerView, PublicQuestion, Spotlight } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
+import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast, BuffToast } from '../live/LiveNotices';
+import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
@@ -338,6 +340,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const waiting = phase === 'question' && myClock === null && sharedOver && view.overtime.length > 0;
   const activeBuff = me.buffs?.active ?? null;
   const retryStage = activeBuff?.retry ?? null;
+  const tip = me.tip !== null && activeBuff?.spare !== true ? typeHow(me.tip, question?.orderLabels?.top ?? '') : null;
   const queue =
     instant && view.blitz !== null ? (
       <BlitzQueue rows={view.blitz.rows} reserve={view.playerCount} question={question} blinking={rowBlink} closed={phase !== 'question'} />
@@ -381,6 +384,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 
       {phase === 'lobby' && <p className="lead">{t('inLobby')}</p>}
 
+      {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" />}
+
       {phase === 'duel' && view.duel !== null && <DuelPlay view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
       {phase === 'intro' && view.round !== null && (
@@ -388,7 +393,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
           <RoundFacts round={view.round} total={view.total} />
-          <RoundBriefing brief={view.round.brief} description={view.round.description} />
+          <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
           {board !== null && (
             <BoardIntro board={board} meId={me.id}>
               {board.dice !== null && !board.dice.done && (
@@ -442,6 +447,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <p className="lead answering-line">{othersAnswer ? t('boardAnswering', { name: answering.nickname }) : ''}</p>
           ) : (
             othersAnswer && !isSort && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>
+          )}
+          {tip !== null && (
+            <p className="type-tip" role="note">
+              💡 {tip}
+            </p>
           )}
           <DebuffZone debuff={me.debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)}>{question.text}</h1>

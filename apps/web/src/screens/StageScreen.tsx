@@ -8,6 +8,7 @@ import { MatchColumns, PairList } from './MatchView';
 import { AdjustmentToast, BuffToast, StageDebuffs } from '../live/LiveNotices';
 import { SharedOvertime, StageBuffs } from './Buffs';
 import { DuelBanner, DuelStage } from './DuelView';
+import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -286,7 +287,7 @@ function FinalStage({ view }: { view: StageView }) {
     <div className="stage-board">
       <p className="meta">{t('finalLabel')}</p>
       <h1 className="question wager-theme">{theme}</h1>
-      {view.phase === 'intro' && <RoundBriefing brief={view.round.brief} description={view.round.description} />}
+      {view.phase === 'intro' && <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />}
       {view.phase === 'wager' && <p className="lead">{t('finalStageWagers', { placed: final.placed, total: final.total })}</p>}
     </div>
   );
@@ -300,7 +301,7 @@ function Intro({ view }: { view: StageView }) {
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
-      <RoundBriefing brief={view.round.brief} description={view.round.description} />
+      <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
       {/* Обгортка сцени: на широкому екрані розклад стає поруч із кидками, а не під ними. */}
       {view.board !== null && (
         <div className="stage-dice">
@@ -347,6 +348,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
         </p>
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
+      {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}

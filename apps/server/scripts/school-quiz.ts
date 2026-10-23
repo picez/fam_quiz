@@ -12,7 +12,7 @@ export const schoolQuiz: Quiz = {
   title: 'Від шкільної парти до мемів',
   description:
     'Дві частини. Перша — шкільна програма: математика, географія, історія, біологія й зарубіжна література. Друга — розважальна: кіно, серіали, поп-культура, мультфільми, меми й культурні явища. Ціна клітинки росте зі складністю: 100 — знає майже кожен, 500 — для знавців. Фінал зі ставками. Після третини запитань можна викликати суперника на дуель. У кожного гравця є вісім бафів — по одному на гру.',
-  settings: { leaderboard: 'each', buffs: ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'] },
+  settings: { leaderboard: 'each', newcomers: true, buffs: ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'] },
   rounds: [
     {
       id: 's-school',

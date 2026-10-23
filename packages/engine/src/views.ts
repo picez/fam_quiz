@@ -52,6 +52,8 @@ import {
   type SplashKind,
   type SplashView,
   type StageView,
+  guidePages,
+  newcomersOn,
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
@@ -85,7 +87,7 @@ import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
 // У цих етапах запитання ще (або вже) немає: журнал показує лише останнє зігране.
-const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'board', 'wager', 'round_end', 'duel'];
+const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'guide', 'intro', 'board', 'wager', 'round_end', 'duel'];
 
 /** Чи є поточне запитання. На finished останнє зігране показуємо, лише якщо воно з поточного раунду (інакше гру завершено з intro). */
 function inQuestion(state: GameState): boolean {
@@ -791,7 +793,23 @@ function base(state: GameState, forHost: boolean) {
     buffNotice: lastBuff(state),
     splash: splashView(state),
     overtime: overtimeRows(state),
+    guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,
+    newcomers: newcomersOn(state.quiz),
   };
+}
+
+/**
+ * Підказка нового типу: тип поточного запитання, якщо в грі такого ще не було й гравець відповідає з телефона.
+ * «Які типи вже були» виводиться з журналу plays, тож перепідключення й пауза нічого не ламають.
+ */
+function typeTip(state: GameState, playerId: string): Question['type'] | null {
+  if (!newcomersOn(state.quiz) || state.phase !== 'question') return null;
+  const play = state.plays[state.questionIndex];
+  if (play === undefined) return null;
+  if (play.board !== undefined && (play.board.answerMode === 'voice' || (play.board.kind === 'normal' && play.board.chooserId !== playerId))) return null;
+  const type = play.question.type;
+  // Знайомим тип робить лише запитання, на яке відповідали з телефона: усна клітинка не рахується.
+  return state.plays.slice(0, state.questionIndex).some((p) => p.question.type === type && p.board?.answerMode !== 'voice') ? null : type;
 }
 
 /** Етап, у якому заставка кожного виду має сенс. */
@@ -1037,6 +1055,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       duel: playerDuel(state, playerId),
       buffs: playerBuffs(state, playerId),
       overtime: personalClock(state, playerId),
+      tip: typeTip(state, playerId),
       vote: votePrompt(state, playerId),
     },
     reveal: revealed && seen !== null ? withoutHint(seen.question) : null,
