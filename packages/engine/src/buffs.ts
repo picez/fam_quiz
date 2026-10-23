@@ -16,6 +16,7 @@ import {
   autoLock,
   fail,
   ok,
+  present,
   recordOf,
   revealNow,
   withCurrentPlay,
@@ -27,13 +28,16 @@ import {
   type Rng,
 } from './game';
 import { normalizeText } from './normalize';
-import { grantOvertime, isTimed, timeOverFor } from './timing';
+import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
 
 /** Скільки додає «Додатковий час», мс. */
 export const EXTRA_TIME_MS = 30_000;
 
 /** Скільки триває голосування залу, мс. */
 export const AUDIENCE_MS = 15_000;
+
+/** Запасне запитання дає щонайменше стільки часу, мс. */
+export const SWAP_MIN_MS = 20_000;
 
 /** Скільки рядків здогадок показує підсумок голосування. */
 const MAX_GUESSES = 6;
@@ -55,6 +59,8 @@ export interface BuffPlay {
   vote?: { endsAt: number; ballots: Record<string, Answer> };
   /** hint: text null — чекає ведучого; aloud — ведучий підказав уголос; лише в бафі hint. */
   hint?: { text: string | null; aloud: boolean };
+  /** swap: id запасного, порядок його варіантів, мить видачі, межа для бонусу швидкості (null — без таймера). */
+  spare?: { id: string; presented: string[]; startedAt: number; limitMs: number | null };
 }
 
 /** Баф гравця на запитанні; null — немає. */
@@ -145,11 +151,35 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
       return state.players.some((p) => p.connected && canVote(state, p.id, playerId)) ? null : 'no_voters';
     case 'swap':
-      return (state.quiz.spares ?? []).length === 0 ? 'spares_out' : null;
+      return nextSpare(state) === null ? 'spares_out' : null;
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
   const unknown: never = kind;
   return unknown;
+}
+
+/** Наступне невикористане запасне; null — пулу немає або він вичерпаний. */
+export function nextSpare(state: GameState): Question | null {
+  return (state.quiz.spares ?? []).find((spare) => !state.sparesUsed.includes(spare.id)) ?? null;
+}
+
+/** Запитання, на яке відповідає гравець: запасне після заміни, інакше основне. */
+export function questionFor(state: GameState, play: Play, playerId: string): Question {
+  const spare = buffOf(play, playerId)?.spare;
+  if (spare === undefined) return play.question;
+  // Запасне видано з пулу цієї гри; якщо його там немає, лишається основне.
+  return (state.quiz.spares ?? []).find((q) => q.id === spare.id) ?? play.question;
+}
+
+/** Порядок варіантів того, що бачить гравець: presented запасного або state.presented. */
+export function presentedFor(state: GameState, play: Play, playerId: string): string[] {
+  return buffOf(play, playerId)?.spare?.presented ?? state.presented;
+}
+
+/** Межа для бонусу швидкості: limitMs запасного або limitMsOf(play). */
+export function answerLimitMs(play: Play, playerId: string): number | null {
+  const spare = buffOf(play, playerId)?.spare;
+  return spare === undefined ? limitMsOf(play) : spare.limitMs;
 }
 
 /**
@@ -193,8 +223,28 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
     ...(kind === 'audience' ? { vote: { endsAt: now + AUDIENCE_MS, ballots: {} } } : {}),
     ...(kind === 'hint' ? { hint: { text: play.question.hint ?? null, aloud: false } } : {}),
   };
+  if (kind === 'swap') return ok(takeSpare(state, play, playerId, buff, now, rng));
   const taken = withCurrentPlay({ ...state, buffSeq: seq }, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
   return ok(kind === 'time' ? grantOvertime(taken, playerId, EXTRA_TIME_MS) : taken);
+}
+
+/**
+ * Заміна: наступне запасне (fitBlock гарантує, що воно є) з власним порядком варіантів і часом
+ * щонайменше SWAP_MIN_MS — особистим понад спільний кінець. Без таймера — без особистого часу.
+ */
+function takeSpare(state: GameState, play: Play, playerId: string, buff: BuffPlay, now: number, rng: Rng): GameState {
+  const spare = nextSpare(state);
+  if (spare === null) return state;
+  const round = state.quiz.rounds[play.roundIndex];
+  const timed = isTimed(play.question) && state.endsAt !== null;
+  const endsAt = state.endsAt ?? now;
+  const limitMs = timed ? Math.max(endsAt - now, SWAP_MIN_MS) : null;
+  const withSpare: BuffPlay = { ...buff, spare: { id: spare.id, presented: present(spare, round.shuffleOptions, rng), startedAt: now, limitMs } };
+  const taken = withCurrentPlay(
+    { ...state, buffSeq: buff.seq, sparesUsed: [...state.sparesUsed, spare.id] },
+    { ...play, buffs: { ...play.buffs, [playerId]: withSpare } },
+  );
+  return timed ? grantOvertime(taken, playerId, Math.max(0, now + SWAP_MIN_MS - endsAt)) : taken;
 }
 
 /** Змінює баф гравця на поточному запитанні; без бафу стан без змін. */
@@ -315,12 +365,15 @@ export function giveHint(state: GameState, playerId: string, text: string | null
   return ok(withBuff(state, playerId, { hint: { text, aloud: text === null } }));
 }
 
-/** Після паузи: endsAt голосувань поточного запитання зсуваються на shiftMs. */
+/** Після паузи: endsAt голосувань і startedAt запасних поточного запитання зсуваються на shiftMs. */
 export function shiftBuffClocks(state: GameState, shiftMs: number): GameState {
   const play = state.plays[state.questionIndex];
   if (play?.buffs === undefined || shiftMs === 0) return state;
-  const shifted = (buff: BuffPlay): BuffPlay =>
-    buff.vote === undefined ? buff : { ...buff, vote: { ...buff.vote, endsAt: buff.vote.endsAt + shiftMs } };
+  const shifted = (buff: BuffPlay): BuffPlay => ({
+    ...buff,
+    ...(buff.vote === undefined ? {} : { vote: { ...buff.vote, endsAt: buff.vote.endsAt + shiftMs } }),
+    ...(buff.spare === undefined ? {} : { spare: { ...buff.spare, startedAt: buff.spare.startedAt + shiftMs } }),
+  });
   const buffs = Object.fromEntries(Object.entries(play.buffs).map(([id, buff]) => [id, shifted(buff)]));
   return withCurrentPlay(state, { ...play, buffs });
 }
@@ -343,14 +396,15 @@ function pickRemoved(question: Question, rng: Rng): string[] {
   return removed;
 }
 
-/** Для withRecord: подвійні (+ ×2) і щит (− → 0), позначка buff. Вхід — запис без бафу. */
+/** Для withRecord: подвійні (+ ×2) і щит (− → 0), позначки buff і spare. Вхід — запис без бафу. */
 export function applyBuff(record: AnswerRecord, buff: BuffPlay | null): AnswerRecord {
-  const { buff: _stale, ...raw } = record;
+  const { buff: _stale, spare: _staleSpare, ...raw } = record;
   if (buff === null) return raw;
   const doubled = buff.kind === 'double' && raw.basePoints > 0;
   const shielded = buff.kind === 'shield' && raw.basePoints < 0;
   const basePoints = doubled ? raw.basePoints * 2 : shielded ? 0 : raw.basePoints;
-  return { ...raw, basePoints, points: basePoints + raw.streakBonus, buff: buff.kind };
+  const spare = buff.kind === 'swap' && buff.spare !== undefined ? { spare: buff.spare.id } : {};
+  return { ...raw, basePoints, points: basePoints + raw.streakBonus, buff: buff.kind, ...spare };
 }
 
 /** Етапи, на яких значки бафів поточного запитання ще видно. */
