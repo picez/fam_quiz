@@ -2,10 +2,13 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
+// Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import type { Answer, DebuffKind, PlayerSort, PublicQuestion } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
-import { BANNER_MS, DebuffZone, MIRROR_SWAP_MS, freezeMs, rotateChoices, useDebuffQuestion } from './Debuffs';
+import { BANNER_MS, DebuffZone, MIRROR_SWAP_MS, SHAKE_BURST, SHAKE_CYCLE_MS, freezeMs, rotateChoices, useDebuffQuestion } from './Debuffs';
 import { SortPlay } from './SortView';
 
 beforeEach(() => {
@@ -189,7 +192,7 @@ describe('DebuffZone', () => {
     cleanup();
     render(<Zone kind="guests" />);
     const guests = document.querySelectorAll('.debuff-guest');
-    expect(guests).toHaveLength(4);
+    expect(guests).toHaveLength(5);
     for (const guest of guests) expect(guest.getAttribute('aria-hidden')).toBe('true');
     expect(zone().classList.contains('is-calm')).toBe(false);
     cleanup();
@@ -258,5 +261,117 @@ describe('DebuffZone', () => {
     await act(async () => {});
     fireEvent.click(left());
     expect(send).toHaveBeenCalledTimes(3);
+  });
+});
+
+// Тести запускаються з кореня репозиторію або з apps/web.
+const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+
+/** Тіло першого правила з точно цим селектором у styles.css (рядок може мати відступ — правила в @media). */
+function rule(selector: string): string {
+  const lines = css.split('\n');
+  const at = lines.findIndex((line) => line.trim() === `${selector} {`);
+  expect(at).toBeGreaterThanOrEqual(0);
+  const start = lines.slice(0, at).join('\n').length + 1;
+  return css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+}
+
+describe('debuff strength', () => {
+  const setVibrate = (value: unknown) => Object.defineProperty(navigator, 'vibrate', { value, configurable: true, writable: true });
+  afterEach(() => setVibrate(undefined));
+
+  it('shake buzzes the phone at the start of every burst and stops with the debuff', () => {
+    const vibrate = vi.fn();
+    setVibrate(vibrate);
+    const { rerender } = render(
+      <DebuffZone debuff={{ kind: 'shake', since: Date.now(), by: null }} limitMs={30_000} offsetMs={0} questionIndex={0}>
+        x
+      </DebuffZone>,
+    );
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    act(() => {
+      vi.advanceTimersByTime(SHAKE_CYCLE_MS * 2);
+    });
+    expect(vibrate).toHaveBeenCalledTimes(3);
+    expect(vibrate).toHaveBeenLastCalledWith([120, 60, 120]);
+    rerender(
+      <DebuffZone debuff={null} limitMs={30_000} offsetMs={0} questionIndex={1}>
+        x
+      </DebuffZone>,
+    );
+    act(() => {
+      vi.advanceTimersByTime(SHAKE_CYCLE_MS * 2);
+    });
+    expect(vibrate).toHaveBeenCalledTimes(3);
+  });
+
+  it('no buzz with reduced motion', () => {
+    const vibrate = vi.fn();
+    setVibrate(vibrate);
+    reduce();
+    render(<Zone kind="shake" />);
+    act(() => {
+      vi.advanceTimersByTime(SHAKE_CYCLE_MS * 2);
+    });
+    expect(vibrate).not.toHaveBeenCalled();
+  });
+
+  it('the CSS burst starts in step with the buzz: the zone carries the cycle and the phase', () => {
+    const since = Date.now() - 1000;
+    render(<Zone kind="shake" since={since} />);
+    expect(zone().style.getPropertyValue('--shake-cycle')).toBe(`${SHAKE_CYCLE_MS}ms`);
+    expect(zone().style.getPropertyValue('--shake-phase')).toBe('1000ms');
+  });
+
+  it('the burst is at most 30 % of the cycle, so there is always a calm moment to tap', () => {
+    expect(SHAKE_BURST).toBeLessThanOrEqual(0.3);
+    expect(SHAKE_CYCLE_MS * (1 - SHAKE_BURST)).toBeGreaterThanOrEqual(1900);
+  });
+
+  it('five guests walk across the zone and catch no taps', () => {
+    render(<Zone kind="guests" />);
+    const guests = document.querySelectorAll('.debuff-guest');
+    expect(guests).toHaveLength(5);
+    for (const guest of guests) expect(guest.classList.contains('debuff-layer')).toBe(true);
+  });
+
+  it('fog is a blur over a light haze, not a milky wall', () => {
+    expect(css).toContain('--fog: rgb(150 160 185 / 0.3);');
+    const fog = rule('.debuff-fog');
+    expect(fog).toContain('background: var(--fog);');
+    expect(fog).toContain('backdrop-filter: blur(5px);');
+    expect(css).toMatch(/@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*\.debuff-fog \{\s*background: rgb\(150 160 185 \/ 0\.6\);/);
+  });
+
+  it('ice is thicker with frost at the edges, guests are bigger with a shadow', () => {
+    expect(css).toContain('--ice: rgb(190 230 255 / 0.72);');
+    expect(rule('.debuff-ice')).toContain('box-shadow: inset 0 0 1.5rem rgb(255 255 255 / 0.8);');
+    const guest = rule('.debuff-guest');
+    expect(guest).toContain('font-size: 5.5rem;');
+    expect(guest).toContain('filter: drop-shadow(0 0.15rem 0.3rem rgb(0 0 0 / 0.6));');
+  });
+
+  it('the shake runs on the shared cycle, jolts up to 14px and is calm for the last 70 %', () => {
+    const shake = rule('.is-shake:not(.is-calm) .debuff-content');
+    expect(shake).toContain('animation: debuff-shake var(--shake-cycle, 2800ms) infinite;');
+    expect(shake).toContain('animation-delay: calc(-1 * var(--shake-phase, 0ms));');
+    const start = css.indexOf('@keyframes debuff-shake {');
+    const frames = css.slice(start, css.indexOf('\n  }\n', start));
+    expect(frames).toMatch(/translate: -?14px/);
+    expect(frames).toMatch(/rotate: -?2\.5deg/);
+    expect(frames).toMatch(/30%,\s*100% \{\s*translate: 0 0;/);
+    const pxs = [...frames.matchAll(/translate: (-?\d+)px/g)].map((m) => Math.abs(Number(m[1])));
+    expect(Math.max(...pxs)).toBeLessThanOrEqual(14);
+  });
+
+  it('the calm shake for reduced motion is still visible: a pulsing outline on the same cycle, no movement', () => {
+    const calm = rule('.is-calm.is-shake .debuff-content');
+    expect(calm).toContain('animation: debuff-ghost var(--shake-cycle, 2800ms) infinite;');
+    const start = css.indexOf('@keyframes debuff-ghost {');
+    const frames = css.slice(start, css.indexOf('\n}\n', start));
+    expect(frames).toContain('box-shadow');
+    expect(frames).not.toContain('translate');
+    expect(frames).not.toContain('rotate');
   });
 });

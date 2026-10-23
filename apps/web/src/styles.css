@@ -20,9 +20,9 @@
   --pending-soft: rgb(255 122 26 / 0.18);
   --panel: rgb(255 255 255 / 0.05);
   --line: rgb(245 241 230 / 0.16);
-  --ice: rgb(190 230 255 / 0.55);
+  --ice: rgb(190 230 255 / 0.72);
   --ice-line: rgb(255 255 255 / 0.85);
-  --fog: rgb(222 226 238 / 0.78);
+  --fog: rgb(150 160 185 / 0.3);
   --mud: #5b3a1e;
   --mud-dark: #3e2612;
   --sort-zone: rgb(155 140 255 / 0.16);
@@ -3703,6 +3703,8 @@ body:has(.debuff-banner) .live-notice {
   z-index: 2;
   border-radius: 0.75rem;
   background: var(--ice);
+  /* Іній по краях: лід видно здалеку, а не лише тріщини. */
+  box-shadow: inset 0 0 1.5rem rgb(255 255 255 / 0.8);
 }
 
 .debuff-ice svg {
@@ -3728,14 +3730,22 @@ body:has(.debuff-banner) .live-notice {
   inset: 0;
   z-index: 1;
   border-radius: 0.75rem;
+  /* Легкий серпанок і сильне розмиття: обриси тексту вгадуються, а не біла стіна. */
   background: var(--fog);
-  -webkit-backdrop-filter: blur(7px);
-  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
   /* Маска — крихітний canvas сітки; розтягування дає м'які краї протертих місць. */
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
+}
+
+/* Без розмиття туман — лише густіший серпанок. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .debuff-fog {
+    background: rgb(150 160 185 / 0.6);
+  }
 }
 
 .debuff-splat {
@@ -3754,14 +3764,16 @@ body:has(.debuff-banner) .live-notice {
   top: var(--lane);
   left: 0;
   z-index: 1;
-  font-size: 4.5rem;
+  font-size: 5.5rem;
   line-height: 1;
+  filter: drop-shadow(0 0.15rem 0.3rem rgb(0 0 0 / 0.6));
   opacity: 0;
 }
 
-/* Спокійні варіанти для зменшеної анімації: без руху, лише розмиття й прозорість. */
+/* Спокійні варіанти для зменшеної анімації: без руху — розмиття, прозорість і жовта рамка в такт поштовхам. */
 .is-calm.is-shake .debuff-content {
-  animation: debuff-ghost 3s infinite;
+  border-radius: 0.75rem;
+  animation: debuff-ghost var(--shake-cycle, 2800ms) infinite;
 }
 
 .is-calm .debuff-guest {
@@ -3772,14 +3784,16 @@ body:has(.debuff-banner) .live-notice {
 
 @keyframes debuff-ghost {
   0%,
-  26%,
+  30%,
   100% {
+    box-shadow: none;
     filter: none;
     opacity: 1;
   }
 
-  1%,
-  25% {
+  2%,
+  27% {
+    box-shadow: 0 0 0 4px var(--amber);
     filter: blur(1.5px);
     opacity: 0.6;
   }
@@ -3802,14 +3816,16 @@ body:has(.debuff-banner) .live-notice {
     transition: opacity 0.2s ease-out;
   }
 
+  /* Фаза — від миті спрацювання (--shake-phase), тож поштовх збігається з вібрацією телефона. */
   .is-shake:not(.is-calm) .debuff-content {
-    animation: debuff-shake 3s infinite;
+    animation: debuff-shake var(--shake-cycle, 2800ms) infinite;
+    animation-delay: calc(-1 * var(--shake-phase, 0ms));
   }
 
   /* Гість на всю ширину зони: translate 100% — рівно її ширина, рух іде на компоненті (без left). */
   .debuff-guest {
     right: 0;
-    animation: debuff-run 5s linear var(--delay) infinite;
+    animation: debuff-run 4s linear var(--delay) infinite;
   }
 
   .debuff-ice .crack {
@@ -3820,32 +3836,58 @@ body:has(.debuff-banner) .live-notice {
     animation: debuff-crumble 0.4s ease-in forwards;
   }
 
+  /* Поштовх — перші 30 % циклу (≈0,85 с), зсув до ±14px і поворот до ±2,5° зі згасанням; решта 70 % — спокій, щоб натиснути. */
   @keyframes debuff-shake {
     0%,
-    20%,
+    30%,
     100% {
       translate: 0 0;
       rotate: 0deg;
     }
 
-    4% {
-      translate: -6px 2px;
-      rotate: -1deg;
+    3% {
+      translate: -14px 4px;
+      rotate: -2.5deg;
     }
 
-    8% {
-      translate: 6px -2px;
-      rotate: 1deg;
+    6% {
+      translate: 14px -4px;
+      rotate: 2.5deg;
+    }
+
+    9% {
+      translate: -12px -3px;
+      rotate: -2deg;
     }
 
     12% {
-      translate: -5px -1px;
-      rotate: -0.8deg;
+      translate: 12px 3px;
+      rotate: 2deg;
     }
 
-    16% {
-      translate: 4px 1px;
-      rotate: 0.6deg;
+    15% {
+      translate: -10px 3px;
+      rotate: -1.6deg;
+    }
+
+    18% {
+      translate: 10px -3px;
+      rotate: 1.6deg;
+    }
+
+    21% {
+      translate: -8px -2px;
+      rotate: -1.2deg;
+    }
+
+    24% {
+      translate: 6px 2px;
+      rotate: 0.9deg;
+    }
+
+    27% {
+      translate: -4px 1px;
+      rotate: -0.5deg;
     }
   }
 

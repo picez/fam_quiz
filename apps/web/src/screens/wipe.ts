@@ -72,7 +72,7 @@ export function splatsFor(seed: number): Splat[] {
       id: i,
       x: 0.3 + col * 0.4 + (rnd() - 0.5) * 0.16,
       y: 0.2 + row * 0.3 + (rnd() - 0.5) * 0.16,
-      size: 0.18 + rnd() * 0.08,
+      size: 0.22 + rnd() * 0.08,
       left: 1,
     });
   }
