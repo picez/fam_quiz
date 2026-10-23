@@ -49,6 +49,8 @@ import {
   type RevealStats,
   type Spotlight,
   type Standing,
+  type SplashKind,
+  type SplashView,
   type StageView,
   roundBrief,
   rulesOf,
@@ -787,8 +789,19 @@ function base(state: GameState, forHost: boolean) {
     duel: duelInfo(state, false),
     buffs: currentBuffs(state),
     buffNotice: lastBuff(state),
+    splash: splashView(state),
     overtime: overtimeRows(state),
   };
+}
+
+/** Етап, у якому заставка кожного виду має сенс. */
+const SPLASH_PHASE: Record<SplashKind, Phase> = { round: 'intro', final: 'intro', question: 'question', cell: 'question', duel: 'duel', podium: 'finished' };
+
+/** Заставка поточного етапу з часом сервера; поза своїм етапом — null. */
+function splashView(state: GameState): SplashView | null {
+  const splash = state.splash;
+  if (splash === null || SPLASH_PHASE[splash.kind] !== state.phase) return null;
+  return { kind: splash.kind, at: splash.at, until: splash.until };
 }
 
 /** Особистий кінець гравця з додатковим часом, якщо він ще не відповів (етап question); інакше null. */

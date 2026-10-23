@@ -27,6 +27,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  splash: null,
   overtime: [],
   duel: null,
   debuffs: [],

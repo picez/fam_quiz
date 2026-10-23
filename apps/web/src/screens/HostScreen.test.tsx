@@ -37,6 +37,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  splash: null,
   overtime: [],
   duel: null,
   round: null,
