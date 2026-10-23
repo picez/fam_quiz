@@ -3,6 +3,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, multi, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { DEFAULT_RULES } from '@quiz/shared';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
@@ -4576,5 +4577,339 @@ async function duelLayout() {
   await stage900.locator('h1', { hasText: 'Запитання 4:' }).waitFor();
   await click(host, 'Завершити гру');
   await olya.getByText('Гру завершено').first().waitFor();
+  expect(problems).toEqual([]);
+}
+
+it('part 8a: buffs and debuffs in the editor, a buff row on the phone, 50/50, double points, a second try with a choice, extra time with «Не чекати», a shield, double points on a x2 cell, icons and totals in the history', async () => {
+  try {
+    await buffsGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+const buffButton = (page: Page, name: string) => page.locator('.buff-row').getByRole('button', { name, ...exact });
+
+/** Баф двома дотиками: перший просить підтвердження, другий бере; чекає, поки кнопка стане активною. */
+async function takeBuff(page: Page, name: string) {
+  await buffButton(page, name).click();
+  await page.locator('.buff-why').getByText(`Ще раз — узяти «${name}»`, exact).waitFor();
+  await buffButton(page, name).click();
+  await expect.poll(() => buffButton(page, name).getAttribute('class')).toContain('is-active');
+}
+
+/** Дотик неактивної кнопки бафу: рядок пояснень пише причину. */
+async function tapBuff(page: Page, name: string, why: string) {
+  // aria-disabled: Playwright вважає кнопку вимкненою, але дотик пояснює причину.
+  await buffButton(page, name).click({ force: true });
+  await page.locator('.buff-why').getByText(why, exact).waitFor();
+}
+
+/** Дотик варіанта відповіді. */
+const pickOption = (page: Page, text: string) => page.getByRole('button', { name: new RegExp(text) }).click();
+
+/** Число в полі відповіді й «Відповісти». */
+async function numericAnswer(page: Page, value: string) {
+  await field(page, 'Ваша відповідь').fill(value);
+  await click(page, 'Відповісти');
+}
+
+/** Верх і висота елемента, округлені до пікселя. */
+const boxOf = async (page: Page, selector: string) => {
+  const box = (await page.locator(selector).first().boundingBox())!;
+  return { y: Math.round(box.y), height: Math.round(box.height) };
+};
+
+async function buffsGame() {
+  const host = await open('host8a', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host8a@example.com');
+
+  const choice = (id: string, text: string, timeLimit: number, options: string[]) => ({
+    id,
+    type: 'single' as const,
+    text,
+    imageUrl: null,
+    video: null,
+    timeLimit,
+    points: 100,
+    options: options.map((option, at) => ({ id: `${id}o${at}`, text: option })),
+    correctId: `${id}o0`,
+  });
+  const base8a = { imageUrl: null, video: null, points: 100 };
+  const q1 = choice('q1', 'Найбільше озеро України?', 20, ['Ялпуг', 'Світязь', 'Синевир', 'Кугурлуй']);
+  const q2 = { ...base8a, id: 'q2', type: 'numeric' as const, text: 'Рік проголошення незалежності України?', timeLimit: 30, correct: 1991, tolerance: 10 };
+  const q3 = choice('q3', 'Столиця Буковини?', 5, ['Чернівці', 'Ужгород', 'Луцьк']);
+  const q4 = { ...base8a, id: 'q4', type: 'boolean' as const, text: 'Дніпро впадає в Чорне море?', timeLimit: 5, correct: true };
+  const cellQ = (category: string, price: number) => ({
+    ...withPoints(withId(single, `b-${category}-${price}`), price),
+    text: `${category} ${price}: столиця України?`,
+  });
+  const rounds = [
+    classicRound('r1', [q1, q2, q3, q4], { title: 'Розминка', speedBonus: false, rules: { ...DEFAULT_RULES, penalty: 'minus' } }),
+    boardRound(
+      'r2',
+      ['Міста', 'Річки', 'Гори'].map((title, column) => ({
+        title,
+        cells: [100, 200, 300].map((price) =>
+          column === 0 && price === 100 ? { question: cellQ(title, price), mark: 'x2' as const } : cellQ(title, price),
+        ),
+      })),
+      { title: 'Поле', answerMode: 'phone', check: 'auto' },
+    ),
+  ];
+  const data = {
+    ...makeRoundsQuiz(rounds, { leaderboard: 'end', debuffs: ['fog', 'shake'], buffs: ['fifty', 'double', 'retry', 'time', 'shield'] }),
+    title: 'Бафи',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // Редактор: розділ «Бафи й дебафи» з чинними значеннями; «Жодного» / «Усі» / знову два дебафи.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Бафи' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('details.powers > summary').click();
+  const debuffGroup = host.locator('fieldset.powers-group').nth(0);
+  const buffGroup = host.locator('fieldset.powers-group').nth(1);
+  const box = (group: typeof debuffGroup, name: string) => group.locator('label.powers-item', { hasText: name }).locator('input');
+  const debuffNames = ['Тремтіння екрана', 'Туман', 'Заморозка', 'Дзеркало', 'Гості на екрані', 'Брудний екран'];
+  const checkedDebuffs = async () => {
+    const on: string[] = [];
+    for (const name of debuffNames) if (await box(debuffGroup, name).isChecked()) on.push(name);
+    return on;
+  };
+  expect(await checkedDebuffs()).toEqual(['Тремтіння екрана', 'Туман']);
+  for (const name of ['50/50', 'Подвійні бали', 'Друга спроба', 'Додатковий час', 'Щит']) expect(await box(buffGroup, name).isChecked(), name).toBe(true);
+  for (const name of ['Запитання в залі', 'Підказка ведучого', 'Заміна запитання']) {
+    expect(await box(buffGroup, name).isDisabled(), name).toBe(true);
+    expect(await box(buffGroup, name).isChecked(), name).toBe(false);
+    await buffGroup.locator('label.powers-item', { hasText: name }).locator('.powers-soon').getByText('скоро', exact).waitFor();
+  }
+  await shot(host, 'buff8a-editor');
+  await debuffGroup.getByRole('button', { name: 'Жодного', ...exact }).click();
+  expect(await checkedDebuffs()).toEqual([]);
+  await debuffGroup.getByRole('button', { name: 'Усі', ...exact }).click();
+  expect(await checkedDebuffs()).toEqual(debuffNames);
+  for (const name of ['Заморозка', 'Дзеркало', 'Гості на екрані', 'Брудний екран']) await box(debuffGroup, name).uncheck();
+  expect(await checkedDebuffs()).toEqual(['Тремтіння екрана', 'Туман']);
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'buff8a-editor-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // Гра: сцена 1600 × 900, Оля 375, Петро 360, Іра 390.
+  await host.locator('.quiz-list li', { hasText: 'Бафи' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage8a', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya8a', 375, 812);
+  const petro = await open('petro8a', 360, 740);
+  const ira = await open('ira8a', 390, 844);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const hostScore = async (nickname: string) => (await row(nickname).locator('.score').textContent())!;
+  const scores = async () => ({ Оля: await hostScore('Оля'), Петро: await hostScore('Петро'), Іра: await hostScore('Іра') });
+  const response = (nickname: string) => host.locator('.rows li', { has: host.locator('.given') }).filter({ hasText: nickname });
+  const reveal = async () => {
+    await click(host, 'Показати відповідь');
+    for (const page of phones) await page.locator('section.result').first().waitFor();
+  };
+
+  // Пульт: «Дебаф» біля Олі пропонує лише «Тремтіння екрана» і «Туман».
+  await click(host, 'Почати гру');
+  await row('Оля').getByRole('button', { name: 'Дебаф', ...exact }).click();
+  const picks = row('Оля').locator('.player-tools .debuff-picks button');
+  await picks.first().waitFor();
+  const pickTexts = await picks.allTextContents();
+  expect(pickTexts).toHaveLength(2);
+  expect(pickTexts[0]).toMatch(/Тремтіння екрана$/);
+  expect(pickTexts[1]).toMatch(/Туман$/);
+  await shot(host, 'buff8a-host-debuffs');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'buff8a-host-debuffs-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await row('Оля').getByRole('button', { name: 'Дебаф', ...exact }).click();
+  await row('Оля').locator('.player-tools').waitFor({ state: 'detached' });
+
+  // 1. q1: ряд із п'яти бафів у кожного; 50/50 Олі прибирає «Світязь» і «Синевир» на місці.
+  await click(host, 'Почати раунд');
+  for (const page of phones) {
+    await page.locator('h1', { hasText: 'Найбільше озеро України?' }).waitFor();
+    expect(await page.locator('.buff-row .buff-btn').count()).toBe(5);
+  }
+  await expectNoSideScroll(olya, 'buff8a-row-375');
+  const petroQuestion = await boxOf(petro, 'h1.question');
+  const petroRow = await boxOf(petro, '.buff-row');
+  const olyaChoices = await yOf(olya);
+  rigged.push(1, 1);
+  await takeBuff(olya, '50/50');
+  for (const text of ['Світязь', 'Синевир']) await olya.locator('.choice.is-removed', { hasText: text }).waitFor();
+  for (const text of ['Ялпуг', 'Кугурлуй']) expect(await olya.getByRole('button', { name: new RegExp(text) }).isEnabled(), text).toBe(true);
+  expect(await olya.locator('.choice.is-removed').count()).toBe(2);
+  expect(await yOf(olya), '50/50 moved the options').toEqual(olyaChoices);
+  await stage.locator('.stage-buffs li').getByText('½ Оля', exact).waitFor();
+  await stage.locator('.live-notice.is-buff').getByText('Оля: 50/50', exact).waitFor();
+  await petro.locator('.live-notice.is-buff').getByText('Оля: 50/50', exact).waitFor();
+  expect(await boxOf(petro, 'h1.question'), 'a buff of Оля moved the question of Петро').toEqual(petroQuestion);
+  expect(await boxOf(petro, '.buff-row'), 'a buff of Оля moved the buff row of Петро').toEqual(petroRow);
+  expect(await bodyText(stage)).not.toContain('прибрано');
+  expect(await bodyText(petro)).not.toContain('прибрано');
+  await expectNoSideScroll(olya, 'buff8a-fifty-375');
+  await shot(stage, 'buff8a-fifty-stage');
+  await shot(petro, 'buff8a-notice-phone');
+  await takeBuff(petro, 'Подвійні бали');
+  await takeBuff(ira, 'Щит');
+  await stage.locator('.stage-buffs li').getByText('🛡 Іра', exact).waitFor();
+  await pickOption(olya, 'Ялпуг');
+  await pickOption(petro, 'Ялпуг');
+  await pickOption(ira, 'Синевир');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await reveal();
+  await response('Петро').locator('.buff-tag').getByText('×2', exact).waitFor();
+  await response('Іра').locator('.buff-tag').getByText('🛡', exact).waitFor();
+  await response('Оля').locator('.buff-tag').getByText('½', exact).waitFor();
+  await shot(host, 'buff8a-reveal-host');
+  await expect.poll(scores).toEqual({ Оля: '100', Петро: '200', Іра: '0' });
+
+  // 2. q2: 50/50 Олі вже використано; друга спроба з вибором (Оля) і після помилки (Петро).
+  await click(host, 'Далі');
+  await olya.locator('h1', { hasText: 'Рік проголошення' }).waitFor();
+  expect(await buffButton(olya, '50/50').getAttribute('class')).toContain('is-used');
+  await tapBuff(olya, '50/50', 'Уже використано.');
+  await takeBuff(olya, 'Друга спроба');
+  await numericAnswer(olya, '1996');
+  await olya.getByText(/^Частково правильно: \+75\. Залишити чи ще спроба\?$/).waitFor();
+  await shot(olya, 'buff8a-retry-choice');
+  await click(olya, 'Ще спроба');
+  await numericAnswer(olya, '1991');
+  await olya.getByText('Відповідь прийнято', exact).waitFor();
+  const petroBar = await boxOf(petro, '.buff-bar');
+  await takeBuff(petro, 'Друга спроба');
+  await numericAnswer(petro, '2005');
+  await petro.locator('.buff-why').getByText('Неправильно, ще одна спроба', exact).waitFor();
+  expect(await boxOf(petro, '.buff-bar'), 'the retry prompt changed the buff row').toEqual(petroBar);
+  await shot(petro, 'buff8a-retry-again');
+  for (const page of [stage, ira]) {
+    const html = await page.content();
+    expect(html, 'a first try leaked').not.toContain('1996');
+    expect(html, 'a first try leaked').not.toContain('2005');
+  }
+  await numericAnswer(petro, '1991');
+  await numericAnswer(ira, '1991');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await reveal();
+  await expect.poll(scores).toEqual({ Оля: '200', Петро: '300', Іра: '100' });
+  for (const page of [stage, ira]) {
+    const text = await bodyText(page);
+    expect(text).not.toContain('1996');
+    expect(text).not.toContain('2005');
+  }
+
+  // 3. q3 (5 с): Іра бере додатковий час; після спільних 5 с усі чекають на неї, вона відповідає сама.
+  await click(host, 'Далі');
+  await ira.locator('h1', { hasText: 'Столиця Буковини?' }).waitFor();
+  await takeBuff(ira, 'Додатковий час');
+  await ira.locator('.buff-why').getByText('+30 с — ваш час', exact).waitFor();
+  await pickOption(olya, 'Чернівці');
+  await pickOption(petro, 'Чернівці');
+  const stageWait = stage.locator('.buff-wait');
+  await stageWait.waitFor({ timeout: 8000 });
+  expect(await stageWait.textContent()).toMatch(/^Чекаємо: Іра · 0:\d\d$/);
+  await host.getByRole('button', { name: 'Не чекати', ...exact }).waitFor();
+  await petro.locator('.question-head .buff-wait').getByText(/^Чекаємо: Іра · 0:\d\d$/).waitFor();
+  await shot(stage, 'buff8a-overtime-stage');
+  await shot(petro, 'buff8a-overtime-phone');
+  await shot(ira, 'buff8a-overtime-mine');
+  await shot(host, 'buff8a-overtime-host');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.getByRole('button', { name: 'Не чекати', ...exact }).waitFor();
+  await expectNoSideScroll(host, 'buff8a-overtime-host-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await stage.waitForTimeout(1500);
+  await pickOption(ira, 'Чернівці');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await reveal();
+  await expect.poll(scores).toEqual({ Оля: '300', Петро: '400', Іра: '200' });
+
+  // 4. q4 (5 с): 50/50 не діє на «так / ні»; Петро бере час, ведучий не чекає.
+  await click(host, 'Далі');
+  await ira.locator('h1', { hasText: 'Дніпро впадає' }).waitFor();
+  const iraBar = await boxOf(ira, '.buff-bar');
+  await tapBuff(ira, '50/50', '«50/50» не діє на запитання цього типу.');
+  expect(await boxOf(ira, '.buff-bar'), 'the reason changed the buff row').toEqual(iraBar);
+  await takeBuff(petro, 'Додатковий час');
+  await click(olya, 'Так');
+  await click(ira, 'Так');
+  await host.getByRole('button', { name: 'Не чекати', ...exact }).waitFor({ timeout: 8000 });
+  await click(host, 'Не чекати');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await shot(host, 'buff8a-nowait-host');
+  await reveal();
+  await expect.poll(scores).toEqual({ Оля: '400', Петро: '400', Іра: '300' });
+
+  // 5. Поле: Оля вибирає «×2» за 100; щит тут не потрібен; подвійні бали на ×2 — +400.
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await olya.getByRole('button', { name: 'Міста, 100', ...exact }).click();
+  for (const page of phones) await page.locator('h1', { hasText: 'Міста 100' }).waitFor();
+  await tapBuff(olya, 'Щит', 'Щит не потрібен: у цьому раунді помилка не коштує балів.');
+  expect(await petro.locator('.buff-row').count(), 'not the chooser: no buff row').toBe(0);
+  expect(await ira.locator('.buff-row').count(), 'not the chooser: no buff row').toBe(0);
+  await takeBuff(olya, 'Подвійні бали');
+  await pickOption(olya, 'Київ');
+  await click(host, 'Прийняти');
+  await olya.getByText('Правильно!').waitFor();
+  await shot(olya, 'buff8a-board-phone');
+  await expect.poll(scores).toEqual({ Оля: '800', Петро: '400', Іра: '300' });
+
+  // 6. Історія: та сама таблиця, значки бафів біля відповідей.
+  await click(host, 'Завершити гру');
+  await olya.getByText('Гру завершено').first().waitFor();
+  await expectNoSideScroll(olya, 'buff8a-phone-375');
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Бафи/ }).click();
+  const standings = host.locator('.standings li');
+  await standings.first().waitFor();
+  const table: [string, string][] = [];
+  for (let i = 0; i < (await standings.count()); i++) {
+    table.push([(await standings.nth(i).locator('.name').textContent())!, (await standings.nth(i).locator('.score').textContent())!]);
+  }
+  expect(table).toEqual([
+    ['Оля', '800'],
+    ['Петро', '400'],
+    ['Іра', '300'],
+  ]);
+  await host.evaluate("document.querySelectorAll('details.responses').forEach((d) => { d.open = true; })");
+  const line = (question: string, nickname: string) =>
+    host
+      .locator('.rows.stacked > li', { hasText: question })
+      .locator('details.responses li', { has: host.locator('.responses-name', { hasText: nickname }) });
+  const badgeOf = async (question: string, nickname: string) => {
+    const tags = await line(question, nickname).locator('.buff-tag').allTextContents();
+    return tags.length === 0 ? null : tags.join(' ');
+  };
+  expect(await badgeOf('Найбільше озеро', 'Оля')).toBe('½');
+  expect(await badgeOf('Найбільше озеро', 'Петро')).toBe('×2');
+  expect(await badgeOf('Найбільше озеро', 'Іра')).toBe('🛡');
+  expect(await badgeOf('Рік проголошення', 'Оля')).toBe('↻');
+  expect(await badgeOf('Рік проголошення', 'Петро')).toBe('↻');
+  expect(await badgeOf('Рік проголошення', 'Іра')).toBe(null);
+  for (const nickname of ['Оля', 'Петро']) expect(await line('Рік проголошення', nickname).locator('.responses-answer').textContent()).toBe('1991');
+  expect(await badgeOf('Столиця Буковини', 'Іра')).toBe('⏱');
+  expect(await badgeOf('Міста 100', 'Оля')).toBe('×2');
+  await shot(host, 'buff8a-history-host');
+
   expect(problems).toEqual([]);
 }
