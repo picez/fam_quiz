@@ -12,6 +12,12 @@ const EPSILON = 1e-9;
 
 const full = (correct: boolean): CheckResult => (correct ? FULL : REJECTED);
 
+/** Чи збігається відповідь з одним із написань (як у типі text): normalizeText, порожня — ні. */
+export function textMatches(accepted: string[], value: string): boolean {
+  const normalized = normalizeText(value);
+  return normalized !== '' && accepted.some((spelling) => normalizeText(spelling) === normalized);
+}
+
 export function checkAnswer(question: Question, answer: Answer): CheckResult {
   if (question.type === 'single' && answer.type === 'single') {
     return full(answer.optionId === question.correctId);
@@ -30,8 +36,7 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
   }
 
   if (question.type === 'text' && answer.type === 'text') {
-    const value = normalizeText(answer.value);
-    return full(value !== '' && question.accepted.some((spelling) => normalizeText(spelling) === value));
+    return full(textMatches(question.accepted, answer.value));
   }
 
   if (question.type === 'numeric' && answer.type === 'numeric') {

@@ -7,6 +7,7 @@ import {
   type CellPenalty,
   type AdjustmentSource,
   type DebuffKind,
+  type DuelStage,
   type ErrorCode,
   type Grade,
   type Phase,
@@ -17,7 +18,7 @@ import {
   type Round,
   rulesOf,
 } from '@quiz/shared';
-// adjust.ts і debuffs.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
+// adjust.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
@@ -26,6 +27,7 @@ import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, ent
 import { chainDone, scoreChain } from './chain';
 import { scoreSort, shiftSortLocks } from './sort';
 import { fireDebuffs, spendDebuffs } from './debuffs';
+import { advanceDuel, beginDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -229,6 +231,35 @@ export interface DebuffState {
   since: number | null;
 }
 
+/** Одне запитання дуелі. */
+export interface DuelQuestionPlay {
+  questionId: string;
+  /** Неправильні спроби кожного дуелянта в порядку надсилання. */
+  tries: Record<string, string[]>;
+  /** Хто першим відповів правильно; null — ще ніхто або ніхто. */
+  winnerId: string | null;
+  /** Правильна відповідь переможця, як він її написав. */
+  answer: string | null;
+  /** Від відкриття запитання до правильної відповіді, мс. */
+  timeMs: number | null;
+}
+
+/** Дуель між двома гравцями. */
+export interface DuelState {
+  challengerId: string;
+  opponentId: string;
+  stage: DuelStage;
+  /** Етап гри, з якого почалася дуель; туди гра повертається. null, поки дуель лише оголошена. */
+  returnPhase: Phase | null;
+  categoryId: string | null;
+  /** Скільки запитань зіграти: min(questionsPerDuel, залишок категорії) на мить вибору; до вибору 0. */
+  total: number;
+  /** Зіграні запитання й поточне (останнє); пропущені сюди не потрапляють. */
+  questions: DuelQuestionPlay[];
+  /** Переможець дуелі на етапі result; null — нічия або ще не result. */
+  winnerId: string | null;
+}
+
 export interface GameState {
   quiz: Quiz;
   phase: Phase;
@@ -260,6 +291,12 @@ export interface GameState {
   adjustmentSeq: number;
   /** Дебафи за id гравця: що чекають на наступне запитання або діють у поточному. */
   debuffs: Record<string, DebuffState>;
+  /** Оголошена або поточна дуель; null — немає. */
+  duel: DuelState | null;
+  /** Хто вже оголошував дуель у цій грі. */
+  duelsDeclared: string[];
+  /** id запитань пулу, які вже з'являлися в дуелях цієї гри. */
+  duelUsed: string[];
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -287,6 +324,9 @@ export function createGame(quiz: Quiz): GameState {
     adjustments: [],
     adjustmentSeq: 0,
     debuffs: {},
+    duel: null,
+    duelsDeclared: [],
+    duelUsed: [],
   };
 }
 
@@ -993,6 +1033,7 @@ export function lock(state: GameState): Result {
 
 /** Сервер викликає періодично; закриває запитання, коли сплив час. У бліці також згоряють вікна відповіді. */
 export function tick(state: GameState, now: number): GameState {
+  if (state.phase === 'duel') return state.paused ? state : tickDuel(state, now);
   if (state.phase === 'board' && state.board !== null) return state.paused ? state : tickBoard(state, state.board, now);
   if (state.phase !== 'question' || state.paused) return state;
   const running = watchAway(releaseStaleHold(state, now), now);
@@ -1059,6 +1100,9 @@ function enterWager(state: GameState, final: FinalState): GameState {
 
 export function next(state: GameState, now: number, rng: Rng = Math.random): Result {
   if (state.paused) return fail('paused');
+  // Дуель вклинюється між кроками гри: оголошена стартує замість кроку, після підсумку гра йде далі.
+  if (state.phase === 'duel') return advanceDuel(state, now, rng);
+  if (duelDue(state)) return ok(beginDuel(state));
   switch (state.phase) {
     case 'intro':
       if (currentRound(state)?.type === 'board') return dicePending(state.board) ? fail('dice_pending') : ok(enterBoard(state, now));

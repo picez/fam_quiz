@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkAnswer } from './check';
+import { checkAnswer, textMatches } from './check';
 import { bool, match, multi, numeric, order, single, text } from './testing/fixtures';
 
 const REJECTED = { accepted: false, accuracy: 0 };
@@ -99,5 +99,12 @@ describe('checkAnswer', () => {
     expect(checkAnswer(match, links(['a', 'x'], ['b', 'y'], ['c', 'zzz']))).toEqual(REJECTED);
     expect(checkAnswer(match, links(['a', 'x'], ['b', 'y']))).toEqual(REJECTED);
     expect(checkAnswer(match, links(['a', 'x'], ['b', 'y'], ['c', 'z'], ['a', 'x']))).toEqual(REJECTED);
+  });
+
+  it('textMatches: any spelling after normalizing, never an empty answer', () => {
+    expect(textMatches(['Залізо', 'Ферум'], ' ферум ')).toBe(true);
+    expect(textMatches(['Залізо'], 'Мідь')).toBe(false);
+    expect(textMatches(['Залізо'], '')).toBe(false);
+    expect(textMatches(['Залізо'], '   ')).toBe(false);
   });
 });
