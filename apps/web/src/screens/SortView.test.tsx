@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerSort, PublicQuestion } from '@quiz/shared';
+import type { PlayerSort, PublicQuestion, Question, SortInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
-import { SortPlay, swipeTarget, zonePositions } from './SortView';
+import { SortBoard, SortPlay, SortReveal, swipeTarget, zonePositions } from './SortView';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -217,5 +217,67 @@ describe('SortView', () => {
       />,
     );
     expect(document.querySelector('.sort-lock')?.textContent).toBe('Помилка! Підвисання: 2 с');
+  });
+});
+
+describe('SortBoard and SortReveal', () => {
+  const rows: SortInfo['rows'] = [
+    { playerId: 'p1', nickname: 'Анна', sorted: 4, misses: 0, timeMs: 8000, points: null },
+    { playerId: 'p2', nickname: 'Богдан', sorted: 1, misses: 1, timeMs: null, points: null },
+  ];
+  const info = (over: Partial<SortInfo> = {}): SortInfo => ({ total: 4, rows, winner: null, ...over });
+  const items = () => [...document.querySelectorAll('.sort-board li')].map((li) => li.textContent ?? '');
+
+  it('SortBoard keeps rows steady', () => {
+    const { rerender } = render(<SortBoard sort={info()} reveal={false} />);
+    expect(items()).toHaveLength(2);
+    expect(items()[0]).toContain('Анна');
+    expect(items()[0]).toContain('4/4');
+    expect(items()[0]).toContain('8,0 с');
+    expect(items()[1]).toContain('1/4');
+    expect(items()[1]).toContain('помилок: 1');
+    rerender(<SortBoard sort={info({ rows: [rows[0], { ...rows[1], sorted: 4, timeMs: 12000, misses: 0 }] })} reveal={false} />);
+    expect(items()).toHaveLength(2);
+    expect(items()[1]).toContain('12,0 с');
+    expect(items()[1]).not.toContain('помилок');
+    expect(document.querySelector('.sort-board')?.textContent).not.toContain('+');
+    rerender(<SortBoard sort={info({ rows: [{ ...rows[0], points: 400 }, { ...rows[1], points: 100 }] })} reveal />);
+    expect(items()[0]).toContain('+400');
+    expect(items()[1]).toContain('+100');
+  });
+
+  const full: Extract<Question, { type: 'sort' }> = {
+    id: 'q1',
+    type: 'sort',
+    text: 'Розкладіть',
+    imageUrl: null,
+    video: null,
+    timeLimit: 60,
+    points: 100,
+    lockSeconds: 3,
+    categories: [
+      { id: 'c1', text: 'Овочі' },
+      { id: 'c2', text: 'Фрукти' },
+    ],
+    words: [
+      { id: 'w1', text: 'Морква', categoryId: 'c1' },
+      { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+      { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+      { id: 'w4', text: 'Груша', categoryId: 'c2' },
+    ],
+  };
+
+  it('SortReveal groups words by category', () => {
+    render(<SortReveal categories={full.categories} question={full} />);
+    const cols = [...document.querySelectorAll('.sort-reveal-col')];
+    const text = (col: Element) => `${col.querySelector('h3')?.textContent}: ${[...col.querySelectorAll('li')].map((li) => li.textContent).join(', ')}`;
+    expect(cols.map(text)).toEqual(['Овочі: Морква, Буряк', 'Фрукти: Яблуко, Груша']);
+  });
+
+  it('SortReveal without a question shows only the names', () => {
+    render(<SortReveal categories={full.categories} question={null} />);
+    expect(document.querySelectorAll('.sort-reveal-col h3')).toHaveLength(2);
+    expect(document.querySelectorAll('.sort-reveal-col li')).toHaveLength(0);
+    expect(document.body.textContent).not.toContain('Морква');
   });
 });

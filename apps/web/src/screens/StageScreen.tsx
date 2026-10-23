@@ -17,6 +17,7 @@ import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
+import { SortBoard, SortReveal } from './SortView';
 
 interface Props {
   view: StageView;
@@ -150,7 +151,7 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
   const finalReveal = view.final !== null && view.phase === 'reveal';
   const orderLabels = question.orderLabels === null ? '' : orderLabelsText(question.orderLabels);
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
-  const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question">
@@ -160,6 +161,8 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
           <span>
             {question.type === 'chain'
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
+              : question.type === 'sort' && view.sort !== null
+              ? t('sortFinishedOf', { finished: view.answeredCount, total: view.playerCount })
               : view.blitz === null
               ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
               : instant
@@ -201,6 +204,8 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
         ) : (
           <ChainWords first={question.chain.first} masks={question.chain.masks} />
         )
+      ) : question.sort !== null ? (
+        <SortReveal categories={question.sort.categories} question={reveal !== null && reveal.type === 'sort' ? reveal : null} total={question.sort.total} />
       ) : spotlit ? (
         <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} />
       ) : question.type === 'match' ? (
@@ -225,6 +230,10 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
         )
       )}
       {view.chain !== null && !finalReveal && <ChainBoard chain={view.chain} reveal={view.phase === 'reveal'} />}
+      {view.sort !== null && view.final === null && <SortBoard sort={view.sort} reveal={view.phase === 'reveal'} />}
+      {view.sort !== null && view.round?.type === 'blitz' && (view.phase === 'locked' || view.phase === 'reveal') && (
+        <p className="lead winner">{view.sort.winner === null ? t('sortNoWinner') : t('sortWinner', { name: view.sort.winner.nickname })}</p>
+      )}
       {instant && <BlitzQueue rows={queueRows} reserve={view.playerCount} question={question} blinking={blinking} closed={view.phase !== 'question'} />}
       {view.blitz !== null && !instant && view.phase !== 'reveal' && view.blitz.queue.length > 0 && (
         <ol className="rows blitz-queue">
@@ -243,7 +252,7 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
         </p>
       )}
       {reveal === null && hint !== null && <p className="lead">{hint}</p>}
-      {reveal !== null && question.type !== 'match' && question.type !== 'chain' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {reveal !== null && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type Question, RoundInfo, StageView } from '@quiz/shared';
+import { emptyBrief, type BoardInfo, type Question, RoundInfo, StageView } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
 
@@ -784,6 +784,71 @@ describe('StageScreen final', () => {
     expect(screen.getByLabelText('Риба')).toBeTruthy();
     expect(document.querySelector('.chain-board .rank')).not.toBeNull();
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
+  describe('sort', () => {
+    const categories = [
+      { id: 'c1', text: 'Овочі' },
+      { id: 'c2', text: 'Фрукти' },
+    ];
+    const sortQ = { ...question, type: 'sort' as const, choices: [], sort: { categories, total: 4, lockSeconds: 3 } };
+    const fullSort: Question = {
+      id: 'q9',
+      type: 'sort',
+      text: 'Розкладіть',
+      imageUrl: null,
+      video: null,
+      timeLimit: 60,
+      points: 100,
+      lockSeconds: 3,
+      categories,
+      words: [
+        { id: 'w1', text: 'Морква', categoryId: 'c1' },
+        { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+        { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+        { id: 'w4', text: 'Груша', categoryId: 'c2' },
+      ],
+    };
+    const rows = [
+      { playerId: 'p1', nickname: 'Анна', sorted: 4, misses: 0, timeMs: 8000, points: null },
+      { playerId: 'p2', nickname: 'Богдан', sorted: 1, misses: 1, timeMs: null, points: null },
+    ];
+    const info = { total: 4, rows, winner: null };
+
+    it('the stage shows the categories and progress, never the words', () => {
+      show(view({ phase: 'question', questionIndex: 0, question: sortQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1, sort: info }));
+      expect(screen.getByText('Овочі')).toBeTruthy();
+      expect(screen.getByText('Фрукти')).toBeTruthy();
+      expect(screen.getByText('Сортуйте слова на телефоні')).toBeTruthy();
+      expect(screen.getByText('Усе відсортували: 1 з 2')).toBeTruthy();
+      expect(document.querySelector('.sort-board')?.textContent).toContain('Анна');
+      expect(document.body.textContent).not.toContain('Морква');
+    });
+
+    it('the stage reveal shows every word by category', () => {
+      show(view({ phase: 'reveal', questionIndex: 0, question: sortQ, reveal: fullSort, sort: { ...info, rows: rows.map((r) => ({ ...r, points: 100 })) } }));
+      expect(document.querySelectorAll('.sort-reveal-col')).toHaveLength(2);
+      expect(screen.getByText('Морква')).toBeTruthy();
+      expect(screen.getByText('Груша')).toBeTruthy();
+      expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    });
+
+    it("a board sort shows the chooser's progress, a blitz shows the winner, a final hides progress", () => {
+      const board = { cell: { category: 'Сад', price: 400, kind: 'normal', answerMode: 'phone', mark: 'none' }, turn: { playerId: 'p1', nickname: 'Анна' } } as unknown as BoardInfo;
+      show(view({ phase: 'question', questionIndex: 0, question: sortQ, board, endsAt: Date.now() + 20_000, sort: { ...info, rows: [rows[0]] } }));
+      expect(document.querySelectorAll('.sort-board li')).toHaveLength(1);
+      cleanup();
+
+      const blitz: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
+      show(view({ phase: 'locked', round: blitz, questionIndex: 0, question: sortQ, sort: { ...info, winner: { playerId: 'p1', nickname: 'Анна' } } }));
+      expect(screen.getByText('Найшвидше все відсортовано: Анна')).toBeTruthy();
+      cleanup();
+
+      show(view({ phase: 'question', questionIndex: 0, question: sortQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1, sort: null }));
+      expect(document.querySelector('.sort-board')).toBeNull();
+      expect(screen.queryByText(/Усе відсортували/)).toBeNull();
+      expect(screen.getByText('Відповіли 1 з 2')).toBeTruthy();
+    });
   });
 
   it('the intro shows the round facts', () => {

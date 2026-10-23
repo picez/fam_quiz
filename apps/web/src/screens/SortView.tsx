@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from 'react';
-import type { Choice, PlayerSort, PublicQuestion, SortInfo } from '@quiz/shared';
-import { secondsText } from '../format';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from 'react';
+import type { Choice, PlayerSort, PublicQuestion, Question, SortInfo } from '@quiz/shared';
+import { secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { secondsLeft } from '../clock';
 import { reducedMotion } from '../motion';
@@ -274,5 +274,56 @@ export function SortWatch({ question, info }: { question: PublicQuestion; info: 
       </Arena>
       <p className="sort-progress">{t('sortProgress', { sorted: row?.sorted ?? 0, total: info.total })}</p>
     </section>
+  );
+}
+
+/** Рядки прогресу на сцені й пульті: «Оля 7/12», після закінчення — час; на reveal — бали. Висота рядків фіксована. */
+export function SortBoard({ sort, reveal }: { sort: SortInfo; reveal: boolean }) {
+  return (
+    <ol className="rows sort-board">
+      {sort.rows.map((row) => (
+        <li key={row.playerId}>
+          <span className="name">{row.nickname}</span>
+          <span className="tag">{t('sortRow', { sorted: row.sorted, total: sort.total })}</span>
+          {row.timeMs !== null && <span className="tag">{t('sortRowTime', { time: secondsText(row.timeMs) })}</span>}
+          {row.misses > 0 && <span className="tag">{t('sortMisses', { misses: row.misses })}</span>}
+          {reveal && row.points !== null && <span className="score">{signed(row.points)}</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * Категорії стовпцями; зі словами — розкриття, без question — лише назви.
+ * total (слів у запитанні) резервує висоту стовпців: блок не росте, коли слова з'являються.
+ */
+export function SortReveal({
+  categories,
+  question,
+  total = 0,
+}: {
+  categories: Choice[];
+  question: Extract<Question, { type: 'sort' }> | null;
+  total?: number;
+}) {
+  const biggest = question === null ? 0 : Math.max(0, ...categories.map((category) => question.words.filter((word) => word.categoryId === category.id).length));
+  const rows = Math.max(biggest, Math.ceil(total / Math.max(1, categories.length)));
+  const style = { '--sort-rows': rows } as CSSProperties;
+  return (
+    <div className={question === null ? 'sort-reveal' : 'sort-reveal is-open'} data-cols={categories.length} style={style}>
+      {categories.map((category) => (
+        <section key={category.id} className="sort-reveal-col">
+          <h3>{category.text}</h3>
+          <ul>
+            {question?.words
+              .filter((word) => word.categoryId === category.id)
+              .map((word) => (
+                <li key={word.id}>{word.text}</li>
+              ))}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }

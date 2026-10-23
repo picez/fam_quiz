@@ -1091,6 +1091,45 @@ describe('HostScreen final', () => {
   });
 });
 
+describe('HostScreen sort', () => {
+  it('the host sees the progress and the grouping and can close the sort', () => {
+    const categories = [
+      { id: 'c1', text: 'Овочі' },
+      { id: 'c2', text: 'Фрукти' },
+    ];
+    const sortQ: Question = {
+      id: 'q4',
+      type: 'sort',
+      text: 'Розкладіть',
+      imageUrl: null,
+      video: null,
+      timeLimit: 60,
+      points: 100,
+      lockSeconds: 3,
+      categories,
+      words: [
+        { id: 'w1', text: 'Морква', categoryId: 'c1' },
+        { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+        { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+        { id: 'w4', text: 'Груша', categoryId: 'c2' },
+      ],
+    };
+    const info = { total: 4, winner: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 1, timeMs: null, points: null }] };
+    const send = vi.fn(async () => ({ ok: true as const }));
+    show(
+      view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'sort', choices: [], sort: { categories, total: 4, lockSeconds: 3 } }, correct: sortQ, endsAt: Date.now() + 20_000, sort: info }),
+      send,
+    );
+    expect(screen.getByRole('heading', { name: 'Сортування' })).toBeTruthy();
+    expect(document.querySelector('.sort-board')?.textContent).toContain('2/4');
+    expect(document.body.textContent).toContain('Овочі: Морква, Буряк; Фрукти: Яблуко, Груша');
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Закрити запитання' }));
+    expect(send).toHaveBeenCalledWith('host:lock', undefined);
+  });
+});
+
 describe('HostScreen timer and round facts', () => {
   it('the host sees the timer with the full time and its state', () => {
     show(during('question', single, { endsAt: Date.now() + 20_000, limitMs: 30_000 }));
