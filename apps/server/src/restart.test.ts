@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { makeQuiz, single, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
@@ -232,5 +232,17 @@ describe('a server restart', () => {
     await until(host, inPhase('lobby'));
     a.ctx.manager.evict(a.ctx.manager.get(started.code)!);
     await eventually(() => host.restarting > 0);
+  });
+
+  it('a malformed code is refused as unauthorized without looking it up in the database', async () => {
+    const db = await createTestDb();
+    const { ctx, port } = await boot(db, 'a');
+    const locate = vi.spyOn(ctx.store!, 'locate');
+    for (const code of ['abc', '12345', '1234567', '12a456', ' 12345']) {
+      expect(await attempt(port, { code, role: 'player', token: 'x' }), code).toBe('unauthorized');
+    }
+    expect(locate).not.toHaveBeenCalled();
+    expect(await attempt(port, { code: '000000', role: 'player', token: 'x' })).toBe('unauthorized');
+    expect(locate).toHaveBeenCalledTimes(1);
   });
 });

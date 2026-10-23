@@ -89,6 +89,8 @@ function youtubeStub(url: string): string {
 let ctx: Awaited<ReturnType<typeof buildApp>>;
 let browser: Browser;
 let base: string;
+let db: Awaited<ReturnType<typeof createTestDb>>;
+let port: number;
 /** Проблеми (помилки консолі й сторінки) лише поточного тесту. */
 const problems: string[] = [];
 const pages = new Map<string, Page>();
@@ -159,16 +161,38 @@ function freePort(): Promise<number> {
 
 beforeAll(async () => {
   if (!existsSync(resolve(WEB, 'index.html'))) throw new Error('Клієнт не зібрано: спершу виконайте pnpm build.');
-  const port = await freePort();
+  port = await freePort();
   base = `http://localhost:${port}`;
-  ctx = await buildApp({ db: await createTestDb(), auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng, transitions: true });
+  db = await createTestDb();
+  // Кімнати пишуться в базу, як у main.ts: усі сценарії йдуть із записом.
+  ctx = await buildApp({ db, auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng, transitions: true, persist: { instanceId: 'e2e-1' } });
   await ctx.app.listen({ port, host: '127.0.0.1' });
   browser = await chromium.launch({ channel: process.env.E2E_CHANNEL ?? 'chrome', headless: true });
 });
 
+/** Поки сервер перезапускається, браузер журналює невдалі спроби WebSocket: це очікувано. */
+let restarting = false;
+
+/** Перезапуск сервера як на Render: зупинка через shutdown (SIGTERM), нова версія на тій самій базі й порті. */
+async function restart(between?: () => Promise<void>) {
+  restarting = true;
+  await ctx.shutdown();
+  await between?.();
+  ctx = await buildApp({
+    db,
+    auth: { ...TEST_AUTH, baseURL: base },
+    webRoot: WEB,
+    rng,
+    transitions: true,
+    persist: { instanceId: `e2e-${Date.now()}` },
+  });
+  await ctx.app.listen({ port, host: '127.0.0.1' });
+}
+
 beforeEach(() => {
   problems.length = 0;
   rigged.length = 0;
+  restarting = false;
 });
 
 afterEach(async () => {
@@ -193,7 +217,8 @@ async function open(name: string, width: number, height: number, options: { redu
   page.on('pageerror', (error) => problems.push(`${name}: ${error.message} @ ${page.url()}`));
   page.on('console', (message) => {
     // Відвідувач без акаунта отримує 401 на запит «хто я»: це очікувана відповідь, а не збій.
-    const expected = message.text().includes('401 (Unauthorized)');
+    const expected =
+      message.text().includes('401 (Unauthorized)') || (restarting && message.text().includes('WebSocket connection to'));
     if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()} @ ${message.location().url}`);
   });
   page.on('dialog', (dialog) => void dialog.accept());
@@ -6294,6 +6319,173 @@ async function afterThirdGame() {
   await host.getByRole('link', { name: 'Історія ігор', ...exact }).click();
   await host.waitForURL(/\/history$/);
   await host.getByRole('link', { name: /Після третьої гри/ }).first().waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 9b: the server restarts in the middle of a question — the phones, the stage and the host show «Сервер перезапускається…», come back to a paused question with the answers kept, the host resumes and the game finishes into the history', async () => {
+  try {
+    await restartGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+const RESTARTING_TEXT = 'Сервер перезапускається… Гра продовжиться сама.';
+
+async function restartGame() {
+  const host = await open('host9b', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host9b@example.com');
+
+  const q1 = {
+    id: 'q1',
+    type: 'single' as const,
+    text: 'Найбільше озеро України?',
+    imageUrl: null,
+    video: null,
+    timeLimit: 60,
+    points: 100,
+    options: ['Ялпуг', 'Світязь', 'Синевир', 'Кагул'].map((option, at) => ({ id: `q1o${at}`, text: option })),
+    correctId: 'q1o0',
+  };
+  const q2 = { id: 'q2', type: 'text' as const, text: 'Столиця Франції?', imageUrl: null, video: null, timeLimit: 30, points: 100, accepted: ['Париж'] };
+  const rounds = [classicRound('r1', [q1, q2], { speedBonus: false, shuffleOptions: false })];
+  const data = { ...makeRoundsQuiz(rounds, { leaderboard: 'each', buffs: ['time'] }), title: 'Перезапуск' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Перезапуск' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage9b', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya9b', 375, 812);
+  const petro = await open('petro9b', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await stage.getByText('Петро').waitFor();
+  const phones = [olya, petro];
+  const screens = [olya, petro, stage, host];
+
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const hostScore = async (nickname: string) => (await row(nickname).locator('.score').textContent())!;
+  const scores = async () => ({ Оля: await hostScore('Оля'), Петро: await hostScore('Петро') });
+
+  await click(host, 'Почати гру');
+  await afterSplash(stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(stage, ...phones);
+  for (const page of phones) await page.locator('h1', { hasText: 'Найбільше озеро України?' }).waitFor();
+
+  // 1. До перезапуску: Оля бере «Додатковий час» і відповідає; Петро ще думає.
+  await takeBuff(olya, 'Додатковий час');
+  await pickOption(olya, 'Ялпуг');
+  await olya.getByText('Відповідь прийнято', exact).waitFor();
+  const sentBefore = await olya.locator('section.sent').textContent();
+  expect(sentBefore).toContain('Ялпуг');
+  const buffBefore = await buffButton(olya, 'Додатковий час').getAttribute('class');
+  expect(buffBefore).toContain('is-active');
+  const before = await seconds(stage);
+  expect(before).toBeGreaterThan(40);
+
+  // 2. Перезапуск: поки сервера немає, усі бачать «Сервер перезапускається…», а не «гри немає».
+  await restart(async () => {
+    for (const page of screens) await page.getByText(RESTARTING_TEXT, exact).waitFor();
+    for (const page of screens) expect(await bodyText(page)).not.toContain('Цієї гри вже немає');
+    await shot(olya, 'restart9b-down-375');
+    await shot(stage, 'restart9b-down-stage');
+    await shot(host, 'restart9b-down-host');
+    await expectNoSideScroll(olya, 'restart9b-down-375');
+    // Гра лишається під банером.
+    await olya.locator('h1', { hasText: 'Найбільше озеро України?' }).waitFor();
+  });
+
+  // 3. Після перезапуску: без перезавантаження сторінок — те саме запитання на паузі, відповідь і баф Олі на місці.
+  for (const page of screens) await page.getByText(RESTARTING_TEXT, exact).waitFor({ state: 'detached', timeout: 15_000 });
+  restarting = false;
+  for (const page of [stage, ...phones]) {
+    await page.locator('h1', { hasText: 'Найбільше озеро України?' }).waitFor();
+    await page.locator('.banner', { hasText: 'Пауза' }).first().waitFor();
+  }
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().waitFor();
+  expect(await olya.locator('section.sent').textContent()).toBe(sentBefore);
+  expect(await buffButton(olya, 'Додатковий час').getAttribute('class')).toBe(buffBefore);
+  const back = await seconds(stage);
+  expect(back).toBeLessThanOrEqual(before);
+  expect(back).toBeGreaterThanOrEqual(before - 2);
+  await stage.waitForTimeout(3000);
+  expect(await seconds(stage), 'the paused timer ran').toBe(back);
+  for (const page of screens) expect(await bodyText(page)).not.toContain('Цієї гри вже немає');
+  await shot(olya, 'restart9b-back-375');
+  await shot(stage, 'restart9b-back-stage');
+  await shot(host, 'restart9b-back-host');
+
+  // 4. Ведучий продовжує: таймер іде, Петро відповідає, розкриття рахує обох.
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+  await expect.poll(() => seconds(stage), { timeout: 5000 }).toBeLessThan(back);
+  await pickOption(petro, 'Світязь');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await click(host, 'Показати відповідь');
+  for (const page of phones) await page.locator('section.result').first().waitFor();
+  await olya.getByText('Правильно!').waitFor();
+  await petro.getByText('Неправильно').waitFor();
+  await expect.poll(scores).toEqual({ Оля: '100', Петро: '0' });
+
+  // 5. Перезавантаження після перезапуску: Петро — тим самим токеном, ведучий — на тому самому пульті.
+  await petro.reload();
+  await petro.getByText('Неправильно').waitFor();
+  expect(await petro.getByLabel('Ваше ім’я', exact).count(), 'Петро got the join form').toBe(0);
+  await host.reload();
+  // Відхід ведучого (перезавантаження) ставить гру на паузу, як і без перезапуску.
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).last().click();
+  await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await expect.poll(scores).toEqual({ Оля: '100', Петро: '0' });
+
+  // 6. Друге запитання й фініш; історія — завершена гра з тими самими балами.
+  await click(host, 'Далі');
+  await click(host, 'Наступне запитання');
+  await afterSplash(stage, ...phones);
+  for (const page of phones) {
+    await page.locator('h1', { hasText: 'Столиця Франції?' }).waitFor();
+    await field(page, 'Ваша відповідь').fill('Париж');
+    await click(page, 'Відповісти');
+  }
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await click(host, 'Показати відповідь');
+  for (const page of phones) await page.getByText('Правильно!').waitFor();
+  await expect.poll(scores).toEqual({ Оля: '200', Петро: '100' });
+  await click(host, 'Завершити гру');
+  await olya.getByText('Гру завершено').first().waitFor();
+
+  await host.goto(`${base}/history`);
+  const top = host.locator('.quiz-list li').first();
+  await top.getByRole('link', { name: 'Перезапуск', ...exact }).waitFor();
+  expect(await top.locator('.meta').first().textContent()).toContain('завершено');
+  await top.getByRole('link', { name: 'Перезапуск', ...exact }).click();
+  const standings = host.locator('.standings li');
+  await standings.first().waitFor();
+  const table: [string, string][] = [];
+  for (let i = 0; i < (await standings.count()); i++) {
+    table.push([(await standings.nth(i).locator('.name').textContent())!, (await standings.nth(i).locator('.score').textContent())!]);
+  }
+  expect(table).toEqual([
+    ['Оля', '200'],
+    ['Петро', '100'],
+  ]);
+
+  // 7. «Цієї гри вже немає» — лише коли сервер справді не знає кімнати: сцена й телефон зі старим токеном.
+  let gone = '000000';
+  while (ctx.manager.get(gone) !== undefined) gone = String(Number(gone) + 1).padStart(6, '0');
+  await stage.goto(stageUrl!.replace(`/stage/${code}`, `/stage/${gone}`));
+  await stage.getByText('Цієї гри вже немає', { exact: false }).waitFor();
+  await petro.evaluate(([key, token]) => localStorage.setItem(key, token), [`quiz:player:${gone}`, 'stale-token']);
+  await petro.goto(`${base}/play/${gone}`);
+  await petro.getByText('Цієї гри вже немає', { exact: false }).waitFor();
+  expect(await bodyText(petro)).not.toContain('Сервер перезапускається');
 
   expect(problems).toEqual([]);
 }

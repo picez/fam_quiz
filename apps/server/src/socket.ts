@@ -39,6 +39,8 @@ interface SocketData {
 export type GameServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
+/** Формат коду кімнати (RoomManager видає шість цифр). */
+const ROOM_CODE = /^\d{6}$/;
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
 const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip'] as const;
@@ -65,6 +67,8 @@ export function attachSockets(
   io.use(async (socket, next) => {
     const auth = socketAuthSchema.safeParse(socket.handshake.auth);
     if (!auth.success) return next(new Error('unauthorized'));
+    // Коди кімнат — шість цифр: інший рядок не існує, і базу за ним не питаємо.
+    if (!ROOM_CODE.test(auth.data.code)) return next(new Error('unauthorized'));
     // Кімнату ще веде стара версія (розгортання) або сервер зупиняється: клієнт перепідключиться пізніше.
     if (manager.frozen || (await locate(auth.data.code)) === 'restarting') return next(new Error('restarting'));
     const found = manager.identify(auth.data.code, auth.data.role, auth.data.token);
