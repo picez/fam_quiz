@@ -842,6 +842,10 @@ button.choice {
   flex: 1;
 }
 
+.stage-main.is-reveal {
+  flex: 0 0 auto;
+}
+
 .stage .flap {
   font-size: clamp(2.5rem, 7vw, 7rem);
 }

@@ -166,7 +166,8 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
       ) : (
         view.board === null && answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>
       )}
-      <div className="stage-main">
+      {/* На розкритті фіналу запитання не розтягується: лічильник банку й список стоять на місці, поки рядків більшає. */}
+      <div className={finalReveal ? 'stage-main is-reveal' : 'stage-main'}>
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
       </div>

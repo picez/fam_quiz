@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { blitzRound, boardRound, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, multi, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
@@ -3174,6 +3174,327 @@ async function pranksGame() {
   await mine.waitFor();
   expect(await mine.textContent()).toContain(`${totals['Оля']} балів`);
   await expectNoSideScroll(olya, 'points7d-my-games-phone');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 7e: all-in on the phone and ВА-БАНК! on the stage, the wager type in the editor, a bank final with a growing bank and a proportional split with the remainder, a refund when nobody is right, the history and my games match', async () => {
+  try {
+    await bankGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function bankGame() {
+  const host = await open('host7e', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host7e@example.com');
+  const petro = await open('petro7e', 360, 740);
+  await register(petro, 'menu', 'Петро', 'petro7e@example.com');
+
+  // Класичний раунд без бонусу за швидкість і два фінали: «Космос» (поки класичний) і «Історія» (спільний банк).
+  const question = (id: string, text: string, points: number) => ({ ...withId(withPoints(single, points), id), text, timeLimit: 30 });
+  const rounds = [
+    classicRound('r1', [question('q1', 'Запитання 1: столиця України?', 1000), question('q2', 'Запитання 2: столиця України?', 500)], {
+      speedBonus: false,
+    }),
+    finalRound('r2', question('f1', 'Фінал 1: столиця України?', 1000), { title: 'Космос', wagerMode: 'classic' }),
+    finalRound('r3', question('f2', 'Фінал 2: столиця України?', 1000), { title: 'Історія', wagerMode: 'bank' }),
+  ];
+  const data = { ...makeRoundsQuiz(rounds, { leaderboard: 'end' }), title: 'Банк' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // Редактор: у фіналі «Космос» тип ставок стає «Спільний банк», з'являється підказка.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Банк' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.getByRole('button', { name: 'Космос', ...exact }).click();
+  await openRoundSettings(host);
+  const mode = host.locator('label.field', { hasText: 'Тип ставок' }).locator('select');
+  expect(await mode.inputValue()).toBe('classic');
+  await host.getByText('Правильна відповідь додає ставку, неправильна забирає.', exact).waitFor();
+  await mode.selectOption('bank');
+  await host
+    .getByText('Хто помилився, віддає ставку в банк; хто відповів правильно, ділить банк пропорційно своїм ставкам.', exact)
+    .waitFor();
+  await shot(host, 'bank7e-editor-host');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'bank7e-editor-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+  await host.locator('.quiz-list li', { hasText: 'Банк' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage7e', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya7e', 375, 812);
+  const ira = await open('ira7e', 390, 844);
+  const marko = await open('marko7e', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await join(marko, code, 'Марко', false);
+  await stage.getByText('Марко').waitFor();
+
+  const phones = [olya, petro, ira, marko];
+  const pick = async (page: Page, right: boolean) => {
+    await page.getByRole('button', { name: right ? /Київ/ : /Львів/ }).click();
+    await page.getByText(/^(Відповідь прийнято|Чекаємо на правильну відповідь)$/).first().waitFor();
+  };
+  const hostScore = async (nickname: string) => (await host.locator('.player-row', { hasText: nickname }).locator('.score').textContent())!;
+  const flat = (text: string | null) => (text ?? '').replace(/\s/g, '');
+  // Без коду гри: у ньому випадково можуть трапитися ті самі цифри, що й у частках.
+  const visible = async (page: Page) => (await bodyText(page)).replaceAll(`${code.slice(0, 3)} ${code.slice(3)}`, '').replaceAll(code, '');
+  const row = (nickname: string) => stage.locator('.wager-list li', { hasText: nickname });
+  const rowText = async (nickname: string) => flat(await row(nickname).textContent());
+  const meter = stage.locator('.bank-meter');
+  const meterSays = (text: string) => meter.getByText(text, exact).waitFor();
+  const meterY = async () => (await meter.boundingBox())!.y;
+
+  // 1. Класичний раунд: Оля 1500, Петро 1000, Іра 500, Марко 1000.
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+  await olya.locator('h1', { hasText: 'Запитання 1:' }).waitFor();
+  await pick(olya, true);
+  await pick(petro, true);
+  await pick(ira, false);
+  await pick(marko, true);
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await olya.locator('h1', { hasText: 'Запитання 2:' }).waitFor();
+  await pick(olya, true);
+  await pick(petro, false);
+  await pick(ira, true);
+  await pick(marko, false);
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await host.getByRole('button', { name: 'Наступний раунд', ...exact }).waitFor();
+  await expect
+    .poll(async () => [await hostScore('Оля'), await hostScore('Петро'), await hostScore('Іра'), await hostScore('Марко')])
+    .toEqual(['1500', '1000', '500', '1000']);
+
+  // 2. Заставка фіналу 1: тема й правило спільного банку.
+  await click(host, 'Наступний раунд');
+  await stage.getByRole('heading', { name: 'Космос' }).waitFor();
+  await stage
+    .getByText('Хто помилився або не відповів, віддає ставку в спільний банк; хто відповів правильно, зберігає свою й ділить банк пропорційно ставкам.', exact)
+    .waitFor();
+  await shot(stage, 'bank7e-intro-stage');
+
+  // 3. Ставки: Іра — ва-банк кнопкою, Оля 1000, Петро 300, Марко 400.
+  await click(host, 'Почати фінал');
+  await ira.getByText('Ваша ставка від 0 до 500', exact).waitFor();
+  await ira.getByText('Спільний банк: помилка віддає ставку в банк, правильні відповіді його ділять.', exact).waitFor();
+  await click(ira, 'Ва-банк');
+  await ira.getByText('Ваша ставка: 500 — ва-банк!', exact).waitFor();
+  await shot(ira, 'bank7e-allin-phone');
+  await olya.getByRole('button', { name: 'Ва-банк', ...exact }).waitFor();
+  await expectNoSideScroll(olya, 'bank7e-wager-375');
+  // «Ва-банк» стоїть у рядку з полем ставки й не переноситься.
+  const input = (await olya.getByLabel('Ставка', exact).boundingBox())!;
+  const allInButton = (await olya.getByRole('button', { name: 'Ва-банк', ...exact }).boundingBox())!;
+  expect(allInButton.y).toBeLessThan(input.y + input.height);
+  expect(allInButton.y + allInButton.height).toBeGreaterThan(input.y);
+  await olya.getByLabel('Ставка', exact).fill('1000');
+  await click(olya, 'Поставити');
+  await olya.getByText('Ваша ставка: 1000', exact).waitFor();
+  await petro.getByLabel('Ставка', exact).fill('300');
+  await click(petro, 'Поставити');
+  await petro.getByText('Ваша ставка: 300', exact).waitFor();
+  await host.getByText('Поставили 3 з 4').waitFor();
+  const allInRows = host.locator('li', { has: host.locator('.allin-tag') });
+  await allInRows.first().waitFor();
+  expect(await allInRows.count()).toBe(1);
+  expect(await allInRows.textContent()).toContain('Іра');
+  await shot(host, 'bank7e-wagers-host');
+  await stage.getByText('Ставки зроблено: 3 з 4').waitFor();
+  expect(await bodyText(stage)).not.toMatch(/ва-банк|Ставка/i);
+  await marko.getByLabel('Ставка', exact).fill('400');
+  await click(marko, 'Поставити');
+
+  // 4. Запитання відкривається само: Оля й Іра помиляються, Петро й Марко відповідають правильно.
+  await olya.locator('h1', { hasText: 'Фінал 1:' }).waitFor();
+  await pick(olya, false);
+  await pick(ira, false);
+  await pick(petro, true);
+  await pick(marko, true);
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  expect(await bodyText(stage)).not.toMatch(/ВА-БАНК|Банк:/);
+
+  // 5. Розкриття від найменшого рахунку: Іра 500, Петро 1000, Марко 1000, Оля 1500.
+  await click(host, 'Показати відповідь');
+  await meterSays('Банк: 0');
+  expect(await stage.locator('.wager-list li').count()).toBe(0);
+  for (const page of [stage, ...phones]) expect(await visible(page)).not.toMatch(/ВА-БАНК|з банку|ставки повертаються/);
+  // Від першого розкриття до розподілу лічильник банку стоїть на місці.
+  const y0 = await meterY();
+
+  await click(host, 'Наступний гравець');
+  await row('Іра').waitFor();
+  await meterSays('Банк: 500');
+  const ira1 = await rowText('Іра');
+  expect(ira1).toContain('ВА-БАНК!');
+  expect(ira1).toContain('убанк');
+  expect(ira1).toContain('500→0');
+  expect(await stage.locator('.wager-list li').count()).toBe(1);
+  expect(await meterY()).toBe(y0);
+  await shot(stage, 'bank7e-allin-stage');
+
+  await click(host, 'Наступний гравець');
+  await row('Петро').waitFor();
+  const petro1 = await rowText('Петро');
+  expect(petro1).toContain('ставкузбережено');
+  expect(petro1).toContain('1000→1000');
+  expect(petro1).not.toContain('ВА-БАНК');
+  await meterSays('Банк: 500');
+  await petro.getByText('Ставку збережено — чекаємо на розподіл банку', exact).waitFor();
+  expect(await row('Марко').count()).toBe(0);
+  expect(await row('Оля').count()).toBe(0);
+  for (const page of [stage, ...phones]) expect(await visible(page)).not.toMatch(/642|858|з банку|ставки повертаються/);
+  expect(await meterY()).toBe(y0);
+
+  await click(host, 'Наступний гравець');
+  await row('Марко').waitFor();
+  expect(await rowText('Марко')).toContain('1000→1000');
+  await meterSays('Банк: 500');
+  expect(await row('Оля').count()).toBe(0);
+  await olya.getByText('Чекаємо на розкриття', exact).waitFor();
+  for (const page of [stage, ...phones]) expect(await visible(page)).not.toMatch(/642|858|1500→500|з банку|ставки повертаються/);
+  expect(await meterY()).toBe(y0);
+
+  await click(host, 'Наступний гравець');
+  await row('Оля').waitFor();
+  await meterSays('Банк: 1500');
+  const olya1 = await rowText('Оля');
+  expect(olya1).toContain('убанк');
+  expect(olya1).toContain('1500→500');
+  expect(olya1).not.toContain('ВА-БАНК');
+  for (const page of [stage, ...phones]) expect(await visible(page)).not.toMatch(/642|858|з банку|ставки повертаються|Розділити/);
+  expect(await meterY()).toBe(y0);
+  await shot(stage, 'bank7e-bank-grown-stage');
+
+  // Розподіл: кнопку бачить лише ведучий; частки 642 і 858 (залишок 1 — Маркові з найбільшою ставкою).
+  await host.getByRole('button', { name: 'Розділити банк', ...exact }).waitFor();
+  await click(host, 'Розділити банк');
+  await meterSays('Банк 1500 розділено');
+  await expect.poll(() => rowText('Петро')).toContain('1000→1642');
+  expect(await rowText('Петро')).toContain('+642збанку');
+  expect(await rowText('Марко')).toContain('1000→1858');
+  expect(await rowText('Марко')).toContain('+858збанку');
+  expect(await rowText('Оля')).toContain('1500→500');
+  expect(await rowText('Іра')).toContain('500→0');
+  expect(await meterY()).toBe(y0);
+  await petro.getByText('+642 з банку', exact).waitFor();
+  await petro.getByText('Рахунок: 1642', exact).waitFor();
+  await olya.getByText('Ставка пішла в банк', exact).waitFor();
+  await shot(stage, 'bank7e-split-stage');
+  await shot(petro, 'bank7e-split-phone');
+  await expectNoSideScroll(olya, 'bank7e-result-375');
+
+  // 6. Фінал 2: ніхто не відповідає правильно — ставки повертаються.
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await stage.getByRole('heading', { name: 'Історія' }).waitFor();
+  await click(host, 'Почати фінал');
+  await ira.getByRole('button', { name: 'Поставити 0', ...exact }).waitFor();
+  expect(await ira.getByRole('button', { name: 'Ва-банк', ...exact }).count()).toBe(0);
+  await click(ira, 'Поставити 0');
+  await olya.getByText('Ваша ставка від 0 до 500', exact).waitFor();
+  await click(olya, 'Ва-банк');
+  await olya.getByText('Ваша ставка: 500 — ва-банк!', exact).waitFor();
+  await petro.getByText('Ваша ставка від 0 до 1642', exact).waitFor();
+  await petro.getByLabel('Ставка', exact).fill('600');
+  await click(petro, 'Поставити');
+  await petro.getByText('Ваша ставка: 600', exact).waitFor();
+  await marko.getByLabel('Ставка', exact).fill('0');
+  await click(marko, 'Поставити');
+  await olya.locator('h1', { hasText: 'Фінал 2:' }).waitFor();
+  await pick(ira, false);
+  await pick(olya, false);
+  await pick(petro, false);
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  await meterSays('Банк: 0');
+  expect(await stage.locator('.wager-list li').count()).toBe(0);
+
+  // Розкриття: Іра 0, Оля 500, Петро 1642, Марко 1858.
+  await click(host, 'Наступний гравець');
+  await row('Іра').waitFor();
+  await meterSays('Банк: 0');
+  expect(await rowText('Іра')).toContain('0→0');
+  await click(host, 'Наступний гравець');
+  await row('Оля').waitFor();
+  await meterSays('Банк: 500');
+  expect(await rowText('Оля')).toContain('ВА-БАНК!');
+  expect(await rowText('Оля')).toContain('500→0');
+  expect(await row('Петро').count()).toBe(0);
+  for (const page of [stage, ...phones]) expect(await visible(page)).not.toMatch(/ставки повертаються|1100/);
+  await click(host, 'Наступний гравець');
+  await row('Петро').waitFor();
+  await meterSays('Банк: 1100');
+  expect(await rowText('Петро')).toContain('1642→1042');
+  await click(host, 'Наступний гравець');
+  await row('Марко').waitFor();
+  await meterSays('Банк: 1100');
+  expect(await rowText('Марко')).toContain('1858→1858');
+  for (const page of [stage, ...phones]) expect(await visible(page)).not.toMatch(/ставки повертаються|Розділити/);
+
+  await click(host, 'Розділити банк');
+  await meterSays('Ніхто не відповів правильно — ставки повертаються');
+  await expect.poll(() => rowText('Оля')).toContain('500→500');
+  expect(await rowText('Петро')).toContain('1642→1642');
+  await olya.getByText('Ніхто не відповів правильно — ставки повертаються', exact).waitFor();
+  await shot(stage, 'bank7e-refund-stage');
+
+  // 7. Переможці: Марко 1858, Петро 1642, Оля 500, Іра 0.
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const scores = async (page: Page) => {
+    const rows = page.locator('.standings li');
+    await rows.first().waitFor();
+    const result: [string, string][] = [];
+    for (let i = 0; i < (await rows.count()); i++) {
+      result.push([(await rows.nth(i).locator('.name').textContent())!, (await rows.nth(i).locator('.score').textContent())!]);
+    }
+    return result;
+  };
+  const totals = await scores(stage);
+  expect(totals).toEqual([
+    ['Марко', '1858'],
+    ['Петро', '1642'],
+    ['Оля', '500'],
+    ['Іра', '0'],
+  ]);
+  await shot(stage, 'bank7e-final-stage');
+
+  // 8. Історія: ті самі рахунки, ставки зі збереженої колонки, обидва фінали — спільний банк.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Банк/ }).click();
+  expect(await scores(host)).toEqual(totals);
+  const finals = host.locator('div.wager-list');
+  await finals.nth(1).waitFor();
+  expect(await finals.count()).toBe(2);
+  const lines = async (at: number) => (await finals.nth(at).locator('li').allTextContents()).map(flat);
+  expect(await finals.nth(0).locator('h4').textContent()).toBe('Ставки фіналу · спільний банк');
+  expect(await finals.nth(1).locator('h4').textContent()).toBe('Ставки фіналу · спільний банк');
+  expect(await lines(0)).toEqual(
+    expect.arrayContaining(['Оля:ставка1000,−1000', 'Петро:ставка300,+642', 'Іра:ставка500,−500', 'Марко:ставка400,+858']),
+  );
+  expect(await lines(1)).toEqual(expect.arrayContaining(['Оля:ставка500,0', 'Петро:ставка600,0', 'Іра:ставка0,0', 'Марко:ставка0,0']));
+  await shot(host, 'bank7e-history-host');
+
+  // 9. «Мої ігри» й ачівка Петра.
+  await petro.goto(`${base}/me`);
+  const mine = petro.locator('.quiz-list li', { hasText: 'Банк' });
+  await mine.waitFor();
+  expect(await mine.textContent()).toContain('1642 бали');
+  await expectNoSideScroll(petro, 'bank7e-my-games-phone');
+  await petro.goto(`${base}/profile`);
+  await petro.locator('.achievements li:not(.locked)', { hasText: 'Влучна ставка' }).waitFor();
 
   expect(problems).toEqual([]);
 }
