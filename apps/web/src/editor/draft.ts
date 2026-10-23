@@ -329,12 +329,18 @@ export function cleaned(quiz: Quiz): Quiz {
         return { ...question, text };
     }
   };
+  // У фіналі бали — ставки, поля балів за слово немає: прихована ціна не має блокувати збереження.
+  const inFinal = (question: Question): Question =>
+    question.type === 'sort' && question.words.length > 0 && question.points * question.words.length > LIMITS.maxPoints
+      ? { ...question, points: Math.floor(LIMITS.maxPoints / question.words.length) }
+      : question;
   return {
     ...quiz,
     title: quiz.title.trim(),
     description: quiz.description.trim(),
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
+      if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanQuestion(question))) };
       if (round.type !== 'board') return { ...round, title, questions: round.questions.map(cleanQuestion) };
       return {
         ...round,

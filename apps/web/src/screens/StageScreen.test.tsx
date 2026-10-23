@@ -825,6 +825,28 @@ describe('StageScreen final', () => {
       expect(document.body.textContent).not.toContain('Морква');
     });
 
+    it('the finish counter counts only those who sorted everything, not the records at lock', () => {
+      // На locked запис є в кожного (answeredCount 2), але закінчила лише Анна.
+      show(view({ phase: 'locked', questionIndex: 0, question: sortQ, playerCount: 2, answeredCount: 2, sort: info }));
+      expect(screen.getByText('Усе відсортували: 1 з 2')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'question', questionIndex: 0, question: sortQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 0, sort: { ...info, rows: rows.map((r) => ({ ...r, timeMs: null })) } }));
+      expect(screen.getByText('Усе відсортували: 0 з 2')).toBeTruthy();
+    });
+
+    it('the hint line and the blitz winner line keep their place through locked and reveal', () => {
+      const blitz: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
+      const lines = () => [...document.querySelectorAll('.sort-line')].map((line) => line.textContent);
+      show(view({ phase: 'question', round: blitz, questionIndex: 0, question: sortQ, endsAt: Date.now() + 20_000, sort: info }));
+      expect(lines()).toEqual(['', 'Сортуйте слова на телефоні']);
+      cleanup();
+      show(view({ phase: 'locked', round: blitz, questionIndex: 0, question: sortQ, sort: { ...info, winner: { playerId: 'p1', nickname: 'Анна' } } }));
+      expect(lines()).toEqual(['Найшвидше все відсортовано: Анна', 'Сортуйте слова на телефоні']);
+      cleanup();
+      show(view({ phase: 'reveal', round: blitz, questionIndex: 0, question: sortQ, reveal: fullSort, sort: { ...info, winner: null } }));
+      expect(lines()).toEqual(['Ніхто не встиг відсортувати всі слова', '']);
+    });
+
     it('the stage reveal shows every word by category', () => {
       show(view({ phase: 'reveal', questionIndex: 0, question: sortQ, reveal: fullSort, sort: { ...info, rows: rows.map((r) => ({ ...r, points: 100 })) } }));
       expect(document.querySelectorAll('.sort-reveal-col')).toHaveLength(2);

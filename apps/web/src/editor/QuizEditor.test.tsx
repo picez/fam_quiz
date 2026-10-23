@@ -1351,6 +1351,23 @@ describe('QuizEditor: sort questions', () => {
     expect(question.words[2].categoryId).toBe(question.categories[0].id);
   });
 
+  it('a sort in a final has no per-word price and no total', () => {
+    open();
+    addRound('Фінал');
+    click('сортування');
+    expect(screen.getByLabelText('Підвисання після помилки, с')).toBeTruthy();
+    expect(screen.queryByLabelText('Бали за слово')).toBeNull();
+    expect(screen.queryByText(/Разом до/)).toBeNull();
+  });
+
+  it('a blank per-word price shows no total', () => {
+    open();
+    click('сортування');
+    expect(screen.getByText('Разом до 400 балів (не більше 2000)')).toBeTruthy();
+    fill('Бали за слово', '');
+    expect(screen.queryByText(/Разом до/)).toBeNull();
+  });
+
   it('a sort cell on the board is always a normal phone cell', () => {
     open();
     click('+ Раунд');

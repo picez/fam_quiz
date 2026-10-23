@@ -3715,6 +3715,9 @@ async function sortGame() {
     await click(host, 'Далі');
     await click(host, 'Наступний раунд');
   };
+  // Смужки прогресу плавно доростають (0,3 с): знімок — після того, як вони стали на місце.
+  const barsSettled = () =>
+    stage.waitForFunction("document.getAnimations().every((a) => a.playState === 'finished' || !a.effect?.target?.classList.contains('sort-bar-fill'))");
 
   // 3. s1, дві зони: Оля сортує перетягуванням, дотиком і стрілками; зони не рухаються.
   await click(host, 'Почати гру');
@@ -3763,6 +3766,7 @@ async function sortGame() {
   expect(olyaRow).toMatch(/4\/4 \d+(,\d)? с/);
   expect(await stageRowsShape()).toEqual(rowsBefore);
   await noLeaks(stage, s1Words, null, 'stage s1 progress');
+  await barsSettled();
   await shot(stage, 'sort7f-stage-progress');
   await shot(host, 'sort7f-host-progress');
   await petro.locator('.sort-lock').waitFor({ state: 'detached', timeout: 5000 });
@@ -3778,6 +3782,7 @@ async function sortGame() {
   expect(await column('Овочі').locator('li').allTextContents()).toEqual(['Морква', 'Буряк']);
   expect(await column('Фрукти').locator('li').allTextContents()).toEqual(['Яблуко', 'Груша']);
   expect(await stage.evaluate('document.documentElement.scrollHeight <= innerHeight'), 'stage reveal scrolls').toBe(true);
+  await barsSettled();
   await shot(stage, 'sort7f-stage-reveal');
   await expect.poll(scores).toEqual(['400', '400']);
 
@@ -3870,6 +3875,7 @@ async function sortGame() {
   await sortBy(olya, 'tap', where[(await sortCard(olya))!]!);
   await sortRest(petro);
   for (const page of [stage, olya, petro]) await page.getByText('Найшвидше все відсортовано: Петро', exact).waitFor();
+  await barsSettled();
   await shot(stage, 'sort7f-blitz-winner');
   await shot(olya, 'sort7f-blitz-winner-phone');
   await click(host, 'Показати відповідь');

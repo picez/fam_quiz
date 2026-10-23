@@ -81,12 +81,15 @@ describe('sort views', () => {
     expect(stageView(toReveal(s, 10_000)).sort?.rows.map((r) => r.points)).toEqual([400, 0]);
   });
 
-  it('progress rows: finishers by time, then by sorted words, then in player order', () => {
+  it('progress rows keep the player order during the question; from locked: finishers by time, then by sorted words, then in player order', () => {
     let s = startRound(lobbyWith(toSort().quiz, 'Анна', 'Богдан', 'Віра'), 1000, rng);
     s = must(sortWord(s, 'p3', head(s, 'p3'), right(head(s, 'p3')), 2000));
-    expect(stageView(s).sort?.rows.map((r) => r.playerId)).toEqual(['p3', 'p1', 'p2']);
+    expect(stageView(s).sort?.rows.map((r) => r.playerId)).toEqual(['p1', 'p2', 'p3']);
     s = sortAll(s, 'p2', 3000);
+    expect(stageView(s).sort?.rows.map((r) => r.playerId)).toEqual(['p1', 'p2', 'p3']);
+    s = must(lock(s));
     expect(stageView(s).sort?.rows.map((r) => r.playerId)).toEqual(['p2', 'p3', 'p1']);
+    expect(stageView(must(next(s, 10_000, rng))).sort?.rows.map((r) => r.playerId)).toEqual(['p2', 'p3', 'p1']);
   });
 
   it('a non-sort question has no sort data', () => {

@@ -1178,6 +1178,20 @@ describe('PlayerScreen: sort', () => {
     expect(send).toHaveBeenCalledWith('player:sort', { wordId: 'w1', categoryId: 'c2' });
   });
 
+  it('the per-word price uses the right plural and is gone in a final', () => {
+    show(onQuestion({ question: { ...sortQ, points: 2 }, sort: info(), me: { ...me, sort: mine } }));
+    expect(screen.getByText('2 бали за слово')).toBeTruthy();
+    cleanup();
+    show(onQuestion({ question: { ...sortQ, points: 1 }, sort: info(), me: { ...me, sort: mine } }));
+    expect(screen.getByText('1 бал за слово')).toBeTruthy();
+    cleanup();
+    const finalRound: RoundInfo = { index: 0, total: 1, title: 'Фінал', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
+    show(onQuestion({ round: finalRound, question: sortQ, sort: null, me: { ...me, sort: mine } }));
+    expect(document.querySelector('.sort-play')).not.toBeNull();
+    expect(document.querySelector('.sort-points')).toBeNull();
+    expect(screen.queryByText(/за слово/)).toBeNull();
+  });
+
   it('a board sort: the chooser plays, the others watch', () => {
     show(onQuestion({ round: boardRound, board: sortBoard, question: sortQ, sort: info(), me: { ...me, sort: null } }));
     expect(screen.getByText('Оля сортує слова')).toBeTruthy();

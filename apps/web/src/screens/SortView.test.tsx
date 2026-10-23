@@ -269,6 +269,18 @@ describe('SortBoard and SortReveal', () => {
     expect(items()[1]).toContain('+100');
   });
 
+  it('SortBoard keeps every cell in place and draws a progress bar per row', () => {
+    const cells = () => [...document.querySelectorAll('.sort-board li')].map((li) => li.children.length);
+    const shares = () => [...document.querySelectorAll<HTMLElement>('.sort-bar-fill')].map((fill) => fill.style.getPropertyValue('--sort-share'));
+    const { rerender } = render(<SortBoard sort={info()} reveal={false} />);
+    expect(cells()).toEqual([6, 6]);
+    expect(shares()).toEqual(['1', '0.25']);
+    expect(document.querySelectorAll('.sort-bar[aria-hidden="true"]')).toHaveLength(2);
+    rerender(<SortBoard sort={info({ rows: [{ ...rows[0], points: 400 }, { ...rows[1], sorted: 3, points: 300 }] })} reveal />);
+    expect(cells()).toEqual([6, 6]);
+    expect(shares()).toEqual(['1', '0.75']);
+  });
+
   const full: Extract<Question, { type: 'sort' }> = {
     id: 'q1',
     type: 'sort',

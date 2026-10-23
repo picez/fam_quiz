@@ -577,6 +577,53 @@ describe('HostScreen: blitz', () => {
       expect(button('Частково')).toBeTruthy();
     });
 
+    it('a sort cell has no grading buttons: the sort scores its words itself', () => {
+      const categories = [
+        { id: 'k1', text: 'Овочі' },
+        { id: 'k2', text: 'Фрукти' },
+      ];
+      const sortQ: Question = {
+        id: 'q9',
+        type: 'sort',
+        text: 'Розкладіть',
+        imageUrl: null,
+        video: null,
+        timeLimit: 60,
+        points: 100,
+        lockSeconds: 3,
+        categories,
+        words: [
+          { id: 'w1', text: 'Морква', categoryId: 'k1' },
+          { id: 'w2', text: 'Яблуко', categoryId: 'k2' },
+          { id: 'w3', text: 'Буряк', categoryId: 'k1' },
+          { id: 'w4', text: 'Груша', categoryId: 'k2' },
+        ],
+      };
+      const cell = { id: 'c1', category: 'Міста', price: 400, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const sort = { total: 4, winner: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 0, timeMs: null, points: null }] };
+      for (const phase of ['locked', 'reveal'] as const) {
+        show(
+          during(phase, sortQ, {
+            round: boardRound,
+            players: three,
+            board: boardOf({ cell }),
+            question: { ...publicOf(sortQ), choices: [], sort: { categories, total: 4, lockSeconds: 3 } },
+            sort,
+          }),
+        );
+        expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Частково' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Не зараховувати' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Прийняти' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Неправильно' })).toBeNull();
+        cleanup();
+      }
+      // Звичайна клітинка з телефона на locked оцінюється, як і раніше.
+      show(during('locked', single, { round: boardRound, players: three, board: boardOf({ cell }) }));
+      expect(button('Зарахувати')).toBeTruthy();
+      expect(button('Не зараховувати')).toBeTruthy();
+    });
+
     it('the host sees the options when one player answers', () => {
       const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
       const spotlight = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, grade: 'wrong' as const };

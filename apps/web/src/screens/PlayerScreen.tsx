@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Answer, DiceInfo, PlayerBlitz, PlayerView, PublicQuestion, Spotlight } from '@quiz/shared';
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
-import { errorText, t } from '../i18n';
+import { countText, errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast } from '../live/LiveNotices';
 import { Timer, timerStatus } from '../live/Timer';
@@ -401,7 +401,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <h1 className={questionClass(question.text)}>{question.text}</h1>
             <QuestionImage url={question.imageUrl} />
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
-            {isSort && <p className="meta sort-points">{t('sortPointsPerWord', { points: question.points })}</p>}
+            {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
+            {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
             {isSort && me.sort !== null ? (
               <SortPlay question={shown ?? question} sort={me.sort} paused={view.paused} offsetMs={offsetMs} send={send} />
             ) : isSort ? (

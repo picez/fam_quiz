@@ -4041,6 +4041,31 @@ button.sort-zone:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* Смужка прогресу: відсортовано / усього. Заповнення — scaleX, тож ширина рядка від нього не залежить. */
+.sort-bar {
+  flex: 0 1 5rem;
+  min-width: 2rem;
+  height: 0.5em;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.sort-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--amber);
+  transform: scaleX(var(--sort-share, 0));
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sort-bar-fill {
+    transition: transform 0.3s ease-out;
+  }
+}
+
 .sort-reveal {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
@@ -4096,8 +4121,66 @@ button.sort-zone:disabled {
   font-size: clamp(1rem, 1.7vw, 1.75rem);
 }
 
+/*
+ * На сцені рядок — сітка зі сталими стовпцями: ім'я, смужка, «7/12», час, помилки, бали.
+ * Ширина обмежена, тож числа стоять поруч з іменем, а не біля правого краю телевізора.
+ */
+.stage .sort-board {
+  width: 100%;
+  max-width: 36em;
+  font-size: clamp(1.25rem, 2.2vw, 2.5rem);
+}
+
 .stage .sort-board li {
-  font-size: clamp(1rem, 1.7vw, 1.75rem);
+  display: grid;
+  grid-template-columns: minmax(0, 8em) minmax(4em, 1fr) 3.2em 3.6em 6em 4em;
+  gap: 0.6em;
+  min-height: 1.9em;
+  padding: 0.3em 0.5em;
+  font-size: 1em;
+}
+
+.stage .sort-board .tag {
+  font-size: 0.85em;
+}
+
+.stage .sort-board .sort-count {
+  font-weight: 700;
+}
+
+.stage .sort-board .sort-time,
+.stage .sort-board .sort-misses,
+.stage .sort-board .score {
+  text-align: right;
+}
+
+.stage .sort-board .sort-misses {
+  color: var(--signal);
+}
+
+.stage .sort-board .sort-bar {
+  min-width: 0;
+  height: 0.45em;
+}
+
+.stage .sort-line {
+  min-height: 1.5em;
+}
+
+/* Вузька сцена: ім'я — окремим рядком, під ним смужка й числа тими самими сталими стовпцями. */
+@media (max-width: 40rem) {
+  .stage .sort-board {
+    font-size: 1rem;
+  }
+
+  .stage .sort-board li {
+    grid-template-columns: minmax(0, 1fr) 3.2em 3.6em 6em 4em;
+    row-gap: 0.25em;
+  }
+
+  .stage .sort-board .name {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 30rem) {

@@ -91,10 +91,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const board = view.board;
   const chooserId = board?.turn?.playerId ?? null;
   // У полі оцінка йде одразу після відповіді вибравшого: у запитанні лише коли ведучий оцінює вручну.
+  // Сортування рахує бали за слова саме: ручної оцінки в нього немає (сервер її відхиляє).
   const canGradeBoard =
     board !== null &&
     blitz === null &&
     view.question !== null &&
+    view.question.type !== 'sort' &&
     chooserId !== null &&
     ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
   const voiceCell = blitz === null && board?.cell?.answerMode === 'voice';

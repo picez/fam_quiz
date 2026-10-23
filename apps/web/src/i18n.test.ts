@@ -27,6 +27,15 @@ describe('countText', () => {
   });
 });
 
+describe('sort prices', () => {
+  it('per-word price and total read right for 1, 2–4, 5+ and 21', () => {
+    const word = (points: number) => countText('sortPointsPerWord', points, { points });
+    expect([1, 2, 5, 21, 100].map(word)).toEqual(['1 бал за слово', '2 бали за слово', '5 балів за слово', '21 бал за слово', '100 балів за слово']);
+    const total = (sum: number) => countText('sortTotal', sum, { total: sum });
+    expect([21, 4, 400].map(total)).toEqual(['Разом до 21 бала (не більше 2000)', 'Разом до 4 балів (не більше 2000)', 'Разом до 400 балів (не більше 2000)']);
+  });
+});
+
 describe('points in words', () => {
   it('agrees the word with the number', () => {
     const said = [0, 1, 2, 5, 11, 21, 871, 1000, 1322].map((score) => t('yourResult', { score, points: countText('pointsWord', score), correct: 1, total: 2 }));

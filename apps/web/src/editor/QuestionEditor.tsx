@@ -1,7 +1,7 @@
 import { LIMITS, type Question } from '@quiz/shared';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { LETTERS } from '../format';
-import { t, type TextKey } from '../i18n';
+import { countText, t, type TextKey } from '../i18n';
 import { ImageField } from './ImageField';
 import { OptionImage } from './OptionImage';
 import { VideoField } from './VideoField';
@@ -219,7 +219,15 @@ function withImage<T extends Row>(rows: T[], id: string, url: string | undefined
 }
 
 /** Категорії, слова з вибором категорії, бали за слово, підвисання. */
-function SortBody({ question, onChange }: { question: Extract<Question, { type: 'sort' }>; onChange: (next: Question) => void }) {
+function SortBody({
+  question,
+  onChange,
+  showPoints,
+}: {
+  question: Extract<Question, { type: 'sort' }>;
+  onChange: (next: Question) => void;
+  showPoints: boolean;
+}) {
   const { categories, words } = question;
   const categoryName = (row: Row, index: number) => (row.text.trim() === '' ? t('sortCategoryN', { index: index + 1 }) : row.text);
   const total = question.points * words.length;
@@ -279,17 +287,18 @@ function SortBody({ question, onChange }: { question: Extract<Question, { type: 
           })
         }
       />
+      {/* У фіналі бали — ставки: ціни за слово й суми немає. */}
       <div className="pair">
-        <NumberField label={t('sortPointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />
+        {showPoints && <NumberField label={t('sortPointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
         <NumberField label={t('lockSecondsLabel')} value={question.lockSeconds} onChange={(lockSeconds) => onChange({ ...question, lockSeconds })} />
       </div>
-      <p className="meta">{t('sortTotal', { total: Number.isFinite(total) ? total : 0 })}</p>
+      {showPoints && Number.isFinite(total) && <p className="meta">{countText('sortTotal', total, { total })}</p>}
       <p className="meta">{t('sortHint')}</p>
     </>
   );
 }
 
-function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
+function Body({ question, onChange, showPoints }: Pick<Props, 'question' | 'onChange'> & { showPoints: boolean }) {
   switch (question.type) {
     case 'single':
       return (
@@ -516,7 +525,7 @@ function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
         </>
       );
     case 'sort':
-      return <SortBody question={question} onChange={onChange} />;
+      return <SortBody question={question} onChange={onChange} showPoints={showPoints} />;
   }
 }
 
@@ -566,7 +575,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true }:
             onChange={(event) => onChange({ ...question, text: event.target.value })}
           />
         </label>
-        <Body question={question} onChange={onChange} />
+        <Body question={question} onChange={onChange} showPoints={showPoints} />
       </div>
 
       <div className="pair">

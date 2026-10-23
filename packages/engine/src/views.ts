@@ -577,10 +577,11 @@ function sortInfo(state: GameState): SortInfo | null {
       points: state.phase === 'reveal' && record !== undefined ? record.points : null,
     };
   });
-  // sort стабільний: рівні лишаються в порядку гравців.
-  rows.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity) || b.sorted - a.sorted);
   const blitz = state.quiz.rounds[play.roundIndex]?.type === 'blitz';
   const closed = state.phase === 'locked' || state.phase === 'reveal';
+  // Під час запитання рядки стоять у порядку гравців, щоб сцена не стрибала; ранжування — з locked.
+  // sort стабільний: рівні лишаються в порядку гравців.
+  if (closed) rows.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity) || b.sorted - a.sorted);
   const won = blitz && closed ? state.players.find((p) => recordOf(state, state.questionIndex, p.id)?.accepted) : undefined;
   return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id) };
 }

@@ -162,7 +162,8 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
             {question.type === 'chain'
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
               : question.type === 'sort' && view.sort !== null
-              ? t('sortFinishedOf', { finished: view.answeredCount, total: view.playerCount })
+              ? // Записи з'являються й у тих, хто не встиг, на locked: рахуємо лише тих, хто відсортував усе.
+                t('sortFinishedOf', { finished: view.sort.rows.filter((row) => row.timeMs !== null).length, total: view.playerCount })
               : view.blitz === null
               ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
               : instant
@@ -231,8 +232,11 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
       )}
       {view.chain !== null && !finalReveal && <ChainBoard chain={view.chain} reveal={view.phase === 'reveal'} />}
       {view.sort !== null && view.final === null && <SortBoard sort={view.sort} reveal={view.phase === 'reveal'} />}
-      {view.sort !== null && view.round?.type === 'blitz' && (view.phase === 'locked' || view.phase === 'reveal') && (
-        <p className="lead winner">{view.sort.winner === null ? t('sortNoWinner') : t('sortWinner', { name: view.sort.winner.nickname })}</p>
+      {/* Рядок переможця бліцу завжди займає місце: його поява на locked не зсуває сцену. */}
+      {view.sort !== null && view.round?.type === 'blitz' && (
+        <p className="lead winner sort-line">
+          {view.phase === 'locked' || view.phase === 'reveal' ? (view.sort.winner === null ? t('sortNoWinner') : t('sortWinner', { name: view.sort.winner.nickname })) : ''}
+        </p>
       )}
       {instant && <BlitzQueue rows={queueRows} reserve={view.playerCount} question={question} blinking={blinking} closed={view.phase !== 'question'} />}
       {view.blitz !== null && !instant && view.phase !== 'reveal' && view.blitz.queue.length > 0 && (
@@ -251,7 +255,12 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
           {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}
         </p>
       )}
-      {reveal === null && hint !== null && <p className="lead">{hint}</p>}
+      {question.type === 'sort' && hint !== null ? (
+        // Підказка сортування лишає своє місце й на розкритті: сцена не зсувається.
+        <p className="lead sort-line">{reveal === null ? hint : ''}</p>
+      ) : (
+        reveal === null && hint !== null && <p className="lead">{hint}</p>
+      )}
       {reveal !== null && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );

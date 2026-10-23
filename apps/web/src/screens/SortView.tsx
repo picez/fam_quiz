@@ -283,19 +283,28 @@ export function SortWatch({ question, info }: { question: PublicQuestion; info: 
   );
 }
 
-/** Рядки прогресу на сцені й пульті: «Оля 7/12», після закінчення — час; на reveal — бали. Висота рядків фіксована. */
+/**
+ * Рядки прогресу на сцені й пульті: «Оля ▮▮▮▯ 7/12», після закінчення — час; на reveal — бали.
+ * Усі комірки є завжди (порожні — без тексту): на сцені це сітка зі сталими стовпцями, тож нічого не стрибає.
+ */
 export function SortBoard({ sort, reveal }: { sort: SortInfo; reveal: boolean }) {
   return (
     <ol className="rows sort-board">
-      {sort.rows.map((row) => (
-        <li key={row.playerId}>
-          <span className="name">{row.nickname}</span>
-          <span className="tag">{t('sortRow', { sorted: row.sorted, total: sort.total })}</span>
-          {row.timeMs !== null && <span className="tag">{t('sortRowTime', { time: secondsText(row.timeMs) })}</span>}
-          {row.misses > 0 && <span className="tag">{t('sortMisses', { misses: row.misses })}</span>}
-          {reveal && row.points !== null && <span className="score">{signed(row.points)}</span>}
-        </li>
-      ))}
+      {sort.rows.map((row) => {
+        const share = sort.total === 0 ? 0 : Math.min(1, row.sorted / sort.total);
+        return (
+          <li key={row.playerId}>
+            <span className="name">{row.nickname}</span>
+            <span className="sort-bar" aria-hidden="true">
+              <span className="sort-bar-fill" style={{ '--sort-share': share } as CSSProperties} />
+            </span>
+            <span className="tag sort-count">{t('sortRow', { sorted: row.sorted, total: sort.total })}</span>
+            <span className="tag sort-time">{row.timeMs !== null ? t('sortRowTime', { time: secondsText(row.timeMs) }) : ''}</span>
+            <span className="tag sort-misses">{row.misses > 0 ? t('sortMisses', { misses: row.misses }) : ''}</span>
+            <span className="score">{reveal && row.points !== null ? signed(row.points) : ''}</span>
+          </li>
+        );
+      })}
     </ol>
   );
 }

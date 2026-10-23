@@ -785,6 +785,34 @@ describe('sort questions in the editor', () => {
     expect(problemFor(sortQ({ lockSeconds: 0 }))).toEqual([t('problemLockSeconds', { index: 1 })]);
   });
 
+  it('a sort draft round-trips with its categories, words and blank number fields', () => {
+    const base = sortQ();
+    const question = { ...base, lockSeconds: Number.NaN, points: Number.NaN };
+    saveDraft('sort-draft', quizWith(question));
+    const back = roundQuestions(loadDraft('sort-draft')!.rounds[0])[0];
+    expect(back?.type).toBe('sort');
+    if (back?.type !== 'sort') return;
+    expect(back.categories).toEqual(base.categories);
+    expect(back.words).toEqual(base.words);
+    expect(back.words.map((word) => word.categoryId)).toEqual(base.words.map((word) => word.categoryId));
+    // JSON робить NaN порожнім null: поле має лишитися порожнім числом, а не null.
+    expect(Number.isNaN(back.lockSeconds)).toBe(true);
+    expect(Number.isNaN(back.points)).toBe(true);
+  });
+
+  it('a sort in a final has no hidden per-word price to fix: the saved points fit the limit', () => {
+    const [a, b] = sortQ().categories;
+    const many = Array.from({ length: 20 }, (_, i) => ({ id: `w${i}`, text: `С${i}`, categoryId: i % 2 === 0 ? a.id : b.id }));
+    const question = sortQ({ words: many, points: 150 });
+    const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newFinalRound(), questions: [question] }] };
+    expect(problemsOf(quiz)).toEqual([]);
+    const saved = cleaned(quiz);
+    expect(roundQuestions(saved.rounds[0])[0]?.points).toBe(100);
+    expect(quizSchema.safeParse(saved).success).toBe(true);
+    // Поза фіналом ціна за слово видна й перевіряється, як і раніше.
+    expect(problemFor(question)).toEqual([t('problemSortPoints', { index: 1 })]);
+  });
+
   it('changing to sort keeps the text and time, sets points per word', () => {
     const single = { ...newQuestion('single'), text: 'Питання', timeLimit: 45, points: 1000 };
     const result = changeType(single, 'sort');
