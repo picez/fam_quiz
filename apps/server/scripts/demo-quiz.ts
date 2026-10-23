@@ -1,4 +1,4 @@
-import { DEFAULT_RULES, type Question, type Quiz, type RoundRules } from '@quiz/shared';
+import { DEFAULT_RULES, type DuelCategory, type DuelQuestion, type Question, type Quiz, type RoundRules } from '@quiz/shared';
 
 /**
  * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match, chain, sort),
@@ -80,6 +80,11 @@ export const sort = (text: string, categories: string[], words: [string, number]
 
 /** Додає до запитання відео з YouTube: id і секунда початку. */
 export const video = (question: Question, id: string, start = 0): Question => ({ ...question, video: { id, start } });
+
+/** Запитання дуелі: текст і прийнятні написання. */
+export const duelQ = (text: string, accepted: string[]): DuelQuestion => ({ id: id('d'), text, accepted });
+/** Категорія пулу дуелей. */
+export const duelCategory = (title: string, questions: DuelQuestion[]): DuelCategory => ({ id: id('dc'), title, questions });
 
 export const rules = (patch: Partial<RoundRules>): RoundRules => ({ ...DEFAULT_RULES, ...patch });
 export const cell = (

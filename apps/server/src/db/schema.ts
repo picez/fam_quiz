@@ -1,4 +1,4 @@
-import type { AdjustmentSource, Answer, GameStatus, QuizSettings, Round } from '@quiz/shared';
+import type { AdjustmentSource, Answer, Duels, GameStatus, QuizSettings, Round } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -74,7 +74,7 @@ export const quiz = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     description: text('description').notNull(),
-    settings: jsonb('settings').$type<QuizSettings>().notNull(),
+    settings: jsonb('settings').$type<QuizSettings & { duels?: Duels }>().notNull(),
     rounds: jsonb('rounds').$type<Round[]>().notNull(),
     ...stamps,
   },

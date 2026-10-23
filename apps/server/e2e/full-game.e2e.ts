@@ -3971,3 +3971,610 @@ async function sortGame() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 7g: duels — the editor section, the button after a third, an opponent picked, others disabled, the duel on the stage, phones and host, a category, first right answer wins, retries, a skip, a tie, a stake moved with a line in the history, a cancel, the game going on where it stood', async () => {
+  try {
+    await duelGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Дуелянт вписує відповідь і тисне «Відповісти»; чекає ack: поле очистилося (спроба) або зникло (правильна відповідь закрила запитання). */
+async function duelAnswer(page: Page, text: string) {
+  await field(page, 'Ваша відповідь').fill(text);
+  await click(page, 'Відповісти');
+  await page.waitForFunction("(() => { const input = document.querySelector('.duel-answer input'); return input === null || input.value === ''; })()");
+}
+
+/** Кожен гравець відповідає правильно кнопкою варіанта; ведучий відкриває відповідь. */
+async function answerAll(host: Page, players: Page[]) {
+  for (const page of players) {
+    await page.getByRole('button', { name: /Київ/ }).click();
+    await page.getByText(/^(Відповідь прийнято|Чекаємо на правильну відповідь)$/).first().waitFor();
+  }
+  await click(host, 'Показати відповідь');
+  for (const page of players) await page.locator('section.result').first().waitFor();
+}
+
+/** Усі тексти, що сторінка отримала сокетом: витік видно ще до того, як щось намальовано. */
+function socketFrames(page: Page): string[] {
+  const list: string[] = [];
+  page.on('websocket', (socket) => socket.on('framereceived', (frame) => list.push(String(frame.payload))));
+  return list;
+}
+
+const duelButton = (page: Page) => page.getByRole('button', { name: '⚔ Дуель', ...exact });
+
+/** Прямокутники частин сцени дуелі, округлені до пікселя (null — немає), і чи вміщається сцена без прокрутки. */
+const DUEL_STAGE_GEOMETRY = `(() => {
+  const box = (selector) => {
+    const element = document.querySelector(selector);
+    if (element === null) return null;
+    const r = element.getBoundingClientRect();
+    return [r.x, r.y, r.width, r.height].map(Math.round);
+  };
+  return {
+    challenger: box('.duel-stage-side.is-challenger'),
+    opponent: box('.duel-stage-side.is-opponent'),
+    score: box('.duel-stage-score'),
+    body: box('.duel-stage-body'),
+    question: box('.duel-stage-question'),
+    scrollHeight: document.documentElement.scrollHeight,
+    innerHeight,
+    wide: document.documentElement.scrollWidth <= innerWidth,
+  };
+})()`;
+type DuelGeometry = {
+  challenger: number[] | null;
+  opponent: number[] | null;
+  score: number[] | null;
+  body: number[] | null;
+  question: number[] | null;
+  scrollHeight: number;
+  innerHeight: number;
+  wide: boolean;
+};
+const duelGeometry = async (page: Page) => (await page.evaluate(DUEL_STAGE_GEOMETRY)) as DuelGeometry;
+
+async function duelGame() {
+  const host = await open('host7g', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host7g@example.com');
+
+  const q = (n: number) => ({ ...withPoints(withId(single, `q${n}`), 100), text: `Запитання ${n}: столиця України?`, timeLimit: 20 });
+  const rounds = [
+    classicRound('r1', [q(1), q(2), q(3)], { title: 'Розминка', speedBonus: false }),
+    classicRound('r2', [q(4), q(5), q(6)], { title: 'Другий', speedBonus: false }),
+    finalRound('r3', { ...withPoints(withId(single, 'f1'), 100), text: 'Фінал: столиця України?' }, { title: 'Фінал' }),
+  ];
+  const duels = {
+    categories: [
+      {
+        id: 'dc1',
+        title: 'Столиці',
+        questions: [
+          { id: 'd1', text: 'Столиця Франції?', accepted: ['Париж'] },
+          { id: 'd2', text: 'Столиця Італії?', accepted: ['Рим'] },
+          { id: 'd3', text: 'Столиця Польщі?', accepted: ['Варшава'] },
+        ],
+      },
+      {
+        id: 'dc2',
+        title: 'Хімія',
+        questions: [
+          { id: 'd4', text: 'Символ Fe — це…', accepted: ['Залізо', 'Ферум'] },
+          { id: 'd5', text: 'Символ Au — це…', accepted: ['Золото', 'Аурум'] },
+          { id: 'd6', text: 'Символ O — це…', accepted: ['Кисень', 'Оксиген'] },
+        ],
+      },
+    ],
+    questionsPerDuel: 2,
+    timeLimit: 30,
+    stake: 300,
+  };
+  const data = { ...makeRoundsQuiz(rounds, { leaderboard: 'end' }), title: 'Дуелі', duels };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // Редактор: розділ «Дуелі» з пулом; 4 запитання за дуель не зберігаються.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Дуелі' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('details.duels > summary').click();
+  expect(await field(host, 'Запитань за дуель').inputValue()).toBe('2');
+  expect(await field(host, 'Ставка: програвший віддає переможцю').inputValue()).toBe('300');
+  await host.getByRole('button', { name: 'Столиці · 3 запитання', ...exact }).waitFor();
+  await host.getByRole('button', { name: 'Хімія · 3 запитання', ...exact }).waitFor();
+  await field(host, 'Запитань за дуель').fill('4');
+  await click(host, 'Зберегти');
+  await host.locator('.problems', { hasText: 'Дуелі, «Столиці»: замало запитань — потрібно щонайменше 4.' }).waitFor();
+  expect(host.url()).not.toMatch(/\/quizzes$/);
+  await field(host, 'Запитань за дуель').fill('2');
+  await shot(host, 'duel7g-editor');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'duel7g-editor-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // Гра: сцена 1600 × 900, Оля 375, Петро 360, Іра 390.
+  await host.locator('.quiz-list li', { hasText: 'Дуелі' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage7g', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya7g', 375, 812);
+  const petro = await open('petro7g', 360, 740);
+  const ira = await open('ira7g', 390, 844);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const iraFrames = socketFrames(ira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+
+  const hostScore = async (nickname: string) => (await host.locator('.player-row', { hasText: nickname }).locator('.score').textContent())!;
+  const scores = async () => ({ Оля: await hostScore('Оля'), Петро: await hostScore('Петро'), Іра: await hostScore('Іра') });
+  /** Ні DOM сторінок, ні їхні сокети не містять тексту. */
+  const nowhere = async (where: [Page, string[]][], text: string, label: string) => {
+    for (const [page, frames] of where) {
+      expect(await page.content(), `${label}: «${text}» in the DOM`).not.toContain(text);
+      expect(
+        frames.some((frame) => frame.includes(text)),
+        `${label}: «${text}» came over the socket`,
+      ).toBe(false);
+    }
+  };
+  const stageSay = (text: string) => stage.locator('.duel-stage').getByText(text, exact).waitFor();
+  const stageScore = (text: string) => stage.locator('.duel-stage-score', { hasText: text }).waitFor();
+  const geometry: Record<string, DuelGeometry> = {};
+
+  // 1. До третини: після q1 кнопки немає; після q2 — є в усіх, а шапка Петра не виросла.
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+  await olya.locator('h1', { hasText: 'Запитання 1:' }).waitFor();
+  await answerAll(host, phones);
+  for (const page of phones) expect(await duelButton(page).count()).toBe(0);
+  await click(host, 'Далі');
+  await petro.locator('h1', { hasText: 'Запитання 2:' }).waitFor();
+  expect(await duelButton(petro).count()).toBe(0);
+  const petroQuestionY = (await petro.locator('h1.question').first().boundingBox())!.y;
+  const petroBarHeight = (await petro.locator('header.bar').boundingBox())!.height;
+  await answerAll(host, phones);
+  for (const page of phones) await duelButton(page).waitFor();
+  expect(await duelButton(olya).isEnabled()).toBe(true);
+  expect((await petro.locator('header.bar').boundingBox())!.height).toBe(petroBarHeight);
+  await shot(petro, 'duel7g-button-phone');
+
+  // 2. Оголошення: Оля вибирає Петра; у Петра й Іри кнопка вимкнена, в Олі її немає; смуга всюди.
+  await duelButton(olya).click();
+  const dialog = olya.getByRole('dialog', { name: 'Кого викликати на дуель?' });
+  await dialog.waitFor();
+  expect(await dialog.getByRole('button').allTextContents()).toEqual(['Петро', 'Іра', 'Скасувати']);
+  await shot(olya, 'duel7g-pick-phone');
+  await expectNoSideScroll(olya, 'duel7g-pick-375');
+  await dialog.getByRole('button', { name: 'Петро', ...exact }).click();
+  const banner = '⚔ Дуель: Оля — Петро. Почнеться, щойно ведучий продовжить гру.';
+  for (const page of [stage, ...phones]) await page.locator('.duel-banner').getByText(banner, exact).waitFor();
+  await expect.poll(() => duelButton(petro).isDisabled()).toBe(true);
+  await expect.poll(() => duelButton(ira).isDisabled()).toBe(true);
+  expect(await duelButton(olya).count()).toBe(0);
+  for (const [page, width] of [
+    [olya, 375],
+    [petro, 360],
+    [ira, 390],
+  ] as const)
+    await expectNoSideScroll(page, `duel7g-banner-${width}`);
+  // Смуга не закриває результату й запитання: сторінка тримає під нею запас.
+  await petro.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+  await expectApart(petro, '.duel-banner', ['section.result', 'h1.question'], 'declared banner 360');
+  await shot(stage, 'duel7g-declared-stage');
+  await host.getByText('Оголошено дуель: Оля — Петро', exact).waitFor();
+  await host.getByRole('button', { name: 'Почати дуель', ...exact }).waitFor();
+  expect(await host.getByRole('button', { name: 'Далі', ...exact }).count()).toBe(0);
+
+  // 3. Категорія: вибирає Оля, Петро й сцена бачать, хто вибирає.
+  await click(host, 'Почати дуель');
+  await stageSay('Оля вибирає категорію');
+  await stage.locator('.duel-stage-categories li', { hasText: 'Столиці · лишилося 3' }).waitFor();
+  await stage.locator('.duel-stage-categories li', { hasText: 'Хімія · лишилося 3' }).waitFor();
+  expect(await stage.locator('.duel-banner').count()).toBe(0);
+  await petro.getByText('Оля вибирає категорію', exact).waitFor();
+  expect(await petro.locator('.duel-categories').count()).toBe(0);
+  await olya.getByRole('button', { name: 'Хімія · лишилося 3', ...exact }).waitFor();
+  await shot(olya, 'duel7g-category-phone');
+  await shot(stage, 'duel7g-category-stage');
+  geometry.category = await duelGeometry(stage);
+  rigged.push(1);
+  await click(olya, 'Столиці · лишилося 3');
+
+  // 4. Запитання 1: спробу Петра бачать лише він і ведучий; Оля відповідає правильно.
+  await stage.locator('.duel-stage-question', { hasText: 'Столиця Франції?' }).waitFor();
+  await stageScore('0 : 0');
+  expect(await stage.locator('.duel-stage-side.is-challenger').textContent()).toBe('Оля');
+  expect(await stage.locator('.duel-stage-side.is-opponent').textContent()).toBe('Петро');
+  await stageSay('Запитання 1 з 2 · Столиці');
+  await stage.locator('.duel-stage').getByRole('timer').waitFor();
+  await olya.locator('.duel-score').getByText('Оля 0 : 0 Петро', exact).waitFor();
+  await ira.locator('h1', { hasText: 'Столиця Франції?' }).waitFor();
+  expect(await ira.locator('.duel-answer').count(), 'a watcher has no answer field').toBe(0);
+  expect(await bodyText(stage)).not.toContain('Париж');
+  expect(await bodyText(ira)).not.toContain('Париж');
+  geometry.question = await duelGeometry(stage);
+  const petroAnswerBox = (await petro.locator('.duel-answer').boundingBox())!;
+  const petroTriesBox = (await petro.locator('.duel-tries').boundingBox())!;
+  await duelAnswer(petro, 'Ліон');
+  await petro.locator('.duel-tries').getByText('✗ Ліон', exact).waitFor();
+  expect(await petro.locator('.duel-answer').boundingBox()).toEqual(petroAnswerBox);
+  expect(await petro.locator('.duel-tries').boundingBox()).toEqual(petroTriesBox);
+  await stageSay('Спроби: Оля 0 · Петро 1');
+  await ira.getByText('Спроби: Оля 0 · Петро 1', exact).waitFor();
+  await olya.getByText('Спроби: Оля 0 · Петро 1', exact).waitFor();
+  await host.getByText('Прийнятні відповіді: Париж', exact).waitFor();
+  await host.getByText('Спроби Петро: Ліон', exact).waitFor();
+  await host.getByRole('button', { name: 'Пропустити запитання', ...exact }).waitFor();
+  await host.getByRole('button', { name: 'Скасувати дуель', ...exact }).waitFor();
+  await host.getByRole('button', { name: 'Пауза', ...exact }).first().waitFor();
+  // Ведучий бачить таймер дуелі; «Завершити раунд» під час дуелі немає.
+  await host.locator('.duel-host').getByRole('timer').waitFor();
+  expect(await host.getByRole('button', { name: 'Завершити раунд', ...exact }).count()).toBe(0);
+  await shot(host, 'duel7g-question-host');
+  await nowhere(
+    [
+      [stage, stageFrames],
+      [olya, olyaFrames],
+      [ira, iraFrames],
+    ],
+    'Ліон',
+    'a try of Петро',
+  );
+  await petro.reload();
+  await field(petro, 'Ваша відповідь').waitFor();
+  await petro.locator('.duel-tries').getByText('✗ Ліон', exact).waitFor();
+  await expectNoSideScroll(petro, 'duel7g-question-360');
+  await nowhere(
+    [
+      [stage, stageFrames],
+      [olya, olyaFrames],
+      [petro, petroFrames],
+      [ira, iraFrames],
+    ],
+    'Париж',
+    'the answer before it closed',
+  );
+  await duelAnswer(olya, 'париж');
+  await stageSay('Правильна відповідь: Париж');
+  await stageSay('Це запитання виграє Оля: «париж»');
+  await stageScore('1 : 0');
+  await olya.locator('.duel-score').getByText('Оля 1 : 0 Петро', exact).waitFor();
+  geometry.answer = await duelGeometry(stage);
+  await shot(stage, 'duel7g-answer-stage');
+
+  // 5. Пропуск: «Столиця Італії?» знімається, приходить «Столиця Польщі?» тим самим номером.
+  rigged.push(1);
+  await click(host, 'Наступне запитання дуелі');
+  await stage.locator('.duel-stage-question', { hasText: 'Столиця Італії?' }).waitFor();
+  rigged.push(1);
+  await click(host, 'Пропустити запитання');
+  await stage.locator('.duel-stage-question', { hasText: 'Столиця Польщі?' }).waitFor();
+  await stageSay('Запитання 2 з 2 · Столиці');
+  await duelAnswer(petro, 'Варшава');
+  await stageScore('1 : 1');
+  await host.getByRole('button', { name: 'Підсумок дуелі', ...exact }).waitFor();
+
+  // 6. Нічия: бали ті самі; гра йде далі з q3, смуги немає.
+  await click(host, 'Підсумок дуелі');
+  await stageSay('Нічия — бали не змінюються');
+  for (const page of phones) await page.getByText('Нічия — бали не змінюються', exact).waitFor();
+  geometry.result = await duelGeometry(stage);
+  await shot(stage, 'duel7g-tie-stage');
+  expect(await scores()).toEqual({ Оля: '200', Петро: '200', Іра: '200' });
+  await click(host, 'Продовжити гру');
+  await stage.locator('h1', { hasText: 'Запитання 3:' }).waitFor();
+  await petro.locator('h1', { hasText: 'Запитання 3:' }).waitFor();
+  for (const page of [stage, ...phones]) expect(await page.locator('.duel-banner').count()).toBe(0);
+  await duelButton(petro).waitFor();
+  expect((await petro.locator('h1.question').first().boundingBox())!.y, 'the header button moved the question').toBe(petroQuestionY);
+  expect((await petro.locator('header.bar').boundingBox())!.height).toBe(petroBarHeight);
+  // Сцена дуелі на 1600 × 900: без прокрутки, імена й рахунок між етапами на місці.
+  console.log(`duel stage 1600×900: ${JSON.stringify(geometry)}`);
+  for (const [name, at] of Object.entries(geometry)) {
+    expect(at.wide && at.scrollHeight <= at.innerHeight, `stage duel ${name} overflows`).toBe(true);
+    expect([at.challenger, at.opponent, at.score], `stage duel ${name} moved the names or the score`).toEqual([
+      geometry.category!.challenger,
+      geometry.category!.opponent,
+      geometry.category!.score,
+    ]);
+  }
+  await answerAll(host, phones);
+  expect(await scores()).toEqual({ Оля: '300', Петро: '300', Іра: '300' });
+
+  // 7. Ставка: Іра викликає Олю; ведучий вибирає категорію за Іру; Іра виграє 2 : 0.
+  expect(await duelButton(olya).count(), 'Оля already used her duel').toBe(0);
+  await duelButton(ira).click();
+  await ira.getByRole('dialog').getByRole('button', { name: 'Оля', ...exact }).click();
+  await ira.locator('.duel-banner').getByText('⚔ Дуель: Іра — Оля. Почнеться, щойно ведучий продовжить гру.', exact).waitFor();
+  await expect.poll(() => duelButton(petro).isDisabled()).toBe(true);
+  await click(host, 'Почати дуель');
+  await stageSay('Іра вибирає категорію');
+  const hostPanel = host.locator('.duel-host');
+  await hostPanel.getByText('Категорію вибирає Іра. Якщо треба, виберіть за гравця:', exact).waitFor();
+  await shot(host, 'duel7g-host-pick');
+  rigged.push(1);
+  await hostPanel.getByRole('button', { name: 'Хімія · лишилося 3', ...exact }).click();
+  await stage.locator('.duel-stage-question', { hasText: 'Символ Fe — це…' }).waitFor();
+  await duelAnswer(ira, 'Залізо');
+  await stageScore('1 : 0');
+  rigged.push(1);
+  await click(host, 'Наступне запитання дуелі');
+  await stage.locator('.duel-stage-question', { hasText: 'Символ Au — це…' }).waitFor();
+  await duelAnswer(ira, 'Аурум');
+  await stageScore('2 : 0');
+  await stage.locator('.duel-stage-side.is-challenger', { hasText: 'Іра' }).waitFor();
+  await click(host, 'Підсумок дуелі');
+  await stageSay('Перемога в дуелі: Іра!');
+  await stageSay('Іра +300 · Оля −300');
+  await olya.getByText('Іра +300 · Оля −300', exact).waitFor();
+  await shot(stage, 'duel7g-result-stage');
+  await shot(olya, 'duel7g-result-phone');
+  await expect.poll(scores).toEqual({ Оля: '0', Петро: '300', Іра: '600' });
+  expect(await olya.locator('header.bar .score').textContent()).toBe('0');
+  await click(host, 'Продовжити гру');
+  await host.getByRole('button', { name: 'Наступний раунд', ...exact }).waitFor();
+
+  // 8. Скасування: Петро викликає Іру на підсумках раунду; ведучий скасовує — ті самі підсумки, бали ті самі.
+  await duelButton(petro).click();
+  await petro.getByRole('dialog').getByRole('button', { name: 'Іра', ...exact }).click();
+  await host.getByText('Оголошено дуель: Петро — Іра', exact).waitFor();
+  await click(host, 'Почати дуель');
+  await stageSay('Петро вибирає категорію');
+  await hostPanel.getByRole('button', { name: 'Скасувати дуель', ...exact }).click();
+  await host.getByRole('button', { name: 'Наступний раунд', ...exact }).waitFor();
+  expect(await host.locator('.duel-host').count()).toBe(0);
+  expect(await stage.locator('.duel-stage').count()).toBe(0);
+  expect(await scores()).toEqual({ Оля: '0', Петро: '300', Іра: '600' });
+  expect(await duelButton(petro).count()).toBe(0);
+  await click(host, 'Наступний раунд');
+  await stage.locator('h1', { hasText: 'Другий' }).waitFor();
+  await ira.locator('h1', { hasText: 'Другий' }).waitFor();
+  for (const page of phones) expect(await duelButton(page).count(), 'everyone used the duel').toBe(0);
+
+  // 9. Історія: та сама таблиця й рядок дуелі в раунді 1, без «Бали від ведучого».
+  await click(host, 'Завершити гру');
+  await olya.getByText('Гру завершено').first().waitFor();
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Дуелі/ }).click();
+  const rows = host.locator('.standings li');
+  await rows.first().waitFor();
+  const table: [string, string][] = [];
+  for (let i = 0; i < (await rows.count()); i++) {
+    table.push([(await rows.nth(i).locator('.name').textContent())!, (await rows.nth(i).locator('.score').textContent())!]);
+  }
+  expect(table).toEqual([
+    ['Іра', '600'],
+    ['Петро', '300'],
+    ['Оля', '0'],
+  ]);
+  const roundOne = host.locator('.round-group', { has: host.locator('.round-title', { hasText: 'Розминка' }) });
+  expect(await roundOne.locator('.history-duel').allTextContents()).toEqual(['Дуель: Іра +300, Оля −300']);
+  expect(await host.locator('.history-duel').count()).toBe(1);
+  expect(await host.getByText(/Бали від ведучого/).count()).toBe(0);
+  await shot(host, 'duel7g-history-host');
+  await expectNoSideScroll(olya, 'duel7g-phone-375');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 7g: duel layout — a debuff banner, the duel banner and a points notice stacked on 375 px, a long nickname keeps the header, a long duel question on 720p and 900p stages', async () => {
+  try {
+    await duelLayout();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Нік на 20 літер — найдовший дозволений. */
+const LONG_NICK = 'Олександра-Марійка К';
+/** Запитання дуелі на ~250 символів: найгірший випадок для сцени. */
+const LONG_DUEL_1 =
+  'Як називається явище, коли в довгому запитанні дуелі текст займає кілька рядків на великому екрані, а ведучий хоче, щоб імена суперників, рахунок, таймер і кількість спроб лишалися на своїх місцях між вибором категорії, запитанням, розкриттям і підсумком?';
+const LONG_DUEL_2 =
+  'Яке слово відповідає на друге довге запитання дуелі, у якому так само багато слів, ком і пояснень, щоб перевірити, що сцена на 1280 × 720 і на 1600 × 900 не прокручується, не обрізає таймер і не зсуває імена дуелянтів під час розкриття правильної відповіді?';
+
+async function duelLayout() {
+  expect(LONG_DUEL_1.length).toBeGreaterThanOrEqual(240);
+  expect(LONG_DUEL_2.length).toBeGreaterThanOrEqual(240);
+  const host = await open('host7gl', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host7gl@example.com');
+  const q = (n: number) => ({ ...withPoints(withId(single, `q${n}`), 100), text: `Запитання ${n}: столиця України?`, timeLimit: 60 });
+  const rounds = [
+    classicRound('r1', [q(1), q(2), q(3), q(4)], { title: 'Розминка', speedBonus: false }),
+    classicRound('r2', [q(5)], { title: 'Другий', speedBonus: false }),
+  ];
+  const duels = {
+    categories: [
+      {
+        id: 'dl1',
+        title: 'Довгі запитання',
+        questions: [
+          { id: 'l1', text: LONG_DUEL_1, accepted: ['Так'] },
+          { id: 'l2', text: LONG_DUEL_2, accepted: ['Ні'] },
+          { id: 'l3', text: 'Коротке?', accepted: ['Так'] },
+        ],
+      },
+    ],
+    questionsPerDuel: 2,
+    timeLimit: 60,
+    stake: 100,
+  };
+  const data = { ...makeRoundsQuiz(rounds, { leaderboard: 'end' }), title: 'Довгі дуелі', duels };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage900 = await open('stage7gl-900', 1600, 900);
+  const stage720 = await open('stage7gl-720', 1280, 720);
+  for (const stage of [stage900, stage720]) {
+    await stage.goto(stageUrl!);
+    await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  }
+  const long = await open('long7gl', 375, 812);
+  const olya = await open('olya7gl', 375, 812);
+  const petro = await open('petro7gl', 360, 740);
+  await join(long, code, LONG_NICK, false);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await stage900.getByText('Петро').waitFor();
+
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const tool = async (nickname: string, kind: 'Бали' | 'Дебаф') => {
+    const button = row(nickname).getByRole('button', { name: kind, ...exact });
+    if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+    await row(nickname).locator('.player-tools').waitFor();
+  };
+  /** Запитання без відповідей: ведучий закриває й відкриває відповідь. */
+  const closeAndReveal = async () => {
+    await click(host, 'Закрити запитання');
+    await click(host, 'Показати відповідь');
+    await olya.locator('section.result').first().waitFor();
+  };
+
+  // 1. Довгий нік у шапці: поява кнопки «⚔ Дуель» не змінює висоти шапки.
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+  await long.locator('h1', { hasText: 'Запитання 1:' }).waitFor();
+  const bar = long.locator('header.bar');
+  const barBefore = (await bar.boundingBox())!;
+  expect(await duelButton(long).count()).toBe(0);
+  await closeAndReveal();
+  await click(host, 'Далі');
+  await long.locator('h1', { hasText: 'Запитання 2:' }).waitFor();
+  await closeAndReveal();
+  await duelButton(long).waitFor();
+  const barAfter = (await bar.boundingBox())!;
+  expect(barAfter.height, 'the duel button made the header taller').toBe(barBefore.height);
+  // Кнопка — на рядку шапки, праворуч від ніка, і не налазить на запитання.
+  const buttonBox = (await duelButton(long).boundingBox())!;
+  const nickBox = (await bar.locator('span').first().boundingBox())!;
+  expect(buttonBox.y < nickBox.y + nickBox.height && nickBox.y < buttonBox.y + buttonBox.height, 'the button is on the nickname line').toBe(true);
+  expect(nickBox.x + nickBox.width <= buttonBox.x + 0.5, 'the nickname runs under the button').toBe(true);
+  expect(buttonBox.y + buttonBox.height <= (await long.locator('h1.question').first().boundingBox())!.y + 0.5, 'the button covers the question').toBe(true);
+  await expectNoSideScroll(long, 'duel7g-long-name-375');
+
+  // 2. Туман для Олі чекає наступного запитання; Петро відкриває діалог заздалегідь; панель балів Олі відкрита.
+  await tool('Оля', 'Дебаф');
+  await row('Оля').locator('.player-tools').getByRole('button', { name: /Туман/ }).click();
+  await row('Оля').locator('.debuff-tag').waitFor();
+  await tool('Оля', 'Бали');
+  await duelButton(petro).click();
+  const petroDialog = petro.getByRole('dialog');
+  await petroDialog.waitFor();
+
+  // 3. Запитання 3: банер дебафу (3 с), смуга дуелі й сповіщення про бали в Олі одночасно — стосом, без накладань.
+  await click(host, 'Далі');
+  await olya.locator('.debuff-banner').waitFor();
+  await petroDialog.getByRole('button', { name: LONG_NICK, ...exact }).click();
+  await row('Оля').getByRole('button', { name: '+100', ...exact }).click();
+  await olya.locator('.duel-banner').waitFor();
+  await olya.locator('.live-notice').waitFor();
+  await olya.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+  const stack = (await olya.evaluate(`(() => {
+    const box = (selector) => {
+      const element = document.querySelector(selector);
+      if (element === null) return null;
+      const r = element.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const items = [...document.querySelectorAll('.choice, .debuff-content button, .debuff-content h1')];
+    const content = items.length === 0 ? null : Math.max(...items.map((element) => element.getBoundingClientRect().bottom));
+    return {
+      notice: box('.live-notice'),
+      duel: box('.duel-banner'),
+      debuff: box('.debuff-banner'),
+      content,
+      wide: document.documentElement.scrollWidth <= innerWidth,
+      width: innerWidth,
+    };
+  })()`)) as {
+    notice: Box | null;
+    duel: Box | null;
+    debuff: Box | null;
+    content: number | null;
+    wide: boolean;
+    width: number;
+  };
+  await shot(olya, 'duel7g-banners-375');
+  console.log(`phone stack 375×812: ${JSON.stringify(stack)}`);
+  expect(stack.debuff, 'the debuff banner was gone before the check (3 s)').not.toBeNull();
+  expect(stack.duel).not.toBeNull();
+  expect(stack.notice).not.toBeNull();
+  const { notice, duel, debuff } = stack as { notice: Box; duel: Box; debuff: Box };
+  expect(stack.wide, 'banners: horizontal scroll').toBe(true);
+  for (const [name, box] of Object.entries({ notice, duel, debuff })) {
+    expect(box.x >= 0 && box.x + box.width <= stack.width, `${name} leaves the screen`).toBe(true);
+  }
+  expect(overlaps(notice, duel) || overlaps(duel, debuff) || overlaps(notice, debuff), 'the banners overlap').toBe(false);
+  expect(notice.y + notice.height <= duel.y + 0.5, 'the notice is above the duel banner').toBe(true);
+  expect(duel.y + duel.height <= debuff.y + 0.5, 'the duel banner is above the debuff banner').toBe(true);
+  expect(stack.content! <= duel.y + 0.5, 'the page padding does not clear the banners').toBe(true);
+  await expectApart(long, '.duel-banner', ['h1.question', '.choice'], 'long-name duel banner 375');
+  await expectNoSideScroll(long, 'duel7g-long-banner-375');
+
+  // 4. Дуель Петро — довгий нік з довгими запитаннями: обидві сцени на кожному етапі.
+  const geometry: Record<string, Record<string, DuelGeometry>> = { 900: {}, 720: {} };
+  const measure = async (name: string) => {
+    geometry[900]![name] = await duelGeometry(stage900);
+    geometry[720]![name] = await duelGeometry(stage720);
+  };
+  await closeAndReveal();
+  await click(host, 'Почати дуель');
+  for (const stage of [stage900, stage720]) await stage.locator('.duel-stage').getByText('Петро вибирає категорію', exact).waitFor();
+  await measure('category');
+  await shot(stage720, 'duel7g-long-stage-720-category');
+  rigged.push(1);
+  await click(petro, 'Довгі запитання · лишилося 3');
+  for (const stage of [stage900, stage720]) await stage.locator('.duel-stage-question', { hasText: LONG_DUEL_1 }).waitFor();
+  await measure('question');
+  await shot(stage720, 'duel7g-long-stage-720-question');
+  await shot(stage900, 'duel7g-long-stage-900-question');
+  await expectNoSideScroll(long, 'duel7g-long-question-375');
+  await duelAnswer(long, 'Так');
+  for (const stage of [stage900, stage720]) await stage.locator('.duel-stage-score', { hasText: '0 : 1' }).waitFor();
+  await measure('answer');
+  await shot(stage720, 'duel7g-long-stage-720-answer');
+  await shot(stage900, 'duel7g-long-stage-900-answer');
+  rigged.push(1);
+  await click(host, 'Наступне запитання дуелі');
+  for (const stage of [stage900, stage720]) await stage.locator('.duel-stage-question', { hasText: LONG_DUEL_2 }).waitFor();
+  await measure('question2');
+  await duelAnswer(long, 'Ні');
+  for (const stage of [stage900, stage720]) await stage.locator('.duel-stage-score', { hasText: '0 : 2' }).waitFor();
+  await click(host, 'Підсумок дуелі');
+  for (const stage of [stage900, stage720]) await stage.locator('.duel-stage').getByText(`Перемога в дуелі: ${LONG_NICK}!`, exact).waitFor();
+  await measure('result');
+  await shot(stage720, 'duel7g-long-stage-720-result');
+  await shot(stage900, 'duel7g-long-stage-900-result');
+  console.log(`long duel stage: ${JSON.stringify(geometry)}`);
+  for (const size of ['900', '720']) {
+    for (const [name, at] of Object.entries(geometry[size]!)) {
+      expect(at.wide, `stage ${size} duel ${name}: horizontal scroll`).toBe(true);
+      expect(at.scrollHeight, `stage ${size} duel ${name}: vertical scroll`).toBeLessThanOrEqual(at.innerHeight);
+    }
+  }
+
+  await click(host, 'Продовжити гру');
+  await stage900.locator('h1', { hasText: 'Запитання 4:' }).waitFor();
+  await click(host, 'Завершити гру');
+  await olya.getByText('Гру завершено').first().waitFor();
+  expect(problems).toEqual([]);
+}

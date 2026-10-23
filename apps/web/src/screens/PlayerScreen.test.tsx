@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -47,6 +47,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   chain: null,
   sort: null,
   notice: null,
+  duel: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -1234,5 +1235,80 @@ describe('PlayerScreen: sort', () => {
     expect(screen.getByText('+400')).toBeTruthy();
     expect(screen.getByText('Усі слова відсортовано за 8,0 с')).toBeTruthy();
     expect(document.querySelector('.sort-columns')).toBeNull();
+  });
+
+  it('the duel button sits in the header and moves nothing', () => {
+    const rights = { canDeclare: true, opponents: [{ playerId: 'p2', nickname: 'Петро' }] };
+    const duel = { rights: null, tries: [], canAnswer: false, canPick: false };
+    const classes = () => [...document.querySelector('main')!.children].map((el) => el.className);
+    show(onQuestion({ me: { ...me, duel } }));
+    const without = classes();
+    expect(screen.queryByRole('button', { name: '⚔ Дуель' })).toBeNull();
+    cleanup();
+    show(onQuestion({ me: { ...me, duel: { ...duel, rights } } }));
+    const button = screen.getByRole('button', { name: '⚔ Дуель' });
+    expect(button.closest('header.bar')).not.toBeNull();
+    expect(classes()).toEqual(without);
+    expect(document.querySelector('h1.question')?.textContent).toBe('Столиця України?');
+  });
+
+  it('a declared duel shows the banner next to the toast, outside the page flow', () => {
+    const declared = {
+      challenger: { playerId: 'p2', nickname: 'Петро' },
+      opponent: { playerId: 'p3', nickname: 'Іра' },
+      stage: 'declared' as const,
+      categories: [{ id: 'dc1', title: 'Столиці', left: 3 }],
+      category: null,
+      number: 0,
+      total: 3,
+      question: null,
+      accepted: null,
+      wins: { challenger: 0, opponent: 0 },
+      tries: { challenger: 0, opponent: 0 },
+      questionWinner: null,
+      winningAnswer: null,
+      winner: null,
+      stake: 300,
+      ending: false,
+    };
+    show(onQuestion({ duel: declared }));
+    expect(document.querySelector('.duel-banner')?.textContent).toBe('⚔ Дуель: Петро — Іра. Почнеться після цього запитання.');
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it('phase duel shows the duel instead of the game', () => {
+    const running = {
+      challenger: { playerId: 'p1', nickname: 'Олена' },
+      opponent: { playerId: 'p2', nickname: 'Петро' },
+      stage: 'question' as const,
+      categories: [{ id: 'dc1', title: 'Столиці', left: 2 }],
+      category: 'Столиці',
+      number: 1,
+      total: 3,
+      question: 'Столиця Франції?',
+      accepted: null,
+      wins: { challenger: 0, opponent: 0 },
+      tries: { challenger: 0, opponent: 0 },
+      questionWinner: null,
+      winningAnswer: null,
+      winner: null,
+      stake: 300,
+      ending: false,
+    };
+    show(
+      view({
+        phase: 'duel',
+        duel: running,
+        endsAt: Date.now() + 20_000,
+        limitMs: 30_000,
+        notice: { seq: 1, at: Date.now(), nickname: 'Тарас', points: 100 },
+        me: { ...me, score: 700, duel: { rights: null, tries: [], canAnswer: true, canPick: false } },
+      }),
+    );
+    expect(screen.getByRole('heading', { name: 'Дуель' })).toBeTruthy();
+    expect(screen.getByText('Олена 0 : 0 Петро')).toBeTruthy();
+    expect(screen.getByLabelText('Ваша відповідь')).toBeTruthy();
+    expect(document.querySelector('header.bar .score')?.textContent).toBe('700');
+    expect(document.querySelector('.live-notice')).not.toBeNull();
   });
 });

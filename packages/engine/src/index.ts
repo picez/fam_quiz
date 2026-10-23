@@ -17,3 +17,4 @@ export * from './board-cells';
 export * from './final';
 export * from './chain';
 export * from './sort';
+export * from './duel';

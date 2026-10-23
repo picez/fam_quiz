@@ -353,9 +353,9 @@ describe('GameHistory: adjustments', () => {
           { title: 'Поле', type: 'board' },
         ],
         adjustments: [
-          { roundIndex: 0, afterQuestion: 0, nickname: 'Оля', points: -100, source: 'host' },
-          { roundIndex: 0, afterQuestion: 2, nickname: 'Петро', points: 75, source: 'host' },
-          { roundIndex: 1, afterQuestion: 2, nickname: 'Оля', points: 50, source: 'host' },
+          { seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Оля', points: -100, source: 'host' },
+          { seq: 2, roundIndex: 0, afterQuestion: 2, nickname: 'Петро', points: 75, source: 'host' },
+          { seq: 3, roundIndex: 1, afterQuestion: 2, nickname: 'Оля', points: 50, source: 'host' },
         ],
       },
     });
@@ -374,6 +374,27 @@ describe('GameHistory: adjustments', () => {
     const { container } = open('/history/g1');
     expect(await screen.findByText('Столиця України?')).toBeTruthy();
     expect(container.querySelector('.history-adjustments')).toBeNull();
+  });
+});
+
+describe('GameHistory: duels', () => {
+  it('duel transfers show as duel lines, host points stay separate', async () => {
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        adjustments: [
+          { seq: 1, roundIndex: 0, afterQuestion: 2, nickname: 'Оля', points: 100, source: 'host' },
+          { seq: 2, roundIndex: 0, afterQuestion: 2, nickname: 'Іра', points: 300, source: 'duel' },
+          { seq: 3, roundIndex: 0, afterQuestion: 2, nickname: 'Оля', points: -300, source: 'duel' },
+          { seq: 5, roundIndex: 0, afterQuestion: 2, nickname: 'Петро', points: 200, source: 'duel' },
+        ],
+      },
+    });
+    const { container } = open('/history/g1');
+    expect(await screen.findByText('Бали від ведучого: Оля +100')).toBeTruthy();
+    const lines = [...container.querySelectorAll('p.meta.history-duel')].map((line) => line.textContent);
+    expect(lines).toEqual(['Дуель: Іра +300, Оля −300', 'Дуель: Петро +200']);
   });
 });
 

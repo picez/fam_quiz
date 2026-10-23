@@ -12,6 +12,11 @@ import {
   questionsOf,
   questionPrice,
   sortSchema,
+  declareSchema,
+  duelAnswerSchema,
+  duelPickSchema,
+  duelsSchema,
+  LIMITS,
   quizSchema,
   boardRoundIssues,
   cellAnswerMode,
@@ -751,5 +756,104 @@ describe('sort question', () => {
     expect(valid(sortSchema, { wordId: 'w1', categoryId: 'c1' })).toBe(true);
     expect(valid(sortSchema, { wordId: 5, categoryId: 'c1' })).toBe(false);
     expect(valid(sortSchema, { wordId: 'w'.repeat(65), categoryId: 'c1' })).toBe(false);
+  });
+});
+
+describe('duels', () => {
+  const baseQuiz = { title: 'Т', description: '', settings: DEFAULT_SETTINGS, rounds: [round('r1', [single])] };
+  const dq = (id: string, text: string, accepted: string[]) => ({ id, text, accepted });
+  const capitals = { id: 'dc1', title: 'Столиці', questions: [dq('d1', 'Столиця Франції?', ['Париж']), dq('d2', 'Столиця Італії?', ['Рим'])] };
+  const chemistry = {
+    id: 'dc2',
+    title: 'Хімія',
+    questions: [dq('d3', 'Символ Fe — це…', ['Залізо', 'Ферум']), dq('d4', 'Символ Au — це…', ['Золото', 'Аурум'])],
+  };
+  const duelsOf = (patch: object = {}) => ({ categories: [capitals, chemistry], questionsPerDuel: 2, timeLimit: 30, stake: 300, ...patch });
+  const withDuels = (patch: object = {}) => ({ ...baseQuiz, duels: duelsOf(patch) });
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  /** Категорія з n запитаннями, id з префіксом. */
+  const category = (id: string, n: number, patch: object = {}) => ({
+    id,
+    title: 'Категорія',
+    questions: Array.from({ length: n }, (_, i) => dq(`${id}-q${i}`, `Запитання ${i}?`, ['Так'])),
+    ...patch,
+  });
+
+  it('a quiz without duels stays valid and has none', () => {
+    const parsed = quizSchema.parse(baseQuiz);
+    expect(parsed.duels).toBeUndefined();
+  });
+
+  it('accepts a duel pool by categories with text answers', () => {
+    expect(valid(quizSchema, withDuels())).toBe(true);
+    expect(quizSchema.parse(withDuels()).duels?.categories[1].questions[0].accepted).toEqual(['Залізо', 'Ферум']);
+    expect(valid(duelsSchema, duelsOf())).toBe(true);
+  });
+
+  it('duel limits', () => {
+    expect(valid(quizSchema, withDuels({ questionsPerDuel: 0 }))).toBe(false);
+    expect(valid(quizSchema, withDuels({ questionsPerDuel: 8 }))).toBe(false);
+    expect(valid(quizSchema, withDuels({ timeLimit: 4 }))).toBe(false);
+    expect(valid(quizSchema, withDuels({ timeLimit: 121 }))).toBe(false);
+    expect(valid(quizSchema, withDuels({ stake: -1 }))).toBe(false);
+    expect(valid(quizSchema, withDuels({ stake: 5001 }))).toBe(false);
+    expect(valid(quizSchema, withDuels({ stake: 1.5 }))).toBe(false);
+    expect(valid(quizSchema, withDuels({ stake: 0 }))).toBe(true);
+    expect(valid(quizSchema, withDuels({ stake: 5000 }))).toBe(true);
+    const cats = (categories: object[]) => withDuels({ categories, questionsPerDuel: 1 });
+    expect(valid(quizSchema, cats([]))).toBe(false);
+    expect(valid(quizSchema, cats(Array.from({ length: 8 }, (_, i) => category(`c${i}`, 1))))).toBe(true);
+    expect(valid(quizSchema, cats(Array.from({ length: 9 }, (_, i) => category(`c${i}`, 1))))).toBe(false);
+    expect(valid(quizSchema, cats([category('c', 0)]))).toBe(false);
+    expect(valid(quizSchema, cats([category('c', 20)]))).toBe(true);
+    expect(valid(quizSchema, cats([category('c', 21)]))).toBe(false);
+    expect(valid(quizSchema, cats([category('c', 1, { title: 'а'.repeat(40) })]))).toBe(true);
+    expect(valid(quizSchema, cats([category('c', 1, { title: 'а'.repeat(41) })]))).toBe(false);
+    expect(valid(quizSchema, cats([category('c', 1, { title: '  ' })]))).toBe(false);
+    const oneQ = (q: object) => cats([{ id: 'c', title: 'К', questions: [{ ...dq('q', 'Запитання?', ['Так']), ...q }] }]);
+    expect(valid(quizSchema, oneQ({ accepted: [] }))).toBe(false);
+    expect(valid(quizSchema, oneQ({ accepted: Array.from({ length: 10 }, (_, i) => `в${i}`) }))).toBe(true);
+    expect(valid(quizSchema, oneQ({ accepted: Array.from({ length: 11 }, (_, i) => `в${i}`) }))).toBe(false);
+    expect(valid(quizSchema, oneQ({ accepted: ['я'.repeat(200)] }))).toBe(true);
+    expect(valid(quizSchema, oneQ({ accepted: ['я'.repeat(201)] }))).toBe(false);
+    expect(valid(quizSchema, oneQ({ text: '' }))).toBe(false);
+    expect(valid(quizSchema, oneQ({ text: 'я'.repeat(301) }))).toBe(false);
+  });
+
+  it("every duel category holds at least a duel's worth of questions", () => {
+    expect(issues(withDuels({ questionsPerDuel: 3 }))).toContain('duel_category_short');
+    expect(issues(withDuels({ questionsPerDuel: 2 }))).not.toContain('duel_category_short');
+  });
+
+  it('duel ids do not repeat', () => {
+    const asCategoryId = { ...capitals, questions: [capitals.questions[0], { ...capitals.questions[1], id: 'dc1' }] };
+    expect(issues(withDuels({ categories: [asCategoryId, chemistry] }))).toContain('duplicate_duel_ids');
+    const sameQuestionId = { ...chemistry, questions: [{ ...chemistry.questions[0], id: 'd1' }, chemistry.questions[1]] };
+    expect(issues(withDuels({ categories: [capitals, sameQuestionId] }))).toContain('duplicate_duel_ids');
+    expect(issues(withDuels())).not.toContain('duplicate_duel_ids');
+  });
+
+  it('duel events check their payloads', () => {
+    expect(valid(declareSchema, { opponentId: 'p2' })).toBe(true);
+    expect(valid(declareSchema, { opponentId: 5 })).toBe(false);
+    expect(valid(duelPickSchema, { categoryId: 'dc1' })).toBe(true);
+    expect(valid(duelPickSchema, { categoryId: 'x'.repeat(65) })).toBe(false);
+    expect(valid(duelAnswerSchema, { text: '  ' })).toBe(false);
+    expect(valid(duelAnswerSchema, { text: 'я'.repeat(201) })).toBe(false);
+    expect(valid(duelAnswerSchema, { text: ' Париж ' })).toBe(true);
+  });
+
+  it('duel limits are exported', () => {
+    expect(LIMITS.maxDuelCategories).toBe(8);
+    expect(LIMITS.maxDuelCategoryQuestions).toBe(20);
+    expect(LIMITS.maxDuelQuestions).toBe(7);
+    expect(LIMITS.defaultDuelQuestions).toBe(3);
+    expect(LIMITS.defaultDuelTime).toBe(30);
+    expect(LIMITS.maxDuelStake).toBe(5000);
+    expect(LIMITS.defaultDuelStake).toBe(300);
+    expect(LIMITS.maxDuelTries).toBe(30);
   });
 });

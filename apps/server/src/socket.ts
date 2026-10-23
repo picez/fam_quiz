@@ -3,6 +3,9 @@ import {
   adjustSchema,
   answerSchema,
   debuffSchema,
+  declareSchema,
+  duelAnswerSchema,
+  duelPickSchema,
   guessSchema,
   judgeSchema,
   kickSchema,
@@ -33,7 +36,7 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<stri
 
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip'] as const;
+const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
@@ -116,6 +119,24 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       return payload.success ? manager.sort(room, identity.playerId, payload.data.wordId, payload.data.categoryId) : INVALID;
     });
 
+    on('player:duel', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = declareSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.declareDuel(room, identity.playerId, payload.data.opponentId) : INVALID;
+    });
+
+    on('player:duel-category', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = duelPickSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.duelCategory(room, identity.playerId, payload.data.categoryId) : INVALID;
+    });
+
+    on('player:duel-answer', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = duelAnswerSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.duelAnswer(room, identity.playerId, payload.data.text) : INVALID;
+    });
+
     on('player:hint', () => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       return manager.hint(room, identity.playerId);
@@ -152,6 +173,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (!isHost) return FORBIDDEN;
       const payload = pickSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'pick', ...payload.data }) : INVALID;
+    });
+
+    on('host:duel-category', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = duelPickSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'duel-category', ...payload.data }) : INVALID;
     });
 
     on('host:order', (args) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
@@ -754,5 +754,73 @@ describe('board rounds', () => {
     expect(manager.wager(own, a.playerId, 0, true)).toEqual({ ok: true });
     expect(own.state.final?.wagers[a.playerId]).toBe(limit);
     expect(own.state.final?.allIn).toEqual([a.playerId]);
+  });
+});
+
+describe('duels', () => {
+  /** Гра на reveal після першого запитання; поріг 1, фінал далі. */
+  function duelRoom() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0);
+    const quiz = {
+      ...makeRoundsQuiz([classicRound('r1', [withId(single, 'q1'), withId(single, 'q2')]), finalRound('rf', withId(single, 'qf'))]),
+      duels,
+    };
+    const room = manager.create(quiz);
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    manager.answer(room, olena.playerId, correct);
+    manager.answer(room, taras.playerId, correct);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+    return { scheduler, manager, room, olena, taras };
+  }
+
+  it('a duel question closes on time by the scheduler', () => {
+    const { scheduler, manager, room, olena, taras } = duelRoom();
+    expect(manager.declareDuel(room, olena.playerId, taras.playerId)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.duelCategory(room, olena.playerId, 'dc1')).toEqual({ ok: true });
+    expect(room.state.duel?.stage).toBe('question');
+    scheduler.advance(duels.timeLimit * 1000 - 1);
+    expect(room.state.duel?.stage).toBe('question');
+    scheduler.advance(1);
+    expect(room.state.duel?.stage).toBe('answer');
+  });
+
+  it('the answers of a duel go through the manager', () => {
+    const { manager, room, olena, taras } = duelRoom();
+    manager.declareDuel(room, olena.playerId, taras.playerId);
+    manager.host(room, { type: 'next' });
+    expect(manager.host(room, { type: 'duel-category', categoryId: 'dc1' })).toEqual({ ok: true });
+    expect(manager.duelAnswer(room, taras.playerId, 'Берлін')).toEqual({ ok: true });
+    expect(manager.duelAnswer(room, taras.playerId, 'Париж')).toEqual({ ok: true });
+    expect(room.state.duel?.stage).toBe('answer');
+    expect(room.state.duel?.questions[0].winnerId).toBe(taras.playerId);
+  });
+
+  it('the host skips a question of a duel and cancels the duel', () => {
+    const { manager, room, olena, taras } = duelRoom();
+    manager.declareDuel(room, olena.playerId, taras.playerId);
+    manager.host(room, { type: 'next' });
+    manager.duelCategory(room, olena.playerId, 'dc1');
+    expect(manager.host(room, { type: 'duel-skip' })).toEqual({ ok: true });
+    expect(room.state.duel?.questions).toHaveLength(1);
+    expect(manager.host(room, { type: 'duel-cancel' })).toEqual({ ok: true });
+    expect(room.state.duel).toBeNull();
+    expect(room.state.phase).toBe('reveal');
+  });
+
+  it('kicking a duelist mid-duel returns the game to the reveal', () => {
+    const { manager, room, olena, taras } = duelRoom();
+    manager.declareDuel(room, olena.playerId, taras.playerId);
+    manager.host(room, { type: 'next' });
+    manager.duelCategory(room, olena.playerId, 'dc1');
+    expect(manager.host(room, { type: 'kick', playerId: taras.playerId })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+    expect(room.state.duel).toBeNull();
   });
 });

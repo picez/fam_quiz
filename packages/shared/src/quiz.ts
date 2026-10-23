@@ -55,6 +55,16 @@ export const LIMITS = {
   defaultSortPoints: 100,
   /** Найбільша сума одного коригування балів ведучим (за модулем). */
   maxAdjust: 10_000,
+  /** Дуелі: категорій у пулі, запитань у категорії, запитань за дуель. */
+  maxDuelCategories: 8,
+  maxDuelCategoryQuestions: 20,
+  maxDuelQuestions: 7,
+  defaultDuelQuestions: 3,
+  defaultDuelTime: 30,
+  maxDuelStake: 5000,
+  defaultDuelStake: 300,
+  /** Спроб одного дуелянта на одне запитання. */
+  maxDuelTries: 30,
 } as const;
 
 /** Обмеження для зображень у запитаннях. */
@@ -366,6 +376,36 @@ export function rulesOf(round: Round): RoundRules {
   return round.type === 'final' ? DEFAULT_RULES : round.rules;
 }
 
+/** Запитання дуелі: текстова відповідь, як у типі text; без картинки й відео. */
+export const duelQuestionSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  text: z.string().trim().min(1).max(LIMITS.questionText).refine(isStorable, UNSTORABLE),
+  accepted: z
+    .array(z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE))
+    .min(1)
+    .max(LIMITS.maxAccepted),
+});
+
+export const duelCategorySchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  title: z.string().trim().min(1).max(LIMITS.categoryTitle).refine(isStorable, UNSTORABLE),
+  questions: z.array(duelQuestionSchema).min(1).max(LIMITS.maxDuelCategoryQuestions),
+});
+
+/** Дуелі вікторини; немає поля — дуелей немає. */
+export const duelsSchema = z.object({
+  categories: z.array(duelCategorySchema).min(1).max(LIMITS.maxDuelCategories),
+  questionsPerDuel: z.number().int().min(1).max(LIMITS.maxDuelQuestions),
+  /** Секунд на одне запитання дуелі. */
+  timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
+  /** Скільки програвший віддає переможцю; 0 — без втрат. */
+  stake: z.number().int().min(0).max(LIMITS.maxDuelStake),
+});
+
+export type DuelQuestion = z.infer<typeof duelQuestionSchema>;
+export type DuelCategory = z.infer<typeof duelCategorySchema>;
+export type Duels = z.infer<typeof duelsSchema>;
+
 export const quizSettingsSchema = z.object({
   leaderboard: z.enum(['each', 'end']),
 });
@@ -382,6 +422,8 @@ export const quizSchema = z
     description: z.string().max(500).refine(isStorable, UNSTORABLE),
     settings: quizSettingsSchema,
     rounds: z.array(roundSchema).min(1).max(LIMITS.maxRounds),
+    /** Дуелі між гравцями; старі вікторини без поля — без дуелей. */
+    duels: duelsSchema.optional(),
   })
   .superRefine((quiz, ctx) => {
     const questions = quiz.rounds.flatMap(roundQuestions);
@@ -401,6 +443,14 @@ export const quizSchema = z
         if (sortCell) ctx.addIssue({ code: 'custom', message: 'sort_cell' });
       }
     }
+    if (quiz.duels) {
+      const { categories, questionsPerDuel } = quiz.duels;
+      if (categories.some((c) => c.questions.length < questionsPerDuel)) {
+        ctx.addIssue({ code: 'custom', message: 'duel_category_short' });
+      }
+      const ids = categories.flatMap((c) => [c.id, ...c.questions.map((q) => q.id)]);
+      if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_duel_ids' });
+    }
   });
 
 export type Quiz = z.infer<typeof quizSchema>;
@@ -413,6 +463,30 @@ export function questionsOf(quiz: Quiz): Question[] {
 /** Усі запитання раунду: у полі — по категоріях, у порядку клітинок. */
 export function roundQuestions(round: Round): Question[] {
   return round.type === 'board' ? boardCells(round).map(({ cell }) => cell.question) : round.questions;
+}
+
+/** ⌈запитань не-фінальних раундів / 3⌉; null — дуелей немає (немає duels або таких запитань 0). */
+export function duelThreshold(quiz: Quiz): number | null {
+  if (quiz.duels === undefined) return null;
+  const count = quiz.rounds.reduce((sum, round) => (round.type === 'final' ? sum : sum + roundQuestions(round).length), 0);
+  return count === 0 ? null : Math.ceil(count / 3);
+}
+
+/** Індекс першого фінального раунду; без фіналу — останнього раунду. */
+export function duelCutoff(quiz: Quiz): number {
+  const final = quiz.rounds.findIndex((round) => round.type === 'final');
+  return final === -1 ? quiz.rounds.length - 1 : final;
+}
+
+/**
+ * Скільки запитань має бути в раундах до межі, якщо їх замало й дуель ніколи не стане можливою;
+ * null — запитань досить або дуелей немає.
+ */
+export function duelShortfall(quiz: Quiz): number | null {
+  if (quiz.duels === undefined) return null;
+  const needed = duelThreshold(quiz) ?? 1;
+  const before = quiz.rounds.slice(0, duelCutoff(quiz)).reduce((sum, round) => sum + roundQuestions(round).length, 0);
+  return before >= needed ? null : needed;
 }
 
 export interface CellRef {

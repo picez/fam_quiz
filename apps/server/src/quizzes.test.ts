@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { quizSchema } from '@quiz/shared';
 import { sql } from 'drizzle-orm';
-import { bool, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { bool, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { answer, game, user } from './db/schema';
 import { createQuiz as saveQuiz, getQuiz, listQuizzes } from './quizzes';
@@ -124,6 +124,19 @@ describe('quizzes', () => {
     expect((await call('GET', `/api/quizzes/${id}`, cookie)).json()).toEqual({ id, ...rounds });
     const list = (await call('GET', '/api/quizzes', cookie)).json() as { questionCount: number }[];
     expect(list.map((item) => item.questionCount)).toEqual([3]);
+  });
+
+  it('a quiz with duels saves and loads; an invalid pool is refused', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const quiz = { ...makeQuiz([single, text]), duels };
+    const created = await call('POST', '/api/quizzes', cookie, quiz);
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json() as { id: string };
+    expect((await call('GET', `/api/quizzes/${id}`, cookie)).json()).toEqual({ id, ...quiz });
+
+    const short = { ...quiz, duels: { ...duels, questionsPerDuel: 4 } };
+    expect((await call('POST', '/api/quizzes', cookie, short)).statusCode).toBe(400);
+    expect((await call('PUT', `/api/quizzes/${id}`, cookie, short)).statusCode).toBe(400);
   });
 
   it('accepts a quiz in the old format from a page opened before the update', async () => {

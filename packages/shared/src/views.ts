@@ -1,5 +1,5 @@
 import type { Answer } from './answer';
-import type { DebuffKind, Grade, Phase } from './game';
+import type { DebuffKind, DuelStage, Grade, Phase } from './game';
 import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video, WagerMode } from './quiz';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
@@ -346,6 +346,53 @@ export interface AdjustmentNotice {
   points: number;
 }
 
+/** Дуель для всіх ролей: без прийнятних відповідей до етапу answer і без текстів спроб. */
+export interface DuelInfo {
+  challenger: BlitzPlayer;
+  opponent: BlitzPlayer;
+  stage: DuelStage;
+  /** Категорії пулу: назва й скільки запитань ще не було; left 0 — недоступна. */
+  categories: { id: string; title: string; left: number }[];
+  /** Назва вибраної категорії; null до вибору. */
+  category: string | null;
+  /** 1-базовий номер поточного запитання дуелі; 0 до першого. */
+  number: number;
+  /** Скільки запитань у дуелі: після вибору категорії — total, до того — questionsPerDuel. */
+  total: number;
+  /** Текст поточного запитання (question, answer); інакше null. */
+  question: string | null;
+  /** Прийнятні написання поточного запитання; сцені й гравцям — лише на answer, інакше null. */
+  accepted: string[] | null;
+  wins: { challenger: number; opponent: number };
+  /** Скільки неправильних спроб у поточному запитанні; самих текстів тут немає. */
+  tries: { challenger: number; opponent: number };
+  /** answer: хто виграв запитання (null — ніхто) і як написав. */
+  questionWinner: BlitzPlayer | null;
+  winningAnswer: string | null;
+  /** result: переможець; null — нічия. */
+  winner: BlitzPlayer | null;
+  stake: number;
+  /** answer: наступне «Далі» веде до підсумку. */
+  ending: boolean;
+}
+
+/** Як DuelInfo, але accepted заповнене і на question. */
+export interface HostDuel extends DuelInfo {
+  /** Тексти неправильних спроб у поточному запитанні. */
+  tryTexts: { challenger: string[]; opponent: string[] };
+}
+
+export interface PlayerDuel {
+  /** Кнопка «Дуель»: null — не показувати (ще рано, уже пізно, своя дуель уже була, запитання скінчилися, не етап гри). */
+  rights: { canDeclare: boolean; opponents: BlitzPlayer[] } | null;
+  /** Власні неправильні спроби в поточному запитанні дуелі; [] для глядача. */
+  tries: string[];
+  /** Дуелянт, етап question, не пауза, запитання ще не виграно. */
+  canAnswer: boolean;
+  /** Цей гравець оголосив дуель, зараз етап category і не пауза. */
+  canPick: boolean;
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -378,6 +425,8 @@ interface BaseView {
   sort: SortInfo | null;
   /** Останнє коригування балів ведучим; null — не було. */
   notice: AdjustmentNotice | null;
+  /** Оголошена або поточна дуель; null — немає. */
+  duel: DuelInfo | null;
 }
 
 export interface StageView extends BaseView {
@@ -417,6 +466,8 @@ export interface PlayerView extends BaseView {
     sort: PlayerSort | null;
     /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера). */
     debuff: { kind: DebuffKind; since: number } | null;
+    /** null — у вікторині немає дуелей. */
+    duel: PlayerDuel | null;
   };
   reveal: Question | null;
   standings: Standing[] | null;
@@ -454,6 +505,8 @@ export interface HostView extends BaseView {
   chain: ChainInfo | null;
   /** Як у BaseView, але і у фіналі. */
   sort: SortInfo | null;
+  /** Як у BaseView, але з прийнятними відповідями й текстами спроб. */
+  duel: HostDuel | null;
   standings: Standing[];
 }
 

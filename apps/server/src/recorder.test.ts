@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
@@ -748,6 +748,60 @@ describe('recorder: board', () => {
     for (const saved of await db.select().from(participant)) {
       const sum = rows.filter((a) => a.participantId === saved.id).reduce((total, a) => total + a.points, 0);
       expect(sum).toBe(saved.score);
+    }
+  });
+});
+
+describe('recorder: duels', () => {
+  it('duel adjustments are saved with their source', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0);
+    const recorder = attachRecorder(manager, db, () => {}, 5000, 30);
+    const quiz = {
+      ...makeRoundsQuiz([classicRound('r1', [withId(single, 'q1'), withId(single, 'q2')]), finalRound('rf', withId(single, 'qf'))]),
+      duels,
+    };
+    const room = manager.create(quiz, HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname, null);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const olena = enter('Олена');
+    const taras = enter('Тарас');
+    const host = (type: 'start' | 'next') => expect(manager.host(room, { type })).toEqual({ ok: true });
+    host('start');
+    host('next');
+    manager.answer(room, olena, correct);
+    manager.answer(room, taras, correct);
+    host('next');
+    expect(manager.declareDuel(room, olena, taras)).toEqual({ ok: true });
+    host('next');
+    expect(manager.duelCategory(room, olena, 'dc1')).toEqual({ ok: true });
+    // Олена виграє обидва запитання дуелі.
+    for (let i = 0; i < 2; i++) {
+      const play = room.state.duel?.questions.at(-1);
+      const asked = duels.categories[0].questions.find((q) => q.id === play?.questionId);
+      expect(manager.duelAnswer(room, olena, asked?.accepted[0] ?? '')).toEqual({ ok: true });
+      host('next');
+    }
+    expect(room.state.duel?.stage).toBe('result');
+
+    await recorder.idle();
+    const people = await db.select().from(participant).orderBy(asc(participant.nickname));
+    const idOf = (nickname: string) => people.find((p) => p.nickname === nickname)?.id;
+    const rows = await db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(rows.map((a) => [a.participantId, a.points, a.source])).toEqual([
+      [idOf('Олена'), 300, 'duel'],
+      [idOf('Тарас'), -300, 'duel'],
+    ]);
+    expect(rows[1].seq).toBe(rows[0].seq + 1);
+    for (const p of people) {
+      const own = room.state.players.find((q) => q.nickname === p.nickname);
+      expect(p.score).toBe(own?.score);
     }
   });
 });

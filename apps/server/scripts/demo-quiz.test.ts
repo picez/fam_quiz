@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { questionsOf, quizSchema } from '@quiz/shared';
+import { createQuiz, getQuiz } from '../src/quizzes';
+import { user } from '../src/db/schema';
+import { createTestDb } from '../src/testing/test-db';
 import { demoQuiz } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
@@ -98,5 +101,31 @@ describe('blitz rounds in the demo quizzes', () => {
         if (round.type === 'blitz' && round.check === 'auto') expect([round.answerWindow, round.attempts]).toEqual([null, 1]);
       }
     }
+  });
+});
+
+describe('the duel pool of the erudite quiz', () => {
+  it('the erudite quiz has a duel pool', () => {
+    const pool = eruditeQuiz.duels;
+    expect(pool?.categories.map((c) => [c.title, c.questions.length])).toEqual([
+      ['Столиці', 5],
+      ['Хімічні елементи', 5],
+      ['Українська література', 5],
+    ]);
+    expect([pool?.questionsPerDuel, pool?.timeLimit, pool?.stake]).toEqual([3, 30, 300]);
+    expect(quizSchema.safeParse(eruditeQuiz).success).toBe(true);
+    for (const category of pool?.categories ?? []) {
+      for (const question of category.questions) expect(question.accepted.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
+
+describe('seeding the erudite quiz', () => {
+  it('the seeded erudite quiz keeps its duel pool', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'seed-owner', name: 'Власник', email: 'owner@example.com' });
+    const id = await createQuiz(db, 'seed-owner', quizSchema.parse(eruditeQuiz));
+    const loaded = await getQuiz(db, 'seed-owner', id);
+    expect(loaded?.duels).toEqual(eruditeQuiz.duels);
   });
 });

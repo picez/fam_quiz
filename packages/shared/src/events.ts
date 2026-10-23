@@ -51,6 +51,14 @@ export const adjustSchema = z.object({
 /** Дебаф від ведучого. */
 export const debuffSchema = z.object({ playerId, kind: z.enum(DEBUFF_KINDS) });
 export const undebuffSchema = z.object({ playerId });
+/** Оголосити дуель суперникові. */
+export const declareSchema = z.object({ opponentId: playerId });
+/** Категорія дуелі. */
+export const duelPickSchema = z.object({ categoryId: id64 });
+/** Відповідь дуелянта; перевіряє рушій, як у типі text. */
+export const duelAnswerSchema = z.object({
+  text: z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE),
+});
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
 export interface ClientToServerEvents {
@@ -63,6 +71,11 @@ export interface ClientToServerEvents {
   /** Гравець кидає свій кубик на заставці раунду поля. */
   'player:roll': (ack: Ack) => void;
   'player:wager': (payload: z.infer<typeof wagerSchema>, ack: Ack) => void;
+  /** Оголосити дуель суперникові: раз за гру, суперник не відмовляється. */
+  'player:duel': (payload: z.infer<typeof declareSchema>, ack: Ack) => void;
+  /** Вибір категорії тим, хто оголосив дуель. */
+  'player:duel-category': (payload: z.infer<typeof duelPickSchema>, ack: Ack) => void;
+  'player:duel-answer': (payload: z.infer<typeof duelAnswerSchema>, ack: Ack) => void;
   'host:start': (ack: Ack) => void;
   'host:lock': (ack: Ack) => void;
   'host:next': (ack: Ack) => void;
@@ -90,6 +103,12 @@ export interface ClientToServerEvents {
   /** Кинути за тих, хто в поточному турі ще не кинув. */
   'host:roll': (ack: Ack) => void;
   'host:skip': (ack: Ack) => void;
+  /** Вибрати категорію дуелі за гравця. */
+  'host:duel-category': (payload: z.infer<typeof duelPickSchema>, ack: Ack) => void;
+  /** Пропустити запитання дуелі: не рахується, береться інше. */
+  'host:duel-skip': (ack: Ack) => void;
+  /** Скасувати оголошену чи поточну дуель. */
+  'host:duel-cancel': (ack: Ack) => void;
 }
 
 export interface StateMeta {

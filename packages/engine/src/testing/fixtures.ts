@@ -5,6 +5,7 @@ import {
   type BoardRound,
   type BoardCell,
   type ClassicRound,
+  type Duels,
   type FinalRound,
   type Question,
   type Quiz,
@@ -223,3 +224,30 @@ export function makeRoundsQuiz(rounds: Round[], settings: Partial<QuizSettings> 
     rounds,
   };
 }
+
+/** Пул дуелей: дві категорії по три запитання, 2 запитання за дуель, 20 с, ставка 300. */
+export const duels: Duels = {
+  categories: [
+    {
+      id: 'dc1',
+      title: 'Столиці',
+      questions: [
+        { id: 'd1', text: 'Столиця Франції?', accepted: ['Париж'] },
+        { id: 'd2', text: 'Столиця Італії?', accepted: ['Рим'] },
+        { id: 'd3', text: 'Столиця Польщі?', accepted: ['Варшава'] },
+      ],
+    },
+    {
+      id: 'dc2',
+      title: 'Хімія',
+      questions: [
+        { id: 'd4', text: 'Символ Fe — це…', accepted: ['Залізо', 'Ферум'] },
+        { id: 'd5', text: 'Символ Au — це…', accepted: ['Золото', 'Аурум'] },
+        { id: 'd6', text: 'Символ O — це…', accepted: ['Кисень', 'Оксиген'] },
+      ],
+    },
+  ],
+  questionsPerDuel: 2,
+  timeLimit: 20,
+  stake: 300,
+};

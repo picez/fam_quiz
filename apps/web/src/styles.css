@@ -28,6 +28,14 @@
   --sort-zone: rgb(155 140 255 / 0.16);
   --sort-lock: rgb(58 10 22 / 0.45);
   --sort-lock-strip: rgb(58 10 22 / 0.94);
+  --duel-accent: #ff6b4a;
+  --duel-accent-soft: rgb(255 107 74 / 0.16);
+  --duel-challenger: #5ec8ff;
+  --duel-opponent: #ff7eb6;
+  /* Нижні смуги (дебаф, дуель) складаються стосом від цієї лінії; room — висота смуги з проміжком. */
+  --banner-base: max(1rem, env(safe-area-inset-bottom));
+  --debuff-banner-room: 6.25rem;
+  --duel-banner-room: 6.25rem;
   --display: 'Unbounded Variable', system-ui, sans-serif;
   --body: 'Onest Variable', system-ui, sans-serif;
   color-scheme: dark;
@@ -1036,6 +1044,13 @@ button.choice {
   overflow-wrap: anywhere;
 }
 
+/* Шапка завжди в один рядок: довге ім'я обрізається трикрапкою, тож поява кнопки «Дуель» не робить шапку вищою. */
+.bar > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .question.is-long {
   font-size: clamp(1.125rem, 4.6vw, 1.5rem);
 }
@@ -2013,7 +2028,6 @@ a.banner {
   /* Ширина назви — контейнер для шрифту в span; на самому стовпці це зламало б subgrid. */
   container-type: inline-size;
   overflow-wrap: break-word;
-  hyphens: manual;
 }
 
 /* Шрифт меншає, доки найдовше слово (--gb-word задає Board) не влізе в стовпець цілим; на кириличних
@@ -4204,4 +4218,358 @@ button.sort-zone:disabled {
   .stage .sort-reveal {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
   }
+}
+
+/* Розділ «Дуелі» в редакторі: запитання пулу не ширші за екран. */
+.duels .duel-question {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.duels .duel-remove {
+  justify-self: start;
+}
+
+.duels .type-chips .chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.duels textarea {
+  max-width: 100%;
+}
+
+/* ---------- Дуелі на телефоні ---------- */
+
+/* Кнопка в шапці: від'ємні поля забирають назад внутрішній відступ, тож висота шапки та сама,
+   а місце для дотику більше за сам рядок. */
+.duel-button {
+  flex-shrink: 0;
+  margin-block: calc(-0.4rem - 2px);
+  padding: 0.4rem 0.75rem;
+  border: 2px solid var(--duel-accent);
+  border-radius: 999px;
+  background: var(--duel-accent-soft);
+  color: var(--paper);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.duel-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.duel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+  background: rgb(0 0 0 / 0.6);
+}
+
+.duel-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 24rem;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 1.25rem;
+  border: 2px solid var(--duel-accent);
+  border-radius: 1rem;
+  background: var(--stage);
+}
+
+.duel-opponents,
+.duel-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.duel-opponents .btn,
+.duel-categories .btn {
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Смуга оголошеної дуелі знизу; сторінка тримає під нею запас, тож кнопки дій не закриті.
+ * До трьох рядків на 360–375 px (імена по 20 літер) — під них розрахована --duel-banner-room.
+ * Разом із банером дебафу смуга стає над ним, сповіщення про бали — над обома.
+ */
+.duel-banner {
+  position: fixed;
+  bottom: var(--banner-base);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.6rem 1rem;
+  line-height: 1.35;
+  border: 2px solid var(--duel-accent);
+  border-radius: 0.75rem;
+  background: var(--notice-bg);
+  color: var(--paper);
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+body:has(.debuff-banner) .duel-banner {
+  bottom: calc(var(--banner-base) + var(--debuff-banner-room));
+}
+
+.app.player:has(> .duel-banner) {
+  padding-bottom: calc(var(--banner-base) + var(--duel-banner-room) + 0.5rem);
+}
+
+.app.player:has(> .duel-banner):has(.debuff-banner) {
+  padding-bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room) + 0.5rem);
+}
+
+/* Сповіщення про бали стає над смугою, а з банером дебафу — над обома. Сцена має власне правило нижче. */
+body:has(.duel-banner) .live-notice {
+  bottom: calc(var(--banner-base) + var(--duel-banner-room));
+}
+
+body:has(.duel-banner):has(.debuff-banner) .live-notice {
+  bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .duel-banner.is-pulsing {
+    animation: duel-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes duel-pulse {
+    50% {
+      box-shadow: 0 0 0 4px var(--duel-accent-soft);
+    }
+  }
+}
+
+.duel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.duel-title {
+  color: var(--duel-accent);
+}
+
+/* Кольорові мітки дуелянтів по краях рахунку: ліва — того, хто оголосив, права — суперника. */
+.duel-score {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.duel-score::before,
+.duel-score::after {
+  content: '';
+  flex-shrink: 0;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--duel-challenger);
+}
+
+.duel-score::after {
+  background: var(--duel-opponent);
+}
+
+.duel-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.duel-answer .field input {
+  font-size: 1.125rem;
+}
+
+.duel-answer:has(input:disabled) {
+  opacity: 0.55;
+}
+
+/* Три рядки спроб; більше — прокрутка всередині. */
+.duel-tries {
+  height: calc(3 * 1.45em + 1rem);
+  padding: 0.5rem 0.75rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--panel);
+  color: var(--signal);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Дуель на сцені й у пульті ---------- */
+
+/*
+ * Імена по боках, зміст посередині. Дуель займає всю висоту сцени й тримається верху:
+ * довше запитання чи таймер ростуть донизу, а знак, рахунок та імена між етапами не зсуваються.
+ */
+.duel-stage {
+  flex: 1;
+  display: grid;
+  /* minmax(0, …): довге ім'я не розширює свого стовпця, обидва боки однакові. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 2vw;
+  min-width: 0;
+}
+
+.duel-stage-side {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 3.4vw, 3.5rem);
+  font-weight: 700;
+  text-align: center;
+  /* Переноситься на пробілі чи дефісі; слово ціле — шрифт менший за найдовшим словом (sideClass). */
+  overflow-wrap: break-word;
+  hyphens: manual;
+  border-top: 0.5rem solid var(--duel-challenger);
+  padding-top: 1rem;
+  /* Нижче знака ⚔: ім'я стоїть на рівні рахунку. */
+  margin-top: calc(clamp(2rem, 4vw, 4rem) + 1vh);
+}
+
+.duel-stage-side.is-opponent {
+  border-top-color: var(--duel-opponent);
+}
+
+/*
+ * Бічний стовпець ≈ 17vw; літера шрифту ≈ 0,77em. Основний розмір вміщує шматок до 6 літер,
+ * is-long — до 11 (як «Олександра-»), is-longer — до ~15; довше — розрив посеред слова як крайній випадок.
+ */
+.duel-stage-side.is-long {
+  font-size: clamp(1.125rem, 1.9vw, 2.25rem);
+}
+
+.duel-stage-side.is-longer {
+  font-size: clamp(1rem, 1.4vw, 1.75rem);
+  overflow-wrap: anywhere;
+}
+
+.duel-stage-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1vh;
+  min-width: 0;
+  text-align: center;
+}
+
+.duel-stage-mark {
+  margin: 0;
+  color: var(--duel-accent);
+  font-size: clamp(2rem, 4vw, 4rem);
+  line-height: 1;
+}
+
+.duel-stage-score {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.5rem, 7vw, 7rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.duel-stage-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2vh;
+  width: 100%;
+  min-height: 36vh;
+}
+
+.duel-stage-question {
+  margin: 0;
+}
+
+/* Табло дуелі менше за табло звичайного запитання: запитання на 300 символів, таймер і спроби вміщаються на 1280 × 720 без прокрутки. */
+.duel-stage .flap {
+  font-size: clamp(1.75rem, min(3vw, 5vh), 4rem);
+}
+
+.duel-stage-categories {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1vh 1.5vw;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(1.25rem, 2.4vw, 2.5rem);
+}
+
+.duel-stage-categories li {
+  padding: 0.5rem 1.25rem;
+  border: 2px solid var(--duel-accent);
+  border-radius: 0.75rem;
+}
+
+.duel-stage-categories .is-empty {
+  opacity: 0.45;
+}
+
+.duel-stage-answer.is-correct .lead:last-child {
+  color: var(--duel-accent);
+}
+
+.duel-stage-answer p {
+  margin: 0;
+}
+
+.stage .duel-banner ~ .live-notice {
+  bottom: 5rem;
+}
+
+.duel-host .duel-categories {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.duel-host .duel-categories .btn {
+  width: 100%;
+}
+
+.duel-host p {
+  overflow-wrap: anywhere;
+}
+
+.duel-host .panel-actions .btn {
+  flex: 1 1 10rem;
+}
+
+.history-duel {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
 }

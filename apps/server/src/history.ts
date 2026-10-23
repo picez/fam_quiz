@@ -6,6 +6,7 @@ import {
   quizSchema,
   roundSchema,
   upgradeQuiz,
+  type AdjustmentSource,
   type GameDetail,
   type Answer,
   type GameQuestionResult,
@@ -266,7 +267,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
     questions,
-    adjustments: adjustments.map(({ participantId, roundIndex, afterQuestion, points, source }) => ({
+    adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source }) => ({
+      seq,
       roundIndex,
       afterQuestion,
       // Коригування вилученого гравця зникають разом з учасником (каскадом), тож нікнейм є завжди.
@@ -342,6 +344,8 @@ export interface TableRow {
   points: number;
   /** Ставка фіналу; null поза фіналом і в старих іграх. */
   wager: number | null;
+  /** Звідки коригування (ведучий чи дуель); лише в рядках ADJUSTMENT_ATTEMPT. */
+  source?: AdjustmentSource;
 }
 
 export interface TablePlayer {
@@ -426,7 +430,12 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
     participants.length === 0
       ? []
       : await db
-          .select({ participantId: scoreAdjustment.participantId, roundIndex: scoreAdjustment.roundIndex, points: scoreAdjustment.points })
+          .select({
+            participantId: scoreAdjustment.participantId,
+            roundIndex: scoreAdjustment.roundIndex,
+            points: scoreAdjustment.points,
+            source: scoreAdjustment.source,
+          })
           .from(scoreAdjustment)
           .where(
             inArray(
@@ -435,9 +444,18 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
             ),
           );
   // Коригування — рядки без відповіді: входять у бали раунду (бліц, камбек), але не в «влучив у фінал».
-  const adjustmentRows = adjustments.map(({ participantId, roundIndex, points }) => ({ participantId, roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null }));
+  // Дуель теж коригування, але бліц-раунду не виграє: source лишається в рядку.
+  const adjustmentRows = adjustments.map(({ participantId, roundIndex, points, source }) => ({
+    participantId,
+    roundIndex,
+    attempt: ADJUSTMENT_ATTEMPT,
+    accepted: false,
+    points,
+    wager: null,
+    source,
+  }));
   const playersByGame = groupBy(participants, (p) => p.gameId);
-  const rowsByParticipant = groupBy([...answers, ...adjustmentRows], (a) => a.participantId);
+  const rowsByParticipant = groupBy<TableRow & { participantId: string }>([...answers, ...adjustmentRows], (a) => a.participantId);
   return games.map((row) => ({
     gameId: row.id,
     status: row.status,
@@ -448,7 +466,14 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
       userId: p.userId,
       score: p.score,
       rank: p.rank,
-      rows: (rowsByParticipant.get(p.id) ?? []).map(({ roundIndex, attempt, accepted, points, wager }) => ({ roundIndex, attempt, accepted, points, wager })),
+      rows: (rowsByParticipant.get(p.id) ?? []).map(({ roundIndex, attempt, accepted, points, wager, source }) => ({
+        roundIndex,
+        attempt,
+        accepted,
+        points,
+        wager,
+        ...(source === undefined ? {} : { source }),
+      })),
     })),
   }));
 }
