@@ -218,6 +218,77 @@ function withImage<T extends Row>(rows: T[], id: string, url: string | undefined
   });
 }
 
+/** Категорії, слова з вибором категорії, бали за слово, підвисання. */
+function SortBody({ question, onChange }: { question: Extract<Question, { type: 'sort' }>; onChange: (next: Question) => void }) {
+  const { categories, words } = question;
+  const categoryName = (row: Row, index: number) => (row.text.trim() === '' ? t('sortCategoryN', { index: index + 1 }) : row.text);
+  const total = question.points * words.length;
+  return (
+    <>
+      <Rows
+        rows={categories}
+        min={LIMITS.minSortCategories}
+        max={LIMITS.maxSortCategories}
+        maxLength={LIMITS.sortCategory}
+        label="sortCategoryN"
+        removeLabel="removeSortCategory"
+        addLabel="addSortCategory"
+        lead={(_row, index) => <span className="letter">{index + 1}</span>}
+        onChange={(next) =>
+          // Слова прибраної категорії переходять до першої з тих, що лишилися.
+          onChange({
+            ...question,
+            categories: next,
+            words: words.map((word) => (next.some((c) => c.id === word.categoryId) ? word : { ...word, categoryId: next[0].id })),
+          })
+        }
+      />
+      <Rows
+        rows={words}
+        min={LIMITS.minSortWords}
+        max={LIMITS.maxSortWords}
+        maxLength={LIMITS.sortWord}
+        label="sortWordN"
+        removeLabel="removeSortWord"
+        addLabel="addSortWord"
+        rowClass={() => 'sort-edit-row'}
+        tail={(row, index) => (
+          <label className="field compact sort-word-category">
+            <select
+              aria-label={t('sortWordCategory', { index: index + 1 })}
+              value={words.find((word) => word.id === row.id)?.categoryId ?? categories[0].id}
+              onChange={(event) =>
+                onChange({ ...question, words: words.map((word) => (word.id === row.id ? { ...word, categoryId: event.target.value } : word)) })
+              }
+            >
+              {categories.map((category, at) => (
+                <option key={category.id} value={category.id}>
+                  {categoryName(category, at)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        onChange={(next) =>
+          onChange({
+            ...question,
+            words: next.map((row) => {
+              const old = words.find((word) => word.id === row.id);
+              return { id: row.id, text: row.text, categoryId: old?.categoryId ?? categories[0].id };
+            }),
+          })
+        }
+      />
+      <div className="pair">
+        <NumberField label={t('sortPointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />
+        <NumberField label={t('lockSecondsLabel')} value={question.lockSeconds} onChange={(lockSeconds) => onChange({ ...question, lockSeconds })} />
+      </div>
+      <p className="meta">{t('sortTotal', { total: Number.isFinite(total) ? total : 0 })}</p>
+      <p className="meta">{t('sortHint')}</p>
+    </>
+  );
+}
+
 function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
   switch (question.type) {
     case 'single':
@@ -445,8 +516,7 @@ function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
         </>
       );
     case 'sort':
-      // Тіло — у задачі 6 плану 7f.
-      return null;
+      return <SortBody question={question} onChange={onChange} />;
   }
 }
 
@@ -479,7 +549,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true }:
 
       <div className="stage-card">
         <ImageField url={question.imageUrl} onChange={(imageUrl) => latest.current.onChange({ ...latest.current.question, imageUrl })} />
-        {question.type !== 'chain' && (
+        {question.type !== 'chain' && question.type !== 'sort' && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -505,7 +575,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true }:
         ) : (
           <p className="meta">{t('noTimerHint')}</p>
         )}
-        {showPoints && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
+        {showPoints && question.type !== 'sort' && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
       </div>
     </div>
   );

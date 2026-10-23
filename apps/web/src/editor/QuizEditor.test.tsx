@@ -1310,3 +1310,69 @@ describe('QuizEditor: chain questions', () => {
     expect(screen.queryByRole('button', { name: 'ланцюжок' })).toBeNull();
   });
 });
+
+describe('QuizEditor: sort questions', () => {
+  it('the author builds a sort question', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Сортування');
+    click('сортування');
+    fill('Текст запитання', 'Розкладіть');
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
+    fill('Категорія 1', 'Овочі');
+    fill('Категорія 2', 'Фрукти');
+    click('Додати категорію');
+    fill('Категорія 3', 'Ягоди');
+    const add = screen.getByRole('button', { name: 'Додати категорію' }) as HTMLButtonElement;
+    click('Додати категорію');
+    expect(add.disabled).toBe(true);
+    click('Прибрати категорію 4');
+    ['Морква', 'Яблуко', 'Буряк', 'Груша'].forEach((word, i) => fill(`Слово ${i + 1}`, word));
+    const pickers = [1, 2, 3, 4].map((n) => screen.getByLabelText(`Категорія слова ${n}`) as HTMLSelectElement);
+    expect(pickers[0].closest('label.field')).not.toBeNull();
+    expect(Array.from(pickers[0].options).map((o) => o.text)).toEqual(['Овочі', 'Фрукти', 'Ягоди']);
+    fireEvent.change(pickers[2], { target: { value: Array.from(pickers[2].options)[2].value } });
+    expect(screen.getByText('Разом до 400 балів (не більше 2000)')).toBeTruthy();
+    expect(screen.getByText(t('sortHint'))).toBeTruthy();
+    fill('Бали за слово', '100');
+    fill('Підвисання після помилки, с', '4');
+    // Прибрати третю категорію: слово з неї переходить до першої.
+    click('Прибрати категорію 3');
+    expect((screen.getByLabelText('Категорія слова 3') as HTMLSelectElement).selectedIndex).toBe(0);
+    click('Зберегти');
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    const [question] = roundQuestions(quiz.rounds[0]);
+    expect(question).toMatchObject({ type: 'sort', points: 100, lockSeconds: 4, video: null });
+    if (question.type !== 'sort') throw new Error('unexpected');
+    expect(question.categories.map((c) => c.text)).toEqual(['Овочі', 'Фрукти']);
+    expect(question.words[2].categoryId).toBe(question.categories[0].id);
+  });
+
+  it('a sort cell on the board is always a normal phone cell', () => {
+    open();
+    click('+ Раунд');
+    click('Ігрове поле');
+    fireEvent.change(screen.getByLabelText('Як відповідати'), { target: { value: 'voice' } });
+    expect(screen.getByLabelText('Тип клітинки')).toBeTruthy();
+    click('сортування');
+    expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
+    expect(screen.queryByLabelText('Як відповідати')).toBeNull();
+    expect(screen.getByText(t('sortCellNote'))).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Категорія 1, клітинка 1: 400/ })).toBeTruthy();
+  });
+
+  it('every sort input has a field wrapper', () => {
+    open();
+    click('сортування');
+    const controls = [
+      ...screen.getAllByLabelText(/^Категорія слова \d$/),
+      screen.getByLabelText('Бали за слово'),
+      screen.getByLabelText('Підвисання після помилки, с'),
+    ];
+    expect(controls.length).toBe(6);
+    for (const control of controls) expect(control.closest('label.field')).not.toBeNull();
+  });
+});

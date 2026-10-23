@@ -23,9 +23,9 @@ import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
 
 export type QuestionType = Question['type'];
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort'] as const;
 
-/** Типи запитань, доступні в раунді: без ланцюжка в бліці й полі. */
+/** Типи запитань, доступні в раунді: без ланцюжка в бліці й полі; сортування — скрізь. */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
   return roundType === 'blitz' || roundType === 'board' ? QUESTION_TYPES.filter((type) => type !== 'chain') : QUESTION_TYPES;
 }
@@ -317,6 +317,12 @@ export function cleaned(quiz: Quiz): Quiz {
         while (end > LIMITS.minChainWords && words[end - 1] === '') end -= 1;
         return { ...question, text, words: words.slice(0, end) };
       }
+      case 'sort': {
+        const words = question.words.map((word) => ({ ...word, text: word.text.trim() }));
+        let end = words.length;
+        while (end > LIMITS.minSortWords && words[end - 1].text === '') end -= 1;
+        return { ...question, text, categories: trimAll(question.categories), words: words.slice(0, end) };
+      }
       case 'text':
         return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
       default:
@@ -388,6 +394,25 @@ function problemKey(question: Question): TextKey | null {
         return 'problemHintSeconds';
       }
       break;
+    case 'sort': {
+      if (question.categories.some((category) => category.text === '') || question.words.some((word) => word.text === '')) {
+        return 'problemSortText';
+      }
+      if (question.categories.some((category) => !question.words.some((word) => word.categoryId === category.id))) {
+        return 'problemSortCategory';
+      }
+      const keys = question.words.map((word) => word.text.normalize('NFC').trim().toLowerCase());
+      if (new Set(keys).size !== keys.length) return 'problemSortDuplicate';
+      if (question.points * question.words.length > LIMITS.maxPoints) return 'problemSortPoints';
+      if (
+        !Number.isInteger(question.lockSeconds) ||
+        question.lockSeconds < LIMITS.minLockSeconds ||
+        question.lockSeconds > LIMITS.maxLockSeconds
+      ) {
+        return 'problemLockSeconds';
+      }
+      break;
+    }
     case 'boolean':
       break;
   }
