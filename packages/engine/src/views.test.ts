@@ -1180,14 +1180,15 @@ describe('debuff views', () => {
     expect(hostView(state).players[0].debuff).toEqual({ kind: 'fog', fired: false, by: null });
     expect(hostView(state).players[1].debuff).toBeNull();
     expect(JSON.stringify(stageView(state))).not.toContain('fog');
-    expect(JSON.stringify(playerView(state, 'p2'))).not.toContain('fog');
+    // the shop lists the allowed kinds with prices, so the check skips it: the waiting kind is still unknown to the target
+    expect(JSON.stringify({ ...playerView(state, 'p2'), me: { ...playerView(state, 'p2')!.me, shop: null } })).not.toContain('fog');
 
     state = must(next(state, T0));
     expect(playerView(state, 'p1')?.me.debuff).toEqual({ kind: 'fog', since: T0, by: null });
     expect(playerView(state, 'p2')?.me.debuff).toBeNull();
     expect(stageView(state).debuffs).toEqual([{ playerId: 'p1', nickname: 'Олена' }]);
     expect(JSON.stringify(stageView(state))).not.toContain('fog');
-    expect(JSON.stringify(playerView(state, 'p2'))).not.toContain('fog');
+    expect(JSON.stringify({ ...playerView(state, 'p2'), me: { ...playerView(state, 'p2')!.me, shop: null } })).not.toContain('fog');
     expect(hostView(state).players[0].debuff).toEqual({ kind: 'fog', fired: true });
 
     state = must(lock(state));
