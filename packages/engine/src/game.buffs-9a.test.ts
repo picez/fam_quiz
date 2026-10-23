@@ -177,6 +177,22 @@ describe('buffs on a voice cell', () => {
     expect(nameAnswer(toVoiceCell(), { type: 'boolean', value: true })).toEqual({ ok: false, error: 'type_mismatch' });
   });
 
+  it('once the host marks the answer said aloud, the chooser can take no buff', () => {
+    expect(takeBuff(toVoiceCell(), 'p1', 'double', T0 + 2000, rng0).ok).toBe(true);
+    const named = must(nameAnswer(toVoiceCell(), { type: 'single', optionId: 'a' }));
+    for (const kind of ['double', 'shield', 'fifty'] as const) {
+      expect(takeBuff(named, 'p1', kind, T0 + 2000, rng0), kind).toEqual({ ok: false, error: 'already_answered' });
+      expect(buffBlock(named, 'p1', kind), kind).toBe('answered');
+    }
+    expect(playerView(named, 'p1')?.me.buffs?.slots.find((slot) => slot.kind === 'double')).toEqual({
+      kind: 'double',
+      state: 'blocked',
+      block: 'answered',
+    });
+    // ведучий зняв позначку — відповіді знову немає
+    expect(takeBuff(must(nameAnswer(named, null)), 'p1', 'double', T0 + 2000, rng0).ok).toBe(true);
+  });
+
   it('time and audience give the chooser personal time on a voice cell', () => {
     const timed = must(takeBuff(toVoiceCell(), 'p1', 'time', T0 + 2000, rng0));
     expect(deadlineOf(timed, timed.plays[0], 'p1')).toBe(T0 + 20_000 + 30_000);

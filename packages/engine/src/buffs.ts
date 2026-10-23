@@ -136,7 +136,10 @@ export function buffRowHere(state: GameState, play: Play, playerId: string): boo
 /** Відповідь гравця вже надіслана або чекає на ведучого. */
 export function hasAnswered(state: GameState, play: Play, playerId: string): boolean {
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return true;
-  return play.board !== undefined && play.board.chooserId === playerId && play.board.answer !== null;
+  const board = play.board;
+  if (board === undefined || board.chooserId !== playerId) return false;
+  // Усна відповідь: щойно ведучий позначив названий варіант, відповідь уже прозвучала.
+  return board.answer !== null || board.named !== undefined;
 }
 
 /** Чи може гравець голосувати за askerId (без перевірки часу й повторного голосу). */
