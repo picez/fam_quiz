@@ -4022,10 +4022,23 @@ button.sort-zone:disabled {
   }
 }
 
-/* Сортування на сцені, пульті й в історії: рядки прогресу фіксованої висоти, категорії стовпцями. */
+/*
+ * Сортування на сцені й пульті: рядок прогресу — сітка зі сталими стовпцями (ім'я, смужка, «7/12», час, помилки, бали).
+ * Порожні комірки теж займають свої стовпці, тож поява часу, помилок чи балів нічого не зсуває;
+ * тиснуть лише ім'я (три крапки) і смужка.
+ */
+.sort-board {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
 .sort-board li {
+  display: grid;
+  grid-template-columns: minmax(0, 8em) minmax(3em, 1fr) 3.2em 3.6em 6em 4em;
+  align-items: center;
+  gap: 0.6em;
+  min-width: 0;
   min-height: 2.5rem;
-  flex-wrap: nowrap;
 }
 
 .sort-board .name {
@@ -4037,14 +4050,28 @@ button.sort-zone:disabled {
 
 .sort-board .tag,
 .sort-board .score {
-  flex: none;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sort-board .sort-count {
+  font-weight: 700;
+}
+
+.sort-board .sort-time,
+.sort-board .sort-misses,
+.sort-board .score {
+  text-align: right;
+}
+
+.sort-board .sort-misses {
+  color: var(--signal);
 }
 
 /* Смужка прогресу: відсортовано / усього. Заповнення — scaleX, тож ширина рядка від нього не залежить. */
 .sort-bar {
-  flex: 0 1 5rem;
-  min-width: 2rem;
+  min-width: 0;
   height: 0.5em;
   border-radius: 999px;
   background: var(--line);
@@ -4063,6 +4090,22 @@ button.sort-zone:disabled {
 @media (prefers-reduced-motion: no-preference) {
   .sort-bar-fill {
     transition: transform 0.3s ease-out;
+  }
+}
+
+/*
+ * Вузький екран (телефон ведучого, вузька сцена): ім'я й смужка — кожне на весь рядок,
+ * під ними числа сталими стовпцями; помилки беруть залишок ширини.
+ */
+@media (max-width: 40rem) {
+  .sort-board li {
+    grid-template-columns: 3.2em 3.6em minmax(0, 1fr) 4em;
+    row-gap: 0.25em;
+  }
+
+  .sort-board .name,
+  .sort-board .sort-bar {
+    grid-column: 1 / -1;
   }
 }
 
@@ -4121,10 +4164,7 @@ button.sort-zone:disabled {
   font-size: clamp(1rem, 1.7vw, 1.75rem);
 }
 
-/*
- * На сцені рядок — сітка зі сталими стовпцями: ім'я, смужка, «7/12», час, помилки, бали.
- * Ширина обмежена, тож числа стоять поруч з іменем, а не біля правого краю телевізора.
- */
+/* На сцені ті самі стовпці, але крупно для телевізора; ширина обмежена, тож числа стоять поруч з іменем. */
 .stage .sort-board {
   width: 100%;
   max-width: 36em;
@@ -4132,9 +4172,7 @@ button.sort-zone:disabled {
 }
 
 .stage .sort-board li {
-  display: grid;
   grid-template-columns: minmax(0, 8em) minmax(4em, 1fr) 3.2em 3.6em 6em 4em;
-  gap: 0.6em;
   min-height: 1.9em;
   padding: 0.3em 0.5em;
   font-size: 1em;
@@ -4144,22 +4182,7 @@ button.sort-zone:disabled {
   font-size: 0.85em;
 }
 
-.stage .sort-board .sort-count {
-  font-weight: 700;
-}
-
-.stage .sort-board .sort-time,
-.stage .sort-board .sort-misses,
-.stage .sort-board .score {
-  text-align: right;
-}
-
-.stage .sort-board .sort-misses {
-  color: var(--signal);
-}
-
 .stage .sort-board .sort-bar {
-  min-width: 0;
   height: 0.45em;
 }
 
@@ -4167,19 +4190,13 @@ button.sort-zone:disabled {
   min-height: 1.5em;
 }
 
-/* Вузька сцена: ім'я — окремим рядком, під ним смужка й числа тими самими сталими стовпцями. */
 @media (max-width: 40rem) {
   .stage .sort-board {
     font-size: 1rem;
   }
 
   .stage .sort-board li {
-    grid-template-columns: minmax(0, 1fr) 3.2em 3.6em 6em 4em;
-    row-gap: 0.25em;
-  }
-
-  .stage .sort-board .name {
-    grid-column: 1 / -1;
+    grid-template-columns: 3.2em 3.6em minmax(0, 1fr) 4em;
   }
 }
 

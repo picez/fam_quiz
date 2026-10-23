@@ -3769,6 +3769,22 @@ async function sortGame() {
   await barsSettled();
   await shot(stage, 'sort7f-stage-progress');
   await shot(host, 'sort7f-host-progress');
+  // Пульт на телефоні 375 px: рядок з довгим іменем і помилками не дає бічної прокрутки, тисне лише ім'я.
+  await host.setViewportSize({ width: 375, height: 812 });
+  const petroRow = host.locator('.sort-board li', { hasText: 'Петро' });
+  const petroName = petroRow.locator('.name');
+  type NameCell = { textContent: string | null; dataset: Record<string, string | undefined>; scrollWidth: number; clientWidth: number };
+  await petroName.evaluate((el: NameCell) => {
+    el.dataset.was = el.textContent ?? '';
+    el.textContent = 'Петро Довгопрізвищенко-Найдовшеімʼяненко';
+  });
+  expect(await petroRow.innerText()).toContain('помилок: 1');
+  await expectNoSideScroll(host, 'sort7f-host-progress-375');
+  expect(await petroName.evaluate((el: NameCell) => el.scrollWidth > el.clientWidth), 'the long name is cut with an ellipsis').toBe(true);
+  await petroName.evaluate((el: NameCell) => {
+    el.textContent = el.dataset.was ?? '';
+  });
+  await host.setViewportSize({ width: 1280, height: 900 });
   await petro.locator('.sort-lock').waitFor({ state: 'detached', timeout: 5000 });
   const petroOrder = await sortRest(petro);
   expect(petroOrder.at(-1)).toBe(missed);
