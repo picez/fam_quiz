@@ -4,6 +4,7 @@ import { correctText, markText, pickedText, shownChoices, num, questionClass, qu
 import { countText, errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast, BuffToast } from '../live/LiveNotices';
+import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
@@ -290,7 +291,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   // Хук на рівні екрана: під «Дзеркалом» варіанти зсуваються по колу; інакше те саме запитання.
   const shown = useDebuffQuestion(question, me.debuff);
 
+  // Заставка перед запитанням: шар пропускає дотики (pointer-events: none), тож поле й бафи під ним вимкнені до старту.
+  const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  const notStarted = phase === 'question' && splashNow !== null && (splashNow.splash.kind === 'question' || splashNow.splash.kind === 'cell');
+  const locked = view.paused || notStarted;
+
   const submit = async (answer: Answer) => {
+    // До старту сервер однаково відмовив би: дотик, що проскочив крізь вимкнене поле, нічого не надсилає.
+    if (notStarted) return;
     const result = await send('player:answer', answer);
     setError(result.ok ? null : errorText(result.error));
   };
@@ -353,6 +361,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'question' && question !== null && (
         <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
       )}
+      {/* Заставка — шар position: fixed над розкладкою етапу, що вже стоїть: поява й зникнення нічого не зсувають. */}
+      <Splash view={view} offsetMs={offsetMs} size="phone" />
       <header className="bar">
         <span>{me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
@@ -435,22 +445,22 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <QuestionImage url={question.imageUrl} />
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
-            {me.buffs !== null && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} send={send} onError={setError} />}
+            {me.buffs !== null && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} send={send} onError={setError} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
             {isSort && me.sort !== null ? (
-              <SortPlay question={shown ?? question} sort={me.sort} paused={view.paused} offsetMs={offsetMs} send={send} />
+              <SortPlay question={shown ?? question} sort={me.sort} paused={locked} offsetMs={offsetMs} send={send} />
             ) : isSort ? (
               view.sort !== null && <SortWatch question={question} info={view.sort} />
             ) : chainMine && me.chain !== null ? (
-              <ChainPlay chain={me.chain} question={question} paused={view.paused} offsetMs={offsetMs} send={send} />
+              <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} />
             ) : instant && me.blitz !== null ? (
               <>
                 {me.blitz.canAnswer ? (
                   // Після нуля поле лишається на місці, лише вимкнене: варіанти не стрибають, а сервер однаково відмовив би.
-                  <fieldset className="inputs" disabled={view.paused || timeOver}>
+                  <fieldset className="inputs" disabled={locked || timeOver}>
                     <AnswerInput
                       key={`${view.questionIndex}-${me.blitz.position ?? 0}-${me.answer === null}`}
                       question={shown ?? question}
@@ -489,6 +499,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                   blitz={me.blitz}
                   voice={voice}
                   offsetMs={offsetMs}
+                  notStarted={notStarted}
                   onSubmit={submit}
                   send={send}
                   onError={setError}
@@ -509,11 +520,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </section>
             ) : activeBuff !== null && retryStage === 'choice' ? (
               // Часткова перша відповідь: вибір замість поля відповіді.
-              <RetryPrompt active={activeBuff} question={question} send={send} onError={setError} paused={view.paused} />
+              <RetryPrompt active={activeBuff} question={question} send={send} onError={setError} paused={locked} />
             ) : (
               // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
-              <fieldset className="inputs" disabled={view.paused}>
+              <fieldset className="inputs" disabled={locked}>
                 <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed} onSubmit={submit} />
               </fieldset>
             )}
@@ -629,6 +640,7 @@ function BlitzTurn({
   voice,
   labelled,
   offsetMs,
+  notStarted,
   onSubmit,
   send,
   onError,
@@ -641,6 +653,8 @@ function BlitzTurn({
   /** Над полем стоїть відповідь голови черги: власне поле підписуємо. */
   labelled: boolean;
   offsetMs: number;
+  /** Ще йде заставка клітинки: натискання й відповідь чекають на старт. */
+  notStarted: boolean;
   onSubmit: (answer: Answer) => void;
   send: Send;
   onError: (message: string | null) => void;
@@ -672,7 +686,7 @@ function BlitzTurn({
         ) : (
           <>
             {labelled && <h2 className="meta">{t('blitzYourAnswer')}</h2>}
-            <fieldset className="inputs" disabled={view.paused}>
+            <fieldset className="inputs" disabled={view.paused || notStarted}>
               <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={shown} onSubmit={onSubmit} />
             </fieldset>
           </>
@@ -686,7 +700,7 @@ function BlitzTurn({
     <>
       {(out || blitz.attemptsUsed > 0) && <p className="blitz-note">{t(out ? 'blitzOut' : 'blitzRetry')}</p>}
       {!out && (
-        <button type="button" className="btn btn-primary btn-buzz" disabled={!blitz.canBuzz} onClick={() => void buzz()}>
+        <button type="button" className="btn btn-primary btn-buzz" disabled={!blitz.canBuzz || notStarted} onClick={() => void buzz()}>
           {t('buzz')}
         </button>
       )}

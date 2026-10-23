@@ -1552,3 +1552,96 @@ describe('PlayerScreen: buffs with others', () => {
     expect(shape()).toEqual(was);
   });
 });
+
+describe('PlayerScreen: splashes', () => {
+  const T = 1_000_000;
+  const at = (kind: NonNullable<PlayerView['splash']>['kind'], ms: number) => ({ kind, at: T, until: T + ms });
+  const classic: RoundInfo = { index: 1, total: 3, title: 'Столиці', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+  const buffs = {
+    slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }],
+    active: null,
+  };
+  const timed = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+  };
+  afterEach(() => vi.useRealTimers());
+
+  it('the phone shows a smaller splash over a question that is already in place', () => {
+    timed();
+    show(onQuestion({ round: classic, endsAt: T + 21_200, limitMs: 20_000, splash: at('question', 1200) }));
+    const layer = document.querySelector('.splash.is-question.is-phone');
+    expect(layer?.textContent).toContain('Запитання 1');
+    const choice = screen.getByRole('button', { name: /Київ/ });
+    expect(choice).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(1200);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+    // Той самий вузол: під шаром нічого не перемонтовано й не зсунуто.
+    expect(screen.getByRole('button', { name: /Київ/ })).toBe(choice);
+  });
+
+  it('a tap during the question splash sends nothing; answers and buffs open after it', () => {
+    timed();
+    const send = show(onQuestion({ round: classic, endsAt: T + 21_200, limitMs: 20_000, splash: at('question', 1200), me: { ...me, buffs } }));
+    expect((document.querySelector('fieldset.inputs') as HTMLFieldSetElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    const buff = document.querySelector('.buff-row button')!;
+    expect(buff.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(buff);
+    expect(document.querySelector('.buff-why')?.textContent).toBe('Запитання ще не почалося.');
+    expect(send).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1200);
+    });
+    expect((document.querySelector('fieldset.inputs') as HTMLFieldSetElement).disabled).toBe(false);
+    expect(document.querySelector('.buff-row button')!.getAttribute('aria-disabled')).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'b' });
+  });
+
+  it('round, cell, duel and podium splashes reach the phone too', () => {
+    timed();
+    show(view({ phase: 'intro', round: classic, splash: at('round', 2500) }));
+    expect(document.querySelector('.splash.is-round.is-phone')?.textContent).toContain('Раунд 2');
+    cleanup();
+    const cell = { id: 'c1', category: 'Міста', price: 300, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+    const board = { categories: [], order: [], cell, turn: { playerId: 'p1', nickname: 'Олена' }, dice: null, schedule: [] } as unknown as NonNullable<PlayerView['board']>;
+    show(onQuestion({ board, endsAt: T + 21_000, limitMs: 20_000, splash: at('cell', 1000) }));
+    expect(document.querySelector('.splash.is-cell.is-phone .splash-flip')?.textContent).toContain('Міста · 300');
+    expect((document.querySelector('fieldset.inputs') as HTMLFieldSetElement).disabled).toBe(true);
+    cleanup();
+    const duel = {
+      challenger: { playerId: 'p1', nickname: 'Олена' },
+      opponent: { playerId: 'p2', nickname: 'Петро' },
+      stage: 'category' as const,
+      categories: [{ id: 'dc1', title: 'Столиці', left: 2 }],
+      category: null,
+      number: 0,
+      total: 3,
+      question: null,
+      accepted: null,
+      wins: { challenger: 0, opponent: 0 },
+      tries: { challenger: 0, opponent: 0 },
+      questionWinner: null,
+      winningAnswer: null,
+      winner: null,
+      stake: 300,
+      ending: false,
+    };
+    show(view({ phase: 'duel', duel, splash: at('duel', 2000) }));
+    expect(document.querySelector('.splash.is-duel.is-phone')?.textContent).toContain('Петро');
+    cleanup();
+    const standings = [{ participantId: 'p1', nickname: 'Олена', score: 500, totalTimeMs: 1, rank: 1 }];
+    show(view({ phase: 'finished', standings, splash: at('podium', 2500) }));
+    expect(document.querySelector('.splash.is-podium.is-phone')?.textContent).toContain('Підсумки');
+  });
+
+  it('an answer refused before the start explains why', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'not_started' }));
+    show(onQuestion(), { send });
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Запитання ще не почалося.'));
+  });
+});

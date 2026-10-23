@@ -31,9 +31,11 @@ function whyText(block: BuffBlock, kind: BuffKind): string {
  * Причина, яку телефон показує сам: зріз не знає now, тож сплив власний час рахує телефон.
  * time ніколи не замінює used, taken, answered, paused; пауза на телефоні гасить і готові кнопки.
  */
-function shownBlock(slot: BuffSlot, paused: boolean, timeOver: boolean): BuffBlock | null {
+function shownBlock(slot: BuffSlot, paused: boolean, timeOver: boolean, notStarted = false): BuffBlock | null {
   if (slot.state === 'active') return null;
   const block = slot.block;
+  // Заставка запитання ще йде: сервер відмовив би not_started, тож готова кнопка пояснює це сама.
+  if (notStarted && slot.state === 'ready') return 'not_started';
   if (timeOver && (slot.state === 'ready' || (block !== null && block.startsWith('unfit_')))) return 'time';
   if (slot.state === 'ready') return paused ? 'paused' : null;
   return block;
@@ -48,6 +50,7 @@ export function BuffRow({
   buffs,
   paused,
   timeOver = false,
+  notStarted = false,
   send,
   onError,
 }: {
@@ -55,6 +58,8 @@ export function BuffRow({
   paused: boolean;
   /** Власний час гравця сплив (особистий кінець або спільний). */
   timeOver?: boolean;
+  /** Ще йде заставка запитання чи клітинки: запитання на сервері ще не почалося. */
+  notStarted?: boolean;
   send: Send;
   onError: (message: string | null) => void;
 }) {
@@ -90,7 +95,7 @@ export function BuffRow({
       clear();
       return;
     }
-    const block = shownBlock(slot, paused, timeOver);
+    const block = shownBlock(slot, paused, timeOver, notStarted);
     if (block !== null) {
       say(whyText(block, slot.kind), null);
       return;
@@ -124,7 +129,7 @@ export function BuffRow({
     <div className="buff-bar">
       <div className="buff-row" role="group" aria-label={t('buffRowLabel')}>
         {buffs.slots.map((slot) => {
-          const block = shownBlock(slot, paused, timeOver);
+          const block = shownBlock(slot, paused, timeOver, notStarted);
           const classes = ['buff-btn'];
           if (slot.state === 'active') classes.push('is-active');
           if (slot.state === 'used') classes.push('is-used');

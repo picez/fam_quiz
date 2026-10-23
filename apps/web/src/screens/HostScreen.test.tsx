@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEBUFF_KINDS, emptyBrief, type HostDuel, type HostView, Question, RoundInfo } from '@quiz/shared';
 import { t } from '../i18n';
@@ -1482,5 +1482,37 @@ describe('HostScreen: duel', () => {
       await waitFor(() => expect(send).toHaveBeenCalledWith('host:next', undefined));
       cleanup();
     }
+  });
+});
+
+describe('HostScreen: splashes', () => {
+  const T = 1_000_000;
+  afterEach(() => vi.useRealTimers());
+
+  it('the host console is never covered; a chip tells a splash is on screen', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    show(during('question', single, { endsAt: T + 21_200, limitMs: 20_000, splash: { kind: 'question', at: T, until: T + 1200 } }));
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(screen.getByText('На екрані заставка')).toBeTruthy();
+    expect(button('Закрити запитання').disabled).toBe(false);
+    expect(button('+15 с').disabled).toBe(false);
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('20');
+    act(() => {
+      vi.advanceTimersByTime(1200);
+    });
+    expect(screen.queryByText('На екрані заставка')).toBeNull();
+  });
+
+  it('the full time on the host clock: −15 s and +15 s follow the limit, not the splash', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    // Ліміт 120 с і заставка: залишок 121 с обрізається до 120 — «+15 с» вимкнено рівно як без заставки.
+    show(during('question', single, { endsAt: T + 121_200, limitMs: 120_000, splash: { kind: 'question', at: T, until: T + 1200 } }));
+    expect(button('+15 с').disabled).toBe(true);
+    cleanup();
+    // Ліміт 5 с: залишок 6 с обрізається до 5 — «−15 с» вимкнено.
+    show(during('question', single, { endsAt: T + 6_200, limitMs: 5_000, splash: { kind: 'question', at: T, until: T + 1200 } }));
+    expect(button('−15 с').disabled).toBe(true);
   });
 });
