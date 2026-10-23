@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { guidePages } from '@quiz/shared';
-import { lock, next, start, submitAnswer, type GameState } from './game';
+import { lock, next, override, start, submitAnswer, type GameState } from './game';
 import { pickCell } from './board';
 import { boardRound, bool, classicRound, makeRoundsQuiz, order, single, withId } from './testing/fixtures';
 import { lobbyWith, lobbyWithGuide, must } from './testing/helpers';
@@ -66,5 +66,18 @@ describe('guide views', () => {
     expect([playerView(opened, 'p1')?.me.tip, playerView(opened, 'p2')?.me.tip]).toEqual(['single', null]);
     const voice = must(pickCell(s, 'p1', 'a2', T0, rng0));
     expect([playerView(voice, 'p1')?.me.tip, playerView(voice, 'p2')?.me.tip]).toEqual([null, null]);
+  });
+
+  it('a voice cell does not make its type familiar: the next phone cell of that type still carries the tip', () => {
+    const cells = [{ question: withId(bool, 'a1'), answerMode: 'voice' as const }, withId(bool, 'a2'), withId(single, 'a3')];
+    const board = makeRoundsQuiz([boardRound('g1', [{ title: 'A', cells }])], { newcomers: true });
+    let s = must(start(lobbyWithGuide(board, 'Анна', 'Богдан')));
+    while (s.phase === 'guide') s = must(next(s, T0, rng0));
+    s = must(next(s, T0, rng0)); // intro → поле
+    s = must(pickCell(s, 'p1', 'a1', T0, rng0));
+    s = must(override(s, 'p1', 'correct', T0 + 1000));
+    while (s.phase !== 'board') s = must(next(s, T0 + 2000, rng0));
+    const phone = must(pickCell(s, 'p2', 'a2', T0 + 3000, rng0));
+    expect(playerView(phone, 'p2')?.me.tip).toBe('boolean');
   });
 });

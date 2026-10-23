@@ -5574,3 +5574,256 @@ async function transitionsGame() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 8d: «Як грати» built from the quiz on the stage, phones and host — paging, a reload mid-guide, «До гри», then «Раунд 1»; a round reminder; a tip above the first question of each type with the timer running; the editor flag', async () => {
+  try {
+    await newcomersGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Чекає сторінку «Як грати» з потрібним заголовком. */
+async function guideOn(page: Page, title: string) {
+  await page.locator('.guide-title', { hasText: title }).waitFor();
+}
+
+async function newcomersGame() {
+  const host = await open('host8d', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host8d@example.com');
+
+  const choice = (id: string, text: string, timeLimit: number, options: string[]) => ({
+    id,
+    type: 'single' as const,
+    text,
+    imageUrl: null,
+    video: null,
+    timeLimit,
+    points: 100,
+    options: options.map((option, at) => ({ id: `${id}o${at}`, text: option })),
+    correctId: `${id}o0`,
+  });
+  const OCEANS = ['Тихий', 'Атлантичний', 'Індійський'];
+  const oceans = {
+    id: 'q2',
+    type: 'order' as const,
+    text: 'Розставте океани за площею',
+    imageUrl: null,
+    video: null,
+    timeLimit: 30,
+    points: 100,
+    items: OCEANS.map((text, at) => ({ id: `q2i${at}`, text })),
+    topLabel: 'Найбільший',
+    bottomLabel: 'Найменший',
+  };
+  const rounds = [
+    classicRound(
+      'r1',
+      [choice('q1', 'Столиця Франції?', 20, ['Париж', 'Ліон', 'Марсель']), oceans, choice('q3', 'Столиця Італії?', 20, ['Рим', 'Мілан'])],
+      { title: 'Розминка', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES },
+    ),
+    finalRound('r2', choice('f1', 'Перша людина в космосі?', 30, ['Гагарін', 'Армстронг']), { title: 'Космос', wagerMode: 'bank' }),
+  ];
+  const duels = {
+    categories: [
+      {
+        id: 'dc1',
+        title: 'Мови',
+        questions: [
+          { id: 'd1', text: 'Hello українською?', accepted: ['привіт'] },
+          { id: 'd2', text: 'Thank you українською?', accepted: ['дякую'] },
+        ],
+      },
+    ],
+    questionsPerDuel: 1,
+    timeLimit: 20,
+    stake: 200,
+  };
+  const data = {
+    ...makeRoundsQuiz(rounds, { leaderboard: 'end', newcomers: true, buffs: ['fifty', 'double'], debuffs: ['fog'] }),
+    title: 'Для новачків',
+    duels,
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Редактор: у «Правилах гри» прапорець «Пояснення для новачків» увімкнений.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Для новачків' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('details.rules > summary', { hasText: 'Правила гри' }).click();
+  const flag = host.locator('label.field-check', { hasText: 'Пояснення для новачків' }).locator('input');
+  expect(await flag.isChecked(), 'the newcomers flag').toBe(true);
+  await shot(host, 'guide8d-editor');
+  await host.goto(`${base}/quizzes`);
+
+  // Гра: сцена 1280 × 720, Оля 375, Петро 360.
+  await host.locator('.quiz-list li', { hasText: 'Для новачків' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage8d', 1280, 720);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya8d', 375, 812);
+  const petro = await open('petro8d', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await stage.getByText('Петро').waitFor();
+  const phones = [olya, petro];
+  const all = [stage, ...phones];
+  const kicker = (page: Page) => page.locator('.guide-kicker').textContent();
+  const hostButton = (name: string) => host.getByRole('button', { name, ...exact });
+  const fitsStage = () => stage.evaluate('document.documentElement.scrollHeight <= innerHeight');
+  const reveal = async () => {
+    await hostButton('Показати відповідь').waitFor();
+    await click(host, 'Показати відповідь');
+    for (const page of phones) await page.locator('section.result').first().waitFor();
+  };
+
+  // 2. Сторінка 1: «Як грати» до заставки раунду.
+  await click(host, 'Почати гру');
+  await guideOn(stage, 'Відповідайте з телефона');
+  expect(await kicker(stage)).toBe('Як грати · 1 з 6');
+  for (const page of phones) await guideOn(page, 'Відповідайте з телефона');
+  for (const page of all) expect(await page.locator('.splash').count(), 'a splash before the guide ends').toBe(0);
+  for (const name of ['Далі', 'До гри', 'Пауза', 'Завершити гру']) await hostButton(name).waitFor();
+  expect(await hostButton('Завершити раунд').count(), 'end round in the guide').toBe(0);
+  expect(await fitsStage(), 'guide8d-phone-page-stage: vertical scroll').toBe(true);
+  await Promise.all([shot(stage, 'guide8d-phone-page-stage'), shot(olya, 'guide8d-phone-page-375'), shot(host, 'guide8d-host')]);
+
+  // 3. Раунди: класика й фінал із банком; на телефоні без значків.
+  await click(host, 'Далі');
+  await guideOn(stage, 'Раунди цієї гри');
+  const stageGuide = stage.locator('.guide');
+  for (const name of ['Класичний', 'Фінал']) await stageGuide.locator('.guide-name', { hasText: name }).waitFor();
+  expect(await stageGuide.textContent()).toContain('віддає ставку в спільний банк');
+  await guideOn(olya, 'Раунди цієї гри');
+  for (const name of ['Класичний', 'Фінал']) await olya.locator('.guide-name', { hasText: name }).waitFor();
+  expect(await olya.locator('.guide-icon').count(), 'icons on the phone').toBe(0);
+  expect(await fitsStage(), 'guide8d-rounds-stage: vertical scroll').toBe(true);
+  await Promise.all([shot(stage, 'guide8d-rounds-stage'), shot(olya, 'guide8d-rounds-375')]);
+
+  // 4. Перезавантаження посеред «Як грати» — та сама сторінка.
+  await olya.reload();
+  await guideOn(olya, 'Раунди цієї гри');
+  expect(await kicker(olya)).toContain('2 з 6');
+
+  // 5. Типи запитань з підписом порядку.
+  await click(host, 'Далі');
+  for (const page of all) {
+    await guideOn(page, 'Типи запитань');
+    const text = (await page.locator('.guide').textContent()) ?? '';
+    expect(text).toContain('Торкніться одного правильного варіанта.');
+    expect(text).toContain('Розставте рядки стрілками ↑ ↓: зверху — найбільший.');
+  }
+  expect(await noSideScroll(olya), 'guide8d-types-375: horizontal scroll').toBe(true);
+  expect(await noSideScroll(petro), 'guide8d-types-360: horizontal scroll').toBe(true);
+  expect(await fitsStage(), 'guide8d-types-stage: vertical scroll').toBe(true);
+  await Promise.all([shot(stage, 'guide8d-types-stage'), shot(olya, 'guide8d-types-375'), shot(petro, 'guide8d-types-360')]);
+
+  // 6. Бафи; пауза ховає «Далі» й «До гри», сторінка та сама.
+  await click(host, 'Далі');
+  await guideOn(stage, 'Бафи — ваші допомоги');
+  const buffsText = (await stageGuide.textContent()) ?? '';
+  for (const part of ['50/50', 'Подвійні бали', 'Кнопки — під запитанням']) expect(buffsText).toContain(part);
+  expect(buffsText).not.toContain('Заміна запитання');
+  expect(await fitsStage(), 'guide8d-buffs-stage: vertical scroll').toBe(true);
+  await shot(stage, 'guide8d-buffs-stage');
+  await hostButton('Пауза').click();
+  await stage.locator('.banner', { hasText: 'Пауза' }).waitFor();
+  await hostButton('Далі').waitFor({ state: 'detached' });
+  expect(await hostButton('До гри').count(), '«До гри» on pause').toBe(0);
+  await hostButton('Продовжити').click();
+  await hostButton('Далі').waitFor();
+  await hostButton('До гри').waitFor();
+  await guideOn(stage, 'Бафи — ваші допомоги');
+  expect(await kicker(stage)).toBe('Як грати · 4 з 6');
+
+  // 7. «До гри» → заставка «Раунд 1» → пам'ятка раунду.
+  await click(host, 'До гри');
+  await splashOn(stage, 'round');
+  expect((await stage.locator('.splash').textContent()) ?? '').toContain('Раунд 1');
+  await afterSplash(stage, olya, petro);
+  for (const page of [stage, olya]) {
+    const text = await page.locator('body').innerText();
+    expect(text).toContain('Як проходить раунд');
+    expect(text).toContain('Запитання йдуть по черзі');
+  }
+  expect(await noSideScroll(olya), 'guide8d-reminder-375: horizontal scroll').toBe(true);
+  await Promise.all([shot(stage, 'guide8d-reminder-stage'), shot(olya, 'guide8d-reminder-375')]);
+
+  // 8. Підказка над першим single: з першої миті, таймер іде, відповідь приймається.
+  await click(host, 'Почати раунд');
+  await splashOn(stage, 'question');
+  await olya.locator('.splash.is-question.is-phone').waitFor();
+  const under = (await olya.evaluate(
+    "(() => ({ splash: document.querySelector('.splash') !== null, tip: document.querySelector('.type-tip') !== null, y: Math.round(document.querySelector('h1.question').getBoundingClientRect().top) }))()",
+  )) as { splash: boolean; tip: boolean; y: number };
+  expect(under.splash, 'the question was measured after the splash').toBe(true);
+  expect(under.tip, 'the tip is there under the splash').toBe(true);
+  await afterSplash(...all);
+  expect(Math.round((await olya.locator('h1.question').boundingBox())!.y), 'the question moved after the splash').toBe(under.y);
+  for (const page of phones) expect(await page.locator('.type-tip').textContent()).toContain('Торкніться одного правильного варіанта.');
+  expect(await stage.locator('.type-tip').count(), 'a tip on the stage').toBe(0);
+  const before = await seconds(olya);
+  await olya.waitForTimeout(2000);
+  expect(await seconds(olya), 'the timer stopped for the tip').toBeLessThan(before);
+  expect(await noSideScroll(olya), 'guide8d-tip-single-375: horizontal scroll').toBe(true);
+  await shot(olya, 'guide8d-tip-single-375');
+  for (const page of phones) await pickOption(page, 'Париж');
+  await reveal();
+
+  // 9. Порядок: підказка з підписом верху.
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await olya.locator('h1.question', { hasText: 'Розставте океани за площею' }).waitFor();
+  expect(await olya.locator('.type-tip').textContent()).toContain('зверху — найбільший');
+  expect(await noSideScroll(olya), 'guide8d-tip-order-375: horizontal scroll').toBe(true);
+  expect(await noSideScroll(petro), 'guide8d-tip-order-360: horizontal scroll').toBe(true);
+  await Promise.all([shot(olya, 'guide8d-tip-order-375'), shot(petro, 'guide8d-tip-order-360')]);
+  for (const page of phones) {
+    await arrange(page, OCEANS);
+    await click(page, 'Відповісти');
+  }
+  await reveal();
+
+  // 10. Повторний тип — без підказки.
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await olya.locator('h1.question', { hasText: 'Столиця Італії?' }).waitFor();
+  for (const page of phones) expect(await page.locator('.type-tip').count(), 'a tip for a repeated type').toBe(0);
+  for (const page of phones) await pickOption(page, 'Рим');
+  await reveal();
+
+  // 11. Фінал: пам'ятка зі ставкою, підказки немає.
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await splashOn(stage, 'final');
+  await afterSplash(...all);
+  const finalText = await stage.locator('body').innerText();
+  expect(finalText).toContain('Як проходить раунд');
+  expect(finalText).toContain('Спершу таємна ставка');
+  expect(await fitsStage(), 'guide8d-reminder-final-stage: vertical scroll').toBe(true);
+  await shot(stage, 'guide8d-reminder-final-stage');
+  await click(host, 'Почати фінал');
+  // Остання ставка одразу відкриває запитання: підтвердження чекаємо лише в першій.
+  await olya.getByLabel('Ставка', exact).fill('0');
+  await click(olya, 'Поставити');
+  await olya.getByText('Ваша ставка: 0').waitFor();
+  await petro.getByLabel('Ставка', exact).fill('0');
+  await click(petro, 'Поставити');
+  await splashOn(stage, 'question');
+  await afterSplash(...all);
+  await olya.locator('h1.question', { hasText: 'Перша людина в космосі?' }).waitFor();
+  for (const page of phones) expect(await page.locator('.type-tip').count(), 'a tip in the final').toBe(0);
+  for (const page of phones) await pickOption(page, 'Гагарін');
+  await click(host, 'Показати відповідь');
+  for (let i = 0; i < phones.length; i++) await click(host, 'Наступний гравець');
+  await click(host, 'Далі');
+  await splashOn(stage, 'podium');
+  await afterSplash(stage);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}

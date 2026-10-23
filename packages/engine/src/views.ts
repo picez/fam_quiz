@@ -808,7 +808,8 @@ function typeTip(state: GameState, playerId: string): Question['type'] | null {
   if (play === undefined) return null;
   if (play.board !== undefined && (play.board.answerMode === 'voice' || (play.board.kind === 'normal' && play.board.chooserId !== playerId))) return null;
   const type = play.question.type;
-  return state.plays.slice(0, state.questionIndex).some((p) => p.question.type === type) ? null : type;
+  // Знайомим тип робить лише запитання, на яке відповідали з телефона: усна клітинка не рахується.
+  return state.plays.slice(0, state.questionIndex).some((p) => p.question.type === type && p.board?.answerMode !== 'voice') ? null : type;
 }
 
 /** Етап, у якому заставка кожного виду має сенс. */
