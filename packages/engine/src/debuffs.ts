@@ -1,4 +1,4 @@
-import { allowedDebuffs, debuffPrice, type DebuffKind, type Phase, type ShopBlock } from '@quiz/shared';
+import { allowedDebuffs, debuffPrice, type DebuffKind, type DebuffNotice, type Phase, type ShopBlock } from '@quiz/shared';
 import { addAdjustment, afterQuestionNow } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { currentRound, fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
@@ -66,6 +66,24 @@ export function buyDebuff(state: GameState, buyerId: string, targetId: string, k
   if (buyer.score < price) return fail('points_short');
   const charged = addAdjustment(state, buyerId, -price, now, 'debuff', { target: targetId, debuff: kind });
   return ok({ ...charged, debuffs: { ...charged.debuffs, [targetId]: { kind, firedAt: null, since: null, by: buyerId } } });
+}
+
+/**
+ * Остання покупка дебафу для сповіщення (без виду); null — не було або покупця чи ціль вилучено.
+ * Старіших не шукаємо: давня покупка не має спливти після вилучення.
+ */
+export function lastPurchase(state: GameState): DebuffNotice | null {
+  const last = [...state.adjustments].reverse().find((a) => a.source === 'debuff');
+  if (last === undefined || last.target === undefined) return null;
+  const buyer = state.players.find((p) => p.id === last.playerId);
+  const target = state.players.find((p) => p.id === last.target);
+  if (buyer === undefined || target === undefined) return null;
+  return {
+    seq: last.seq,
+    at: last.at,
+    buyer: { playerId: buyer.id, nickname: buyer.nickname },
+    target: { playerId: target.id, nickname: target.nickname },
+  };
 }
 
 /**

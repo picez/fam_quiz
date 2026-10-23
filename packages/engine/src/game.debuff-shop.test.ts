@@ -4,18 +4,11 @@ import { adjustScore } from './adjust';
 import { buyDebuff, cancelDebuff, setDebuff, shopBlock } from './debuffs';
 import { placeWager } from './final';
 import { end, lock, next, pause, removePlayer, start, type GameState } from './game';
+import { T0, debuffQuiz as quiz, rich, rng } from './testing/debuffs';
 import { toDuelQuestion } from './testing/duel';
-import { classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId } from './testing/fixtures';
+import { classicRound, finalRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
-const T0 = 1_000_000;
-const rng = () => 0;
-const quiz = (settings = {}) => ({ ...makeQuiz([single, text, withId(single, 's2')]), settings: { leaderboard: 'each' as const, ...settings } });
-/** Заставка першого раунду, у Олени (p1) 500 балів від ведучого. */
-function rich(settings = {}): GameState {
-  const started = must(start(lobbyWith(quiz(settings), 'Олена', 'Тарас', 'Віра')));
-  return must(adjustScore(started, 'p1', 500, T0));
-}
 const scoreOf = (s: GameState, id: string) => s.players.find((p) => p.id === id)?.score;
 /** Результат покупки p1 → p2 (туман): 'ok' або код помилки. */
 const tryBuy = (s: GameState): 'ok' | ErrorCode => {

@@ -1,6 +1,7 @@
 import {
   allowedBuffs,
   allowedDebuffs,
+  debuffPrice,
   boardCells,
   findCell,
   questionsOf,
@@ -36,6 +37,7 @@ import {
   type HostBoard,
   type PlayerBlitz,
   type PlayerBuffs,
+  type PlayerShop,
   type PlayerActiveBuff,
   type PlayerHint,
   type HintRequest,
@@ -62,7 +64,7 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
-import { activeDebuff, shownDebuff } from './debuffs';
+import { activeDebuff, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import {
   answerLimitMs,
   buffBlock,
@@ -812,6 +814,7 @@ function base(state: GameState, forHost: boolean) {
     duel: duelInfo(state, false),
     buffs: currentBuffs(state),
     buffNotice: lastBuff(state),
+    debuffNotice: lastPurchase(state),
     removed: boardRemoved(state),
     splash: splashView(state),
     overtime: overtimeRows(state),
@@ -1071,6 +1074,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       debuff: playerDebuff(state, playerId),
+      shop: playerShop(state, playerId),
       duel: playerDuel(state, playerId),
       buffs: playerBuffs(state, playerId),
       overtime: personalClock(state, playerId),
@@ -1103,14 +1107,33 @@ function liveTable(state: GameState, playerId: string): PlayerTable | null {
 }
 
 /** Власний дебаф гравця, лише поки він діє: до спрацювання гравець про нього не знає. */
-function playerDebuff(state: GameState, playerId: string): { kind: DebuffKind; since: number } | null {
+function playerDebuff(state: GameState, playerId: string): { kind: DebuffKind; since: number; by: string | null } | null {
   const debuff = activeDebuff(state, playerId);
-  return debuff === null || debuff.since === null ? null : { kind: debuff.kind, since: debuff.since };
+  return debuff === null || debuff.since === null ? null : { kind: debuff.kind, since: debuff.since, by: debuffBuyer(state, debuff.by) };
 }
 
-function hostDebuff(state: GameState, playerId: string): { kind: DebuffKind; fired: boolean } | null {
+function hostDebuff(state: GameState, playerId: string): { kind: DebuffKind; fired: boolean; by: string | null } | null {
   const debuff = shownDebuff(state, playerId);
-  return debuff === null ? null : { kind: debuff.kind, fired: activeDebuff(state, playerId) !== null };
+  return debuff === null ? null : { kind: debuff.kind, fired: activeDebuff(state, playerId) !== null, by: debuffBuyer(state, debuff.by) };
+}
+
+/** Нікнейм покупця дебафу; null — від ведучого або покупця вилучено. */
+function debuffBuyer(state: GameState, by: string | null): string | null {
+  return by === null ? null : (state.players.find((p) => p.id === by)?.nickname ?? null);
+}
+
+/**
+ * Аркуш «Дебафи»: дозволені дебафи з цінами, суперники з позначкою «зайнятий», причина відмови.
+ * null — немає дебафів, купівлю вимкнено, немає суперників або етап lobby/guide/finished.
+ */
+function playerShop(state: GameState, playerId: string): PlayerShop | null {
+  if (['lobby', 'guide', 'finished'].includes(state.phase) || state.quiz.settings.debuffShop === false) return null;
+  const items = allowedDebuffs(state.quiz).map((kind) => ({ kind, price: debuffPrice(state.quiz, kind) }));
+  const targets = state.players
+    .filter((p) => p.id !== playerId)
+    .map((p) => ({ ...blitzPlayer(state, p.id), busy: shownDebuff(state, p.id) !== null }));
+  if (items.length === 0 || targets.length === 0) return null;
+  return { items, targets, block: shopBlock(state, playerId) };
 }
 
 /** Запасне запитання за id із запису (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. */

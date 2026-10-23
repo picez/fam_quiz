@@ -50,7 +50,7 @@ const splats = () => document.querySelectorAll('.debuff-splat');
 
 function Zone({ kind, questionIndex = 2, onSubmit = () => {} }: { kind: DebuffKind; questionIndex?: number; onSubmit?: (a: Answer) => void }) {
   return (
-    <DebuffZone debuff={{ kind, since: Date.now() }} limitMs={30_000} offsetMs={0} questionIndex={questionIndex}>
+    <DebuffZone debuff={{ kind, since: Date.now(), by: null }} limitMs={30_000} offsetMs={0} questionIndex={questionIndex}>
       <AnswerInput question={single} onSubmit={onSubmit} />
     </DebuffZone>
   );

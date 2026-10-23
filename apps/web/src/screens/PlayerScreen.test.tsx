@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null, buffs: null, overtime: null, tip: null, vote: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -49,6 +49,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  debuffNotice: null,
   removed: [],
   splash: null,
   overtime: [],
@@ -84,7 +85,7 @@ function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send 
 describe('PlayerScreen', () => {
   it('a debuffed question wraps the answer area; other phones get the same zone without a debuff', () => {
     const classes = () => [...document.querySelector('main')!.children].map((el) => el.className);
-    show(onQuestion({ me: { ...me, debuff: { kind: 'mirror', since: Date.now() } } }));
+    show(onQuestion({ me: { ...me, debuff: { kind: 'mirror', since: Date.now(), by: null } } }));
     const zone = document.querySelector('[data-debuff="mirror"]')!;
     expect(zone).not.toBeNull();
     expect(zone.querySelector('h1.question')).not.toBeNull();

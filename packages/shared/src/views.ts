@@ -1,5 +1,5 @@
 import type { Answer } from './answer';
-import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, SplashKind } from './game';
+import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
 import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video, WagerMode } from './quiz';
 import type { GuidePage } from './guide';
 import type { RoundBrief } from './round-brief';
@@ -526,6 +526,8 @@ interface BaseView {
   buffs: BuffTag[];
   /** Останній узятий баф у грі; null — не було. */
   buffNotice: BuffNotice | null;
+  /** Остання покупка дебафу; null — не було або покупця чи ціль вилучено. */
+  debuffNotice: DebuffNotice | null;
   /** Прибрані 50/50 варіанти вибравшого на клітинці поля, поки стоїть її запитання (question, locked, reveal, а на finished — після останньої клітинки раунду) — для всіх ролей; у класиці й без бафу []. */
   removed: string[];
   /** Заставка поточного етапу (round/final — intro, question/cell — question, duel — duel, podium — finished); інакше null. */
@@ -549,6 +551,25 @@ export interface SplashView {
   kind: SplashKind;
   at: number;
   until: number;
+}
+
+/** Аркуш «Дебафи» на телефоні (9c). */
+export interface PlayerShop {
+  /** Дозволені дебафи з цінами, у порядку DEBUFF_KINDS. */
+  items: { kind: DebuffKind; price: number }[];
+  /** Суперники в порядку гравців; busy — на ньому вже чекає або діє дебаф. */
+  targets: (BlitzPlayer & { busy: boolean })[];
+  /** null — купити можна (бали телефон порівнює з ціною сам); інакше чому ні. */
+  block: ShopBlock | null;
+}
+
+/** Остання покупка дебафу в грі — для сповіщення «Оля насилає дебаф на гравця Петро»; виду немає навмисно. */
+export interface DebuffNotice {
+  /** seq коригування покупки. */
+  seq: number;
+  at: number;
+  buyer: BlitzPlayer;
+  target: BlitzPlayer;
 }
 
 export interface StageView extends BaseView {
@@ -592,8 +613,10 @@ export interface PlayerView extends BaseView {
     chain: PlayerChain | null;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
     sort: PlayerSort | null;
-    /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера). */
-    debuff: { kind: DebuffKind; since: number } | null;
+    /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера); by — нікнейм покупця (null — ведучий або покупця вилучено). */
+    debuff: { kind: DebuffKind; since: number; by: string | null } | null;
+    /** null — у вікторині немає дебафів чи купівлю вимкнено, немає суперників або етап lobby/guide/finished. */
+    shop: PlayerShop | null;
     /** null — у вікторині немає дуелей. */
     duel: PlayerDuel | null;
     /** Ряд бафів; null — у вікторині немає бафів, етап не question або гравець тут не відповідає з телефона. */
@@ -630,7 +653,7 @@ export interface HostResponse {
 export interface HostPlayer extends LobbyPlayer {
   score: number;
   /** fired — діє в поточному запитанні; інакше чекає. */
-  debuff: { kind: DebuffKind; fired: boolean } | null;
+  debuff: { kind: DebuffKind; fired: boolean; by: string | null } | null;
 }
 
 export interface HostView extends BaseView {

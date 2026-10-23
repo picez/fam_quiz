@@ -62,7 +62,7 @@ const playerSort: PlayerSort = {
 };
 
 function MirrorSort({ send }: { send: Send }) {
-  const [debuff] = useState(() => ({ kind: 'mirror' as const, since: Date.now() }));
+  const [debuff] = useState(() => ({ kind: 'mirror' as const, since: Date.now(), by: null }));
   const shown = useDebuffQuestion(sortQuestion, debuff);
   return (
     <DebuffZone debuff={debuff} limitMs={30_000} offsetMs={0} questionIndex={0}>
@@ -78,7 +78,7 @@ const zone = () => document.querySelector<HTMLElement>('.debuff-zone')!;
 const content = () => document.querySelector<HTMLFieldSetElement>('fieldset.debuff-content')!;
 
 function Zone({ kind, since, limitMs = 30_000, onSubmit = () => {} }: { kind: DebuffKind | null; since?: number; limitMs?: number | null; onSubmit?: (a: Answer) => void }) {
-  const debuff = kind === null ? null : { kind, since: since ?? Date.now() };
+  const debuff = kind === null ? null : { kind, since: since ?? Date.now(), by: null };
   return (
     <DebuffZone debuff={debuff} limitMs={limitMs} offsetMs={0} questionIndex={2}>
       <AnswerInput question={single} onSubmit={onSubmit} />
@@ -87,7 +87,7 @@ function Zone({ kind, since, limitMs = 30_000, onSubmit = () => {} }: { kind: De
 }
 
 function Mirror({ question, onSubmit }: { question: PublicQuestion; onSubmit: (a: Answer) => void }) {
-  const [debuff] = useState(() => ({ kind: 'mirror' as const, since: Date.now() }));
+  const [debuff] = useState(() => ({ kind: 'mirror' as const, since: Date.now(), by: null }));
   const shown = useDebuffQuestion(question, debuff);
   return (
     <DebuffZone debuff={debuff} limitMs={30_000} offsetMs={0} questionIndex={0}>
@@ -218,7 +218,7 @@ describe('DebuffZone', () => {
   it('freeze blocks drag, taps and arrows', async () => {
     const send = vi.fn<Send>().mockResolvedValue({ ok: true });
     render(
-      <DebuffZone debuff={{ kind: 'freeze', since: Date.now() }} limitMs={30_000} offsetMs={0} questionIndex={0}>
+      <DebuffZone debuff={{ kind: 'freeze', since: Date.now(), by: null }} limitMs={30_000} offsetMs={0} questionIndex={0}>
         <SortPlay question={sortQuestion} sort={playerSort} paused={false} offsetMs={0} send={send} />
       </DebuffZone>,
     );
