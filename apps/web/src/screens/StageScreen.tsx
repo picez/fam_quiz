@@ -8,6 +8,7 @@ import { MatchColumns, PairList } from './MatchView';
 import { AdjustmentToast, BuffToast, StageDebuffs } from '../live/LiveNotices';
 import { SharedOvertime, StageBuffs } from './Buffs';
 import { DuelBanner, DuelStage } from './DuelView';
+import { Splash } from '../live/Splash';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { BoardIntro } from './Dice';
@@ -330,6 +331,8 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      {/* Заставка — шар position: fixed над розкладкою етапу, яка вже стоїть під ним. */}
+      <Splash view={view} offsetMs={offsetMs} size="stage" />
       {/* Значки бафів і дебафів — один стовпчик у кутку, position: fixed. */}
       <div className="stage-tags">
         {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} board={view.board !== null} />}
