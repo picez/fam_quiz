@@ -332,7 +332,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
       {/* Значки бафів і дебафів — один стовпчик у кутку, position: fixed. */}
       <div className="stage-tags">
-        {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} />}
+        {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} board={view.board !== null} />}
         <StageDebuffs debuffs={view.debuffs} />
       </div>
       {view.paused && (

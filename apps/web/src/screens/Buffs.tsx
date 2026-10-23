@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Answer, BuffBlock, BuffKind, BuffSlot, BuffTag, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
+import { LIMITS } from '@quiz/shared';
+import type { Answer, BuffBlock, BuffKind, BuffSlot, BuffTag, HintRequest, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion, Question, VotePrompt, VoteTally } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { choiceLabel, signed } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
@@ -414,15 +415,86 @@ export function SharedOvertime({ view, offsetMs }: { view: { endsAt: number | nu
   return <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />;
 }
 
-/** Значки сцени: «½ Оля» біля кожного гравця, що взяв баф на це запитання; що баф зробив, сцена не знає. */
-export function StageBuffs({ buffs }: { buffs: BuffTag[] }) {
+/**
+ * Значки сцени: «½ Оля» біля кожного гравця, що взяв баф на це запитання; що баф зробив, сцена не знає.
+ * Заміна в класиці — лише «🔄 Оля відповідає на запасне» (запасного в зрізі сцени немає);
+ * на полі запасне вже на сцені як запитання клітинки — «🔄 Оля: запасне запитання».
+ */
+export function StageBuffs({ buffs, board = false }: { buffs: BuffTag[]; board?: boolean }) {
   if (buffs.length === 0) return null;
+  const text = (tag: BuffTag) =>
+    tag.kind === 'swap'
+      ? `${BUFF_ICONS.swap} ${t(board ? 'stageSpareBoard' : 'stageSpare', { name: tag.nickname })}`
+      : `${BUFF_ICONS[tag.kind]} ${tag.nickname}`;
   return (
     <ul className="stage-buffs" aria-label={t('stageBuffsLabel')}>
       {buffs.map((tag) => (
-        <li key={tag.playerId} title={buffName(tag.kind)}>{`${BUFF_ICONS[tag.kind]} ${tag.nickname}`}</li>
+        <li key={tag.playerId} title={buffName(tag.kind)}>{text(tag)}</li>
       ))}
     </ul>
+  );
+}
+
+/** Позначка відповіді на запасне (пульт, історія): «запасне» з текстом запасного в title. */
+export function SpareMark({ spare }: { spare: Question }) {
+  return (
+    <span className="spare-tag" title={spare.text}>
+      {t('spareMark')}
+    </span>
+  );
+}
+
+/** Картка одного запиту: поле для тексту, «Надіслати» (неактивна з порожнім полем) і «Підказав уголос». */
+function HintCard({ request, send, onError }: { request: HintRequest; send: Send; onError: (message: string | null) => void }) {
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  const give = (hint: string | null) => {
+    if (sending) return;
+    setSending(true);
+    void send('host:hint', { playerId: request.playerId, text: hint })
+      .then((result) => {
+        if (mountedRef.current) onError(result.ok ? null : errorText(result.error));
+      })
+      .finally(() => {
+        if (mountedRef.current) setSending(false);
+      });
+  };
+  const trimmed = text.trim();
+  return (
+    <article className="hint-request">
+      <h3>{t('hintRequest', { name: request.nickname })}</h3>
+      <label className="field">
+        <span>{t('hintField')}</span>
+        <textarea value={text} maxLength={LIMITS.hintText} rows={2} onChange={(event) => setText(event.target.value)} />
+      </label>
+      <div className="actions">
+        <button type="button" className="btn btn-primary" disabled={trimmed === '' || sending} onClick={() => give(trimmed)}>
+          {t('hintSend')}
+        </button>
+        <button type="button" className="btn" disabled={sending} onClick={() => give(null)}>
+          {t('hintAloudBtn')}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+/** Запити підказки на пульті: «Оля просить підказку», поле, «Надіслати», «Підказав уголос». Гра на них не чекає. */
+export function HintRequests({ hints, send, onError }: { hints: HintRequest[]; send: Send; onError: (message: string | null) => void }) {
+  if (hints.length === 0) return null;
+  return (
+    <div className="hint-requests">
+      {hints.map((request) => (
+        <HintCard key={request.playerId} request={request} send={send} onError={onError} />
+      ))}
+    </div>
   );
 }
 

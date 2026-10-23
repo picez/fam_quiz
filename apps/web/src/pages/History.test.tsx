@@ -269,6 +269,34 @@ describe('GameHistory: answers', () => {
     expect(rows[1].querySelector('.buff-tag')).toBeNull();
   });
 
+  it('history shows the spare text and reads the answer against it', async () => {
+    const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
+    const swapped: GameDetail = {
+      ...answered,
+      questions: [
+        {
+          ...answered.questions[1],
+          answered: 2,
+          responses: [
+            { nickname: 'Оля', answer: { type: 'boolean', value: true }, accepted: true, buff: 'swap', spare },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null },
+          ],
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: swapped });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (2)'));
+    const rows = [...container.querySelectorAll('details.responses li')];
+    const mark = rows[0].querySelector('.spare-tag');
+    expect(mark?.textContent).toBe('запасне');
+    expect(mark?.getAttribute('title')).toBe('Чорне море солоніше за Азовське?');
+    expect(rows[0].querySelector('.spare-text')?.textContent).toBe('Запасне: Чорне море солоніше за Азовське?');
+    expect(rows[0].querySelector('.responses-answer')?.textContent).toBe('Так');
+    expect(rows[1].querySelector('.spare-tag')).toBeNull();
+    expect(rows[1].querySelector('.spare-text')).toBeNull();
+  });
+
   it('shows no answers block for a question nobody answered', async () => {
     vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
     const { container } = open('/history/g1');
@@ -491,6 +519,7 @@ describe('GameHistory sort', () => {
       nickname,
       answer: { type: 'sort' as const, sorted: n, total: 4, misses, timeMs },
       buff: null,
+      spare: null,
       accepted: n === 4,
     });
     vi.mocked(getGame).mockResolvedValue({

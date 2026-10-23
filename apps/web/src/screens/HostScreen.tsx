@@ -19,7 +19,7 @@ import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
 import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
-import { BuffBadge, SharedOvertime } from './Buffs';
+import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
 import { BuffToast } from '../live/LiveNotices';
 import { HostDuelPanel } from './DuelView';
 
@@ -370,6 +370,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
             </>
           )}
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
+          {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
 
@@ -577,6 +578,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </>
       )}
 
+      {phase === 'question' && view.hints.length > 0 && (
+        <section className="panel">
+          <HintRequests hints={view.hints} send={send} onError={setError} />
+        </section>
+      )}
+
       {view.question !== null && live && board !== null && blitz === null && (
         <section className="panel">
           <h2>{t('responses')}</h2>
@@ -590,11 +597,18 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   return (
                     <>
                       <span className="given">
-                        {given !== null ? answerText(given, correct, view.question?.choices) : board.cell?.answerMode === 'voice' ? t('answeredAloud') : '—'}
+                        {given === null
+                          ? board.cell?.answerMode === 'voice'
+                            ? t('answeredAloud')
+                            : '—'
+                          : response !== undefined && response.spare !== null
+                            ? answerText(given, response.spare)
+                            : answerText(given, correct, view.question?.choices)}
                       </span>
                       {response !== undefined && (
                         <>
                           {response.buff !== null && <BuffBadge kind={response.buff} />}
+                          {response.spare !== null && <SpareMark spare={response.spare} />}
                           <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                             {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
                           </span>
@@ -661,7 +675,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 <li key={response.playerId}>
                   <span className="name">{response.nickname}</span>
                   {response.buff !== null && <BuffBadge kind={response.buff} />}
-                  <span className="given">{answerText(response.answer, correct, view.question?.choices)}</span>
+                  {response.spare !== null && <SpareMark spare={response.spare} />}
+                  <span className="given">
+                    {response.spare !== null ? answerText(response.answer, response.spare) : answerText(response.answer, correct, view.question?.choices)}
+                  </span>
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
                   {!isFinal && (
                     <>

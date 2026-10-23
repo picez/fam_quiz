@@ -5004,3 +5004,55 @@ label.powers-item {
   white-space: nowrap;
   vertical-align: baseline;
 }
+
+/* ---------- Запити підказки на пульті ---------- */
+
+.hint-requests {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* Картка на ширину панелі: поле на всю ширину, кнопки переносяться на вузькому екрані. */
+.hint-request {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--buff-accent);
+  border-radius: 0.75rem;
+}
+
+.hint-request h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.hint-request textarea {
+  font-size: 1rem;
+  max-width: 100%;
+}
+
+.hint-request .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.hint-known {
+  overflow-wrap: anywhere;
+}
+
+/* Текст запасного в історії — під ім'ям, своїм кольором. */
+.spare-text {
+  color: var(--spare-accent);
+  overflow-wrap: anywhere;
+}
+
+/* Позначка в рядках пульта стоїть у flex-рядку з gap: власний відступ зайвий. */
+.rows li > .spare-tag,
+.responses-who > .spare-tag {
+  flex: none;
+  margin-left: 0;
+}
