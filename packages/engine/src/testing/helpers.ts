@@ -24,6 +24,11 @@ export function lobbyWithSplash(quiz: Quiz, ...nicknames: string[]): GameState {
   );
 }
 
+/** Лобі вікторини з поясненнями для новачків (settings.newcomers = true), гравці p1, p2, … */
+export function lobbyWithGuide(quiz: Quiz, ...nicknames: string[]): GameState {
+  return lobbyWith({ ...quiz, settings: { ...quiz.settings, newcomers: true } }, ...nicknames);
+}
+
 /** «Почати гру» (без now — без заставки раунду), потім «Почати раунд» о now. */
 export function openAt(lobby: GameState, now: number, rng?: Rng): GameState {
   return must(next(must(start(lobby)), now, rng));

@@ -161,6 +161,7 @@ const uk = {
   changedByHost: 'змінено вручну',
   disconnected: 'немає зв’язку',
   phase_lobby: 'Лобі',
+  phase_guide: 'Як грати',
   phase_intro: 'Заставка раунду',
   phase_wager: 'Ставки',
   phase_round_end: 'Підсумки раунду',

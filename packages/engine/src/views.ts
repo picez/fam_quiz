@@ -85,7 +85,7 @@ import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
 // У цих етапах запитання ще (або вже) немає: журнал показує лише останнє зігране.
-const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'intro', 'board', 'wager', 'round_end', 'duel'];
+const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'guide', 'intro', 'board', 'wager', 'round_end', 'duel'];
 
 /** Чи є поточне запитання. На finished останнє зігране показуємо, лише якщо воно з поточного раунду (інакше гру завершено з intro). */
 function inQuestion(state: GameState): boolean {

@@ -17,6 +17,8 @@ import {
   type BoardRound,
   type FinalRound,
   type Round,
+  guidePages,
+  newcomersOn,
   rulesOf,
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
@@ -327,6 +329,8 @@ export interface GameState {
   transitions: boolean;
   /** Поточна або остання заставка; null — не було або transitions вимкнено. */
   splash: Splash | null;
+  /** Сторінка «Як грати» (0-базова); поза етапом guide — 0. */
+  guidePage: number;
 }
 
 export interface GameOptions {
@@ -366,6 +370,7 @@ export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
     sparesUsed: [],
     transitions: options.transitions ?? false,
     splash: null,
+    guidePage: 0,
   };
 }
 
@@ -910,11 +915,28 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   return everyoneAnswered ? lockNow(state) : state;
 }
 
-/** Кожна гра починається із заставки першого раунду; без now (старі тести) — без заставки. Перше запитання відкриває `next`. */
+/** Перший раунд: те, що start робив до 8d (стан intro першого раунду вже готовий), плюс заставка раунду. */
+function enterFirstRound(state: GameState, now?: number): GameState {
+  return roundSplash({ ...state, phase: 'intro', guidePage: 0 }, now);
+}
+
+/**
+ * «Почати гру»: з поясненнями для новачків — етап guide (сторінка 0, без заставки), інакше intro із заставкою, як і раніше.
+ * Перший раунд готується одразу, тож вихід із «Як грати» — рівно колишній start. Без now (старі тести) — без заставки.
+ * Перше запитання відкриває `next`.
+ */
 export function start(state: GameState, now?: number): Result {
   if (state.phase !== 'lobby') return fail('wrong_phase');
   if (state.players.length === 0) return fail('no_players');
-  return ok(roundSplash({ ...enterRound({ ...state, roundIndex: 0 }), phase: 'intro' }, now));
+  const ready = enterRound({ ...state, roundIndex: 0 });
+  return ok(newcomersOn(state.quiz) ? { ...ready, phase: 'guide', guidePage: 0 } : enterFirstRound(ready, now));
+}
+
+/** «До гри»: з будь-якої сторінки «Як грати» — у перший раунд, із заставкою раунду. */
+export function skipGuide(state: GameState, now: number): Result {
+  if (state.paused) return fail('paused');
+  if (state.phase !== 'guide') return fail('wrong_phase');
+  return ok(enterFirstRound(state, now));
 }
 
 export function submitAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
@@ -1205,6 +1227,10 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   if (state.paused) return fail('paused');
   // Дуель вклинюється між кроками гри: оголошена стартує замість кроку, після підсумку гра йде далі.
   if (state.phase === 'duel') return advanceDuel(state, now, rng);
+  // «Як грати» гортається до будь-яких дуелей (на guide їх і не буває): на останній сторінці — перший раунд.
+  if (state.phase === 'guide') {
+    return ok(state.guidePage + 1 < guidePages(state.quiz).length ? { ...state, guidePage: state.guidePage + 1 } : enterFirstRound(state, now));
+  }
   if (duelDue(state)) return ok(beginDuel(state, now));
   switch (state.phase) {
     case 'intro':
