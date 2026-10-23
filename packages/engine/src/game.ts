@@ -6,6 +6,7 @@ import {
   type CellKind,
   type CellPenalty,
   type AdjustmentSource,
+  type BuffKind,
   type DebuffKind,
   type DuelStage,
   type ErrorCode,
@@ -18,8 +19,9 @@ import {
   type Round,
   rulesOf,
 } from '@quiz/shared';
-// adjust.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
+// adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
+import { applyBuff, buffOf, type BuffPlay } from './buffs';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
@@ -58,6 +60,8 @@ export interface AnswerRecord {
   /** basePoints + streakBonus. */
   points: number;
   overridden: boolean;
+  /** Баф, узятий на це запитання; бали вже з ним. Немає — без бафу. */
+  buff?: BuffKind;
 }
 
 /** Натискання «Відповісти» в бліці або відповідь у миттєвому бліці. */
@@ -103,6 +107,10 @@ export interface Play {
   chain?: Record<string, ChainProgress>;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
+  /** Бафи гравців на цьому запитанні; гравця тут немає, поки він не брав бафу. */
+  buffs?: Record<string, BuffPlay>;
+  /** Особистий додатковий час понад спільний endsAt, мс (додатковий час; у 8b — заміна запитання). */
+  overtime?: Record<string, number>;
 }
 
 /** Поступ гравця в сортуванні. */
@@ -350,10 +358,10 @@ function gradeOf(accuracy: number): Grade {
   return accuracy >= 1 ? 'correct' : accuracy <= 0 ? 'wrong' : 'partial';
 }
 
-/** Записує відповідь гравця в поточне запитання. */
+/** Записує відповідь гравця в поточне запитання; баф гравця на ньому застосовується тут, рівно раз. */
 function withRecord(state: GameState, playerId: string, record: AnswerRecord): GameState {
   const plays = state.plays.map((play, index) =>
-    index === state.questionIndex ? { ...play, answers: { ...play.answers, [playerId]: record } } : play,
+    index === state.questionIndex ? { ...play, answers: { ...play.answers, [playerId]: applyBuff(record, buffOf(play, playerId)) } } : play,
   );
   return { ...state, plays };
 }
@@ -381,6 +389,14 @@ export function removePlayer(state: GameState, playerId: string): Result {
     if (play.sort !== undefined) {
       const { [playerId]: _progress, ...sort } = play.sort;
       kept.sort = sort;
+    }
+    if (play.buffs !== undefined) {
+      const { [playerId]: _buff, ...buffs } = play.buffs;
+      kept.buffs = buffs;
+    }
+    if (play.overtime !== undefined) {
+      const { [playerId]: _overtime, ...overtime } = play.overtime;
+      kept.overtime = overtime;
     }
     if (play.final !== undefined) {
       const { [playerId]: _wager, ...wagers } = play.final.wagers;
@@ -769,7 +785,11 @@ export function withTotals(input: GameState): GameState {
       const record = Object.hasOwn(answers, player.id) ? answers[player.id] : undefined;
       // Серія на полі лише за власні клітинки: на чужій бліц-клітинці бонусу немає.
       if (record === undefined || (play.board !== undefined && play.board.chooserId !== player.id)) continue;
-      const bonus = (counters[player.id] ?? 0) >= streak.length ? streakBonus(streakBase(play, player.id, record), streak.bonus) : 0;
+      const base = streakBase(play, player.id, record);
+      // Подвійні бали: бонус рахується від неподвоєних балів і теж подвоюється.
+      const doubled = record.buff === 'double' && base > 0;
+      const earned = (counters[player.id] ?? 0) >= streak.length;
+      const bonus = !earned ? 0 : doubled ? 2 * streakBonus(base / 2, streak.bonus) : streakBonus(base, streak.bonus);
       answers[player.id] = { ...record, streakBonus: bonus, points: record.basePoints + bonus };
     }
     return { ...play, answers };
