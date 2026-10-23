@@ -118,6 +118,13 @@ describe('buff views', () => {
     const paused = must(pause(s, T0 + 10_000));
     expect(stageView(paused).overtime).toEqual([{ ...row, deadline: null, remainingMs: 40_000 }]);
     expect(playerView(paused, 'p1')?.me.overtime).toEqual({ deadline: null, remainingMs: 40_000 });
+    // Пауза вже в додатковому часі: спільний кінець T0 + 20 000, витрачено 5 с із 30 — лишається 25 с.
+    const late = must(pause(s, T0 + 25_000));
+    expect(stageView(late).overtime).toEqual([{ ...row, deadline: null, remainingMs: 25_000 }]);
+    expect(playerView(late, 'p1')?.me.overtime).toEqual({ deadline: null, remainingMs: 25_000 });
+    // Годинник стоїть (утримання) і до, і після спільного кінця: залишок від heldAt.
+    expect(playerView({ ...s, heldAt: T0 + 10_000 }, 'p1')?.me.overtime).toEqual({ deadline: null, remainingMs: 40_000 });
+    expect(stageView({ ...s, heldAt: T0 + 25_000 }).overtime).toEqual([{ ...row, deadline: null, remainingMs: 25_000 }]);
     s = answer(s, 'p1', pick('b'), T0 + 1000);
     expect(stageView(s).overtime).toEqual([]);
     expect(playerView(s, 'p1')?.me.overtime).toBeNull();

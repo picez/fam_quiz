@@ -746,13 +746,14 @@ function personalClock(state: GameState, playerId: string): { deadline: number |
   // Хто вже відповів (або чекає на ведучого на полі), на себе не чекає.
   const answered = Object.hasOwn(play.answers, playerId) || (play.board?.chooserId === playerId && play.board.answer !== null);
   if (overtime <= 0 || answered) return null;
-  // Під час утримання й на паузі годинник стоїть: лише залишок.
+  // Під час утримання й на паузі годинник стоїть: лише залишок. Пауза вже зменшила overtime на витрачене (trimOvertime),
+  // а remainingMs тоді 0; утримання overtime не чіпає, зате endsAt − heldAt після спільного кінця від'ємний — двічі не віднімається.
   const remaining = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.paused ? state.remainingMs : null;
   if (remaining !== null) return { deadline: null, remainingMs: remaining + overtime };
   return state.endsAt === null ? null : { deadline: state.endsAt + overtime, remainingMs: null };
 }
 
-/** На кого чекає розкриття, у порядку гравців. */
+/** Гравці з додатковим часом без відповіді, у порядку гравців (від миті, коли баф узято). */
 function overtimeRows(state: GameState): OvertimeRow[] {
   return state.players.flatMap((p) => {
     const clock = personalClock(state, p.id);
