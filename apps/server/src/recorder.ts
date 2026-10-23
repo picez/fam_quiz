@@ -1,6 +1,6 @@
 import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
 import type { Answer, BuffKind } from '@quiz/shared';
-import { and, eq, max, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, max, notInArray } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
@@ -280,7 +280,20 @@ export function attachRecorder(
   };
 }
 
-/** Ігри, що лишилися «в процесі» після попереднього запуску сервера, уже ніхто не дограє. */
-export async function markInterrupted(db: Db): Promise<void> {
-  await db.update(game).set({ status: 'aborted', finishedAt: new Date() }).where(eq(game.status, 'running'));
+/** Ігри «в процесі» з минулого запуску, крім ігор кімнат, що відновлюються (except — їхні id). */
+export async function markInterrupted(db: Db, except: string[] = []): Promise<void> {
+  const running = eq(game.status, 'running');
+  await db
+    .update(game)
+    .set({ status: 'aborted', finishedAt: new Date() })
+    .where(except.length === 0 ? running : and(running, notInArray(game.id, except)));
+}
+
+/** Перервати конкретні ігри, якщо вони ще «в процесі» (кімнати, що не відновлюються). */
+export async function markAborted(db: Db, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await db
+    .update(game)
+    .set({ status: 'aborted', finishedAt: new Date() })
+    .where(and(eq(game.status, 'running'), inArray(game.id, ids)));
 }

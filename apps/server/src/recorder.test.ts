@@ -4,7 +4,7 @@ import { blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, m
 import { DEFAULT_RULES } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user } from './db/schema';
-import { attachRecorder, markInterrupted } from './recorder';
+import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { playToEnd } from './testing/final-game';
@@ -308,6 +308,49 @@ describe('markInterrupted', () => {
     expect(running.status).toBe('aborted');
     expect(running.finishedAt).toBeInstanceOf(Date);
     expect(done.status).toBe('finished');
+  });
+
+  it('marks running games interrupted, except the rooms being restored', async () => {
+    const g1 = await setup();
+    g1.host('start');
+    await g1.recorder.idle();
+    const g2 = await setup(g1.db);
+    g2.host('start');
+    await g2.recorder.idle();
+    const g3 = await setup(g1.db);
+    g3.host('start');
+    await g3.recorder.idle();
+    const done = await setup(g1.db);
+    done.host('start');
+    done.host('end');
+    await done.recorder.idle();
+
+    await markInterrupted(g1.db, [g2.room.id]);
+    const status = async (id: string) => (await g1.db.select().from(game).where(eq(game.id, id)))[0];
+    expect((await status(g1.room.id)).status).toBe('aborted');
+    expect((await status(g1.room.id)).finishedAt).toBeInstanceOf(Date);
+    expect((await status(g3.room.id)).status).toBe('aborted');
+    expect((await status(g2.room.id)).status).toBe('running');
+    expect((await status(done.room.id)).status).toBe('finished');
+  });
+});
+
+describe('markAborted', () => {
+  it('aborts only the given running games', async () => {
+    const g1 = await setup();
+    g1.host('start');
+    await g1.recorder.idle();
+    const g2 = await setup(g1.db);
+    g2.host('start');
+    await g2.recorder.idle();
+
+    await markAborted(g1.db, []);
+    expect((await g1.db.select().from(game).where(eq(game.id, g1.room.id)))[0].status).toBe('running');
+    await markAborted(g1.db, [g1.room.id]);
+    const [a] = await g1.db.select().from(game).where(eq(game.id, g1.room.id));
+    expect(a.status).toBe('aborted');
+    expect(a.finishedAt).toBeInstanceOf(Date);
+    expect((await g1.db.select().from(game).where(eq(game.id, g2.room.id)))[0].status).toBe('running');
   });
 });
 
