@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AdjustmentNotice, BlitzPlayer, BuffNotice } from '@quiz/shared';
+import type { AdjustmentNotice, BlitzPlayer, BuffNotice, SplashView } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { signed } from '../format';
 import { t } from '../i18n';
+import { useSplash } from './Splash';
 
 /** Скільки сповіщення (бали від ведучого, баф) видно, мс. */
 export const NOTICE_MS = 4000;
@@ -57,10 +58,23 @@ export function AdjustmentToast({ notice, offsetMs }: { notice: AdjustmentNotice
   );
 }
 
-/** «Оля: 50/50» — хтось узяв баф; position: fixed під сповіщенням балів, тож нічого не зсуває. */
-export function BuffToast({ notice, offsetMs }: { notice: BuffNotice | null; offsetMs: number }) {
-  const shown = useNotice(notice, offsetMs);
-  if (shown === null) return null;
+/** Що BuffToast читає зі зрізу. */
+export interface BuffToastView {
+  buffNotice: BuffNotice | null;
+  questionIndex: number;
+  splash: SplashView | null;
+  paused: boolean;
+}
+
+/**
+ * «Оля: 50/50» — хтось узяв баф; position: fixed під сповіщенням балів, тож нічого не зсуває.
+ * Лише на запитанні, де баф узято, і не поверх заставки; тому, хто взяв баф (selfId), — ні: про це вже каже його рядок бафів.
+ */
+export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; offsetMs: number; selfId?: string }) {
+  const shown = useNotice(view.buffNotice, offsetMs);
+  const splash = useSplash(view.splash, view.paused, offsetMs);
+  if (shown === null || splash !== null) return null;
+  if (shown.questionIndex !== view.questionIndex || shown.playerId === selfId) return null;
   return (
     <div className="live-notice is-buff" role="status" aria-live="polite">
       {t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind) })}

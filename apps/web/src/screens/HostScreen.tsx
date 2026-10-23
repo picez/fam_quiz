@@ -18,6 +18,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
+import { MenuLinks } from './MenuLinks';
 import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
 import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
 import { BuffToast } from '../live/LiveNotices';
@@ -245,7 +246,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
   return (
     <main className="app host">
-      <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      <BuffToast view={view} offsetMs={offsetMs} />
       {/* Пульт заставкою не закривається: лише значок position: fixed у правому верхньому куті. */}
       <SplashChip view={view} offsetMs={offsetMs} />
       <header className="bar">
@@ -384,6 +385,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 blink={blink}
                 voice={board?.cell?.answerMode === 'voice'}
                 onName={canName ? name : undefined}
+                removed={view.removed}
               />
             </>
           )}
@@ -747,6 +749,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         <section className="panel">
           <h2>{t('gameOver')}</h2>
           <Standings standings={view.standings} />
+          <MenuLinks role="host" />
         </section>
       ) : (
         <section className="panel">

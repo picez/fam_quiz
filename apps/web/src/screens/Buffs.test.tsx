@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
+import type { BuffBlock, BuffKind, PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
@@ -81,6 +81,30 @@ function row(buffs: PlayerBuffs, over: { paused?: boolean; timeOver?: boolean; s
 const why = () => document.querySelector('.buff-why')!;
 
 describe('Buffs', () => {
+  it('in a blitz the buff row is one compact line that says there are no buffs', () => {
+    const off = (block: 'off_blitz' | 'off_blitz_cell'): PlayerBuffs => ({
+      slots: [
+        { kind: 'fifty', state: 'blocked', block },
+        { kind: 'double', state: 'used', block: 'used' },
+        { kind: 'shield', state: 'blocked', block },
+      ],
+      active: null,
+    });
+    const { container, unmount } = row(off('off_blitz'));
+    expect(container.querySelector('.buff-row')).toBeNull();
+    expect(container.querySelectorAll('button, [role="button"]')).toHaveLength(1);
+    expect(container.querySelector('.buff-bar.is-off .buff-help')).not.toBeNull();
+    expect(container.querySelector('.buff-bar.is-off .buff-off')?.textContent).toBe('У бліці бафів немає.');
+    unmount();
+    row(off('off_blitz_cell'));
+    expect(document.querySelector('.buff-off')?.textContent).toBe('На бліц-клітинках бафів немає.');
+    cleanup();
+    // У фіналі, ланцюжку й сортуванні — звичайний ряд неактивних кнопок.
+    row({ slots: [{ kind: 'fifty', state: 'blocked', block: 'off_final' }], active: null });
+    expect(document.querySelectorAll('.buff-row button')).toHaveLength(1);
+    expect(document.querySelector('.buff-off')).toBeNull();
+  });
+
   it('the buff row keeps its size in every state', () => {
     const shapes = [ready, active, used, blocked].map((buffs) => {
       const { container, unmount } = row(buffs);
@@ -366,6 +390,74 @@ describe('VoteSheet', () => {
     return { send, onError, again, ...result };
   }
 
+  it('the vote sheet is a compact strip that folds and unfolds', () => {
+    const { again } = sheet(prompt());
+    const toggle = screen.getByRole('button', { name: 'Згорнути' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(toggle);
+    expect(document.querySelector('.vote-sheet.is-collapsed')).not.toBeNull();
+    expect(document.querySelector('.vote-sheet')?.textContent).toContain('Оля питає зал: як думаєте?');
+    expect(screen.queryByRole('button', { name: 'Пропустити' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Розгорнути' }).getAttribute('aria-expanded')).toBe('false');
+    // Живий регіон лишається й у згорнутому аркуші.
+    expect(document.querySelector('.vote-live')?.textContent).toBe('Оля питає зал: як думаєте?');
+    fireEvent.click(screen.getByRole('button', { name: 'Розгорнути' }));
+    expect(screen.getByRole('button', { name: 'Пропустити' })).toBeTruthy();
+    // Нове запрошення від іншого гравця — аркуш знову розгорнутий.
+    fireEvent.click(screen.getByRole('button', { name: 'Згорнути' }));
+    again(prompt({ asker: { playerId: 'p2', nickname: 'Петро' } }));
+    expect(document.querySelector('.vote-sheet.is-collapsed')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Пропустити' })).toBeTruthy();
+    expect(rule('.vote-sheet')).toContain('max-height: 35vh');
+    expect(rule('.removed-tag')).toContain('position: absolute');
+  });
+
+  it('folding the sheet keeps the chosen options and the typed text', async () => {
+    const multiQ: PublicQuestion = { ...single, type: 'multi' };
+    const many = sheet(prompt(), { q: multiQ });
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Згорнути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Розгорнути' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Голосувати' }));
+    });
+    expect(many.send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'multi', optionIds: ['b'] } });
+    cleanup();
+
+    sheet(prompt(), { q: text });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Львів' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Згорнути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Розгорнути' }));
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('Львів');
+  });
+
+  it('the folded head stays one line at 360 px: the ask is cut with an ellipsis, the toggle is an icon', () => {
+    sheet(prompt());
+    const toggle = screen.getByRole('button', { name: 'Згорнути' });
+    expect(toggle.textContent).toBe('▾');
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: 'Розгорнути' }).textContent).toBe('▴');
+    expect(rule('.vote-sheet-head')).toMatch(/flex-wrap:\s*nowrap/);
+    const ask = rule('.vote-sheet-head strong');
+    expect(ask).toContain('min-width: 0');
+    expect(ask).toContain('text-overflow: ellipsis');
+    expect(ask).toContain('white-space: nowrap');
+  });
+
+  it('a removed option fades its face but keeps a full-strength «прибрано» chip, larger on the stage and the host', () => {
+    // Тьмяніє лише вміст варіанта, не вся кнопка: інакше тьмяніє й позначка.
+    expect(rule('.choice.is-removed')).not.toContain('opacity');
+    expect(rule('.choice.is-removed > :not(.removed-tag, .count)')).toMatch(/opacity:\s*0\.\d+/);
+    expect(rule('.choice.is-removed > span:not(.letter, .removed-tag, .count)')).toContain('text-decoration: line-through');
+    const tag = rule('.removed-tag');
+    expect(tag).toContain('position: absolute');
+    expect(tag).toContain('background: var(--removed-tag)');
+    expect(tag).toContain('opacity: 1');
+    expect(tag).not.toContain('font-size: 0.75rem');
+    expect(rule('.stage .removed-tag')).toContain('font-size: clamp(');
+    expect(rule('.host .removed-tag')).toContain('font-size:');
+  });
+
   it('the vote sheet sends a ballot, thanks, and can be skipped', async () => {
     const { send, again } = sheet(prompt());
     expect(document.querySelector('.vote-sheet strong')?.textContent).toBe('Оля питає зал: як думаєте?');
@@ -451,7 +543,7 @@ describe('VoteSheet', () => {
     expect(document.querySelector('.vote-sheet')).not.toBeNull();
     const body = rule('.vote-sheet');
     expect(body).toMatch(/position:\s*fixed/);
-    expect(body).toMatch(/max-height:\s*60vh/);
+    expect(body).toMatch(/max-height:\s*35vh/);
     expect(body).toMatch(/overflow-y:\s*auto/);
   });
 });
@@ -470,5 +562,97 @@ describe('StageBuffs', () => {
     expect(swap.className).toBe('is-swap');
     expect(hint.className).toBe('');
     expect(rule('.stage-buffs li.is-swap')).toMatch(/var\(--spare-accent\)/);
+  });
+
+  it('«?» lists what each allowed buff does and where it works', () => {
+    const slots = (kinds: BuffKind[]): PlayerBuffs => ({ slots: kinds.map((kind) => ({ kind, state: 'ready' as const, block: null })), active: null });
+    row(slots(['fifty', 'audience']));
+    expect(document.querySelectorAll('.buff-row .buff-btn')).toHaveLength(2);
+    const opener = screen.getByRole('button', { name: 'Що роблять бафи' });
+    fireEvent.click(opener);
+    const sheet = screen.getByRole('dialog', { name: 'Бафи' });
+    expect(within(sheet).getByText('Прибирає частину неправильних варіантів.')).toBeTruthy();
+    expect(within(sheet).getByText('Де: запитання з варіантами — у класиці й на полі, і на усних клітинках.')).toBeTruthy();
+    expect(within(sheet).getByText('Зал підказує; з таймером — вам +15 с.')).toBeTruthy();
+    expect(within(sheet).queryByText(/Подвоює бали/)).toBeNull();
+    expect(within(sheet).getByText('Не діють: бліц, бліц-клітинки, фінал, ланцюжок, сортування й дуелі.')).toBeTruthy();
+    expect(document.activeElement).toBe(within(sheet).getByRole('button', { name: 'Закрити' }));
+    expect(within(sheet).getByText('Кожен баф — раз за гру, не більше одного на запитання.')).toBeTruthy();
+    // Фокус ходить колом усередині аркуша.
+    const close = within(sheet).getByRole('button', { name: 'Закрити' });
+    fireEvent.keyDown(close, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+    fireEvent.click(opener);
+    fireEvent.click(document.querySelector('.buff-help-backdrop')!);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // Escape діє й тоді, коли фокус вийшов з аркуша; сам аркуш може взяти фокус.
+    fireEvent.click(opener);
+    expect(screen.getByRole('dialog').getAttribute('tabindex')).toBe('-1');
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('the help sheet is portaled out of the debuff fieldset and «?» works while frozen', () => {
+    const { container } = render(
+      <fieldset className="debuff-content" disabled>
+        <BuffRow buffs={ready} paused={false} send={okSend()} onError={() => {}} />
+      </fieldset>,
+    );
+    const opener = screen.getByRole('button', { name: 'Що роблять бафи' });
+    expect(opener.tagName).not.toBe('BUTTON');
+    fireEvent.click(opener);
+    const sheet = screen.getByRole('dialog', { name: 'Бафи' });
+    expect(container.contains(sheet)).toBe(false);
+    expect(sheet.parentElement).toBe(document.body);
+  });
+
+  it('«?» sits on the note line, with a 44 px hit area', () => {
+    row(ready);
+    expect(document.querySelector('.buff-row .buff-help')).toBeNull();
+    expect(document.querySelector('.buff-line > .buff-help + .buff-why')).not.toBeNull();
+    expect(rule('.buff-help::after')).toMatch(/inset: -6px/);
+  });
+
+  it('the note line keeps room for two lines, so a longer reason beside «?» does not push the options down', () => {
+    expect(rule('.buff-why')).toContain('min-height: 2.8em');
+  });
+
+  it('a disabled button says exactly why', () => {
+    const blockedOf = (kind: BuffKind, block: BuffBlock): PlayerBuffs => ({ slots: [{ kind, state: 'blocked', block }], active: null });
+    const whyOf = (buffs: PlayerBuffs, name: string) => {
+      const { unmount } = row(buffs);
+      fireEvent.click(screen.getByRole('button', { name }));
+      const text = document.querySelector('.buff-why')?.textContent;
+      unmount();
+      return text;
+    };
+    expect(whyOf(blockedOf('double', 'off_final'), 'Подвійні бали')).toBe('У фіналі бафів немає.');
+    expect(whyOf(blockedOf('fifty', 'unfit_type'), '50/50')).toBe('50/50 діє лише на запитаннях з варіантами.');
+    expect(whyOf(blockedOf('retry', 'unfit_voice'), 'Друга спроба')).toBe('Друга спроба не діє, коли відповідаєте вголос.');
+    expect(whyOf(blockedOf('swap', 'spares_out'), 'Заміна запитання')).toBe('Запасні запитання закінчилися.');
+  });
+
+  it('buff notices never cover controls: top on the host, a reserved strip on the phone, full width to wrap', () => {
+    const host = rule('.host .live-notice');
+    expect(host).toMatch(/top:/);
+    expect(host).toContain('bottom: auto');
+    expect(rule('.app.player')).toContain('var(--notice-room)');
+    expect(rule('.app.player:has(.debuff-banner)')).toContain('var(--notice-room)');
+    expect(rule('.app.player:has(> .duel-banner)')).toContain('var(--notice-room)');
+    const notice = rule('.live-notice');
+    expect(notice).not.toContain('translateX(-50%)');
+    expect(notice).toContain('width: fit-content');
+  });
+
+  it('the help sheet is a fixed layer above the vote sheet', () => {
+    expect(rule('.buff-help-sheet')).toContain('position: fixed');
+    expect(rule('.buff-help-sheet')).toContain('z-index: 75');
+    expect(rule('.buff-help-backdrop')).toContain('position: fixed');
   });
 });

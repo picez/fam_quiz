@@ -22,14 +22,21 @@ export const READY_BUFFS: readonly BuffKind[] = [...BUFF_KINDS];
 /** armed — чекає першої відповіді; again — друга спроба відкрита; choice — перша часткова, гравець вибирає; done. */
 export type RetryStage = 'armed' | 'again' | 'choice' | 'done';
 
-/** Чому кнопку бафу зараз не натиснути. */
+/** Чому кнопку бафу зараз не натиснути. off_* — у цьому запитанні бафів немає взагалі. */
 export type BuffBlock =
   | 'used' | 'taken' | 'answered' | 'time' | 'paused' | 'elsewhere' | 'not_chooser'
-  | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual'
+  | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_chain' | 'off_sort'
+  | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started';
 
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';
+
+/** Тривалість кожної заставки, мс; кінець заставки запитання — старт його таймера. Рушій і веб читають одне число. */
+export const SPLASH_MS: Record<SplashKind, number> = { round: 2500, final: 3200, question: 1200, cell: 1000, duel: 2000, podium: 2500 };
+
+/** Скільки довше триває перегортання клітинки з ×2/×3: сюрприз після перегортання, мс. */
+export const CELL_SURPRISE_MS = 800;
 
 export type ErrorCode =
   | 'wrong_phase'

@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdjustmentNotice } from '@quiz/shared';
-import { AdjustmentToast, BuffToast, NOTICE_MS, StageDebuffs } from './LiveNotices';
+import { AdjustmentToast, BuffToast, NOTICE_MS, StageDebuffs, type BuffToastView } from './LiveNotices';
 
 const NOW = 1_000_000;
 
@@ -144,8 +144,16 @@ describe('LiveNotices', () => {
     expect(empty.container.firstChild).toBeNull();
   });
 
+  const buffView = (over: Partial<BuffToastView> = {}): BuffToastView => ({
+    buffNotice: { seq: 1, at: NOW, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0 },
+    questionIndex: 0,
+    splash: null,
+    paused: false,
+    ...over,
+  });
+
   it('buff toast shows «Оля: 50/50» for four seconds', () => {
-    const { container } = render(<BuffToast notice={{ seq: 1, at: NOW, nickname: 'Оля', kind: 'fifty' }} offsetMs={0} />);
+    const { container } = render(<BuffToast view={buffView()} offsetMs={0} />);
     expect(screen.getByRole('status').textContent).toBe('Оля: 50/50');
     expect(container.firstElementChild?.className).toBe('live-notice is-buff');
     act(() => {
@@ -157,7 +165,30 @@ describe('LiveNotices', () => {
     });
     expect(screen.queryByRole('status')).toBeNull();
     cleanup();
-    render(<BuffToast notice={{ seq: 1, at: NOW - 10_000, nickname: 'Оля', kind: 'fifty' }} offsetMs={0} />);
+    render(<BuffToast view={buffView({ buffNotice: { ...buffView().buffNotice!, at: NOW - 10_000 } })} offsetMs={0} />);
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('a buff notice from the previous question never reaches the next splash or question', () => {
+    const { rerender } = render(<BuffToast view={buffView()} offsetMs={0} />);
+    expect(screen.queryByRole('status')).not.toBeNull();
+    // Наступна клітинка: заставка на екрані — сповіщення сховане навіть у свої 4 с.
+    rerender(<BuffToast view={buffView({ questionIndex: 1, splash: { kind: 'cell', at: NOW, until: NOW + 3000 } })} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    // Заставку знято, а сповіщення — з минулого запитання: не спливає.
+    rerender(<BuffToast view={buffView({ questionIndex: 1 })} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    // Свіжий баф під заставкою теж чекає, доки вона зникне.
+    render(<BuffToast view={buffView({ splash: { kind: 'cell', at: NOW, until: NOW + 1000 } })} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('the player who took the buff gets no toast: the buff row already says so', () => {
+    render(<BuffToast view={buffView()} offsetMs={0} selfId="p1" />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<BuffToast view={buffView()} offsetMs={0} selfId="p2" />);
+    expect(screen.getByRole('status').textContent).toBe('Оля: 50/50');
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import type { BoardInfo, GameView, SplashView } from '@quiz/shared';
+import { CELL_SURPRISE_MS, SPLASH_MS, type BoardInfo, type GameView, type SplashView } from '@quiz/shared';
 import { splashLeft } from '../clock';
 import { markText, roundLabel } from '../format';
 import { t } from '../i18n';
@@ -32,24 +32,30 @@ export function useSplash(splash: SplashView | null, paused: boolean, offsetMs: 
   return { splash, elapsed };
 }
 
+/** Перегортання клітинки триває SPLASH_MS.cell; далі, ще CELL_SURPRISE_MS до кінця заставки, — штамп «×2!». */
+const CELL_FLIP_MS = SPLASH_MS.cell;
+
 /** Перегортання вибраної клітинки поля: лице — ціна, зворот — категорія, ціна й позначки. */
 function CellFlip({ cell }: { cell: NonNullable<BoardInfo['cell']> }) {
   const kind = cell.kind === 'blitz' ? ' is-blitz' : cell.answerMode === 'voice' ? ' is-voice' : '';
+  const surprise = cell.mark !== 'none';
   return (
-    <div className="splash-flip">
-      <div className={`splash-face is-front${kind}`}>
-        <span className="price">{cell.price}</span>
+    <>
+      <div className="splash-flip">
+        <div className={`splash-face is-front${kind}`}>
+          <span className="price">{cell.price}</span>
+        </div>
+        <div className={`splash-face is-back${kind}`}>
+          <span className="splash-cell-title">{t('cellTitle', { category: cell.category, price: cell.price })}</span>
+          {cell.kind === 'blitz' && (
+            <span className="splash-cell-marks">
+              <span className="splash-cell-mark">{t('cellBlitz')}</span>
+            </span>
+          )}
+        </div>
       </div>
-      <div className={`splash-face is-back${kind}`}>
-        <span className="splash-cell-title">{t('cellTitle', { category: cell.category, price: cell.price })}</span>
-        {(cell.mark !== 'none' || cell.kind === 'blitz') && (
-          <span className="splash-cell-marks">
-            {cell.mark !== 'none' && <span className="splash-cell-mark">{markText(cell.mark)}</span>}
-            {cell.kind === 'blitz' && <span className="splash-cell-mark">{t('cellBlitz')}</span>}
-          </span>
-        )}
-      </div>
-    </div>
+      {surprise && <p className="splash-surprise">{t('splashSurprise', { mark: markText(cell.mark) })}</p>}
+    </>
   );
 }
 
@@ -120,14 +126,16 @@ export function Splash({ view, offsetMs, size }: { view: GameView; offsetMs: num
   const current = useSplash(view.splash, view.paused, offsetMs);
   if (current === null) return null;
   const { splash, elapsed } = current;
+  const surprise = splash.kind === 'cell' && view.board?.cell != null && view.board.cell.mark !== 'none';
   const style = {
     '--splash-ms': `${splash.until - splash.at}ms`,
     '--splash-elapsed': `${-elapsed}ms`,
+    ...(surprise ? { '--splash-flip-ms': `${CELL_FLIP_MS}ms`, '--splash-surprise-ms': `${CELL_SURPRISE_MS}ms` } : {}),
   } as CSSProperties;
   // aria-hidden: той самий зміст уже стоїть у розкладці етапу під шаром.
   return (
     // key: нова заставка або новий годинник — свіжий шар, тож анімація починається з потрібного місця.
-    <div key={`${splash.at}:${splash.until}:${offsetMs}`} className={`splash is-${splash.kind} is-${size}`} aria-hidden="true" style={style}>
+    <div key={`${splash.at}:${splash.until}:${offsetMs}`} className={`splash is-${splash.kind} is-${size}${surprise ? ' is-surprise' : ''}`} aria-hidden="true" style={style}>
       <SplashContent view={view} kind={splash.kind} />
     </div>
   );

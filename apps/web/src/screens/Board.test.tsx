@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BoardCellView, BoardInfo } from '@quiz/shared';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -29,6 +29,8 @@ const board = (cells: BoardCellView[], more: BoardCellView[] = []): BoardInfo =>
   schedule: [],
   scheduleRepeats: false,
   skipAt: null,
+  marks: (['x2', 'x3'] as const).filter((mark) => [...cells, ...more].some((cell) => cell.mark === mark)),
+  marksHidden: false,
 });
 
 describe('Board', () => {
@@ -58,6 +60,20 @@ describe('Board', () => {
     render(<BoardLegend board={board([cell('c1'), cell('c2', { kind: 'blitz', mark: 'x3' })])} />);
     const items = screen.getByRole('list', { name: 'Види клітинок' }).querySelectorAll('li');
     expect([...items].map((li) => li.textContent)).toEqual(['Звичайна', 'Бліц: бали першому, хто правильно відповість', '×3 — потрійна ціна']);
+  });
+
+  it('the legend still explains ×2 and ×3 when the marks are hidden, and says where they are is a surprise', () => {
+    const hidden = { ...board([cell('c1'), cell('c2')]), marks: ['x2', 'x3'], marksHidden: true } as BoardInfo;
+    render(<BoardLegend board={hidden} />);
+    const legend = screen.getByRole('list', { name: 'Види клітинок' });
+    for (const text of ['×2 — подвійна ціна', '×3 — потрійна ціна', 'Де ×2 і ×3 — сюрприз.']) expect(within(legend).getByText(text)).toBeTruthy();
+    expect(document.querySelector('.gb-mark')).toBeNull();
+  });
+
+  it('the host legend has no surprise line', () => {
+    render(<BoardLegend board={board([cell('c1', { mark: 'x2' })])} />);
+    expect(screen.getByText('×2 — подвійна ціна')).toBeTruthy();
+    expect(screen.queryByText('Де ×2 і ×3 — сюрприз.')).toBeNull();
   });
 
   it('the legend counts played cells and lists the voice entry', () => {

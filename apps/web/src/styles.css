@@ -37,6 +37,8 @@
   --buff-active: #b8ff5c;
   --spare-accent: #ffcf5c;
   --vote-bar: rgb(126 224 255 / 0.22);
+  --removed-tag: #ff9db0;
+  --surprise: #ffd23f;
   --guide-accent: #8fe3b0;
   --guide-accent-soft: rgb(143 227 176 / 0.14);
   /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
@@ -48,6 +50,8 @@
   --banner-base: max(1rem, env(safe-area-inset-bottom));
   --debuff-banner-room: 6.25rem;
   --duel-banner-room: 6.25rem;
+  /* Висота сповіщення в один рядок із відступом: телефон тримає під нього запас унизу. */
+  --notice-room: 4rem;
   --display: 'Unbounded Variable', system-ui, sans-serif;
   --body: 'Onest Variable', system-ui, sans-serif;
   color-scheme: dark;
@@ -3499,8 +3503,11 @@ button.match-item {
 .live-notice {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
+  /* По центру без transform: ширина за вмістом до всієї ширини екрана, а не до половини (left: 50%). */
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin-inline: auto;
   z-index: 66; /* над заставкою (65): тости ±15 с і бафів не ховаються під нею */
   max-width: calc(100vw - 2rem);
   padding: 0.6rem 1.1rem;
@@ -3520,6 +3527,21 @@ button.match-item {
 /* Сцена тримає внизу постійний запас під сповіщення й значки: вони не накривають варіантів і таблиці. */
 .app.stage {
   padding-bottom: max(4vh, 4.75rem);
+}
+
+/* Телефон теж тримає внизу запас під сповіщення: воно не накриває варіантів і кнопок. */
+.app.player {
+  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--notice-room));
+}
+
+.app.player:has(.debuff-banner) {
+  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6rem + var(--notice-room));
+}
+
+/* На пульті внизу липка панель дій («Закрити запитання»): сповіщення стоїть угорі, над шапкою. */
+.host .live-notice {
+  top: max(0.75rem, env(safe-area-inset-top));
+  bottom: auto;
 }
 
 .stage .live-notice {
@@ -3949,6 +3971,51 @@ button.sort-zone:disabled {
   grid-row: 2 / -1;
 }
 
+/* Три й чотири категорії — сітка «хрестом» з рівними клітинками; позиції зон і свайпи ті самі. */
+.sort-arena[data-zones='3'] {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.sort-arena[data-zones='4'] {
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+.sort-arena[data-zones='3'],
+.sort-arena[data-zones='4'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sort-arena[data-zones='3'] .sort-zone[data-pos='left'],
+.sort-arena[data-zones='4'] .sort-zone[data-pos='left'] {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.sort-arena[data-zones='3'] .sort-zone[data-pos='right'],
+.sort-arena[data-zones='4'] .sort-zone[data-pos='right'] {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.sort-arena[data-zones='3'] .sort-zone[data-pos='top'],
+.sort-arena[data-zones='4'] .sort-zone[data-pos='top'] {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+}
+
+.sort-arena[data-zones='4'] .sort-zone[data-pos='bottom'] {
+  grid-column: 2;
+  grid-row: 3;
+  min-height: 0;
+}
+
+.sort-arena[data-zones='3'] .sort-center,
+.sort-arena[data-zones='4'] .sort-center {
+  grid-column: 2;
+  grid-row: 2;
+}
+
 .sort-card {
   position: relative;
   z-index: 1;
@@ -3967,6 +4034,13 @@ button.sort-zone:disabled {
   user-select: none;
   -webkit-user-select: none;
   cursor: grab;
+}
+
+/* Середина «хреста» — третина арени: на 360 px слово на кшталт «Смородина» не рветься. */
+.sort-arena[data-zones='3'] .sort-card,
+.sort-arena[data-zones='4'] .sort-card {
+  padding-inline: 0.375rem;
+  font-size: 1rem;
 }
 
 .sort-card.is-dragging {
@@ -4019,6 +4093,20 @@ button.sort-zone:disabled {
   font-weight: 600;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+/* Слова сортування на полі (глядачі й сцена): лише показ, переносяться рядками. */
+.sort-words {
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sort-play .sort-words li {
+  padding: 0.25rem 0.75rem;
+  font-size: 1rem;
 }
 
 .sort-hint {
@@ -4385,11 +4473,11 @@ body:has(.debuff-banner) .duel-banner {
 }
 
 .app.player:has(> .duel-banner) {
-  padding-bottom: calc(var(--banner-base) + var(--duel-banner-room) + 0.5rem);
+  padding-bottom: calc(var(--banner-base) + var(--duel-banner-room) + var(--notice-room) + 0.5rem);
 }
 
 .app.player:has(> .duel-banner):has(.debuff-banner) {
-  padding-bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room) + 0.5rem);
+  padding-bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room) + var(--notice-room) + 0.5rem);
 }
 
 /* Сповіщення про бали стає над смугою, а з банером дебафу — над обома. Сцена має власне правило нижче. */
@@ -4748,8 +4836,111 @@ label.powers-item {
   text-decoration: line-through;
 }
 
+/* Ряд і «?» в одному рядку; «?» — обведене коло, щоб не сплутати з бафом «Підказка». */
+.buff-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.buff-line .buff-why,
+.buff-line .buff-off {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.buff-help {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  /* Круг 2rem, але рядок не вищий за текст: зазор забирають поля. */
+  position: relative;
+  margin-block: -0.5rem;
+}
+
+/* Зона дотику 44 px навколо кола. */
+.buff-help::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.buff-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.buff-help-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 75;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--stage);
+  color: var(--paper);
+}
+
+.buff-help-sheet h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.buff-help-sheet ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.buff-help-sheet li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.buff-where,
+.buff-help-none {
+  color: var(--dim);
+  font-size: 15px;
+}
+
+.buff-help-none {
+  margin: 0 0 0.75rem;
+}
+
+/* Бліц: один рядок «У бліці бафів немає» замість ряду кнопок. */
+.buff-bar.is-off {
+  margin: 0.25rem 0;
+}
+
+.buff-off {
+  margin: 0;
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
 .buff-why {
-  min-height: 1.4em;
+  /* Два рядки: причина поруч із «?» на 360 px часто займає другий — ряд бафів і варіанти не стрибають. */
+  min-height: 2.8em;
   margin: 0;
   color: var(--dim);
   font-size: 15px;
@@ -4768,15 +4959,50 @@ label.powers-item {
   }
 }
 
-/* 50/50: прибраний варіант на своєму місці, тієї самої висоти. */
+/* 50/50: прибраний варіант на своєму місці, тієї самої висоти; позначка «прибрано» поза потоком.
+   Тьмяніє лише вміст (літера, картинка, текст), а не вся кнопка — позначка лишається яскравою. */
 .choice.is-removed {
-  opacity: 0.35;
+  position: relative;
+  border-style: dashed;
   cursor: default;
 }
 
+.choice.is-removed > :not(.removed-tag, .count) {
+  opacity: 0.45;
+}
+
 .choice.is-removed .choice-text,
-.choice.is-removed > span:not(.letter) {
+.choice.is-removed > span:not(.letter, .removed-tag, .count) {
   text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.removed-tag {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--removed-tag);
+  color: var(--stage);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* Телевізор: позначку видно з залу. */
+.stage .removed-tag {
+  top: 0.5vh;
+  right: 0.5vw;
+  padding: 0.2vh 0.8vw;
+  font-size: clamp(0.875rem, 1.4vw, 1.5rem);
+}
+
+.host .removed-tag {
+  font-size: 0.9375rem;
 }
 
 .buff-retry-actions {
@@ -4901,8 +5127,7 @@ label.powers-item {
   margin: 0;
 }
 
-.vote-head,
-.vote-sheet-head {
+.vote-head {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -4980,13 +5205,57 @@ label.powers-item {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: 60vh;
+  max-height: 35vh;
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--buff-accent);
   border-radius: 1rem 1rem 0 0;
   background: var(--stage);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
+}
+
+.vote-sheet.is-collapsed {
+  gap: 0;
+}
+
+/* Голова аркуша — завжди один рядок і на 360px: довге запрошення обрізається трикрапкою, відлік і ▴/▾ лишаються. */
+.vote-sheet-head {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0;
+}
+
+.vote-sheet-head strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vote-sheet-head .vote-time {
+  flex: none;
+  white-space: nowrap;
+}
+
+.vote-toggle {
+  flex: none;
+  min-width: 44px;
+  margin-left: auto;
+  padding-inline: 0.5rem;
+}
+
+.vote-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vote-sheet-body[hidden] {
+  display: none;
 }
 
 .vote-sheet .inputs {
@@ -5356,6 +5625,49 @@ label.powers-item {
   color: var(--amber);
 }
 
+/* Сюрприз: штамп поверх звороту картки, невидимий, доки не закінчиться перегортання. */
+.splash-surprise {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(4rem, 10vw, 9rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--surprise);
+  text-shadow: 0 0 1.5rem rgb(0 0 0 / 0.6);
+  opacity: 1;
+  animation: splash-surprise-in var(--splash-surprise-ms) linear calc(var(--splash-elapsed) + var(--splash-flip-ms)) both;
+}
+
+.splash.is-surprise .splash-flip {
+  animation-duration: var(--splash-flip-ms);
+}
+
+/* Під штампом «×2!» текст картки («Міста · 200») гасне, щойно перегортання скінчилося: не просвічує крізь штамп. */
+.splash.is-surprise .splash-cell-title,
+.splash.is-surprise .splash-cell-marks {
+  animation: splash-title-out 0.15s linear calc(var(--splash-elapsed) + var(--splash-flip-ms)) both;
+}
+
+@keyframes splash-title-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes splash-surprise-in {
+  0% {
+    opacity: 0;
+  }
+  30%,
+  100% {
+    opacity: 1;
+  }
+}
+
 .splash.is-phone .splash-face.is-front .price {
   font-size: 1.5rem;
 }
@@ -5445,6 +5757,23 @@ label.powers-item {
     100% {
       transform: rotate(calc(var(--spark) * 30deg)) translateY(-38vmin) scale(1);
       opacity: 0;
+    }
+  }
+
+  .splash-surprise {
+    animation-name: splash-surprise;
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  @keyframes splash-surprise {
+    0% {
+      opacity: 0;
+      transform: scale(1.6);
+    }
+    30%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 
@@ -5701,4 +6030,66 @@ label.powers-item {
   background: var(--tip-bg);
   font-size: 0.95rem;
   overflow-wrap: anywhere;
+}
+
+/* «Таблиця» в шапці телефона: висота як у «⚔ Дуель», тож шапка не росте; аркуш — шар поверх екрана. */
+.table-button {
+  flex-shrink: 0;
+  margin-block: calc(-0.4rem - 2px);
+  padding: 0.4rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.table-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 0.6);
+}
+
+.table-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(100%, 24rem);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--stage);
+  color: var(--paper);
+}
+
+.table-card h2,
+.table-card p {
+  margin: 0;
+}
+
+/* «До меню» після гри: у розкладці екрана гравця й ведучого; на сцені — кнопка в куті. */
+.menu-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.stage-menu {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
 }

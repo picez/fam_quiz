@@ -27,6 +27,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  removed: [],
   splash: null,
   overtime: [],
   guide: null,
@@ -342,6 +343,8 @@ describe('StageScreen: blitz', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
       ...over,
     });
 
@@ -487,9 +490,22 @@ describe('StageScreen: spotlight', () => {
     schedule: [],
     scheduleRepeats: false,
     skipAt: null,
+    marks: [],
+    marksHidden: false,
   };
   const picked = { playerId: 'p2', nickname: 'Анна', answer: { type: 'single' as const, optionId: 'a' } };
   const cls = (text: string) => screen.getByText(text).closest('.choice')?.className ?? '';
+
+  it('a board question on the stage marks the removed options', () => {
+    const four = { ...question, choices: [...choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
+    show(view({ phase: 'question', questionIndex: 0, question: four, round, board, endsAt: Date.now() + 20_000, removed: ['a', 'c'] }));
+    const removed = [...document.querySelectorAll('.choice.is-removed')];
+    expect(removed.map((li) => li.textContent)).toEqual(['AЛьвівприбрано', 'CОдесаприбрано']);
+    expect(document.querySelectorAll('.choice')).toHaveLength(4);
+    cleanup();
+    show(view({ phase: 'question', questionIndex: 0, question: four, endsAt: Date.now() + 20_000, removed: [] }));
+    expect(document.querySelector('.choice.is-removed')).toBeNull();
+  });
 
   it('colours the pending answer, then the verdict with the correct option at the reveal', () => {
     show(view({ phase: 'question', questionIndex: 0, question, round, board, endsAt: Date.now() + 20_000, spotlight: { ...picked, grade: null } }));
@@ -572,6 +588,8 @@ describe('StageScreen: match', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
     };
     const { container } = show(view({ phase: 'question', questionIndex: 0, question: matchQ, round, board, endsAt: Date.now() + 20_000 }));
     expect(container.querySelector('.match-columns')).not.toBeNull();
@@ -589,6 +607,8 @@ describe('StageScreen: match', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
     };
     const at = { phase: 'question' as const, questionIndex: 0, round, board, endsAt: Date.now() + 20_000 };
     const marked = show(view({ ...at, question, spotlight: { playerId: 'p2', nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, grade: null } }));
@@ -610,6 +630,8 @@ describe('StageScreen: match', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
     };
     show(
       view({
@@ -837,7 +859,7 @@ describe('StageScreen final', () => {
       { playerId: 'p1', nickname: 'Анна', sorted: 4, misses: 0, timeMs: 8000, points: null },
       { playerId: 'p2', nickname: 'Богдан', sorted: 1, misses: 1, timeMs: null, points: null },
     ];
-    const info = { total: 4, rows, winner: null };
+    const info = { total: 4, rows, winner: null, words: null };
 
     it('the stage shows the categories and progress, never the words', () => {
       show(view({ phase: 'question', questionIndex: 0, question: sortQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1, sort: info }));
@@ -877,6 +899,18 @@ describe('StageScreen final', () => {
       expect(screen.getByText('Морква')).toBeTruthy();
       expect(screen.getByText('Груша')).toBeTruthy();
       expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    });
+
+    it('the stage shows the board sort words until the reveal', () => {
+      const board = { cell: { category: 'Сад', price: 400, kind: 'normal', answerMode: 'phone', mark: 'none' }, turn: { playerId: 'p1', nickname: 'Анна' } } as unknown as BoardInfo;
+      const words = [{ id: 'w3', text: 'Буряк' }, { id: 'w4', text: 'Груша' }, { id: 'w1', text: 'Морква' }, { id: 'w2', text: 'Яблуко' }];
+      show(view({ phase: 'question', questionIndex: 0, question: sortQ, board, endsAt: Date.now() + 20_000, sort: { ...info, rows: [rows[0]], words } }));
+      expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Морква', 'Яблуко']);
+      expect(document.querySelector('.sort-reveal.is-open')).toBeNull();
+      cleanup();
+      show(view({ phase: 'reveal', questionIndex: 0, question: sortQ, board, reveal: fullSort, sort: { ...info, rows: [{ ...rows[0], points: 100 }], words } }));
+      expect(document.querySelector('.sort-words')).toBeNull();
+      expect(document.querySelector('.sort-reveal.is-open')).not.toBeNull();
     });
 
     it("a board sort shows the chooser's progress, a blitz shows the winner, a final hides progress", () => {
@@ -991,7 +1025,7 @@ describe('StageScreen final', () => {
   });
 
   it('a buff notice on the stage', () => {
-    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), nickname: 'Оля', kind: 'fifty' } }));
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'fifty', questionIndex: 0 } }));
     expect(screen.getByText('Оля: 50/50')).toBeTruthy();
   });
 });
@@ -1114,7 +1148,8 @@ describe('StageScreen: splashes', () => {
 
     onCell(base);
     expect(document.querySelector('.splash-face.is-front .price')?.textContent).toBe('300');
-    expect(document.querySelector('.splash-face.is-back .splash-cell-marks')?.textContent).toBe('×2');
+    expect(document.querySelector('.splash-face.is-back .splash-cell-marks')).toBeNull();
+    expect(document.querySelector('.splash-surprise')?.textContent).toBe('×2!');
     expect(document.querySelector('.splash-face.is-blitz, .splash-face.is-voice')).toBeNull();
     // Запитання під шаром ще не почалося: aria-busy, поки йде перегортання.
     expect(document.querySelector('.stage-question')?.getAttribute('aria-busy')).toBe('true');
@@ -1236,5 +1271,15 @@ describe('StageScreen: explanations for newcomers', () => {
   it('the stage never shows the type tip', () => {
     show(view({ phase: 'question', questionIndex: 0, question, newcomers: true }));
     expect(screen.queryByRole('note')).toBeNull();
+  });
+});
+
+describe('StageScreen: menu', () => {
+  it('the podium has a small «До меню» in the corner', () => {
+    show(view({ phase: 'finished', questionIndex: 2, standings: [{ participantId: 'p1', nickname: 'Олена', score: 500, totalTimeMs: 1, rank: 1 }] }));
+    expect(document.querySelector('a.stage-menu')?.getAttribute('href')).toBe('/');
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(document.querySelector('a.stage-menu')).toBeNull();
   });
 });

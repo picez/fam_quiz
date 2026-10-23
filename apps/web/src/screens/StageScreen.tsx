@@ -20,8 +20,9 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
+import { MenuLinks } from './MenuLinks';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
-import { SortBoard, SortReveal } from './SortView';
+import { SortBoard, SortReveal, SortWords } from './SortView';
 
 interface Props {
   view: StageView;
@@ -219,9 +220,13 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
           <ChainWords first={question.chain.first} masks={question.chain.masks} />
         )
       ) : question.sort !== null ? (
-        <SortReveal categories={question.sort.categories} question={reveal !== null && reveal.type === 'sort' ? reveal : null} total={question.sort.total} />
+        <>
+          <SortReveal categories={question.sort.categories} question={reveal !== null && reveal.type === 'sort' ? reveal : null} total={question.sort.total} />
+          {/* Поле: до розкриття під категоріями — усі слова за абеткою. */}
+          {view.board !== null && reveal === null && view.sort?.words && <SortWords words={view.sort.words} />}
+        </>
       ) : spotlit ? (
-        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} />
+        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} removed={view.removed} />
       ) : question.type === 'match' ? (
         reveal === null ? (
           <MatchColumns left={question.choices} right={question.right} />
@@ -330,11 +335,12 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
   const blink = useVerdictBlink(view.spotlight);
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
+  const splashNow = useSplash(view.splash, view.paused, offsetMs);
   return (
     <main className="app stage">
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
-      <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      <BuffToast view={view} offsetMs={offsetMs} />
       {/* Заставка — шар position: fixed над розкладкою етапу, яка вже стоїть під ним. */}
       <Splash view={view} offsetMs={offsetMs} size="stage" />
       {/* Значки бафів і дебафів — один стовпчик у кутку, position: fixed. */}
@@ -370,6 +376,8 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
           />
         </div>
       )}
+      {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}
+      {phase === 'finished' && splashNow === null && <MenuLinks role="stage" />}
     </main>
   );
 }

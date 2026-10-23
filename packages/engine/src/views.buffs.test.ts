@@ -59,11 +59,12 @@ describe('buff views', () => {
     expect(slotsOf(must(pause(s, T0 + 2000)), 'p2')?.[2]).toEqual(['retry', 'blocked', 'paused']);
 
     const blitz = startRound(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single4])], { buffs }), 'Оля'), T0, rng0);
-    expect(playerView(blitz, 'p1')?.me.buffs).toBeNull();
+    // Ряд є й там, де бафів немає: усі кнопки неактивні з причиною.
+    expect(slotsOf(blitz, 'p1')?.map(([, state, block]) => [state, block])).toEqual(buffs.map(() => ['blocked', 'off_blitz']));
     const wager = must(next(must(start(lobbyWith(makeRoundsQuiz([finalRound('f1', single4)], { buffs }), 'Оля'))), T0, rng0));
     const final = must(next(wager, T0, rng0));
     expect(final.phase).toBe('question');
-    expect(playerView(final, 'p1')?.me.buffs).toBeNull();
+    expect(slotsOf(final, 'p1')?.map(([, state, block]) => [state, block])).toEqual(buffs.map(() => ['blocked', 'off_final']));
     const cell = toBuffCell();
     expect(playerView(cell, 'p2')?.me.buffs).toBeNull();
     expect(playerView(cell, 'p1')?.me.buffs?.slots).toHaveLength(5);
@@ -75,7 +76,8 @@ describe('buff views', () => {
     expect(removed).toEqual(['a', 'c']);
     expect(removed).not.toContain('b');
     expect(playerView(s, 'p2')?.me.buffs?.active).toBeNull();
-    for (const view of [stageView(s), hostView(s), playerView(s, 'p2')]) expect(JSON.stringify(view)).not.toContain('"removed"');
+    // У класиці спільне поле removed порожнє для всіх ролей — прибрані є лише в me.buffs самого гравця.
+    for (const view of [stageView(s), hostView(s), playerView(s, 'p2')]) expect(JSON.stringify(view)).not.toContain('"removed":["');
     for (const view of [stageView(s), playerView(s, 'p1'), playerView(s, 'p2')]) expect(JSON.stringify(view)).not.toContain('correctId');
   });
 
@@ -100,14 +102,20 @@ describe('buff views', () => {
     let s = toBuffQuestion();
     expect(stageView(s).buffNotice).toBeNull();
     s = take(s, 'p1', 'fifty', T0 + 1000);
-    expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, nickname: 'Оля', kind: 'fifty' });
+    expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0 });
     s = take(s, 'p2', 'double', T0 + 2000);
-    expect(playerView(s, 'p3')?.buffNotice).toEqual({ seq: 2, at: T0 + 2000, nickname: 'Петро', kind: 'double' });
+    expect(playerView(s, 'p3')?.buffNotice).toEqual({ seq: 2, at: T0 + 2000, playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0 });
     expect(hostView(s).buffNotice?.seq).toBe(2);
     s = must(removePlayer(s, 'p2'));
-    expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, nickname: 'Оля', kind: 'fifty' });
+    expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0 });
     s = take(s, 'p3', 'double', T0 + 3000); // номер не перевикористовується після вилучення
-    expect(stageView(s).buffNotice).toEqual({ seq: 3, at: T0 + 3000, nickname: 'Іра', kind: 'double' });
+    expect(stageView(s).buffNotice).toEqual({ seq: 3, at: T0 + 3000, playerId: 'p3', nickname: 'Іра', kind: 'double', questionIndex: 0 });
+    // На наступному запитанні сповіщення лишається в зрізі, але з номером свого запитання: екрани його не покажуть.
+    s = must(lock(s));
+    s = must(next(s, T0, rng0));
+    s = must(next(s, T0, rng0));
+    expect(stageView(s).questionIndex).toBe(1);
+    expect(stageView(s).buffNotice?.questionIndex).toBe(0);
   });
 
   it('overtime rows for the stage and host; the player gets a personal timer', () => {

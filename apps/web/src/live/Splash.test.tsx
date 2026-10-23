@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type BoardInfo, type DuelInfo, type FinalInfo, type RoundInfo, type StageView } from '@quiz/shared';
+import { CELL_SURPRISE_MS, SPLASH_MS, emptyBrief, type BoardInfo, type DuelInfo, type FinalInfo, type RoundInfo, type StageView } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
@@ -32,6 +32,7 @@ const stage = (over: Partial<StageView> = {}): StageView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  removed: [],
   splash: null,
   overtime: [],
   guide: null,
@@ -67,6 +68,8 @@ const board: BoardInfo = {
   schedule: [],
   scheduleRepeats: false,
   skipAt: null,
+  marks: ['x2'],
+  marksHidden: true,
 } as unknown as BoardInfo;
 const duel = {
   challenger: { playerId: 'p1', nickname: 'Іра' },
@@ -164,7 +167,7 @@ describe('Splash', () => {
     expect(box.querySelector('.splash.is-cell .splash-face.is-front')?.textContent).toContain('300');
     const back = box.querySelector('.splash-face.is-back')?.textContent;
     expect(back).toContain('Міста · 300');
-    expect(back).toContain('×2');
+    expect(back).not.toContain('×2');
 
     box = show(stage({ phase: 'duel', duel, splash: at('duel') }));
     expect(box.querySelector('.splash.is-duel .splash-title')?.textContent).toBe('Дуель!');
@@ -175,6 +178,24 @@ describe('Splash', () => {
     box = show(stage({ phase: 'finished', splash: at('podium', 2500) }), 'phone');
     expect(box.querySelector('.splash.is-podium.is-phone .splash-title')?.textContent).toBe('Підсумки');
     expect(box.querySelector('.splash-sub')?.textContent).toBe('Хто ж переміг?');
+  });
+
+  it('a marked cell ends its flip with «×2!»', () => {
+    const now = Date.now();
+    const cellSplash = { kind: 'cell', at: now, until: now + SPLASH_MS.cell + CELL_SURPRISE_MS } as const;
+    const withMark = (mark: 'x2' | 'x3' | 'none') =>
+      stage({ phase: 'question', round: { ...round, type: 'board' }, board: { ...board, cell: { ...board.cell!, mark } }, questionIndex: 0, splash: cellSplash });
+    const { container, unmount } = render(<Splash view={withMark('x2')} offsetMs={0} size="stage" />);
+    expect(container.querySelector('.splash.is-cell.is-surprise')).not.toBeNull();
+    expect(container.querySelector('.splash-surprise')?.textContent).toBe('×2!');
+    // Тривалості — з shared, тими ж числами, що рахує рушій.
+    const style = container.querySelector('.splash')?.getAttribute('style');
+    expect(style).toContain(`--splash-flip-ms: ${SPLASH_MS.cell}ms`);
+    expect(style).toContain(`--splash-surprise-ms: ${CELL_SURPRISE_MS}ms`);
+    unmount();
+    const plain = render(<Splash view={withMark('none')} offsetMs={0} size="stage" />);
+    expect(plain.container.querySelector('.is-surprise')).toBeNull();
+    expect(plain.container.querySelector('.splash-surprise')).toBeNull();
   });
 
   it('the host chip shows only during a splash', () => {
@@ -206,6 +227,22 @@ function insideNoPreference(index: number): boolean {
 }
 
 describe('splash styles', () => {
+  it('the card title fades out under the «×2!» stamp once the flip ends', () => {
+    const title = rule('.splash.is-surprise .splash-cell-title,\n.splash.is-surprise .splash-cell-marks');
+    expect(title).toContain('splash-title-out');
+    expect(title).toContain('var(--splash-flip-ms)');
+    expect(css).toMatch(/@keyframes splash-title-out \{\n  to \{\n    opacity: 0;/);
+    expect(rule('.splash-surprise')).toContain('var(--splash-surprise-ms)');
+  });
+
+  it('the surprise moves only without reduced motion', () => {
+    expect(rule('.splash-surprise')).not.toContain('transform');
+    expect(rule('.splash-surprise')).toContain('opacity');
+    const at = css.indexOf('animation-name: splash-surprise;');
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(insideNoPreference(at)).toBe(true);
+  });
+
   it('the splash is a fixed layer and moves only without reduced motion', () => {
     expect(rule('.splash')).toContain('position: fixed');
     expect(rule('.splash')).toContain('inset: 0');

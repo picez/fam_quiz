@@ -49,7 +49,7 @@ import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { splitBank, type BankOutcome } from './bank';
 import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
-import { notStarted, questionSplashKind, shiftSplash, splashLead, withSplash, type Splash } from './splash';
+import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
   id: string;
@@ -585,8 +585,9 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
+  // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
   const kind = questionSplashKind(state, board);
-  const marked = kind === null ? { ...state, splash: null } : withSplash(state, kind, now);
+  const marked = kind === null ? { ...state, splash: null } : withSplash(state, kind, now, questionSplashMs(kind, board));
   const at = marked.splash?.until ?? now;
   // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
   // Дебафи, що чекають, спрацьовують для тих, хто відповідає на це запитання з телефона, — від старту запитання.

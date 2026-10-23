@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { LIMITS } from '@quiz/shared';
 import type { Answer, BuffBlock, BuffKind, BuffSlot, BuffTag, HintRequest, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion, Question, VotePrompt, VoteTally } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { choiceLabel, signed } from '../format';
-import { errorText, t, type TextKey } from '../i18n';
+import { errorText, hasText, t, type TextKey } from '../i18n';
 import { useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
@@ -24,7 +25,103 @@ const MINE: Partial<Record<BuffKind, string>> = {
 
 /** Причина неактивної кнопки словами. */
 function whyText(block: BuffBlock, kind: BuffKind): string {
-  return t(`buffWhy_${block}` as TextKey, { name: buffName(kind) });
+  const specific = `buffWhy_${block}_${kind}`;
+  return hasText(specific) ? t(specific) : t(`buffWhy_${block}` as TextKey, { name: buffName(kind) });
+}
+
+/**
+ * Кнопка «?» і аркуш: що робить кожен дозволений баф і де діє. Нічого не надсилає — працює й на паузі.
+ * Кнопка стоїть поза .buff-row: кнопок бафів лишається рівно стільки, скільки дозволено.
+ */
+export function BuffHelp({ kinds }: { kinds: BuffKind[] }) {
+  const [open, setOpen] = useState(false);
+  const openerRef = useRef<HTMLSpanElement | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) {
+      closeRef.current?.focus();
+      wasOpen.current = true;
+    } else if (wasOpen.current) {
+      wasOpen.current = false;
+      openerRef.current?.focus();
+    }
+  }, [open]);
+  // Escape закриває, поки аркуш відкрито, — навіть коли фокус уже вийшов з нього.
+  useEffect(() => {
+    if (!open) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onEscape);
+    return () => document.removeEventListener('keydown', onEscape);
+  }, [open]);
+  // Tab і Shift+Tab ходять колом по кнопках аркуша.
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab') return;
+    const items = [...(sheetRef.current?.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])') ?? [])];
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const here = document.activeElement;
+    if (event.shiftKey && (here === first || !sheetRef.current?.contains(here))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (here === last || !sheetRef.current?.contains(here))) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+  const openIt = () => setOpen(true);
+  return (
+    <>
+      {/* Не <button>: під «Льодом» fieldset.debuff-content вимкнений, а довідка має працювати й тоді. */}
+      <span
+        ref={openerRef}
+        role="button"
+        tabIndex={0}
+        className="buff-help"
+        aria-label={t('buffHelpOpen')}
+        aria-haspopup="dialog"
+        onClick={openIt}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openIt();
+          }
+        }}
+      >
+        <span aria-hidden="true">?</span>
+      </span>
+      {open &&
+        createPortal(
+          <>
+            <div className="buff-help-backdrop" onClick={() => setOpen(false)} />
+            <div ref={sheetRef} className="buff-help-sheet" role="dialog" aria-modal="true" aria-labelledby="buff-help-title" tabIndex={-1} onKeyDown={onKeyDown}>
+              <h2 id="buff-help-title">{t('buffHelpTitle')}</h2>
+              <p className="buff-help-rule">{t('buffHelpRule')}</p>
+              <ul>
+                {kinds.map((kind) => (
+                  <li key={kind}>
+                    <strong>
+                      <span aria-hidden="true">{BUFF_ICONS[kind]}</span> {buffName(kind)}
+                    </strong>
+                    <span>{t(`buffGuide_${kind}` as TextKey)}</span>
+                    <span className="buff-where">{t(`buffWhere_${kind}` as TextKey)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="buff-help-none">{t('buffHelpNone')}</p>
+              <button ref={closeRef} type="button" className="btn" onClick={() => setOpen(false)}>
+                {t('buffHelpClose')}
+              </button>
+            </div>
+          </>,
+          document.body,
+        )}
+    </>
+  );
 }
 
 /**
@@ -116,6 +213,20 @@ export function BuffRow({
       });
   };
 
+  // Бліц і бліц-клітинка: замість ряду кнопок один компактний рядок — щільний бліц-екран не зсувається.
+  const kinds = buffs.slots.map((slot) => slot.kind);
+  const blitzOff = buffs.slots.find((slot) => slot.block === 'off_blitz' || slot.block === 'off_blitz_cell');
+  if (blitzOff !== undefined && blitzOff.block !== null) {
+    return (
+      <div className="buff-bar is-off">
+        <div className="buff-line">
+          <BuffHelp kinds={kinds} />
+          <p className="buff-off">{whyText(blitzOff.block, blitzOff.kind)}</p>
+        </div>
+      </div>
+    );
+  }
+
   const active = buffs.active;
   // Рядок пояснень тримає й «Неправильно, ще одна спроба»: підказка не зсуває варіантів.
   const idle =
@@ -150,9 +261,12 @@ export function BuffRow({
           );
         })}
       </div>
-      <p className="buff-why" aria-live="polite">
-        {note?.text ?? idle}
-      </p>
+      <div className="buff-line">
+        <BuffHelp kinds={kinds} />
+        <p className="buff-why" aria-live="polite">
+          {note?.text ?? idle}
+        </p>
+      </div>
     </div>
   );
 }
@@ -317,6 +431,14 @@ export function VoteSheet({
   const [done, setDone] = useState<string[]>([]);
   const [thanks, setThanks] = useState(false);
   const [sending, setSending] = useState(false);
+  // Згорнутий аркуш — лише рядок запрошення; нове запрошення (інший гравець) знову розгорнуте.
+  const [collapsed, setCollapsed] = useState(false);
+  const askerId = prompt?.asker.playerId ?? null;
+  const [collapsedFor, setCollapsedFor] = useState(askerId);
+  if (collapsedFor !== askerId) {
+    setCollapsedFor(askerId);
+    setCollapsed(false);
+  }
   const mountedRef = useRef(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -381,17 +503,29 @@ export function VoteSheet({
   return (
     <>
       {live}
-      <section className="vote-sheet" aria-label={ask}>
+      <section className={collapsed ? 'vote-sheet is-collapsed' : 'vote-sheet'} aria-label={ask}>
         <p className="vote-sheet-head">
           <strong>{ask}</strong>
           <span className="vote-time">{t('votesLeft', { time: clockText(left) })}</span>
+          <button
+            type="button"
+            className="btn btn-small vote-toggle"
+            aria-expanded={!collapsed}
+            aria-label={t(collapsed ? 'voteExpand' : 'voteCollapse')}
+            onClick={() => setCollapsed((now) => !now)}
+          >
+            <span aria-hidden="true">{collapsed ? '▴' : '▾'}</span>
+          </button>
         </p>
-        <fieldset className="inputs" disabled={paused || sending}>
-          <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
-        </fieldset>
-        <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
-          {t('voteSkip')}
-        </button>
+        {/* Згорнутий аркуш лише ховає вміст: AnswerInput лишається змонтованим, тож вибране й набране не губиться. */}
+        <div className="vote-sheet-body" hidden={collapsed}>
+          <fieldset className="inputs" disabled={paused || sending}>
+            <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
+          </fieldset>
+          <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
+            {t('voteSkip')}
+          </button>
+        </div>
       </section>
     </>
   );

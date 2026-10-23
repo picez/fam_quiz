@@ -12,16 +12,19 @@ import {
   type BlitzInfo,
   type BlitzPlayer,
   type BlitzRow,
+  type BoardCell,
   type BoardCellView,
   type BoardInfo,
   type DiceInfo,
   type DuelInfo,
   type HostDuel,
   type PlayerDuel,
+  type CellMark,
   type ChainInfo,
   type DebuffKind,
   type PlayerChain,
   type PlayerSort,
+  type PlayerTable,
   type SortInfo,
   type SortRow,
   type Choice,
@@ -64,7 +67,7 @@ import {
   answerLimitMs,
   buffBlock,
   buffOf,
-  buffsHere,
+  buffRowHere,
   buffsUsed,
   canVote,
   currentBuffs,
@@ -322,16 +325,27 @@ function currentBoardPlay(state: GameState) {
   return round?.type === 'board' && play?.board !== undefined ? { board: play.board, round } : null;
 }
 
+/** Прибрані 50/50 вибравшого відкритої клітинки поля; інакше []. Варіанти поля видно всім, правильний ніколи не прибирається. */
+function boardRemoved(state: GameState): string[] {
+  const open = currentBoardPlay(state);
+  return open === null ? [] : (buffOf(state.plays[state.questionIndex], open.board.chooserId)?.removed ?? []);
+}
+
 const BOARD_PHASES: Phase[] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
-/** Поле для всіх ролей: вид клітинок видно всім, формат запитань ні. */
-function boardInfo(state: GameState): BoardInfo | null {
+/**
+ * Поле для ролей: вид клітинок видно всім, формат запитань ні; forHost — справжні позначки всіх клітинок.
+ * Сцені й гравцям ×2/×3 — сюрприз: позначка лише зіграної клітинки чи вибраної зараз.
+ */
+function boardInfo(state: GameState, forHost: boolean): BoardInfo | null {
   const round = currentRound(state);
   if (round?.type !== 'board' || state.board === null || !BOARD_PHASES.includes(state.phase)) return null;
   const open = currentBoardPlay(state);
   const turnId = state.phase === 'board' ? chooserOf(state) : (open?.board.chooserId ?? null);
   const cell = open === null ? undefined : findCell(round, open.board.cellId);
   const schedule = turnSchedule(state);
+  const shownMark = (cell: BoardCell): CellMark =>
+    forHost || cellPlayed(state, cell.question.id) || cell.question.id === open?.board.cellId ? cell.mark : 'none';
   return {
     categories: round.categories.map((category) => ({
       id: category.id,
@@ -341,7 +355,7 @@ function boardInfo(state: GameState): BoardInfo | null {
           id: cell.question.id,
           price: questionPrice(cell.question),
           played: cellPlayed(state, cell.question.id),
-          mark: cell.mark,
+          mark: shownMark(cell),
           kind: cell.kind,
           answerMode: cellAnswerMode(round, cell),
           penalty: cell.penalty,
@@ -367,6 +381,8 @@ function boardInfo(state: GameState): BoardInfo | null {
     schedule: schedule.circles.map((circle) => ({ ...circle, order: circle.order.map((id) => blitzPlayer(state, id)) })),
     scheduleRepeats: schedule.repeats,
     skipAt: state.board.awaySince === null ? null : state.board.awaySince + BOARD_AWAY_MS,
+    marks: (['x2', 'x3'] as const).filter((mark) => round.categories.some((c) => c.cells.some((cell) => cell.mark === mark))),
+    marksHidden: !forHost,
   };
 }
 
@@ -386,7 +402,7 @@ function diceInfo(state: GameState): DiceInfo | null {
 }
 
 function hostBoard(state: GameState): HostBoard | null {
-  const info = boardInfo(state);
+  const info = boardInfo(state, true);
   const round = currentRound(state);
   if (info === null || round?.type !== 'board') return null;
   return {
@@ -648,7 +664,12 @@ function sortInfo(state: GameState): SortInfo | null {
   // sort стабільний: рівні лишаються в порядку гравців.
   if (closed) rows.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity) || b.sorted - a.sorted);
   const won = blitz && closed ? state.players.find((p) => recordOf(state, state.questionIndex, p.id)?.accepted) : undefined;
-  return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id) };
+  // Слова за абеткою: порядок автора видав би групування за категоріями.
+  const words =
+    play.board === undefined
+      ? null
+      : open.question.words.map(({ id, text }) => ({ id, text })).sort((a, b) => a.text.localeCompare(b.text, 'uk'));
+  return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id), words };
 }
 
 /** Власна поточна картка й стан гравця; чужих слів і правильних категорій тут немає. */
@@ -782,7 +803,7 @@ function base(state: GameState, forHost: boolean) {
     playerCount: state.players.length,
     answeredCount: answeredCount(state),
     blitz: blitzInfo(state, forHost),
-    board: boardInfo(state),
+    board: boardInfo(state, forHost),
     spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
     chain: inFinalRound(state) ? null : chainInfo(state),
@@ -791,6 +812,7 @@ function base(state: GameState, forHost: boolean) {
     duel: duelInfo(state, false),
     buffs: currentBuffs(state),
     buffNotice: lastBuff(state),
+    removed: boardRemoved(state),
     splash: splashView(state),
     overtime: overtimeRows(state),
     guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,
@@ -827,9 +849,8 @@ function personalClock(state: GameState, playerId: string): { deadline: number |
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
   if (play === undefined) return null;
   const overtime = overtimeOf(play, playerId);
-  // Хто вже відповів (або чекає на ведучого на полі), на себе не чекає.
-  const answered = Object.hasOwn(play.answers, playerId) || (play.board?.chooserId === playerId && play.board.answer !== null);
-  if (overtime <= 0 || answered) return null;
+  // Хто вже відповів (чекає на ведучого на полі або назвав відповідь уголос), на себе не чекає.
+  if (overtime <= 0 || Object.hasOwn(play.answers, playerId) || hasAnswered(state, play, playerId)) return null;
   // Під час утримання й на паузі годинник стоїть: лише залишок. Пауза вже зменшила overtime на витрачене (trimOvertime),
   // а remainingMs тоді 0; утримання overtime не чіпає, зате endsAt − heldAt після спільного кінця від'ємний — двічі не віднімається.
   const remaining = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.paused ? state.remainingMs : null;
@@ -852,7 +873,7 @@ function overtimeRows(state: GameState): OvertimeRow[] {
 function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
   const allowed = allowedBuffs(state.quiz);
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
-  if (allowed.length === 0 || play === undefined || !buffsHere(state, play, playerId)) return null;
+  if (allowed.length === 0 || play === undefined || !buffRowHere(state, play, playerId)) return null;
   const own = buffOf(play, playerId);
   const used = buffsUsed(state, playerId);
   const slots = allowed.map((kind) => {
@@ -1015,11 +1036,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   const seen = spare ?? shownQuestion(state);
   const shared = base(state, false);
   const play = state.plays[state.questionIndex];
-  // На етапі locked бали за поточне запитання ще не показуємо: це видало б правильність до розкриття.
-  // У фіналі рахунок гравця змінюється лише в мить його розкриття, а частка банку — на кроці розподілу.
   const visible = finalVisiblePoints(state, playerId);
-  const hidden =
-    record === undefined ? 0 : state.phase === 'locked' ? record.points : state.phase === 'reveal' ? record.points - visible : 0;
   return {
     ...shared,
     ...(spare === null
@@ -1028,11 +1045,13 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
           question: publicQuestion(spare.question, spare.presented),
           limitMs: state.phase === 'question' && play !== undefined ? answerLimitMs(play, playerId) : shared.limitMs,
         }),
+    // Слова клітинки сортування — для глядачів; той, хто сортує, бачить лише власну поточну картку.
+    ...(shared.sort !== null && shared.sort.words !== null && open?.board.chooserId === playerId ? { sort: { ...shared.sort, words: null } } : {}),
     role: 'player',
     me: {
       id: player.id,
       nickname: player.nickname,
-      score: player.score - hidden,
+      score: player.score - hiddenPoints(state, playerId),
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
       // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули;
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
@@ -1060,7 +1079,27 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
     },
     reveal: revealed && seen !== null ? withoutHint(seen.question) : null,
     standings,
+    table: liveTable(state, playerId),
   };
+}
+
+/**
+ * Бали поточного запитання, яких гравцеві ще не видно: на етапі locked — уся оцінка (видала б правильність до розкриття);
+ * у фіналі рахунок змінюється лише в мить розкриття гравця, а частка банку — на кроці розподілу.
+ */
+function hiddenPoints(state: GameState, playerId: string): number {
+  const record = currentRecord(state, playerId);
+  if (record === undefined) return 0;
+  if (state.phase === 'locked') return record.points;
+  return state.phase === 'reveal' ? record.points - finalVisiblePoints(state, playerId) : 0;
+}
+
+/** Таблиця для кнопки «Таблиця»: з leaderboard 'end' поза підсумками — лише власний рядок зі справжнім місцем. */
+function liveTable(state: GameState, playerId: string): PlayerTable | null {
+  if (state.phase === 'lobby') return null;
+  const rows = rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hiddenPoints(state, p.id) })));
+  const full = state.quiz.settings.leaderboard === 'each' || WITH_STANDINGS.includes(state.phase);
+  return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
 }
 
 /** Власний дебаф гравця, лише поки він діє: до спрацювання гравець про нього не знає. */

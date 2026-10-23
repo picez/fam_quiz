@@ -55,6 +55,7 @@ const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): Player
   notice: null,
   buffs: [],
   buffNotice: null,
+  removed: [],
   splash: null,
   overtime: [],
   guide: null,
@@ -73,6 +74,7 @@ const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): Player
   me: { ...me, id, duel: playerDuel(mine) },
   reveal: null,
   standings: null,
+  table: null,
 });
 
 const okSend = () => vi.fn<Send>().mockResolvedValue({ ok: true });

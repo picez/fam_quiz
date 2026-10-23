@@ -37,6 +37,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  removed: [],
   splash: null,
   overtime: [],
   guide: null,
@@ -288,7 +289,7 @@ describe('HostScreen', () => {
   });
 
   it('a buff notice reaches the host console', () => {
-    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), nickname: 'Олена', kind: 'fifty' } }));
+    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Олена', kind: 'fifty', questionIndex: 0 } }));
     expect(screen.getByText('Олена: 50/50')).toBeTruthy();
   });
 
@@ -562,6 +563,8 @@ describe('HostScreen: blitz', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: ['x2'],
+      marksHidden: false,
       manual: false,
       answer: null,
       ...over,
@@ -712,7 +715,7 @@ describe('HostScreen: blitz', () => {
         ],
       };
       const cell = { id: 'c1', category: 'Міста', price: 400, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
-      const sort = { total: 4, winner: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 0, timeMs: null, points: null }] };
+      const sort = { total: 4, winner: null, words: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 0, timeMs: null, points: null }] };
       for (const phase of ['locked', 'reveal'] as const) {
         show(
           during(phase, sortQ, {
@@ -805,11 +808,11 @@ describe('HostScreen: blitz', () => {
 
     it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
       const unmarked = boardOf().categories[0].cells.map((cell) => ({ ...cell, mark: 'none' as const }));
-      show(onBoard({}, boardOf({ categories: [{ id: 'k1', title: 'Міста', cells: unmarked }] })));
+      show(onBoard({}, boardOf({ categories: [{ id: 'k1', title: 'Міста', cells: unmarked }], marks: [] })));
       expect(document.body.textContent).not.toContain('×');
       cleanup();
       const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
-      show(during('question', single, { round: boardRound, players: three, board: boardOf({ cell }) }));
+      show(during('question', single, { round: boardRound, players: three, board: boardOf({ cell, marks: [] }) }));
       expect(screen.getByText('Відповідає Олена')).toBeTruthy();
       expect(document.body.textContent).not.toContain('×');
     });
@@ -918,6 +921,8 @@ describe('HostScreen: blitz', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: ['x2'],
+      marksHidden: false,
       manual: false,
       answer: null,
       ...over,
@@ -1288,7 +1293,7 @@ describe('HostScreen sort', () => {
         { id: 'w4', text: 'Груша', categoryId: 'c2' },
       ],
     };
-    const info = { total: 4, winner: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 1, timeMs: null, points: null }] };
+    const info = { total: 4, winner: null, words: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 1, timeMs: null, points: null }] };
     const send = vi.fn(async () => ({ ok: true as const }));
     show(
       view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'sort', choices: [], sort: { categories, total: 4, lockSeconds: 3 } }, correct: sortQ, endsAt: Date.now() + 20_000, sort: info }),
@@ -1543,5 +1548,16 @@ describe('HostScreen: «Як грати»', () => {
     show(view({ phase: 'guide', guide, newcomers: true, paused: true }));
     expect(screen.queryByRole('button', { name: 'Далі' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'До гри' })).toBeNull();
+  });
+});
+
+describe('HostScreen: after the game', () => {
+  it('after the game the host goes to the quizzes or the game history', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings: [] }));
+    expect(screen.getByRole('link', { name: 'До вікторин' }).getAttribute('href')).toBe('/quizzes');
+    expect(screen.getByRole('link', { name: 'Історія ігор' }).getAttribute('href')).toBe('/history');
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(screen.queryByRole('link', { name: 'До вікторин' })).toBeNull();
   });
 });

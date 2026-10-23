@@ -94,8 +94,10 @@ export function BoardLegend({ board }: { board: BoardInfo }) {
   if (looks.has('voice')) swatches.push({ look: 'voice', text: t('legendVoice') });
   const notes: string[] = [];
   if (has((cell) => cell.kind === 'blitz' && cell.answerMode === 'voice')) notes.push(t('legendBlitzVoice'));
-  if (has((cell) => cell.mark === 'x2')) notes.push(t('legendX2'));
-  if (has((cell) => cell.mark === 'x3')) notes.push(t('legendX3'));
+  // Позначки — з board.marks: на сцені й телефонах самі клітинки їх не мають.
+  if (board.marks.includes('x2')) notes.push(t('legendX2'));
+  if (board.marks.includes('x3')) notes.push(t('legendX3'));
+  if (board.marksHidden && board.marks.length > 0) notes.push(t('legendMarksHidden'));
   if (has((cell) => cell.penalty === 'all')) notes.push(t('legendPenaltyAll'));
   return (
     <ul className="gb-legend" aria-label={t('legendTitle')}>

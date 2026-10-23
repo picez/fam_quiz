@@ -49,6 +49,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  removed: [],
   splash: null,
   overtime: [],
   guide: null,
@@ -67,6 +68,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   me,
   reveal: null,
   standings: null,
+  table: null,
   ...over,
 });
 
@@ -507,6 +509,8 @@ describe('PlayerScreen: blitz', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
       ...over,
     });
     const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
@@ -571,6 +575,33 @@ describe('PlayerScreen: blitz', () => {
 
       show(onQuestion({ round, board: boardOf('p1', { cell }) }));
       expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+    });
+
+    it('the chooser of a voice cell has the buff row, the buff panel and the struck-through removed options', () => {
+      const four = { ...publicQuestion, choices: [...publicQuestion.choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
+      const voiceCell = boardOf('p1', { cell: { ...cell, answerMode: 'voice' } });
+      const activeOf = (kind: 'fifty' | 'hint', removed: string[]) => ({ kind, removed, retry: null, first: null, hint: null, votes: null, spare: false });
+      const buffsOf = (kind: 'fifty' | 'hint', removed: string[]) => ({
+        slots: [
+          { kind: 'fifty' as const, state: kind === 'fifty' ? ('active' as const) : ('blocked' as const), block: kind === 'fifty' ? null : ('taken' as const) },
+          { kind: 'hint' as const, state: kind === 'hint' ? ('active' as const) : ('blocked' as const), block: kind === 'hint' ? null : ('taken' as const) },
+        ],
+        active: activeOf(kind, removed),
+      });
+      show(onQuestion({ round, question: four, board: voiceCell, removed: ['a', 'c'], me: { ...me, buffs: buffsOf('fifty', ['a', 'c']) } }));
+      expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+      expect(document.querySelectorAll('.buff-row button')).toHaveLength(2);
+      expect([...document.querySelectorAll('.choice.is-removed')].map((li) => li.textContent)).toEqual(['AЛьвівприбрано', 'CОдесаприбрано']);
+      cleanup();
+      show(onQuestion({ round, question: four, board: voiceCell, me: { ...me, buffs: buffsOf('hint', []) } }));
+      expect(document.querySelector('.buff-row')).not.toBeNull();
+      expect(document.querySelector('.buff-panel')).not.toBeNull();
+    });
+
+    it('a watcher of a board cell sees the removed options too', () => {
+      const four = { ...publicQuestion, choices: [...publicQuestion.choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
+      show(onQuestion({ round, question: four, board: boardOf('p2', { cell }), removed: ['b'] }));
+      expect([...document.querySelectorAll('.choice.is-removed')].map((li) => li.textContent)).toEqual(['BКиївприбрано']);
     });
 
     it('tells the others who answered and shows the correct answer', () => {
@@ -730,6 +761,8 @@ describe('PlayerScreen: blitz cell', () => {
     schedule: [],
     scheduleRepeats: false,
     skipAt: null,
+    marks: [],
+    marksHidden: false,
   });
   const blitzMe = (blitz: PlayerBlitz | null, extra = {}) => ({ ...me, blitz, ...extra });
   const canBuzz = { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null, canAnswer: false, grade: null };
@@ -804,6 +837,8 @@ describe('PlayerScreen: spotlight', () => {
     schedule: [],
     scheduleRepeats: false,
     skipAt: null,
+    marks: [],
+    marksHidden: false,
   });
   const anna = { playerId: 'p2', nickname: 'Анна' };
 
@@ -1195,8 +1230,10 @@ describe('PlayerScreen: sort', () => {
     schedule: [],
     scheduleRepeats: false,
     skipAt: null,
+    marks: [],
+    marksHidden: false,
   };
-  const info = (over = {}) => ({ total: 4, rows: [{ playerId: 'p2', nickname: 'Оля', sorted: 2, misses: 0, timeMs: null, points: null, ...over }], winner: null });
+  const info = (over = {}) => ({ total: 4, rows: [{ playerId: 'p2', nickname: 'Оля', sorted: 2, misses: 0, timeMs: null, points: null, ...over }], winner: null, words: null });
 
   it('a sort question on the phone', () => {
     const send = show(onQuestion({ question: sortQ, sort: info(), me: { ...me, sort: mine } }));
@@ -1233,6 +1270,17 @@ describe('PlayerScreen: sort', () => {
     expect(document.querySelector('.sort-card')).toBeNull();
     expect(document.querySelector('.inputs')).toBeNull();
     expect(screen.queryByText(/Відповідає Оля/)).toBeNull();
+  });
+
+  it('a watcher sees all words on the board and how they fall into the categories at the reveal', () => {
+    const words = [{ id: 'w3', text: 'Буряк' }, { id: 'w4', text: 'Груша' }, { id: 'w1', text: 'Морква' }, { id: 'w2', text: 'Яблуко' }];
+    show(onQuestion({ round: boardRound, board: sortBoard, question: sortQ, sort: { ...info(), words }, me: { ...me, sort: null } }));
+    expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Морква', 'Яблуко']);
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, round: boardRound, board: sortBoard, question: sortQ, sort: { ...info({ points: 200 }), words }, reveal: fullSort, me: { ...me, sort: null } }));
+    expect(document.querySelectorAll('.sort-reveal.is-open li')).toHaveLength(4);
+    expect(document.querySelectorAll('.sort-reveal-col')).toHaveLength(2);
+    expect(document.querySelector('.sort-words')).toBeNull();
   });
 
   it('after the sort the phone shows the own result and later the grouping', () => {
@@ -1398,7 +1446,7 @@ describe('PlayerScreen: sort', () => {
     const was = shape();
     rerender(
       <PlayerScreen
-        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double' }], buffNotice: { seq: 1, at: Date.now(), nickname: 'Петро', kind: 'double' } }}
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double' }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0 } }}
         hostOnline
         offsetMs={0}
         send={send}
@@ -1566,7 +1614,7 @@ describe('PlayerScreen: buffs with others', () => {
     const was = shape();
     rerender(
       <PlayerScreen
-        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience' }], buffNotice: { seq: 1, at: Date.now(), nickname: 'Оля', kind: 'audience' } }}
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience' }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'audience', questionIndex: 0 } }}
         hostOnline
         offsetMs={0}
         send={send}
@@ -1710,5 +1758,20 @@ describe('PlayerScreen: explanations for newcomers', () => {
     cleanup();
     show(view({ phase: 'intro', round }));
     expect(screen.queryByText('Як проходить раунд')).toBeNull();
+  });
+});
+
+describe('PlayerScreen: table and menu', () => {
+  const rows = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 0, rank: 1 }];
+  it('the header has «Таблиця» during a question, none in the lobby; «До меню» after the game', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
+    expect(document.querySelector('header.bar')?.contains(screen.getByRole('button', { name: 'Таблиця' }))).toBe(true);
+    expect(screen.queryByRole('link', { name: 'До меню' })).toBeNull();
+    cleanup();
+    show(view());
+    expect(screen.queryByRole('button', { name: 'Таблиця' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings: rows }));
+    expect(screen.getByRole('link', { name: 'До меню' }).getAttribute('href')).toBe('/');
   });
 });

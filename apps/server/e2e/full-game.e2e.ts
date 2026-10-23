@@ -3890,13 +3890,18 @@ async function sortGame() {
   await petro.locator('.sort-progress', { hasText: '0 з 4' }).waitFor();
   expect(await petro.locator('.sort-card').count()).toBe(0);
   expect(await petro.locator('button.sort-zone').count()).toBe(0);
-  await noLeaks(petro, s4Words, null, 'petro board');
-  await noLeaks(stage, s4Words, null, 'stage board');
+  // План 9a: на полі глядачі й сцена бачать усі слова — за абеткою, без категорій, доки немає розкриття.
+  const boardWords = [...s4Words].sort((a, b) => a.localeCompare(b, 'uk'));
+  for (const page of [petro, stage]) {
+    await page.locator('.sort-words li').first().waitFor();
+    expect(await page.locator('.sort-words li').allTextContents()).toEqual(boardWords);
+    expect(await page.locator('.sort-reveal.is-open').count(), 'the board reveal opened early').toBe(0);
+  }
   await expectNoSideScroll(petro, 'sort7f-board-watch-phone');
   // Глядач бачить живий прогрес того, хто сортує; останнє слово одразу відкриває відповідь.
   for (let i = 0; i < 3; i++) await sortBy(olya, 'tap', where[(await sortCard(olya))!]!);
   await petro.locator('.sort-progress', { hasText: '3 з 4' }).waitFor();
-  await noLeaks(petro, s4Words, null, 'petro board progress');
+  expect(await petro.locator('.sort-reveal.is-open').count(), 'the board reveal opened early').toBe(0);
   await sortRest(olya);
   await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
   await expect.poll(async () => (await stageRows.filter({ hasText: 'Оля' }).textContent()) ?? '').toContain('4/4');
@@ -4894,7 +4899,7 @@ async function buffsGame() {
   await click(host, 'Далі');
   await ira.locator('h1', { hasText: 'Дніпро впадає' }).waitFor();
   const iraBar = await boxOf(ira, '.buff-bar');
-  await tapBuff(ira, '50/50', '«50/50» не діє на запитання цього типу.');
+  await tapBuff(ira, '50/50', '50/50 діє лише на запитаннях з варіантами.');
   expect(await boxOf(ira, '.buff-bar'), 'the reason changed the buff row').toEqual(iraBar);
   await takeBuff(petro, 'Додатковий час');
   await click(olya, 'Так');
@@ -5491,7 +5496,8 @@ async function transitionsGame() {
   await olya.locator('.splash.is-cell.is-phone').waitFor();
   const flip = (await stage.locator('.splash-flip').textContent()) ?? '';
   expect(flip).toContain('Міста · 300');
-  expect(flip).toContain('×2');
+  // План 9a: позначка — сюрприз наприкінці перегортання, штамп «×2!» поверх картки.
+  await stage.locator('.splash-surprise', { hasText: '×2!' }).waitFor();
   await Promise.all([shot(stage, 'transition8c-cell-stage', { splash: true }), shot(olya, 'transition8c-cell-375', { splash: true })]);
   await afterSplash(...all);
   expect(await seconds(olya)).toBeGreaterThanOrEqual(19);
@@ -5896,6 +5902,398 @@ async function denseGuide() {
   expect(await stage.locator('.guide').textContent()).toContain('Викликати можна до фіналу.');
   await click(host, 'До гри');
   await stage.locator('.splash').first().waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 9a: 50/50 struck through for the taker and on the stage for a board cell, the audience with +15 s and a folding sheet, buffs on a voice cell, «?» help and exact reasons, «Таблиця» at any time, hidden ×2 with a «×2!» surprise, board sorting for everybody with equal zones, «До меню» after the game', async () => {
+  try {
+    await afterThirdGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Тексти прибраних 50/50 варіантів без позначки «прибрано», літери й тексту для читачів екрана. */
+async function removedTexts(page: Page): Promise<string[]> {
+  return page.locator('.choice.is-removed').evaluateAll((els) =>
+    els.map((el) => {
+      const copy = el.cloneNode(true) as typeof el;
+      copy.querySelectorAll('.removed-tag, .sr-only, .letter').forEach((node: { remove: () => void }) => node.remove());
+      return (copy.textContent ?? '').trim();
+    }),
+  );
+}
+
+async function afterThirdGame() {
+  const host = await open('host9a', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host9a@example.com');
+
+  const options = (id: string, texts: string[]) => texts.map((text, at) => ({ id: `${id}o${at}`, text }));
+  const choice = (id: string, text: string, texts: string[], points = 100) => ({
+    id,
+    type: 'single' as const,
+    text,
+    imageUrl: null,
+    video: null,
+    timeLimit: 30,
+    points,
+    options: options(id, texts),
+    correctId: `${id}o0`,
+  });
+  const q1 = choice('q1', 'Найбільше озеро України?', ['Ялпуг', 'Світязь', 'Синевир', 'Кагул']);
+  const q2 = {
+    id: 'q2',
+    type: 'multi' as const,
+    text: 'Які міста стоять на Дніпрі?',
+    imageUrl: null,
+    video: null,
+    timeLimit: 30,
+    points: 100,
+    options: options('q2', ['Київ', 'Дніпро', 'Черкаси', 'Львів', 'Ужгород', 'Одеса']),
+    correctIds: ['q2o0', 'q2o1', 'q2o2'],
+  };
+  const q3 = { id: 'q3', type: 'text' as const, text: 'Столиця Франції?', imageUrl: null, video: null, timeLimit: 30, points: 100, accepted: ['Париж'] };
+  /** Правильна категорія кожного слова: лише в тесті. */
+  const where: Record<string, string> = {};
+  const sortCategories = ['Овочі', 'Фрукти', 'Ягоди'];
+  const sortPairs: [string, number][] = [
+    ['Морква', 0],
+    ['Яблуко', 1],
+    ['Малина', 2],
+    ['Буряк', 0],
+    ['Груша', 1],
+    ['Смородина', 2],
+  ];
+  for (const [word, at] of sortPairs) where[word] = sortCategories[at]!;
+  // 6 слів × 25 = клітинка «Їжа, 150»: ціна сортування — сума за всі слова.
+  const sortQ = {
+    id: 'b-sort',
+    type: 'sort' as const,
+    text: 'Овочі, фрукти чи ягоди?',
+    imageUrl: null,
+    video: null,
+    timeLimit: 60,
+    points: 25,
+    lockSeconds: 1,
+    categories: sortCategories.map((text, at) => ({ id: `bs-c${at}`, text })),
+    words: sortPairs.map(([text, at], index) => ({ id: `bs-w${index}`, text, categoryId: `bs-c${at}` })),
+  };
+  const rounds = [
+    classicRound('r1', [q1, q2, q3], { title: 'Розминка', speedBonus: false, rules: { ...DEFAULT_RULES, penalty: 'minus' } }),
+    boardRound(
+      'r2',
+      [
+        {
+          title: 'Міста',
+          cells: [
+            choice('b11', 'Столиця Італії?', ['Рим', 'Мілан', 'Неаполь', 'Турин'], 100),
+            { answerMode: 'voice' as const, question: choice('b12', 'Столиця Іспанії?', ['Мадрид', 'Барселона', 'Севілья'], 200) },
+            { mark: 'x2' as const, question: choice('b13', 'Столиця Польщі?', ['Варшава', 'Краків', 'Гданськ'], 300) },
+          ],
+        },
+        {
+          title: 'Їжа',
+          cells: [
+            { answerMode: 'phone' as const, question: sortQ },
+            { kind: 'blitz' as const, question: choice('b22', 'Борщ — це суп?', ['Так, суп', 'Ні, салат'], 200) },
+            choice('b23', 'Головне в варениках з картоплею?', ['Картопля', 'Рис'], 300),
+          ],
+        },
+        { title: 'Гори', cells: [100, 200, 300].map((price) => choice(`b3${price}`, `Гори ${price}: найвища гора України?`, ['Говерла', 'Петрос'], price)) },
+      ],
+      { title: 'Поле', answerMode: 'phone', check: 'auto', rules: { ...DEFAULT_RULES, penalty: 'minus' } },
+    ),
+  ];
+  const data = {
+    ...makeRoundsQuiz(rounds, { leaderboard: 'end', buffs: ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'] }),
+    spares: [{ id: 'sp1', type: 'boolean' as const, text: 'Сонце — зірка?', imageUrl: null, video: null, timeLimit: 30, points: 100, correct: true }],
+    title: 'Після третьої гри',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Після третьої гри' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage9a', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya9a', 375, 812);
+  const petro = await open('petro9a', 360, 740);
+  const ira = await open('ira9a', 390, 844);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+  const all = [stage, host, ...phones];
+
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const hostScore = async (nickname: string) =>
+    Number((await row(nickname).locator('.score').textContent())!.replace('−', '-').replace(/\s/g, ''));
+  const reveal = async () => {
+    await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+    await click(host, 'Показати відповідь');
+    for (const page of phones) await page.locator('section.result').first().waitFor();
+  };
+  const cell = (page: Page, category: string, price: number) => page.getByRole('button', { name: `${category}, ${price}`, ...exact });
+  const shown = host.getByRole('button', { name: 'Показати відповідь', ...exact });
+  const after = host.getByRole('button', { name: 'Далі', ...exact });
+  const toBoard = async () => {
+    await click(host, 'Далі');
+    const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+    const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+    await Promise.race([next.waitFor(), picking.waitFor()]);
+    if (await next.isVisible()) await next.click();
+    await picking.waitFor();
+  };
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 1. q1, класика: «?» — вісім бафів із «Де: …»; 50/50 Олі закреслює два варіанти на місці, інші їх не бачать.
+  for (const page of phones) await page.locator('h1', { hasText: 'Найбільше озеро України?' }).waitFor();
+  await olya.getByRole('button', { name: 'Що роблять бафи', ...exact }).click();
+  const help = olya.locator('.buff-help-sheet');
+  await help.getByRole('heading', { name: 'Бафи', ...exact }).waitFor();
+  expect(await help.locator('li').count()).toBe(8);
+  const wheres = await help.locator('.buff-where').allTextContents();
+  expect(wheres).toHaveLength(8);
+  for (const line of wheres) expect(line).toMatch(/^Де: /);
+  await shot(olya, 'buff9a-help-375');
+  await expectNoSideScroll(olya, 'buff9a-help-375');
+  await olya.keyboard.press('Escape');
+  await help.waitFor({ state: 'detached' });
+  const olyaChoices = await yOf(olya);
+  await takeBuff(olya, '50/50');
+  await expect.poll(() => olya.locator('.choice.is-removed').count()).toBe(2);
+  const goneQ1 = await removedTexts(olya);
+  expect(goneQ1).not.toContain('Ялпуг');
+  for (const text of goneQ1) expect(['Світязь', 'Синевир', 'Кагул']).toContain(text);
+  expect(await olya.locator('.choice.is-removed .removed-tag').allTextContents()).toEqual(['прибрано', 'прибрано']);
+  expect(await yOf(olya), '50/50 moved the options').toEqual(olyaChoices);
+  await shot(olya, 'buff9a-fifty-375');
+  await expectNoSideScroll(olya, 'buff9a-fifty-375');
+  await stage.locator('.live-notice.is-buff').getByText('Оля: 50/50', exact).waitFor();
+  for (const page of [stage, petro, ira]) expect(await page.locator('.choice.is-removed').count(), 'classic: only the taker sees 50/50').toBe(0);
+  await pickOption(olya, 'Ялпуг');
+  await pickOption(petro, 'Ялпуг');
+  await pickOption(ira, 'Світязь');
+  await reveal();
+
+  // 2. q2, кілька відповідей: 50/50 Петра прибирає 2 з 3 неправильних.
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await petro.locator('h1', { hasText: 'Які міста стоять на Дніпрі?' }).waitFor();
+  await takeBuff(petro, '50/50');
+  await expect.poll(() => petro.locator('.choice.is-removed').count()).toBe(2);
+  for (const text of await removedTexts(petro)) expect(['Львів', 'Ужгород', 'Одеса']).toContain(text);
+  await shot(petro, 'buff9a-fifty-multi-360');
+  await expectNoSideScroll(petro, 'buff9a-fifty-multi-360');
+  for (const page of phones) {
+    for (const text of ['Київ', 'Дніпро', 'Черкаси']) await pickOption(page, text);
+    await click(page, 'Відповісти');
+  }
+  await reveal();
+
+  // 3–4. q3: зал дає Олі +15 с; компактний аркуш, що згортається; «Таблиця» в Іри — лише власний рядок.
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await olya.locator('h1', { hasText: 'Столиця Франції?' }).waitFor();
+  await textAnswer(petro, 'Париж');
+  await textAnswer(ira, 'Париж');
+  await petro.getByText('Відповідь прийнято', exact).waitFor();
+  await ira.getByText('Відповідь прийнято', exact).waitFor();
+  await takeBuff(olya, 'Запитання в залі');
+  await expect.poll(async () => (await seconds(olya)) - (await seconds(stage))).toBeGreaterThanOrEqual(14);
+  const sheet = petro.locator('.vote-sheet');
+  await sheet.getByText('Оля питає зал: як думаєте?', exact).waitFor();
+  await petro.waitForTimeout(300);
+  const openSheet = await boxOf(petro, '.vote-sheet');
+  expect(openSheet.height, 'the vote sheet is taller than 35 % of the screen').toBeLessThanOrEqual(0.35 * 740 + 1);
+  await shot(petro, 'buff9a-vote-360');
+  await expectNoSideScroll(petro, 'buff9a-vote-360');
+  await sheet.getByRole('button', { name: 'Згорнути', ...exact }).click();
+  const unfold = sheet.getByRole('button', { name: 'Розгорнути', ...exact });
+  await unfold.waitFor();
+  expect(await unfold.getAttribute('aria-expanded')).toBe('false');
+  expect((await boxOf(petro, '.vote-sheet')).height, 'folding did not shrink the sheet').toBeLessThan(openSheet.height);
+  await shot(petro, 'buff9a-vote-folded-360');
+  await unfold.click();
+  await vote(petro, 'Париж');
+  // «Таблиця» поверх запитання: leaderboard end — лише власне місце.
+  const iraTitle = await boxOf(ira, 'h1');
+  await ira.getByRole('button', { name: 'Таблиця', ...exact }).click();
+  const table = ira.locator('.table-sheet');
+  await table.getByRole('heading', { name: 'Таблиця', ...exact }).waitFor();
+  expect(await table.locator('.standings li').count()).toBe(1);
+  expect(await table.locator('.standings li').textContent()).toContain('Іра');
+  await table.getByText('Повна таблиця — наприкінці гри.', exact).waitFor();
+  await shot(ira, 'buff9a-table-390');
+  await expectNoSideScroll(ira, 'buff9a-table-390');
+  await table.locator('h2').click();
+  await table.waitFor({ state: 'detached' });
+  expect(await boxOf(ira, 'h1'), 'the table moved the question').toEqual(iraTitle);
+  // Спільний час минає — чекаємо на Олю, вона відповідає у свій час.
+  await stage.locator('.buff-wait', { hasText: /^Чекаємо: Оля · 0:\d\d$/ }).waitFor({ timeout: 40000 });
+  await textAnswer(olya, 'Париж');
+  await reveal();
+
+  // 5. Поле: позначок немає на сцені й телефонах, у ведучого «×2»; легенда каже, що вони є.
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  for (const page of [stage, ...phones]) expect(await page.locator('.gb-mark').count(), 'a mark before the choice').toBe(0);
+  await host.locator('.gb-mark', { hasText: '×2' }).first().waitFor();
+  const legend = stage.locator('.gb-legend');
+  await legend.getByText('×2 — подвійна ціна', exact).waitFor();
+  await legend.getByText('Де ×2 і ×3 — сюрприз.', exact).waitFor();
+  await shot(stage, 'buff9a-board-stage');
+  await shot(olya, 'buff9a-board-375');
+
+  // 6. Оля сортує на полі; Петро, Іра й сцена бачать категорії й усі слова за абеткою; зони рівні.
+  const sortWords = ['Буряк', 'Груша', 'Малина', 'Морква', 'Смородина', 'Яблуко'];
+  await cell(olya, 'Їжа', 150).click();
+  await afterSplash(...all);
+  await olya.locator('.sort-card').waitFor();
+  for (const page of [petro, ira]) {
+    await page.getByText('Оля сортує слова', exact).waitFor();
+    expect(await page.locator('.sort-play.is-watching .sort-zone').count()).toBe(3);
+    expect(await page.locator('button.sort-zone').count()).toBe(0);
+    expect(await page.locator('.sort-words li').allTextContents()).toEqual(sortWords);
+  }
+  await stage.locator('.sort-words li').first().waitFor();
+  expect(await stage.locator('.sort-words li').allTextContents()).toEqual(sortWords);
+  for (const page of [olya, petro]) {
+    const zones = await sortZoneBoxes(page);
+    expect(zones).toHaveLength(3);
+    for (const [, , width, height] of zones) {
+      expect(Math.abs(width! - zones[0]![2]!), 'unequal zone widths').toBeLessThanOrEqual(1);
+      expect(Math.abs(height! - zones[0]![3]!), 'unequal zone heights').toBeLessThanOrEqual(1);
+    }
+  }
+  // Слова глядачів під ареною, а не поверх неї.
+  const arenaBottom = await petro.locator('.sort-arena').evaluate((el) => el.getBoundingClientRect().bottom);
+  const wordsTop = await petro.locator('.sort-words').evaluate((el) => el.getBoundingClientRect().top);
+  expect(wordsTop, 'the words overlap the arena').toBeGreaterThanOrEqual(arenaBottom - 0.5);
+  await expectNoSideScroll(petro, 'sort9a-watch-360');
+  await expectNoSideScroll(olya, 'sort9a-play-375');
+  await Promise.all([shot(petro, 'sort9a-watch-360'), shot(olya, 'sort9a-play-375'), shot(stage, 'sort9a-stage')]);
+  // Сортування на полі — без бафів: ряд є, усі кнопки неактивні з причиною.
+  for (const button of await olya.locator('.buff-row .buff-btn').all()) expect(await button.getAttribute('aria-disabled')).toBe('true');
+  await tapBuff(olya, 'Подвійні бали', 'На сортуванні бафів немає.');
+  // Кожне слово в картці посередині «хреста» — цілим рядком, без розриву посеред слова.
+  const cardLines = () =>
+    olya.locator('.sort-card').evaluate((card) => {
+      const range = card.ownerDocument.createRange();
+      range.selectNodeContents(card);
+      return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+    });
+  for (let i = 0; i < sortWords.length; i++) {
+    const card = await sortCard(olya);
+    if (card === null) break;
+    expect(await cardLines(), `«${card}» broke in the card`).toBe(1);
+    await sortBy(olya, 'tap', where[card]!);
+  }
+  await after.waitFor();
+  const petroReveal = petro.locator('.sort-reveal.is-open');
+  await petroReveal.waitFor();
+  for (const category of sortCategories) {
+    const column = petroReveal.locator('.sort-reveal-col', { hasText: category });
+    for (const word of sortWords.filter((w) => where[w] === category)) await column.getByText(word, exact).waitFor();
+  }
+  await shot(petro, 'sort9a-reveal-360');
+  await toBoard();
+
+  // 7. Усна клітинка Петра: «Друга спроба» пояснює причину, подвійні бали — +400 за ціну 200.
+  await petro.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(petro, 'Міста', 200).click();
+  await afterSplash(...all);
+  await petro.getByText('Відповідайте вголос').waitFor();
+  await tapBuff(petro, 'Друга спроба', 'Друга спроба не діє, коли відповідаєте вголос.');
+  const petroBefore = await hostScore('Петро');
+  await takeBuff(petro, 'Подвійні бали');
+  await shot(petro, 'buff9a-voice-360');
+  await expectNoSideScroll(petro, 'buff9a-voice-360');
+  await host.locator('button.choice', { hasText: 'Мадрид' }).click();
+  await host.getByRole('button', { name: /^(Прийняти|Зарахувати)$/ }).first().click();
+  await Promise.race([shown.waitFor(), after.waitFor()]);
+  if (await shown.isVisible()) await shown.click();
+  await expect.poll(() => hostScore('Петро')).toBe(petroBefore + 400);
+  await toBoard();
+
+  // 8. Іра: «Міста, 300» — перегортання закінчується «×2!»; її 50/50 видно на сцені, у ведучого й на інших телефонах.
+  await ira.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(ira, 'Міста', 300).click();
+  await splashOn(stage, 'cell');
+  await stage.locator('.splash-surprise', { hasText: '×2!' }).waitFor();
+  await ira.locator('.splash-surprise', { hasText: '×2!' }).waitFor();
+  await shot(ira, 'buff9a-surprise-390', { splash: true });
+  // Штамп з'являється після перегортання (1 с із 1,8 с): кадр сцени — трохи пізніше за середину заставки.
+  if (process.env.E2E_SHOTS === '1') await stage.waitForTimeout(250);
+  await shot(stage, 'buff9a-surprise-stage', { splash: true });
+  await afterSplash(...all);
+  expect(await seconds(ira)).toBeGreaterThanOrEqual(19);
+  await takeBuff(ira, '50/50');
+  for (const page of [stage, host, olya, petro, ira]) {
+    await expect.poll(() => page.locator('.choice.is-removed').count(), { message: 'one option removed' }).toBe(1);
+    expect(await page.locator('.choice.is-removed .removed-tag').textContent()).toBe('прибрано');
+    expect(await removedTexts(page)).not.toContain('Варшава');
+  }
+  await shot(stage, 'buff9a-board-fifty-stage');
+  await shot(host, 'buff9a-board-fifty-host');
+  await shot(olya, 'buff9a-board-fifty-375');
+  await pickOption(ira, 'Варшава');
+  await click(host, 'Прийняти');
+  await ira.getByText('Правильно!').waitFor();
+  await toBoard();
+
+  // 9. Коло 2 починає Петро: бліц-клітинка — у кожного компактний рядок причини замість ряду бафів, черга лишається на екрані.
+  await petro.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(petro, 'Їжа', 200).click();
+  await afterSplash(...all);
+  for (const page of phones) await page.locator('.buff-off').getByText('На бліц-клітинках бафів немає.', exact).waitFor();
+  for (const page of phones) expect(await page.locator('.buff-row').count(), 'a buff row in a blitz cell').toBe(0);
+  const queue = await olya.locator('.blitz-queue').boundingBox();
+  expect(queue, 'no queue').not.toBeNull();
+  expect(queue!.y + queue!.height, 'the queue fell below the screen').toBeLessThanOrEqual(812);
+  await expectNoSideScroll(olya, 'buff9a-blitz-375');
+  await shot(olya, 'buff9a-blitz-375');
+  await olya.getByRole('button', { name: /Так, суп/ }).click();
+  const acceptBlitz = host.getByRole('button', { name: 'Прийняти', ...exact });
+  await Promise.race([shown.waitFor(), acceptBlitz.waitFor(), after.waitFor()]);
+  if (await acceptBlitz.isVisible()) await acceptBlitz.click();
+  await Promise.race([shown.waitFor(), after.waitFor()]);
+  if (await shown.isVisible()) await shown.click();
+  await after.waitFor();
+
+  // 10. Кінець гри: «До меню» в гравця, «До вікторин» і «Історія ігор» у ведучого, мала кнопка на сцені.
+  await click(host, 'Завершити гру');
+  await afterSplash(...all);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const toMenu = olya.getByRole('link', { name: 'До меню', ...exact });
+  await toMenu.waitFor();
+  expect(await toMenu.getAttribute('href')).toBe('/');
+  expect(await host.getByRole('link', { name: 'До вікторин', ...exact }).getAttribute('href')).toBe('/quizzes');
+  expect(await host.getByRole('link', { name: 'Історія ігор', ...exact }).getAttribute('href')).toBe('/history');
+  await stage.locator('.stage-menu').waitFor();
+  expect(await stage.locator('.stage-menu').getAttribute('href')).toBe('/');
+  await expectNoSideScroll(olya, 'menu9a-player-375');
+  await Promise.all([shot(olya, 'menu9a-player-375'), shot(host, 'menu9a-host'), shot(stage, 'menu9a-stage')]);
+  await toMenu.click();
+  await olya.waitForURL(`${base}/`);
+  await host.getByRole('link', { name: 'Історія ігор', ...exact }).click();
+  await host.waitForURL(/\/history$/);
+  await host.getByRole('link', { name: /Після третьої гри/ }).first().waitFor();
 
   expect(problems).toEqual([]);
 }
