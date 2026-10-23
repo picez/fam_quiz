@@ -47,7 +47,7 @@ import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { splitBank, type BankOutcome } from './bank';
 import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
-import { notStarted, questionSplashKind, shiftSplash, withSplash, type Splash } from './splash';
+import { notStarted, questionSplashKind, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
   id: string;
@@ -1262,7 +1262,8 @@ export function pause(state: GameState, now: number): Result {
   // Під час утримання годинник уже стоїть: пауза його не чіпає.
   if (state.phase === 'question' && state.heldAt !== null) return ok({ ...state, paused: true, pausedAt: now });
   if ((state.phase === 'question' || state.phase === 'duel') && state.endsAt !== null) {
-    const remainingMs = Math.max(0, state.endsAt - now);
+    // Лише таймер запитання (не більше за ліміт): залишок заставки до старту resume бере із самої заставки.
+    const remainingMs = Math.max(0, state.endsAt - Math.max(now, state.startedAt ?? now));
     // Витрачений додатковий час продовження не повертає.
     const trimmed = state.phase === 'question' ? trimOvertime(state, now) : state;
     return ok({ ...trimmed, paused: true, pausedAt: now, remainingMs, startedAt: null, endsAt: null });
@@ -1285,14 +1286,16 @@ function resumeClock(state: GameState, now: number): Result {
     // Якщо утримання знялося, а відповідати вже нікому, запитання закривається одразу.
     return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now), now));
   }
+  // Заставка, що не скінчилася до паузи, дограє першою, і лише потім рушає таймер.
+  const lead = splashLead(state, state.pausedAt ?? now);
   if (state.phase === 'duel' && state.remainingMs !== null) {
-    const endsAt = now + state.remainingMs;
+    const endsAt = now + lead + state.remainingMs;
     const startedAt = endsAt - (state.quiz.duels?.timeLimit ?? 0) * 1000;
     return ok({ ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt });
   }
   if (state.phase === 'question' && state.remainingMs !== null) {
     const limitMs = limitMsOf(state.plays[state.questionIndex]) ?? 0;
-    const endsAt = now + state.remainingMs;
+    const endsAt = now + lead + state.remainingMs;
     // startedAt зсувається так, щоб час відповіді не включав паузу.
     const shift = now - (state.pausedAt ?? now);
     // Підвисання в сортуванні зсувається разом із годинником.

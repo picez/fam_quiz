@@ -301,6 +301,7 @@ const uk = {
   buffWhy_unfit_manual: 'Відповідь тут оцінює ведучий.',
   buffWhy_no_voters: 'Поки ніхто не може проголосувати.',
   buffWhy_spares_out: 'Запасні запитання закінчилися.',
+  buffWhy_not_started: 'Запитання ще не почалося.',
   choiceRemoved: '{choice} — прибрано',
   retryAgain: 'Неправильно, ще одна спроба',
   retryChoice: 'Частково правильно: {points}. Залишити чи ще спроба?',

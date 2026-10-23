@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buzz } from './blitz';
 import { pickCell } from './board';
-import { castVote, takeBuff } from './buffs';
+import { buffBlock, castVote, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
 import { answerDuel, declareDuel, pickDuelCategory } from './duel';
 import { createGame, end, endRound, lock, next, pause, recordOf, resume, start, submitAnswer, tick, type GameState } from './game';
@@ -101,7 +101,8 @@ describe('the question splash', () => {
 
   it('pause during the splash freezes it; the rest plays after resume', () => {
     let s = must(pause(classic(), T0 + 500));
-    expect(s.remainingMs).toBe(20_700);
+    // На паузі залишок — лише таймер запитання (не більше за ліміт); залишок заставки береться з неї самої.
+    expect(s.remainingMs).toBe(20_000);
     s = must(resume(s, T0 + 10_500));
     expect([s.startedAt, s.endsAt]).toEqual([T0 + 11_200, T0 + 31_200]);
     expect(s.splash).toEqual({ kind: 'question', at: T0 + 10_000, until: T0 + 11_200 });
@@ -251,5 +252,38 @@ describe('round, final, duel and podium splashes', () => {
     expect(started.splash).toBeNull();
     expect(must(pickDuelCategory(started, null, 'dc1', T0 + 4500, rng0)).startedAt).toBe(T0 + 4500);
     expect(must(end(openAt(lobbyWith(classicQuiz(), 'Анна'), T0), T1)).splash).toBeNull();
+  });
+});
+
+describe('pause and buffs around the question splash', () => {
+  it('±15 s on pause during the splash keeps the 5 s and 120 s limits exact', () => {
+    const paused = must(pause(classic(), T0 + 500));
+    const minus = must(adjustTime(paused, -15, T0 + 600));
+    expect(minus.remainingMs).toBe(5000);
+    let plus = paused;
+    for (let i = 0; i < 6; i += 1) plus = must(adjustTime(plus, 15, T0 + 600));
+    expect(plus.remainingMs).toBe(110_000);
+    plus = must(adjustTime(plus, 15, T0 + 600));
+    expect(plus.remainingMs).toBe(120_000);
+    expect(adjustTime(plus, 15, T0 + 600)).toEqual({ ok: false, error: 'time_limit' });
+    const resumed = must(resume(minus, T0 + 10_500));
+    expect([resumed.startedAt, resumed.endsAt]).toEqual([T0 + 11_200, T0 + 16_200]);
+  });
+
+  it('a duel question paused during the «Дуель!» splash keeps its full time', () => {
+    const started = must(next(must(declareDuel(on(toDeclarable()), 'p1', 'p2')), T0 + 4000, rng0));
+    const early = must(pickDuelCategory(started, null, 'dc1', T0 + 4500, rng0));
+    const paused = must(pause(early, T0 + 5000));
+    expect(paused.remainingMs).toBe(20_000);
+    const resumed = must(resume(paused, T0 + 15_000));
+    expect([resumed.startedAt, resumed.endsAt]).toEqual([T0 + 16_000, T0 + 36_000]);
+    expect(resumed.splash).toEqual({ kind: 'duel', at: T0 + 14_000, until: T0 + 16_000 });
+  });
+
+  it('buffs are blocked as «not started» during the splash, seen only with now', () => {
+    const s = openAt(lobbyWithSplash(classicQuiz(true, ['fifty']), 'Анна', 'Богдан'), T0);
+    expect(buffBlock(s, 'p1', 'fifty', T0 + 500)).toBe('not_started');
+    expect(buffBlock(s, 'p1', 'fifty', T0 + 1200)).toBeNull();
+    expect(buffBlock(must(pause(s, T0 + 500)), 'p1', 'fifty', T0 + 600)).toBe('paused');
   });
 });

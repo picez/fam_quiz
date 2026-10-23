@@ -36,6 +36,16 @@ export function shiftSplash(state: GameState, pausedAt: number, shift: number): 
   return { ...state, splash: { ...splash, at: splash.at + shift, until: splash.until + shift } };
 }
 
+/**
+ * Скільки заставки перед запитанням (question, cell, duel) лишалося на мить паузи pausedAt; інакше 0.
+ * Таймер запитання стартує на її кінці, тож resume додає цей залишок перед залишком таймера.
+ */
+export function splashLead(state: GameState, pausedAt: number): number {
+  const splash = state.splash;
+  if (splash === null || (splash.kind !== 'question' && splash.kind !== 'cell' && splash.kind !== 'duel')) return 0;
+  return Math.max(0, splash.until - pausedAt);
+}
+
 /** Кінець поточної заставки цього виду, якщо вона є; інакше null. */
 export function splashUntil(state: GameState, kind: SplashKind): number | null {
   return state.splash?.kind === kind ? state.splash.until : null;

@@ -26,7 +26,7 @@ export type RetryStage = 'armed' | 'again' | 'choice' | 'done';
 export type BuffBlock =
   | 'used' | 'taken' | 'answered' | 'time' | 'paused' | 'elsewhere' | 'not_chooser'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual'
-  | 'no_voters' | 'spares_out';
+  | 'no_voters' | 'spares_out' | 'not_started';
 
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';
