@@ -19,6 +19,7 @@ import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus } from '../live/Timer';
 import { Standings } from './Standings';
 import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
+import { HostDuelPanel } from './DuelView';
 
 interface Props {
   view: HostView;
@@ -44,7 +45,7 @@ const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: Ho
 };
 
 /** Етапи, на яких раунд ще триває й його можна завершити достроково. */
-const IN_ROUND: HostView['phase'][] = ['intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
+const IN_ROUND: HostView['phase'][] = ['duel', 'intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
 /** Відлік до автоматичного пропуску ходу відсутнього гравця. */
 function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView; offsetMs: number }) {
@@ -77,8 +78,17 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const isFinal = round?.type === 'final';
   const base = MAIN_ACTION[phase];
   // У фіналі свої підписи головної кнопки; без розкритих гравців «Далі» лишається звичайним.
+  const duelStage = view.duel?.stage ?? null;
   const main =
-    isFinal && phase === 'intro'
+    duelStage === 'declared' && (phase === 'intro' || phase === 'reveal' || phase === 'leaderboard' || phase === 'round_end')
+      ? { label: 'duelStart' as const, event: 'host:next' as const }
+      : phase === 'duel'
+        ? duelStage === 'answer'
+          ? { label: view.duel?.ending === true ? ('duelResults' as const) : ('duelNextQuestion' as const), event: 'host:next' as const }
+          : duelStage === 'result'
+            ? { label: 'duelContinue' as const, event: 'host:next' as const }
+            : undefined
+        : isFinal && phase === 'intro'
       ? { label: 'finalStart' as const, event: 'host:next' as const }
       : isFinal && phase === 'wager'
         ? { label: 'finalShowQuestion' as const, event: 'host:next' as const }
@@ -233,7 +243,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       <p className="meta">
         {t(`phase_${phase}`)}
         {round !== null && round.total > 1 && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
-        {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
+        {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && phase !== 'duel' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&
           `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
       </p>
@@ -678,6 +688,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           )}
         </section>
       )}
+
+      {view.duel !== null && <HostDuelPanel view={view} send={send} onError={setError} />}
 
       {phase === 'round_end' && round !== null && (
         <section className="panel">

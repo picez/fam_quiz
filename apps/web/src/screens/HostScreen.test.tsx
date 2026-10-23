@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type HostView, Question, RoundInfo } from '@quiz/shared';
+import { emptyBrief, type HostDuel, type HostView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
 
@@ -1254,5 +1254,78 @@ describe('HostScreen player tools', () => {
   it('the player row shows the debuff tag', () => {
     show(running({ players: [{ ...players[0], debuff: { kind: 'mud', fired: true } }, players[1]] }));
     expect(screen.getByText('🟫 Брудний екран · діє')).toBeTruthy();
+  });
+});
+
+const hostDuel = (patch: Partial<HostDuel> = {}): HostDuel => ({
+  challenger: { playerId: 'p1', nickname: 'Оля' },
+  opponent: { playerId: 'p2', nickname: 'Петро' },
+  stage: 'question',
+  categories: [
+    { id: 'dc1', title: 'Столиці', left: 3 },
+    { id: 'dc2', title: 'Хімія', left: 0 },
+  ],
+  category: 'Столиці',
+  number: 1,
+  total: 3,
+  question: 'Столиця Франції?',
+  accepted: ['Париж'],
+  wins: { challenger: 0, opponent: 0 },
+  tries: { challenger: 0, opponent: 2 },
+  tryTexts: { challenger: [], opponent: ['Львів', 'Ліон'] },
+  questionWinner: null,
+  winningAnswer: null,
+  winner: null,
+  stake: 300,
+  ending: false,
+  ...patch,
+});
+const duelRound: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+
+describe('HostScreen: duel', () => {
+  it('the host starts, steers and cancels a duel', async () => {
+    const send = show(during('reveal', single, { round: duelRound, duel: hostDuel({ stage: 'declared', category: null, question: null, accepted: null }) }));
+    expect(screen.getByText('Оголошено дуель: Оля — Петро')).toBeTruthy();
+    fireEvent.click(button('Почати дуель'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:next', undefined));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click(button('Скасувати дуель'));
+    expect(send).not.toHaveBeenCalledWith('host:duel-cancel', undefined);
+    confirm.mockReturnValue(true);
+    fireEvent.click(button('Скасувати дуель'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:duel-cancel', undefined));
+  });
+
+  it('the host picks for the challenger and skips a question', async () => {
+    const picked = show(view({ phase: 'duel', round: duelRound, duel: hostDuel({ stage: 'category', category: null, question: null, accepted: null }) }));
+    expect(screen.getByText('Категорію вибирає Оля. Якщо треба, виберіть за гравця:')).toBeTruthy();
+    expect(button(/Хімія/).disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Почати дуель' })).toBeNull();
+    fireEvent.click(button(/Столиці/));
+    await waitFor(() => expect(picked).toHaveBeenCalledWith('host:duel-category', { categoryId: 'dc1' }));
+    cleanup();
+    const send = show(view({ phase: 'duel', round: duelRound, duel: hostDuel() }));
+    expect(screen.getByText('Прийнятні відповіді: Париж')).toBeTruthy();
+    expect(screen.getByText('Спроби Петро: Львів, Ліон')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Наступне запитання|Підсумок|Продовжити/ })).toBeNull();
+    fireEvent.click(button('Пропустити запитання'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:duel-skip', undefined));
+    fireEvent.click(button('Пауза'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:pause', undefined));
+  });
+
+  it('the main button walks the duel', async () => {
+    const labels: [Partial<HostDuel>, string][] = [
+      [{ stage: 'answer', ending: false }, 'Наступне запитання дуелі'],
+      [{ stage: 'answer', ending: true }, 'Підсумок дуелі'],
+      [{ stage: 'result', winner: { playerId: 'p1', nickname: 'Оля' } }, 'Продовжити гру'],
+    ];
+    for (const [patch, label] of labels) {
+      const send = show(view({ phase: 'duel', round: duelRound, duel: hostDuel(patch) }));
+      expect(button('Завершити раунд')).toBeTruthy();
+      fireEvent.click(button(label));
+      await waitFor(() => expect(send).toHaveBeenCalledWith('host:next', undefined));
+      cleanup();
+    }
   });
 });

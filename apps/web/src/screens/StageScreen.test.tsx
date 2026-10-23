@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type BoardInfo, type Question, RoundInfo, StageView } from '@quiz/shared';
+import { emptyBrief, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
 
@@ -900,5 +900,66 @@ describe('StageScreen final', () => {
     show(view());
     expect(document.querySelector('.live-notice')).toBeNull();
     expect(document.querySelector('.stage-debuffs')).toBeNull();
+  });
+});
+
+const olya = { playerId: 'p1', nickname: 'Оля' };
+const petro = { playerId: 'p2', nickname: 'Петро' };
+const duelInfo = (patch: Partial<DuelInfo> = {}): DuelInfo => ({
+  challenger: olya,
+  opponent: petro,
+  stage: 'question',
+  categories: [
+    { id: 'dc1', title: 'Столиці', left: 3 },
+    { id: 'dc2', title: 'Хімія', left: 0 },
+  ],
+  category: 'Столиці',
+  number: 2,
+  total: 3,
+  question: 'Столиця Франції?',
+  accepted: null,
+  wins: { challenger: 1, opponent: 0 },
+  tries: { challenger: 0, opponent: 2 },
+  questionWinner: null,
+  winningAnswer: null,
+  winner: null,
+  stake: 300,
+  ending: false,
+  ...patch,
+});
+
+describe('StageScreen: duel', () => {
+  it('the stage shows the duel big', () => {
+    show(view({ phase: 'duel', duel: duelInfo(), endsAt: Date.now() + 20_000, limitMs: 30_000 }));
+    const stage = document.querySelector('.duel-stage') as HTMLElement;
+    expect(within(stage).getByText('Оля')).toBeTruthy();
+    expect(within(stage).getByText('Петро')).toBeTruthy();
+    expect(within(stage).getByText('1 : 0')).toBeTruthy();
+    expect(within(stage).getByText('Запитання 2 з 3 · Столиці')).toBeTruthy();
+    expect(within(stage).getByText('Столиця Франції?')).toBeTruthy();
+    expect(within(stage).getByRole('timer')).toBeTruthy();
+    expect(within(stage).getByText('Спроби: Оля 0 · Петро 2')).toBeTruthy();
+    expect(within(stage).queryByText(/Правильна відповідь/)).toBeNull();
+  });
+
+  it('the stage reveals the duel answer and the result', () => {
+    const answered = duelInfo({ stage: 'answer', accepted: ['Париж'], questionWinner: olya, winningAnswer: 'Париж' });
+    const first = show(view({ phase: 'duel', duel: answered }));
+    expect(screen.getByText('Правильна відповідь: Париж')).toBeTruthy();
+    expect(screen.getByText('Це запитання виграє Оля: «Париж»')).toBeTruthy();
+    first.unmount();
+    const done = show(view({ phase: 'duel', duel: duelInfo({ stage: 'result', winner: olya, wins: { challenger: 2, opponent: 1 } }) }));
+    expect(screen.getByText('Перемога в дуелі: Оля!')).toBeTruthy();
+    expect(screen.getByText('Оля +300 · Петро −300')).toBeTruthy();
+    done.unmount();
+    show(view({ phase: 'duel', duel: duelInfo({ stage: 'category', category: null, question: null, number: 0 }) }));
+    expect(screen.getByText('Оля вибирає категорію')).toBeTruthy();
+    expect(screen.getByText('Столиці · лишилося 3')).toBeTruthy();
+    expect(screen.getByText('Хімія · лишилося 0')).toBeTruthy();
+  });
+
+  it('a declared duel shows its banner over the round', () => {
+    show(view({ phase: 'reveal', duel: duelInfo({ stage: 'declared' }) }));
+    expect(document.querySelector('.duel-banner')).not.toBeNull();
   });
 });

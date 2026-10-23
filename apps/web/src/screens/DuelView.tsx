@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import type { DuelInfo, PlayerDuel, PlayerView } from '@quiz/shared';
+import type { DuelInfo, HostView, PlayerDuel, PlayerView, StageView } from '@quiz/shared';
 import { num } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer, timerStatus } from '../live/Timer';
@@ -279,6 +279,148 @@ export function DuelPlay({
           )}
         </section>
       )}
+    </section>
+  );
+}
+
+/** Дуель на великому екрані: імена один проти одного, рахунок, категорія, запитання, таймер, кількість спроб, розкриття, підсумок. */
+export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: number }) {
+  const duel = view.duel;
+  if (duel === null) return <></>;
+  const loser = duel.winner === null ? null : duel.winner.playerId === duel.challenger.playerId ? duel.opponent : duel.challenger;
+  const picking = duel.stage === 'category';
+  const playing = duel.stage === 'question' || duel.stage === 'answer';
+  return (
+    <section className="duel-stage">
+      <p className="duel-stage-side is-challenger">{duel.challenger.nickname}</p>
+      <div className="duel-stage-center">
+        <p className="duel-stage-mark" aria-hidden="true">
+          ⚔
+        </p>
+        <p className="duel-stage-score">{`${duel.wins.challenger} : ${duel.wins.opponent}`}</p>
+        <p className="meta">{playing ? t('duelQuestionOf', { index: duel.number, total: duel.total, category: duel.category ?? '' }) : t('duelTitle')}</p>
+        {/* Блок змісту має сталу висоту: між етапами нічого не стрибає. */}
+        <div className="duel-stage-body">
+          {picking && (
+            <>
+              <p className="lead">{t('duelChoosing', { name: duel.challenger.nickname })}</p>
+              <ul className="duel-stage-categories">
+                {duel.categories.map((category) => (
+                  <li key={category.id} className={category.left === 0 ? 'is-empty' : undefined}>
+                    {t('duelCategoryLeft', { title: category.title, left: category.left })}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {playing && duel.question !== null && <h1 className="question duel-stage-question">{duel.question}</h1>}
+          {duel.stage === 'question' && (
+            <>
+              <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />
+              <p className="meta">
+                {t('duelTries', {
+                  challenger: duel.challenger.nickname,
+                  a: duel.tries.challenger,
+                  opponent: duel.opponent.nickname,
+                  b: duel.tries.opponent,
+                })}
+              </p>
+            </>
+          )}
+          {duel.stage === 'answer' && (
+            <div className={`duel-stage-answer ${duel.questionWinner !== null ? 'is-correct' : 'is-wrong'}`}>
+              {duel.accepted !== null && duel.accepted.length > 0 && <p className="lead">{t('duelCorrect', { answer: duel.accepted[0] })}</p>}
+              <p className="lead">
+                {duel.questionWinner !== null
+                  ? t('duelQuestionWon', { name: duel.questionWinner.nickname, answer: duel.winningAnswer ?? '' })
+                  : t('duelNobody')}
+              </p>
+            </div>
+          )}
+          {duel.stage === 'result' &&
+            (duel.winner === null || loser === null ? (
+              <h1 className="question">{t('duelTie')}</h1>
+            ) : (
+              <>
+                <h1 className="question">{t('duelWinner', { name: duel.winner.nickname })}</h1>
+                <p className="lead wager-delta">
+                  {duel.stake > 0
+                    ? t('duelTransfer', { winner: duel.winner.nickname, loser: loser.nickname, stake: num(duel.stake) })
+                    : t('duelNoStake')}
+                </p>
+              </>
+            ))}
+        </div>
+      </div>
+      <p className="duel-stage-side is-opponent">{duel.opponent.nickname}</p>
+    </section>
+  );
+}
+
+/** Панель дуелі в пульті: оголошена (скасувати), вибір категорії за гравця, відповіді й спроби, пропуск, скасування. */
+export function HostDuelPanel({ view, send, onError }: { view: HostView; send: Send; onError: (text: string | null) => void }) {
+  const duel = view.duel;
+  if (duel === null) return null;
+  const act = async (event: 'host:duel-category' | 'host:duel-skip' | 'host:duel-cancel', payload?: { categoryId: string }) => {
+    const result = await send(event, payload);
+    onError(result.ok ? null : errorText(result.error));
+  };
+  const cancel = () => {
+    if (window.confirm(t('duelCancelConfirm'))) void act('host:duel-cancel');
+  };
+  const tries = [
+    { player: duel.challenger, texts: duel.tryTexts.challenger },
+    { player: duel.opponent, texts: duel.tryTexts.opponent },
+  ];
+  return (
+    <section className="panel duel-host">
+      <h2>{t('duelTitle')}</h2>
+      {duel.stage === 'declared' ? (
+        <p>{t('duelDeclared', { challenger: duel.challenger.nickname, opponent: duel.opponent.nickname })}</p>
+      ) : (
+        <p className="duel-score">{duelScoreText(duel)}</p>
+      )}
+      {duel.stage === 'category' && (
+        <>
+          <p className="meta">{t('duelHostPick', { name: duel.challenger.nickname })}</p>
+          <ul className="duel-categories">
+            {duel.categories.map((category) => (
+              <li key={category.id}>
+                <button type="button" className="btn" disabled={category.left === 0} onClick={() => void act('host:duel-category', { categoryId: category.id })}>
+                  {t('duelCategoryLeft', { title: category.title, left: category.left })}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {(duel.stage === 'question' || duel.stage === 'answer') && (
+        <>
+          <p className="meta">{t('duelQuestionOf', { index: duel.number, total: duel.total, category: duel.category ?? '' })}</p>
+          {duel.question !== null && <p>{duel.question}</p>}
+          {duel.accepted !== null && duel.accepted.length > 0 && <p className="meta">{t('duelAccepted', { list: duel.accepted.join(', ') })}</p>}
+          {tries.map(
+            ({ player, texts }) =>
+              texts.length > 0 && (
+                <p key={player.playerId} className="meta duel-host-tries">
+                  {t('duelTryTexts', { name: player.nickname, list: texts.join(', ') })}
+                </p>
+              ),
+          )}
+        </>
+      )}
+      <div className="panel-actions">
+        {duel.stage === 'question' && (
+          <button type="button" className="btn" onClick={() => void act('host:duel-skip')}>
+            {t('duelSkip')}
+          </button>
+        )}
+        {duel.stage !== 'result' && (
+          <button type="button" className="btn btn-danger" onClick={cancel}>
+            {t('duelCancel')}
+          </button>
+        )}
+      </div>
     </section>
   );
 }

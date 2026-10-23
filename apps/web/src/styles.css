@@ -4399,3 +4399,123 @@ button.sort-zone:disabled {
   color: var(--signal);
   overflow-wrap: anywhere;
 }
+
+/* ---------- Дуель на сцені й у пульті ---------- */
+
+/* Імена по боках, зміст посередині: центральний блок має сталу висоту — етапи не зсувають розкладку. */
+.duel-stage {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 3fr) 1fr;
+  align-items: center;
+  gap: 2vw;
+  min-width: 0;
+}
+
+.duel-stage-side {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 3.4vw, 3.5rem);
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+  border-top: 0.5rem solid var(--duel-challenger);
+  padding-top: 1rem;
+}
+
+.duel-stage-side.is-opponent {
+  border-top-color: var(--duel-opponent);
+}
+
+.duel-stage-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5vh;
+  min-width: 0;
+  text-align: center;
+}
+
+.duel-stage-mark {
+  margin: 0;
+  color: var(--duel-accent);
+  font-size: clamp(2rem, 4vw, 4rem);
+  line-height: 1;
+}
+
+.duel-stage-score {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.5rem, 7vw, 7rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.duel-stage-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2vh;
+  width: 100%;
+  min-height: 36vh;
+}
+
+.duel-stage-question {
+  margin: 0;
+}
+
+.duel-stage-categories {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1vh 1.5vw;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(1.25rem, 2.4vw, 2.5rem);
+}
+
+.duel-stage-categories li {
+  padding: 0.5rem 1.25rem;
+  border: 2px solid var(--duel-accent);
+  border-radius: 0.75rem;
+}
+
+.duel-stage-categories .is-empty {
+  opacity: 0.45;
+}
+
+.duel-stage-answer.is-correct .lead:last-child {
+  color: var(--duel-accent);
+}
+
+.duel-stage-answer p {
+  margin: 0;
+}
+
+.stage .duel-banner ~ .live-notice {
+  bottom: 5rem;
+}
+
+.duel-host .duel-categories {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.duel-host .duel-categories .btn {
+  width: 100%;
+}
+
+.duel-host p {
+  overflow-wrap: anywhere;
+}
+
+.duel-host .panel-actions .btn {
+  flex: 1 1 10rem;
+}
+
+.history-duel {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}

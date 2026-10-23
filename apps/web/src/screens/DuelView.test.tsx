@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DuelInfo, PlayerDuel, PlayerView } from '@quiz/shared';
+import type { DuelInfo, GameAdjustment, PlayerDuel, PlayerView } from '@quiz/shared';
+import { duelLines } from '../pages/GameHistory';
 import type { Send, SendResult } from '../live/types';
 import { DuelBanner, DuelButton, DuelPlay, duelScoreText } from './DuelView';
 
@@ -231,5 +232,22 @@ describe('DuelView', () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)', media: query }));
     const calm = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} />);
     expect(calm.container.querySelector('.duel-banner')?.classList.contains('is-pulsing')).toBe(false);
+  });
+});
+
+describe('duelLines', () => {
+  it('duelLines pairs consecutive duel adjustments', () => {
+    const row = (seq: number, nickname: string, points: number, source: GameAdjustment['source']): GameAdjustment => ({
+      seq,
+      roundIndex: 0,
+      afterQuestion: 2,
+      nickname,
+      points,
+      source,
+    });
+    expect(duelLines([row(1, 'Оля', 100, 'host'), row(2, 'Іра', 300, 'duel'), row(3, 'Оля', -300, 'duel'), row(5, 'Петро', 200, 'duel')])).toEqual([
+      'Дуель: Іра +300, Оля −300',
+      'Дуель: Петро +200',
+    ]);
   });
 });

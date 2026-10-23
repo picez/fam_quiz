@@ -6,6 +6,7 @@ import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
 import { AdjustmentToast, StageDebuffs } from '../live/LiveNotices';
+import { DuelBanner, DuelStage } from './DuelView';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { BoardIntro } from './Dice';
@@ -319,6 +320,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   return (
     <main className="app stage">
+      <DuelBanner duel={view.duel} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <StageDebuffs debuffs={view.debuffs} />
       {view.paused && (
@@ -328,6 +330,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} />}
+      {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
