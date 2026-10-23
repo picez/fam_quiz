@@ -487,8 +487,8 @@ describe('host history: board', () => {
       { nickname: 'Віра', points: -200 },
     ]);
     expect(detail.questions[0].responses).toEqual([
-      { nickname: 'Богдан', answer: { type: 'single', optionId: 'b' }, accepted: true },
-      { nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, accepted: false },
+      { nickname: 'Богдан', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null },
+      { nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null },
     ]);
   });
 
@@ -592,8 +592,8 @@ describe('host history: answers', () => {
     const result = await detail();
     expect(result.questions[0].question.type).toBe('match');
     expect(result.questions[0].responses).toEqual([
-      { nickname: 'Олена', answer: right, accepted: true },
-      { nickname: 'Тарас', answer: swapped, accepted: false },
+      { nickname: 'Олена', answer: right, accepted: true, buff: null },
+      { nickname: 'Тарас', answer: swapped, accepted: false, buff: null },
     ]);
     await local.app.close();
   });
@@ -711,7 +711,7 @@ describe('host history: answers', () => {
     scheduler.advance(5000);
     expect(room.state.phase).toBe('locked');
     const result = await detail();
-    expect(result.questions[0].responses).toEqual([{ nickname: 'Олена', answer: null, accepted: false }]);
+    expect(result.questions[0].responses).toEqual([{ nickname: 'Олена', answer: null, accepted: false, buff: null }]);
     await local.app.close();
   });
   it('history shows final wagers and silence is not an answer', async () => {
@@ -937,5 +937,26 @@ describe('history: score adjustments', () => {
     const mine = (await get('/api/me/history', olena.cookie)).json() as { score: number; rank: number }[];
     const olenaRow = expected.find((row) => row.participantId === olenaId)!;
     expect(mine[0]).toMatchObject({ score: olenaRow.score, rank: olenaRow.rank });
+  });
+});
+
+describe('history: buffs', () => {
+  it('responses carry the buff', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const { gameId } = await seedGame(db, {
+      hostId: account.id,
+      startedAt: new Date(2026, 1, 1),
+      snapshot: makeQuiz([single]),
+      players: [
+        { userId: null, nickname: 'Олена', score: 2000, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 2000, buff: 'double' }] },
+        { userId: null, nickname: 'Тарас', score: 0, rank: 2, rows: [{ questionIndex: 0, accepted: false, points: 0 }] },
+      ],
+    });
+    const detail = await hostGame(db, account.id, gameId);
+    expect(detail?.questions[0].responses.map(({ nickname, buff }) => [nickname, buff])).toEqual([
+      ['Олена', 'double'],
+      ['Тарас', null],
+    ]);
   });
 });

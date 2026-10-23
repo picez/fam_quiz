@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { questionsOf, quizSchema } from '@quiz/shared';
+import { READY_BUFFS, allowedBuffs, questionsOf, quizSchema } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
@@ -127,5 +127,12 @@ describe('seeding the erudite quiz', () => {
     const id = await createQuiz(db, 'seed-owner', quizSchema.parse(eruditeQuiz));
     const loaded = await getQuiz(db, 'seed-owner', id);
     expect(loaded?.duels).toEqual(eruditeQuiz.duels);
+  });
+});
+
+describe('the erudite demo quiz buffs', () => {
+  it('the erudite quiz gives every player the five ready buffs', () => {
+    expect(allowedBuffs(eruditeQuiz)).toEqual([...READY_BUFFS]);
+    expect(quizSchema.safeParse(eruditeQuiz).success).toBe(true);
   });
 });

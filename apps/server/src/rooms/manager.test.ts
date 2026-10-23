@@ -824,3 +824,38 @@ describe('duels', () => {
     expect(room.state.duel).toBeNull();
   });
 });
+
+describe('personal deadline of the extra time buff', () => {
+  /** Три гравці, Оля бере «Додатковий час», решта відповіли. */
+  function overtime() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeQuiz([single, text], { buffs: ['time'] }));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.buff(room, olena.playerId, 'time')).toEqual({ ok: true });
+    expect(manager.answer(room, taras.playerId, wrong)).toEqual({ ok: true });
+    return { scheduler, manager, room, olena };
+  }
+
+  it('the scheduler closes the question at the personal deadline', () => {
+    const { room, scheduler } = overtime();
+    scheduler.advance(20_000);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(29_999);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('a player with extra time answering late closes the question at once', () => {
+    const { manager, room, olena, scheduler } = overtime();
+    scheduler.advance(25_000);
+    expect(room.state.phase).toBe('question');
+    expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+  });
+});

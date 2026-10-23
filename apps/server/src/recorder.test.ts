@@ -1,6 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import { blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
+import { DEFAULT_RULES } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
@@ -803,5 +804,50 @@ describe('recorder: duels', () => {
       const own = room.state.players.find((q) => q.nickname === p.nickname);
       expect(p.score).toBe(own?.score);
     }
+  });
+});
+
+describe('recorder: buffs', () => {
+  it('buffed points are saved as on the scoreboard, with the buff', async () => {
+    const ctx = await setup();
+    const room = ctx.manager.create(
+      makeQuiz([single, text], { speedBonus: false, buffs: ['double', 'shield'], rules: { ...DEFAULT_RULES, penalty: 'minus' } }),
+      HOST,
+      null,
+    );
+    const enter = (nickname: string) => {
+      const joined = ctx.manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      ctx.manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const olena = enter('Олена');
+    const petro = enter('Петро');
+    const ira = enter('Іра');
+    expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(ctx.manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(ctx.manager.buff(room, olena, 'double')).toEqual({ ok: true });
+    expect(ctx.manager.buff(room, petro, 'shield')).toEqual({ ok: true });
+    ctx.manager.answer(room, olena, correct);
+    ctx.manager.answer(room, petro, wrong);
+    ctx.manager.answer(room, ira, wrong);
+    await ctx.recorder.idle();
+
+    const rows = await ctx.db.select({ nickname: participant.nickname, points: answer.points, buff: answer.buff, accepted: answer.accepted }).from(answer).innerJoin(participant, eq(participant.id, answer.participantId));
+    const by = (nickname: string) => rows.find((row) => row.nickname === nickname);
+    expect(by('Олена')).toMatchObject({ points: 2000, buff: 'double' });
+    expect(by('Петро')).toMatchObject({ points: 0, buff: 'shield', accepted: false });
+    expect(by('Іра')).toMatchObject({ buff: null });
+    const scores = await ctx.db.select().from(participant);
+    for (const row of scores) expect(row.score).toBe(room.state.players.find((p) => p.id === row.id)?.score);
+  });
+
+  it('a game without buffs saves no buff', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    const { answers } = await ctx.saved();
+    expect(answers.map((a) => a.buff)).toEqual([null, null]);
   });
 });

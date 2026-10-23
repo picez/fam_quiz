@@ -1,5 +1,5 @@
 import type { Answer } from './answer';
-import type { AdjustmentSource } from './game';
+import type { AdjustmentSource, BuffKind } from './game';
 import type { CellKind, Question, Round, WagerMode } from './quiz';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
@@ -33,6 +33,8 @@ export interface GameResponse {
   /** null — спроба бліцу без відповіді. */
   answer: Answer | null;
   accepted: boolean;
+  /** Баф, з яким дано відповідь; null — без бафу. */
+  buff: BuffKind | null;
 }
 
 export interface GameQuestionResult {

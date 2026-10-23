@@ -1,4 +1,4 @@
-import type { AdjustmentSource, Answer, Duels, GameStatus, QuizSettings, Round } from '@quiz/shared';
+import type { AdjustmentSource, Answer, BuffKind, Duels, GameStatus, QuizSettings, Round } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -156,6 +156,8 @@ export const answer = pgTable(
     overridden: boolean('overridden').notNull(),
     /** Ставка у фіналі; null поза фіналом і в старих іграх. */
     wager: integer('wager'),
+    /** Баф, узятий на це запитання; null — без бафу (і в старих іграх). */
+    buff: text('buff').$type<BuffKind>(),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
 );
