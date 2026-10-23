@@ -21,7 +21,7 @@ import {
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
-import { applyBuff, buffOf, finishRetry, holdFirstTry, settleRetries, type BuffPlay } from './buffs';
+import { applyBuff, buffOf, dropBallots, finishRetry, holdFirstTry, settleRetries, shiftBuffClocks, type BuffPlay } from './buffs';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
@@ -398,7 +398,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
     }
     if (play.buffs !== undefined) {
       const { [playerId]: _buff, ...buffs } = play.buffs;
-      kept.buffs = buffs;
+      // Голос вилученого більше не рахується.
+      kept.buffs = dropBallots(buffs, playerId);
     }
     if (play.overtime !== undefined) {
       const { [playerId]: _overtime, ...overtime } = play.overtime;
@@ -1245,7 +1246,7 @@ export function resume(state: GameState, now: number): Result {
     // Підвисання в сортуванні зсувається разом із годинником.
     const resumed = shiftSortLocks({ ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs }, shift);
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
-    return ok(autoLock(settleQueue(shiftQueue(resumed, shift), now), now));
+    return ok(autoLock(settleQueue(shiftQueue(shiftBuffClocks(resumed, shift), shift), now), now));
   }
   if (state.phase === 'question' && !isTimed(state.plays[state.questionIndex].question)) {
     // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
@@ -1257,7 +1258,7 @@ export function resume(state: GameState, now: number): Result {
       startedAt: state.startedAt === null ? null : state.startedAt + shift,
     };
     // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
-    return ok(watchAway(autoLock(settleQueue(shiftQueue(resumed, shift), now), now), now));
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(shiftBuffClocks(resumed, shift), shift), now), now), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.
