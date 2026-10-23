@@ -1,5 +1,5 @@
 import type { Answer } from './answer';
-import type { Grade, Phase } from './game';
+import type { DebuffKind, Grade, Phase } from './game';
 import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video } from './quiz';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
@@ -275,6 +275,15 @@ export interface HostFinal extends FinalInfo {
   pending: { playerId: string; nickname: string; answer: Answer }[];
 }
 
+/** Останнє коригування від ведучого, для короткого сповіщення. */
+export interface AdjustmentNotice {
+  seq: number;
+  /** Час сервера в мить коригування. */
+  at: number;
+  nickname: string;
+  points: number;
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -303,6 +312,8 @@ interface BaseView {
   final: FinalInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
   chain: ChainInfo | null;
+  /** Останнє коригування балів ведучим; null — не було. */
+  notice: AdjustmentNotice | null;
 }
 
 export interface StageView extends BaseView {
@@ -310,6 +321,8 @@ export interface StageView extends BaseView {
   players: LobbyPlayer[];
   reveal: Question | null;
   stats: RevealStats | null;
+  /** Гравці з дебафом, що чекає або діє; лише імена, без виду. */
+  debuffs: BlitzPlayer[];
   standings: Standing[] | null;
 }
 
@@ -336,6 +349,8 @@ export interface PlayerView extends BaseView {
     final: { wager: number | null; limit: number } | null;
     /** null поза запитанням-ланцюжком. */
     chain: PlayerChain | null;
+    /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера). */
+    debuff: { kind: DebuffKind; since: number } | null;
   };
   reveal: Question | null;
   standings: Standing[] | null;
@@ -354,9 +369,15 @@ export interface HostResponse {
   overridden: boolean;
 }
 
+export interface HostPlayer extends LobbyPlayer {
+  score: number;
+  /** fired — діє в поточному запитанні; інакше чекає. */
+  debuff: { kind: DebuffKind; fired: boolean } | null;
+}
+
 export interface HostView extends BaseView {
   role: 'host';
-  players: (LobbyPlayer & { score: number })[];
+  players: HostPlayer[];
   correct: Question | null;
   responses: HostResponse[];
   blitz: HostBlitz | null;

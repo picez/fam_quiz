@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { GameStatus } from '@quiz/shared';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import type { Db } from '../db/client';
-import { answer, game, participant } from '../db/schema';
+import { answer, game, participant, scoreAdjustment } from '../db/schema';
 
 export interface SeedPlayer {
   userId: string | null;
@@ -10,11 +10,13 @@ export interface SeedPlayer {
   score: number;
   rank: number | null;
   rows?: { questionIndex: number; roundIndex?: number; attempt?: number; accepted: boolean; points: number }[];
+  /** Бали від ведучого; roundIndex і afterQuestion за замовчуванням 0. */
+  adjustments?: { seq: number; roundIndex?: number; afterQuestion?: number; points: number }[];
 }
 
 let codes = 0;
 
-/** Вставляє гру з учасниками й рядками answer; повертає id гри й учасників у порядку players. */
+/** Вставляє гру з учасниками, рядками answer і коригуваннями; повертає id гри й учасників у порядку players. */
 export async function seedGame(
   db: Db,
   spec: { hostId: string; status?: GameStatus; startedAt: Date; snapshot?: unknown; questionsPlayed?: number; title?: string; players: SeedPlayer[] },
@@ -46,6 +48,18 @@ export async function seedGame(
           accepted: r.accepted,
           points: r.points,
           overridden: false,
+        })),
+      );
+    }
+    if (p.adjustments !== undefined && p.adjustments.length > 0) {
+      await db.insert(scoreAdjustment).values(
+        p.adjustments.map((a) => ({
+          participantId: participantIds[i]!,
+          seq: a.seq,
+          roundIndex: a.roundIndex ?? 0,
+          afterQuestion: a.afterQuestion ?? 0,
+          points: a.points,
+          source: 'host' as const,
         })),
       );
     }

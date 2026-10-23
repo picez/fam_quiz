@@ -62,70 +62,79 @@ export function GameHistory() {
         )}
       </section>
 
-      {game.questions.length > 0 && (
+      {(game.questions.length > 0 || game.adjustments.length > 0) && (
         <section className="panel">
           <h2>{t('questionsTitle')}</h2>
           {/* Гра з одним раундом виглядає, як раніше: без заголовка раунду; запитання нумеруються в межах раунду, як на живих екранах. */}
           {game.rounds.map((round, roundIndex) => {
             const questions = game.questions.filter((question) => question.roundIndex === roundIndex);
-            if (questions.length === 0) return null;
+            // Раунд без запитань показується, якщо в ньому ведучий нараховував бали.
+            const adjustments = game.adjustments.filter((adjustment) => adjustment.roundIndex === roundIndex);
+            if (questions.length === 0 && adjustments.length === 0) return null;
             return (
               <div key={roundIndex} className="round-group">
                 {game.rounds.length > 1 && <h3 className="round-title">{roundLabel(round.title, roundIndex, round.type)}</h3>}
-                <ol className="rows stacked">
-                  {questions.map((question, position) => (
-                    <li key={question.index}>
-                      <span className="rank">{position + 1}</span>
-                      <span className="name">{question.text}</span>
-                      {question.cell !== null && (
-                        <>
-                          <span className="tag">{t('cellTitle', { category: question.cell.category, price: question.cell.price })}</span>
-                          {question.cell.multiplier > 1 && <span className="tag">{markText(question.cell.multiplier === 2 ? 'x2' : 'x3')}</span>}
-                          {question.cell.kind === 'blitz' && <span className="tag">{t('cellBlitz')}</span>}
-                          <span className="meta">
-                            {question.cell.kind === 'blitz'
-                              ? question.cell.scores.map((score) => `${score.nickname}: ${signed(score.points)}`).join(', ')
-                              : question.cell.chooser === null
-                                ? t('cellRemoved')
-                                : question.cell.points === null
-                                  ? question.cell.chooser
-                                  : `${question.cell.chooser}: ${signed(question.cell.points)}`}
-                          </span>
-                        </>
-                      )}
-                      <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
-                      {question.final !== null && (
-                        <div className="wager-list">
-                          <h4>{t('historyFinal')}</h4>
-                          <ul>
-                            {question.final.entries.map((entry, at) => (
-                              <li key={at} className={entry.accepted ? 'is-correct' : 'is-wrong'}>
-                                {t('finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) })}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {question.responses.length > 0 && (
-                        <details className="responses">
-                          <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
-                          <ul>
-                            {question.responses.map((response, at) => (
-                              <li key={at} className={response.accepted ? 'is-correct' : 'is-wrong'}>
-                                <span className="responses-name">{response.nickname}</span>
-                                {response.answer?.type === 'match' ? (
-                                  <PairList pairs={pairTexts(response.answer.links, choicesOf(question.question))} tone="" />
-                                ) : (
-                                  <span className="responses-answer">{answerText(response.answer, question.question)}</span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-                    </li>
-                  ))}
-                </ol>
+                {questions.length > 0 && (
+                  <ol className="rows stacked">
+                    {questions.map((question, position) => (
+                      <li key={question.index}>
+                        <span className="rank">{position + 1}</span>
+                        <span className="name">{question.text}</span>
+                        {question.cell !== null && (
+                          <>
+                            <span className="tag">{t('cellTitle', { category: question.cell.category, price: question.cell.price })}</span>
+                            {question.cell.multiplier > 1 && <span className="tag">{markText(question.cell.multiplier === 2 ? 'x2' : 'x3')}</span>}
+                            {question.cell.kind === 'blitz' && <span className="tag">{t('cellBlitz')}</span>}
+                            <span className="meta">
+                              {question.cell.kind === 'blitz'
+                                ? question.cell.scores.map((score) => `${score.nickname}: ${signed(score.points)}`).join(', ')
+                                : question.cell.chooser === null
+                                  ? t('cellRemoved')
+                                  : question.cell.points === null
+                                    ? question.cell.chooser
+                                    : `${question.cell.chooser}: ${signed(question.cell.points)}`}
+                            </span>
+                          </>
+                        )}
+                        <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
+                        {question.final !== null && (
+                          <div className="wager-list">
+                            <h4>{t('historyFinal')}</h4>
+                            <ul>
+                              {question.final.entries.map((entry, at) => (
+                                <li key={at} className={entry.accepted ? 'is-correct' : 'is-wrong'}>
+                                  {t('finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) })}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {question.responses.length > 0 && (
+                          <details className="responses">
+                            <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
+                            <ul>
+                              {question.responses.map((response, at) => (
+                                <li key={at} className={response.accepted ? 'is-correct' : 'is-wrong'}>
+                                  <span className="responses-name">{response.nickname}</span>
+                                  {response.answer?.type === 'match' ? (
+                                    <PairList pairs={pairTexts(response.answer.links, choicesOf(question.question))} tone="" />
+                                  ) : (
+                                    <span className="responses-answer">{answerText(response.answer, question.question)}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                {adjustments.length > 0 && (
+                  <p className="meta history-adjustments">
+                    {t('historyAdjustments', { list: adjustments.map((adjustment) => `${adjustment.nickname} ${signed(adjustment.points)}`).join(', ') })}
+                  </p>
+                )}
               </div>
             );
           })}

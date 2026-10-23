@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, debuff: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -45,6 +45,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   spotlight: null,
   final: null,
   chain: null,
+  notice: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -71,6 +72,23 @@ function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send 
 }
 
 describe('PlayerScreen', () => {
+  it('a debuffed question wraps the answer area; other phones get the same zone without a debuff', () => {
+    const classes = () => [...document.querySelector('main')!.children].map((el) => el.className);
+    show(onQuestion({ me: { ...me, debuff: { kind: 'mirror', since: Date.now() } } }));
+    const zone = document.querySelector('[data-debuff="mirror"]')!;
+    expect(zone).not.toBeNull();
+    expect(zone.querySelector('h1.question')).not.toBeNull();
+    expect(zone.querySelectorAll('.choice')).toHaveLength(2);
+    const debuffed = classes();
+    cleanup();
+    show(onQuestion());
+    expect(document.querySelector('.debuff-zone')).not.toBeNull();
+    expect(document.querySelector('[data-debuff]')).toBeNull();
+    expect(document.querySelector('.debuff-zone h1.question')).not.toBeNull();
+    expect(classes()).toEqual(['bar', 'question-head', 'debuff-zone']);
+    expect(debuffed).toEqual(['bar', 'question-head', 'debuff-zone is-mirror']);
+  });
+
   it('a video question shows the player and no timer on the phone', () => {
     const withVideo = { ...publicQuestion, video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
     show(onQuestion({ question: withVideo, endsAt: null, remainingMs: null }));
@@ -1004,5 +1022,10 @@ describe('PlayerScreen round facts', () => {
     show(view({ phase: 'question', round, questionIndex: 4, total: 24, question: publicQuestion, endsAt: null, remainingMs: 20_000, limitMs: 20_000 }));
     expect(screen.getByText('Клітинка 5 з 24 · лишилося 19')).toBeTruthy();
     expect(screen.getByText('/ 20 с')).toBeTruthy();
+  });
+
+  it('every phone shows the adjustment notice', () => {
+    show(view({ notice: { seq: 3, at: Date.now(), nickname: 'Тарас', points: -100 } }));
+    expect(screen.getByText('Ведучий: −100 — Тарас')).toBeTruthy();
   });
 });

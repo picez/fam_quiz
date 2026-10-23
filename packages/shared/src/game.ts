@@ -3,6 +3,13 @@ export type Phase = 'lobby' | 'intro' | 'wager' | 'question' | 'locked' | 'revea
 
 export type Grade = 'correct' | 'partial' | 'wrong';
 
+/** Звідки коригування рахунку поза відповідями: бали від ведучого або дуель. */
+export type AdjustmentSource = 'host' | 'duel';
+
+/** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. */
+export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;
+export type DebuffKind = (typeof DEBUFF_KINDS)[number];
+
 export type ErrorCode =
   | 'wrong_phase'
   | 'paused'
@@ -25,4 +32,6 @@ export type ErrorCode =
   | 'wrong_word'
   | 'no_hint'
   | 'hint_late'
-  | 'dice_pending';
+  | 'dice_pending'
+  | 'points_invalid'
+  | 'debuff_busy';

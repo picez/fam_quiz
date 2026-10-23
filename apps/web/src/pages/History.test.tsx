@@ -63,7 +63,7 @@ const detail: GameDetail = {
   questions: [
     { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
     { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null },
-  ],
+  ],  adjustments: [],
 };
 
 /** Підставна сторінка входу: показує адресу, на яку людину повернуть після входу. */
@@ -339,6 +339,41 @@ describe('GameHistory: rounds', () => {
     expect(await screen.findByText('Бліц')).toBeTruthy();
     expect(screen.getByText('Богдан: +200, Анна: −200, Віра: −200')).toBeTruthy();
     expect(screen.queryByText('Анна: −200')).toBeNull();
+  });
+});
+
+describe('GameHistory: adjustments', () => {
+  it('the game history shows host adjustments under their round, also in a round without questions', async () => {
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        rounds: [
+          { title: 'Розминка', type: 'classic' },
+          { title: 'Поле', type: 'board' },
+        ],
+        adjustments: [
+          { roundIndex: 0, afterQuestion: 0, nickname: 'Оля', points: -100, source: 'host' },
+          { roundIndex: 0, afterQuestion: 2, nickname: 'Петро', points: 75, source: 'host' },
+          { roundIndex: 1, afterQuestion: 2, nickname: 'Оля', points: 50, source: 'host' },
+        ],
+      },
+    });
+    const { container } = open('/history/g1');
+    expect(await screen.findByText('Бали від ведучого: Оля −100, Петро +75')).toBeTruthy();
+    const groups = [...container.querySelectorAll('.round-group')];
+    expect(groups).toHaveLength(2);
+    expect(groups[0].querySelector('.history-adjustments')?.textContent).toBe('Бали від ведучого: Оля −100, Петро +75');
+    expect(groups[1].querySelector('.round-title')?.textContent).toBe('Поле');
+    expect(groups[1].querySelector('.history-adjustments')?.textContent).toBe('Бали від ведучого: Оля +50');
+    expect(groups[1].querySelector('ol')).toBeNull();
+  });
+
+  it('shows no adjustments line in a game without them', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+    const { container } = open('/history/g1');
+    expect(await screen.findByText('Столиця України?')).toBeTruthy();
+    expect(container.querySelector('.history-adjustments')).toBeNull();
   });
 });
 

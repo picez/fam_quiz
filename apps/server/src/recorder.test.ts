@@ -2,7 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, numeric, single, text, withId } from '@quiz/engine/testing';
 import type { Db } from './db/client';
-import { answer, game, participant, user } from './db/schema';
+import { answer, game, participant, scoreAdjustment, user } from './db/schema';
 import { attachRecorder, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
@@ -190,6 +190,74 @@ describe('recorder', () => {
     const { participants, answers } = await ctx.saved();
     expect(participants.map((p) => p.nickname)).toEqual(['Олена']);
     expect(answers.map((a) => a.participantId)).toEqual([ctx.olena]);
+  });
+
+  it('stores host adjustments and keeps the participant score equal to the leaderboard', async () => {
+    const ctx = await setup();
+    const adjust = (playerId: string, points: number) =>
+      expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId, points })).toEqual({ ok: true });
+    ctx.host('start');
+    adjust(ctx.olena, -100);
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    adjust(ctx.taras, 50);
+    ctx.host('end');
+
+    const { participants, answers } = await ctx.saved();
+    const adjustments = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(adjustments.map((a) => [a.participantId, a.seq, a.roundIndex, a.afterQuestion, a.points, a.source])).toEqual([
+      [ctx.olena, 1, 0, 0, -100, 'host'],
+      [ctx.taras, 2, 0, 1, 50, 'host'],
+    ]);
+    for (const p of participants) {
+      expect(p.score).toBe(ctx.room.state.players.find((player) => player.id === p.id)!.score);
+      const sum = (rows: { participantId: string; points: number }[]) =>
+        rows.filter((row) => row.participantId === p.id).reduce((total, row) => total + row.points, 0);
+      expect(p.score).toBe(sum(answers) + sum(adjustments));
+    }
+    expect(participants.map((p) => [p.nickname, p.score])).toEqual([
+      ['Олена', 900],
+      ['Тарас', 50],
+    ]);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it("a kicked player's adjustments go with the participant", async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.olena, points: -100 })).toEqual({ ok: true });
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.taras, points: 75 })).toEqual({ ok: true });
+    await ctx.saved();
+    expect(await ctx.db.select().from(scoreAdjustment)).toHaveLength(2);
+
+    expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.olena })).toEqual({ ok: true });
+    await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment);
+    expect(rows.map((row) => [row.participantId, row.points])).toEqual([[ctx.taras, 75]]);
+  });
+
+  it('later saves add only the new adjustments, also after the kicked player held the highest seq', async () => {
+    const ctx = await setup();
+    const adjust = (playerId: string, points: number) =>
+      expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId, points })).toEqual({ ok: true });
+    ctx.host('start');
+    adjust(ctx.olena, -100);
+    adjust(ctx.taras, 75);
+    await ctx.saved();
+    // Тарас мав найбільший seq; після вилучення його рядки зникають, а новий seq 3 Олени все одно записується.
+    expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.taras })).toEqual({ ok: true });
+    adjust(ctx.olena, 40);
+    await ctx.saved();
+    adjust(ctx.olena, 10);
+    ctx.host('next');
+    await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(rows.map((row) => [row.participantId, row.seq, row.points])).toEqual([
+      [ctx.olena, 1, -100],
+      [ctx.olena, 3, 40],
+      [ctx.olena, 4, 10],
+    ]);
+    expect(ctx.errors).toEqual([]);
   });
 
   it('does not record a game that has no host account', async () => {

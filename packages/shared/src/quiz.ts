@@ -40,6 +40,8 @@ export const LIMITS = {
   minHintSeconds: 1,
   maxHintSeconds: 30,
   defaultHintSeconds: 5,
+  /** Найбільша сума одного коригування балів ведучим (за модулем). */
+  maxAdjust: 10_000,
 } as const;
 
 /** Обмеження для зображень у запитаннях. */

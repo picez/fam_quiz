@@ -3,12 +3,14 @@ import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
 import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
-import { gameTables } from './history';
+import { rankPlayers } from '@quiz/engine';
+import { gameTables, hostGame } from './history';
 import type { Db } from './db/client';
-import { answer, game, participant, user } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, game, participant, user } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
 import { FakeScheduler } from './testing/fake-scheduler';
+import { seedGame } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
@@ -694,5 +696,103 @@ describe('host history: answers', () => {
     playToEnd(ctx.manager, room, [anna], [anna], stake);
     await ctx.recorder.idle();
     expect((await read()).questions[1].final?.entries.map((e) => e.nickname)).toEqual(['Анна']);
+  });
+});
+
+describe('history: score adjustments', () => {
+  const hostAccount = async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    return { ...host, id: account.id };
+  };
+
+  it('the game detail lists adjustments by seq with nicknames; old games have none', async () => {
+    const host = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 1),
+      players: [
+        { userId: null, nickname: 'Олена', score: 900, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 1000 }], adjustments: [{ seq: 1, points: -100 }] },
+        { userId: null, nickname: 'Тарас', score: 0, rank: 2, rows: [{ questionIndex: 0, accepted: false, points: 0 }] },
+      ],
+    });
+    const { gameId: oldId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 2),
+      players: [{ userId: null, nickname: 'Віра', score: 0, rank: 1 }],
+    });
+
+    expect((await hostGame(db, host.id, gameId))?.adjustments).toEqual([{ roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: -100, source: 'host' }]);
+    expect((await hostGame(db, host.id, oldId))?.adjustments).toEqual([]);
+  });
+
+  it('the game detail orders adjustments of several players by seq', async () => {
+    const host = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 3),
+      players: [
+        { userId: null, nickname: 'Олена', score: -50, rank: 2, adjustments: [{ seq: 3, points: 50 }, { seq: 1, points: -100 }] },
+        { userId: null, nickname: 'Тарас', score: 75, rank: 1, adjustments: [{ seq: 2, roundIndex: 1, afterQuestion: 1, points: 75 }] },
+      ],
+    });
+    const detail = await hostGame(db, host.id, gameId);
+    expect(detail?.adjustments.map((a) => [a.nickname, a.points, a.roundIndex, a.afterQuestion])).toEqual([
+      ['Олена', -100, 0, 0],
+      ['Тарас', 75, 1, 1],
+      ['Олена', 50, 0, 0],
+    ]);
+  });
+
+  it('gameTables adds adjustments as rows with ADJUSTMENT_ATTEMPT', async () => {
+    const host = await hostAccount();
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 4),
+      players: [{ userId: null, nickname: 'Олена', score: 900, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 1000 }], adjustments: [{ seq: 1, points: -100 }] }],
+    });
+    const [table] = await gameTables(db, [gameId]);
+    expect(table.players[0].participantId).toBe(participantIds[0]);
+    expect(table.players[0].rows).toEqual(
+      expect.arrayContaining([
+        { roundIndex: 0, attempt: 0, accepted: true, points: 1000 },
+        { roundIndex: 0, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points: -100 },
+      ]),
+    );
+    expect(table.players[0].rows).toHaveLength(2);
+  });
+
+  it('history and my games match the leaderboard with adjustments', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const olena = await signUp(ctx.app, 'Олена');
+    const quizId = ((await post('/api/quizzes', makeQuiz([single, text], { speedBonus: false }), host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const joinAs = async (nickname: string, cookie?: string) =>
+      ((await post(`/api/games/by-code/${created.code}/join`, { nickname }, cookie)).json() as { playerId: string }).playerId;
+    const olenaId = await joinAs('Олена', olena.cookie);
+    const tarasId = await joinAs('Тарас');
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    for (const playerId of [olenaId, tarasId]) ctx.manager.connect(room, { role: 'player', playerId });
+    const step = (type: 'start' | 'lock' | 'next' | 'end') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+    const adjust = (playerId: string, points: number) => expect(ctx.manager.host(room, { type: 'adjust', playerId, points })).toEqual({ ok: true });
+
+    step('start');
+    adjust(tarasId, 300);
+    step('next');
+    ctx.manager.answer(room, olenaId, { type: 'single', optionId: 'b' });
+    ctx.manager.answer(room, tarasId, { type: 'single', optionId: 'a' });
+    adjust(olenaId, -1000);
+    adjust(tarasId, 25);
+    step('end');
+    await ctx.recorder.idle();
+    const expected = rankPlayers(room.state.players);
+
+    const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as { standings: { participantId: string; score: number; rank: number }[] };
+    expect(detail.standings.map((row) => [row.participantId, row.score, row.rank])).toEqual(expected.map((row) => [row.participantId, row.score, row.rank]));
+    expect(expected.map((row) => row.score)).toEqual([325, 0]);
+    const mine = (await get('/api/me/history', olena.cookie)).json() as { score: number; rank: number }[];
+    const olenaRow = expected.find((row) => row.participantId === olenaId)!;
+    expect(mine[0]).toMatchObject({ score: olenaRow.score, rank: olenaRow.rank });
   });
 });

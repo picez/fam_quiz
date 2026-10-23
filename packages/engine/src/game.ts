@@ -5,6 +5,8 @@ import {
   type AnswerMode,
   type CellKind,
   type CellPenalty,
+  type AdjustmentSource,
+  type DebuffKind,
   type ErrorCode,
   type Grade,
   type Phase,
@@ -15,11 +17,14 @@ import {
   type Round,
   rulesOf,
 } from '@quiz/shared';
+// adjust.ts і debuffs.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
+import { adjustmentTotal } from './adjust';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { chainDone, scoreChain } from './chain';
+import { fireDebuffs, spendDebuffs } from './debuffs';
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -105,7 +110,7 @@ export interface ChainProgress {
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
 export interface FinalState {
-  /** Межа ставки: max(0, рахунок) на вході в етап wager. */
+  /** Межа ставки: max(0, рахунок) на вході в етап wager; бали від ведучого під час ставок її оновлюють. */
   limits: Record<string, number>;
   /** Ставки; гравця без ставки тут немає. */
   wagers: Record<string, number>;
@@ -179,6 +184,28 @@ export interface BlitzPlay {
   dropped: BuzzEntry[];
 }
 
+/** Коригування рахунку поза відповідями: бали від ведучого, пізніше — дуелі. */
+export interface ScoreAdjustment {
+  /** Зростаючий номер у межах гри, від 1. */
+  seq: number;
+  playerId: string;
+  points: number;
+  roundIndex: number;
+  /** Скільки запитань журналу було закрито в мить коригування. */
+  afterQuestion: number;
+  source: AdjustmentSource;
+  at: number;
+}
+
+/** Дебаф від ведучого на гравця. */
+export interface DebuffState {
+  kind: DebuffKind;
+  /** Індекс у plays запитання, у якому дебаф спрацював; null — чекає. */
+  firedAt: number | null;
+  /** Мить спрацювання; null — чекає. */
+  since: number | null;
+}
+
 export interface GameState {
   quiz: Quiz;
   phase: Phase;
@@ -204,6 +231,12 @@ export interface GameState {
   heldAt: number | null;
   /** Фінал поточного раунду; null поза раундом фіналу. */
   final: FinalState | null;
+  /** Журнал коригувань рахунку в порядку seq. */
+  adjustments: ScoreAdjustment[];
+  /** Останній виданий seq; після вилучення гравця номери не повторюються. */
+  adjustmentSeq: number;
+  /** Дебафи за id гравця: що чекають на наступне запитання або діють у поточному. */
+  debuffs: Record<string, DebuffState>;
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -228,6 +261,9 @@ export function createGame(quiz: Quiz): GameState {
     board: null,
     heldAt: null,
     final: null,
+    adjustments: [],
+    adjustmentSeq: 0,
+    debuffs: {},
   };
 }
 
@@ -298,7 +334,9 @@ export function removePlayer(state: GameState, playerId: string): Result {
   const board = state.board === null ? null : { ...dropFromDice(dropFromCircle(state.board, playerId), playerId, ids), awaySince: null };
   const final = state.final === null ? null : dropFromFinal(state.final, playerId);
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
-  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final };
+  const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
+  const { [playerId]: _debuff, ...debuffs } = state.debuffs;
+  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments, debuffs };
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
@@ -398,7 +436,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(round.type === 'blitz' || board?.kind === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [], dropped: [] } } : {}),
   };
   // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
-  return watchAway(
+  // Дебафи, що чекають, спрацьовують для тих, хто відповідає на це запитання з телефона.
+  const opened = watchAway(
     {
       ...state,
       phase: 'question',
@@ -412,6 +451,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     },
     now,
   );
+  return fireDebuffs(opened, now);
 }
 
 /** Відкриває запитання фіналу; ставка кожного гравця знімається на цю мить, хто не поставив — грає з 0. */
@@ -549,8 +589,11 @@ function streakBase(play: Play, playerId: string, record: AnswerRecord): number 
   return play.blitz.attempts.find((a) => a.playerId === playerId && a.grade === 'correct')?.points ?? 0;
 }
 
-/** Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями. */
-function withTotals(state: GameState): GameState {
+/**
+ * Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями; до рахунку додаються коригування.
+ * Внутрішня функція рушія: експортовано для adjust.ts, не для сервера.
+ */
+export function withTotals(state: GameState): GameState {
   // Відкрите запитання завжди останнє в журналі.
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
@@ -582,6 +625,7 @@ function withTotals(state: GameState): GameState {
       if (state.quiz.rounds[play.roundIndex].type !== 'classic' || limitMs === null) continue;
       totalTimeMs += record ? record.timeMs : limitMs;
     }
+    score += adjustmentTotal(state, player.id);
     return { ...player, score, totalTimeMs, streak: counters[player.id] ?? 0 };
   });
   return { ...state, plays, players };
@@ -599,7 +643,7 @@ function dropQueue(state: GameState): GameState {
 /** Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз. */
 function lockNow(state: GameState): GameState {
   // Бали за ланцюжок залежать від найшвидшого, тож рахуються лише тут, коли відомі часи всіх.
-  const closed = withCellPenalty(dropQueue(scoreChain(state)));
+  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreChain(state))));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 

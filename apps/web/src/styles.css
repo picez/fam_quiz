@@ -7,6 +7,9 @@
   --amber: #ffb300;
   --correct: #3ddcc0;
   --signal: #ff3d5a;
+  --notice-bg: rgb(14 16 32 / 0.92);
+  --notice-up: var(--correct);
+  --notice-down: var(--signal);
   --voice: #9b8cff;
   --cell-blitz: rgb(255 179 0 / 0.2);
   --cell-voice: rgb(155 140 255 / 0.22);
@@ -15,6 +18,11 @@
   --pending-soft: rgb(255 122 26 / 0.18);
   --panel: rgb(255 255 255 / 0.05);
   --line: rgb(245 241 230 / 0.16);
+  --ice: rgb(190 230 255 / 0.55);
+  --ice-line: rgb(255 255 255 / 0.85);
+  --fog: rgb(222 226 238 / 0.78);
+  --mud: #5b3a1e;
+  --mud-dark: #3e2612;
   --display: 'Unbounded Variable', system-ui, sans-serif;
   --body: 'Onest Variable', system-ui, sans-serif;
   color-scheme: dark;
@@ -1677,6 +1685,11 @@ a.banner {
   font-size: 1rem;
 }
 
+.history-adjustments {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Бліц ---------- */
 
 .btn-buzz {
@@ -3189,4 +3202,366 @@ button.match-item {
 
 .stage-question .order-label {
   font-size: 1.5rem;
+}
+
+/* ---------- Пульт: бали й дебафи біля гравця ---------- */
+
+.rows li.player-row {
+  flex-wrap: wrap;
+}
+
+.rows li.player-row .name {
+  flex: 1 1 8rem;
+}
+
+.player-tools {
+  flex-basis: 100%;
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  min-width: 0;
+}
+
+.quick-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.custom-points {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.custom-points .field {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.debuff-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.5rem;
+}
+
+.debuff-tag {
+  color: var(--amber);
+}
+
+/* Сповіщення про бали й значки дебафів: position: fixed, тож ніщо на екрані не зсувається. */
+.live-notice {
+  position: fixed;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: calc(100vw - 2rem);
+  padding: 0.6rem 1.1rem;
+  border: 2px solid var(--notice-up);
+  border-radius: 0.75rem;
+  background: var(--notice-bg);
+  color: var(--paper);
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+
+.live-notice.is-down {
+  border-color: var(--notice-down);
+}
+
+/* Сцена тримає внизу постійний запас під сповіщення й значки: вони не накривають варіантів і таблиці. */
+.app.stage {
+  padding-bottom: max(4vh, 4.75rem);
+}
+
+.stage .live-notice {
+  bottom: 0.75rem;
+  padding: 0.35rem 1rem;
+  font-size: 1.5rem;
+}
+
+.stage .stage-debuffs {
+  bottom: 0.75rem;
+}
+
+.stage-debuffs {
+  position: fixed;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  right: 0.75rem;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 30vw;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.stage-debuffs li {
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: var(--notice-bg);
+  color: var(--paper);
+  font-size: 1.4rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .live-notice {
+    animation: notice-in 0.25s ease-out both;
+  }
+
+  @keyframes notice-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* ---------- Дебафи на телефоні цілі ---------- */
+
+/* Обгортка однакова для всіх: без дебафу нічого не змінює, відступи як у .app. */
+.debuff-zone {
+  position: relative;
+  overflow: hidden;
+  /* Запас, щоб overflow не обрізав рамку фокуса й тіні варіантів. */
+  margin: -0.25rem;
+  padding: 0.25rem;
+}
+
+.debuff-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.is-mirror .debuff-content {
+  transform: scaleX(-1);
+}
+
+/* Поля введення перевертаються вдруге: набраний текст читається. */
+.is-mirror .debuff-content input,
+.is-mirror .debuff-content textarea {
+  transform: scaleX(-1);
+}
+
+/* Шари й банер ніколи не перехоплюють дотики. */
+.debuff-layer {
+  position: absolute;
+  pointer-events: none;
+}
+
+/*
+ * Банер — смужка внизу екрана (position: fixed, як сповіщення): запитання лишається читабельним,
+ * макет не зсувається. Він сусід .debuff-content, тож «Дзеркало» й трусіння його не чіпають.
+ */
+.debuff-banner {
+  position: fixed;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 55;
+  display: grid;
+  gap: 0.2rem;
+  width: max-content;
+  max-width: min(calc(100vw - 2rem), 30rem);
+  margin: 0;
+  padding: 0.55rem 1rem;
+  border: 2px solid var(--amber);
+  border-radius: 0.75rem;
+  background: var(--notice-bg);
+  color: var(--paper);
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* Сповіщення про бали в ці секунди стає над банером, а не на нього. */
+body:has(.debuff-banner) .live-notice {
+  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6rem);
+}
+
+.debuff-banner span {
+  color: var(--dim);
+  font-size: 0.95rem;
+}
+
+.debuff-ice {
+  inset: 0;
+  z-index: 2;
+  border-radius: 0.75rem;
+  background: var(--ice);
+}
+
+.debuff-ice svg {
+  width: 100%;
+  height: 100%;
+}
+
+.debuff-ice .crack {
+  fill: none;
+  stroke: var(--ice-line);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  opacity: 0;
+}
+
+.debuff-ice[data-stage='1'] .crack[data-n='1'],
+.debuff-ice[data-stage='2'] .crack:is([data-n='1'], [data-n='2']),
+.debuff-ice[data-stage='3'] .crack {
+  opacity: 1;
+}
+
+.debuff-fog {
+  inset: 0;
+  z-index: 1;
+  border-radius: 0.75rem;
+  background: var(--fog);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  /* Маска — крихітний canvas сітки; розтягування дає м'які краї протертих місць. */
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.debuff-splat {
+  z-index: 1;
+  overflow: visible;
+}
+
+.debuff-splat path {
+  fill: var(--mud);
+  stroke: var(--mud-dark);
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.debuff-guest {
+  top: var(--lane);
+  left: 0;
+  z-index: 1;
+  font-size: 4.5rem;
+  line-height: 1;
+  opacity: 0;
+}
+
+/* Спокійні варіанти для зменшеної анімації: без руху, лише розмиття й прозорість. */
+.is-calm.is-shake .debuff-content {
+  animation: debuff-ghost 3s infinite;
+}
+
+.is-calm .debuff-guest {
+  right: auto;
+  left: var(--spot);
+  animation: debuff-peek 6s var(--delay) infinite;
+}
+
+@keyframes debuff-ghost {
+  0%,
+  26%,
+  100% {
+    filter: none;
+    opacity: 1;
+  }
+
+  1%,
+  25% {
+    filter: blur(1.5px);
+    opacity: 0.6;
+  }
+}
+
+@keyframes debuff-peek {
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  40%,
+  60% {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .debuff-splat {
+    transition: opacity 0.2s ease-out;
+  }
+
+  .is-shake:not(.is-calm) .debuff-content {
+    animation: debuff-shake 3s infinite;
+  }
+
+  /* Гість на всю ширину зони: translate 100% — рівно її ширина, рух іде на компоненті (без left). */
+  .debuff-guest {
+    right: 0;
+    animation: debuff-run 5s linear var(--delay) infinite;
+  }
+
+  .debuff-ice .crack {
+    transition: opacity 0.3s ease-out;
+  }
+
+  .debuff-ice[data-stage='3'] {
+    animation: debuff-crumble 0.4s ease-in forwards;
+  }
+
+  @keyframes debuff-shake {
+    0%,
+    20%,
+    100% {
+      translate: 0 0;
+      rotate: 0deg;
+    }
+
+    4% {
+      translate: -6px 2px;
+      rotate: -1deg;
+    }
+
+    8% {
+      translate: 6px -2px;
+      rotate: 1deg;
+    }
+
+    12% {
+      translate: -5px -1px;
+      rotate: -0.8deg;
+    }
+
+    16% {
+      translate: 4px 1px;
+      rotate: 0.6deg;
+    }
+  }
+
+  @keyframes debuff-run {
+    0% {
+      translate: -6rem 0;
+      opacity: 1;
+    }
+
+    100% {
+      translate: 100% 0;
+      opacity: 1;
+    }
+  }
+
+  @keyframes debuff-crumble {
+    to {
+      opacity: 0;
+      transform: scale(1.04) translateY(0.75rem);
+      filter: blur(2px);
+    }
+  }
 }

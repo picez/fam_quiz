@@ -1,8 +1,8 @@
 import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
 import type { Answer } from '@quiz/shared';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, max, notInArray } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, game, participant, PENALTY_ATTEMPT } from './db/schema';
+import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
 
 export interface Recorder {
@@ -37,7 +37,8 @@ function signature(state: GameState): string {
     return record === undefined ? null : [record.accepted, record.points, record.overridden];
   });
   const scores = state.players.map((p) => [p.id, p.score]);
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades]);
+  // Коригування не змінюють фазу, а рахунок можуть лишити тим самим (+50 і −50): рахуємо їх окремо.
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq]);
 }
 
 interface AnswerRow {
@@ -115,7 +116,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       })
       .onConflictDoUpdate({ target: game.id, set: progress });
 
-    // Вилучених гравців прибираємо разом з їхніми відповідями (каскадом).
+    // Вилучених гравців прибираємо разом з їхніми відповідями й коригуваннями (каскадом).
     const ids = state.players.map((player) => player.id);
     const inGame = eq(participant.gameId, snapshot.id);
     await tx.delete(participant).where(ids.length === 0 ? inGame : and(inGame, notInArray(participant.id, ids)));
@@ -151,6 +152,17 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         }
       }
     }
+
+    // Коригування незмінні, а seq зростає в межах гри: дописуємо лише новіші за вже збережені, одним запитом.
+    const [{ saved }] = await tx
+      .select({ saved: max(scoreAdjustment.seq) })
+      .from(scoreAdjustment)
+      .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
+      .where(inGame);
+    const fresh = state.adjustments
+      .filter((adjustment) => adjustment.seq > (saved ?? 0))
+      .map(({ playerId, seq, roundIndex, afterQuestion, points, source }) => ({ participantId: playerId, seq, roundIndex, afterQuestion, points, source }));
+    if (fresh.length > 0) await tx.insert(scoreAdjustment).values(fresh).onConflictDoNothing();
   });
 }
 

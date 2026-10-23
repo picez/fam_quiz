@@ -2,7 +2,7 @@ import type { PlayedGame } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { achievementsOf, bestStreak, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound } from './achievements';
 import type { GameTable, TableRow } from './history';
-import { PENALTY_ATTEMPT } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, PENALTY_ATTEMPT } from './db/schema';
 
 const m = (questionIndex: number, accepted: boolean, attempt = 0) => ({ questionIndex, attempt, accepted });
 
@@ -147,6 +147,37 @@ describe('new achievements', () => {
     expect(isComeback(ahead, 'a')).toBe(false);
     const oneRound = table(['classic', 'final'], [p('a', 1, 30, [row(0, 30)]), p('b', 2, 20, [row(0, 20)])]);
     expect(isComeback(oneRound, 'a')).toBe(false);
+  });
+
+  it('adjustments count for blitz rounds and comebacks but never for the final hit', () => {
+    const row = (roundIndex: number, points: number, accepted = points > 0) => ({ roundIndex, attempt: 0, accepted, points });
+    const adj = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
+
+    // Фінал: коригування з points > 0 у раунді фіналу — не влучання; відповідь — влучання.
+    const onlyBonus = table(['classic', 'final'], [p('a', 1, 40, [row(0, 10), adj(1, 30)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(hitFinal(onlyBonus, 'a')).toBe(false);
+    const hit = table(['classic', 'final'], [p('a', 1, 80, [row(0, 10), row(1, 40), adj(0, 30)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(hitFinal(hit, 'a')).toBe(true);
+
+    // Камбек: без коригування a відставав перед фіналом; з коригуванням у раунді 0 він уже вів.
+    expect(isComeback(table(['classic', 'final'], [p('a', 1, 50, [row(0, 10), row(1, 40)]), p('b', 2, 20, [row(0, 20)])]), 'a')).toBe(true);
+    expect(isComeback(hit, 'a')).toBe(false);
+    // Коригування може й створити камбек: штраф у раунді 0 відкинув a назад.
+    const penalised = table(['classic', 'final'], [p('a', 1, 50, [row(0, 30), adj(0, -20), row(1, 40)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(isComeback(penalised, 'a')).toBe(true);
+
+    // Коригування в незіграному раунді (вступ раунду 1, далі гру завершили) не робить раунд 1 останнім зіграним.
+    const earlyEnd = table(['classic', 'classic'], [p('a', 1, 40, [row(0, 10), adj(1, 30)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(isComeback(earlyEnd, 'a')).toBe(false);
+
+    // Бліц: коригування в бліц-раунді входить у бали раунду.
+    const tie = table(['blitz'], [p('a', 1, 20, [row(0, 20)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(wonBlitzRound(tie, 'a')).toBe(false);
+    const bonus = table(['blitz'], [p('a', 1, 70, [row(0, 20), adj(0, 50)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(wonBlitzRound(bonus, 'a')).toBe(true);
+    const fined = table(['blitz'], [p('a', 1, 30, [row(0, 30), adj(0, -20)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(wonBlitzRound(fined, 'a')).toBe(false);
   });
 
   it('friendsPlayedWith counts distinct friends other than the player', () => {

@@ -4,6 +4,8 @@ import { buzz } from './blitz';
 import { nameAnswer, pickCell } from './board';
 import { rollDie, startDice } from './board-dice';
 import { turnSchedule } from './board-turns';
+import { adjustScore } from './adjust';
+import { setDebuff } from './debuffs';
 import { adjustTime } from './timing';
 import { acceptAnswer, endRound, judge, lock, next, override, pause, removePlayer, repick, setConnected, start, submitAnswer, type GameState } from './game';
 import { placeWager } from './final';
@@ -1109,5 +1111,44 @@ describe('chain views', () => {
     expect(playerView(plain, 'p1')?.me.chain).toBeNull();
     expect(stageView(plain).chain).toBeNull();
     expect(hostView(plain).chain).toBeNull();
+  });
+});
+
+describe('host points views', () => {
+  it('every role sees the last host adjustment as a notice', () => {
+    const intro = must(start(lobby()));
+    expect(stageView(intro).notice).toBeNull();
+    expect(playerView(intro, 'p2')?.notice).toBeNull();
+    expect(hostView(intro).notice).toBeNull();
+    const adjusted = must(adjustScore(intro, 'p1', -100, T0));
+    const notice = { seq: 1, at: T0, nickname: 'Олена', points: -100 };
+    expect(stageView(adjusted).notice).toEqual(notice);
+    expect(playerView(adjusted, 'p2')?.notice).toEqual(notice);
+    expect(hostView(adjusted).notice).toEqual(notice);
+  });
+});
+
+describe('debuff views', () => {
+  it('only the target sees its own active debuff; the stage sees names only', () => {
+    let state = must(setDebuff(must(start(lobby())), 'p1', 'fog'));
+    expect(playerView(state, 'p1')?.me.debuff).toBeNull();
+    expect(stageView(state).debuffs).toEqual([{ playerId: 'p1', nickname: 'Олена' }]);
+    expect(hostView(state).players[0].debuff).toEqual({ kind: 'fog', fired: false });
+    expect(hostView(state).players[1].debuff).toBeNull();
+    expect(JSON.stringify(stageView(state))).not.toContain('fog');
+    expect(JSON.stringify(playerView(state, 'p2'))).not.toContain('fog');
+
+    state = must(next(state, T0));
+    expect(playerView(state, 'p1')?.me.debuff).toEqual({ kind: 'fog', since: T0 });
+    expect(playerView(state, 'p2')?.me.debuff).toBeNull();
+    expect(stageView(state).debuffs).toEqual([{ playerId: 'p1', nickname: 'Олена' }]);
+    expect(JSON.stringify(stageView(state))).not.toContain('fog');
+    expect(JSON.stringify(playerView(state, 'p2'))).not.toContain('fog');
+    expect(hostView(state).players[0].debuff).toEqual({ kind: 'fog', fired: true });
+
+    state = must(lock(state));
+    expect(playerView(state, 'p1')?.me.debuff).toBeNull();
+    expect(stageView(state).debuffs).toEqual([]);
+    expect(hostView(state).players[0].debuff).toBeNull();
   });
 });

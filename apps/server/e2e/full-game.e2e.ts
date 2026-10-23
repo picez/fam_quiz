@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { blitzRound, boardRound, classicRound, makeQuiz, makeRoundsQuiz, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, classicRound, makeQuiz, makeRoundsQuiz, multi, order, single, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
@@ -2835,6 +2835,345 @@ async function eightDice() {
   await stage.setViewportSize({ width: 1600, height: 900 });
   await expectIntroFits(stage, '7c 8 players 1600×900');
   await shot(stage, 'dice7c-schedule-stage-8-1600');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 7d: host points with a notice everywhere, totals in the history and my games; six debuffs on the target phone only, a bug on the stage, cancel before it fires, answering still works', async () => {
+  try {
+    await pranksGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+type Box = { x: number; y: number; width: number; height: number };
+/** Чи перетинаються два прямокутники (з допуском у пів пікселя). */
+const overlaps = (a: Box, b: Box) =>
+  a.x < b.x + b.width - 0.5 && b.x < a.x + a.width - 0.5 && a.y < b.y + b.height - 0.5 && b.y < a.y + a.height - 0.5;
+
+/** Фіксований елемент не накриває жодного з інших. */
+async function expectApart(page: Page, fixed: string, others: string[], label: string) {
+  const box = await page.locator(fixed).boundingBox();
+  expect(box, `${label}: ${fixed} is not shown`).not.toBeNull();
+  for (const selector of others) {
+    const items = page.locator(selector);
+    const count = await items.count();
+    for (let i = 0; i < count; i++) {
+      const other = await items.nth(i).boundingBox();
+      if (other !== null) expect(overlaps(box!, other), `${label}: ${fixed} covers ${selector} #${i}`).toBe(false);
+    }
+  }
+}
+
+/**
+ * Протирає мишею з натиснутою кнопкою: наведення без кнопки туману й бруду не чіпає.
+ * Кнопку натискаємо й відпускаємо в куті над шапкою, тож натискання не стає кліком по варіанту.
+ */
+async function wipeWithMouse(page: Page, points: number[][]): Promise<void> {
+  await page.mouse.move(8, 8);
+  await page.mouse.down();
+  for (const [x, y] of points) await page.mouse.move(x!, y!);
+  await page.mouse.move(8, 8);
+  await page.mouse.up();
+}
+
+async function pranksGame() {
+  const host = await open('host7d', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host7d@example.com');
+  const olya = await open('olya7d', 375, 812);
+  await register(olya, 'menu', 'Оля', 'olya7d@example.com');
+
+  // Шість запитань з одним варіантом і останнє з кнопкою «Відповісти»: сповіщення внизу не має її закривати.
+  // Чотири варіанти: на сцені нижній правий кут зайнятий, значки й сповіщення не мають його накривати.
+  const options = [...single.options, { id: 'd', text: 'Харків' }];
+  const questions = [
+    ...[1, 2, 3, 4, 5, 6].map((n) => ({ ...withId(single, `q${n}`), options, text: `Запитання ${n}: столиця України?`, timeLimit: 30 })),
+    { ...withId(multi, 'q7'), text: 'Запитання 7: які міста стоять на Дніпрі?', timeLimit: 30 },
+  ];
+  const data = { ...makeQuiz(questions, { speedBonus: false }), title: 'Пакості' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage7d', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const petro = await open('petro7d', 360, 740);
+  const ira = await open('ira7d', 390, 844);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const rowScore = async (nickname: string) => (await row(nickname).locator('.score').textContent())!;
+  const tool = async (nickname: string, kind: 'Бали' | 'Дебаф') => {
+    const button = row(nickname).getByRole('button', { name: kind, ...exact });
+    if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+    await row(nickname).locator('.player-tools').waitFor();
+  };
+  const cast = async (nickname: string, kind: RegExp) => {
+    await tool(nickname, 'Дебаф');
+    await row(nickname).locator('.player-tools').getByRole('button', { name: kind }).click();
+    await row(nickname).locator('.debuff-tag').waitFor();
+  };
+  const badge = (nickname: string) => stage.locator('.stage-debuffs li', { hasText: nickname });
+  // Останній, хто відповів, одразу бачить «Чекаємо на правильну відповідь»: запитання закривається само.
+  const answer = async (page: Page, text: RegExp) => {
+    await page.getByRole('button', { name: text }).click();
+    await page.getByText(/^(Відповідь прийнято|Чекаємо на правильну відповідь)$/).first().waitFor();
+  };
+  const toTable = async () => {
+    await click(host, 'Показати відповідь');
+    await click(host, 'Далі');
+    await host.getByRole('button', { name: 'Наступне запитання', ...exact }).waitFor();
+  };
+  const nextQuestion = async (n: number) => {
+    await click(host, 'Наступне запитання');
+    await olya.locator('h1', { hasText: `Запитання ${n}:` }).waitFor();
+  };
+  const zoneKind = (page: Page) => page.locator('.debuff-zone').getAttribute('data-debuff');
+
+  // 1. Лобі: біля гравця лише «Вилучити».
+  await row('Оля').waitFor();
+  expect(await row('Оля').getByRole('button', { name: 'Бали', ...exact }).count()).toBe(0);
+  expect(await row('Оля').getByRole('button', { name: 'Дебаф', ...exact }).count()).toBe(0);
+  expect(await row('Оля').getByRole('button', { name: 'Вилучити', ...exact }).count()).toBe(1);
+
+  // 2. Бали з заставки: −100 Олі, сповіщення на сцені й у всіх телефонах, нічого не зсувається.
+  await click(host, 'Почати гру');
+  await petro.locator('h1').first().waitFor();
+  const petroH1 = (await petro.locator('h1').first().boundingBox())!.y;
+  await tool('Оля', 'Бали');
+  await row('Оля').getByLabel('Своя сума', exact).waitFor();
+  await shot(host, 'points7d-panel-host');
+  await row('Оля').getByRole('button', { name: '−100', ...exact }).click();
+  for (const page of [stage, olya, petro, ira]) await page.locator('.live-notice').getByText('Ведучий: −100 — Оля', exact).waitFor();
+  await stage.waitForTimeout(300); // сповіщення проявляється 0,25 с
+  await shot(stage, 'points7d-notice-stage');
+  await shot(petro, 'points7d-notice-phone-petro');
+  expect((await petro.locator('h1').first().boundingBox())!.y).toBe(petroH1);
+  expect(await olya.locator('header.bar .score').textContent()).toBe('−100');
+  expect(await rowScore('Оля')).toBe('−100');
+  await petro.locator('.live-notice').waitFor({ state: 'detached', timeout: 6000 });
+  await stage.locator('.live-notice').waitFor({ state: 'detached', timeout: 1000 });
+  expect((await petro.locator('h1').first().boundingBox())!.y).toBe(petroH1);
+
+  // 3. Туман Олі: значок на сцені, ціль до запитання нічого не бачить.
+  await tool('Оля', 'Дебаф');
+  await shot(host, 'debuff7d-panel-host');
+  await row('Оля').locator('.player-tools').getByRole('button', { name: /Туман/ }).click();
+  await row('Оля').locator('.debuff-tag').getByText('🌫️ Туман · чекає', exact).waitFor();
+  await badge('Оля').getByText('🐞 Оля', exact).waitFor();
+  await shot(stage, 'debuff7d-badge-stage');
+  expect(await olya.locator('.debuff-zone').count()).toBe(0);
+  expect(await olya.getByText('На вас наслано').count()).toBe(0);
+
+  await click(host, 'Почати раунд');
+  await olya.locator('.debuff-zone[data-debuff="fog"]').waitFor();
+  await olya.getByText('На вас наслано: Туман').waitFor();
+  // Банер — смужка внизу: запитання й варіанти під туманом лишаються видимими.
+  await expectApart(olya, '.debuff-banner', ['.debuff-zone h1', '.choice'], 'fog banner 375×812');
+  await shot(olya, 'debuff7d-fog-phone');
+  for (const page of [petro, ira]) {
+    await page.locator('.debuff-zone').waitFor();
+    expect(await zoneKind(page)).toBeNull();
+    expect(await page.locator('.debuff-layer').count()).toBe(0);
+  }
+  expect(await stage.locator('[data-debuff]').count()).toBe(0);
+  await badge('Оля').waitFor();
+  await row('Оля').locator('.debuff-tag').getByText('🌫️ Туман · діє', exact).waitFor();
+  expect(await host.getByRole('button', { name: 'Скасувати дебаф', ...exact }).count()).toBe(0);
+  const zone = (await olya.locator('.debuff-zone').boundingBox())!;
+  await wipeWithMouse(
+    olya,
+    [[0.2, 0.3], [0.5, 0.35], [0.8, 0.4], [0.5, 0.6], [0.3, 0.7]].map(([fx, fy]) => [zone.x + zone.width * fx!, zone.y + zone.height * fy!]),
+  );
+  await expect.poll(async () => Number(await olya.locator('.debuff-fog').getAttribute('data-cleared'))).toBeGreaterThan(0);
+  await olya.waitForTimeout(100);
+  await shot(olya, 'debuff7d-fog-wiped');
+  await answer(olya, /Київ/);
+  await expectNoSideScroll(olya, 'debuff7d-fog-375');
+  await answer(petro, /Львів/);
+  await answer(ira, /Київ/);
+  await stage.locator('.stage-debuffs').waitFor({ state: 'detached' });
+  await toTable();
+
+  // 4. Три дебафи разом: значки на сцені 1280×720 не накривають таблицю, запитання й таймер.
+  await cast('Іра', /Тремтіння/);
+  await cast('Петро', /Заморозка/);
+  await cast('Оля', /Тремтіння/);
+  await stage.locator('.stage-debuffs li').nth(2).waitFor();
+  await stage.setViewportSize({ width: 1280, height: 720 });
+  await expectApart(stage, '.stage-debuffs', ['.standings li', 'h1'], 'stage table 1280×720');
+  await shot(stage, 'debuff7d-badges3-table-stage-1280');
+
+  // 5. Тремтіння (Іра, Оля) і заморозка (Петро) на запитанні 2.
+  await nextQuestion(2);
+  await stage.getByRole('timer').first().waitFor();
+  await expectApart(stage, '.stage-debuffs', ['h1', '[role="timer"]', '.choice', '.question-head'], 'stage question 1280×720');
+  await shot(stage, 'debuff7d-badges3-question-stage-1280');
+  await stage.setViewportSize({ width: 1600, height: 900 });
+  await ira.locator('.debuff-zone.is-shake').waitFor();
+  await shot(ira, 'debuff7d-shake-phone');
+  await petro.locator('fieldset.debuff-content[disabled]').waitFor();
+  await petro.locator('.debuff-ice').waitFor();
+  // Банер живе 3 с від спрацювання: перевіряємо, якщо він ще на екрані.
+  if ((await petro.locator('.debuff-banner').count()) > 0) {
+    await expectApart(petro, '.debuff-banner', ['.debuff-zone h1', '.choice'], 'freeze banner 360×740');
+  }
+  await shot(petro, 'debuff7d-freeze-phone');
+  const petroKyiv = petro.getByRole('button', { name: /Київ/ });
+  expect(await petroKyiv.isDisabled()).toBe(true);
+  await answer(ira, /Київ/);
+  await answer(olya, /Київ/);
+  await expect.poll(() => petroKyiv.isDisabled(), { timeout: 7000 }).toBe(false);
+  await answer(petro, /Київ/);
+  await toTable();
+
+  // 6. Дзеркало (Іра) на запитанні 3: варіанти міняються місцями, вибір іде за id.
+  await cast('Іра', /Дзеркало/);
+  await nextQuestion(3);
+  await ira.locator('.debuff-zone.is-mirror').waitFor();
+  const transform = await ira
+    .locator('.debuff-content')
+    .evaluate((el) => (globalThis as unknown as { getComputedStyle: (e: unknown) => { transform: string } }).getComputedStyle(el).transform);
+  expect(transform).toMatch(/^matrix\(-1/);
+  const before = await ira.locator('.choice').allTextContents();
+  await expect.poll(() => ira.locator('.choice').allTextContents(), { timeout: 5500 }).not.toEqual(before);
+  await shot(ira, 'debuff7d-mirror-phone');
+  await answer(ira, /Київ/);
+  await answer(olya, /Київ/);
+  await answer(petro, /Київ/);
+  await click(host, 'Показати відповідь');
+  await ira.getByText('Правильно!').waitFor();
+  await click(host, 'Далі');
+  await host.getByRole('button', { name: 'Наступне запитання', ...exact }).waitFor();
+
+  // 7. Скасування до спрацювання (Петро) і бруд (Оля) на запитанні 4.
+  await cast('Петро', /Гості/);
+  await badge('Петро').getByText('🐞 Петро', exact).waitFor();
+  await row('Петро').getByRole('button', { name: 'Скасувати дебаф', ...exact }).click();
+  await badge('Петро').waitFor({ state: 'detached' });
+  await row('Петро').locator('.debuff-tag').waitFor({ state: 'detached' });
+  await cast('Оля', /Брудний/);
+  await nextQuestion(4);
+  await petro.locator('.debuff-zone').waitFor();
+  expect(await zoneKind(petro)).toBeNull();
+  await olya.locator('.debuff-splat').nth(5).waitFor();
+  expect(await olya.locator('.debuff-splat').count()).toBe(6);
+  await olya.getByText('На вас наслано: Брудний екран').waitFor();
+  await expectApart(olya, '.debuff-banner', ['.debuff-zone h1', '.choice'], 'mud banner 375×812');
+  await shot(olya, 'debuff7d-mud-phone');
+  const splat = (await olya.locator('.debuff-splat').first().boundingBox())!;
+  await wipeWithMouse(
+    olya,
+    Array.from({ length: 5 }, (_, i) => [splat.x + splat.width / 2 + (i % 2 === 0 ? -2 : 2), splat.y + splat.height / 2]),
+  );
+  await expect.poll(() => olya.locator('.debuff-splat').count()).toBe(5);
+  await answer(olya, /Київ/);
+  await expectNoSideScroll(olya, 'debuff7d-mud-375');
+  await answer(petro, /Київ/);
+  await answer(ira, /Київ/);
+  await toTable();
+
+  // 8. Спокійні варіанти: гості (Оля) і тремтіння (Іра) зі зменшеною анімацією.
+  await olya.emulateMedia({ reducedMotion: 'reduce' });
+  await ira.emulateMedia({ reducedMotion: 'reduce' });
+  await cast('Оля', /Гості/);
+  await cast('Іра', /Тремтіння/);
+  await nextQuestion(5);
+  await olya.locator('.debuff-zone.is-guests.is-calm').waitFor();
+  expect(await olya.locator('.debuff-guest').count()).toBe(4);
+  await olya.waitForTimeout(2000); // спокійні гості повільно проявляються
+  await shot(olya, 'debuff7d-guests-calm-phone');
+  await expectNoSideScroll(olya, 'debuff7d-guests-375');
+  await ira.locator('.debuff-zone.is-shake.is-calm').waitFor();
+  await shot(ira, 'debuff7d-shake-calm-phone');
+  await answer(olya, /Київ/);
+  await answer(ira, /Київ/);
+  await answer(petro, /Київ/);
+  await olya.emulateMedia({ reducedMotion: 'no-preference' });
+  await ira.emulateMedia({ reducedMotion: 'no-preference' });
+  await toTable();
+
+  // 9. Гості з анімацією (Петро) на запитанні 6; в інших дебафу немає.
+  await cast('Петро', /Гості/);
+  await nextQuestion(6);
+  await petro.locator('.debuff-zone.is-guests:not(.is-calm)').waitFor();
+  await petro.waitForTimeout(1500);
+  await shot(petro, 'debuff7d-guests-phone');
+  expect(await zoneKind(olya)).toBeNull();
+  expect(await zoneKind(ira)).toBeNull();
+  await answer(petro, /Київ/);
+  await answer(olya, /Київ/);
+  await answer(ira, /Київ/);
+  await toTable();
+
+  // 10. Своя сума посеред запитання 7: сповіщення внизу не заважає відповісти й не накриває запитання на сцені.
+  await nextQuestion(7);
+  const petroScore = await rowScore('Петро');
+  await tool('Петро', 'Бали');
+  await row('Петро').getByLabel('Своя сума', exact).fill('abc');
+  await row('Петро').getByRole('button', { name: 'Нарахувати', ...exact }).click();
+  await row('Петро').getByText('Введіть ціле число, наприклад −150 або 75.').waitFor();
+  expect(await rowScore('Петро')).toBe(petroScore);
+  await row('Петро').getByLabel('Своя сума', exact).fill('75');
+  await row('Петро').getByRole('button', { name: 'Нарахувати', ...exact }).click();
+  await olya.locator('.live-notice').getByText('Ведучий: +75 — Петро', exact).waitFor();
+  await stage.locator('.live-notice').getByText('Ведучий: +75 — Петро', exact).waitFor();
+  await olya.getByRole('button', { name: /Київ/ }).click();
+  await olya.getByRole('button', { name: /Черкаси/ }).click();
+  const submit = olya.getByRole('button', { name: 'Відповісти', ...exact });
+  const noticeBox = (await olya.locator('.live-notice').boundingBox())!;
+  expect(overlaps(noticeBox, (await submit.boundingBox())!), 'the notice covers «Відповісти» on 375').toBe(false);
+  await olya.waitForTimeout(300); // сповіщення проявляється 0,25 с
+  await shot(olya, 'points7d-notice-question-phone-375');
+  await shot(stage, 'points7d-notice-question-stage');
+  await expectApart(stage, '.live-notice', ['h1', '[role="timer"]', '.choice'], 'stage notice during a question');
+  await submit.click();
+  await olya.getByText('Відповідь прийнято').waitFor();
+  expect(await olya.locator('.live-notice').count(), 'the answer went while the notice was still shown').toBe(1);
+  for (const page of [petro, ira]) {
+    await page.getByRole('button', { name: /Київ/ }).click();
+    await page.getByRole('button', { name: /Черкаси/ }).click();
+    await click(page, 'Відповісти');
+  }
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+
+  // 11. Підсумки: таблиця сцени = історія = «Мої ігри».
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const scores = async (page: Page) => {
+    const rows = page.locator('.standings li');
+    await rows.first().waitFor();
+    const result: Record<string, string> = {};
+    for (let i = 0; i < (await rows.count()); i++) {
+      result[(await rows.nth(i).locator('.name').textContent())!] = (await rows.nth(i).locator('.score').textContent())!;
+    }
+    return result;
+  };
+  const totals = await scores(stage);
+  expect(totals).toEqual({ Іра: '7000', Оля: '6900', Петро: '6075' });
+  await shot(stage, 'points7d-final-stage');
+
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Пакості/ }).click();
+  expect(await scores(host)).toEqual(totals);
+  await host.getByText('Бали від ведучого: Оля −100, Петро +75', exact).waitFor();
+  await shot(host, 'points7d-history-host');
+
+  await olya.goto(`${base}/me`);
+  const mine = olya.locator('.quiz-list li', { hasText: 'Пакості' });
+  await mine.waitFor();
+  expect(await mine.textContent()).toContain(`${totals['Оля']} балів`);
+  await expectNoSideScroll(olya, 'points7d-my-games-phone');
 
   expect(problems).toEqual([]);
 }

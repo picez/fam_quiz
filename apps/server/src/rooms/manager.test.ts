@@ -434,6 +434,35 @@ describe('kicking', () => {
   });
 });
 
+describe('host points', () => {
+  it('are refused in the lobby and change the score once the game has started', () => {
+    const { manager, room } = setup();
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'adjust', playerId: olena.playerId, points: -100 })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'adjust', playerId: olena.playerId, points: -100 })).toEqual({ ok: true });
+    expect(room.state.players[0].score).toBe(-100);
+  });
+});
+
+describe('host debuffs', () => {
+  it('a debuff is cast once per player and cancelled while it waits', () => {
+    const { manager, room } = setup();
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'debuff', playerId: olena.playerId, kind: 'fog' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'debuff', playerId: olena.playerId, kind: 'fog' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'debuff', playerId: olena.playerId, kind: 'mud' })).toEqual({ ok: false, error: 'debuff_busy' });
+    expect(manager.host(room, { type: 'undebuff', playerId: olena.playerId })).toEqual({ ok: true });
+    expect(room.state.debuffs).toEqual({});
+    expect(manager.host(room, { type: 'undebuff', playerId: olena.playerId })).toEqual({ ok: false, error: 'not_found' });
+  });
+});
+
 describe('expiry', () => {
   it('closes a lobby that was not started within two hours', () => {
     const { manager, room, scheduler, events } = setup();

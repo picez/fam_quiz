@@ -1,4 +1,5 @@
 import type { Answer } from './answer';
+import type { AdjustmentSource } from './game';
 import type { CellKind, Question, Round } from './quiz';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
@@ -70,6 +71,18 @@ export interface GameDetail extends Omit<GameSummary, 'playerCount'> {
   rounds: { title: string; type: Round['type'] }[];
   standings: GameStanding[];
   questions: GameQuestionResult[];
+  /** Коригування рахунку за seq; [] у старих іграх. */
+  adjustments: GameAdjustment[];
+}
+
+/** Коригування рахунку учасника поза відповідями в історії гри. */
+export interface GameAdjustment {
+  roundIndex: number;
+  /** Скільки запитань гри було закрито в мить коригування. */
+  afterQuestion: number;
+  nickname: string;
+  points: number;
+  source: AdjustmentSource;
 }
 
 /** Гра в історії гравця з акаунтом. */

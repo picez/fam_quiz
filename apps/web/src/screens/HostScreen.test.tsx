@@ -19,8 +19,8 @@ const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина �
 const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, orderLabels: null });
 
 const players = [
-  { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0 },
-  { id: 'p2', nickname: 'Тарас', connected: false, score: 0, streak: 0 },
+  { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0, debuff: null },
+  { id: 'p2', nickname: 'Тарас', connected: false, score: 0, streak: 0, debuff: null },
 ];
 
 const view = (over: Partial<HostView> = {}): HostView => ({
@@ -32,6 +32,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   spotlight: null,
   final: null,
   chain: null,
+  notice: null,
   round: null,
   questionIndex: -1,
   total: 2,
@@ -334,8 +335,8 @@ describe('HostScreen: rounds', () => {
 
   it('marks a streak of two or more next to the nickname and prints negative points with a minus', () => {
     const hot = [
-      { id: 'p1', nickname: 'Олена', connected: true, score: -500, streak: 3 },
-      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 1 },
+      { id: 'p1', nickname: 'Олена', connected: true, score: -500, streak: 3, debuff: null },
+      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 1, debuff: null },
     ];
     show(view({ phase: 'leaderboard', round: round(), questionIndex: 0, players: hot }));
     expect(screen.getByText('🔥 3')).toBeTruthy();
@@ -426,9 +427,9 @@ describe('HostScreen: blitz', () => {
   describe('board round', () => {
     const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board'), times: null };
     const three = [
-      { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0 },
-      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 0 },
-      { id: 'p3', nickname: 'Іра', connected: true, score: 0, streak: 0 },
+      { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0, debuff: null },
+      { id: 'p2', nickname: 'Тарас', connected: true, score: 0, streak: 0, debuff: null },
+      { id: 'p3', nickname: 'Іра', connected: true, score: 0, streak: 0, debuff: null },
     ];
     const boardOf = (over: Partial<NonNullable<HostView['board']>> = {}): NonNullable<HostView['board']> => ({
       categories: [
@@ -820,9 +821,9 @@ describe('HostScreen: blitz', () => {
 describe('HostScreen final', () => {
   const finalRound: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
   const three = [
-    { id: 'p1', nickname: 'Анна', connected: true, score: 1000, streak: 0 },
-    { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0 },
-    { id: 'p3', nickname: 'Віра', connected: true, score: 300, streak: 0 },
+    { id: 'p1', nickname: 'Анна', connected: true, score: 1000, streak: 0, debuff: null },
+    { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0, debuff: null },
+    { id: 'p3', nickname: 'Віра', connected: true, score: 300, streak: 0, debuff: null },
   ];
   const info = { theme: 'Космос', placed: 2, total: 3, shown: [], left: 0 };
   const entry = (playerId: string, nickname: string, over: object = {}) => ({
@@ -1039,5 +1040,44 @@ describe('HostScreen timer and round facts', () => {
     const round: RoundInfo = { index: 0, total: 1, title: 'Місто', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: { min: 30, max: 60 } };
     show(view({ phase: 'intro', round, total: 10 }));
     expect(screen.getByText('10 запитань · 30–60 с на кожне')).toBeTruthy();
+  });
+});
+
+describe('HostScreen player tools', () => {
+  const running = (over: Partial<HostView> = {}) => during('question', single, over);
+
+  it('points and debuff buttons appear beside each player only while the game runs', () => {
+    show(view());
+    expect(screen.queryByRole('button', { name: 'Бали' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished' }));
+    expect(screen.queryByRole('button', { name: 'Дебаф' })).toBeNull();
+    cleanup();
+    show(running());
+    expect(screen.getAllByRole('button', { name: 'Бали' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Дебаф' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Вилучити' })).toHaveLength(2);
+  });
+
+  it('one tools panel opens at a time', () => {
+    show(running());
+    const points = screen.getAllByRole('button', { name: 'Бали' });
+    const debuffs = screen.getAllByRole('button', { name: 'Дебаф' });
+    expect(points[0].getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(points[0]);
+    expect(points[0].getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByLabelText('Своя сума')).toBeTruthy();
+    fireEvent.click(debuffs[1]);
+    expect(screen.queryByLabelText('Своя сума')).toBeNull();
+    expect(debuffs[1].getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('Спрацює в наступному запитанні, де гравець відповідає.')).toBeTruthy();
+    expect(debuffs[1].closest('li')?.contains(screen.getByText('Спрацює в наступному запитанні, де гравець відповідає.'))).toBe(true);
+    fireEvent.click(debuffs[1]);
+    expect(screen.queryByText('Спрацює в наступному запитанні, де гравець відповідає.')).toBeNull();
+  });
+
+  it('the player row shows the debuff tag', () => {
+    show(running({ players: [{ ...players[0], debuff: { kind: 'mud', fired: true } }, players[1]] }));
+    expect(screen.getByText('🟫 Брудний екран · діє')).toBeTruthy();
   });
 });
