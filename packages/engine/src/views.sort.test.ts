@@ -132,6 +132,13 @@ describe('sort views', () => {
     expect(playerView(must(lock(s)), 'p2')?.me.sort).toMatchObject({ canSort: false });
   });
 
+  it('the board shows a sort cell at its full price: words × points per word', () => {
+    const s = onBoardSort();
+    expect(stageView(s).board?.categories[0]?.cells[0]?.price).toBe(400);
+    expect(playerView(s, 'p2')?.board?.categories[0]?.cells[0]?.price).toBe(400);
+    expect(stageView(s).board?.cell?.price).toBe(400);
+  });
+
   it("a board sort: the chooser plays, the others watch only the chooser's row", () => {
     let s = onBoardSort();
     s = must(sortWord(s, 'p1', head(s, 'p1'), right(head(s, 'p1')), 2000));

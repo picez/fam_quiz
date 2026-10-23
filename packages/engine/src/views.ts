@@ -3,6 +3,7 @@ import {
   findCell,
   questionsOf,
   cellAnswerMode,
+  questionPrice,
   roundQuestions,
   type Round,
   type Answer,
@@ -273,7 +274,7 @@ function boardInfo(state: GameState): BoardInfo | null {
       cells: category.cells.map(
         (cell): BoardCellView => ({
           id: cell.question.id,
-          price: cell.question.points,
+          price: questionPrice(cell.question),
           played: cellPlayed(state, cell.question.id),
           mark: cell.mark,
           kind: cell.kind,
