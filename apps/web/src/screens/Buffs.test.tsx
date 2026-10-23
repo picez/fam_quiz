@@ -541,7 +541,7 @@ describe('StageBuffs', () => {
     const sheet = screen.getByRole('dialog', { name: 'Бафи' });
     expect(within(sheet).getByText('Прибирає частину неправильних варіантів.')).toBeTruthy();
     expect(within(sheet).getByText('Де: запитання з варіантами — у класиці й на полі, і на усних клітинках.')).toBeTruthy();
-    expect(within(sheet).getByText('Інші гравці підказують, як думають; якщо в запитання є таймер, вам +15 с.')).toBeTruthy();
+    expect(within(sheet).getByText('Зал підказує; з таймером — вам +15 с.')).toBeTruthy();
     expect(within(sheet).queryByText(/Подвоює бали/)).toBeNull();
     expect(within(sheet).getByText('Не діють: бліц, бліц-клітинки, фінал, ланцюжок, сортування й дуелі.')).toBeTruthy();
     expect(document.activeElement).toBe(within(sheet).getByRole('button', { name: 'Закрити' }));
@@ -579,6 +579,10 @@ describe('StageBuffs', () => {
     expect(document.querySelector('.buff-row .buff-help')).toBeNull();
     expect(document.querySelector('.buff-line > .buff-help + .buff-why')).not.toBeNull();
     expect(rule('.buff-help::after')).toMatch(/inset: -6px/);
+  });
+
+  it('the note line keeps room for two lines, so a longer reason beside «?» does not push the options down', () => {
+    expect(rule('.buff-why')).toContain('min-height: 2.8em');
   });
 
   it('a disabled button says exactly why', () => {

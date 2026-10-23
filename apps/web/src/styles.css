@@ -4016,6 +4016,13 @@ button.sort-zone:disabled {
   cursor: grab;
 }
 
+/* Середина «хреста» — третина арени: на 360 px слово на кшталт «Смородина» не рветься. */
+.sort-arena[data-zones='3'] .sort-card,
+.sort-arena[data-zones='4'] .sort-card {
+  padding-inline: 0.375rem;
+  font-size: 1rem;
+}
+
 .sort-card.is-dragging {
   z-index: 3;
   cursor: grabbing;
@@ -4912,7 +4919,8 @@ label.powers-item {
 }
 
 .buff-why {
-  min-height: 1.4em;
+  /* Два рядки: причина поруч із «?» на 360 px часто займає другий — ряд бафів і варіанти не стрибають. */
+  min-height: 2.8em;
   margin: 0;
   color: var(--dim);
   font-size: 15px;

@@ -351,4 +351,11 @@ describe('SortBoard and SortReveal', () => {
     expect(css).toContain(".sort-arena[data-zones='3'],\n.sort-arena[data-zones='4'] {\n  grid-template-columns: repeat(3, minmax(0, 1fr));");
     expect(css).toContain(".sort-arena[data-zones='3'] .sort-zone[data-pos='left'],\n.sort-arena[data-zones='4'] .sort-zone[data-pos='left'] {\n  grid-column: 1;\n  grid-row: 2;");
   });
+
+  it('in the narrow middle of three or four zones the card is tighter, so a word like «Смородина» fits a 360 px phone whole', () => {
+    const tight = ".sort-arena[data-zones='3'] .sort-card,\n.sort-arena[data-zones='4'] .sort-card {\n  padding-inline: 0.375rem;\n  font-size: 1rem;\n}";
+    expect(css).toContain(tight);
+    // Після загального правила картки — інакше воно перекриває.
+    expect(css.indexOf(tight)).toBeGreaterThan(css.indexOf('\n.sort-card {'));
+  });
 });
