@@ -295,6 +295,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
   const notStarted = phase === 'question' && splashNow !== null && (splashNow.splash.kind === 'question' || splashNow.splash.kind === 'cell');
   const locked = view.paused || notStarted;
+  // Під будь-якою заставкою (раунд, фінал, підсумки) кнопки шапки й вступу вимкнені: крізь шар їх не натиснути наосліп.
+  const splashUp = splashNow !== null;
 
   const submit = async (answer: Answer) => {
     // До старту сервер однаково відмовив би: дотик, що проскочив крізь вимкнене поле, нічого не надсилає.
@@ -352,7 +354,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
 
   return (
-    <main className="app player">
+    // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
+    <main className="app player" aria-busy={notStarted || undefined}>
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
@@ -366,7 +369,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       <header className="bar">
         <span>{me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
-        <DuelButton duel={me.duel} paused={view.paused} send={send} onError={setError} />
+        <DuelButton duel={me.duel} paused={view.paused || splashUp} send={send} onError={setError} />
         <strong className="score">{num(me.score)}</strong>
       </header>
 
@@ -389,7 +392,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           {board !== null && (
             <BoardIntro board={board} meId={me.id}>
               {board.dice !== null && !board.dice.done && (
-                <DiceAction dice={board.dice} meId={me.id} paused={view.paused} send={send} onError={setError} />
+                <DiceAction dice={board.dice} meId={me.id} paused={view.paused || splashUp} send={send} onError={setError} />
               )}
             </BoardIntro>
           )}

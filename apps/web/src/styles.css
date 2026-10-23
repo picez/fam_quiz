@@ -37,7 +37,8 @@
   --buff-active: #b8ff5c;
   --spare-accent: #ffcf5c;
   --vote-bar: rgb(126 224 255 / 0.22);
-  --splash-bg: rgb(14 16 32 / 0.97);
+  /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
+  --splash-bg: rgb(14 16 32);
   --splash-accent: var(--amber);
   --final-gold: #ffd166;
   --final-ray: rgb(255 209 102 / 0.14);
@@ -3498,7 +3499,7 @@ button.match-item {
   bottom: max(1rem, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 60;
+  z-index: 66; /* над заставкою (65): тости ±15 с і бафів не ховаються під нею */
   max-width: calc(100vw - 2rem);
   padding: 0.6rem 1.1rem;
   border: 2px solid var(--notice-up);
@@ -5150,8 +5151,19 @@ label.powers-item {
   overflow-wrap: anywhere;
 }
 
+/* Найдовший заголовок «Запитання фіналу» — у вужчому розмірі (≈12 em шириною), щоб стати в один рядок. */
+.splash-title.is-long {
+  font-size: clamp(3rem, 7.5vw, 7rem);
+}
+
+/* Телефон: «Запитання 12» (≈8,6 em) і «Запитання фіналу» (≈12 em) — в один рядок від 320 px; слово ніколи не ламається посередині. */
 .splash.is-phone .splash-title {
-  font-size: clamp(2.25rem, 12vw, 3.25rem);
+  font-size: clamp(1.75rem, 10vw, 3.25rem);
+  overflow-wrap: normal;
+}
+
+.splash.is-phone .splash-title.is-long {
+  font-size: clamp(1.25rem, 7.2vw, 2.5rem);
 }
 
 /* Підрядок під заголовком: бурштинова риска зверху — табличка ведучого шоу. */

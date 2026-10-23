@@ -227,6 +227,56 @@ describe('splash styles', () => {
     expect(rule('.splash-card')).not.toContain('rem');
   });
 
+  // Знімок transition8c-round-stage: крізь напівпрозорий шар проступав вступ раунду («Раунд 1 з 3», опис).
+  it('on its plateau the splash hides the screen under it completely, for every kind', () => {
+    const bg = /--splash-bg:\s*([^;]+);/.exec(css)?.[1].trim() ?? '';
+    expect(bg).toMatch(/^(#[0-9a-f]{6}|rgb\(\d+ \d+ \d+\))$/i);
+    // Кожен шар із власним тлом закінчується непрозорим var(--splash-bg); прозорість (opacity) — лише в анімації.
+    for (const selector of ['.splash', '.splash.is-final']) {
+      expect(rule(selector).replace(/\s+/g, ' '), selector).toMatch(/background: [^;]*var\(--splash-bg\);/);
+    }
+    for (const kind of ['round', 'final', 'question', 'cell', 'duel', 'podium']) {
+      for (const size of ['', '.is-stage', '.is-phone']) {
+        const selector = `.splash.is-${kind}${size}`;
+        if (!css.includes(`\n${selector} {`)) continue;
+        const body = rule(selector).replace(/\s+/g, ' ');
+        expect(body, selector).not.toContain('opacity');
+        // Власне тло виду — шари поверх непрозорого var(--splash-bg) останнім.
+        if (body.includes('background:')) expect(body, selector).toMatch(/background: [^;]*var\(--splash-bg\);/);
+      }
+    }
+    const fade = css.slice(css.indexOf('@keyframes splash-fade'), css.indexOf('}\n}', css.indexOf('@keyframes splash-fade')));
+    expect(fade.replace(/\s+/g, ' ')).toContain('10% { opacity: 1; } 90% { opacity: 1; }');
+  });
+
+  it('toasts (±15 s, buffs) stay above the splash', () => {
+    const z = (selector: string) => Number(/z-index:\s*(\d+)/.exec(rule(selector))?.[1]);
+    expect(z('.live-notice')).toBeGreaterThan(z('.splash'));
+  });
+
+  // Знімок transition8c-question-360: «Запитання 1» ламалося на два рядки.
+  it('on a 360 px phone «Запитання 12» and «Запитання фіналу» fit one line and never break inside a word', () => {
+    /** font-size clamp(min, Nvw, max) у px для ширини екрана width. */
+    const sizeAt = (selector: string, width: number) => {
+      const match = /font-size:\s*clamp\(([\d.]+)rem,\s*([\d.]+)vw,\s*([\d.]+)rem\)/.exec(rule(selector));
+      expect(match, selector).not.toBeNull();
+      const [min, vw, max] = [Number(match![1]) * 16, (Number(match![2]) * width) / 100, Number(match![3]) * 16];
+      return Math.min(Math.max(min, vw), max);
+    };
+    // Ширини в em, виміряні в Chrome для Unbounded 800 з letter-spacing -0.02em.
+    const em = { question12: 8.6, finalQuestion: 12.04 };
+    for (const width of [320, 360, 414]) {
+      const room = width - 32; // padding шару 1rem з боків
+      expect(sizeAt('.splash.is-phone .splash-title', width) * em.question12, `${width}`).toBeLessThanOrEqual(room);
+      expect(sizeAt('.splash.is-phone .splash-title.is-long', width) * em.finalQuestion, `${width}`).toBeLessThanOrEqual(room);
+    }
+    expect(rule('.splash.is-phone .splash-title')).toContain('overflow-wrap: normal');
+    for (const width of [1280, 1600, 1920]) {
+      expect(sizeAt('.splash-title.is-long', width) * em.finalQuestion, `${width}`).toBeLessThanOrEqual(width - 32);
+      expect(sizeAt('.splash-title', width) * em.question12, `${width}`).toBeLessThanOrEqual(width - 32);
+    }
+  });
+
   it('the host chip is fixed and never shifts the console', () => {
     expect(rule('.splash-chip')).toContain('position: fixed');
     expect(rule('.splash-chip')).toContain('pointer-events: none');

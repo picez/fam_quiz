@@ -46,6 +46,19 @@ export function fireDebuffs(state: GameState, now: number): GameState {
   return { ...state, debuffs };
 }
 
+/** Після паузи: since дебафів, що діють на цьому запитанні, зсувається на shiftMs — пауза не з'їдає їхній час. */
+export function shiftDebuffClocks(state: GameState, shiftMs: number): GameState {
+  if (shiftMs === 0) return state;
+  let changed = false;
+  const debuffs: Record<string, DebuffState> = {};
+  for (const [playerId, debuff] of Object.entries(state.debuffs)) {
+    const fired = debuff.firedAt === state.questionIndex && debuff.since !== null;
+    debuffs[playerId] = fired ? { ...debuff, since: (debuff.since ?? 0) + shiftMs } : debuff;
+    changed ||= fired;
+  }
+  return changed ? { ...state, debuffs } : state;
+}
+
 /** Викликається в lockNow: прибирає спрацьовані. */
 export function spendDebuffs(state: GameState): GameState {
   const entries = Object.entries(state.debuffs);

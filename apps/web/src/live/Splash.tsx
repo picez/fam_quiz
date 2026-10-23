@@ -83,7 +83,7 @@ function SplashContent({ view, kind }: { view: GameView; kind: SplashView['kind'
       return (
         <div className="splash-card">
           {view.round?.type === 'final' ? (
-            <p className="splash-title">{t('splashFinalQuestion')}</p>
+            <p className="splash-title is-long">{t('splashFinalQuestion')}</p>
           ) : (
             <>
               <p className="splash-title">{t('splashQuestion', { index: view.questionIndex + 1 })}</p>

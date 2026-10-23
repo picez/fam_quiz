@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { pickCell } from './board';
 import { declareDuel } from './duel';
 import { lock, next, pause, resume, start } from './game';
-import { classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { toDeclarable } from './testing/duel';
 import { lobbyWith, lobbyWithSplash, must, openAt } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
@@ -52,6 +53,17 @@ describe('splash in views', () => {
     const resumed = must(resume(paused, T0 + 10_500));
     expect(stageView(resumed).splash).toEqual({ kind: 'question', at: T0 + 10_000, until: T0 + 11_200 });
     expect(JSON.stringify(stageView(s))).not.toContain('correctId');
+    expect(Object.keys(stageView(s).splash ?? {}).sort()).toEqual(['at', 'kind', 'until']);
+    expect(Object.keys(playerView(s, 'p1')?.splash ?? {}).sort()).toEqual(['at', 'kind', 'until']);
+  });
+
+  it('a board cell shows its flip splash with exactly kind, at and until', () => {
+    const quiz = makeRoundsQuiz([boardRound('b1', [{ title: 'Міста', cells: [withId(single, 'a1')] }], { check: 'manual' })]);
+    const board = must(next(must(start(lobbyWithSplash(quiz, 'Анна'))), T0 - 5000));
+    const s = must(pickCell(board, 'p1', 'a1', T0, rng0));
+    expect(stageView(s).splash).toEqual({ kind: 'cell', at: T0, until: T0 + 1000 });
+    expect(playerView(s, 'p1')?.splash).toEqual({ kind: 'cell', at: T0, until: T0 + 1000 });
+    expect(Object.keys(hostView(s).splash ?? {}).sort()).toEqual(['at', 'kind', 'until']);
   });
 
   it('without transitions the view has no splash', () => {

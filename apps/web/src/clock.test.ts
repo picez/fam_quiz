@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { secondsLeft, splashLeft } from './clock';
+import { freshSplash, secondsLeft, splashLeft } from './clock';
 
 const open = { endsAt: 1_020_000, remainingMs: null };
 
@@ -36,5 +36,23 @@ describe('splashLeft', () => {
     expect(splashLeft({ until: 10_000 }, 0, 9_000)).toBe(1000);
     expect(splashLeft({ until: 10_000 }, 500, 9_000)).toBe(500);
     expect(splashLeft({ until: 10_000 }, 0, 12_000)).toBe(0);
+  });
+});
+
+describe('freshSplash', () => {
+  const view = (until: number) => ({ phase: 'question', splash: { kind: 'question' as const, at: until - 1200, until } });
+
+  it('drops a splash that had already ended by the server time it was sent at', () => {
+    // Після перепідключення телефон із відсталим годинником (offset 0) інакше показав би минулу заставку знову.
+    expect(freshSplash(view(10_000), 10_000).splash).toBeNull();
+    expect(freshSplash(view(10_000), 60_000).splash).toBeNull();
+    expect(freshSplash(view(10_000), 60_000).phase).toBe('question');
+  });
+
+  it('keeps a running splash and the very same view object', () => {
+    const running = view(10_000);
+    expect(freshSplash(running, 9_999)).toBe(running);
+    const none = { splash: null };
+    expect(freshSplash(none, 1)).toBe(none);
   });
 });

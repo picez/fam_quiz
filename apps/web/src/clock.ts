@@ -16,3 +16,11 @@ export function secondsLeft(
 export function splashLeft(splash: { until: number }, offsetMs: number, nowMs: number): number {
   return Math.max(0, splash.until - (nowMs + offsetMs));
 }
+
+/**
+ * Зріз без заставки, що скінчилася до serverNow — часу сервера в мить надсилання.
+ * Не залежить від годинника пристрою: після перепідключення минула заставка не з'явиться знову й не замкне поле.
+ */
+export function freshSplash<V extends { splash: { until: number } | null }>(view: V, serverNow: number): V {
+  return view.splash !== null && view.splash.until <= serverNow ? { ...view, splash: null } : view;
+}

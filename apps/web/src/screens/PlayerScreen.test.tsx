@@ -609,6 +609,29 @@ describe('PlayerScreen: blitz', () => {
       expect(slot.textContent).toBe('Кубик кинуто. Чекаємо інших');
     });
 
+    it('under the «Раунд N» splash the roll and duel buttons are off: no blind taps through the layer', () => {
+      vi.useFakeTimers();
+      try {
+        const now = Date.now();
+        const send = vi.fn(async () => ({ ok: true as const })) as unknown as Send;
+        const rights = { canDeclare: true, opponents: [anna] };
+        const splashing = intro(diceOf([], true), {
+          splash: { kind: 'round', at: now, until: now + 2500 },
+          me: { ...view().me, duel: { rights, tries: [], canAnswer: false, canPick: false } },
+        });
+        render(<PlayerScreen view={splashing} hostOnline offsetMs={0} send={send} />);
+        expect(rollButton()!.disabled).toBe(true);
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: '⚔ Дуель' }).disabled).toBe(true);
+        fireEvent.click(rollButton()!);
+        expect(send).not.toHaveBeenCalled();
+        act(() => vi.advanceTimersByTime(2600));
+        expect(rollButton()!.disabled).toBe(false);
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: '⚔ Дуель' }).disabled).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('the roll button frees itself when the ack never arrives', () => {
       vi.useFakeTimers();
       try {
@@ -1586,6 +1609,7 @@ describe('PlayerScreen: splashes', () => {
     timed();
     const send = show(onQuestion({ round: classic, endsAt: T + 21_200, limitMs: 20_000, splash: at('question', 1200), me: { ...me, buffs } }));
     expect((document.querySelector('fieldset.inputs') as HTMLFieldSetElement).disabled).toBe(true);
+    expect(document.querySelector('main.player')?.getAttribute('aria-busy')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
     const buff = document.querySelector('.buff-row button')!;
     expect(buff.getAttribute('aria-disabled')).toBe('true');
@@ -1597,6 +1621,7 @@ describe('PlayerScreen: splashes', () => {
     });
     expect((document.querySelector('fieldset.inputs') as HTMLFieldSetElement).disabled).toBe(false);
     expect(document.querySelector('.buff-row button')!.getAttribute('aria-disabled')).toBe('false');
+    expect(document.querySelector('main.player')?.hasAttribute('aria-busy')).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
     expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'b' });
   });

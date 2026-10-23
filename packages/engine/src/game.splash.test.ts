@@ -140,6 +140,19 @@ describe('the question splash', () => {
     expect(s.debuffs.p1).toMatchObject({ firedAt: 0, since: T0 + 1200 });
   });
 
+  it('a pause during the splash shifts a fired debuff with the question start', () => {
+    const intro = must(start(lobbyWithSplash(classicQuiz(), 'Анна', 'Богдан')));
+    const s = must(next(must(setDebuff(intro, 'p1', 'fog')), T0, rng0));
+    const resumed = must(resume(must(pause(s, T0 + 500)), T0 + 10_500));
+    expect(resumed.debuffs.p1).toMatchObject({ firedAt: 0, since: T0 + 11_200 });
+    expect(resumed.debuffs.p1.since).toBe(resumed.startedAt);
+    // Без таймера (відео) — так само.
+    const videoIntro = must(start(lobbyWithSplash(makeRoundsQuiz([classicRound('r1', [withVideo(single)])]), 'Анна', 'Богдан')));
+    const v = must(next(must(setDebuff(videoIntro, 'p1', 'fog')), T0, rng0));
+    const vr = must(resume(must(pause(v, T0 + 500)), T0 + 10_500));
+    expect(vr.debuffs.p1.since).toBe(T0 + 11_200);
+  });
+
   it('buffs keep their clocks after a splash', () => {
     /** Оля p1, Петро p2, Іра p3; q1 othersQuiz відкрито о T0 із заставкою. */
     const opened = (): GameState => openAt(lobbyWithSplash(othersQuiz(), 'Оля', 'Петро', 'Іра'), T0, rng0);
@@ -278,6 +291,39 @@ describe('pause and buffs around the question splash', () => {
     const resumed = must(resume(paused, T0 + 15_000));
     expect([resumed.startedAt, resumed.endsAt]).toEqual([T0 + 16_000, T0 + 36_000]);
     expect(resumed.splash).toEqual({ kind: 'duel', at: T0 + 14_000, until: T0 + 16_000 });
+  });
+
+  it('a round or final splash paused midway plays the rest after resume; one already over stays put', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), finalRound('f1', withId(single, 'qf'))]);
+    const intro = must(start(lobbyWithSplash(quiz, 'Анна'), T0));
+    const round = must(resume(must(pause(intro, T0 + 1000)), T0 + 6000));
+    expect(round.splash).toEqual({ kind: 'round', at: T0 + 5000, until: T0 + 7500 });
+    expect(must(resume(must(pause(intro, T0 + 3000)), T0 + 6000)).splash).toEqual({ kind: 'round', at: T0, until: T0 + 2500 });
+
+    let s = playOut(must(next(intro, T0, rng0)), T0 + 30_000);
+    s = must(next(s, T1, rng0));
+    expect(s.splash?.kind).toBe('final');
+    const final = must(resume(must(pause(s, T1 + 3000)), T1 + 4000));
+    expect(final.splash).toEqual({ kind: 'final', at: T1 + 1000, until: T1 + 4200 });
+  });
+
+  it('a cell flip paused midway delays the cell timer by the pause; an untimed cell too', () => {
+    const quiz = makeRoundsQuiz([
+      boardRound('b1', [{ title: 'Міста', cells: [withId(single, 'a1'), withId(withVideo(single), 'a2')] }], { check: 'manual' }),
+    ]);
+    const board = must(next(must(start(lobbyWithSplash(quiz, 'Анна', 'Богдан'))), T0 - 5000));
+    const cell = must(pickCell(board, 'p1', 'a1', T0, rng0));
+    const paused = must(pause(cell, T0 + 400));
+    expect(paused.remainingMs).toBe(20_000);
+    const resumed = must(resume(paused, T0 + 5400));
+    expect(resumed.splash).toEqual({ kind: 'cell', at: T0 + 5000, until: T0 + 6000 });
+    expect([resumed.startedAt, resumed.endsAt]).toEqual([T0 + 6000, T0 + 26_000]);
+
+    const untimed = must(pickCell(board, 'p1', 'a2', T0, rng0));
+    expect([untimed.startedAt, untimed.endsAt]).toEqual([T0 + 1000, null]);
+    const back = must(resume(must(pause(untimed, T0 + 400)), T0 + 5400));
+    expect(back.splash).toEqual({ kind: 'cell', at: T0 + 5000, until: T0 + 6000 });
+    expect(back.startedAt).toBe(T0 + 6000);
   });
 
   it('buffs are blocked as «not started» during the splash, seen only with now', () => {

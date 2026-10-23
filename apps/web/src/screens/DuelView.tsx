@@ -25,7 +25,7 @@ export function DuelButton({
   onError,
 }: {
   duel: PlayerDuel | null;
-  /** Кнопка вимкнена через паузу, а не через чужу дуель: інша підказка. */
+  /** Пауза або заставка: кнопка вимкнена (крізь шар заставки не натиснути наосліп); на паузі — інша підказка. */
   paused?: boolean;
   send: Send;
   onError: (text: string | null) => void;
@@ -38,6 +38,7 @@ export function DuelButton({
   const canDeclare = rights?.canDeclare === true;
 
   // Право зникло (хтось уже оголосив, пауза, вікно закрилося) — діалог закривається сам.
+  // Діалог (z 80) стоїть над заставкою (65), тож заставка його не закриває: вибір у ньому видно.
   useEffect(() => {
     if (!canDeclare) setOpen(false);
   }, [canDeclare]);
@@ -94,7 +95,7 @@ export function DuelButton({
         ref={trigger}
         type="button"
         className="duel-button"
-        disabled={!canDeclare}
+        disabled={!canDeclare || paused}
         title={canDeclare ? undefined : t(paused ? 'paused' : 'duelBusy')}
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
@@ -199,7 +200,7 @@ export function DuelPlay({
   // Поки вибір категорії летить, другий дотик не надсилає вдруге: ref — від подвійного дотику, стан — вимикає кнопки.
   const picking = useRef(false);
   const [pickPending, setPickPending] = useState(false);
-  // Категорію могли вибрати під час заставки «Дуель!»: запитання стартує після неї, а шар пропускає дотики — поле вимкнене до старту.
+  // Шар заставки «Дуель!» пропускає дотики: категорії й поле вимкнені, доки вона йде (ведучий може вибрати за претендента).
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
   const duel = view.duel;
   if (duel === null) return <></>;
@@ -230,7 +231,7 @@ export function DuelPlay({
             <ul className="duel-categories">
               {duel.categories.map((category) => (
                 <li key={category.id}>
-                  <button type="button" className="btn" disabled={pickPending || category.left === 0} onClick={() => void pick(category.id)}>
+                  <button type="button" className="btn" disabled={pickPending || category.left === 0 || splashNow !== null} onClick={() => void pick(category.id)}>
                     {t('duelCategoryLeft', { title: category.title, left: category.left })}
                   </button>
                 </li>

@@ -112,9 +112,22 @@ async function snapshot() {
   }
 }
 
-/** Чекає, доки на кожній сторінці зникне шар заставки (його немає — одразу). */
+/** Шару заставки зараз немає (його немає — одразу): для знімків, де заставка вже мала б зійти. */
+async function noSplashLayer(page: Page) {
+  await page.locator('.splash').waitFor({ state: 'detached' });
+}
+
+/**
+ * Чекає кінця заставки, яку щойно викликав крок ведучого: спершу її появи (стан міг ще не дійти до сторінки —
+ * тоді «шару немає» збрехало б), потім зникнення. Заставка, що вже минула, коштує лише очікування появи.
+ */
 async function afterSplash(...pages: Page[]) {
-  await Promise.all(pages.map((page) => page.locator('.splash').waitFor({ state: 'detached' })));
+  await Promise.all(
+    pages.map(async (page) => {
+      await page.locator('.splash').waitFor({ state: 'attached', timeout: 2000 }).catch(() => undefined);
+      await noSplashLayer(page);
+    }),
+  );
 }
 
 /** Половина заставки минула (або її немає). */
@@ -126,7 +139,7 @@ const SPLASH_MIDDLE = `(() => {
 /** Знімок екрана для перевірки дизайну: лише з E2E_SHOTS=1, у звичайному прогоні нічого не робить. Спершу чекає кінця заставки, якщо не просили саме кадр заставки. */
 async function shot(page: Page, name: string, { splash = false }: { splash?: boolean } = {}) {
   if (process.env.E2E_SHOTS !== '1') return;
-  if (!splash) await afterSplash(page);
+  if (!splash) await noSplashLayer(page);
   // Кадр заставки — з її середини: на початку шар ще напівпрозорий, а імена й картка ще в русі.
   else await page.waitForFunction(SPLASH_MIDDLE, undefined, { timeout: 3000 }).catch(() => undefined);
   mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
@@ -5486,12 +5499,15 @@ async function transitionsGame() {
   await click(host, 'Прийняти');
   await olya.getByText('Правильно!').waitFor();
 
-  // 5. «Дуель!»: категорію ведучий вибирає ще під час заставки, таймер дуелі стартує після неї.
+  // 5. «Дуель!»: категорію ведучий вибирає ще під час заставки (у претендентки кнопки вимкнені), таймер дуелі стартує після неї.
   await duelButton(olya).click();
   await olya.getByRole('dialog').getByRole('button', { name: 'Петро', ...exact }).click();
   await host.getByText('Оголошено дуель: Оля — Петро', exact).waitFor();
   await click(host, 'Почати дуель');
   await splashOn(stage, 'duel');
+  // Претендентка під шаром «Дуель!» наосліп категорію не вибере: кнопки вимкнені, вибирає ведучий.
+  await olya.locator('.splash.is-duel.is-phone').waitFor();
+  expect(await olya.getByRole('button', { name: 'Мови · лишилося 2', ...exact }).isDisabled(), 'a category under the splash').toBe(true);
   rigged.push(1);
   await host.locator('.duel-host').getByRole('button', { name: 'Мови · лишилося 2', ...exact }).click();
   const pair = await splashText(stage);
