@@ -34,4 +34,6 @@ export type ErrorCode =
   | 'hint_late'
   | 'dice_pending'
   | 'points_invalid'
-  | 'debuff_busy';
+  | 'debuff_busy'
+  | 'sort_locked'
+  | 'sort_stale';

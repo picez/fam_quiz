@@ -10,6 +10,8 @@ import {
   joinSchema,
   questionSchema,
   questionsOf,
+  questionPrice,
+  sortSchema,
   quizSchema,
   boardRoundIssues,
   cellAnswerMode,
@@ -661,5 +663,93 @@ describe('chain question', () => {
     expect(valid(guessSchema, { word: 'Риба' })).toBe(true);
     expect(valid(guessSchema, { word: 'а'.repeat(31) })).toBe(false);
     expect(valid(guessSchema, { word: 5 })).toBe(false);
+  });
+});
+
+describe('sort question', () => {
+  const sortQ = (patch: object = {}) => ({ id: 's', type: 'sort', text: 'Розсортуйте', imageUrl: null, video: null, timeLimit: 60, points: 100,
+    categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }],
+    words: [{ id: 'w1', text: 'Морква', categoryId: 'c1' }, { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+            { id: 'w3', text: 'Буряк', categoryId: 'c1' }, { id: 'w4', text: 'Груша', categoryId: 'c2' }],
+    lockSeconds: 3, ...patch });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (schema: { safeParse: (v: unknown) => { success: boolean; error?: { issues: { message: string }[] } } }, value: unknown) => {
+    const parsed = schema.safeParse(value);
+    return parsed.success ? [] : (parsed.error?.issues.map((i) => i.message) ?? []);
+  };
+  const cats = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `c${i + 1}`, text: `Категорія ${i + 1}` }));
+  const wordsIn = (n: number, categories: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: `w${i + 1}`, text: `Слово ${i + 1}`, categoryId: `c${(i % categories) + 1}` }));
+
+  it('accepts a sort of 2 to 4 categories and 4 to 20 words', () => {
+    expect(valid(questionSchema, sortQ())).toBe(true);
+    expect(valid(questionSchema, sortQ({ categories: cats(4), words: wordsIn(4, 4) }))).toBe(true);
+    expect(valid(questionSchema, sortQ({ categories: cats(1), words: wordsIn(4, 1) }))).toBe(false);
+    expect(valid(questionSchema, sortQ({ categories: cats(5), words: wordsIn(5, 5) }))).toBe(false);
+    expect(valid(questionSchema, sortQ({ words: wordsIn(3, 2) }))).toBe(false);
+    expect(valid(questionSchema, sortQ({ words: wordsIn(21, 2) }))).toBe(false);
+    expect(valid(questionSchema, sortQ({ words: wordsIn(20, 2), points: 100 }))).toBe(true);
+  });
+
+  it('a sort word belongs to a known category and every category has a word', () => {
+    const words = wordsIn(4, 2);
+    expect(issues(questionSchema, sortQ({ words: [...words.slice(0, 3), { ...words[3]!, categoryId: 'c9' }] }))).toContain('unknown_category');
+    expect(issues(questionSchema, sortQ({ words: wordsIn(4, 1) }))).toContain('sort_empty_category');
+  });
+
+  it('sort words and ids do not repeat', () => {
+    const words = wordsIn(4, 2);
+    expect(issues(questionSchema, sortQ({ words: [{ ...words[0]!, text: 'Морква' }, { ...words[1]!, text: ' морква ' }, words[2], words[3]] }))).toContain('sort_duplicate_words');
+    expect(issues(questionSchema, sortQ({ words: [{ ...words[0]!, id: 'c1' }, words[1], words[2], words[3]] }))).toContain('duplicate_ids');
+  });
+
+  it('words × points per word stay within 2000 and the lock is 1 to 10 s', () => {
+    expect(valid(questionSchema, sortQ({ points: 500 }))).toBe(true);
+    expect(issues(questionSchema, sortQ({ points: 501 }))).toContain('sort_points');
+    expect(valid(questionSchema, sortQ({ lockSeconds: 1 }))).toBe(true);
+    expect(valid(questionSchema, sortQ({ lockSeconds: 10 }))).toBe(true);
+    expect(valid(questionSchema, sortQ({ lockSeconds: 0 }))).toBe(false);
+    expect(valid(questionSchema, sortQ({ lockSeconds: 11 }))).toBe(false);
+    expect(valid(questionSchema, sortQ({ categories: [{ id: 'c1', text: 'а'.repeat(30) }, { id: 'c2', text: 'Фрукти' }] }))).toBe(true);
+    expect(valid(questionSchema, sortQ({ categories: [{ id: 'c1', text: 'а'.repeat(31) }, { id: 'c2', text: 'Фрукти' }] }))).toBe(false);
+    const words = wordsIn(4, 2);
+    expect(valid(questionSchema, sortQ({ words: [{ ...words[0]!, text: 'а'.repeat(40) }, words[1], words[2], words[3]] }))).toBe(true);
+    expect(valid(questionSchema, sortQ({ words: [{ ...words[0]!, text: 'а'.repeat(41) }, words[1], words[2], words[3]] }))).toBe(false);
+  });
+
+  it('a sort cannot have a video', () => {
+    expect(issues(questionSchema, sortQ({ video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('sort_video');
+  });
+
+  it('a sort plays in every round type, but on a board only in a normal phone cell', () => {
+    const blitz = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [sortQ({ id: 'sb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [sortQ({ id: 'sf' })] };
+    const board = (cell: object, patch: object = {}) => {
+      const cat = (id: string, first?: object) => ({ id, title: id, cells: [1, 2, 3].map((n) =>
+        n === 1 && first !== undefined ? { mark: 'none', ...first, question: sortQ({ id: `${id}${n}` }) } : { mark: 'none', question: { ...single, id: `${id}${n}` } }) });
+      return { id: 'b', type: 'board', title: '', shuffleOptions: false, categories: [cat('a', cell), cat('b'), cat('c')], answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch };
+    };
+    expect(valid(quizSchema, quizOf([round('r', [sortQ({ id: 'sc' })])]))).toBe(true);
+    expect(valid(quizSchema, quizOf([round('r', [single]), blitz]))).toBe(true);
+    expect(valid(quizSchema, quizOf([round('r', [single]), final]))).toBe(true);
+    expect(valid(quizSchema, quizOf([board({ kind: 'normal', answerMode: 'phone' })]))).toBe(true);
+    expect(valid(quizSchema, quizOf([board({})]))).toBe(true);
+    expect(issues(quizSchema, quizOf([board({ kind: 'blitz', answerMode: 'phone' })]))).toContain('sort_cell');
+    expect(issues(quizSchema, quizOf([board({ kind: 'normal', answerMode: 'voice' })]))).toContain('sort_cell');
+    expect(issues(quizSchema, quizOf([board({ kind: 'normal' }, { answerMode: 'voice' })]))).toContain('sort_cell');
+  });
+
+  it('questionPrice is words × points for a sort and points otherwise', () => {
+    expect(questionPrice(questionSchema.parse(sortQ()))).toBe(400);
+    expect(questionPrice(questionSchema.parse(sortQ({ points: 50 })))).toBe(200);
+    expect(questionPrice(questionSchema.parse({ ...single, points: 300 }))).toBe(300);
+  });
+
+  it('answerSchema never accepts a sort summary and sortSchema checks the move', () => {
+    expect(valid(answerSchema, { type: 'sort', sorted: 4, total: 4, misses: 0, timeMs: 1 })).toBe(false);
+    expect(valid(sortSchema, { wordId: 'w1', categoryId: 'c1' })).toBe(true);
+    expect(valid(sortSchema, { wordId: 5, categoryId: 'c1' })).toBe(false);
+    expect(valid(sortSchema, { wordId: 'w'.repeat(65), categoryId: 'c1' })).toBe(false);
   });
 });

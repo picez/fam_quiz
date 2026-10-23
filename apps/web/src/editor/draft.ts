@@ -67,6 +67,19 @@ function build(common: Common, type: QuestionType): Question {
         words: Array.from({ length: LIMITS.minChainWords }, () => ''),
         hintSeconds: LIMITS.defaultHintSeconds,
       };
+    case 'sort': {
+      const categories = blanks(LIMITS.minSortCategories);
+      return {
+        ...common,
+        video: null,
+        timeLimit: Math.max(common.timeLimit, 60),
+        points: LIMITS.defaultSortPoints,
+        type,
+        categories,
+        words: Array.from({ length: LIMITS.minSortWords }, (_, index) => ({ ...blank(), categoryId: categories[index % 2].id })),
+        lockSeconds: LIMITS.defaultLockSeconds,
+      };
+    }
   }
 }
 
@@ -135,6 +148,15 @@ export function duplicateQuestion(question: Question): Question {
       return { ...question, id, accepted: [...question.accepted] };
     case 'chain':
       return { ...question, id, words: [...question.words] };
+    case 'sort': {
+      const copies = new Map(question.categories.map((category) => [category.id, newId()]));
+      return {
+        ...question,
+        id,
+        categories: question.categories.map((category) => ({ ...category, id: copies.get(category.id) ?? newId() })),
+        words: question.words.map((word) => ({ ...word, id: newId(), categoryId: copies.get(word.categoryId) ?? word.categoryId })),
+      };
+    }
     default:
       return { ...question, id };
   }

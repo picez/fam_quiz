@@ -94,6 +94,10 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return pairsLine(correctPairs(question));
     case 'chain':
       return question.words.join(' → ');
+    case 'sort':
+      return question.categories
+        .map((category) => `${category.text}: ${question.words.filter((word) => word.categoryId === category.id).map((word) => word.text).join(', ')}`)
+        .join('; ');
   }
 }
 
@@ -133,6 +137,10 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return answer.solved === question.words.length - 1
         ? t('chainAnswerDone', { time: secondsText(answer.timeMs), hints: answer.hints })
         : t('chainAnswerPart', { solved: answer.solved, total: question.words.length - 1 });
+    case 'sort':
+      return answer.timeMs !== null && answer.sorted === answer.total
+        ? t('sortAnswerDone', { total: answer.total, time: secondsText(answer.timeMs), misses: answer.misses })
+        : t('sortAnswerPart', { sorted: answer.sorted, total: answer.total, misses: answer.misses });
   }
 }
 

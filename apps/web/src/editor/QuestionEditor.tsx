@@ -444,6 +444,9 @@ function Body({ question, onChange }: Pick<Props, 'question' | 'onChange'>) {
           <p className="meta">{t('orderHint')}</p>
         </>
       );
+    case 'sort':
+      // Тіло — у задачі 6 плану 7f.
+      return null;
   }
 }
 
