@@ -273,6 +273,10 @@ export function cellAnswerMode(round: BoardRound, cell: BoardCell): AnswerMode {
   return cell.answerMode ?? round.answerMode;
 }
 
+/** Тип ставок фіналу: класичні (±ставка) або спільний банк. */
+export const WAGER_MODES = ['classic', 'bank'] as const;
+export type WagerMode = (typeof WAGER_MODES)[number];
+
 /** Фінал: тема (title), таємні ставки й одне запитання для всіх. */
 export const finalRoundSchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
@@ -282,6 +286,8 @@ export const finalRoundSchema = z.object({
   description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
   shuffleOptions: z.boolean(),
   check: z.enum(['auto', 'manual']),
+  /** Тип ставок; старі вікторини без нього — класичні. */
+  wagerMode: z.enum(WAGER_MODES).default('classic'),
   /** Рівно одне запитання. */
   questions: z.array(questionSchema).length(1),
 });

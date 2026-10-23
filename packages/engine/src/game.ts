@@ -29,6 +29,7 @@ import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
+import { splitBank, type BankOutcome } from './bank';
 import { isTimed, limitMsOf, timeOver } from './timing';
 
 export interface PlayerState {
@@ -336,7 +337,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
   const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
   const { [playerId]: _debuff, ...debuffs } = state.debuffs;
-  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments, debuffs };
+  // Без вилученого банк фіналу менший: бали решти перераховуються.
+  const kicked = withTotals({ ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments, debuffs });
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
@@ -481,6 +483,34 @@ function wagerOf(final: FinalPlay, playerId: string): number {
   return Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
 }
 
+/** Бали фіналу кожного гравця поточного запитання фіналу за типом ставок раунду; гравець без запису — програвший. */
+export function finalOutcome(state: GameState): BankOutcome | null {
+  const play = finalPlayOf(state);
+  if (play === undefined) return null;
+  const round = state.quiz.rounds[play.roundIndex];
+  const entries = state.players.map((player) => ({
+    playerId: player.id,
+    wager: wagerOf(play.final, player.id),
+    correct: recordOf(state, state.questionIndex, player.id)?.grade === 'correct',
+  }));
+  if (round.type === 'final' && round.wagerMode === 'bank') return splitBank(entries);
+  const points = Object.fromEntries(entries.map((e) => [e.playerId, finalPoints(e.wager, e.correct)]));
+  return { bank: 0, refund: false, points };
+}
+
+/** Перезаписує basePoints і points усіх записів поточного запитання фіналу за finalOutcome; поза ним — стан без змін. */
+export function withFinalPoints(state: GameState): GameState {
+  const outcome = finalOutcome(state);
+  if (outcome === null) return state;
+  const play = state.plays[state.questionIndex];
+  const answers = { ...play.answers };
+  for (const [playerId, record] of Object.entries(answers)) {
+    const points = Object.hasOwn(outcome.points, playerId) ? outcome.points[playerId] : record.points;
+    answers[playerId] = { ...record, basePoints: points, streakBonus: 0, points };
+  }
+  return withCurrentPlay(state, { ...play, answers });
+}
+
 /**
  * Чи розкрито результат гравця у фіналі поточного запитання (для зрізів).
  * Поза фіналом і без відкритого запитання фіналу — true; на question і locked — false;
@@ -593,7 +623,9 @@ function streakBase(play: Play, playerId: string, record: AnswerRecord): number 
  * Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями; до рахунку додаються коригування.
  * Внутрішня функція рушія: експортовано для adjust.ts, не для сервера.
  */
-export function withTotals(state: GameState): GameState {
+export function withTotals(input: GameState): GameState {
+  // Бали фіналу залежать від усіх записів запитання (спільний банк), тож перераховуються першими.
+  const state = withFinalPoints(input);
   // Відкрите запитання завжди останнє в журналі.
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
@@ -744,7 +776,8 @@ function submitFinalAnswer(state: GameState, round: FinalRound, playerId: string
     points,
     overridden: false,
   };
-  return ok(autoLock(withRecord(state, playerId, record)));
+  // У спільному банку бали залежать від інших записів: ведучий одразу бачить формулу раунду.
+  return ok(autoLock(withFinalPoints(withRecord(state, playerId, record))));
 }
 
 /** Відповідь на запитання поля: лише від гравця, чий хід; годинник стоїть, поки ведучий не прийме відповідь або не дасть перевибрати. */

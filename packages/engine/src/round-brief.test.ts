@@ -36,6 +36,8 @@ describe('roundBrief', () => {
   });
 
   it('describes a final round', () => {
-    expect(roundBrief(finalRound('f1', single))).toEqual(emptyBrief('final'));
+    expect(roundBrief(finalRound('f1', single))).toEqual({ ...emptyBrief('final'), wagerMode: 'classic' });
+    expect(roundBrief(finalRound('f1', single, { wagerMode: 'bank' }))).toEqual({ ...emptyBrief('final'), wagerMode: 'bank' });
+    expect(roundBrief(classicRound('r1', [single])).wagerMode).toBeNull();
   });
 });

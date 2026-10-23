@@ -642,7 +642,7 @@ describe('final round drafts', () => {
 
   it('newFinalRound passes the schema once its question is filled', () => {
     const round = newFinalRound();
-    expect(round).toMatchObject({ type: 'final', title: '', shuffleOptions: false, check: 'auto' });
+    expect(round).toMatchObject({ type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic' });
     expect(round.questions).toHaveLength(1);
     const quiz = withFinal(filled(round.questions[0]));
     expect(problemsOf(quiz)).toEqual([]);

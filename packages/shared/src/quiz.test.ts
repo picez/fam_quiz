@@ -5,6 +5,7 @@ import {
   DEFAULT_SETTINGS,
   IMAGE_LIMITS,
   answerSchema,
+  finalRoundSchema,
   guessSchema,
   joinSchema,
   questionSchema,
@@ -586,6 +587,12 @@ describe('final round', () => {
     const result = quizSchema.safeParse(quiz);
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain('duplicate_question_ids');
+  });
+
+  it('a stored final without a wager mode is classic', () => {
+    expect(finalRoundSchema.parse(finalR('f', [single])).wagerMode).toBe('classic');
+    expect(finalRoundSchema.parse(finalR('f', [single], { wagerMode: 'bank' })).wagerMode).toBe('bank');
+    expect(valid(finalRoundSchema, finalR('f', [single], { wagerMode: 'pot' }))).toBe(false);
   });
 
   it('roundQuestions of a final round is its one question', () => {

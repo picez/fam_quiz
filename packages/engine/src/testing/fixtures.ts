@@ -142,7 +142,7 @@ export function finalRound(
   question: Question,
   options: Partial<Omit<FinalRound, 'id' | 'type' | 'questions'>> = {},
 ): FinalRound {
-  return { id, type: 'final', title: '', shuffleOptions: false, check: 'auto', ...options, questions: [question] };
+  return { id, type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', ...options, questions: [question] };
 }
 
 /** Копія запитання з іншим id: поле збирають з однакових запитань. */

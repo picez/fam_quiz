@@ -183,9 +183,9 @@ export function newBlitzRound(): BlitzRound {
   };
 }
 
-/** Новий раунд «Фінал»: одне запитання, автоматична перевірка; правил балів у ньому немає. */
+/** Новий раунд «Фінал»: одне запитання, автоматична перевірка, класичні ставки; правил балів у ньому немає. */
 export function newFinalRound(): FinalRound {
-  return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [newQuestion('single')] };
+  return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', questions: [newQuestion('single')] };
 }
 
 /** Нова клітинка поля: порожнє запитання, ціна на сотню вища за попередню (не більше максимуму). */
