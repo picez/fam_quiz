@@ -177,7 +177,17 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       .where(inGame);
     const fresh = state.adjustments
       .filter((adjustment) => adjustment.seq > (saved ?? 0))
-      .map(({ playerId, seq, roundIndex, afterQuestion, points, source }) => ({ participantId: playerId, seq, roundIndex, afterQuestion, points, source }));
+      .map(({ playerId, seq, roundIndex, afterQuestion, points, source, debuff, target }) => ({
+        participantId: playerId,
+        seq,
+        roundIndex,
+        afterQuestion,
+        points,
+        source,
+        debuff: debuff ?? null,
+        // Ціль могли вилучити до запису: тоді нікнейма вже немає.
+        targetNickname: target === undefined ? null : (state.players.find((p) => p.id === target)?.nickname ?? null),
+      }));
     if (fresh.length > 0) await tx.insert(scoreAdjustment).values(fresh).onConflictDoNothing();
   });
 }

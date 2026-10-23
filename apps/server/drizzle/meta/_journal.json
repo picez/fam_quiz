@@ -78,6 +78,13 @@
       "when": 1792790290487,
       "tag": "0010_live_rooms",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792797669512,
+      "tag": "0011_debuff_purchases",
+      "breakpoints": true
     }
   ]
 }

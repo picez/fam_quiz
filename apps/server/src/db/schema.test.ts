@@ -203,6 +203,29 @@ describe('score adjustments (migration 0006)', () => {
     expect(after?.questions).toMatchObject([{ index: 0, roundIndex: 0, answered: 1, accepted: 1 }]);
   });
 
+  it('migration 0011 adds the purchase columns and keeps old adjustments', async () => {
+    const { scoreAdjustment } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0010_live_rooms');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const gameId = '11111111-1111-4111-8111-111111111111';
+    const participantId = '22222222-2222-4222-8222-222222222222';
+    await db.execute(sql`
+      INSERT INTO "game" ("id", "host_id", "code", "status", "title", "quiz_snapshot", "questions_played", "started_at")
+      VALUES (${gameId}, 'u1', '123456', 'finished', 'Гра', ${JSON.stringify(makeQuiz([single]))}::jsonb, 1, now())`);
+    await db.execute(sql`
+      INSERT INTO "participant" ("id", "game_id", "nickname", "score", "total_time_ms", "rank")
+      VALUES (${participantId}, ${gameId}, 'Тарас', 900, 3000, 1)`);
+    await db.execute(sql`
+      INSERT INTO "score_adjustment" ("participant_id", "seq", "round_index", "after_question", "points", "source")
+      VALUES (${participantId}, 1, 0, 0, -100, 'host')`);
+
+    await migrateRest();
+
+    expect(await db.select().from(scoreAdjustment)).toEqual([
+      { participantId, seq: 1, roundIndex: 0, afterQuestion: 0, points: -100, source: 'host', debuff: null, targetNickname: null },
+    ]);
+  });
+
   it('adjustments go together with their participant', async () => {
     const { game, participant, scoreAdjustment } = await import('./schema');
     const db = await createTestDb();
