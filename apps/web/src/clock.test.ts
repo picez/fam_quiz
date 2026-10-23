@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { secondsLeft } from './clock';
+import { secondsLeft, splashLeft } from './clock';
 
 const open = { endsAt: 1_020_000, remainingMs: null };
 
@@ -28,5 +28,13 @@ describe('secondsLeft', () => {
 
   it('shows the frozen remaining time while paused', () => {
     expect(secondsLeft({ endsAt: null, remainingMs: 14_200 }, 0, 5)).toBe(15);
+  });
+});
+
+describe('splashLeft', () => {
+  it('counts the splash milliseconds left by the server clock', () => {
+    expect(splashLeft({ until: 10_000 }, 0, 9_000)).toBe(1000);
+    expect(splashLeft({ until: 10_000 }, 500, 9_000)).toBe(500);
+    expect(splashLeft({ until: 10_000 }, 0, 12_000)).toBe(0);
   });
 });

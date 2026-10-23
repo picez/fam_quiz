@@ -11,3 +11,8 @@ export function secondsLeft(
   if (view.endsAt === null) return null;
   return Math.max(0, Math.ceil((view.endsAt - (nowMs + offsetMs)) / 1000));
 }
+
+/** Скільки мс заставки лишилося за годинником сервера; 0 — минула. */
+export function splashLeft(splash: { until: number }, offsetMs: number, nowMs: number): number {
+  return Math.max(0, splash.until - (nowMs + offsetMs));
+}
