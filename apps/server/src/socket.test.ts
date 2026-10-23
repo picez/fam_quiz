@@ -465,6 +465,28 @@ describe('host presence', () => {
     expect(await send(olena, 'player:retry', { keep: true })).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
+  it('a player buys a debuff for a rival: role-checked, validated, charged, and the rival sees the buyer when it fires', async () => {
+    const quiz = makeQuiz([single, text], { debuffs: ['fog'], debuffPrices: { fog: 100 } });
+    const created = (await startGame(ctx.app, quiz)).game;
+    const { host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    const tarasId = tarasJoin.playerId;
+    expect(await send(olena, 'player:debuff', { targetId: tarasId, kind: 'fog' })).toEqual({ ok: false, error: 'points_short' });
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 150 })).toEqual({ ok: true });
+    expect(await send(host, 'player:debuff', { targetId: tarasId, kind: 'fog' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:debuff', { targetId: tarasId, kind: 'fog' })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [undefined, { targetId: tarasId }, { targetId: tarasId, kind: 'magic' }, { targetId: 5, kind: 'fog' }]) {
+      expect(await send(olena, 'player:debuff', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:debuff', { targetId: tarasId, kind: 'fog' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:debuff', { targetId: tarasId, kind: 'fog' })).toEqual({ ok: false, error: 'debuff_bought' });
+    const mine = await until(olena, (v) => v.role === 'player' && v.me.score === 50);
+    expect(mine.debuffNotice?.target.nickname).toBe('Тарас');
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const hit = await until(taras, (v) => v.role === 'player' && v.me.debuff !== null);
+    expect(hit.role === 'player' && hit.me.debuff).toMatchObject({ kind: 'fog', by: 'Олена' });
+  });
+
   it('vote and hint events are role-checked and validated', async () => {
     const quiz = { ...makeQuiz([single, text], { buffs: ['audience', 'hint'] }), spares: [withId(bool, 's1')] };
     const created = (await startGame(ctx.app, quiz)).game;
@@ -497,7 +519,7 @@ describe('host presence', () => {
       duels,
     };
     const created = (await startGame(ctx.app, quiz)).game;
-    const { host, stage, olena, taras, tarasJoin } = await lobby(created);
+    const { host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby(created);
     expect(await send(host, 'host:start')).toEqual({ ok: true });
     expect(await send(host, 'host:next')).toEqual({ ok: true });
     await until(olena, inPhase('question'));

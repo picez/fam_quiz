@@ -5,6 +5,7 @@ import {
   adjustScore,
   adjustTime,
   answerDuel,
+  buyDebuff,
   buzz,
   cancelDebuff,
   cancelDuel,
@@ -393,6 +394,12 @@ export class RoomManager {
   buff(room: Room, playerId: string, kind: BuffKind): AckResult {
     if (!this.alive(room)) return this.gone();
     return this.apply(room, takeBuff(room.state, playerId, kind, this.now(), this.rng));
+  }
+
+  /** Гравець купує дебаф для суперника (9c). */
+  buyDebuff(room: Room, buyerId: string, targetId: string, kind: DebuffKind): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, buyDebuff(room.state, buyerId, targetId, kind, this.now()));
   }
 
   vote(room: Room, playerId: string, askerId: string, answer: Answer): AckResult {
