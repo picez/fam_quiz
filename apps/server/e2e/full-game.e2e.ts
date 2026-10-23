@@ -112,9 +112,15 @@ async function snapshot() {
   }
 }
 
-/** Знімок екрана для перевірки дизайну: лише з E2E_SHOTS=1, у звичайному прогоні нічого не робить. */
-async function shot(page: Page, name: string) {
+/** Чекає, доки на кожній сторінці зникне шар заставки (його немає — одразу). */
+async function afterSplash(...pages: Page[]) {
+  await Promise.all(pages.map((page) => page.locator('.splash').waitFor({ state: 'detached' })));
+}
+
+/** Знімок екрана для перевірки дизайну: лише з E2E_SHOTS=1, у звичайному прогоні нічого не робить. Спершу чекає кінця заставки, якщо не просили саме кадр заставки. */
+async function shot(page: Page, name: string, { splash = false }: { splash?: boolean } = {}) {
   if (process.env.E2E_SHOTS !== '1') return;
+  if (!splash) await afterSplash(page);
   mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
   await page.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`), fullPage: true });
 }
@@ -134,7 +140,7 @@ beforeAll(async () => {
   if (!existsSync(resolve(WEB, 'index.html'))) throw new Error('Клієнт не зібрано: спершу виконайте pnpm build.');
   const port = await freePort();
   base = `http://localhost:${port}`;
-  ctx = await buildApp({ db: await createTestDb(), auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng });
+  ctx = await buildApp({ db: await createTestDb(), auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng, transitions: true });
   await ctx.app.listen({ port, host: '127.0.0.1' });
   browser = await chromium.launch({ channel: process.env.E2E_CHANNEL ?? 'chrome', headless: true });
 });
@@ -2623,6 +2629,8 @@ async function diceGame() {
 
   // 2. Кожен телефон кидає сам: кубик крутиться на телефоні й на сцені, потім результат у всіх.
   rigged.push(5);
+  // Кадри крутіння: заставка «Раунд 1» має зійти до кидка, інакше кубик докрутиться під нею.
+  await afterSplash(stage, olya);
   await click(olya, 'Кинути кубик');
   await diceRow(olya, 'Оля').locator('.die.is-rolling').waitFor();
   await shot(olya, 'dice7c-rolling-phone-olya');

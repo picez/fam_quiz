@@ -230,6 +230,22 @@ describe('DuelView', () => {
     expect(tries?.children).toHaveLength(0);
   });
 
+  it('a category picked during the «Дуель!» splash keeps the answer field off until the splash ends', () => {
+    vi.useFakeTimers();
+    try {
+      const now = Date.now();
+      const send = okSend();
+      play({ ...view(duelInfo(), { canAnswer: true }), splash: { kind: 'duel', at: now - 500, until: now + 1500 } }, send);
+      const input = screen.getByLabelText<HTMLInputElement>('Ваша відповідь');
+      expect(input.disabled).toBe(true);
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Відповісти' }).disabled).toBe(true);
+      act(() => vi.advanceTimersByTime(1600));
+      expect(input.disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('spectators see the question, the clock and the score, not the tries', () => {
     play(view(duelInfo({ tries: { challenger: 0, opponent: 2 } }), {}, 'p3'));
     expect(screen.getByText('Столиця Франції?')).toBeTruthy();

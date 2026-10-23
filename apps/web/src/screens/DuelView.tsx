@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import type { DuelInfo, HostView, Phase, PlayerDuel, PlayerView, StageView } from '@quiz/shared';
 import { num, questionClass } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
+import { useSplash } from '../live/Splash';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { reducedMotion } from '../motion';
@@ -198,6 +199,8 @@ export function DuelPlay({
   // Поки вибір категорії летить, другий дотик не надсилає вдруге: ref — від подвійного дотику, стан — вимикає кнопки.
   const picking = useRef(false);
   const [pickPending, setPickPending] = useState(false);
+  // Категорію могли вибрати під час заставки «Дуель!»: запитання стартує після неї, а шар пропускає дотики — поле вимкнене до старту.
+  const splashNow = useSplash(view.splash, view.paused, offsetMs);
   const duel = view.duel;
   if (duel === null) return <></>;
   const mine = view.me.duel;
@@ -252,7 +255,7 @@ export function DuelPlay({
         <>
           {duelist && (
             <>
-              <DuelAnswer key={duel.number} enabled={mine?.canAnswer === true} send={send} onError={onError} />
+              <DuelAnswer key={duel.number} enabled={mine?.canAnswer === true && splashNow === null} send={send} onError={onError} />
               {/* Фіксована висота з прокруткою: нова спроба не зсуває екран. */}
               <ul className="duel-tries" aria-live="polite">
                 {(mine?.tries ?? []).map((text, index) => (
