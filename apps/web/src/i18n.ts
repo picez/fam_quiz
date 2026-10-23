@@ -232,6 +232,7 @@ const uk = {
   scheduleRepeats: 'Далі черга повторюється',
   phase_leaderboard: 'Рейтинг',
   phase_finished: 'Гру завершено',
+  phase_duel: 'Дуель',
   // Акаунт
   loginTitle: 'Вхід',
   registerTitle: 'Новий акаунт',
@@ -713,6 +714,9 @@ const uk = {
   err_already_queued: 'Ви вже в черзі на відповідь.',
   err_no_attempts: 'Спроби вичерпано.',
   err_paused: 'Гра на паузі.',
+  err_duel_used: 'Ви вже оголошували дуель у цій грі.',
+  err_duel_busy: 'Зараз уже оголошено іншу дуель.',
+  err_duel_empty: 'Запитання для дуелі скінчилися.',
   err_time_limit: 'Залишок часу має бути від 5 до 120 секунд.',
   err_points_invalid: 'Сума має бути цілим числом від −10000 до 10000, крім нуля.',
   err_debuff_busy: 'На цього гравця вже наслано дебаф.',

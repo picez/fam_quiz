@@ -1,5 +1,8 @@
 /** intro — заставка раунду, round_end — підсумки раунду. */
-export type Phase = 'lobby' | 'intro' | 'wager' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished';
+export type Phase = 'lobby' | 'intro' | 'wager' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished' | 'duel';
+
+/** declared — оголошена, чекає кінця поточного запитання; далі етапи самої дуелі. */
+export type DuelStage = 'declared' | 'category' | 'question' | 'answer' | 'result';
 
 export type Grade = 'correct' | 'partial' | 'wrong';
 
@@ -36,4 +39,7 @@ export type ErrorCode =
   | 'points_invalid'
   | 'debuff_busy'
   | 'sort_locked'
-  | 'sort_stale';
+  | 'sort_stale'
+  | 'duel_used'
+  | 'duel_busy'
+  | 'duel_empty';
