@@ -1,5 +1,5 @@
 import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
-import type { Answer } from '@quiz/shared';
+import type { Answer, BuffKind } from '@quiz/shared';
 import { and, eq, max, notInArray } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment } from './db/schema';
@@ -34,7 +34,7 @@ function signature(state: GameState): string {
   const last = closedQuestions(state) - 1;
   const grades = state.players.map((player) => {
     const record = last < 0 ? undefined : recordOf(state, last, player.id);
-    return record === undefined ? null : [record.accepted, record.points, record.overridden];
+    return record === undefined ? null : [record.accepted, record.points, record.overridden, record.buff ?? null];
   });
   const scores = state.players.map((p) => [p.id, p.score]);
   // Коригування не змінюють фазу, а рахунок можуть лишити тим самим (+50 і −50): рахуємо їх окремо.
@@ -51,6 +51,8 @@ interface AnswerRow {
   overridden: boolean;
   /** Ставка фіналу; null поза фіналом. */
   wager: number | null;
+  /** Баф, узятий на це запитання; null — без бафу. */
+  buff: BuffKind | null;
 }
 
 /** Рядки таблиці answer для гравця на запитання: у бліці по рядку на спробу, інакше один. */
@@ -65,7 +67,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
     // у спільному банку бали не дорівнюють ±ставці.
     const silent = final !== undefined && payload === null;
     const wager = final === undefined ? null : Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
-    return [{ attempt: silent ? PENALTY_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden, wager }];
+    return [{ attempt: silent ? PENALTY_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden, wager, buff: record.buff ?? null }];
   }
   const rows = attempts.map((attempt, number) => {
     // Бонус серії належить виграшній спробі; бали спроби в журналі бліцу його не містять.
@@ -79,6 +81,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
       streakBonus,
       overridden: false,
       wager: null,
+      buff: null,
     };
   });
   // Штраф бліц-клітинки не належить жодній спробі (його платить і той, хто не натискав):
@@ -87,7 +90,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
   if (penalty === 0) return rows;
   return [
     ...rows,
-    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false, wager: null },
+    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false, wager: null, buff: null },
   ];
 }
 

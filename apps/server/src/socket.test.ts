@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { blitzRound, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId } from '@quiz/engine/testing';
-import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
+import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
@@ -425,6 +425,25 @@ describe('host presence', () => {
     expect(await send(olena, 'player:sort', { wordId: card, categoryId: other })).toEqual({ ok: true });
     expect(await send(olena, 'player:sort', { wordId: card, categoryId: category })).toEqual({ ok: false, error: 'sort_locked' });
     expect(await send(olena, 'player:answer', { type: 'sort' })).toMatchObject({ ok: false });
+  });
+
+  it('buff events are role-checked and validated', async () => {
+    const rules = { ...DEFAULT_RULES, penalty: 'minus' as const };
+    const quiz = makeQuiz([single, text], { buffs: ['double', 'shield', 'retry'], rules });
+    const created = (await startGame(ctx.app, quiz)).game;
+    const { host, stage, olena } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:buff', { kind: 'double' })).toEqual({ ok: true });
+    expect(await send(host, 'player:buff', { kind: 'double' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:buff', { kind: 'double' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:buff', { kind: 'magic' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:buff')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:buff', { kind: 'shield' })).toEqual({ ok: false, error: 'buff_busy' });
+    expect(await send(host, 'player:retry', { keep: true })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:retry', { keep: 'yes' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:retry', { keep: true })).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('duel events are role-checked and validated', async () => {

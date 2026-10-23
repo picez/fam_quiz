@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { DEBUFF_KINDS, LIMITS, type HostPlayer } from '@quiz/shared';
+import { LIMITS, type DebuffKind, type HostPlayer } from '@quiz/shared';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
@@ -103,7 +103,8 @@ export function PointsPanel({ player, send, onError }: PanelProps) {
   );
 }
 
-export function DebuffPanel({ player, send, onError }: PanelProps) {
+/** kinds — дозволені вікториною дебафи (HostView.allowed.debuffs), у порядку DEBUFF_KINDS. */
+export function DebuffPanel({ player, kinds, send, onError }: PanelProps & { kinds: DebuffKind[] }) {
   const { busy, run } = useGuardedSend(send, onError);
   const current = player.debuff;
   return (
@@ -111,7 +112,7 @@ export function DebuffPanel({ player, send, onError }: PanelProps) {
       <p className="meta">{t('debuffHint')}</p>
       {current !== null && <p className="meta">{debuffTagText(current)}</p>}
       <div className="debuff-picks">
-        {DEBUFF_KINDS.map((kind) => (
+        {kinds.map((kind) => (
           <button key={kind} type="button" className="btn btn-small" disabled={busy || current !== null} onClick={() => void run('host:debuff', { playerId: player.id, kind })}>
             {`${DEBUFF_ICONS[kind]} ${debuffName(kind)}`}
           </button>

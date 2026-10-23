@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type { Answer, Choice, PublicQuestion } from '@quiz/shared';
-import { LETTERS } from '../format';
+import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchInput } from './MatchView';
@@ -8,7 +8,11 @@ import { MatchInput } from './MatchView';
 interface Props {
   question: PublicQuestion;
   onSubmit: (answer: Answer) => void;
+  /** 50/50: ці варіанти single/multi лишаються на своєму місці, приглушені й вимкнені — список не стискається. */
+  removed?: string[];
 }
+
+const NONE: string[] = [];
 
 function parseNumber(raw: string): number | null {
   const cleaned = raw.trim().replace(',', '.').replace(/\s/g, '');
@@ -17,32 +21,49 @@ function parseNumber(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-function ChoiceButtons({ choices, picked, onPick }: { choices: Choice[]; picked: string[]; onPick: (id: string) => void }) {
+function ChoiceButtons({
+  choices,
+  picked,
+  removed = NONE,
+  onPick,
+}: {
+  choices: Choice[];
+  picked: string[];
+  removed?: string[];
+  onPick: (id: string) => void;
+}) {
   return (
     <div className={choicesClass(choices)}>
-      {choices.map((choice, index) => (
-        <button
-          type="button"
-          key={choice.id}
-          className={picked.includes(choice.id) ? 'choice is-picked' : 'choice'}
-          aria-pressed={picked.includes(choice.id)}
-          onClick={() => onPick(choice.id)}
-        >
-          <ChoiceFace choice={choice} letter={LETTERS[index]} />
-        </button>
-      ))}
+      {choices.map((choice, index) => {
+        const gone = removed.includes(choice.id);
+        return (
+          <button
+            type="button"
+            key={choice.id}
+            className={gone ? 'choice is-removed' : picked.includes(choice.id) ? 'choice is-picked' : 'choice'}
+            aria-pressed={picked.includes(choice.id)}
+            aria-label={gone ? t('choiceRemoved', { choice: choiceLabel(choice, index) }) : undefined}
+            disabled={gone}
+            onClick={() => onPick(choice.id)}
+          >
+            <ChoiceFace choice={choice} letter={LETTERS[index]} />
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function MultiInput({ question, onSubmit }: Props) {
+function MultiInput({ question, onSubmit, removed }: Props) {
   const [picked, setPicked] = useState<string[]>([]);
   const toggle = (id: string) => setPicked((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
+  // Вибране до 50/50, а потім прибране, у відповідь не йде й не світиться вибраним.
+  const kept = removed === undefined ? picked : picked.filter((id) => !removed.includes(id));
   // Порядок як у запитанні, а не як натискав гравець.
-  const ordered = question.choices.map((choice) => choice.id).filter((id) => picked.includes(id));
+  const ordered = question.choices.map((choice) => choice.id).filter((id) => kept.includes(id));
   return (
     <>
-      <ChoiceButtons choices={question.choices} picked={picked} onPick={toggle} />
+      <ChoiceButtons choices={question.choices} picked={kept} removed={removed} onPick={toggle} />
       <button
         type="button"
         className="btn btn-primary"
@@ -139,13 +160,14 @@ function OrderInput({ question, onSubmit }: Props) {
   );
 }
 
-export function AnswerInput({ question, onSubmit }: Props) {
+export function AnswerInput({ question, onSubmit, removed }: Props) {
   switch (question.type) {
     case 'single':
       return (
         <ChoiceButtons
           choices={question.choices}
           picked={[]}
+          removed={removed}
           onPick={(optionId) => onSubmit({ type: 'single', optionId })}
         />
       );
@@ -160,7 +182,7 @@ export function AnswerInput({ question, onSubmit }: Props) {
         </div>
       );
     case 'multi':
-      return <MultiInput question={question} onSubmit={onSubmit} />;
+      return <MultiInput question={question} onSubmit={onSubmit} removed={removed} />;
     case 'text':
     case 'numeric':
       return <TypedInput question={question} onSubmit={onSubmit} />;

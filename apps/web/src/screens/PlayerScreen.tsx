@@ -3,8 +3,8 @@ import type { Answer, DiceInfo, PlayerBlitz, PlayerView, PublicQuestion, Spotlig
 import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
-import { AdjustmentToast } from '../live/LiveNotices';
-import { Timer, timerStatus } from '../live/Timer';
+import { AdjustmentToast, BuffToast } from '../live/LiveNotices';
+import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -20,6 +20,7 @@ import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortWatch } from './SortView';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
+import { BuffRow, OvertimeLine, RetryPrompt } from './Buffs';
 
 interface Props {
   view: PlayerView;
@@ -249,25 +250,6 @@ function FinalResult({ view }: { view: PlayerView }) {
   );
 }
 
-/**
- * true, коли час уже вийшов: endsAt у минулому за годинником сервера (той самий offsetMs, що й у Timer)
- * або на паузі не лишилося ні мілісекунди. Перемикається таймером, без щосекундних перемальовувань.
- */
-function useTimeOver(endsAt: number | null, remainingMs: number | null, offsetMs: number): boolean {
-  const passed = () => (remainingMs !== null ? remainingMs <= 0 : endsAt !== null && endsAt <= Date.now() + offsetMs);
-  const [over, setOver] = useState(passed);
-  useEffect(() => {
-    setOver(passed());
-    if (remainingMs !== null || endsAt === null) return;
-    const left = endsAt - (Date.now() + offsetMs);
-    if (left <= 0) return;
-    const id = setTimeout(() => setOver(true), left);
-    return () => clearTimeout(id);
-    // passed читає лише ці три значення.
-  }, [endsAt, remainingMs, offsetMs]);
-  return over;
-}
-
 /** Рядок стану миттєвого бліцу під варіантами: власне місце в черзі чи вердикт. */
 function instantStatus(blitz: PlayerBlitz, timeOver: boolean): string {
   if (blitz.canAnswer && timeOver) return t('blitzTimeOver');
@@ -315,6 +297,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   // Після «Перевибрати» голова відповідає у власному вікні, навіть коли загальний час уже вийшов.
   const repickEnd = me.blitz?.position === 1 && me.blitz.deadline !== null ? me.blitz.deadline : null;
   const timeOver = useTimeOver(repickEnd ?? view.endsAt, repickEnd !== null ? null : view.remainingMs, offsetMs);
+  // Бафи: власний кінець (з додатковим часом — особистий) гасить ряд; спільний кінець показує, на кого чекає розкриття.
+  const myClock = me.overtime !== null ? { endsAt: me.overtime.deadline, remainingMs: me.overtime.remainingMs } : null;
+  const buffTimeOver = useTimeOver(myClock?.endsAt ?? view.endsAt, myClock !== null ? myClock.remainingMs : view.remainingMs, offsetMs);
+  const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
+  const waiting = phase === 'question' && myClock === null && sharedOver && view.overtime.length > 0;
+  const activeBuff = me.buffs?.active ?? null;
+  const retryStage = activeBuff?.retry ?? null;
   const queue =
     instant && view.blitz !== null ? (
       <BlitzQueue rows={view.blitz.rows} reserve={view.playerCount} question={question} blinking={rowBlink} closed={phase !== 'question'} />
@@ -335,6 +324,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
+      <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
       <header className="bar">
         <span>{me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
@@ -387,8 +377,12 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'question' && question !== null && (
         <>
           <div className="question-head">
-            <p className="meta">{questionLabel(view.round, view.questionIndex, view.total)}</p>
-            {!chainMine && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
+            {/* «Чекаємо …» стає на місце підпису (той лишається прихованим і тримає висоту): поява на спільному кінці нічого не зсуває. */}
+            <div className="question-meta">
+              <p className={waiting ? 'meta is-hidden' : 'meta'}>{questionLabel(view.round, view.questionIndex, view.total)}</p>
+              {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
+            </div>
+            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">
@@ -408,6 +402,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <h1 className={questionClass(question.text)}>{question.text}</h1>
             <QuestionImage url={question.imageUrl} />
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
+            {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
+            {me.buffs !== null && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} send={send} onError={setError} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
             {isSort && me.sort !== null ? (
@@ -477,10 +473,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                 <h2>{t('answerSent')}</h2>
                 <p>{pickedText(me.answer, shownChoices(question))}</p>
               </section>
+            ) : activeBuff !== null && retryStage === 'choice' ? (
+              // Часткова перша відповідь: вибір замість поля відповіді.
+              <RetryPrompt active={activeBuff} question={question} send={send} onError={setError} paused={view.paused} />
             ) : (
               // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
+              // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
               <fieldset className="inputs" disabled={view.paused}>
-                <AnswerInput key={view.questionIndex} question={shown ?? question} onSubmit={submit} />
+                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}`} question={shown ?? question} removed={activeBuff?.removed} onSubmit={submit} />
               </fieldset>
             )}
           </DebuffZone>

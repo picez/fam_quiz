@@ -1,4 +1,6 @@
 import {
+  allowedBuffs,
+  allowedDebuffs,
   boardCells,
   findCell,
   questionsOf,
@@ -30,6 +32,8 @@ import {
   type HostBlitz,
   type HostBoard,
   type PlayerBlitz,
+  type PlayerBuffs,
+  type OvertimeRow,
   type HostView,
   type Phase,
   type PlayerView,
@@ -46,6 +50,7 @@ import {
 import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type PlayerState } from './game';
 import { lastNotice } from './adjust';
 import { activeDebuff, shownDebuff } from './debuffs';
+import { buffBlock, buffOf, buffsHere, buffsUsed, currentBuffs, lastBuff } from './buffs';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { sortOf, sortsHere } from './sort';
@@ -53,7 +58,7 @@ import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
-import { isTimed, limitMsOf, remainingOf } from './timing';
+import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
@@ -727,15 +732,75 @@ function base(state: GameState, forHost: boolean) {
     sort: inFinalRound(state) ? null : sortInfo(state),
     notice: lastNotice(state),
     duel: duelInfo(state, false),
+    buffs: currentBuffs(state),
+    buffNotice: lastBuff(state),
+    overtime: overtimeRows(state),
+  };
+}
+
+/** Особистий кінець гравця з додатковим часом, якщо він ще не відповів (етап question); інакше null. */
+function personalClock(state: GameState, playerId: string): { deadline: number | null; remainingMs: number | null } | null {
+  const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
+  if (play === undefined) return null;
+  const overtime = overtimeOf(play, playerId);
+  // Хто вже відповів (або чекає на ведучого на полі), на себе не чекає.
+  const answered = Object.hasOwn(play.answers, playerId) || (play.board?.chooserId === playerId && play.board.answer !== null);
+  if (overtime <= 0 || answered) return null;
+  // Під час утримання й на паузі годинник стоїть: лише залишок. Пауза вже зменшила overtime на витрачене (trimOvertime),
+  // а remainingMs тоді 0; утримання overtime не чіпає, зате endsAt − heldAt після спільного кінця від'ємний — двічі не віднімається.
+  const remaining = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.paused ? state.remainingMs : null;
+  if (remaining !== null) return { deadline: null, remainingMs: remaining + overtime };
+  return state.endsAt === null ? null : { deadline: state.endsAt + overtime, remainingMs: null };
+}
+
+/** Гравці з додатковим часом без відповіді, у порядку гравців (від миті, коли баф узято). */
+function overtimeRows(state: GameState): OvertimeRow[] {
+  return state.players.flatMap((p) => {
+    const clock = personalClock(state, p.id);
+    return clock === null ? [] : [{ ...blitzPlayer(state, p.id), ...clock }];
+  });
+}
+
+/**
+ * Ряд бафів гравця: усі дозволені бафи з причинами. Причину time зріз не показує (без now) — сплив час рахує телефон.
+ * Прибрані 50/50 варіанти й перша відповідь другої спроби є лише тут, у зрізі самого гравця.
+ */
+function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
+  const allowed = allowedBuffs(state.quiz);
+  const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
+  if (allowed.length === 0 || play === undefined || !buffsHere(state, play, playerId)) return null;
+  const own = buffOf(play, playerId);
+  const used = buffsUsed(state, playerId);
+  const slots = allowed.map((kind) => {
+    if (own?.kind === kind) return { kind, state: 'active' as const, block: null };
+    if (used.includes(kind)) return { kind, state: 'used' as const, block: 'used' as const };
+    const block = buffBlock(state, playerId, kind);
+    return block === null ? { kind, state: 'ready' as const, block: null } : { kind, state: 'blocked' as const, block };
+  });
+  const pending = own !== null && (own.retry === 'again' || own.retry === 'choice') && own.first !== null ? own.first : null;
+  return {
+    slots,
+    active:
+      own === null
+        ? null
+        : {
+            kind: own.kind,
+            removed: own.removed,
+            retry: own.retry,
+            first: pending === null ? null : { answer: pending.answer, points: pending.points },
+          },
   };
 }
 
 /**
  * Скільки відповіли. У фіналі сортування — скільки зробили хоч один хід: лічильник записів
- * видав би, скільки вже відсортували все (тобто відповіли правильно).
+ * видав би, скільки вже відсортували все (тобто відповіли правильно). Перша спроба під бафом
+ * «Ще спроба» теж рахується, інакше лічильник видав би, що вона неправильна.
  */
 function answeredCount(state: GameState): number {
-  const answered = Object.keys(currentAnswers(state));
+  const play = state.plays[state.questionIndex];
+  const held = state.players.filter((p) => (buffOf(play, p.id)?.first ?? null) !== null).map((p) => p.id);
+  const answered = [...new Set([...Object.keys(currentAnswers(state)), ...held])];
   const open = currentSort(state);
   if (open === null || !inFinalRound(state)) return answered.length;
   const moved = new Set([...Object.keys(open.play.sort ?? {}), ...answered]);
@@ -845,6 +910,8 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       sort: playerSort(state, playerId),
       debuff: playerDebuff(state, playerId),
       duel: playerDuel(state, playerId),
+      buffs: playerBuffs(state, playerId),
+      overtime: personalClock(state, playerId),
     },
     reveal: revealed ? currentQuestion(state) : null,
     standings,
@@ -877,6 +944,7 @@ export function hostView(state: GameState): HostView {
         streakBonus: record.streakBonus,
         points: record.points,
         overridden: record.overridden,
+        buff: record.buff ?? null,
       },
     ];
   });
@@ -899,6 +967,7 @@ export function hostView(state: GameState): HostView {
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),
+    allowed: { debuffs: allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
     standings: rankPlayers(state.players),
   };
 }

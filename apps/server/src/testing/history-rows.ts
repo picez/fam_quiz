@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { GameStatus } from '@quiz/shared';
+import type { BuffKind, GameStatus } from '@quiz/shared';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import type { Db } from '../db/client';
 import { answer, game, participant, scoreAdjustment } from '../db/schema';
@@ -10,7 +10,7 @@ export interface SeedPlayer {
   score: number;
   rank: number | null;
   /** wager — ставка фіналу; без неї рядок як у старих іграх (null). */
-  rows?: { questionIndex: number; roundIndex?: number; attempt?: number; accepted: boolean; points: number; wager?: number }[];
+  rows?: { questionIndex: number; roundIndex?: number; attempt?: number; accepted: boolean; points: number; wager?: number; buff?: BuffKind }[];
   /** Бали від ведучого; roundIndex і afterQuestion за замовчуванням 0. */
   adjustments?: { seq: number; roundIndex?: number; afterQuestion?: number; points: number; source?: 'host' | 'duel' }[];
 }
@@ -49,6 +49,7 @@ export async function seedGame(
           accepted: r.accepted,
           points: r.points,
           wager: r.wager ?? null,
+          buff: r.buff ?? null,
           overridden: false,
         })),
       );

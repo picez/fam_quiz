@@ -36,6 +36,8 @@ import {
   skipDuelQuestion,
   skipTurn,
   sortWord,
+  takeBuff,
+  chooseRetry,
   startDice,
   stageView,
   start,
@@ -45,7 +47,7 @@ import {
   type GameState,
   type Result,
 } from '@quiz/engine';
-import type { AckResult, Answer, DebuffKind, ErrorCode, GameView, Grade, Phase, Quiz, Role, SubmittedAnswer } from '@quiz/shared';
+import type { AckResult, Answer, BuffKind, DebuffKind, ErrorCode, GameView, Grade, Phase, Quiz, Role, SubmittedAnswer } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -253,6 +255,16 @@ export class RoomManager {
   sort(room: Room, playerId: string, wordId: string, categoryId: string): AckResult {
     if (!this.alive(room)) return GONE;
     return this.apply(room, sortWord(room.state, playerId, wordId, categoryId, this.now()));
+  }
+
+  buff(room: Room, playerId: string, kind: BuffKind): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, takeBuff(room.state, playerId, kind, this.now(), this.rng));
+  }
+
+  retry(room: Room, playerId: string, keep: boolean): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, chooseRetry(room.state, playerId, keep, this.now()));
   }
 
   declareDuel(room: Room, playerId: string, opponentId: string): AckResult {

@@ -32,6 +32,9 @@
   --duel-accent-soft: rgb(255 107 74 / 0.16);
   --duel-challenger: #5ec8ff;
   --duel-opponent: #ff7eb6;
+  --buff-accent: #7ee0ff;
+  --buff-used: rgb(245 241 230 / 0.28);
+  --buff-active: #b8ff5c;
   /* Нижні смуги (дебаф, дуель) складаються стосом від цієї лінії; room — висота смуги з проміжком. */
   --banner-base: max(1rem, env(safe-area-inset-bottom));
   --debuff-banner-room: 6.25rem;
@@ -637,6 +640,11 @@ button.choice {
   flex: 1;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+/* Ім'я в рядках пульта не рветься посеред слова (нікнейм ≤ 20 знаків): стискається відповідь поруч. */
+.rows .name {
+  overflow-wrap: break-word;
 }
 
 .standings .is-me {
@@ -2692,6 +2700,14 @@ button.match-item {
   overflow-wrap: anywhere;
 }
 
+/* Ім'я і значок бафу в одному рядку. */
+.responses-who {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  min-width: 0;
+}
+
 .responses-answer {
   overflow-wrap: anywhere;
 }
@@ -3503,32 +3519,50 @@ button.match-item {
   font-size: 1.5rem;
 }
 
-.stage .stage-debuffs {
+.stage .stage-tags {
   bottom: 0.75rem;
 }
 
-.stage-debuffs {
+/* Значки бафів (над) і дебафів (під) — один стовпчик у кутку сцени; position: fixed, тож нічого не зсувають. */
+.stage-tags {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
   right: 0.75rem;
   z-index: 50;
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 30vw;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.stage-tags:empty {
+  display: none;
+}
+
+.stage-debuffs,
+.stage-buffs {
+  display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  max-width: 30vw;
   gap: 0.4rem;
   margin: 0;
   padding: 0;
   list-style: none;
-  pointer-events: none;
 }
 
-.stage-debuffs li {
+.stage-debuffs li,
+.stage-buffs li {
   padding: 0.3rem 0.8rem;
   border-radius: 999px;
   background: var(--notice-bg);
   color: var(--paper);
   font-size: 1.4rem;
+}
+
+.stage-buffs li {
+  box-shadow: inset 0 0 0 2px var(--buff-accent);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -4572,4 +4606,245 @@ body:has(.duel-banner):has(.debuff-banner) .live-notice {
 .history-duel {
   margin: 0.25rem 0 0;
   overflow-wrap: anywhere;
+}
+
+/* Розділ «Бафи й дебафи» в редакторі. */
+.powers-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0.5rem 0 0;
+  border: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.powers-group legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.powers-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.powers-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.25rem;
+}
+
+@media (min-width: 480px) {
+  .powers-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+label.powers-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  min-width: 0;
+}
+
+.powers-item input:disabled ~ span {
+  opacity: 0.6;
+}
+
+.powers-soon {
+  margin-left: auto;
+  font-size: 0.8125rem;
+}
+
+/* Бафи на телефоні. Ряд і рядок пояснень однакові в усіх станах: кнопки не з'являються й не зникають,
+   рядок пояснень завжди займає місце, тож запитання й варіанти не стрибають. */
+.buff-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+
+.buff-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.buff-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--buff-accent);
+  border-radius: 0.75rem;
+  background: var(--panel);
+  color: var(--buff-accent);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.buff-btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.buff-btn.is-confirm {
+  background: var(--buff-accent);
+  color: var(--stage);
+}
+
+.buff-btn.is-active,
+.buff-btn.is-active[aria-disabled='true'] {
+  border-color: var(--buff-active);
+  background: var(--buff-active);
+  color: var(--stage);
+  opacity: 1;
+}
+
+.buff-btn.is-used {
+  border-color: var(--buff-used);
+  color: var(--buff-used);
+  text-decoration: line-through;
+}
+
+.buff-why {
+  min-height: 1.4em;
+  margin: 0;
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .buff-btn.is-active {
+    animation: buff-flash 0.6s ease-out 2;
+  }
+
+  @keyframes buff-flash {
+    50% {
+      box-shadow: 0 0 0 4px var(--buff-active);
+    }
+  }
+}
+
+/* 50/50: прибраний варіант на своєму місці, тієї самої висоти. */
+.choice.is-removed {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.choice.is-removed .choice-text,
+.choice.is-removed > span:not(.letter) {
+  text-decoration: line-through;
+}
+
+.buff-retry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.buff-wait {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  color: var(--buff-accent);
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: pre;
+}
+
+/* Вузький екран обрізає імена, а відлік лишається видно. */
+.buff-wait-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.buff-wait-time {
+  flex: none;
+}
+
+/* Підпис запитання й «Чекаємо …» в одній клітинці сітки: висота — підпису, рядок очікування його лише заступає. */
+.question-meta {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.question-meta > * {
+  grid-area: 1 / 1;
+  align-self: center;
+}
+
+.question-meta .meta.is-hidden {
+  visibility: hidden;
+}
+
+/* На телефоні підпис запитання займає два рядки, тож «Чекаємо …» теж може перенестися на другий, щоб ім'я не різалося. */
+.question-meta .buff-wait {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.question-meta .buff-wait-time {
+  white-space: pre;
+}
+
+/* Сповіщення про баф — у тому ж стовпчику, під сповіщенням балів від ведучого: те піднімається на рядок. */
+.live-notice.is-buff {
+  border-color: var(--buff-accent);
+}
+
+.live-notice:has(~ .live-notice.is-buff) {
+  translate: 0 -3.5rem;
+}
+
+/* «Чекаємо …» на сцені висить під табло поза потоком: поява на спільному кінці нічого не зсуває. */
+.stage-clock {
+  position: relative;
+  flex: none;
+}
+
+.stage-clock .buff-wait {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  max-width: 60vw;
+  font-size: clamp(1.1rem, 2vw, 1.75rem);
+}
+
+/* Пульт: «Чекаємо …» займає власний рядок у смузі часу, кнопки ±15 с лишаються поруч із табло. */
+.host-time .buff-wait {
+  flex-basis: 100%;
+  order: 1;
+}
+
+/* Значок бафу біля відповіді (пульт, історія): невелика пігулка. */
+.buff-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-width: 1.75rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--buff-accent);
+  border-radius: 999px;
+  color: var(--buff-accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
 }

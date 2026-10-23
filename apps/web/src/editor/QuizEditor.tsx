@@ -16,6 +16,7 @@ import {
 } from './draft';
 import { BoardEditor } from './BoardEditor';
 import { DuelsEditor } from './DuelsEditor';
+import { PowersEditor } from './PowersEditor';
 import { QuestionEditor } from './QuestionEditor';
 import { RoundSettings } from './RoundSettings';
 import { RoundStrip } from './RoundStrip';
@@ -215,6 +216,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               <option value="end">{t('leaderboardEnd')}</option>
             </select>
           </label>
+        </details>
+
+        <details className="rules powers">
+          <summary>{t('powersTitle')}</summary>
+          <PowersEditor settings={settings} onChange={(powers) => setSettings(powers)} />
         </details>
 
         <details className="rules duels" open={duelsOpen} onToggle={(event) => setDuelsOpen(event.currentTarget.open)}>

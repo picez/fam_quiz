@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BUFF_KINDS, DEBUFF_KINDS, READY_BUFFS, type BuffKind, type DebuffKind } from './game';
 import { UNSTORABLE, isStorable } from './text';
 
 export const LIMITS = {
@@ -408,6 +409,10 @@ export type Duels = z.infer<typeof duelsSchema>;
 
 export const quizSettingsSchema = z.object({
   leaderboard: z.enum(['each', 'end']),
+  /** Дозволені дебафи; немає поля — усі шість (старі вікторини). */
+  debuffs: z.array(z.enum(DEBUFF_KINDS)).max(DEBUFF_KINDS.length).optional(),
+  /** Дозволені бафи; немає поля — жодного. */
+  buffs: z.array(z.enum(BUFF_KINDS)).max(BUFF_KINDS.length).optional(),
 });
 
 export type QuizSettings = z.infer<typeof quizSettingsSchema>;
@@ -443,6 +448,11 @@ export const quizSchema = z
         if (sortCell) ctx.addIssue({ code: 'custom', message: 'sort_cell' });
       }
     }
+    const { debuffs, buffs } = quiz.settings;
+    if ((debuffs && hasDuplicates(debuffs)) || (buffs && hasDuplicates(buffs))) {
+      ctx.addIssue({ code: 'custom', message: 'duplicate_powers' });
+    }
+    if (buffs?.some((kind) => !READY_BUFFS.includes(kind))) ctx.addIssue({ code: 'custom', message: 'buff_unavailable' });
     if (quiz.duels) {
       const { categories, questionsPerDuel } = quiz.duels;
       if (categories.some((c) => c.questions.length < questionsPerDuel)) {
@@ -454,6 +464,18 @@ export const quizSchema = z
   });
 
 export type Quiz = z.infer<typeof quizSchema>;
+
+/** Дозволені дебафи в порядку DEBUFF_KINDS. */
+export function allowedDebuffs(quiz: Pick<Quiz, 'settings'>): DebuffKind[] {
+  const chosen = quiz.settings.debuffs;
+  return chosen ? DEBUFF_KINDS.filter((kind) => chosen.includes(kind)) : [...DEBUFF_KINDS];
+}
+
+/** Дозволені готові бафи в порядку BUFF_KINDS. */
+export function allowedBuffs(quiz: Pick<Quiz, 'settings'>): BuffKind[] {
+  const chosen = quiz.settings.buffs;
+  return chosen ? BUFF_KINDS.filter((kind) => chosen.includes(kind) && READY_BUFFS.includes(kind)) : [];
+}
 
 /** Усі запитання вікторини в порядку раундів. */
 export function questionsOf(quiz: Quiz): Question[] {

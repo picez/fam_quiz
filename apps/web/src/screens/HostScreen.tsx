@@ -16,9 +16,11 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
-import { Timer, timerStatus } from '../live/Timer';
+import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
 import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
+import { BuffBadge, SharedOvertime } from './Buffs';
+import { BuffToast } from '../live/LiveNotices';
 import { HostDuelPanel } from './DuelView';
 
 interface Props {
@@ -119,6 +121,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const answering = blitz !== null ? (instant ? null : (blitz.queue[0] ?? null)) : (board?.turn ?? null);
   const secondsNow = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
   const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
+  // Спільний час сплив, а розкриття чекає на гравця з додатковим часом: головна кнопка — «Не чекати» (та сама host:lock).
+  const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
+  const noWait = phase === 'question' && view.overtime.length > 0 && sharedOver;
+  const debuffKinds = view.allowed.debuffs;
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
   const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz' && !isFinal;
 
@@ -229,6 +235,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
   return (
     <main className="app host">
+      <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
       <header className="bar">
         <span>{t('hostTitle')}</span>
         <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
@@ -369,6 +376,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       {timeShown && (
         <div className="panel-actions host-time">
           <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />
+          {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
           <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
             {t('timeMinus')}
           </button>
@@ -586,6 +594,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                       </span>
                       {response !== undefined && (
                         <>
+                          {response.buff !== null && <BuffBadge kind={response.buff} />}
                           <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                             {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
                           </span>
@@ -651,6 +660,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               {view.responses.map((response) => (
                 <li key={response.playerId}>
                   <span className="name">{response.nickname}</span>
+                  {response.buff !== null && <BuffBadge kind={response.buff} />}
                   <span className="given">{answerText(response.answer, correct, view.question?.choices)}</span>
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
                   {!isFinal && (
@@ -715,7 +725,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 {player.streak >= 2 && <span className="streak">{t('streakMark', { count: player.streak })}</span>}
                 <span className="score">{num(player.score)}</span>
                 {live &&
-                  (['points', 'debuff'] as const).map((kind) => (
+                  (debuffKinds.length > 0 ? (['points', 'debuff'] as const) : (['points'] as const)).map((kind) => (
                     <button
                       key={kind}
                       type="button"
@@ -729,7 +739,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                 <button type="button" className="btn btn-small" onClick={() => kick(player.id, player.nickname)}>
                   {t('kick')}
                 </button>
-                {live && tools?.playerId === player.id && (tools.kind === 'points' ? <PointsPanel player={player} send={send} onError={setError} /> : <DebuffPanel player={player} send={send} onError={setError} />)}
+                {live && tools?.playerId === player.id && (tools.kind === 'points' ? <PointsPanel player={player} send={send} onError={setError} /> : <DebuffPanel player={player} kinds={debuffKinds} send={send} onError={setError} />)}
               </li>
             ))}
           </ul>
@@ -780,7 +790,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
             disabled={stepping || (phase === 'lobby' && view.players.length === 0) || diceRolling}
             onClick={() => step(main.event)}
           >
-            {t(main.label === 'lock' && blitz !== null && board !== null ? 'closeCell' : main.label)}
+            {t(main.label === 'lock' && blitz !== null && board !== null ? 'closeCell' : main.label === 'lock' && noWait ? 'noWait' : main.label)}
           </button>
         )}
       </footer>

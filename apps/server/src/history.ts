@@ -7,6 +7,7 @@ import {
   roundSchema,
   upgradeQuiz,
   type AdjustmentSource,
+  type BuffKind,
   type GameDetail,
   type Answer,
   type GameQuestionResult,
@@ -112,7 +113,7 @@ function cellResult(
 
 /** Відповіді на запитання: учасники за турнірною таблицею, потім за номером спроби. */
 function responsesOf(
-  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean }[],
+  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; buff: BuffKind | null }[],
   standings: { participantId: string; nickname: string }[],
 ): GameResponse[] {
   return standings.flatMap(({ participantId, nickname }) =>
@@ -120,7 +121,7 @@ function responsesOf(
       // Штрафний рядок бліц-клітинки не є відповіддю.
       .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
       .sort((a, b) => a.attempt - b.attempt)
-      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted })),
+      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null })),
   );
 }
 
@@ -197,6 +198,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
             accepted: answer.accepted,
             points: answer.points,
             wager: answer.wager,
+            buff: answer.buff,
           })
           .from(answer)
           .where(

@@ -29,6 +29,12 @@ export const single = {
   correctId: 'b',
 } satisfies Question;
 
+/** single на 4 варіанти: a Львів, b Київ (правильний), c Одеса, d Харків. */
+export const single4 = {
+  ...single,
+  options: [...single.options, { id: 'd', text: 'Харків' }],
+} satisfies Question;
+
 export const multi = {
   ...base,
   id: 'q2',
@@ -211,9 +217,14 @@ export function boardRound(
 /** Вікторина з одним класичним раундом; налаштування раунду й вікторини в одному об'єкті. */
 export function makeQuiz(
   questions: Question[] = [single, multi, bool, text, numeric, order],
-  { leaderboard, ...round }: Partial<QuizSettings> & RoundOptions = {},
+  { leaderboard, debuffs, buffs, ...round }: Partial<QuizSettings> & RoundOptions = {},
 ): Quiz {
-  return makeRoundsQuiz([classicRound('r1', questions, round)], leaderboard ? { leaderboard } : {});
+  const settings: Partial<QuizSettings> = {
+    ...(leaderboard ? { leaderboard } : {}),
+    ...(debuffs ? { debuffs } : {}),
+    ...(buffs ? { buffs } : {}),
+  };
+  return makeRoundsQuiz([classicRound('r1', questions, round)], settings);
 }
 
 export function makeRoundsQuiz(rounds: Round[], settings: Partial<QuizSettings> = {}): Quiz {

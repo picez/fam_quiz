@@ -344,6 +344,21 @@ describe('draft storage', () => {
     expect(loadDraft('nomode')?.rounds[0]).toMatchObject({ type: 'final', wagerMode: 'classic' });
   });
 
+  it('a draft keeps power settings and drops unknown kinds', () => {
+    const round = { id: 'r1', type: 'classic', title: '', rules: DEFAULT_RULES, questions: [{ ...filled(newQuestion('boolean')), id: 'q1' }] };
+    const load = (id: string, settings: unknown) => {
+      sessionStorage.setItem(`quiz:draft:${id}`, JSON.stringify({ title: 'Т', description: '', settings, rounds: [round] }));
+      return loadDraft(id)!.settings;
+    };
+    expect(load('p1', { leaderboard: 'end', debuffs: ['fog', 'rain'], buffs: ['double', 'magic'] })).toEqual({
+      leaderboard: 'end',
+      debuffs: ['fog'],
+      buffs: ['double'],
+    });
+    expect(load('p2', { leaderboard: 'end' })).toEqual({ leaderboard: 'end' });
+    expect(load('p3', { leaderboard: 'end', debuffs: 'fog', buffs: 5 })).toEqual({ leaderboard: 'end' });
+  });
+
   it('opens a draft of the old format as a quiz with one round', () => {
     sessionStorage.setItem(
       'quiz:draft:old',

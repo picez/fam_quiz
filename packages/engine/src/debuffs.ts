@@ -1,14 +1,15 @@
-import type { DebuffKind } from '@quiz/shared';
+import { allowedDebuffs, type DebuffKind } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
 
 /**
  * Наслати дебаф. Етапи lobby/finished → wrong_phase; невідомий гравець → not_found;
- * дебаф чекає або діє → debuff_busy; застарілий спрацьований перезаписується.
+ * вікторина не дозволяє цей дебаф → not_allowed; дебаф чекає або діє → debuff_busy; застарілий спрацьований перезаписується.
  */
 export function setDebuff(state: GameState, playerId: string, kind: DebuffKind): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
+  if (!allowedDebuffs(state.quiz).includes(kind)) return fail('not_allowed');
   if (shownDebuff(state, playerId) !== null) return fail('debuff_busy');
   return ok({ ...state, debuffs: { ...state.debuffs, [playerId]: { kind, firedAt: null, since: null } } });
 }

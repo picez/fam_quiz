@@ -139,6 +139,25 @@ describe('quizzes', () => {
     expect((await call('PUT', `/api/quizzes/${id}`, cookie, short)).statusCode).toBe(400);
   });
 
+  it('power settings survive save and load; an old quiz loads with defaults', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const quiz = makeQuiz([single, text], { leaderboard: 'each', debuffs: ['fog'], buffs: ['fifty', 'shield'] });
+    const created = await call('POST', '/api/quizzes', cookie, quiz);
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json() as { id: string };
+    const loaded = (await call('GET', `/api/quizzes/${id}`, cookie)).json() as { settings: { debuffs?: string[]; buffs?: string[] } };
+    expect(loaded.settings.debuffs).toEqual(['fog']);
+    expect(loaded.settings.buffs).toEqual(['fifty', 'shield']);
+
+    const plain = (await call('POST', '/api/quizzes', cookie, makeQuiz([single, text]))).json() as { id: string };
+    const old = (await call('GET', `/api/quizzes/${plain.id}`, cookie)).json() as { settings: { debuffs?: string[]; buffs?: string[] } };
+    expect(old.settings.debuffs).toBeUndefined();
+    expect(old.settings.buffs).toBeUndefined();
+
+    const soon = makeQuiz([single, text], { buffs: ['swap'] });
+    expect((await call('POST', '/api/quizzes', cookie, soon)).statusCode).toBe(400);
+  });
+
   it('accepts a quiz in the old format from a page opened before the update', async () => {
     const { cookie } = await signUp(ctx.app, 'Олена');
     const old = {

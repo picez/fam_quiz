@@ -202,8 +202,8 @@ describe('GameHistory: answers', () => {
         cell: null,
         question: matchQ,
         responses: [
-          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true },
-          { nickname: 'Тарас', answer: null, accepted: false },
+          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true, buff: null },
+          { nickname: 'Тарас', answer: null, accepted: false, buff: null },
         ],
         final: null,
       },
@@ -216,7 +216,7 @@ describe('GameHistory: answers', () => {
         accepted: 0,
         cell: null,
         question: singleQ,
-        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false }],
+        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null }],
         final: null,
       },
     ],
@@ -238,6 +238,35 @@ describe('GameHistory: answers', () => {
     expect(rows[1].className).toContain('is-wrong');
     expect(details[1].textContent).toContain('Віра');
     expect(details[1].textContent).toContain('Львів');
+  });
+
+  it('history answers show the buff they were given with', async () => {
+    const buffed: GameDetail = {
+      ...answered,
+      questions: [
+        {
+          ...answered.questions[1],
+          answered: 2,
+          responses: [
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: 'double' },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null },
+          ],
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: buffed });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (2)'));
+    const rows = [...container.querySelectorAll('details.responses li')];
+    const tag = rows[0].querySelector('.buff-tag');
+    expect(tag?.textContent).toBe('×2');
+    expect(tag?.getAttribute('aria-label')).toBe('Баф: Подвійні бали');
+    expect(tag?.getAttribute('title')).toBe('Подвійні бали');
+    // Значок стоїть поруч з ім'ям в одному рядку, а відповідь — під ними.
+    expect(tag?.parentElement?.className).toBe('responses-who');
+    expect(tag?.previousElementSibling?.className).toBe('responses-name');
+    expect(tag?.parentElement?.nextElementSibling?.className).toBe('responses-answer');
+    expect(rows[1].querySelector('.buff-tag')).toBeNull();
   });
 
   it('shows no answers block for a question nobody answered', async () => {
@@ -461,6 +490,7 @@ describe('GameHistory sort', () => {
     const sorted = (nickname: string, n: number, timeMs: number | null, misses: number) => ({
       nickname,
       answer: { type: 'sort' as const, sorted: n, total: 4, misses, timeMs },
+      buff: null,
       accepted: n === 4,
     });
     vi.mocked(getGame).mockResolvedValue({

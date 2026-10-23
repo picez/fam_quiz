@@ -100,6 +100,7 @@ describe('while a question is open', () => {
         streakBonus: 0,
         points: 750,
         overridden: false,
+        buff: null,
       },
     ]);
   });

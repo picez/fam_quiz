@@ -1,5 +1,5 @@
 import type { Answer } from './answer';
-import type { DebuffKind, DuelStage, Grade, Phase } from './game';
+import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage } from './game';
 import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video, WagerMode } from './quiz';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
@@ -393,6 +393,51 @@ export interface PlayerDuel {
   canPick: boolean;
 }
 
+/** Хто який баф узяв на поточне запитання — значок біля імені. */
+export interface BuffTag extends BlitzPlayer {
+  kind: BuffKind;
+}
+
+/** Останній узятий баф у грі, для сповіщення «Оля: 50/50». seq — номер використання в грі. */
+export interface BuffNotice {
+  seq: number;
+  /** Час сервера в мить, коли баф узято. */
+  at: number;
+  nickname: string;
+  kind: BuffKind;
+}
+
+/** Гравець із додатковим часом без відповіді: особистий кінець пізніший за спільний, тож розкриття на нього чекатиме. */
+export interface OvertimeRow extends BlitzPlayer {
+  /** Особистий кінець (час сервера); null на паузі. */
+  deadline: number | null;
+  /** На паузі: залишок до особистого кінця; інакше null. */
+  remainingMs: number | null;
+}
+
+export interface BuffSlot {
+  kind: BuffKind;
+  /** ready — можна взяти; active — узято на це запитання; used — використано раніше; blocked — не зараз. */
+  state: 'ready' | 'active' | 'used' | 'blocked';
+  /** Причина для blocked (і 'used' для used); null для ready й active. */
+  block: BuffBlock | null;
+}
+
+export interface PlayerActiveBuff {
+  kind: BuffKind;
+  /** 50/50: прибрані варіанти (лише неправильні); інакше []. */
+  removed: string[];
+  retry: RetryStage | null;
+  /** retry на again/choice: перша відповідь і її бали (choice — часткові); інакше null. */
+  first: { answer: Answer | null; points: number } | null;
+}
+
+export interface PlayerBuffs {
+  /** Усі дозволені бафи вікторини в порядку BUFF_KINDS — ряд однакового розміру в усіх станах. */
+  slots: BuffSlot[];
+  active: PlayerActiveBuff | null;
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -427,6 +472,12 @@ interface BaseView {
   notice: AdjustmentNotice | null;
   /** Оголошена або поточна дуель; null — немає. */
   duel: DuelInfo | null;
+  /** Бафи поточного запитання (question, locked, reveal); інакше []. */
+  buffs: BuffTag[];
+  /** Останній узятий баф у грі; null — не було. */
+  buffNotice: BuffNotice | null;
+  /** Гравці з додатковим часом без відповіді (етап question) — від миті, коли баф узято, а не лише після спільного кінця; інакше []. */
+  overtime: OvertimeRow[];
 }
 
 export interface StageView extends BaseView {
@@ -468,6 +519,10 @@ export interface PlayerView extends BaseView {
     debuff: { kind: DebuffKind; since: number } | null;
     /** null — у вікторині немає дуелей. */
     duel: PlayerDuel | null;
+    /** Ряд бафів; null — у вікторині немає бафів, етап не question або гравець тут не відповідає з телефона. */
+    buffs: PlayerBuffs | null;
+    /** Власний особистий кінець, якщо він пізніший за спільний (етап question); інакше null. */
+    overtime: { deadline: number | null; remainingMs: number | null } | null;
   };
   reveal: Question | null;
   standings: Standing[] | null;
@@ -484,6 +539,7 @@ export interface HostResponse {
   streakBonus: number;
   points: number;
   overridden: boolean;
+  buff: BuffKind | null;
 }
 
 export interface HostPlayer extends LobbyPlayer {
@@ -507,6 +563,8 @@ export interface HostView extends BaseView {
   sort: SortInfo | null;
   /** Як у BaseView, але з прийнятними відповідями й текстами спроб. */
   duel: HostDuel | null;
+  /** Що дозволено у вікторині: пульт показує лише ці дебафи. */
+  allowed: { debuffs: DebuffKind[]; buffs: BuffKind[] };
   standings: Standing[];
 }
 

@@ -17,6 +17,8 @@ import {
   wagerSchema,
   socketAuthSchema,
   sortSchema,
+  buffSchema,
+  retrySchema,
   timeSchema,
   undebuffSchema,
   type AckResult,
@@ -117,6 +119,18 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = sortSchema.safeParse(payloadOf(args));
       return payload.success ? manager.sort(room, identity.playerId, payload.data.wordId, payload.data.categoryId) : INVALID;
+    });
+
+    on('player:buff', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = buffSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.buff(room, identity.playerId, payload.data.kind) : INVALID;
+    });
+
+    on('player:retry', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = retrySchema.safeParse(payloadOf(args));
+      return payload.success ? manager.retry(room, identity.playerId, payload.data.keep) : INVALID;
     });
 
     on('player:duel', (args) => {
