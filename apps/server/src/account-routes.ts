@@ -7,11 +7,17 @@ import type { Auth } from './auth';
 import type { Db } from './db/client';
 import { hostGame, hostGames, playerHistory } from './history';
 import type { RoomManager } from './rooms/manager';
+import type { Located } from './rooms/store';
+
+/** Обмеження для маршрутів, якими можна перебирати коди ігор. */
+export const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
 
 export interface AccountDeps {
   db: Db;
   auth: Auth;
   manager: RoomManager;
+  /** Де кімната: тут, за живим іншим процесом (restarting) чи ніде. */
+  locate: (code: string) => Promise<Located>;
   maxRooms: number;
   /** Адреса застосунку; від неї будуються адреси запитів до Better Auth. */
   baseURL: string;
@@ -130,7 +136,8 @@ export async function registerAccountRoutes(
     return deleted ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
   });
 
-  const { manager, maxRooms } = deps;
+  const { manager, locate, maxRooms } = deps;
+  const RESTARTING = { error: 'restarting' };
   const CREATE_LIMIT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
   const fromSaved = z.object({ quizId: z.string().min(1).max(64) }).strict();
 
@@ -144,6 +151,8 @@ export async function registerAccountRoutes(
     if (quiz === null) return reply.code(404).send(NOT_FOUND);
 
     if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
+    // На зупинці нова кімната вже не записалася б у базу.
+    if (manager.frozen) return reply.code(503).send(RESTARTING);
     const room = manager.create(quiz, user.id, saved.data.quizId);
     return reply.code(201).send({
       gameId: room.id,
@@ -153,7 +162,9 @@ export async function registerAccountRoutes(
     });
   });
 
-  app.get<{ Params: { code: string } }>('/api/games/by-code/:code/host-access', async (request, reply) => {
+  app.get<{ Params: { code: string } }>('/api/games/by-code/:code/host-access', CODE_LIMIT, async (request, reply) => {
+    // До перевірки користувача: відповідь однакова для всіх і не розкриває, чия гра.
+    if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     const user = await currentUser(request);
     const room = manager.get(request.params.code);
     // Однакова відповідь для «немає гри» і «не ваша гра», щоб не підтверджувати існування коду.

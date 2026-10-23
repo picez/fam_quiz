@@ -212,3 +212,14 @@ export const follow = pgTable(
   },
   (table) => [primaryKey({ columns: [table.followerId, table.followeeId] }), index('follow_followee_idx').on(table.followeeId)],
 );
+
+/** Жива кімната (9b): серіалізований SavedRoom, щоб гра пережила перезапуск. Рядок видаляється, коли кімната закривається. */
+export const liveRoom = pgTable('live_room', {
+  code: text('code').primaryKey(),
+  roomId: uuid('room_id').notNull().unique(),
+  data: jsonb('data').$type<unknown>().notNull(),
+  /** Процес, що веде кімнату; null — віддано на зупинці, будь-хто може підхопити. */
+  owner: text('owner'),
+  heartbeatAt: at('heartbeat_at'),
+  updatedAt: at('updated_at').notNull(),
+});

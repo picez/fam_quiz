@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { SocketAuth } from '@quiz/shared';
 import { joinGame } from '../api';
 import { errorText, t } from '../i18n';
-import { useGame } from '../live/useGame';
+import { statusTextKey, useGame } from '../live/useGame';
 import { PlayerScreen } from '../screens/PlayerScreen';
 import { clearPlayer, loadPlayer, savePlayer } from '../storage';
 import { useAccount } from '../useAccount';
@@ -98,16 +98,16 @@ export function Play() {
   if (game.view === null || game.view.role !== 'player') {
     return (
       <main className="app narrow">
-        <p className="lead">{t(game.status === 'offline' ? 'offline' : 'connecting')}</p>
+        <p className="lead">{t(statusTextKey(game.status))}</p>
       </main>
     );
   }
 
   return (
     <>
-      {game.status === 'offline' && (
+      {(game.status === 'offline' || game.status === 'restarting') && (
         <p className="banner is-offline" role="status">
-          {t('offline')}
+          {t(statusTextKey(game.status))}
         </p>
       )}
       <PlayerScreen view={game.view} hostOnline={game.hostOnline} offsetMs={game.offsetMs} send={game.send} />

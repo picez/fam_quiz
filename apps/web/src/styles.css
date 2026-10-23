@@ -302,10 +302,14 @@ a {
   text-align: center;
 }
 
+/* «Немає зв'язку» / «Сервер перезапускається…»: смуга поверх екрана (position: fixed), нічого не зсуває.
+   Над заставкою (65), сповіщеннями (66), аркушами (70–75) і вікном дуелі (80). */
 .banner.is-offline {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 90;
+  margin: 0;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
   border-radius: 0;
   background: var(--signal);
   color: var(--paper);
@@ -3542,6 +3546,11 @@ button.match-item {
 .host .live-notice {
   top: max(0.75rem, env(safe-area-inset-top));
   bottom: auto;
+}
+
+/* Поки вгорі смуга «Немає зв'язку», сповіщення пульта стоїть під нею, а не під смугою. */
+body:has(.banner.is-offline) .host .live-notice {
+  top: calc(max(0.75rem, env(safe-area-inset-top)) + 3rem);
 }
 
 .stage .live-notice {

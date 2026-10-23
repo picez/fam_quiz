@@ -4,7 +4,14 @@ import type { ClientToServerEvents, CloseReason, GameView, ServerToClientEvents,
 import { freshSplash } from '../clock';
 import type { Send, SendResult } from './types';
 
-export type Status = 'connecting' | 'live' | 'offline' | 'unauthorized';
+export type Status = 'connecting' | 'live' | 'offline' | 'restarting' | 'unauthorized';
+
+/** Пауза перед ручним перепідключенням, коли socket.io не робить цього сам. */
+export const RETRY_MS = 1500;
+
+/** Ключ тексту для екрана без гри чи смуги над грою. */
+export const statusTextKey = (status: Status): 'offline' | 'restarting' | 'connecting' =>
+  status === 'offline' ? 'offline' : status === 'restarting' ? 'restarting' : 'connecting';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -30,26 +37,59 @@ export function useGame(auth: SocketAuth | null) {
     if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
+    // Сервер перезапускається: socket.io сам не повторює після розриву сервером чи відмови
+    // проміжної функції, тож перепідключаємо вручну. Вилученого гравця й закриту гру — ні.
+    let gone = false;
+    let restarting = false;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const again = () => {
+      if (retry === null)
+        retry = setTimeout(() => {
+          retry = null;
+          socket.connect();
+        }, RETRY_MS);
+    };
 
     socket.on('state', (next, meta) => {
       // Заставка, що скінчилася до відправлення, відкидається за часом сервера, а не за годинником пристрою.
+      restarting = false;
       setView(freshSplash(next, meta.serverNow));
       setHostOnline(meta.hostOnline);
       setOffsetMs(meta.serverNow - Date.now());
       setStatus('live');
     });
-    socket.on('closed', (reason) => setClosed(reason));
-    socket.on('disconnect', () => setStatus('offline'));
+    socket.on('closed', (reason) => {
+      gone = true;
+      setClosed(reason);
+    });
+    socket.on('restarting', () => {
+      restarting = true;
+      setStatus('restarting');
+    });
+    socket.on('disconnect', (reason) => {
+      if (gone) return;
+      if (reason === 'io server disconnect') {
+        restarting = true;
+        again();
+      }
+      setStatus(restarting ? 'restarting' : 'offline');
+    });
     socket.on('connect_error', (error) => {
       if (error.message === 'unauthorized') {
         setStatus('unauthorized');
         socket.close();
+      } else if (error.message === 'restarting') {
+        restarting = true;
+        setStatus('restarting');
+        again();
       } else {
-        setStatus('offline');
+        setStatus(restarting ? 'restarting' : 'offline');
+        if (!socket.active) again();
       }
     });
 
     return () => {
+      if (retry !== null) clearTimeout(retry);
       socket.close();
       socketRef.current = null;
     };

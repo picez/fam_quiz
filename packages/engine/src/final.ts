@@ -1,3 +1,4 @@
+import { presentPlayers } from './present';
 import { fail, ok, openFinalQuestion, type GameState, type Result, type Rng } from './game';
 
 /**
@@ -19,7 +20,7 @@ export function placeWager(state: GameState, playerId: string, amount: number, n
     allIn: allIn && limit > 0 ? [...others, playerId] : others,
   };
   const placed = { ...state, final };
-  const connected = placed.players.filter((p) => p.connected);
+  const connected = presentPlayers(placed);
   const everyone = connected.length > 0 && connected.every((p) => Object.hasOwn(final.wagers, p.id));
   return ok(everyone ? openFinalQuestion(placed, now, rng) : placed);
 }

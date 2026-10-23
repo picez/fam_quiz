@@ -1,6 +1,6 @@
 import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
 import type { Answer, BuffKind } from '@quiz/shared';
-import { and, eq, max, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
@@ -126,7 +126,11 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         startedAt: snapshot.startedAt,
         ...progress,
       })
-      .onConflictDoUpdate({ target: game.id, set: progress });
+      // Кімната, піднята після перезапуску вже завершеною, пише гру ще раз: мить фінішу лишається першою.
+      .onConflictDoUpdate({
+        target: game.id,
+        set: { ...progress, finishedAt: finished ? sql`coalesce(${game.finishedAt}, excluded.finished_at)` : null },
+      });
 
     // Вилучених гравців прибираємо разом з їхніми відповідями й коригуваннями (каскадом).
     const ids = state.players.map((player) => player.id);
@@ -258,10 +262,13 @@ export function attachRecorder(
 
   manager.onEvent((room, event) => {
     if (event.type === 'changed') {
+      // Перехоплена кімната могла повернутися в цей процес: вона знову жива.
+      closedRooms.delete(room.id);
       record(room);
       return;
     }
-    if (event.type === 'closed') {
+    // Кімнату перехопив інший процес — як закриту: дописати почате й забути (повернеться — пишеться з початку).
+    if (event.type === 'closed' || event.type === 'moved') {
       closedRooms.add(room.id);
       // Якщо останній запис не вдався, його повтор ще попереду; пам'ять звільнить він.
       if (failures.has(room.id)) return;
@@ -280,7 +287,20 @@ export function attachRecorder(
   };
 }
 
-/** Ігри, що лишилися «в процесі» після попереднього запуску сервера, уже ніхто не дограє. */
-export async function markInterrupted(db: Db): Promise<void> {
-  await db.update(game).set({ status: 'aborted', finishedAt: new Date() }).where(eq(game.status, 'running'));
+/** Ігри «в процесі» з минулого запуску, крім ігор кімнат, що відновлюються (except — їхні id). */
+export async function markInterrupted(db: Db, except: string[] = []): Promise<void> {
+  const running = eq(game.status, 'running');
+  await db
+    .update(game)
+    .set({ status: 'aborted', finishedAt: new Date() })
+    .where(except.length === 0 ? running : and(running, notInArray(game.id, except)));
+}
+
+/** Перервати конкретні ігри, якщо вони ще «в процесі» (кімнати, що не відновлюються). */
+export async function markAborted(db: Db, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await db
+    .update(game)
+    .set({ status: 'aborted', finishedAt: new Date() })
+    .where(and(eq(game.status, 'running'), inArray(game.id, ids)));
 }

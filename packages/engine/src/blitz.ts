@@ -4,6 +4,7 @@ import { BOARD_AWAY_MS } from './board-turns';
 import { chainDeadline } from './chain';
 // З game.ts лише типи, але chain.ts (вище) під час виконання імпортує game.ts, тож цикл є:
 // game.ts → blitz.ts → chain.ts → game.ts. Він безпечний, бо всі звертання відбуваються лише під час виклику функцій.
+import { presentPlayers } from './present';
 import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
 import { clockOf, holdAt, thaw } from './hold';
 import { answerPoints } from './score';
@@ -225,6 +226,6 @@ export function blitzDone(state: GameState, now: number | null): boolean {
   if (blitz.attempts.some((attempt) => attempt.grade === 'correct')) return true;
   if (blitz.queue.length > 0) return false;
   if (now !== null && state.endsAt !== null && now >= state.endsAt) return true;
-  const connected = state.players.filter((p) => p.connected);
+  const connected = presentPlayers(state);
   return connected.length > 0 && connected.every((p) => !hasAttemptsLeft(rules, play, p.id));
 }

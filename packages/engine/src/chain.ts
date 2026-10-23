@@ -1,6 +1,7 @@
 import { rulesOf, type ChainMask, type Question } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
+import { presentPlayers } from './present';
 import { autoLock, fail, ok, recordOf, withFinalPoints, type AnswerRecord, type ChainProgress, type GameState, type Play, type Result } from './game';
 import { normalizeText } from './normalize';
 import { chainFactor, finalPoints } from './score';
@@ -126,7 +127,7 @@ export function takeHint(state: GameState, playerId: string, now: number): Resul
 /** Кожен підключений (і хоч один) пройшов або, якщо now не null, вичерпав свій час. */
 export function chainDone(state: GameState, now: number | null): boolean {
   if (state.phase !== 'question' || chainPlay(state) === null) return false;
-  const connected = state.players.filter((p) => p.connected);
+  const connected = presentPlayers(state);
   return (
     connected.length > 0 &&
     connected.every((p) => {

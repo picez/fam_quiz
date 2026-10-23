@@ -4,7 +4,7 @@ import { blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, m
 import { DEFAULT_RULES } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user } from './db/schema';
-import { attachRecorder, markInterrupted } from './recorder';
+import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { playToEnd } from './testing/final-game';
@@ -262,6 +262,49 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('forgets a room taken over by another process: back here, it is written again from the first question', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    ctx.host('next');
+    ctx.host('next');
+    ctx.host('next');
+    ctx.manager.answer(ctx.room, ctx.olena, { type: 'text', value: 'одеса' });
+    ctx.manager.answer(ctx.room, ctx.taras, { type: 'text', value: 'Львів' });
+    ctx.host('next');
+    expect(ctx.room.state.phase).toBe('reveal');
+    expect((await ctx.saved()).answers.map((a) => a.questionIndex)).toEqual([0, 0, 1, 1]);
+
+    const saved = ctx.manager.snapshot(ctx.room);
+    ctx.manager.evict(ctx.room);
+    await ctx.db.delete(answer);
+    expect(ctx.manager.restore(saved)).not.toBeNull();
+    expect((await ctx.saved()).answers.map((a) => a.questionIndex)).toEqual([0, 0, 1, 1]);
+  });
+
+  it('a finished room restored after a restart keeps the moment the game finished', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    ctx.host('end');
+    expect(ctx.room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+    const earlier = new Date('2026-01-01T10:00:00Z');
+    await ctx.db.update(game).set({ finishedAt: earlier });
+
+    // Новий процес: свіжий менеджер і записувач над тією самою базою.
+    const saved = JSON.parse(JSON.stringify(ctx.manager.snapshot(ctx.room)));
+    ctx.manager.freeze();
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, ctx.db, (error) => errors.push(error));
+    expect(manager.restore(saved)).not.toBeNull();
+    await recorder.idle();
+    const games = await ctx.db.select().from(game);
+    expect(games[0]).toMatchObject({ status: 'finished', finishedAt: earlier });
+    expect(errors).toEqual([]);
+  });
+
   it('does not record a game that has no host account', async () => {
     const ctx = await setup();
     const anonymous = ctx.manager.create(makeQuiz([single]));
@@ -308,6 +351,49 @@ describe('markInterrupted', () => {
     expect(running.status).toBe('aborted');
     expect(running.finishedAt).toBeInstanceOf(Date);
     expect(done.status).toBe('finished');
+  });
+
+  it('marks running games interrupted, except the rooms being restored', async () => {
+    const g1 = await setup();
+    g1.host('start');
+    await g1.recorder.idle();
+    const g2 = await setup(g1.db);
+    g2.host('start');
+    await g2.recorder.idle();
+    const g3 = await setup(g1.db);
+    g3.host('start');
+    await g3.recorder.idle();
+    const done = await setup(g1.db);
+    done.host('start');
+    done.host('end');
+    await done.recorder.idle();
+
+    await markInterrupted(g1.db, [g2.room.id]);
+    const status = async (id: string) => (await g1.db.select().from(game).where(eq(game.id, id)))[0];
+    expect((await status(g1.room.id)).status).toBe('aborted');
+    expect((await status(g1.room.id)).finishedAt).toBeInstanceOf(Date);
+    expect((await status(g3.room.id)).status).toBe('aborted');
+    expect((await status(g2.room.id)).status).toBe('running');
+    expect((await status(done.room.id)).status).toBe('finished');
+  });
+});
+
+describe('markAborted', () => {
+  it('aborts only the given running games', async () => {
+    const g1 = await setup();
+    g1.host('start');
+    await g1.recorder.idle();
+    const g2 = await setup(g1.db);
+    g2.host('start');
+    await g2.recorder.idle();
+
+    await markAborted(g1.db, []);
+    expect((await g1.db.select().from(game).where(eq(game.id, g1.room.id)))[0].status).toBe('running');
+    await markAborted(g1.db, [g1.room.id]);
+    const [a] = await g1.db.select().from(game).where(eq(game.id, g1.room.id));
+    expect(a.status).toBe('aborted');
+    expect(a.finishedAt).toBeInstanceOf(Date);
+    expect((await g1.db.select().from(game).where(eq(game.id, g2.room.id)))[0].status).toBe('running');
   });
 });
 

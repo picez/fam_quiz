@@ -30,7 +30,7 @@ export class Invites {
   constructor(manager: RoomManager) {
     this.manager = manager;
     manager.onEvent((room, event) => {
-      if (event.type === 'closed' || room.state.phase !== 'lobby') this.rooms.delete(room.id);
+      if (event.type === 'closed' || event.type === 'moved' || room.state.phase !== 'lobby') this.rooms.delete(room.id);
       else this.consumeJoined(room);
     });
   }

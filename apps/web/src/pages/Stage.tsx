@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import type { SocketAuth } from '@quiz/shared';
 import { t } from '../i18n';
-import { useGame } from '../live/useGame';
+import { statusTextKey, useGame } from '../live/useGame';
 import { StageScreen } from '../screens/StageScreen';
 
 export function Stage() {
@@ -22,18 +22,25 @@ export function Stage() {
   if (game.view === null || game.view.role !== 'stage') {
     return (
       <main className="app stage">
-        <p className="lead">{t(game.status === 'offline' ? 'offline' : 'connecting')}</p>
+        <p className="lead">{t(statusTextKey(game.status))}</p>
       </main>
     );
   }
 
   return (
-    <StageScreen
-      view={game.view}
-      code={code}
-      joinUrl={`${window.location.origin}/play/${code}`}
-      offsetMs={game.offsetMs}
-      hostOnline={game.hostOnline}
-    />
+    <>
+      {(game.status === 'offline' || game.status === 'restarting') && (
+        <p className="banner is-offline" role="status">
+          {t(statusTextKey(game.status))}
+        </p>
+      )}
+      <StageScreen
+        view={game.view}
+        code={code}
+        joinUrl={`${window.location.origin}/play/${code}`}
+        offsetMs={game.offsetMs}
+        hostOnline={game.hostOnline}
+      />
+    </>
   );
 }

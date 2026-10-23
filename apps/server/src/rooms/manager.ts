@@ -45,8 +45,10 @@ import {
   stageView,
   start,
   submitAnswer,
+  suspend,
   takeHint,
   tick,
+  GAME_STATE_VERSION,
   type GameState,
   type Result,
 } from '@quiz/engine';
@@ -86,7 +88,8 @@ export interface Room {
   expiryPhase: Phase | null;
 }
 
-export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string } | { type: 'closed' };
+/** moved — кімнату тепер веде інший процес (9b): вона пішла з пам'яті, але не закрита. */
+export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string } | { type: 'closed' } | { type: 'moved' };
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
@@ -106,9 +109,48 @@ export type HostAction =
 
 export type JoinResult =
   | { ok: true; token: string; playerId: string }
-  | { ok: false; error: ErrorCode | 'game_not_found' };
+  | { ok: false; error: ErrorCode | 'game_not_found' | 'restarting' };
 
 const GONE: AckResult = { ok: false, error: 'game_not_found' };
+const RESTARTING: AckResult = { ok: false, error: 'restarting' };
+
+export const SAVED_ROOM_VERSION = 1;
+
+/** Кімната в базі (9b): усе, без чого її не підняти після перезапуску; з'єднання й таймери — ні. */
+export interface SavedRoom {
+  v: typeof SAVED_ROOM_VERSION;
+  stateVersion: number;
+  id: string;
+  code: string;
+  hostToken: string;
+  stageToken: string;
+  hostUserId: string | null;
+  quizId: string | null;
+  playerUsers: [string, string][];
+  playerTokens: [string, string][];
+  state: GameState;
+  tickedTo: number;
+  /** Мить знімка за годинником менеджера; відновлений стан стоїть на паузі з неї. */
+  savedAt: number;
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+/** Перевірка рядка з бази: та сама версія знімка й стану, на місці поля, без яких кімнату не підняти. */
+export function isSavedRoom(raw: unknown): raw is SavedRoom {
+  if (!isObject(raw)) return false;
+  return (
+    raw.v === SAVED_ROOM_VERSION &&
+    raw.stateVersion === GAME_STATE_VERSION &&
+    ['id', 'code', 'hostToken', 'stageToken'].every((key) => typeof raw[key] === 'string') &&
+    Array.isArray(raw.playerUsers) &&
+    Array.isArray(raw.playerTokens) &&
+    typeof raw.tickedTo === 'number' &&
+    typeof raw.savedAt === 'number' &&
+    isObject(raw.state) &&
+    Array.isArray(raw.state.players)
+  );
+}
 
 const newToken = () => randomBytes(24).toString('base64url');
 
@@ -127,7 +169,10 @@ export class RoomManager {
   private readonly scheduler: Scheduler;
   private readonly rng: () => number;
   private readonly transitions: boolean;
-  private readonly rooms = new Map<string, Room>();
+  private readonly live = new Map<string, Room>();
+  /** Коди кімнат із бази, яких немає в пам'яті. */
+  private reserved = new Set<string>();
+  private isFrozen = false;
   private readonly listeners = new Set<RoomListener>();
 
   constructor(scheduler: Scheduler, rng: () => number = Math.random, options: RoomManagerOptions = {}) {
@@ -141,7 +186,7 @@ export class RoomManager {
   }
 
   get size(): number {
-    return this.rooms.size;
+    return this.live.size;
   }
 
   hostOnline(room: Room): boolean {
@@ -171,17 +216,95 @@ export class RoomManager {
       expiry: null,
       expiryPhase: null,
     };
-    this.rooms.set(room.code, room);
+    this.live.set(room.code, room);
     this.reschedule(room);
     return room;
   }
 
+  /** Знімок для бази; стан незмінний, тож береться за посиланням. */
+  snapshot(room: Room): SavedRoom {
+    return {
+      v: SAVED_ROOM_VERSION,
+      stateVersion: GAME_STATE_VERSION,
+      id: room.id,
+      code: room.code,
+      hostToken: room.hostToken,
+      stageToken: room.stageToken,
+      hostUserId: room.hostUserId,
+      quizId: room.quizId,
+      playerUsers: [...room.playerUsers],
+      playerTokens: [...room.playerTokens],
+      state: room.state,
+      tickedTo: room.tickedTo,
+      savedAt: this.now(),
+    };
+  }
+
+  /** Піднімає збережену кімнату; null — код уже живий у пам'яті або менеджер заморожено. */
+  restore(saved: SavedRoom): Room | null {
+    if (this.isFrozen || this.live.has(saved.code)) return null;
+    const room: Room = {
+      id: saved.id,
+      code: saved.code,
+      hostToken: saved.hostToken,
+      stageToken: saved.stageToken,
+      hostUserId: saved.hostUserId,
+      quizId: saved.quizId,
+      playerUsers: new Map(saved.playerUsers),
+      // На паузі з миті знімка; усі поза зв'язком, доки не відкриють сокет.
+      state: suspend(saved.state, saved.savedAt),
+      playerTokens: new Map(saved.playerTokens),
+      connections: new Map(),
+      deadline: null,
+      tickedTo: saved.tickedTo,
+      absence: null,
+      expiry: null,
+      expiryPhase: null,
+    };
+    this.live.set(room.code, room);
+    this.reserved.delete(room.code);
+    // Пульт ще не підключений: як після відходу ведучого — 10 хв на повернення (стан уже на паузі).
+    this.hostLeft(room);
+    this.commit(room, room.state);
+    return room;
+  }
+
+  /** Зупинка: дії відповідають restarting, з'єднання й таймери більше не змінюють стану. */
+  freeze(): void {
+    this.isFrozen = true;
+    for (const room of this.live.values()) this.clearTimers(room);
+  }
+
+  get frozen(): boolean {
+    return this.isFrozen;
+  }
+
+  /** Кімнату тепер веде інший процес: прибрати з пам'яті без видалення з бази. */
+  evict(room: Room): void {
+    if (this.live.get(room.code) !== room) return;
+    this.clearTimers(room);
+    this.live.delete(room.code);
+    this.emit(room, { type: 'moved' });
+  }
+
+  /** Коди кімнат із бази, яких немає в пам'яті: новим кімнатам не видаються. */
+  setReserved(codes: Iterable<string>): void {
+    this.reserved = new Set(codes);
+  }
+
+  /** Усі живі кімнати (для запису на зупинці). */
+  rooms(): Room[] {
+    return [...this.live.values()];
+  }
+
   get(code: string): Room | undefined {
-    return this.rooms.get(code);
+    return this.live.get(code);
   }
 
   join(code: string, nickname: string, userId: string | null = null): JoinResult {
-    const room = this.rooms.get(code);
+    // На зупинці новий гравець не з'являється: стан уже не записався б у базу.
+    if (this.isFrozen) return { ok: false, error: 'restarting' };
+    const room = this.live.get(code);
     if (room === undefined) return { ok: false, error: 'game_not_found' };
     const playerId = randomUUID();
     const added = addPlayer(room.state, { id: playerId, nickname });
@@ -197,7 +320,7 @@ export class RoomManager {
   }
 
   identify(code: string, role: Role, token: string): { room: Room; identity: Identity } | null {
-    const room = this.rooms.get(code);
+    const room = this.live.get(code);
     if (room === undefined) return null;
     if (role === 'host' || role === 'stage') {
       const expected = role === 'host' ? room.hostToken : room.stageToken;
@@ -248,83 +371,83 @@ export class RoomManager {
   }
 
   answer(room: Room, playerId: string, answer: Answer): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, submitAnswer(room.state, playerId, answer, this.now()));
   }
 
   buzz(room: Room, playerId: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, buzz(room.state, playerId, this.now()));
   }
 
   guess(room: Room, playerId: string, word: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, guessWord(room.state, playerId, word, this.now()));
   }
 
   sort(room: Room, playerId: string, wordId: string, categoryId: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, sortWord(room.state, playerId, wordId, categoryId, this.now()));
   }
 
   buff(room: Room, playerId: string, kind: BuffKind): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, takeBuff(room.state, playerId, kind, this.now(), this.rng));
   }
 
   vote(room: Room, playerId: string, askerId: string, answer: Answer): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, castVote(room.state, playerId, askerId, answer, this.now()));
   }
 
   /** Підказка ведучого на запит гравця з бафом (не плутати з підказкою ланцюжка, hint). */
   hostHint(room: Room, playerId: string, text: string | null): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, giveHint(room.state, playerId, text));
   }
 
   retry(room: Room, playerId: string, keep: boolean): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, chooseRetry(room.state, playerId, keep, this.now()));
   }
 
   declareDuel(room: Room, playerId: string, opponentId: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, declareDuel(room.state, playerId, opponentId));
   }
 
   duelCategory(room: Room, playerId: string, categoryId: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, pickDuelCategory(room.state, playerId, categoryId, this.now(), this.rng));
   }
 
   duelAnswer(room: Room, playerId: string, text: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, answerDuel(room.state, playerId, text, this.now()));
   }
 
   hint(room: Room, playerId: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, takeHint(room.state, playerId, this.now()));
   }
 
   pick(room: Room, playerId: string, cellId: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, pickCell(room.state, playerId, cellId, this.now(), this.rng));
   }
 
   roll(room: Room, playerId: string): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, rollDie(room.state, playerId, this.rng));
   }
 
   wager(room: Room, playerId: string, amount: number, allIn = false): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     return this.apply(room, placeWager(room.state, playerId, amount, this.now(), this.rng, allIn));
   }
 
   host(room: Room, action: HostAction): AckResult {
-    if (!this.alive(room)) return GONE;
+    if (!this.alive(room)) return this.gone();
     const state = room.state;
     switch (action.type) {
       case 'start':
@@ -412,7 +535,17 @@ export class RoomManager {
   }
 
   private alive(room: Room): boolean {
-    return this.rooms.get(room.code) === room;
+    return !this.isFrozen && this.live.get(room.code) === room;
+  }
+
+  /** Відповідь на дію з кімнатою, якої немає: на зупинці — перепідключитися, інакше гри немає. */
+  private gone(): AckResult {
+    return this.isFrozen ? RESTARTING : GONE;
+  }
+
+  private clearTimers(room: Room): void {
+    for (const handle of [room.deadline, room.absence, room.expiry]) this.scheduler.clearTimeout(handle);
+    room.deadline = room.absence = room.expiry = null;
   }
 
   private apply(room: Room, result: Result): AckResult {
@@ -456,9 +589,8 @@ export class RoomManager {
   }
 
   private close(room: Room): void {
-    for (const handle of [room.deadline, room.absence, room.expiry]) this.scheduler.clearTimeout(handle);
-    room.deadline = room.absence = room.expiry = null;
-    this.rooms.delete(room.code);
+    this.clearTimers(room);
+    this.live.delete(room.code);
     this.emit(room, { type: 'closed' });
   }
 
@@ -469,7 +601,7 @@ export class RoomManager {
   private newCode(): string {
     for (;;) {
       const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-      if (!this.rooms.has(code)) return code;
+      if (!this.live.has(code) && !this.reserved.has(code)) return code;
     }
   }
 }

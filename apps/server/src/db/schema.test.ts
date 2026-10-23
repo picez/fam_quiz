@@ -218,3 +218,24 @@ describe('score adjustments (migration 0006)', () => {
     expect(await db.select().from(scoreAdjustment)).toEqual([]);
   });
 });
+
+describe('live rooms schema', () => {
+  it('stores a saved room as JSON and finds it by code', async () => {
+    const { liveRoom } = await import('./schema');
+    const db = await createTestDb();
+    const roomId = '33333333-3333-4333-8333-333333333333';
+    const data = { v: 1, code: '123456', state: { phase: 'question', endsAt: 1_000_000, players: [] } };
+    await db.insert(liveRoom).values({ code: '123456', roomId, data, owner: 'a', heartbeatAt: new Date(), updatedAt: new Date() });
+    const [row] = await db.select().from(liveRoom).where(eq(liveRoom.code, '123456'));
+    expect(row.data).toEqual(data);
+    expect(row.owner).toBe('a');
+    await expect(db.insert(liveRoom).values({ code: '654321', roomId, data, updatedAt: new Date() })).rejects.toThrow();
+  });
+
+  it('the migration adds the table to a database from before 9b', async () => {
+    const { db, migrateRest } = await createTestDbUpTo('0009_answer_spares');
+    await migrateRest();
+    const { liveRoom } = await import('./schema');
+    expect(await db.select().from(liveRoom)).toEqual([]);
+  });
+});
