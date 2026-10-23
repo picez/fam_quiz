@@ -39,6 +39,8 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   buffNotice: null,
   splash: null,
   overtime: [],
+  guide: null,
+  newcomers: false,
   duel: null,
   round: null,
   questionIndex: -1,
@@ -1514,5 +1516,32 @@ describe('HostScreen: splashes', () => {
     // Ліміт 5 с: залишок 6 с обрізається до 5 — «−15 с» вимкнено.
     show(during('question', single, { endsAt: T + 6_200, limitMs: 5_000, splash: { kind: 'question', at: T, until: T + 1200 } }));
     expect(button('−15 с').disabled).toBe(true);
+  });
+});
+
+describe('HostScreen: «Як грати»', () => {
+  const guide = { page: 0, pages: [{ kind: 'phone' as const }, { kind: 'questions' as const, types: [{ type: 'single' as const, top: '' }] }] };
+  it('the host pages the guide and can skip it', async () => {
+    const send = show(view({ phase: 'guide', guide, newcomers: true }));
+    expect(screen.getByText('Відповідайте з телефона')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+    await waitFor(() => expect(button('До гри').disabled).toBe(false));
+    fireEvent.click(button('До гри'));
+    expect(send).toHaveBeenCalledWith('host:guide-skip', undefined);
+    expect(screen.queryByRole('button', { name: 'Завершити раунд' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  });
+  it('on the last page the main button says «До гри» and there is no second one', () => {
+    const send = show(view({ phase: 'guide', guide: { ...guide, page: 1 }, newcomers: true }));
+    const buttons = screen.getAllByRole('button', { name: 'До гри' });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+  });
+  it('paused: neither button', () => {
+    show(view({ phase: 'guide', guide, newcomers: true, paused: true }));
+    expect(screen.queryByRole('button', { name: 'Далі' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'До гри' })).toBeNull();
   });
 });

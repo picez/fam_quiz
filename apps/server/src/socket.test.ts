@@ -558,3 +558,16 @@ describe('host presence', () => {
     expect(await send(olena, 'player:wager', { amount: 0, allIn: false })).toEqual({ ok: true });
   });
 });
+
+describe('«Як грати» over sockets', () => {
+  it('host:guide-skip is host-only and leaves the guide for the first round', async () => {
+    const created = (await startGame(ctx.app, makeRoundsQuiz([classicRound('r1', [single])], { newcomers: true }))).game;
+    const { host, stage, olena } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    const guided = await until(stage, inPhase('guide'));
+    expect(guided.guide?.page).toBe(0);
+    expect(await send(olena, 'host:guide-skip')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:guide-skip')).toEqual({ ok: true });
+    await until(stage, inPhase('intro'));
+  });
+});

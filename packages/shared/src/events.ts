@@ -128,6 +128,8 @@ export interface ClientToServerEvents {
   'host:duel-skip': (ack: Ack) => void;
   /** Скасувати оголошену чи поточну дуель. */
   'host:duel-cancel': (ack: Ack) => void;
+  /** «До гри»: пропустити решту «Як грати». */
+  'host:guide-skip': (ack: Ack) => void;
 }
 
 export interface StateMeta {

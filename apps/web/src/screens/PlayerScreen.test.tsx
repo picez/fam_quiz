@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null, buffs: null, overtime: null, vote: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null, buffs: null, overtime: null, tip: null, vote: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -51,6 +51,8 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   buffNotice: null,
   splash: null,
   overtime: [],
+  guide: null,
+  newcomers: false,
   duel: null,
   round: null,
   questionIndex: -1,
@@ -1668,5 +1670,45 @@ describe('PlayerScreen: splashes', () => {
     show(onQuestion(), { send });
     fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Запитання ще не почалося.'));
+  });
+});
+
+describe('PlayerScreen: «Як грати»', () => {
+  it('shows the same guide page shorter and no lobby line', () => {
+    const guide = { page: 0, pages: [{ kind: 'phone' as const }, { kind: 'questions' as const, types: [{ type: 'single' as const, top: '' }] }] };
+    show(view({ phase: 'guide', guide, newcomers: true }));
+    expect(screen.getByRole('heading', { name: 'Відповідайте з телефона' })).toBeTruthy();
+    expect(document.querySelector('.guide.is-phone')).not.toBeNull();
+    expect(screen.queryByText('Ви в грі. Чекаємо на старт.')).toBeNull();
+  });
+});
+
+describe('PlayerScreen: explanations for newcomers', () => {
+  it('the tip sits above the question and answering still works', () => {
+    const send = show(onQuestion({ newcomers: true, me: { ...me, tip: 'single' } }));
+    const tip = screen.getByRole('note');
+    expect(tip.textContent).toContain('Торкніться одного правильного варіанта.');
+    const heading = screen.getByRole('heading', { name: 'Столиця України?' });
+    expect(tip.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'b' });
+  });
+  it('the order tip uses the label of this question', () => {
+    const ordered = { ...publicQuestion, type: 'order' as const, orderLabels: { top: 'Найбільший', bottom: 'Найменший' } };
+    show(onQuestion({ newcomers: true, question: ordered, me: { ...me, tip: 'order' } }));
+    expect(screen.getByRole('note').textContent).toContain('зверху — найбільший');
+  });
+  it('no tip without one in the view', () => {
+    show(onQuestion({ newcomers: true }));
+    expect(screen.queryByRole('note')).toBeNull();
+  });
+  it('the round intro has a reminder only with explanations on', () => {
+    const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+    show(view({ phase: 'intro', round, newcomers: true }));
+    expect(screen.getByText('Як проходить раунд')).toBeTruthy();
+    expect(screen.getByText('Запитання йдуть по черзі; кожен відповідає у своєму телефоні.')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'intro', round }));
+    expect(screen.queryByText('Як проходить раунд')).toBeNull();
   });
 });

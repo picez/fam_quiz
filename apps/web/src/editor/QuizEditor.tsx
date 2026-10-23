@@ -84,6 +84,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
   const total = questionsOf(quiz).length;
   const roomForMore = questions.length < LIMITS.maxQuestions && total < LIMITS.maxQuizQuestions;
+  const setNewcomers = (on: boolean) => {
+    const { newcomers: _off, ...rest } = settings;
+    update({ ...quiz, settings: on ? { ...rest, newcomers: true } : rest });
+  };
   const setSettings = (patch: Partial<Quiz['settings']>) => update({ ...quiz, settings: { ...settings, ...patch } });
 
   const select = (index: number) => {
@@ -221,6 +225,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               <option value="end">{t('leaderboardEnd')}</option>
             </select>
           </label>
+          <label className="field field-check">
+            <input type="checkbox" checked={settings.newcomers === true} onChange={(event) => setNewcomers(event.target.checked)} />
+            <span>{t('newcomersLabel')}</span>
+          </label>
+          <p className="meta">{t('newcomersHint')}</p>
         </details>
 
         <details className="rules powers">
