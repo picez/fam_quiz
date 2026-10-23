@@ -4430,11 +4430,15 @@ body:has(.duel-banner):has(.debuff-banner) .live-notice {
 
 /* ---------- Дуель на сцені й у пульті ---------- */
 
-/* Імена по боках, зміст посередині: центральний блок має сталу висоту — етапи не зсувають розкладку. */
+/*
+ * Імена по боках, зміст посередині. Дуель займає всю висоту сцени й тримається верху:
+ * довше запитання чи таймер ростуть донизу, а знак, рахунок та імена між етапами не зсуваються.
+ */
 .duel-stage {
+  flex: 1;
   display: grid;
   grid-template-columns: 1fr minmax(0, 3fr) 1fr;
-  align-items: center;
+  align-items: start;
   gap: 2vw;
   min-width: 0;
 }
@@ -4448,6 +4452,8 @@ body:has(.duel-banner):has(.debuff-banner) .live-notice {
   overflow-wrap: anywhere;
   border-top: 0.5rem solid var(--duel-challenger);
   padding-top: 1rem;
+  /* Нижче знака ⚔: ім'я стоїть на рівні рахунку. */
+  margin-top: calc(clamp(2rem, 4vw, 4rem) + 1vh);
 }
 
 .duel-stage-side.is-opponent {
@@ -4458,7 +4464,7 @@ body:has(.duel-banner):has(.debuff-banner) .live-notice {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5vh;
+  gap: 1vh;
   min-width: 0;
   text-align: center;
 }
@@ -4490,6 +4496,11 @@ body:has(.duel-banner):has(.debuff-banner) .live-notice {
 
 .duel-stage-question {
   margin: 0;
+}
+
+/* Табло дуелі менше за табло звичайного запитання: запитання на 300 символів, таймер і спроби вміщаються на 1280 × 720 без прокрутки. */
+.duel-stage .flap {
+  font-size: clamp(1.75rem, min(3vw, 5vh), 4rem);
 }
 
 .duel-stage-categories {

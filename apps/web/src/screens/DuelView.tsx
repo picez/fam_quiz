@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import type { DuelInfo, HostView, PlayerDuel, PlayerView, StageView } from '@quiz/shared';
-import { num } from '../format';
+import { num, questionClass } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
@@ -237,7 +237,7 @@ export function DuelPlay({
             <p className="meta">{t('duelQuestionOf', { index: duel.number, total: duel.total, category: duel.category ?? '' })}</p>
             {duel.stage === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
           </div>
-          {duel.question !== null && <h1 className="question">{duel.question}</h1>}
+          {duel.question !== null && <h1 className={questionClass(duel.question)}>{duel.question}</h1>}
         </>
       )}
 
@@ -326,7 +326,7 @@ export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: numbe
               </ul>
             </>
           )}
-          {playing && duel.question !== null && <h1 className="question duel-stage-question">{duel.question}</h1>}
+          {playing && duel.question !== null && <h1 className={`${questionClass(duel.question)} duel-stage-question`}>{duel.question}</h1>}
           {duel.stage === 'question' && (
             <>
               <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />
