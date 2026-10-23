@@ -9,7 +9,8 @@ import { quizSchema, type Quiz } from '@quiz/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import pg from 'pg';
-import { quiz, user } from '../src/db/schema';
+import { user } from '../src/db/schema';
+import { createQuiz } from '../src/quizzes';
 import { demoQuiz } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
@@ -118,8 +119,9 @@ try {
     source = { ...base, title: `${base.title} (з картинками)` };
   }
   const data = quizSchema.parse(source);
-  const [row] = await db.insert(quiz).values({ ownerId: owner.id, ...data }).returning({ id: quiz.id });
-  console.log(`Created quiz ${row.id} for ${email}`);
+  // createQuiz, а не прямий insert: дуелі зберігаються в settings, окремої колонки немає.
+  const id = await createQuiz(db, owner.id, data);
+  console.log(`Created quiz ${id} for ${email}`);
 } finally {
   await pool.end();
 }
