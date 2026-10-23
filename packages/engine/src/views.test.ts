@@ -101,6 +101,7 @@ describe('while a question is open', () => {
         points: 750,
         overridden: false,
         buff: null,
+        spare: null,
       },
     ]);
   });

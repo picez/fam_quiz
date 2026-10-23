@@ -115,7 +115,7 @@ export function buffsHere(state: GameState, play: Play, playerId: string): boole
 }
 
 /** Відповідь гравця вже надіслана або чекає на ведучого. */
-function hasAnswered(state: GameState, play: Play, playerId: string): boolean {
+export function hasAnswered(state: GameState, play: Play, playerId: string): boolean {
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return true;
   return play.board !== undefined && play.board.chooserId === playerId && play.board.answer !== null;
 }

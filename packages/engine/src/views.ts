@@ -33,6 +33,12 @@ import {
   type HostBoard,
   type PlayerBlitz,
   type PlayerBuffs,
+  type PlayerActiveBuff,
+  type PlayerHint,
+  type HintRequest,
+  type HostResponse,
+  type VotePrompt,
+  type VoteTally,
   type OvertimeRow,
   type HostView,
   type Phase,
@@ -47,10 +53,24 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type PlayerState } from './game';
+import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
 import { activeDebuff, shownDebuff } from './debuffs';
-import { buffBlock, buffOf, buffsHere, buffsUsed, currentBuffs, lastBuff } from './buffs';
+import {
+  answerLimitMs,
+  buffBlock,
+  buffOf,
+  buffsHere,
+  buffsUsed,
+  canVote,
+  currentBuffs,
+  hasAnswered,
+  lastBuff,
+  presentedFor,
+  questionFor,
+  voteTally,
+  type BuffPlay,
+} from './buffs';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { sortOf, sortsHere } from './sort';
@@ -76,9 +96,35 @@ function currentQuestion(state: GameState): Question | null {
   return state.plays[state.questionIndex]?.question ?? null;
 }
 
-function publicQuestion(state: GameState): PublicQuestion | null {
+/**
+ * Запитання, яке бачать усі: на полі, якщо вибравший узяв заміну, — запасне з його порядком варіантів,
+ * інакше поточне з state.presented. У класиці запасне бачить лише сам гравець (ownSpare).
+ */
+function shownQuestion(state: GameState): { question: Question; presented: string[] } | null {
   const question = currentQuestion(state);
-  if (question === null) return null;
+  const play = state.plays[state.questionIndex];
+  if (question === null || play === undefined) return null;
+  if (play.board === undefined) return { question, presented: state.presented };
+  const chooserId = play.board.chooserId;
+  return { question: questionFor(state, play, chooserId), presented: presentedFor(state, play, chooserId) };
+}
+
+/** Запасне запитання гравця в класиці (з його порядком варіантів); null — гравець відповідає на те, що бачать усі. */
+function ownSpare(state: GameState, playerId: string): { question: Question; presented: string[] } | null {
+  const play = state.plays[state.questionIndex];
+  if (currentQuestion(state) === null || play === undefined || play.board !== undefined) return null;
+  if (buffOf(play, playerId)?.spare === undefined) return null;
+  return { question: questionFor(state, play, playerId), presented: presentedFor(state, play, playerId) };
+}
+
+/** Копія запитання без підказки: сцена й гравці її не бачать ніколи, навіть на розкритті. */
+function withoutHint(question: Question): Question {
+  const { hint: _hint, ...rest } = question;
+  return rest;
+}
+
+/** Запитання без правильної відповіді й підказки; choices у порядку presented. */
+function publicQuestion(question: Question, presented: string[]): PublicQuestion {
   const source: Choice[] =
     question.type === 'order'
       ? question.items
@@ -86,7 +132,7 @@ function publicQuestion(state: GameState): PublicQuestion | null {
         ? question.options
         : [];
   const shown = (from: Choice[]) =>
-    state.presented
+    presented
       .map((id) => from.find((choice) => choice.id === id))
       .filter((choice): choice is Choice => choice !== undefined)
       .map((choice) => ({ id: choice.id, text: choice.text, ...(choice.imageUrl === undefined ? {} : { imageUrl: choice.imageUrl }) }));
@@ -119,6 +165,12 @@ function publicQuestion(state: GameState): PublicQuestion | null {
           }
         : null,
   };
+}
+
+/** Публічне запитання, яке бачать усі; null поза запитанням. */
+function shownPublic(state: GameState): PublicQuestion | null {
+  const shown = shownQuestion(state);
+  return shown === null ? null : publicQuestion(shown.question, shown.presented);
 }
 
 /** Найменший і найбільший час запитань раунду з таймером; null — таймера немає в жодного. */
@@ -712,7 +764,7 @@ function base(state: GameState, forHost: boolean) {
     round: roundInfo(state),
     questionIndex: roundQuestionNumber(state),
     total: round ? roundQuestions(round).length : questionsOf(state.quiz).length,
-    question: publicQuestion(state),
+    question: shownPublic(state),
     endsAt: held ? null : state.endsAt,
     remainingMs,
     limitMs:
@@ -777,19 +829,64 @@ function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
     const block = buffBlock(state, playerId, kind);
     return block === null ? { kind, state: 'ready' as const, block: null } : { kind, state: 'blocked' as const, block };
   });
-  const pending = own !== null && (own.retry === 'again' || own.retry === 'choice') && own.first !== null ? own.first : null;
+  return { slots, active: own === null ? null : activeBuff(state, play, playerId, own) };
+}
+
+/** Узятий баф гравця: прибрані варіанти, друга спроба, підказка, голоси й ознака запасного — лише для нього самого. */
+function activeBuff(state: GameState, play: Play, playerId: string, own: BuffPlay): PlayerActiveBuff {
+  const pending = (own.retry === 'again' || own.retry === 'choice') && own.first !== null ? own.first : null;
   return {
-    slots,
-    active:
-      own === null
-        ? null
-        : {
-            kind: own.kind,
-            removed: own.removed,
-            retry: own.retry,
-            first: pending === null ? null : { answer: pending.answer, points: pending.points },
-          },
+    kind: own.kind,
+    removed: own.removed,
+    retry: own.retry,
+    first: pending === null ? null : { answer: pending.answer, points: pending.points },
+    hint: own.hint === undefined ? null : playerHint(own.hint),
+    votes: own.vote === undefined ? null : voteView(state, play, playerId, own.vote),
+    spare: own.kind === 'swap',
   };
+}
+
+function playerHint(hint: { text: string | null; aloud: boolean }): PlayerHint {
+  if (hint.text !== null) return { state: 'text', text: hint.text };
+  return { state: hint.aloud ? 'aloud' : 'waiting', text: null };
+}
+
+/** Кінець голосування для зрізу: на паузі — залишок, інакше мить кінця. */
+function voteClock(state: GameState, endsAt: number): { endsAt: number | null; remainingMs: number | null } {
+  return state.paused && state.pausedAt !== null ? { endsAt: null, remainingMs: Math.max(0, endsAt - state.pausedAt) } : { endsAt, remainingMs: null };
+}
+
+/** Підсумок голосування для гравця з бафом: лише вибір людей, без правильної відповіді й без того, хто як голосував. */
+function voteView(state: GameState, play: Play, playerId: string, vote: NonNullable<BuffPlay['vote']>): VoteTally {
+  return {
+    ...voteClock(state, vote.endsAt),
+    closed: hasAnswered(state, play, playerId),
+    ...voteTally(play.question, vote.ballots),
+  };
+}
+
+/** Перше в порядку гравців відкрите голосування, у якому гравець може й ще не голосував; час телефон перевіряє сам. */
+function votePrompt(state: GameState, playerId: string): VotePrompt | null {
+  const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
+  if (play === undefined) return null;
+  for (const asker of state.players) {
+    const vote = buffOf(play, asker.id)?.vote;
+    if (vote === undefined || Object.hasOwn(vote.ballots, playerId)) continue;
+    if (!canVote(state, playerId, asker.id) || hasAnswered(state, play, asker.id)) continue;
+    return { asker: blitzPlayer(state, asker.id), ...voteClock(state, vote.endsAt) };
+  }
+  return null;
+}
+
+/** Запити підказки без відповіді (етап question), у порядку гравців. */
+function hintRequests(state: GameState): HintRequest[] {
+  const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
+  if (play === undefined) return [];
+  return state.players.flatMap((p) => {
+    const buff = buffOf(play, p.id);
+    const waiting = buff?.hint !== undefined && buff.hint.text === null && !buff.hint.aloud;
+    return waiting ? [{ ...blitzPlayer(state, p.id), at: buff.at }] : [];
+  });
 }
 
 /**
@@ -815,6 +912,7 @@ function publicStandings(state: GameState): Standing[] | null {
   return WITH_STANDINGS.includes(state.phase) ? rankPlayers(state.players) : null;
 }
 
+/** Лічильники розкриття; у класиці відповіді на запасні не враховуються (там інше запитання). */
 function revealStats(state: GameState, question: Question): RevealStats {
   const known = new Set<string>(
     question.type === 'single' || question.type === 'multi'
@@ -823,7 +921,8 @@ function revealStats(state: GameState, question: Question): RevealStats {
         ? ['true', 'false']
         : [],
   );
-  const records = Object.values(currentAnswers(state));
+  const board = state.plays[state.questionIndex]?.board !== undefined;
+  const records = Object.values(currentAnswers(state)).filter((record) => board || record.spare === undefined);
   const counts: Record<string, number> = {};
   for (const { answer } of records) {
     // У бліці гравець міг натиснути й не встигнути відповісти.
@@ -844,7 +943,8 @@ function revealStats(state: GameState, question: Question): RevealStats {
 }
 
 export function stageView(state: GameState): StageView {
-  const revealed = isRevealed(state) ? currentQuestion(state) : null;
+  const shown = isRevealed(state) ? shownQuestion(state) : null;
+  const revealed = shown === null ? null : withoutHint(shown.question);
   return {
     ...base(state, false),
     role: 'stage',
@@ -878,13 +978,24 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   const pending = open?.board.chooserId === playerId ? open.board.answer : null;
   const revealed = isRevealed(state);
   const standings = publicStandings(state);
+  // Запасне в класиці бачить лише сам гравець: власне запитання, межа часу й розкриття.
+  const spare = ownSpare(state, playerId);
+  const seen = spare ?? shownQuestion(state);
+  const shared = base(state, false);
+  const play = state.plays[state.questionIndex];
   // На етапі locked бали за поточне запитання ще не показуємо: це видало б правильність до розкриття.
   // У фіналі рахунок гравця змінюється лише в мить його розкриття, а частка банку — на кроці розподілу.
   const visible = finalVisiblePoints(state, playerId);
   const hidden =
     record === undefined ? 0 : state.phase === 'locked' ? record.points : state.phase === 'reveal' ? record.points - visible : 0;
   return {
-    ...base(state, false),
+    ...shared,
+    ...(spare === null
+      ? {}
+      : {
+          question: publicQuestion(spare.question, spare.presented),
+          limitMs: state.phase === 'question' && play !== undefined ? answerLimitMs(play, playerId) : shared.limitMs,
+        }),
     role: 'player',
     me: {
       id: player.id,
@@ -912,8 +1023,9 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       duel: playerDuel(state, playerId),
       buffs: playerBuffs(state, playerId),
       overtime: personalClock(state, playerId),
+      vote: votePrompt(state, playerId),
     },
-    reveal: revealed ? currentQuestion(state) : null,
+    reveal: revealed && seen !== null ? withoutHint(seen.question) : null,
     standings,
   };
 }
@@ -929,8 +1041,13 @@ function hostDebuff(state: GameState, playerId: string): { kind: DebuffKind; fir
   return debuff === null ? null : { kind: debuff.kind, fired: activeDebuff(state, playerId) !== null };
 }
 
+/** Запасне запитання за id із запису (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. */
+function spareOf(state: GameState, id: string | undefined): Question | null {
+  return id === undefined ? null : ((state.quiz.spares ?? []).find((q) => q.id === id) ?? null);
+}
+
 export function hostView(state: GameState): HostView {
-  const responses = state.players.flatMap((player) => {
+  const responses = state.players.flatMap((player): HostResponse[] => {
     const record = currentRecord(state, player.id);
     if (record === undefined) return [];
     return [
@@ -945,6 +1062,7 @@ export function hostView(state: GameState): HostView {
         points: record.points,
         overridden: record.overridden,
         buff: record.buff ?? null,
+        spare: spareOf(state, record.spare),
       },
     ];
   });
@@ -959,7 +1077,7 @@ export function hostView(state: GameState): HostView {
       score: p.score,
       debuff: hostDebuff(state, p.id),
     })),
-    correct: currentQuestion(state),
+    correct: shownQuestion(state)?.question ?? null,
     responses,
     blitz: hostBlitz(state),
     board: hostBoard(state),
@@ -968,6 +1086,7 @@ export function hostView(state: GameState): HostView {
     sort: sortInfo(state),
     duel: hostDuel(state),
     allowed: { debuffs: allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
+    hints: hintRequests(state),
     standings: rankPlayers(state.players),
   };
 }

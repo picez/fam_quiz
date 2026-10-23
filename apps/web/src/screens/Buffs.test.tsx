@@ -31,7 +31,7 @@ const active: PlayerBuffs = {
     { kind: 'double', state: 'blocked', block: 'taken' },
     { kind: 'shield', state: 'blocked', block: 'taken' },
   ],
-  active: { kind: 'fifty', removed: ['a'], retry: null, first: null },
+  active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false },
 };
 
 const used: PlayerBuffs = {
@@ -181,13 +181,13 @@ describe('Buffs', () => {
 
   it('retry prompt: again or keep / more', async () => {
     const send = okSend();
-    const again: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'again', first: { answer: { type: 'numeric', value: 3 }, points: 0 } };
+    const again: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'again', first: { answer: { type: 'numeric', value: 3 }, points: 0 }, hint: null, votes: null, spare: false };
     render(<RetryPrompt active={again} question={question} send={send} onError={vi.fn()} />);
     expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
     cleanup();
 
-    const choice: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'choice', first: { answer: { type: 'numeric', value: 42 }, points: 750 } };
+    const choice: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'choice', first: { answer: { type: 'numeric', value: 42 }, points: 750 }, hint: null, votes: null, spare: false };
     render(<RetryPrompt active={choice} question={question} send={send} onError={vi.fn()} />);
     expect(screen.getByText(/Частково правильно: \+750\. Залишити чи ще спроба\?/)).toBeTruthy();
     await act(async () => {
@@ -250,7 +250,7 @@ describe('Buffs', () => {
   });
 
   it('the again prompt stands in the explanation line, not above the options', () => {
-    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 } } });
+    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 }, hint: null, votes: null, spare: false } });
     expect(why().textContent).toBe('Неправильно, ще одна спроба');
   });
 });

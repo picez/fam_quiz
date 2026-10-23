@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null, buffs: null, overtime: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null, buffs: null, overtime: null, vote: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -1343,22 +1343,22 @@ describe('PlayerScreen: sort', () => {
   });
 
   it('50/50 fades the removed options on the phone, the second try asks again', () => {
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false } } } }));
     const lviv = screen.getByRole('button', { name: 'Львів — прибрано' }) as HTMLButtonElement;
     expect(lviv.disabled).toBe(true);
     expect(lviv.className).toContain('is-removed');
     cleanup();
     const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false } } } }));
     expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
     cleanup();
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 } } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false } } } }));
     expect(screen.getByRole('button', { name: 'Залишити' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
     cleanup();
     // На паузі вибір чекає.
-    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 } } } } }));
+    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false } } } }));
     expect((screen.getByRole('button', { name: 'Залишити' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Ще спроба' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -1384,7 +1384,7 @@ describe('PlayerScreen: sort', () => {
 
   it('extra time shows my own timer', () => {
     const now = Date.now();
-    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
+    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null, hint: null, votes: null, spare: false } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
     expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('24');
     expect(screen.getByText('+30 с — ваш час')).toBeTruthy();
     expect(screen.queryByText(/Чекаємо/)).toBeNull();
@@ -1425,10 +1425,10 @@ describe('PlayerScreen: sort', () => {
   it('the again prompt does not push the options down', () => {
     const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
     const zoneShape = () => [...document.querySelector('.debuff-content, .debuff-zone')!.querySelectorAll('*')].map((el) => el.tagName);
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null, hint: null, votes: null, spare: false } } } }));
     const armed = zoneShape();
     cleanup();
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false } } } }));
     expect(zoneShape()).toEqual(armed);
     expect(document.querySelector('.buff-why')?.textContent).toBe('Неправильно, ще одна спроба');
   });

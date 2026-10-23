@@ -31,7 +31,7 @@ describe('buff views', () => {
       ['time', 'blocked', 'taken'],
       ['shield', 'blocked', 'taken'],
     ]);
-    expect(playerView(s, 'p1')?.me.buffs?.active).toEqual({ kind: 'double', removed: [], retry: null, first: null });
+    expect(playerView(s, 'p1')?.me.buffs?.active).toEqual({ kind: 'double', removed: [], retry: null, first: null, hint: null, votes: null, spare: false });
     expect(playerView(s, 'p2')?.me.buffs?.active).toBeNull();
 
     s = must(lock(s));
@@ -137,7 +137,7 @@ describe('buff views', () => {
     s = take(s, 'p1', 'retry');
     s = answer(s, 'p1', num(2111), T0 + 1000);
     const mine = playerView(s, 'p1');
-    expect(mine?.me.buffs?.active).toEqual({ kind: 'retry', removed: [], retry: 'choice', first: { answer: num(2111), points: 750 } });
+    expect(mine?.me.buffs?.active).toEqual({ kind: 'retry', removed: [], retry: 'choice', first: { answer: num(2111), points: 750 }, hint: null, votes: null, spare: false });
     expect(mine?.me.answer).toBeNull();
     expect(hostView(s).responses.map((r) => r.playerId)).not.toContain('p1');
     for (const view of [playerView(s, 'p2'), stageView(s)]) expect(JSON.stringify(view)).not.toContain('2111');
