@@ -36,6 +36,8 @@ describe('PointsPanel', () => {
     render(<PointsPanel player={player()} send={send} onError={vi.fn()} />);
     const input = screen.getByLabelText('Своя сума') as HTMLInputElement;
     expect(input.closest('label.field')).not.toBeNull();
+    // Цифрова клавіатура iOS без мінуса: звичайна клавіатура, щоб ведучий міг набрати від'ємну суму.
+    expect(input.getAttribute('inputmode')).toBeNull();
     fireEvent.change(input, { target: { value: 'abc' } });
     fireEvent.click(button('Нарахувати'));
     expect(send).not.toHaveBeenCalled();

@@ -65,7 +65,28 @@ describe('WipeLayers', () => {
 
   it('a touch move wipes too', () => {
     render(<Zone kind="fog" />);
-    fireEvent.touchMove(zone(), { touches: [{ clientX: 30, clientY: 30 }] });
+    fireEvent.touchMove(zone(), { touches: [{ clientX: 30, clientY: 30 }], changedTouches: [{ clientX: 30, clientY: 30 }] });
+    expect(Number(fog().dataset.cleared)).toBeGreaterThan(0);
+  });
+
+  it('only the fingers that moved wipe, a resting finger does not', () => {
+    const moving = { clientX: 280, clientY: 380 };
+    render(<Zone kind="fog" />);
+    fireEvent.touchMove(zone(), { touches: [moving], changedTouches: [moving] });
+    const alone = Number(fog().dataset.cleared);
+    expect(alone).toBeGreaterThan(0);
+    cleanup();
+    // Другий палець лежить у протилежному куті: там туман лишається.
+    render(<Zone kind="fog" />);
+    fireEvent.touchMove(zone(), { touches: [{ clientX: 10, clientY: 10 }, moving], changedTouches: [moving] });
+    expect(Number(fog().dataset.cleared)).toBe(alone);
+  });
+
+  it('a mouse wipes only with a button held, not by hovering', () => {
+    render(<Zone kind="fog" />);
+    fireEvent.pointerMove(zone(), { pointerType: 'mouse', buttons: 0, clientX: 150, clientY: 200 });
+    expect(fog().dataset.cleared).toBe('0');
+    fireEvent.pointerMove(zone(), { pointerType: 'mouse', buttons: 1, clientX: 150, clientY: 200 });
     expect(Number(fog().dataset.cleared)).toBeGreaterThan(0);
   });
 

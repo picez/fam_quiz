@@ -81,7 +81,7 @@ export function PointsPanel({ player, send, onError }: PanelProps) {
           {t('adjustCustom')}
           <input
             type="text"
-            inputMode="numeric"
+            // Без inputMode="numeric": цифрова клавіатура iOS не має мінуса, а суму треба й відняти.
             autoComplete="off"
             value={raw}
             onChange={(event) => {

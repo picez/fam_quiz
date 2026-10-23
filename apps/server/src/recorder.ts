@@ -1,6 +1,6 @@
 import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
 import type { Answer } from '@quiz/shared';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, max, notInArray } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
@@ -134,15 +134,6 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         })
         .onConflictDoUpdate({ target: participant.id, set: result });
 
-      // Коригування незмінні: досить дописати нові.
-      for (const adjustment of state.adjustments.filter((a) => a.playerId === player.id)) {
-        const { seq, roundIndex, afterQuestion, points, source } = adjustment;
-        await tx
-          .insert(scoreAdjustment)
-          .values({ participantId: player.id, seq, roundIndex, afterQuestion, points, source })
-          .onConflictDoNothing();
-      }
-
       for (let index = snapshot.fromQuestion; index < closed; index++) {
         for (const row of answerRows(state, index, player.id)) {
           const { attempt, payload, timeMs, ...grade } = row;
@@ -161,6 +152,17 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         }
       }
     }
+
+    // Коригування незмінні, а seq зростає в межах гри: дописуємо лише новіші за вже збережені, одним запитом.
+    const [{ saved }] = await tx
+      .select({ saved: max(scoreAdjustment.seq) })
+      .from(scoreAdjustment)
+      .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
+      .where(inGame);
+    const fresh = state.adjustments
+      .filter((adjustment) => adjustment.seq > (saved ?? 0))
+      .map(({ playerId, seq, roundIndex, afterQuestion, points, source }) => ({ participantId: playerId, seq, roundIndex, afterQuestion, points, source }));
+    if (fresh.length > 0) await tx.insert(scoreAdjustment).values(fresh).onConflictDoNothing();
   });
 }
 

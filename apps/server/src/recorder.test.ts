@@ -236,6 +236,30 @@ describe('recorder', () => {
     expect(rows.map((row) => [row.participantId, row.points])).toEqual([[ctx.taras, 75]]);
   });
 
+  it('later saves add only the new adjustments, also after the kicked player held the highest seq', async () => {
+    const ctx = await setup();
+    const adjust = (playerId: string, points: number) =>
+      expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId, points })).toEqual({ ok: true });
+    ctx.host('start');
+    adjust(ctx.olena, -100);
+    adjust(ctx.taras, 75);
+    await ctx.saved();
+    // Тарас мав найбільший seq; після вилучення його рядки зникають, а новий seq 3 Олени все одно записується.
+    expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.taras })).toEqual({ ok: true });
+    adjust(ctx.olena, 40);
+    await ctx.saved();
+    adjust(ctx.olena, 10);
+    ctx.host('next');
+    await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(rows.map((row) => [row.participantId, row.seq, row.points])).toEqual([
+      [ctx.olena, 1, -100],
+      [ctx.olena, 3, 40],
+      [ctx.olena, 4, 10],
+    ]);
+    expect(ctx.errors).toEqual([]);
+  });
+
   it('does not record a game that has no host account', async () => {
     const ctx = await setup();
     const anonymous = ctx.manager.create(makeQuiz([single]));

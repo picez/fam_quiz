@@ -4,8 +4,7 @@ export type Phase = 'lobby' | 'intro' | 'wager' | 'question' | 'locked' | 'revea
 export type Grade = 'correct' | 'partial' | 'wrong';
 
 /** Звідки коригування рахунку поза відповідями: бали від ведучого або дуель. */
-export const ADJUSTMENT_SOURCES = ['host', 'duel'] as const;
-export type AdjustmentSource = (typeof ADJUSTMENT_SOURCES)[number];
+export type AdjustmentSource = 'host' | 'duel';
 
 /** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. */
 export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;

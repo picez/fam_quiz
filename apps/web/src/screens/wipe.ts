@@ -99,7 +99,7 @@ export function wipeSplats(splats: Splat[], x: number, y: number): Splat[] {
 /**
  * Слухає pointermove і touchmove (пасивні) на елементі й віддає точки в частках його розміру.
  * Дотик іде через touchmove (pointermove обривається, коли браузер починає прокрутку),
- * миша й перо — через pointermove.
+ * миша (лише з натиснутою кнопкою) й перо — через pointermove.
  */
 export function useWipe(ref: RefObject<HTMLElement | null>, onWipe: (x: number, y: number) => void): void {
   const handler = useRef(onWipe);
@@ -117,10 +117,13 @@ export function useWipe(ref: RefObject<HTMLElement | null>, onWipe: (x: number, 
     };
     const onPointer = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return;
+      // Миша протирає лише з натиснутою кнопкою, а не простим наведенням.
+      if (e.pointerType === 'mouse' && e.buttons === 0) return;
       emit(e.clientX, e.clientY);
     };
     const onTouch = (e: TouchEvent) => {
-      for (const touch of Array.from(e.touches)) emit(touch.clientX, touch.clientY);
+      // Лише пальці, що рухалися: нерухомий палець не протирає те саме місце знову.
+      for (const touch of Array.from(e.changedTouches)) emit(touch.clientX, touch.clientY);
     };
     el.addEventListener('pointermove', onPointer, { passive: true });
     el.addEventListener('touchmove', onTouch, { passive: true });

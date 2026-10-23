@@ -14,7 +14,21 @@ export function adjustScore(state: GameState, playerId: string, points: number, 
   // Відкрите запитання завжди останнє в журналі.
   const afterQuestion = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const adjustment = { seq, playerId, points, roundIndex: state.roundIndex, afterQuestion, source, at: now };
-  return ok(withTotals({ ...state, adjustments: [...state.adjustments, adjustment], adjustmentSeq: seq }));
+  return ok(followWagerLimit(withTotals({ ...state, adjustments: [...state.adjustments, adjustment], adjustmentSeq: seq }), playerId));
+}
+
+/**
+ * На етапі ставок межа йде за рахунком, тож «ставка ≤ рахунок» тримається і після балів від ведучого:
+ * межа стає max(0, рахунок), а вже зроблена ставка понад неї зменшується до межі.
+ */
+function followWagerLimit(state: GameState, playerId: string): GameState {
+  if (state.phase !== 'wager' || state.final === null) return state;
+  const score = state.players.find((p) => p.id === playerId)?.score ?? 0;
+  const limit = Math.max(0, score);
+  const limits = { ...state.final.limits, [playerId]: limit };
+  const placed = state.final.wagers;
+  const wagers = Object.hasOwn(placed, playerId) && placed[playerId] > limit ? { ...placed, [playerId]: limit } : placed;
+  return { ...state, final: { ...state.final, limits, wagers } };
 }
 
 /** Сума всіх коригувань гравця. */

@@ -6,18 +6,31 @@ import { t } from '../i18n';
 /** Скільки сповіщення про бали видно, мс. */
 export const NOTICE_MS = 4000;
 
-/** Видиме сповіщення: нове (seq або at змінилися) і молодше за NOTICE_MS за часом сервера; ховається таймером. */
+/**
+ * Видиме сповіщення: нове (seq більший за вже показані) і молодше за NOTICE_MS за часом сервера; ховається таймером.
+ * Після вилучення гравця сервер може знову віддати старіше коригування — воно не спливає вдруге.
+ */
 export function useNotice(notice: AdjustmentNotice | null, offsetMs: number): AdjustmentNotice | null {
   const [shown, setShown] = useState<AdjustmentNotice | null>(null);
   // Зсув годинника доходить після першого зрізу; ефект читає найсвіжіший.
   const offsetRef = useRef(offsetMs);
   offsetRef.current = offsetMs;
+  // Найбільший seq, що вже доходив; без сповіщення (нова гра) лічба починається знову.
+  const maxSeqRef = useRef(0);
   const key = notice === null ? null : `${notice.seq}-${notice.at}`;
   useEffect(() => {
     if (notice === null) {
+      maxSeqRef.current = 0;
       setShown(null);
       return;
     }
+    // Старіше за вже показане — лише після вилучення автора новішого: його сповіщення ховається, старе не спливає.
+    // Рівний seq — те саме сповіщення (seq у грі не повторюється): повторний запуск ефекту лише ставить таймер знову.
+    if (notice.seq < maxSeqRef.current) {
+      setShown(null);
+      return;
+    }
+    maxSeqRef.current = notice.seq;
     const left = NOTICE_MS - (Date.now() + offsetRef.current - notice.at);
     if (left <= 0) {
       setShown(null);

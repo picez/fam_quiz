@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdjustmentNotice } from '@quiz/shared';
@@ -51,6 +52,42 @@ describe('LiveNotices', () => {
       vi.advanceTimersByTime(500);
     });
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('an older notice after a kick does not pop up again, a newer one still does', () => {
+    const { rerender } = render(<AdjustmentToast notice={notice({ seq: 1, at: NOW })} offsetMs={0} />);
+    rerender(<AdjustmentToast notice={notice({ seq: 2, at: NOW + 500, nickname: 'Петро', points: 75 })} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('Ведучий: +75 — Петро');
+    // Петра вилучили: сервер знову віддає seq 1, ще свіже за часом.
+    rerender(<AdjustmentToast notice={notice({ seq: 1, at: NOW })} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+    rerender(<AdjustmentToast notice={notice({ seq: 3, at: NOW + 1000, points: 20 })} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('Ведучий: +20 — Оля');
+  });
+
+  it('under StrictMode the repeated effect keeps the hide timer', () => {
+    render(
+      <StrictMode>
+        <AdjustmentToast notice={notice()} offsetMs={0} />
+      </StrictMode>,
+    );
+    expect(screen.queryByRole('status')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_MS);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('after the notices are gone (a new game) numbering starts again', () => {
+    const { rerender } = render(<AdjustmentToast notice={notice({ seq: 5 })} offsetMs={0} />);
+    rerender(<AdjustmentToast notice={null} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    rerender(<AdjustmentToast notice={notice({ seq: 1, at: NOW + 10, points: 30 })} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('Ведучий: +30 — Оля');
   });
 
   it('uses the synced clock: a device two seconds behind still shows it for four seconds', () => {

@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS, isWin, type Achievement, type AchievementId, type PlayedGame } from '@quiz/shared';
-import { PENALTY_ATTEMPT } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, PENALTY_ATTEMPT } from './db/schema';
 import type { AnswerMark, GameTable, TablePlayer } from './history';
 
 /** Скільки запитань з відповіддю потрібно для ідеальної гри. */
@@ -84,12 +84,15 @@ export function hitFinal(table: GameTable, participantId: string): boolean {
   );
 }
 
-/** isWin учасника, зіграно ≥ 2 раунди (за найбільшим roundIndex серед рядків усіх), і перед останнім зіграним хтось мав строго більше. */
+/**
+ * isWin учасника, зіграно ≥ 2 раунди (за найбільшим roundIndex серед рядків-відповідей усіх; коригування
+ * від ведучого раунд зіграним не роблять), і перед останнім зіграним хтось мав строго більше.
+ */
 export function isComeback(table: GameTable, participantId: string): boolean {
   const me = table.players.find((p) => p.participantId === participantId);
   if (me === undefined) return false;
   const won = isWin({ status: table.status, rank: me.rank, score: me.score, playerCount: table.players.length, correct: 0, questionsPlayed: 0 });
-  const last = Math.max(-1, ...table.players.flatMap((p) => p.rows.map((row) => row.roundIndex)));
+  const last = Math.max(-1, ...table.players.flatMap((p) => p.rows.filter((row) => row.attempt !== ADJUSTMENT_ATTEMPT).map((row) => row.roundIndex)));
   if (!won || last < 1) return false;
   const before = (p: TablePlayer) => p.rows.filter((row) => row.roundIndex < last).reduce((sum, row) => sum + row.points, 0);
   const mine = before(me);

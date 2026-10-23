@@ -3360,18 +3360,33 @@ button.match-item {
   pointer-events: none;
 }
 
+/*
+ * Банер — смужка внизу екрана (position: fixed, як сповіщення): запитання лишається читабельним,
+ * макет не зсувається. Він сусід .debuff-content, тож «Дзеркало» й трусіння його не чіпають.
+ */
 .debuff-banner {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: 3;
+  position: fixed;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 55;
   display: grid;
   gap: 0.2rem;
-  padding: 0.6rem 0.9rem;
+  width: max-content;
+  max-width: min(calc(100vw - 2rem), 30rem);
+  margin: 0;
+  padding: 0.55rem 1rem;
+  border: 2px solid var(--amber);
   border-radius: 0.75rem;
   background: var(--notice-bg);
   color: var(--paper);
   text-align: center;
+  transform: translateX(-50%);
   pointer-events: none;
+}
+
+/* Сповіщення про бали в ці секунди стає над банером, а не на нього. */
+body:has(.debuff-banner) .live-notice {
+  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6rem);
 }
 
 .debuff-banner span {
@@ -3446,6 +3461,7 @@ button.match-item {
 }
 
 .is-calm .debuff-guest {
+  right: auto;
   left: var(--spot);
   animation: debuff-peek 6s var(--delay) infinite;
 }
@@ -3486,7 +3502,9 @@ button.match-item {
     animation: debuff-shake 3s infinite;
   }
 
+  /* Гість на всю ширину зони: translate 100% — рівно її ширина, рух іде на компоненті (без left). */
   .debuff-guest {
+    right: 0;
     animation: debuff-run 5s linear var(--delay) infinite;
   }
 
@@ -3529,12 +3547,12 @@ button.match-item {
 
   @keyframes debuff-run {
     0% {
-      left: -6rem;
+      translate: -6rem 0;
       opacity: 1;
     }
 
     100% {
-      left: 100%;
+      translate: 100% 0;
       opacity: 1;
     }
   }

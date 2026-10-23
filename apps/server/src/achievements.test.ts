@@ -167,6 +167,10 @@ describe('new achievements', () => {
     const penalised = table(['classic', 'final'], [p('a', 1, 50, [row(0, 30), adj(0, -20), row(1, 40)]), p('b', 2, 20, [row(0, 20)])]);
     expect(isComeback(penalised, 'a')).toBe(true);
 
+    // Коригування в незіграному раунді (вступ раунду 1, далі гру завершили) не робить раунд 1 останнім зіграним.
+    const earlyEnd = table(['classic', 'classic'], [p('a', 1, 40, [row(0, 10), adj(1, 30)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(isComeback(earlyEnd, 'a')).toBe(false);
+
     // Бліц: коригування в бліц-раунді входить у бали раунду.
     const tie = table(['blitz'], [p('a', 1, 20, [row(0, 20)]), p('b', 2, 20, [row(0, 20)])]);
     expect(wonBlitzRound(tie, 'a')).toBe(false);

@@ -82,6 +82,57 @@ describe('host score adjustments', () => {
     expect(shown).toMatchObject({ before: 1100, after: 600 });
   });
 
+  it('host points during the wager phase move the wager limit and clamp a placed wager', () => {
+    const finalQuiz = makeRoundsQuiz(
+      [classicRound('r1', [single], { speedBonus: false }), finalRound('f', withId(single, 'f1'))],
+      { leaderboard: 'end' },
+    );
+    let s = must(start(lobbyWith(finalQuiz, 'Олена', 'Тарас')));
+    s = must(next(s, 0, rng));
+    s = must(submitAnswer(s, 'p1', correct, 1000));
+    s = must(submitAnswer(s, 'p2', correct, 2000));
+    for (let guard = 0; s.phase !== 'wager' && guard < 10; guard += 1) s = must(next(s, 3000 + guard, rng));
+    expect(s.phase).toBe('wager');
+    expect(s.final?.limits).toEqual({ p1: 1000, p2: 1000 });
+    s = must(placeWager(s, 'p1', 800, 4000, rng));
+    // Мінус: межа падає до рахунку, ставка понад неї зменшується.
+    s = must(adjustScore(s, 'p1', -500, 4100));
+    expect(s.final?.limits.p1).toBe(500);
+    expect(s.final?.wagers).toEqual({ p1: 500 });
+    expect(placeWager(s, 'p1', 600, 4200, rng)).toEqual({ ok: false, error: 'wager_invalid' });
+    // Нижче нуля межа лишається 0.
+    s = must(adjustScore(s, 'p1', -900, 4300));
+    expect(s.final?.limits.p1).toBe(0);
+    expect(s.final?.wagers).toEqual({ p1: 0 });
+    // Плюс піднімає межу, а ставку не чіпає.
+    s = must(adjustScore(s, 'p1', 1400, 4400));
+    expect(s.final?.limits.p1).toBe(1000);
+    expect(s.final?.wagers).toEqual({ p1: 0 });
+    // Гравець без ставки: межа оновлюється, ставка не з'являється.
+    s = must(adjustScore(s, 'p2', 250, 4500));
+    expect(s.final?.limits).toEqual({ p1: 1000, p2: 1250 });
+    expect(Object.hasOwn(s.final!.wagers, 'p2')).toBe(false);
+    s = must(placeWager(s, 'p2', 1250, 4600, rng));
+    expect(s.phase).toBe('question');
+  });
+
+  it('host points outside the wager phase leave the final limits alone', () => {
+    const finalQuiz = makeRoundsQuiz(
+      [classicRound('r1', [single], { speedBonus: false }), finalRound('f', withId(single, 'f1'))],
+      { leaderboard: 'end' },
+    );
+    let s = must(start(lobbyWith(finalQuiz, 'Олена', 'Тарас')));
+    s = must(next(s, 0, rng));
+    s = must(submitAnswer(s, 'p1', correct, 1000));
+    s = must(submitAnswer(s, 'p2', correct, 2000));
+    for (let guard = 0; s.phase !== 'wager' && guard < 10; guard += 1) s = must(next(s, 3000 + guard, rng));
+    s = must(placeWager(s, 'p1', 300, 4000, rng));
+    s = must(placeWager(s, 'p2', 300, 4100, rng));
+    expect(s.phase).toBe('question');
+    s = must(adjustScore(s, 'p1', -900, 4200));
+    expect(s.final?.limits).toEqual({ p1: 1000, p2: 1000 });
+  });
+
   it('lastNotice gives the latest host adjustment with the nickname', () => {
     expect(lastNotice(must(start(lobby())))).toBeNull();
     let state = must(adjustScore(must(start(lobby())), 'p1', -100, T0));

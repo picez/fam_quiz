@@ -110,7 +110,7 @@ export interface ChainProgress {
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
 export interface FinalState {
-  /** Межа ставки: max(0, рахунок) на вході в етап wager. */
+  /** Межа ставки: max(0, рахунок) на вході в етап wager; бали від ведучого під час ставок її оновлюють. */
   limits: Record<string, number>;
   /** Ставки; гравця без ставки тут немає. */
   wagers: Record<string, number>;

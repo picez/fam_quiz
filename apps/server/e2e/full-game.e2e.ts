@@ -2867,6 +2867,18 @@ async function expectApart(page: Page, fixed: string, others: string[], label: s
   }
 }
 
+/**
+ * Протирає мишею з натиснутою кнопкою: наведення без кнопки туману й бруду не чіпає.
+ * Кнопку натискаємо й відпускаємо в куті над шапкою, тож натискання не стає кліком по варіанту.
+ */
+async function wipeWithMouse(page: Page, points: number[][]): Promise<void> {
+  await page.mouse.move(8, 8);
+  await page.mouse.down();
+  for (const [x, y] of points) await page.mouse.move(x!, y!);
+  await page.mouse.move(8, 8);
+  await page.mouse.up();
+}
+
 async function pranksGame() {
   const host = await open('host7d', 1280, 900);
   await register(host, 'host', 'Олег Ведучий', 'host7d@example.com');
@@ -2966,6 +2978,8 @@ async function pranksGame() {
   await click(host, 'Почати раунд');
   await olya.locator('.debuff-zone[data-debuff="fog"]').waitFor();
   await olya.getByText('На вас наслано: Туман').waitFor();
+  // Банер — смужка внизу: запитання й варіанти під туманом лишаються видимими.
+  await expectApart(olya, '.debuff-banner', ['.debuff-zone h1', '.choice'], 'fog banner 375×812');
   await shot(olya, 'debuff7d-fog-phone');
   for (const page of [petro, ira]) {
     await page.locator('.debuff-zone').waitFor();
@@ -2977,9 +2991,10 @@ async function pranksGame() {
   await row('Оля').locator('.debuff-tag').getByText('🌫️ Туман · діє', exact).waitFor();
   expect(await host.getByRole('button', { name: 'Скасувати дебаф', ...exact }).count()).toBe(0);
   const zone = (await olya.locator('.debuff-zone').boundingBox())!;
-  for (const [fx, fy] of [[0.2, 0.3], [0.5, 0.35], [0.8, 0.4], [0.5, 0.6], [0.3, 0.7]]) {
-    await olya.mouse.move(zone.x + zone.width * fx!, zone.y + zone.height * fy!);
-  }
+  await wipeWithMouse(
+    olya,
+    [[0.2, 0.3], [0.5, 0.35], [0.8, 0.4], [0.5, 0.6], [0.3, 0.7]].map(([fx, fy]) => [zone.x + zone.width * fx!, zone.y + zone.height * fy!]),
+  );
   await expect.poll(async () => Number(await olya.locator('.debuff-fog').getAttribute('data-cleared'))).toBeGreaterThan(0);
   await olya.waitForTimeout(100);
   await shot(olya, 'debuff7d-fog-wiped');
@@ -3009,6 +3024,10 @@ async function pranksGame() {
   await shot(ira, 'debuff7d-shake-phone');
   await petro.locator('fieldset.debuff-content[disabled]').waitFor();
   await petro.locator('.debuff-ice').waitFor();
+  // Банер живе 3 с від спрацювання: перевіряємо, якщо він ще на екрані.
+  if ((await petro.locator('.debuff-banner').count()) > 0) {
+    await expectApart(petro, '.debuff-banner', ['.debuff-zone h1', '.choice'], 'freeze banner 360×740');
+  }
   await shot(petro, 'debuff7d-freeze-phone');
   const petroKyiv = petro.getByRole('button', { name: /Київ/ });
   expect(await petroKyiv.isDisabled()).toBe(true);
@@ -3049,11 +3068,14 @@ async function pranksGame() {
   expect(await zoneKind(petro)).toBeNull();
   await olya.locator('.debuff-splat').nth(5).waitFor();
   expect(await olya.locator('.debuff-splat').count()).toBe(6);
+  await olya.getByText('На вас наслано: Брудний екран').waitFor();
+  await expectApart(olya, '.debuff-banner', ['.debuff-zone h1', '.choice'], 'mud banner 375×812');
   await shot(olya, 'debuff7d-mud-phone');
   const splat = (await olya.locator('.debuff-splat').first().boundingBox())!;
-  for (let i = 0; i < 5; i++) {
-    await olya.mouse.move(splat.x + splat.width / 2 + (i % 2 === 0 ? -2 : 2), splat.y + splat.height / 2);
-  }
+  await wipeWithMouse(
+    olya,
+    Array.from({ length: 5 }, (_, i) => [splat.x + splat.width / 2 + (i % 2 === 0 ? -2 : 2), splat.y + splat.height / 2]),
+  );
   await expect.poll(() => olya.locator('.debuff-splat').count()).toBe(5);
   await answer(olya, /Київ/);
   await expectNoSideScroll(olya, 'debuff7d-mud-375');
