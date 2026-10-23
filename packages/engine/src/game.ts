@@ -47,6 +47,7 @@ import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { splitBank, type BankOutcome } from './bank';
 import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
+import { notStarted, questionSplashKind, shiftSplash, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
   id: string;
@@ -322,6 +323,15 @@ export interface GameState {
   duelUsed: string[];
   /** Id запасних запитань, уже виданих у цій грі; вилучення гравця їх не повертає. */
   sparesUsed: string[];
+  /** Чи грає ця гра заставки переходів. */
+  transitions: boolean;
+  /** Поточна або остання заставка; null — не було або transitions вимкнено. */
+  splash: Splash | null;
+}
+
+export interface GameOptions {
+  /** Заставки переходів (8c); вимкнено — час іде як до 8c (тести рушія й сервера). */
+  transitions?: boolean;
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -329,7 +339,7 @@ export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorC
 export const ok = (state: GameState): Result => ({ ok: true, state });
 export const fail = (error: ErrorCode): Result => ({ ok: false, error });
 
-export function createGame(quiz: Quiz): GameState {
+export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
   return {
     quiz,
     phase: 'lobby',
@@ -354,6 +364,8 @@ export function createGame(quiz: Quiz): GameState {
     duelsDeclared: [],
     duelUsed: [],
     sparesUsed: [],
+    transitions: options.transitions ?? false,
+    splash: null,
   };
 }
 
@@ -567,23 +579,27 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       ? { blitz: { queue: [], attempts: [], buzzed: [], dropped: [] } }
       : {}),
   };
+  // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
+  const kind = questionSplashKind(state, board);
+  const marked = kind === null ? { ...state, splash: null } : withSplash(state, kind, now);
+  const at = marked.splash?.until ?? now;
   // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
-  // Дебафи, що чекають, спрацьовують для тих, хто відповідає на це запитання з телефона.
+  // Дебафи, що чекають, спрацьовують для тих, хто відповідає на це запитання з телефона, — від старту запитання.
   const opened = watchAway(
     {
-      ...state,
+      ...marked,
       phase: 'question',
       questionIndex: state.plays.length,
       plays: [...state.plays, play],
       presented: present(question, round.shuffleOptions, rng),
-      startedAt: now,
-      endsAt: isTimed(question) ? now + question.timeLimit * 1000 : null,
+      startedAt: at,
+      endsAt: isTimed(question) ? at + question.timeLimit * 1000 : null,
       remainingMs: null,
       heldAt: null,
     },
     now,
   );
-  return fireDebuffs(opened, now);
+  return fireDebuffs(opened, at);
 }
 
 /** Відкриває запитання фіналу; ставка кожного гравця знімається на цю мить, хто не поставив — грає з 0. */
@@ -898,6 +914,7 @@ export function start(state: GameState): Result {
 export function submitAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
   if (state.paused) return fail('paused');
+  if (notStarted(state, now)) return fail('not_started');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const play = state.plays[state.questionIndex];
   // Ланцюжок проходять лише guessWord і takeHint: підсумок з телефона не приймається.
@@ -1248,6 +1265,14 @@ export function pause(state: GameState, now: number): Result {
 }
 
 export function resume(state: GameState, now: number): Result {
+  const result = resumeClock(state, now);
+  if (!result.ok) return result;
+  // Заставка, що не скінчилася до паузи, стоїть разом із годинником і дограє після неї.
+  const pausedAt = state.pausedAt ?? now;
+  return ok(shiftSplash(result.state, pausedAt, now - pausedAt));
+}
+
+function resumeClock(state: GameState, now: number): Result {
   if (!state.paused) return fail('wrong_phase');
   // Годинник стоїть і далі, доки ведучий не вирішить; якщо гравця вилучили на паузі, він рушає зараз.
   if (state.phase === 'question' && state.heldAt !== null) {

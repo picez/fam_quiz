@@ -28,6 +28,9 @@ export type BuffBlock =
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual'
   | 'no_voters' | 'spares_out';
 
+/** Заставки переходів (частина 8c). */
+export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';
+
 export type ErrorCode =
   | 'wrong_phase'
   | 'paused'
@@ -63,4 +66,5 @@ export type ErrorCode =
   | 'buff_busy'
   | 'buff_unfit'
   | 'vote_closed'
-  | 'vote_denied';
+  | 'vote_denied'
+  | 'not_started';

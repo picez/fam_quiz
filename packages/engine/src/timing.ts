@@ -40,12 +40,14 @@ export function remainingOf(state: GameState, now: number): number | null {
 /** seconds — +15 або −15. */
 export function adjustTime(state: GameState, seconds: number, now: number): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
-  const remaining = remainingOf(state, now);
+  // Під час заставки залишок і новий кінець рахуються від старту запитання.
+  const clock = Math.max(now, state.startedAt ?? now);
+  const remaining = remainingOf(state, clock);
   if (remaining === null) return fail('wrong_phase');
   const delta = seconds * 1000;
   // Спільний час сплив, а хтось ще в додатковому: «+15 с» додається лише до його залишку, решта лишаються закриті.
   if (remaining === 0 && delta > 0) {
-    const extended = extendOvertime(state, delta, now);
+    const extended = extendOvertime(state, delta, clock);
     if (extended === 'time_limit') return fail('time_limit');
     if (extended !== null) return { ok: true, state: extended };
   }
@@ -61,7 +63,7 @@ export function adjustTime(state: GameState, seconds: number, now: number): Resu
     index === state.questionIndex ? { ...play, extraMs: play.extraMs + (next - remaining) } : play,
   );
   if (state.heldAt !== null) return { ok: true, state: { ...state, plays, endsAt: state.heldAt + next } };
-  return { ok: true, state: state.paused ? { ...state, plays, remainingMs: next } : { ...state, plays, endsAt: now + next } };
+  return { ok: true, state: state.paused ? { ...state, plays, remainingMs: next } : { ...state, plays, endsAt: clock + next } };
 }
 
 /**

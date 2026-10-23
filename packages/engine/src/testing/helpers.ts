@@ -16,6 +16,19 @@ export function lobbyWith(quiz: Quiz, ...nicknames: string[]): GameState {
   );
 }
 
+/** Як lobbyWith, але гра із заставками. */
+export function lobbyWithSplash(quiz: Quiz, ...nicknames: string[]): GameState {
+  return nicknames.reduce(
+    (state, nickname, index) => must(addPlayer(state, { id: `p${index + 1}`, nickname })),
+    createGame(quiz, { transitions: true }),
+  );
+}
+
+/** «Почати гру» (без now — без заставки раунду), потім «Почати раунд» о now. */
+export function openAt(lobby: GameState, now: number, rng?: Rng): GameState {
+  return must(next(must(start(lobby)), now, rng));
+}
+
 /** Ведучий тисне «Почати гру», а тоді «Почати раунд» у той самий момент: відкрито перше запитання. */
 export function startRound(lobby: GameState, now: number, rng?: Rng): GameState {
   return must(next(must(start(lobby)), now, rng));

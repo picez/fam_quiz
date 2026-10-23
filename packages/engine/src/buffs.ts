@@ -29,6 +29,7 @@ import {
 } from './game';
 import { normalizeText } from './normalize';
 import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
+import { notStarted } from './splash';
 
 /** Скільки додає «Додатковий час», мс. */
 export const EXTRA_TIME_MS = 30_000;
@@ -209,6 +210,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   const place = placeBlock(state, play, playerId);
   if (place === 'elsewhere') return fail('wrong_phase');
   if (state.paused) return fail('paused');
+  if (notStarted(state, now)) return fail('not_started');
   if (place === 'not_chooser') return fail('not_your_turn');
   if (hasAnswered(state, play, playerId)) return fail('already_answered');
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');

@@ -4,6 +4,7 @@ import { withPlay } from './blitz';
 import { autoLock, fail, lockNow, ok, recordOf, revealNow, withFinalPoints, type AnswerRecord, type GameState, type Play, type Result, type SortProgress } from './game';
 import { finalPoints } from './score';
 import { limitMsOf, timeOver } from './timing';
+import { notStarted } from './splash';
 
 type SortPlay = Play & { question: Extract<Question, { type: 'sort' }> };
 
@@ -58,6 +59,7 @@ function wagerOf(play: Play, playerId: string): number {
 export function sortWord(state: GameState, playerId: string, wordId: string, categoryId: string, now: number): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
   if (state.paused) return fail('paused');
+  if (notStarted(state, now)) return fail('not_started');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const play = sortPlay(state);
   if (play === null) return fail('type_mismatch');

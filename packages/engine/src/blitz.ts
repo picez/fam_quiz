@@ -8,6 +8,7 @@ import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Resu
 import { clockOf, holdAt, thaw } from './hold';
 import { answerPoints } from './score';
 import { closesAt, isTimed, timeOver } from './timing';
+import { notStarted } from './splash';
 
 const refuse = (error: ErrorCode): Result => ({ ok: false, error });
 
@@ -82,6 +83,7 @@ export function buzz(state: GameState, playerId: string, now: number): Result {
   const open = openBlitz(state);
   if (open === null) return refuse('wrong_phase');
   if (state.paused) return refuse('paused');
+  if (notStarted(state, now)) return refuse('not_started');
   if (!state.players.some((p) => p.id === playerId)) return refuse('not_found');
   // У миттєвому бліці кнопки немає: відповідь сама ставить гравця в чергу.
   if (isInstant(open.rules)) return refuse('wrong_phase');
