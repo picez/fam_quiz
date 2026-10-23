@@ -412,6 +412,38 @@ describe('VoteSheet', () => {
     expect(rule('.removed-tag')).toContain('position: absolute');
   });
 
+  it('folding the sheet keeps the chosen options and the typed text', async () => {
+    const multiQ: PublicQuestion = { ...single, type: 'multi' };
+    const many = sheet(prompt(), { q: multiQ });
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Згорнути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Розгорнути' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Голосувати' }));
+    });
+    expect(many.send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'multi', optionIds: ['b'] } });
+    cleanup();
+
+    sheet(prompt(), { q: text });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Львів' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Згорнути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Розгорнути' }));
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('Львів');
+  });
+
+  it('the folded head stays one line at 360 px: the ask is cut with an ellipsis, the toggle is an icon', () => {
+    sheet(prompt());
+    const toggle = screen.getByRole('button', { name: 'Згорнути' });
+    expect(toggle.textContent).toBe('▾');
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: 'Розгорнути' }).textContent).toBe('▴');
+    expect(rule('.vote-sheet-head')).toMatch(/flex-wrap:\s*nowrap/);
+    const ask = rule('.vote-sheet-head strong');
+    expect(ask).toContain('min-width: 0');
+    expect(ask).toContain('text-overflow: ellipsis');
+    expect(ask).toContain('white-space: nowrap');
+  });
+
   it('a removed option fades its face but keeps a full-strength «прибрано» chip, larger on the stage and the host', () => {
     // Тьмяніє лише вміст варіанта, не вся кнопка: інакше тьмяніє й позначка.
     expect(rule('.choice.is-removed')).not.toContain('opacity');
@@ -558,6 +590,12 @@ describe('StageBuffs', () => {
     fireEvent.click(opener);
     fireEvent.click(document.querySelector('.buff-help-backdrop')!);
     expect(screen.queryByRole('dialog')).toBeNull();
+    // Escape діє й тоді, коли фокус вийшов з аркуша; сам аркуш може взяти фокус.
+    fireEvent.click(opener);
+    expect(screen.getByRole('dialog').getAttribute('tabindex')).toBe('-1');
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('the help sheet is portaled out of the debuff fieldset and «?» works while frozen', () => {
@@ -598,6 +636,18 @@ describe('StageBuffs', () => {
     expect(whyOf(blockedOf('fifty', 'unfit_type'), '50/50')).toBe('50/50 діє лише на запитаннях з варіантами.');
     expect(whyOf(blockedOf('retry', 'unfit_voice'), 'Друга спроба')).toBe('Друга спроба не діє, коли відповідаєте вголос.');
     expect(whyOf(blockedOf('swap', 'spares_out'), 'Заміна запитання')).toBe('Запасні запитання закінчилися.');
+  });
+
+  it('buff notices never cover controls: top on the host, a reserved strip on the phone, full width to wrap', () => {
+    const host = rule('.host .live-notice');
+    expect(host).toMatch(/top:/);
+    expect(host).toContain('bottom: auto');
+    expect(rule('.app.player')).toContain('var(--notice-room)');
+    expect(rule('.app.player:has(.debuff-banner)')).toContain('var(--notice-room)');
+    expect(rule('.app.player:has(> .duel-banner)')).toContain('var(--notice-room)');
+    const notice = rule('.live-notice');
+    expect(notice).not.toContain('translateX(-50%)');
+    expect(notice).toContain('width: fit-content');
   });
 
   it('the help sheet is a fixed layer above the vote sheet', () => {

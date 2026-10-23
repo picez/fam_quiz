@@ -849,9 +849,8 @@ function personalClock(state: GameState, playerId: string): { deadline: number |
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
   if (play === undefined) return null;
   const overtime = overtimeOf(play, playerId);
-  // Хто вже відповів (або чекає на ведучого на полі), на себе не чекає.
-  const answered = Object.hasOwn(play.answers, playerId) || (play.board?.chooserId === playerId && play.board.answer !== null);
-  if (overtime <= 0 || answered) return null;
+  // Хто вже відповів (чекає на ведучого на полі або назвав відповідь уголос), на себе не чекає.
+  if (overtime <= 0 || Object.hasOwn(play.answers, playerId) || hasAnswered(state, play, playerId)) return null;
   // Під час утримання й на паузі годинник стоїть: лише залишок. Пауза вже зменшила overtime на витрачене (trimOvertime),
   // а remainingMs тоді 0; утримання overtime не чіпає, зате endsAt − heldAt після спільного кінця від'ємний — двічі не віднімається.
   const remaining = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.paused ? state.remainingMs : null;
@@ -1046,6 +1045,8 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
           question: publicQuestion(spare.question, spare.presented),
           limitMs: state.phase === 'question' && play !== undefined ? answerLimitMs(play, playerId) : shared.limitMs,
         }),
+    // Слова клітинки сортування — для глядачів; той, хто сортує, бачить лише власну поточну картку.
+    ...(shared.sort !== null && shared.sort.words !== null && open?.board.chooserId === playerId ? { sort: { ...shared.sort, words: null } } : {}),
     role: 'player',
     me: {
       id: player.id,

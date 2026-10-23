@@ -25,6 +25,7 @@ import { finalPoints } from './score';
 import { adjustTime, limitMsOf } from './timing';
 import { chain, classicRound, finalRound, makeRoundsQuiz, order, single, sortQ, withId, withPoints, withVideo } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
+import { playerView } from './views';
 
 const right = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
@@ -240,6 +241,20 @@ describe('the final round', () => {
     s = must(next(s, 17_000, rng));
     expect(s.phase).toBe('finished');
     expect(finalShown(s, 'p1')).toBe(true);
+  });
+
+  it('the table on a phone hides final points until that player is revealed', () => {
+    const own = (state: GameState, playerId: string) => playerView(state, playerId)?.table?.rows.find((row) => row.participantId === playerId)?.score;
+    let s = toReveal();
+    expect(scores(s)).toEqual([1500, 0, -400]);
+    // До розкриття — бали перед фіналом, без ставок.
+    expect([own(s, 'p1'), own(s, 'p2'), own(s, 'p3')]).toEqual([1000, 400, -400]);
+    expect(JSON.stringify(playerView(s, 'p1')?.table)).not.toContain('1500');
+    s = must(next(s, 14_000, rng)); // p3
+    s = must(next(s, 15_000, rng)); // p2
+    expect([own(s, 'p1'), own(s, 'p2')]).toEqual([1000, 0]);
+    s = must(next(s, 16_000, rng)); // p1
+    expect(own(s, 'p1')).toBe(1500);
   });
 
   it('finalShown is false before the reveal and true outside the final', () => {

@@ -153,6 +153,12 @@ describe('sort views', () => {
     // Глядачі бачать слова (за абеткою), але не правильні категорії й не чужу картку.
     expect(playerView(s, 'p2')?.sort?.words).toHaveLength(sortQ.words.length);
     expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('categoryId');
+    expect(stageView(s).sort?.words).toHaveLength(sortQ.words.length);
+    expect(hostView(s).sort?.words).toHaveLength(sortQ.words.length);
+    // Той, хто сортує, слів наперед не бачить: лише власну поточну картку.
+    expect(playerView(s, 'p1')?.sort?.words).toBeNull();
+    const chooser = JSON.stringify(playerView(s, 'p1'));
+    expect(sortQ.words.filter((w) => chooser.includes(w.text)).map((w) => w.id)).toEqual([head(s, 'p1')]);
     expect(stageView(s).spotlight).toBeNull();
     const locked = must(lock(s));
     expect(stageView(locked).spotlight).toBeNull();

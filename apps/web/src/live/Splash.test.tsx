@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type BoardInfo, type DuelInfo, type FinalInfo, type RoundInfo, type StageView } from '@quiz/shared';
+import { CELL_SURPRISE_MS, SPLASH_MS, emptyBrief, type BoardInfo, type DuelInfo, type FinalInfo, type RoundInfo, type StageView } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
@@ -182,13 +182,16 @@ describe('Splash', () => {
 
   it('a marked cell ends its flip with «×2!»', () => {
     const now = Date.now();
-    const cellSplash = { kind: 'cell', at: now, until: now + 1800 } as const;
+    const cellSplash = { kind: 'cell', at: now, until: now + SPLASH_MS.cell + CELL_SURPRISE_MS } as const;
     const withMark = (mark: 'x2' | 'x3' | 'none') =>
       stage({ phase: 'question', round: { ...round, type: 'board' }, board: { ...board, cell: { ...board.cell!, mark } }, questionIndex: 0, splash: cellSplash });
     const { container, unmount } = render(<Splash view={withMark('x2')} offsetMs={0} size="stage" />);
     expect(container.querySelector('.splash.is-cell.is-surprise')).not.toBeNull();
     expect(container.querySelector('.splash-surprise')?.textContent).toBe('×2!');
-    expect(container.querySelector('.splash')?.getAttribute('style')).toContain('--splash-flip-ms: 1000ms');
+    // Тривалості — з shared, тими ж числами, що рахує рушій.
+    const style = container.querySelector('.splash')?.getAttribute('style');
+    expect(style).toContain(`--splash-flip-ms: ${SPLASH_MS.cell}ms`);
+    expect(style).toContain(`--splash-surprise-ms: ${CELL_SURPRISE_MS}ms`);
     unmount();
     const plain = render(<Splash view={withMark('none')} offsetMs={0} size="stage" />);
     expect(plain.container.querySelector('.is-surprise')).toBeNull();
@@ -224,6 +227,14 @@ function insideNoPreference(index: number): boolean {
 }
 
 describe('splash styles', () => {
+  it('the card title fades out under the «×2!» stamp once the flip ends', () => {
+    const title = rule('.splash.is-surprise .splash-cell-title,\n.splash.is-surprise .splash-cell-marks');
+    expect(title).toContain('splash-title-out');
+    expect(title).toContain('var(--splash-flip-ms)');
+    expect(css).toMatch(/@keyframes splash-title-out \{\n  to \{\n    opacity: 0;/);
+    expect(rule('.splash-surprise')).toContain('var(--splash-surprise-ms)');
+  });
+
   it('the surprise moves only without reduced motion', () => {
     expect(rule('.splash-surprise')).not.toContain('transform');
     expect(rule('.splash-surprise')).toContain('opacity');

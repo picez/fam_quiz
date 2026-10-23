@@ -19,12 +19,18 @@ export function TableButton({ table, meId }: { table: PlayerTable; meId: string 
       triggerRef.current?.focus();
     }
   }, [open]);
-  // Escape закриває; єдина кнопка аркуша тримає фокус у ньому.
+  // Escape закриває, поки аркуш відкрито, — навіть коли фокус уже вийшов з нього.
+  useEffect(() => {
+    if (!open) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onEscape);
+    return () => document.removeEventListener('keydown', onEscape);
+  }, [open]);
+  // Єдина кнопка аркуша тримає фокус у ньому.
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      setOpen(false);
-    } else if (event.key === 'Tab') {
+    if (event.key === 'Tab') {
       event.preventDefault();
       closeRef.current?.focus();
     }
@@ -36,7 +42,7 @@ export function TableButton({ table, meId }: { table: PlayerTable; meId: string 
       </button>
       {open &&
         createPortal(
-          <div className="table-sheet" role="dialog" aria-modal="true" aria-label={t('tableTitle')} onClick={() => setOpen(false)} onKeyDown={onKeyDown}>
+          <div className="table-sheet" role="dialog" aria-modal="true" aria-label={t('tableTitle')} tabIndex={-1} onClick={() => setOpen(false)} onKeyDown={onKeyDown}>
             <div className="table-card">
               <h2>{t('tableTitle')}</h2>
               <Standings standings={table.rows} highlightId={meId} />

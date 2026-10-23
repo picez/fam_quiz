@@ -1025,7 +1025,7 @@ describe('StageScreen final', () => {
   });
 
   it('a buff notice on the stage', () => {
-    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), nickname: 'Оля', kind: 'fifty' } }));
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'fifty', questionIndex: 0 } }));
     expect(screen.getByText('Оля: 50/50')).toBeTruthy();
   });
 });

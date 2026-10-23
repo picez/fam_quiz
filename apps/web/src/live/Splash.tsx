@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import type { BoardInfo, GameView, SplashView } from '@quiz/shared';
+import { CELL_SURPRISE_MS, SPLASH_MS, type BoardInfo, type GameView, type SplashView } from '@quiz/shared';
 import { splashLeft } from '../clock';
 import { markText, roundLabel } from '../format';
 import { t } from '../i18n';
@@ -32,8 +32,8 @@ export function useSplash(splash: SplashView | null, paused: boolean, offsetMs: 
   return { splash, elapsed };
 }
 
-/** Перегортання клітинки триває SPLASH_MS.cell рушія; далі, до кінця заставки, — штамп «×2!». */
-const CELL_FLIP_MS = 1000;
+/** Перегортання клітинки триває SPLASH_MS.cell; далі, ще CELL_SURPRISE_MS до кінця заставки, — штамп «×2!». */
+const CELL_FLIP_MS = SPLASH_MS.cell;
 
 /** Перегортання вибраної клітинки поля: лице — ціна, зворот — категорія, ціна й позначки. */
 function CellFlip({ cell }: { cell: NonNullable<BoardInfo['cell']> }) {
@@ -130,7 +130,7 @@ export function Splash({ view, offsetMs, size }: { view: GameView; offsetMs: num
   const style = {
     '--splash-ms': `${splash.until - splash.at}ms`,
     '--splash-elapsed': `${-elapsed}ms`,
-    ...(surprise ? { '--splash-flip-ms': `${CELL_FLIP_MS}ms` } : {}),
+    ...(surprise ? { '--splash-flip-ms': `${CELL_FLIP_MS}ms`, '--splash-surprise-ms': `${CELL_SURPRISE_MS}ms` } : {}),
   } as CSSProperties;
   // aria-hidden: той самий зміст уже стоїть у розкладці етапу під шаром.
   return (

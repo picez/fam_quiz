@@ -289,7 +289,7 @@ describe('HostScreen', () => {
   });
 
   it('a buff notice reaches the host console', () => {
-    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), nickname: 'Олена', kind: 'fifty' } }));
+    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Олена', kind: 'fifty', questionIndex: 0 } }));
     expect(screen.getByText('Олена: 50/50')).toBeTruthy();
   });
 

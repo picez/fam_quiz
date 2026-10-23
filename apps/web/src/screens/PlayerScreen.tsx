@@ -364,7 +364,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
-      <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
       {/* Запрошення проголосувати — нижній аркуш position: fixed: чужий баф нічого не зсуває. */}
       {phase === 'question' && question !== null && (
         <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />

@@ -32,6 +32,12 @@ export type BuffBlock =
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';
 
+/** Тривалість кожної заставки, мс; кінець заставки запитання — старт його таймера. Рушій і веб читають одне число. */
+export const SPLASH_MS: Record<SplashKind, number> = { round: 2500, final: 3200, question: 1200, cell: 1000, duel: 2000, podium: 2500 };
+
+/** Скільки довше триває перегортання клітинки з ×2/×3: сюрприз після перегортання, мс. */
+export const CELL_SURPRISE_MS = 800;
+
 export type ErrorCode =
   | 'wrong_phase'
   | 'paused'

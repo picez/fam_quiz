@@ -48,13 +48,17 @@ export function BuffHelp({ kinds }: { kinds: BuffKind[] }) {
       openerRef.current?.focus();
     }
   }, [open]);
-  // Escape закриває; Tab і Shift+Tab ходять колом по кнопках аркуша.
+  // Escape закриває, поки аркуш відкрито, — навіть коли фокус уже вийшов з нього.
+  useEffect(() => {
+    if (!open) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onEscape);
+    return () => document.removeEventListener('keydown', onEscape);
+  }, [open]);
+  // Tab і Shift+Tab ходять колом по кнопках аркуша.
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      setOpen(false);
-      return;
-    }
     if (event.key !== 'Tab') return;
     const items = [...(sheetRef.current?.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])') ?? [])];
     if (items.length === 0) return;
@@ -94,7 +98,7 @@ export function BuffHelp({ kinds }: { kinds: BuffKind[] }) {
         createPortal(
           <>
             <div className="buff-help-backdrop" onClick={() => setOpen(false)} />
-            <div ref={sheetRef} className="buff-help-sheet" role="dialog" aria-modal="true" aria-labelledby="buff-help-title" onKeyDown={onKeyDown}>
+            <div ref={sheetRef} className="buff-help-sheet" role="dialog" aria-modal="true" aria-labelledby="buff-help-title" tabIndex={-1} onKeyDown={onKeyDown}>
               <h2 id="buff-help-title">{t('buffHelpTitle')}</h2>
               <p className="buff-help-rule">{t('buffHelpRule')}</p>
               <ul>
@@ -503,20 +507,25 @@ export function VoteSheet({
         <p className="vote-sheet-head">
           <strong>{ask}</strong>
           <span className="vote-time">{t('votesLeft', { time: clockText(left) })}</span>
-          <button type="button" className="btn btn-small vote-toggle" aria-expanded={!collapsed} onClick={() => setCollapsed((now) => !now)}>
-            {t(collapsed ? 'voteExpand' : 'voteCollapse')}
+          <button
+            type="button"
+            className="btn btn-small vote-toggle"
+            aria-expanded={!collapsed}
+            aria-label={t(collapsed ? 'voteExpand' : 'voteCollapse')}
+            onClick={() => setCollapsed((now) => !now)}
+          >
+            <span aria-hidden="true">{collapsed ? '▴' : '▾'}</span>
           </button>
         </p>
-        {!collapsed && (
-          <>
-            <fieldset className="inputs" disabled={paused || sending}>
-              <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
-            </fieldset>
-            <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
-              {t('voteSkip')}
-            </button>
-          </>
-        )}
+        {/* Згорнутий аркуш лише ховає вміст: AnswerInput лишається змонтованим, тож вибране й набране не губиться. */}
+        <div className="vote-sheet-body" hidden={collapsed}>
+          <fieldset className="inputs" disabled={paused || sending}>
+            <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
+          </fieldset>
+          <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
+            {t('voteSkip')}
+          </button>
+        </div>
       </section>
     </>
   );

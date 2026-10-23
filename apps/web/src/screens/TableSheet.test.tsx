@@ -39,6 +39,34 @@ describe('TableButton', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('Escape closes the sheet even when focus has left it; the dialog itself can take focus', () => {
+    render(<TableButton table={{ rows, full: true }} meId="p1" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
+    expect(screen.getByRole('dialog').getAttribute('tabindex')).toBe('-1');
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // Після закриття — без зайвих слухачів: Escape нічого не ламає.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Таблиця' }));
+  });
+
+  it('focus stays inside the open sheet: Tab and Shift+Tab come back to «Закрити»', () => {
+    render(<TableButton table={{ rows, full: true }} meId="p1" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
+    const sheet = screen.getByRole('dialog');
+    const close = within(sheet).getByRole('button', { name: 'Закрити' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(close);
+    sheet.focus();
+    expect(document.activeElement).toBe(sheet);
+    fireEvent.keyDown(sheet, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+  });
+
   it('with the table hidden till the end it shows only one’s own place', () => {
     render(<TableButton table={{ rows: [rows[1]], full: false }} meId="p1" />);
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));

@@ -93,7 +93,7 @@ export interface SortInfo {
   rows: SortRow[];
   /** Бліц: хто першим відсортував усе; з locked. null — ще ніхто або не бліц. */
   winner: BlitzPlayer | null;
-  /** Клітинка поля: усі слова за абеткою (для глядачів); інакше null. */
+  /** Клітинка поля: усі слова за абеткою для сцени, пульта й глядачів; тому, хто сортує, і поза полем — null. */
   words: { id: string; text: string }[] | null;
 }
 
@@ -406,12 +406,13 @@ export interface BuffTag extends BlitzPlayer {
 }
 
 /** Останній узятий баф у грі, для сповіщення «Оля: 50/50». seq — номер використання в грі. */
-export interface BuffNotice {
+export interface BuffNotice extends BlitzPlayer {
   seq: number;
   /** Час сервера в мить, коли баф узято. */
   at: number;
-  nickname: string;
   kind: BuffKind;
+  /** Запитання, на якому баф узято: сповіщення видно лише на ньому, не на заставці наступної клітинки. */
+  questionIndex: number;
 }
 
 /** Гравець із додатковим часом без відповіді: особистий кінець пізніший за спільний, тож розкриття на нього чекатиме. */
@@ -525,7 +526,7 @@ interface BaseView {
   buffs: BuffTag[];
   /** Останній узятий баф у грі; null — не було. */
   buffNotice: BuffNotice | null;
-  /** Прибрані 50/50 варіанти вибравшого на клітинці поля (question, locked, reveal) — для всіх ролей; у класиці й без бафу []. */
+  /** Прибрані 50/50 варіанти вибравшого на клітинці поля, поки стоїть її запитання (question, locked, reveal, а на finished — після останньої клітинки раунду) — для всіх ролей; у класиці й без бафу []. */
   removed: string[];
   /** Заставка поточного етапу (round/final — intro, question/cell — question, duel — duel, podium — finished); інакше null. */
   splash: SplashView | null;

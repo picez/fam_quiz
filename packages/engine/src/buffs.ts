@@ -454,14 +454,25 @@ export function currentBuffs(state: GameState): BuffTag[] {
   });
 }
 
-/** Останній узятий баф у грі — з найбільшим seq серед бафів, що лишилися в журналі. */
+/**
+ * Останній узятий баф у грі — з найбільшим seq серед бафів, що лишилися в журналі.
+ * questionIndex — номер його запитання в раунді, як questionIndex зрізу: екрани показують сповіщення лише на тому ж запитанні.
+ * Баф з іншого раунду — null: номери в різних раундах збігаються.
+ */
 export function lastBuff(state: GameState): BuffNotice | null {
-  let last: BuffNotice | null = null;
-  for (const play of state.plays) {
+  let last: { notice: Omit<BuffNotice, 'questionIndex'>; index: number } | null = null;
+  for (const [index, play] of state.plays.entries()) {
     for (const p of state.players) {
       const buff = buffOf(play, p.id);
-      if (buff !== null && (last === null || buff.seq > last.seq)) last = { seq: buff.seq, at: buff.at, nickname: p.nickname, kind: buff.kind };
+      if (buff !== null && (last === null || buff.seq > last.notice.seq)) {
+        last = { notice: { seq: buff.seq, at: buff.at, playerId: p.id, nickname: p.nickname, kind: buff.kind }, index };
+      }
     }
   }
-  return last;
+  if (last === null) return null;
+  const { notice, index } = last;
+  const roundIndex = state.plays[index].roundIndex;
+  if (roundIndex !== state.roundIndex) return null;
+  const questionIndex = state.plays.slice(0, index + 1).filter((play) => play.roundIndex === roundIndex).length - 1;
+  return { ...notice, questionIndex };
 }

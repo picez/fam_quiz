@@ -1446,7 +1446,7 @@ describe('PlayerScreen: sort', () => {
     const was = shape();
     rerender(
       <PlayerScreen
-        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double' }], buffNotice: { seq: 1, at: Date.now(), nickname: 'Петро', kind: 'double' } }}
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double' }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0 } }}
         hostOnline
         offsetMs={0}
         send={send}
@@ -1614,7 +1614,7 @@ describe('PlayerScreen: buffs with others', () => {
     const was = shape();
     rerender(
       <PlayerScreen
-        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience' }], buffNotice: { seq: 1, at: Date.now(), nickname: 'Оля', kind: 'audience' } }}
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience' }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'audience', questionIndex: 0 } }}
         hostOnline
         offsetMs={0}
         send={send}

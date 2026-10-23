@@ -246,7 +246,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
   return (
     <main className="app host">
-      <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      <BuffToast view={view} offsetMs={offsetMs} />
       {/* Пульт заставкою не закривається: лише значок position: fixed у правому верхньому куті. */}
       <SplashChip view={view} offsetMs={offsetMs} />
       <header className="bar">

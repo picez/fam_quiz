@@ -1,9 +1,9 @@
-import type { SplashKind } from '@quiz/shared';
+import { CELL_SURPRISE_MS, SPLASH_MS, type SplashKind } from '@quiz/shared';
 // game.ts викликає цей файл; звідси — лише типи game.ts.
 import type { BoardPlay, GameState } from './game';
 
-/** Тривалість кожної заставки, мс; кінець заставки запитання — старт його таймера. */
-export const SPLASH_MS: Record<SplashKind, number> = { round: 2500, final: 3200, question: 1200, cell: 1000, duel: 2000, podium: 2500 };
+// Тривалості живуть у shared: веб бере звідти ж перегортання клітинки й штамп сюрпризу.
+export { CELL_SURPRISE_MS, SPLASH_MS };
 
 /** Поточна заставка: вид і час сервера початку й кінця. */
 export interface Splash {
@@ -11,9 +11,6 @@ export interface Splash {
   at: number;
   until: number;
 }
-
-/** Скільки довше триває перегортання клітинки з ×2/×3: сюрприз після перегортання, мс. */
-export const CELL_SURPRISE_MS = 800;
 
 /** Ставить заставку kind з миті now тривалістю ms (типово SPLASH_MS[kind]); без state.transitions — splash: null. */
 export function withSplash(state: GameState, kind: SplashKind, now: number, ms: number = SPLASH_MS[kind]): GameState {

@@ -50,6 +50,8 @@
   --banner-base: max(1rem, env(safe-area-inset-bottom));
   --debuff-banner-room: 6.25rem;
   --duel-banner-room: 6.25rem;
+  /* Висота сповіщення в один рядок із відступом: телефон тримає під нього запас унизу. */
+  --notice-room: 4rem;
   --display: 'Unbounded Variable', system-ui, sans-serif;
   --body: 'Onest Variable', system-ui, sans-serif;
   color-scheme: dark;
@@ -3501,8 +3503,11 @@ button.match-item {
 .live-notice {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
+  /* По центру без transform: ширина за вмістом до всієї ширини екрана, а не до половини (left: 50%). */
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin-inline: auto;
   z-index: 66; /* над заставкою (65): тости ±15 с і бафів не ховаються під нею */
   max-width: calc(100vw - 2rem);
   padding: 0.6rem 1.1rem;
@@ -3522,6 +3527,21 @@ button.match-item {
 /* Сцена тримає внизу постійний запас під сповіщення й значки: вони не накривають варіантів і таблиці. */
 .app.stage {
   padding-bottom: max(4vh, 4.75rem);
+}
+
+/* Телефон теж тримає внизу запас під сповіщення: воно не накриває варіантів і кнопок. */
+.app.player {
+  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--notice-room));
+}
+
+.app.player:has(.debuff-banner) {
+  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6rem + var(--notice-room));
+}
+
+/* На пульті внизу липка панель дій («Закрити запитання»): сповіщення стоїть угорі, над шапкою. */
+.host .live-notice {
+  top: max(0.75rem, env(safe-area-inset-top));
+  bottom: auto;
 }
 
 .stage .live-notice {
@@ -4453,11 +4473,11 @@ body:has(.debuff-banner) .duel-banner {
 }
 
 .app.player:has(> .duel-banner) {
-  padding-bottom: calc(var(--banner-base) + var(--duel-banner-room) + 0.5rem);
+  padding-bottom: calc(var(--banner-base) + var(--duel-banner-room) + var(--notice-room) + 0.5rem);
 }
 
 .app.player:has(> .duel-banner):has(.debuff-banner) {
-  padding-bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room) + 0.5rem);
+  padding-bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room) + var(--notice-room) + 0.5rem);
 }
 
 /* Сповіщення про бали стає над смугою, а з банером дебафу — над обома. Сцена має власне правило нижче. */
@@ -5107,8 +5127,7 @@ label.powers-item {
   margin: 0;
 }
 
-.vote-head,
-.vote-sheet-head {
+.vote-head {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -5199,12 +5218,44 @@ label.powers-item {
   gap: 0;
 }
 
+/* Голова аркуша — завжди один рядок і на 360px: довге запрошення обрізається трикрапкою, відлік і ▴/▾ лишаються. */
 .vote-sheet-head {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  gap: 0.75rem;
   align-items: center;
+  margin: 0;
+}
+
+.vote-sheet-head strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vote-sheet-head .vote-time {
+  flex: none;
+  white-space: nowrap;
 }
 
 .vote-toggle {
+  flex: none;
+  min-width: 44px;
   margin-left: auto;
+  padding-inline: 0.5rem;
+}
+
+.vote-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vote-sheet-body[hidden] {
+  display: none;
 }
 
 .vote-sheet .inputs {
@@ -5588,11 +5639,23 @@ label.powers-item {
   color: var(--surprise);
   text-shadow: 0 0 1.5rem rgb(0 0 0 / 0.6);
   opacity: 1;
-  animation: splash-surprise-in calc(var(--splash-ms) - var(--splash-flip-ms)) linear calc(var(--splash-elapsed) + var(--splash-flip-ms)) both;
+  animation: splash-surprise-in var(--splash-surprise-ms) linear calc(var(--splash-elapsed) + var(--splash-flip-ms)) both;
 }
 
 .splash.is-surprise .splash-flip {
   animation-duration: var(--splash-flip-ms);
+}
+
+/* Під штампом «×2!» текст картки («Міста · 200») гасне, щойно перегортання скінчилося: не просвічує крізь штамп. */
+.splash.is-surprise .splash-cell-title,
+.splash.is-surprise .splash-cell-marks {
+  animation: splash-title-out 0.15s linear calc(var(--splash-elapsed) + var(--splash-flip-ms)) both;
+}
+
+@keyframes splash-title-out {
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes splash-surprise-in {

@@ -203,6 +203,25 @@ describe('buffs on a voice cell', () => {
     expect(canVote(asked, 'p3', 'p1')).toBe(true);
     expect(overtimeOf(asked.plays[0], 'p1')).toBe(AUDIENCE_MS);
   });
+
+  it('the audience on a board cell gives the chooser an overtime countdown on every screen', () => {
+    const asked = must(takeBuff(toVoiceCell(), 'p1', 'audience', T0 + 2000, rng0));
+    const row = { playerId: 'p1', deadline: T0 + 20_000 + AUDIENCE_MS, remainingMs: null };
+    expect(stageView(asked).overtime).toEqual([expect.objectContaining(row)]);
+    expect(hostView(asked).overtime).toEqual([expect.objectContaining(row)]);
+    expect(playerView(asked, 'p1')?.me.overtime).toEqual({ deadline: T0 + 20_000 + AUDIENCE_MS, remainingMs: null });
+  });
+
+  it('the overtime countdown stops once the host names the answer said aloud', () => {
+    for (const kind of ['time', 'audience'] as const) {
+      const taken = must(takeBuff(toVoiceCell(), 'p1', kind, T0 + 2000, rng0));
+      expect(stageView(taken).overtime, kind).toHaveLength(1);
+      const named = must(nameAnswer(taken, { type: 'single', optionId: 'a' }));
+      expect(stageView(named).overtime, kind).toEqual([]);
+      expect(hostView(named).overtime, kind).toEqual([]);
+      expect(playerView(named, 'p1')?.me.overtime, kind).toBeNull();
+    }
+  });
 });
 
 describe('specific reasons where there are no buffs', () => {
