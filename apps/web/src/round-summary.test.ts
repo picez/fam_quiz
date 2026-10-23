@@ -56,9 +56,15 @@ describe('roundSummary', () => {
     }
   });
   it('a final round explains the secret wager', () => {
-    expect(roundSummary(emptyBrief('final'))).toEqual([
+    expect(roundSummary({ ...emptyBrief('final'), wagerMode: 'classic' })).toEqual([
       'Кожен таємно ставить від 0 до свого рахунку.',
       'Правильна відповідь — плюс ставка, неправильна або жодної — мінус ставка.',
+    ]);
+  });
+  it('a bank final explains the shared bank', () => {
+    expect(roundSummary({ ...emptyBrief('final'), wagerMode: 'bank' })).toEqual([
+      'Кожен таємно ставить від 0 до свого рахунку.',
+      'Хто помилився або не відповів, віддає ставку в спільний банк; хто відповів правильно, зберігає свою й ділить банк пропорційно ставкам.',
     ]);
   });
 });

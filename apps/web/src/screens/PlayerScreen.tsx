@@ -111,16 +111,18 @@ function DiceAction({ dice, meId, paused, send, onError }: { dice: DiceInfo; meI
 /** Ставка гравця у фіналі: числове поле (його можна змінити) або єдина ставка 0. */
 function WagerForm({
   final,
+  bank,
   send,
   onError,
 }: {
-  final: { wager: number | null; limit: number };
+  final: { wager: number | null; limit: number; allIn: boolean };
+  bank: boolean;
   send: Send;
   onError: (message: string | null) => void;
 }) {
   const [value, setValue] = useState(final.wager === null ? '' : String(final.wager));
-  const place = async (amount: number) => {
-    const result = await send('player:wager', { amount });
+  const place = async (amount: number, allIn = false) => {
+    const result = await send('player:wager', allIn ? { amount, allIn: true } : { amount });
     onError(result.ok ? null : errorText(result.error));
   };
   const amount = value.trim() === '' ? Number.NaN : Number(value);
@@ -134,6 +136,8 @@ function WagerForm({
       {final.limit > 0 ? (
         <form onSubmit={submit}>
           <p className="lead">{t('finalWagerPrompt', { limit: final.limit })}</p>
+          {bank && <p className="meta">{t('finalBankRule')}</p>}
+          <div className="wager-row">
           <label className="field">
             <span className="meta">{t('finalWagerLabel')}</span>
             <input
@@ -147,21 +151,46 @@ function WagerForm({
               onChange={(event) => setValue(event.target.value)}
             />
           </label>
+          <button
+            type="button"
+            className="btn btn-allin"
+            onClick={() => {
+              setValue(String(final.limit));
+              void place(final.limit, true);
+            }}
+          >
+            {t('finalAllIn')}
+          </button>
+          </div>
           <button type="submit" className="btn btn-primary" disabled={!valid}>
             {t('finalPlace')}
           </button>
         </form>
       ) : (
         <>
+          {bank && <p className="meta">{t('finalBankRule')}</p>}
           <p className="lead">{t('finalZeroScore')}</p>
           <button type="button" className="btn btn-primary" onClick={() => void place(0)}>
             {t('finalPlaceZero')}
           </button>
         </>
       )}
-      {final.wager !== null && <p className="wager-mine">{t('finalMyWager', { wager: final.wager })}</p>}
+      {final.wager !== null && (
+        <p className="wager-mine">{t(final.allIn ? 'finalMyWagerAllIn' : 'finalMyWager', { wager: final.wager })}</p>
+      )}
     </section>
   );
+}
+
+/** Рядок під дельтою у спільному банку: одна з підказок за станом розподілу. */
+function bankNote(view: PlayerView, result: { grade: string }): string {
+  const split = view.final?.split ?? null;
+  if (split?.refund) return t('finalRefund');
+  if (result.grade !== 'correct') return t('finalLostToBank');
+  if (split === null) return t('finalKeptStake');
+  const mine = split.shares.find((entry) => entry.playerId === view.me.id);
+  if (mine !== undefined) return t('finalBankShare', { share: num(mine.share) });
+  return view.me.final?.wager === 0 ? t('finalNoShare') : t('finalBankShare', { share: 0 });
 }
 
 /** Результат гравця у фіналі: «+ставка» або «−ставка» і новий рахунок; до свого розкриття очікування. */
@@ -169,10 +198,12 @@ function FinalResult({ view }: { view: PlayerView }) {
   const { result } = view.me;
   if (result === null) return <p className="lead">{t('finalWaitReveal')}</p>;
   const won = result.grade === 'correct';
+  const bank = view.final?.mode === 'bank';
   return (
     <section className={`result ${won ? 'is-correct' : 'is-wrong'}`}>
       <h2>{t(won ? 'resultCorrect' : 'resultWrong')}</h2>
       <p className="wager-delta">{signed(result.points)}</p>
+      {bank && <p className="wager-note">{bankNote(view, result)}</p>}
       <p>{t('finalNewScore', { score: num(view.me.score) })}</p>
       {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
     </section>
@@ -294,7 +325,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'wager' && me.final !== null && (
         <>
           {view.round !== null && <p className="meta">{roundLabel(view.round.title, view.round.index, view.round.type)}</p>}
-          <WagerForm key={me.final.limit} final={me.final} send={send} onError={setError} />
+          <WagerForm key={me.final.limit} final={me.final} bank={view.final?.mode === 'bank'} send={send} onError={setError} />
         </>
       )}
 

@@ -14,6 +14,8 @@
   --cell-blitz: rgb(255 179 0 / 0.2);
   --cell-voice: rgb(155 140 255 / 0.22);
   --video-mask: #000;
+  --allin: #ff4f81;
+  --bank: #ffd166;
   --pending: #ff7a1a;
   --pending-soft: rgb(255 122 26 / 0.18);
   --panel: rgb(255 255 255 / 0.05);
@@ -2928,6 +2930,31 @@ button.match-item {
 .wager-form input {
   width: 100%;
   max-width: 100%;
+}
+
+/* Поле ставки й «Ва-банк» в одному рядку; рядок підсумку банку має сталу висоту, щоб нічого не стрибало. */
+.wager-form .wager-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.wager-form .wager-row label {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-allin {
+  flex: none;
+  color: var(--allin);
+  border: 2px solid var(--allin);
+  background: transparent;
+  white-space: nowrap;
+}
+
+.wager-note {
+  min-height: 1.5em;
+  color: var(--bank);
 }
 
 .wager-theme {

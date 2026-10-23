@@ -973,6 +973,57 @@ describe('PlayerScreen final', () => {
     expect(screen.queryByText('Чекаємо на розкриття')).toBeNull();
   });
 
+  it('all-in places the whole limit at once', async () => {
+    const send = show(onWager(1000));
+    fireEvent.click(screen.getByRole('button', { name: 'Ва-банк' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:wager', { amount: 1000, allIn: true }));
+    cleanup();
+    show(view({ phase: 'wager', round, final: info, me: { ...me, score: 1000, final: { wager: 1000, limit: 1000, allIn: true } } }));
+    expect(screen.getByText('Ваша ставка: 1000 — ва-банк!')).toBeTruthy();
+    cleanup();
+    show(onWager(0));
+    expect(screen.queryByRole('button', { name: 'Ва-банк' })).toBeNull();
+  });
+
+  it('the wager form explains the bank', () => {
+    const bank = (mode: 'bank' | 'classic') =>
+      view({ phase: 'wager', round, final: { ...info, mode }, me: { ...me, score: 400, final: { wager: null, limit: 400, allIn: false } } });
+    show(bank('bank'));
+    expect(screen.getByText('Спільний банк: помилка віддає ставку в банк, правильні відповіді його ділять.')).toBeTruthy();
+    cleanup();
+    show(bank('classic'));
+    expect(screen.queryByText(/Спільний банк/)).toBeNull();
+  });
+
+  it('the bank result line keeps its place', () => {
+    const base = { phase: 'reveal' as const, round, question: publicQuestion, reveal: fullQuestion, questionIndex: 0 };
+    const state = (grade: 'correct' | 'wrong', points: number, split: object | null, wager = 500) =>
+      view({
+        ...base,
+        final: { ...info, mode: 'bank' as const, bank: 500, split: split as never },
+        me: { ...me, score: 1000, result: { accepted: true, accuracy: grade === 'correct' ? 1 : 0, grade, streakBonus: 0, points }, final: { wager, limit: 1000, allIn: false } },
+      });
+    const note = () => document.querySelectorAll('.wager-note');
+    show(state('wrong', -500, null));
+    expect(screen.getByText('Ставка пішла в банк')).toBeTruthy();
+    expect(note()).toHaveLength(1);
+    cleanup();
+    show(state('correct', 0, null));
+    expect(screen.getByText('Ставку збережено — чекаємо на розподіл банку')).toBeTruthy();
+    expect(note()).toHaveLength(1);
+    cleanup();
+    show(state('correct', 667, { bank: 1000, refund: false, shares: [{ playerId: 'p1', nickname: 'Олена', wager: 500, share: 667 }] }));
+    expect(screen.getByText('+667 з банку')).toBeTruthy();
+    expect(note()).toHaveLength(1);
+    cleanup();
+    show(state('wrong', 0, { bank: 500, refund: true, shares: [] }));
+    expect(screen.getByText('Ніхто не відповів правильно — ставки повертаються')).toBeTruthy();
+    expect(note()).toHaveLength(1);
+    cleanup();
+    show(state('correct', 0, { bank: 500, refund: false, shares: [] }, 0));
+    expect(screen.getByText('Ставка 0 — частки з банку немає')).toBeTruthy();
+  });
+
   it('the final question shows no points', () => {
     show(onQuestion({ round, final: info, me: { ...me, final: { wager: 100, limit: 100, allIn: false } } }));
     expect(screen.queryByText(/1000/)).toBeNull();

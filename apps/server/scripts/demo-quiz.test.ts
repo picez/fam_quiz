@@ -52,6 +52,10 @@ describe('the seeded demo quiz', () => {
     expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
   });
 
+  it('the movie quiz plays its final with a shared bank', () => {
+    expect(movieQuiz.rounds.at(-1)).toMatchObject({ type: 'final', wagerMode: 'bank' });
+  });
+
   it('the movie quiz is valid and covers every round type and the five films', () => {
     expect(quizSchema.safeParse(movieQuiz).success).toBe(true);
     expect(movieQuiz.rounds.map((r) => r.type)).toEqual(['classic', 'blitz', 'board', 'final']);

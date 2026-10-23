@@ -1209,6 +1209,28 @@ describe('QuizEditor: final round', () => {
     expect(roundQuestions(quiz.rounds[1])).toHaveLength(1);
   });
 
+  it('the final round chooses the wager type, classic by default', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    expect(screen.queryByLabelText(t('finalWagerMode'))).toBeNull();
+    addRound('Фінал');
+    fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
+    const select = screen.getByLabelText(t('finalWagerMode')) as HTMLSelectElement;
+    expect(select.closest('label')?.className).toContain('field');
+    expect(select.value).toBe('classic');
+    expect(screen.getByText(t('wagerModeClassicHint'))).toBeTruthy();
+    fireEvent.change(select, { target: { value: 'bank' } });
+    expect(screen.getByText(t('wagerModeBankHint'))).toBeTruthy();
+    expect(screen.queryByText(t('wagerModeClassicHint'))).toBeNull();
+    fill('Текст запитання', 'Яка планета перша?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).rounds[1]).toMatchObject({ type: 'final', wagerMode: 'bank' });
+  });
+
   it('final settings show only the theme, shuffle and check', () => {
     addFinal();
     expect(screen.getByLabelText(t('finalTheme'))).toBeTruthy();
