@@ -310,6 +310,9 @@ const uk = {
   buffWhy_off_chain: 'На ланцюжку бафів немає.',
   buffWhy_off_sort: 'На сортуванні бафів немає.',
   buffWhy_unfit_type: '«{name}» не діє на запитання цього типу.',
+  buffWhy_unfit_type_fifty: '50/50 діє лише на запитаннях з варіантами.',
+  buffWhy_unfit_type_retry: 'Друга спроба діє лише на простих запитаннях: варіанти, так/ні, текст, число.',
+  buffWhy_unfit_type_audience: 'Зал голосує лише на простих запитаннях: варіанти, так/ні, текст, число.',
   buffWhy_unfit_options: 'Замало варіантів для 50/50.',
   buffWhy_unfit_timer: 'У цього запитання немає таймера.',
   buffWhy_unfit_penalty: 'Щит не потрібен: у цьому раунді помилка не коштує балів.',
@@ -965,7 +968,7 @@ const uk = {
   guideQuestionsTitle: 'Типи запитань',
   guideBuffsTitle: 'Бафи — ваші допомоги',
   guideBuffsLead: 'Кожен баф можна взяти раз за гру. Кнопки — під запитанням у телефоні: торкніться двічі, щоб узяти. Один баф на запитання, до відповіді.',
-  guideBuffsWhere: 'У бліці, фіналі й дуелях бафів немає; на полі — лише у свій хід, коли відповідаєте з телефона.',
+  guideBuffsWhere: 'У бліці, фіналі, ланцюжку, сортуванні й дуелях бафів немає, а на полі — лише у свій хід (і вголос теж).',
   guideDebuffsTitle: 'Дебафи від ведучого',
   guideDebuffsLead: 'Ведучий може наслати на гравця перешкоду на одне запитання. Відповісти все одно можна.',
   guideDuelsTitle: 'Дуелі',
@@ -1000,9 +1003,21 @@ const uk = {
   buffGuide_retry: 'Помилилися — ще одна спроба.',
   buffGuide_time: 'Ще 30 секунд лише вам.',
   buffGuide_shield: 'Помилка не знімає балів.',
-  buffGuide_audience: 'Інші гравці підказують, як думають.',
+  buffGuide_audience: 'Інші гравці підказують, як думають; вам +15 с.',
   buffGuide_hint: 'Підказка від ведучого лише вам.',
   buffGuide_swap: 'Інше запитання замість цього.',
+  buffHelpOpen: 'Що роблять бафи',
+  buffHelpTitle: 'Бафи',
+  buffHelpNone: 'Не діють: бліц, бліц-клітинки, фінал, ланцюжок, сортування й дуелі.',
+  buffHelpClose: 'Закрити',
+  buffWhere_fifty: 'Де: запитання з варіантами — у класиці й на полі, і на усних клітинках.',
+  buffWhere_double: 'Де: класика й поле у свій хід, і усні клітинки.',
+  buffWhere_retry: 'Де: прості запитання в класиці й на полі; не вголос і не там, де оцінює ведучий.',
+  buffWhere_time: 'Де: запитання з таймером — у класиці й на полі.',
+  buffWhere_shield: 'Де: раунди, де помилка коштує балів.',
+  buffWhere_audience: 'Де: прості запитання; поки зал голосує, у вас +15 с.',
+  buffWhere_hint: 'Де: класика й поле у свій хід; підказує ведучий.',
+  buffWhere_swap: 'Де: класика й поле у свій хід, поки є запасні запитання.',
   debuffGuide_shake: 'Екран тремтить.',
   debuffGuide_fog: 'Туман — протріть екран пальцем.',
   debuffGuide_freeze: 'Лід ненадовго закриває екран.',
@@ -1015,6 +1030,11 @@ export type TextKey = keyof typeof uk;
 
 export function t(key: TextKey, vars: Record<string, string | number> = {}): string {
   return uk[key].replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match));
+}
+
+/** Чи є такий ключ у словнику. */
+export function hasText(key: string): key is TextKey {
+  return Object.prototype.hasOwnProperty.call(uk, key);
 }
 
 export function errorText(code: string): string {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
+import type { BuffBlock, BuffKind, PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
@@ -92,7 +92,8 @@ describe('Buffs', () => {
     });
     const { container, unmount } = row(off('off_blitz'));
     expect(container.querySelector('.buff-row')).toBeNull();
-    expect(container.querySelectorAll('button')).toHaveLength(0);
+    expect(container.querySelectorAll('button')).toHaveLength(1);
+    expect(container.querySelector('.buff-bar.is-off .buff-help')).not.toBeNull();
     expect(container.querySelector('.buff-bar.is-off .buff-off')?.textContent).toBe('У бліці бафів немає.');
     unmount();
     row(off('off_blitz_cell'));
@@ -515,5 +516,47 @@ describe('StageBuffs', () => {
     expect(swap.className).toBe('is-swap');
     expect(hint.className).toBe('');
     expect(rule('.stage-buffs li.is-swap')).toMatch(/var\(--spare-accent\)/);
+  });
+
+  it('«?» lists what each allowed buff does and where it works', () => {
+    const slots = (kinds: BuffKind[]): PlayerBuffs => ({ slots: kinds.map((kind) => ({ kind, state: 'ready' as const, block: null })), active: null });
+    row(slots(['fifty', 'audience']));
+    expect(document.querySelectorAll('.buff-row .buff-btn')).toHaveLength(2);
+    const opener = screen.getByRole('button', { name: 'Що роблять бафи' });
+    fireEvent.click(opener);
+    const sheet = screen.getByRole('dialog', { name: 'Бафи' });
+    expect(within(sheet).getByText('Прибирає частину неправильних варіантів.')).toBeTruthy();
+    expect(within(sheet).getByText('Де: запитання з варіантами — у класиці й на полі, і на усних клітинках.')).toBeTruthy();
+    expect(within(sheet).getByText('Інші гравці підказують, як думають; вам +15 с.')).toBeTruthy();
+    expect(within(sheet).queryByText(/Подвоює бали/)).toBeNull();
+    expect(within(sheet).getByText('Не діють: бліц, бліц-клітинки, фінал, ланцюжок, сортування й дуелі.')).toBeTruthy();
+    expect(document.activeElement).toBe(within(sheet).getByRole('button', { name: 'Закрити' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+    fireEvent.click(opener);
+    fireEvent.click(document.querySelector('.buff-help-backdrop')!);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('a disabled button says exactly why', () => {
+    const blockedOf = (kind: BuffKind, block: BuffBlock): PlayerBuffs => ({ slots: [{ kind, state: 'blocked', block }], active: null });
+    const whyOf = (buffs: PlayerBuffs, name: string) => {
+      const { unmount } = row(buffs);
+      fireEvent.click(screen.getByRole('button', { name }));
+      const text = document.querySelector('.buff-why')?.textContent;
+      unmount();
+      return text;
+    };
+    expect(whyOf(blockedOf('double', 'off_final'), 'Подвійні бали')).toBe('У фіналі бафів немає.');
+    expect(whyOf(blockedOf('fifty', 'unfit_type'), '50/50')).toBe('50/50 діє лише на запитаннях з варіантами.');
+    expect(whyOf(blockedOf('retry', 'unfit_voice'), 'Друга спроба')).toBe('Друга спроба не діє, коли відповідаєте вголос.');
+    expect(whyOf(blockedOf('swap', 'spares_out'), 'Заміна запитання')).toBe('Запасні запитання закінчилися.');
+  });
+
+  it('the help sheet is a fixed layer above the vote sheet', () => {
+    expect(rule('.buff-help-sheet')).toContain('position: fixed');
+    expect(rule('.buff-help-sheet')).toContain('z-index: 75');
+    expect(rule('.buff-help-backdrop')).toContain('position: fixed');
   });
 });
