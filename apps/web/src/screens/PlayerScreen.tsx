@@ -20,7 +20,7 @@ import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortWatch } from './SortView';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
-import { BuffRow, OvertimeLine, RetryPrompt } from './Buffs';
+import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 
 interface Props {
   view: PlayerView;
@@ -325,6 +325,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      {/* Запрошення проголосувати — нижній аркуш position: fixed: чужий баф нічого не зсуває. */}
+      {phase === 'question' && question !== null && (
+        <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
+      )}
       <header className="bar">
         <span>{me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
@@ -379,7 +383,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <div className="question-head">
             {/* «Чекаємо …» стає на місце підпису (той лишається прихованим і тримає висоту): поява на спільному кінці нічого не зсуває. */}
             <div className="question-meta">
-              <p className={waiting ? 'meta is-hidden' : 'meta'}>{questionLabel(view.round, view.questionIndex, view.total)}</p>
+              <p className={waiting ? 'meta is-hidden' : 'meta'}>
+                {questionLabel(view.round, view.questionIndex, view.total)}
+                {/* Запасне — власна заміна: позначка в тому самому рядку підпису, без нового блоку. */}
+                {activeBuff?.spare === true && <span className="spare-tag">{t('spareTag')}</span>}
+              </p>
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
             {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
@@ -404,6 +412,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
             {me.buffs !== null && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} send={send} onError={setError} />}
+            {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
+            {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
             {isSort && me.sort !== null ? (

@@ -10,6 +10,10 @@ interface Props {
   onSubmit: (answer: Answer) => void;
   /** 50/50: ці варіанти single/multi лишаються на своєму місці, приглушені й вимкнені — список не стискається. */
   removed?: string[];
+  /** Напис кнопки надсилання (голосування — «Голосувати»); типово «Відповісти». */
+  submitLabel?: string;
+  /** Поле тексту отримує фокус одразу (типово так; аркуш голосування — ні). */
+  autoFocus?: boolean;
 }
 
 const NONE: string[] = [];
@@ -54,7 +58,7 @@ function ChoiceButtons({
   );
 }
 
-function MultiInput({ question, onSubmit, removed }: Props) {
+function MultiInput({ question, onSubmit, removed, submitLabel }: Props) {
   const [picked, setPicked] = useState<string[]>([]);
   const toggle = (id: string) => setPicked((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
   // Вибране до 50/50, а потім прибране, у відповідь не йде й не світиться вибраним.
@@ -70,13 +74,13 @@ function MultiInput({ question, onSubmit, removed }: Props) {
         disabled={ordered.length === 0}
         onClick={() => onSubmit({ type: 'multi', optionIds: ordered })}
       >
-        {t('submit')}
+        {submitLabel ?? t('submit')}
       </button>
     </>
   );
 }
 
-function TypedInput({ question, onSubmit }: Props) {
+function TypedInput({ question, onSubmit, submitLabel, autoFocus = true }: Props) {
   const [raw, setRaw] = useState('');
   const numeric = question.type === 'numeric';
   const number = numeric ? parseNumber(raw) : null;
@@ -100,11 +104,11 @@ function TypedInput({ question, onSubmit }: Props) {
           placeholder={t(numeric ? 'numberPlaceholder' : 'answerPlaceholder')}
           maxLength={200}
           autoComplete="off"
-          autoFocus
+          autoFocus={autoFocus}
         />
       </label>
       <button type="submit" className="btn btn-primary" disabled={!ready}>
-        {t('submit')}
+        {submitLabel ?? t('submit')}
       </button>
     </form>
   );
@@ -160,7 +164,7 @@ function OrderInput({ question, onSubmit }: Props) {
   );
 }
 
-export function AnswerInput({ question, onSubmit, removed }: Props) {
+export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus }: Props) {
   switch (question.type) {
     case 'single':
       return (
@@ -182,10 +186,10 @@ export function AnswerInput({ question, onSubmit, removed }: Props) {
         </div>
       );
     case 'multi':
-      return <MultiInput question={question} onSubmit={onSubmit} removed={removed} />;
+      return <MultiInput question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} />;
     case 'text':
     case 'numeric':
-      return <TypedInput question={question} onSubmit={onSubmit} />;
+      return <TypedInput question={question} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} />;
     case 'order':
       return <OrderInput question={question} onSubmit={onSubmit} />;
     case 'match':

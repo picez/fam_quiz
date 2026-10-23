@@ -36,6 +36,7 @@
   --buff-used: rgb(245 241 230 / 0.28);
   --buff-active: #b8ff5c;
   --spare-accent: #ffcf5c;
+  --vote-bar: rgb(126 224 255 / 0.22);
   /* Нижні смуги (дебаф, дуель) складаються стосом від цієї лінії; room — висота смуги з проміжком. */
   --banner-base: max(1rem, env(safe-area-inset-bottom));
   --debuff-banner-room: 6.25rem;
@@ -4866,4 +4867,140 @@ label.powers-item {
   font-weight: 700;
   line-height: 1.4;
   white-space: nowrap;
+}
+
+/* Підказка й голоси залу на телефоні: висота стала, тож «Ведучий думає…» → текст і «Чекаємо голосів…» → відсотки
+   нічого під блоком не зсувають; довгий вміст прокручується всередині. */
+.buff-panel {
+  height: 6.5rem;
+  overflow-y: auto;
+  box-sizing: border-box;
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--panel);
+  font-size: 16px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.buff-panel p {
+  margin: 0;
+}
+
+.vote-head,
+.vote-sheet-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.vote-time {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.vote-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Смуга відсотка лежить під текстом рядка поза потоком: ширина змінюється, висота — ні. */
+.vote-row {
+  position: relative;
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.vote-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--vote-bar);
+  pointer-events: none;
+}
+
+.vote-text,
+.vote-pct {
+  position: relative;
+}
+
+.vote-pct {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.vote-guesses {
+  margin-top: 0.25rem;
+}
+
+/* Запрошення проголосувати: нижній аркуш поза потоком — під ним нічого не зсувається.
+   Над сповіщеннями (60) і смугою дуелі (55), під вікном дуелі (80). */
+.vote-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 2px solid var(--buff-accent);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--stage);
+  box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
+}
+
+.vote-sheet .inputs {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vote-sheet .btn {
+  min-height: 44px;
+}
+
+.vote-sheet .choice {
+  min-height: 44px;
+}
+
+.vote-thanks {
+  margin: 0;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .vote-sheet {
+    animation: vote-rise 0.2s ease-out;
+  }
+
+  @keyframes vote-rise {
+    from {
+      transform: translateY(100%);
+    }
+  }
+}
+
+/* Позначка запасного запитання в рядку підпису: пігулка, що не додає рядка. */
+.spare-tag {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--spare-accent);
+  border-radius: 999px;
+  color: var(--spare-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: baseline;
 }

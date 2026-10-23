@@ -1,13 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BuffBlock, BuffKind, BuffSlot, BuffTag, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion } from '@quiz/shared';
+import type { Answer, BuffBlock, BuffKind, BuffSlot, BuffTag, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
-import { signed } from '../format';
+import { choiceLabel, signed } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import { useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
+import { AnswerInput } from './AnswerInput';
 
 /** Скільки чекає підтвердження після першого дотику, мс. */
 export const BUFF_CONFIRM_MS = 3000;
+
+/** Скільки стоїть «Голос прийнято», мс. */
+export const VOTE_THANKS_MS = 1500;
+
+/** Рядок пояснень активного бафу, коли загального «діє на цьому запитанні» замало. */
+const MINE: Partial<Record<BuffKind, string>> = {
+  time: t('overtimeMine'),
+  swap: t('swapMine'),
+  audience: t('audienceMine'),
+  hint: t('hintMine'),
+};
 
 /** Причина неактивної кнопки словами. */
 function whyText(block: BuffBlock, kind: BuffKind): string {
@@ -105,9 +117,7 @@ export function BuffRow({
       ? ''
       : active.retry === 'again'
         ? t('retryAgain')
-        : active.kind === 'time'
-          ? t('overtimeMine')
-          : t('buffTaken', { icon: BUFF_ICONS[active.kind], name: buffName(active.kind) });
+        : (MINE[active.kind] ?? t('buffTaken', { icon: BUFF_ICONS[active.kind], name: buffName(active.kind) }));
 
   return (
     <div className="buff-bar">
@@ -196,6 +206,172 @@ export function RetryPrompt({
 function clockText(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** Залишок до кінця голосування за годинником сервера; на паузі — сталий залишок. Оновлюється, поки йде. */
+function useLeftMs(clock: { endsAt: number | null; remainingMs: number | null }, offsetMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  const running = clock.remainingMs === null && clock.endsAt !== null;
+  useEffect(() => {
+    if (!running) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [running, clock.endsAt]);
+  if (clock.remainingMs !== null) return clock.remainingMs;
+  if (clock.endsAt === null) return 0;
+  return Math.max(0, clock.endsAt - (now + offsetMs));
+}
+
+/** Рядки варіантів для відсотків: single/multi — варіанти запитання, boolean — «Так»/«Ні». */
+function voteOptions(question: PublicQuestion): { id: string; text: string }[] {
+  if (question.type === 'boolean') {
+    return [
+      { id: 'true', text: t('yes') },
+      { id: 'false', text: t('no') },
+    ];
+  }
+  return question.choices.map((choice, index) => ({ id: choice.id, text: choiceLabel(choice, index) }));
+}
+
+/** Результати голосування: відсотки за варіантами або здогадки; правильної відповіді тут немає. */
+function VoteResults({ votes, question, offsetMs }: { votes: VoteTally; question: PublicQuestion; offsetMs: number }) {
+  const left = useLeftMs(votes, offsetMs);
+  const over = votes.closed || left <= 0;
+  const typed = question.type === 'text' || question.type === 'numeric';
+  return (
+    <>
+      <p className="vote-head">
+        <span>{votes.cast === 0 ? t('votesWaiting') : ''}</span>
+        <span className="vote-time">{over ? t('votesClosed') : t('votesLeft', { time: clockText(left) })}</span>
+      </p>
+      {votes.cast > 0 &&
+        (typed ? (
+          <p className="vote-guesses">
+            {t('votesGuesses', { list: votes.guesses.map((guess) => `${guess.text} ×${guess.count}`).join(', ') })}
+          </p>
+        ) : (
+          <ul className="vote-rows">
+            {voteOptions(question).map((option) => {
+              const pct = Math.round(((votes.counts[option.id] ?? 0) / votes.cast) * 100);
+              return (
+                <li key={option.id} className="vote-row">
+                  <span className="vote-bar" style={{ width: `${pct}%` }} aria-hidden="true" />
+                  <span className="vote-text">{option.text}</span> <span className="vote-pct">{`${pct} %`}</span>
+                </li>
+              );
+            })}
+          </ul>
+        ))}
+    </>
+  );
+}
+
+/**
+ * Блок сталої висоти під рядом бафів для власного hint або audience: «Ведучий думає…» → текст,
+ * «Чекаємо голосів…» → відсотки чи здогадки. З'являється лише з власним бафом; усе нове — всередині блоку.
+ */
+export function BuffPanel({ active, question, offsetMs }: { active: PlayerActiveBuff; question: PublicQuestion; offsetMs: number }) {
+  if (active.kind !== 'hint' && active.kind !== 'audience') return null;
+  const hint = active.hint;
+  return (
+    <section className="buff-panel" aria-live="polite">
+      {active.kind === 'hint'
+        ? hint !== null && (
+            <p className="hint-text">
+              {hint.state === 'waiting' ? t('hintWaiting') : hint.state === 'aloud' ? t('hintAloud') : `💡 ${hint.text ?? ''}`}
+            </p>
+          )
+        : active.votes !== null && <VoteResults votes={active.votes} question={question} offsetMs={offsetMs} />}
+    </section>
+  );
+}
+
+/**
+ * Нижній аркуш position: fixed — «Оля питає зал: як думаєте?», відлік, варіанти або поле, «Голосувати», «Пропустити».
+ * Під ним нічого не зсувається. «Пропустити» ховає аркуш до запрошення від іншого гравця;
+ * PlayerScreen дає ключ запитання, тож на новому запитанні стан чистий.
+ */
+export function VoteSheet({
+  prompt,
+  question,
+  paused,
+  offsetMs,
+  send,
+  onError,
+}: {
+  prompt: VotePrompt | null;
+  question: PublicQuestion;
+  paused: boolean;
+  offsetMs: number;
+  send: Send;
+  onError: (message: string | null) => void;
+}) {
+  // Гравці, чиє запрошення тут уже закрито: пропущено або проголосовано.
+  const [done, setDone] = useState<string[]>([]);
+  const [thanks, setThanks] = useState(false);
+  const [sending, setSending] = useState(false);
+  const mountedRef = useRef(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    };
+  }, []);
+  const timeOver = useTimeOver(prompt?.endsAt ?? null, prompt?.remainingMs ?? null, offsetMs);
+  const left = useLeftMs(prompt ?? { endsAt: null, remainingMs: null }, offsetMs);
+
+  if (thanks) {
+    return (
+      <section className="vote-sheet" role="status">
+        <p className="lead vote-thanks">{t('voteThanks')}</p>
+      </section>
+    );
+  }
+  if (prompt === null || timeOver || done.includes(prompt.asker.playerId)) return null;
+  const asker = prompt.asker.playerId;
+  const ask = t('voteAsk', { name: prompt.asker.nickname });
+
+  const vote = (answer: Answer) => {
+    if (sending || paused) return;
+    setSending(true);
+    void send('player:vote', { askerId: asker, answer })
+      .then((result) => {
+        if (!mountedRef.current) return;
+        // Голос прийнято чи ні — запрошення цього гравця закрито: повторний голос сервер однаково не прийме.
+        setDone((now) => [...now, asker]);
+        if (!result.ok) {
+          onError(errorText(result.error));
+          return;
+        }
+        onError(null);
+        setThanks(true);
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null;
+          setThanks(false);
+        }, VOTE_THANKS_MS);
+      })
+      .finally(() => {
+        if (mountedRef.current) setSending(false);
+      });
+  };
+
+  return (
+    <section className="vote-sheet" aria-label={ask}>
+      <p className="vote-sheet-head">
+        <strong>{ask}</strong>
+        <span className="vote-time">{t('votesLeft', { time: clockText(left) })}</span>
+      </p>
+      <fieldset className="inputs" disabled={paused || sending}>
+        <AnswerInput key={asker} question={question} onSubmit={vote} submitLabel={t('voteSend')} autoFocus={false} />
+      </fieldset>
+      <button type="button" className="btn vote-skip" onClick={() => setDone((now) => [...now, asker])}>
+        {t('voteSkip')}
+      </button>
+    </section>
+  );
 }
 
 /**
