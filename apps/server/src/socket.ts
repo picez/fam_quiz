@@ -18,6 +18,8 @@ import {
   socketAuthSchema,
   sortSchema,
   buffSchema,
+  hintSchema,
+  voteSchema,
   retrySchema,
   timeSchema,
   undebuffSchema,
@@ -127,6 +129,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       return payload.success ? manager.buff(room, identity.playerId, payload.data.kind) : INVALID;
     });
 
+    on('player:vote', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = voteSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.vote(room, identity.playerId, payload.data.askerId, payload.data.answer) : INVALID;
+    });
+
     on('player:retry', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = retrySchema.safeParse(payloadOf(args));
@@ -211,6 +219,12 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
       if (!isHost) return FORBIDDEN;
       const payload = adjustSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'adjust', ...payload.data }) : INVALID;
+    });
+
+    on('host:hint', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = hintSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.hostHint(room, payload.data.playerId, payload.data.text) : INVALID;
     });
 
     on('host:debuff', (args) => {

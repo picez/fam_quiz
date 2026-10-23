@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { quizSchema } from '@quiz/shared';
 import { sql } from 'drizzle-orm';
-import { bool, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { bool, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { answer, game, user } from './db/schema';
 import { createQuiz as saveQuiz, getQuiz, listQuizzes } from './quizzes';
@@ -156,6 +156,22 @@ describe('quizzes', () => {
 
     const soon = makeQuiz([single, text], { buffs: ['swap'] });
     expect((await call('POST', '/api/quizzes', cookie, soon)).statusCode).toBe(400);
+  });
+
+  it('the spare pool survives save and load; an old quiz loads without it', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const spares = [withId(single, 's1'), withId(text, 's2')];
+    const quiz = { ...makeQuiz([{ ...single, hint: 'Тече через Київ' }, text], { buffs: ['swap'] }), spares };
+    const created = await call('POST', '/api/quizzes', cookie, quiz);
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json() as { id: string };
+    const loaded = (await call('GET', `/api/quizzes/${id}`, cookie)).json() as typeof quiz;
+    expect(loaded.spares).toEqual(spares);
+    expect(loaded.rounds).toEqual(quiz.rounds);
+    const plain = (await call('POST', '/api/quizzes', cookie, makeQuiz([single, text]))).json() as { id: string };
+    expect(((await call('GET', `/api/quizzes/${plain.id}`, cookie)).json() as { spares?: unknown }).spares).toBeUndefined();
+    const empty = makeQuiz([single, text], { buffs: ['swap'] });
+    expect((await call('POST', '/api/quizzes', cookie, empty)).statusCode).toBe(400);
   });
 
   it('accepts a quiz in the old format from a page opened before the update', async () => {

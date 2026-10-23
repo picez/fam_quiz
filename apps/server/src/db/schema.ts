@@ -1,4 +1,4 @@
-import type { AdjustmentSource, Answer, BuffKind, Duels, GameStatus, QuizSettings, Round } from '@quiz/shared';
+import type { AdjustmentSource, Answer, BuffKind, Duels, GameStatus, Question, QuizSettings, Round } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -74,7 +74,7 @@ export const quiz = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     description: text('description').notNull(),
-    settings: jsonb('settings').$type<QuizSettings & { duels?: Duels }>().notNull(),
+    settings: jsonb('settings').$type<QuizSettings & { duels?: Duels; spares?: Question[] }>().notNull(),
     rounds: jsonb('rounds').$type<Round[]>().notNull(),
     ...stamps,
   },
@@ -158,6 +158,8 @@ export const answer = pgTable(
     wager: integer('wager'),
     /** Баф, узятий на це запитання; null — без бафу (і в старих іграх). */
     buff: text('buff').$type<BuffKind>(),
+    /** Запасне запитання, на яке дано відповідь; null — основне (і в старих іграх). */
+    spareId: text('spare_id'),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
 );

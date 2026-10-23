@@ -842,6 +842,38 @@ describe('recorder: buffs', () => {
     for (const row of scores) expect(row.score).toBe(room.state.players.find((p) => p.id === row.id)?.score);
   });
 
+  it('a spare answer is saved under the main question with the spare id', async () => {
+    const ctx = await setup();
+    const room = ctx.manager.create(
+      { ...makeQuiz([single, text], { speedBonus: false, buffs: ['swap'] }), spares: [withId(single, 's1')] },
+      HOST,
+      null,
+    );
+    const enter = (nickname: string) => {
+      const joined = ctx.manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      ctx.manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const olena = enter('Олена');
+    const petro = enter('Петро');
+    expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(ctx.manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(ctx.manager.buff(room, olena, 'swap')).toEqual({ ok: true });
+    ctx.manager.answer(room, olena, correct);
+    ctx.manager.answer(room, petro, wrong);
+    await ctx.recorder.idle();
+
+    const rows = await ctx.db
+      .select({ nickname: participant.nickname, questionIndex: answer.questionIndex, points: answer.points, buff: answer.buff, spareId: answer.spareId })
+      .from(answer)
+      .innerJoin(participant, eq(participant.id, answer.participantId));
+    const by = (nickname: string) => rows.find((row) => row.nickname === nickname);
+    const points = room.state.players.find((p) => p.id === olena)?.score;
+    expect(by('Олена')).toEqual({ nickname: 'Олена', questionIndex: 0, points, buff: 'swap', spareId: 's1' });
+    expect(by('Петро')?.spareId).toBeNull();
+  });
+
   it('a game without buffs saves no buff', async () => {
     const ctx = await setup();
     ctx.host('start');

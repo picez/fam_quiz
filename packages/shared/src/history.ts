@@ -35,6 +35,8 @@ export interface GameResponse {
   accepted: boolean;
   /** Баф, з яким дано відповідь; null — без бафу. */
   buff: BuffKind | null;
+  /** Запасне запитання (зі знімка гри), на яке дано відповідь; null — основне. */
+  spare: Question | null;
 }
 
 export interface GameQuestionResult {

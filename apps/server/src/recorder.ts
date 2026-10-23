@@ -53,6 +53,8 @@ interface AnswerRow {
   wager: number | null;
   /** Баф, узятий на це запитання; null — без бафу. */
   buff: BuffKind | null;
+  /** Запасне запитання, на яке дано відповідь; null — основне. */
+  spareId: string | null;
 }
 
 /** Рядки таблиці answer для гравця на запитання: у бліці по рядку на спробу, інакше один. */
@@ -67,7 +69,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
     // у спільному банку бали не дорівнюють ±ставці.
     const silent = final !== undefined && payload === null;
     const wager = final === undefined ? null : Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
-    return [{ attempt: silent ? PENALTY_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden, wager, buff: record.buff ?? null }];
+    return [{ attempt: silent ? PENALTY_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden, wager, buff: record.buff ?? null, spareId: record.spare ?? null }];
   }
   const rows = attempts.map((attempt, number) => {
     // Бонус серії належить виграшній спробі; бали спроби в журналі бліцу його не містять.
@@ -82,6 +84,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
       overridden: false,
       wager: null,
       buff: null,
+      spareId: null,
     };
   });
   // Штраф бліц-клітинки не належить жодній спробі (його платить і той, хто не натискав):
@@ -90,7 +93,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
   if (penalty === 0) return rows;
   return [
     ...rows,
-    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false, wager: null, buff: null },
+    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false, wager: null, buff: null, spareId: null },
   ];
 }
 

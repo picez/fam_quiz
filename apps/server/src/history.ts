@@ -113,15 +113,16 @@ function cellResult(
 
 /** Відповіді на запитання: учасники за турнірною таблицею, потім за номером спроби. */
 function responsesOf(
-  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; buff: BuffKind | null }[],
+  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; buff: BuffKind | null; spareId: string | null }[],
   standings: { participantId: string; nickname: string }[],
+  spares: Question[],
 ): GameResponse[] {
   return standings.flatMap(({ participantId, nickname }) =>
     given
       // Штрафний рядок бліц-клітинки не є відповіддю.
       .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
       .sort((a, b) => a.attempt - b.attempt)
-      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null })),
+      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null })),
   );
 }
 
@@ -199,6 +200,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
             points: answer.points,
             wager: answer.wager,
             buff: answer.buff,
+            spareId: answer.spareId,
           })
           .from(answer)
           .where(
@@ -251,7 +253,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         accepted: distinct(given.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
-        responses: responsesOf(given, standings),
+        responses: responsesOf(given, standings, quiz?.spares ?? []),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },
     ];

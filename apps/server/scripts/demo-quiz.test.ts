@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowedBuffs, questionsOf, quizSchema } from '@quiz/shared';
+import { READY_BUFFS, allowedBuffs, questionsOf, quizSchema } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
@@ -127,12 +127,19 @@ describe('seeding the erudite quiz', () => {
     const id = await createQuiz(db, 'seed-owner', quizSchema.parse(eruditeQuiz));
     const loaded = await getQuiz(db, 'seed-owner', id);
     expect(loaded?.duels).toEqual(eruditeQuiz.duels);
+    expect(loaded?.spares).toEqual(eruditeQuiz.spares);
   });
 });
 
 describe('the erudite demo quiz buffs', () => {
-  it('the erudite quiz gives every player the five ready buffs', () => {
-    expect(allowedBuffs(eruditeQuiz)).toEqual(['fifty', 'double', 'retry', 'time', 'shield']);
+  it('the erudite quiz gives every player all eight buffs', () => {
+    expect(allowedBuffs(eruditeQuiz)).toEqual([...READY_BUFFS]);
+    expect(allowedBuffs(eruditeQuiz)).toHaveLength(8);
     expect(quizSchema.safeParse(eruditeQuiz).success).toBe(true);
+  });
+
+  it('the erudite quiz has hints and a spare pool of every simple type', () => {
+    expect(questionsOf(eruditeQuiz).filter((q) => q.hint).length).toBe(4);
+    expect(eruditeQuiz.spares?.map((q) => q.type)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric']);
   });
 });

@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId } from '@quiz/engine/testing';
+import { blitzRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -444,6 +444,32 @@ describe('host presence', () => {
     expect(await send(host, 'player:retry', { keep: true })).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(olena, 'player:retry', { keep: 'yes' })).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(olena, 'player:retry', { keep: true })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('vote and hint events are role-checked and validated', async () => {
+    const quiz = { ...makeQuiz([single, text], { buffs: ['audience', 'hint'] }), spares: [withId(bool, 's1')] };
+    const created = (await startGame(ctx.app, quiz)).game;
+    const { host, stage, olena, taras, olenaJoin } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(taras, 'player:answer', wrong)).toEqual({ ok: true });
+    expect(await send(olena, 'player:buff', { kind: 'audience' })).toEqual({ ok: true });
+    const vote = { askerId: olenaJoin.playerId, answer: correct };
+    expect(await send(taras, 'player:vote', vote)).toEqual({ ok: true });
+    expect(await send(host, 'player:vote', vote)).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:vote', vote)).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(taras, 'player:vote', { answer: correct })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(taras, 'player:vote', vote)).toEqual({ ok: false, error: 'already_answered' });
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    // Закрите запитання → розкриття → рейтинг → наступне запитання.
+    for (let step = 0; step < 3; step += 1) expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, (view) => view.phase === 'question' && view.role === 'player' && view.question?.type === 'text');
+    expect(await send(olena, 'player:buff', { kind: 'hint' })).toEqual({ ok: true });
+    const hint = { playerId: olenaJoin.playerId, text: 'Тече' };
+    expect(await send(olena, 'host:hint', hint)).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:hint', { ...hint, text: '' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:hint', hint)).toEqual({ ok: true });
   });
 
   it('duel events are role-checked and validated', async () => {

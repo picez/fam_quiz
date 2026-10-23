@@ -8,10 +8,12 @@ import {
   buzz,
   cancelDebuff,
   cancelDuel,
+  castVote,
   createGame,
   declareDuel,
   end,
   endRound,
+  giveHint,
   guessWord,
   hostView,
   judge,
@@ -260,6 +262,17 @@ export class RoomManager {
   buff(room: Room, playerId: string, kind: BuffKind): AckResult {
     if (!this.alive(room)) return GONE;
     return this.apply(room, takeBuff(room.state, playerId, kind, this.now(), this.rng));
+  }
+
+  vote(room: Room, playerId: string, askerId: string, answer: Answer): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, castVote(room.state, playerId, askerId, answer, this.now()));
+  }
+
+  /** Підказка ведучого на запит гравця з бафом (не плутати з підказкою ланцюжка, hint). */
+  hostHint(room: Room, playerId: string, text: string | null): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, giveHint(room.state, playerId, text));
   }
 
   retry(room: Room, playerId: string, keep: boolean): AckResult {
