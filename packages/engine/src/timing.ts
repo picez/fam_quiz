@@ -57,3 +57,52 @@ export function adjustTime(state: GameState, seconds: number, now: number): Resu
   if (state.heldAt !== null) return { ok: true, state: { ...state, plays, endsAt: state.heldAt + next } };
   return { ok: true, state: state.paused ? { ...state, plays, remainingMs: next } : { ...state, plays, endsAt: now + next } };
 }
+
+/** Додатковий час гравця понад спільний кінець, мс; 0 — немає. */
+export function overtimeOf(play: Play, playerId: string): number {
+  const overtime = play.overtime;
+  return overtime !== undefined && Object.hasOwn(overtime, playerId) ? overtime[playerId] : 0;
+}
+
+/** Особистий кінець: endsAt + overtimeOf; null — немає endsAt (пауза, без таймера, поза question). */
+export function deadlineOf(state: GameState, play: Play, playerId: string): number | null {
+  return state.endsAt === null ? null : state.endsAt + overtimeOf(play, playerId);
+}
+
+/** Як timeOver, але з особистим кінцем гравця. */
+export function timeOverFor(state: GameState, play: Play, playerId: string, clock: number): boolean {
+  if (state.startedAt === null) return true;
+  if (!isTimed(play.question)) return false;
+  const deadline = deadlineOf(state, play, playerId);
+  return deadline === null || clock > deadline;
+}
+
+/** Коли запитання закривається за часом: найпізніше з endsAt і особистих кінців гравців у грі без запису; null — немає endsAt. */
+export function closesAt(state: GameState): number | null {
+  const play = state.plays[state.questionIndex];
+  const { endsAt } = state;
+  if (endsAt === null || play === undefined) return null;
+  // Хто вже відповів, на себе не чекає; вилучений гравець з overtime зникає разом із собою.
+  const waiting = state.players.filter((p) => !Object.hasOwn(play.answers, p.id));
+  return Math.max(endsAt, ...waiting.map((p) => endsAt + overtimeOf(play, p.id)));
+}
+
+/** Записує гравцю додатковий час на поточне запитання (більший із наявного й ms). */
+export function grantOvertime(state: GameState, playerId: string, ms: number): GameState {
+  const plays = state.plays.map((play, index) =>
+    index === state.questionIndex ? { ...play, overtime: { ...play.overtime, [playerId]: Math.max(overtimeOf(play, playerId), ms) } } : play,
+  );
+  return { ...state, plays };
+}
+
+/** Пауза посеред додаткового часу: кожен overtime поточного запитання зменшується на max(0, now − endsAt), не нижче 0. */
+export function trimOvertime(state: GameState, now: number): GameState {
+  const play = state.plays[state.questionIndex];
+  if (state.endsAt === null || play?.overtime === undefined) return state;
+  // Час понад спільний кінець уже витрачено: продовження його не повертає.
+  const spent = Math.max(0, now - state.endsAt);
+  if (spent === 0) return state;
+  const overtime = Object.fromEntries(Object.entries(play.overtime).map(([id, ms]) => [id, Math.max(0, ms - spent)]));
+  const plays = state.plays.map((p, index) => (index === state.questionIndex ? { ...p, overtime } : p));
+  return { ...state, plays };
+}

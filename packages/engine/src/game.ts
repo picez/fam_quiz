@@ -21,7 +21,7 @@ import {
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
-import { applyBuff, buffOf, type BuffPlay } from './buffs';
+import { applyBuff, buffOf, finishRetry, holdFirstTry, settleRetries, type BuffPlay } from './buffs';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
@@ -35,7 +35,7 @@ import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from '
 import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { splitBank, type BankOutcome } from './bank';
-import { isTimed, limitMsOf, timeOver } from './timing';
+import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
 
 export interface PlayerState {
   id: string;
@@ -358,8 +358,11 @@ function gradeOf(accuracy: number): Grade {
   return accuracy >= 1 ? 'correct' : accuracy <= 0 ? 'wrong' : 'partial';
 }
 
-/** Записує відповідь гравця в поточне запитання; баф гравця на ньому застосовується тут, рівно раз. */
-function withRecord(state: GameState, playerId: string, record: AnswerRecord): GameState {
+/**
+ * Записує відповідь гравця в поточне запитання; баф гравця на ньому застосовується тут, рівно раз.
+ * Внутрішня функція рушія: експортовано для buffs.ts, не для сервера.
+ */
+export function withRecord(state: GameState, playerId: string, record: AnswerRecord): GameState {
   const plays = state.plays.map((play, index) =>
     index === state.questionIndex ? { ...play, answers: { ...play.answers, [playerId]: applyBuff(record, buffOf(play, playerId)) } } : play,
   );
@@ -829,7 +832,8 @@ function dropQueue(state: GameState): GameState {
 export function lockNow(state: GameState): GameState {
   // Бали за ланцюжок залежать від найшвидшого, тож рахуються лише тут, коли відомі часи всіх.
   // Незакінчене сортування отримує записи за відсортовані слова.
-  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreSort(scoreChain(state)))));
+  // Незавершена друга спроба зараховує першу відповідь.
+  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreSort(scoreChain(settleRetries(state))))));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
@@ -849,6 +853,10 @@ export function revealNow(state: GameState): GameState {
 export function autoLock(state: GameState, now: number | null = null): GameState {
   if (state.phase !== 'question' || state.paused) return state;
   if (state.plays[state.questionIndex]?.blitz !== undefined) return blitzDone(state, null) ? lockNow(state) : state;
+  // Час сплив для всіх, хто ще не відповів (зокрема щойно відповів останній з додатковим часом).
+  // Строго «>», як у timeOver: рівно на кінці відповісти ще можна.
+  const closes = closesAt(state);
+  if (now !== null && closes !== null && state.heldAt === null && now > closes) return lockNow(state);
   if (state.plays[state.questionIndex]?.question.type === 'chain') return chainDone(state, now) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
@@ -884,7 +892,9 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (round.type === 'board') return submitBoardAnswer(state, round, playerId, answer, now);
   if (round.type === 'final') return submitFinalAnswer(state, round, playerId, answer, now);
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
-  if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
+  // Після часткової першої відповіді гравець вибирає через chooseRetry.
+  if (buffOf(play, playerId)?.retry === 'choice') return fail('wrong_phase');
+  if (state.startedAt === null || timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (question.type !== answer.type) return fail('type_mismatch');
 
   const timeMs = Math.max(0, now - state.startedAt);
@@ -909,7 +919,10 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     points,
     overridden: false,
   };
-  return ok(autoLock(withRecord(state, playerId, record)));
+  // Друга спроба: неправильна чи часткова перша відповідь чекає в бафі, а не в answers.
+  const held = holdFirstTry(state, playerId, record);
+  if (held !== null) return ok(held);
+  return ok(autoLock(finishRetry(withRecord(state, playerId, record), playerId), now));
 }
 
 /**
@@ -946,7 +959,8 @@ function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string
   if (board === undefined || board.answerMode === 'voice') return fail('wrong_phase');
   if (playerId !== board.chooserId) return fail('not_your_turn');
   if (recordOf(state, state.questionIndex, playerId) !== undefined || board.answer !== null) return fail('already_answered');
-  if (timeOver(state, play, now)) return fail('time_over');
+  if (buffOf(play, playerId)?.retry === 'choice') return fail('wrong_phase');
+  if (timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (play.question.type !== answer.type) return fail('type_mismatch');
   return ok(holdAt(withBoard(state, { ...board, answer }), now));
 }
@@ -982,7 +996,10 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
     points,
     overridden: false,
   };
-  return ok(revealNow(withRecord(state, pending.playerId, record)));
+  // Друга спроба: відповідь знято з клітинки, годинник іде далі, як після «Перевибрати».
+  const held = holdFirstTry(state, pending.playerId, record);
+  if (held !== null) return ok(watchAway(thaw(withBoard(held, { ...play.board, answer: null }), now), now));
+  return ok(revealNow(finishRetry(withRecord(state, pending.playerId, record), pending.playerId)));
 }
 
 /**
@@ -1083,7 +1100,9 @@ export function tick(state: GameState, now: number): GameState {
     const settled = settleQueue(running, now);
     return blitzDone(settled, now) ? lockNow(settled) : settled;
   }
-  const expired = running.endsAt !== null && now >= running.endsAt;
+  // Запитання чекає на особистий кінець того, хто ще не відповів.
+  const closes = closesAt(running);
+  const expired = closes !== null && now >= closes;
   return expired ? lockNow(running) : running;
 }
 
@@ -1195,7 +1214,9 @@ export function pause(state: GameState, now: number): Result {
   if (state.phase === 'question' && state.heldAt !== null) return ok({ ...state, paused: true, pausedAt: now });
   if ((state.phase === 'question' || state.phase === 'duel') && state.endsAt !== null) {
     const remainingMs = Math.max(0, state.endsAt - now);
-    return ok({ ...state, paused: true, pausedAt: now, remainingMs, startedAt: null, endsAt: null });
+    // Витрачений додатковий час продовження не повертає.
+    const trimmed = state.phase === 'question' ? trimOvertime(state, now) : state;
+    return ok({ ...trimmed, paused: true, pausedAt: now, remainingMs, startedAt: null, endsAt: null });
   }
   return ok({ ...state, paused: true, pausedAt: now, board: clearAway(state.board) });
 }

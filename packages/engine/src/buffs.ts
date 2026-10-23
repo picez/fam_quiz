@@ -1,7 +1,23 @@
 import { allowedBuffs, rulesOf, type BuffBlock, type BuffKind, type Question, type RetryStage } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { fail, ok, recordOf, withCurrentPlay, type AnswerRecord, type GameState, type Play, type Result, type Rng } from './game';
-import { isTimed, timeOver } from './timing';
+import {
+  autoLock,
+  fail,
+  ok,
+  recordOf,
+  revealNow,
+  withCurrentPlay,
+  withRecord,
+  type AnswerRecord,
+  type GameState,
+  type Play,
+  type Result,
+  type Rng,
+} from './game';
+import { grantOvertime, isTimed, timeOverFor } from './timing';
+
+/** Скільки додає «Додатковий час», мс. */
+export const EXTRA_TIME_MS = 30_000;
 
 /** Баф гравця на одному запитанні. */
 export interface BuffPlay {
@@ -101,12 +117,12 @@ export function buffBlock(state: GameState, playerId: string, kind: BuffKind, no
   if (play === undefined) return 'elsewhere';
   if (buffOf(play, playerId) !== null) return 'taken';
   if (hasAnswered(state, play, playerId)) return 'answered';
-  if (!state.paused && now !== undefined && timeOver(state, play, now)) return 'time';
+  if (!state.paused && now !== undefined && timeOverFor(state, play, playerId, now)) return 'time';
   if (state.paused) return 'paused';
   return placeBlock(state, play, playerId) ?? fitBlock(state, play, kind);
 }
 
-/** Узяти баф на поточне запитання. fifty тягне rng; time лише записується (сам час — пізніше). */
+/** Узяти баф на поточне запитання. fifty тягне rng; time дає гравцеві особистий час понад спільний кінець. */
 export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now: number, rng: Rng): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (!allowedBuffs(state.quiz).includes(kind)) return fail('not_allowed');
@@ -118,7 +134,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   if (state.paused) return fail('paused');
   if (place === 'not_chooser') return fail('not_your_turn');
   if (hasAnswered(state, play, playerId)) return fail('already_answered');
-  if (timeOver(state, play, now)) return fail('time_over');
+  if (timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (buffOf(play, playerId) !== null) return fail('buff_busy');
   if (fitBlock(state, play, kind) !== null) return fail('buff_unfit');
   const buff: BuffPlay = {
@@ -128,7 +144,61 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
     retry: kind === 'retry' ? 'armed' : null,
     first: null,
   };
-  return ok(withCurrentPlay(state, { ...play, buffs: { ...play.buffs, [playerId]: buff } }));
+  const taken = withCurrentPlay(state, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
+  return ok(kind === 'time' ? grantOvertime(taken, playerId, EXTRA_TIME_MS) : taken);
+}
+
+/** Змінює баф гравця на поточному запитанні; без бафу стан без змін. */
+export function withBuff(state: GameState, playerId: string, patch: Partial<BuffPlay>): GameState {
+  const play = state.plays[state.questionIndex];
+  const buff = buffOf(play, playerId);
+  if (play === undefined || buff === null) return state;
+  return withCurrentPlay(state, { ...play, buffs: { ...play.buffs, [playerId]: { ...buff, ...patch } } });
+}
+
+/**
+ * Друга спроба на першій відповіді: неправильна відкриває стадію again, часткова — choice; запис не робиться.
+ * null — перша відповідь іде в запис як завжди (немає бафу retry на стадії armed або відповідь правильна).
+ */
+export function holdFirstTry(state: GameState, playerId: string, record: AnswerRecord): GameState | null {
+  const buff = buffOf(state.plays[state.questionIndex], playerId);
+  if (buff?.retry !== 'armed' || record.accuracy >= 1) return null;
+  return withBuff(state, playerId, { retry: record.accuracy <= 0 ? 'again' : 'choice', first: record });
+}
+
+/** Перша відповідь зарахована або друга надіслана: стадія done. Без бафу retry стан без змін. */
+export function finishRetry(state: GameState, playerId: string): GameState {
+  const buff = buffOf(state.plays[state.questionIndex], playerId);
+  return buff?.retry === 'armed' || buff?.retry === 'again' || buff?.retry === 'choice'
+    ? withBuff(state, playerId, { retry: 'done', first: null })
+    : state;
+}
+
+/** Після часткової першої відповіді (стадія choice): keep — записати першу; інакше стадія again. Інакше wrong_phase. */
+export function chooseRetry(state: GameState, playerId: string, keep: boolean, now: number): Result {
+  if (state.phase !== 'question') return fail('wrong_phase');
+  if (state.paused) return fail('paused');
+  const play = state.plays[state.questionIndex];
+  const buff = buffOf(play, playerId);
+  if (buff?.kind !== 'retry' || buff.retry !== 'choice' || buff.first === null) return fail('wrong_phase');
+  if (timeOverFor(state, play, playerId, now)) return fail('time_over');
+  if (!keep) return ok(withBuff(state, playerId, { retry: 'again' }));
+  const kept = finishRetry(withRecord(state, playerId, buff.first), playerId);
+  // На полі зарахована відповідь одразу розкривається, як після «Прийняти».
+  return ok(state.quiz.rounds[play.roundIndex].type === 'board' ? revealNow(kept) : autoLock(kept, now));
+}
+
+/** Для lockNow: у кого стадія again або choice і немає запису — перша відповідь стає записом. */
+export function settleRetries(state: GameState): GameState {
+  const play = state.plays[state.questionIndex];
+  if (state.phase !== 'question' || play?.buffs === undefined) return state;
+  let settled = state;
+  for (const [playerId, buff] of Object.entries(play.buffs)) {
+    const pending = buff.retry === 'again' || buff.retry === 'choice';
+    if (!pending || buff.first === null || recordOf(state, state.questionIndex, playerId) !== undefined) continue;
+    settled = finishRetry(withRecord(settled, playerId, buff.first), playerId);
+  }
+  return settled;
 }
 
 /** 50/50: fiftyCount разів випадковий неправильний варіант з тих, що лишилися. */

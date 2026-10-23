@@ -7,7 +7,7 @@ import { chainDeadline } from './chain';
 import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
 import { clockOf, holdAt, thaw } from './hold';
 import { answerPoints } from './score';
-import { isTimed, timeOver } from './timing';
+import { closesAt, isTimed, timeOver } from './timing';
 
 const refuse = (error: ErrorCode): Result => ({ ok: false, error });
 
@@ -205,8 +205,9 @@ export function nextDeadline(state: GameState, now: number): number | null {
   const play = state.plays[state.questionIndex];
   // Особистий дедлайн ланцюжка раніший за endsAt на штраф гравця; хто вже пройшов, не чекає.
   const chainers = Object.keys(play?.chain ?? {}).filter((id) => !Object.hasOwn(play.answers, id));
+  // Спільний кінець або пізніший особистий кінець того, хто ще не відповів (додатковий час).
   const times = [
-    state.endsAt,
+    closesAt(state),
     away === null ? null : away + BOARD_AWAY_MS,
     ...(play?.blitz?.queue.map((e) => e.deadline) ?? []),
     ...chainers.map((id) => chainDeadline(state, id)),
