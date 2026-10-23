@@ -32,6 +32,10 @@
   --duel-accent-soft: rgb(255 107 74 / 0.16);
   --duel-challenger: #5ec8ff;
   --duel-opponent: #ff7eb6;
+  /* Нижні смуги (дебаф, дуель) складаються стосом від цієї лінії; room — висота смуги з проміжком. */
+  --banner-base: max(1rem, env(safe-area-inset-bottom));
+  --debuff-banner-room: 6.25rem;
+  --duel-banner-room: 6.25rem;
   --display: 'Unbounded Variable', system-ui, sans-serif;
   --body: 'Onest Variable', system-ui, sans-serif;
   color-scheme: dark;
@@ -1038,6 +1042,13 @@ button.choice {
 .chips li {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* Шапка завжди в один рядок: довге ім'я обрізається трикрапкою, тож поява кнопки «Дуель» не робить шапку вищою. */
+.bar > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .question.is-long {
@@ -4297,16 +4308,21 @@ button.sort-zone:disabled {
   overflow-wrap: anywhere;
 }
 
-/* Смуга оголошеної дуелі знизу; сторінка тримає під нею запас, тож кнопки дій не закриті. */
+/*
+ * Смуга оголошеної дуелі знизу; сторінка тримає під нею запас, тож кнопки дій не закриті.
+ * До трьох рядків на 360–375 px (імена по 20 літер) — під них розрахована --duel-banner-room.
+ * Разом із банером дебафу смуга стає над ним, сповіщення про бали — над обома.
+ */
 .duel-banner {
   position: fixed;
-  bottom: max(1rem, env(safe-area-inset-bottom));
+  bottom: var(--banner-base);
   left: 50%;
   transform: translateX(-50%);
   z-index: 55;
   width: max-content;
   max-width: calc(100vw - 2rem);
   padding: 0.6rem 1rem;
+  line-height: 1.35;
   border: 2px solid var(--duel-accent);
   border-radius: 0.75rem;
   background: var(--notice-bg);
@@ -4317,13 +4333,25 @@ button.sort-zone:disabled {
   pointer-events: none;
 }
 
-.app.player:has(> .duel-banner) {
-  padding-bottom: max(6.5rem, calc(env(safe-area-inset-bottom) + 5.5rem));
+body:has(.debuff-banner) .duel-banner {
+  bottom: calc(var(--banner-base) + var(--debuff-banner-room));
 }
 
-/* Сповіщення про бали стає над смугою, а не на неї. */
-.duel-banner ~ .live-notice {
-  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 4.75rem);
+.app.player:has(> .duel-banner) {
+  padding-bottom: calc(var(--banner-base) + var(--duel-banner-room) + 0.5rem);
+}
+
+.app.player:has(> .duel-banner):has(.debuff-banner) {
+  padding-bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room) + 0.5rem);
+}
+
+/* Сповіщення про бали стає над смугою, а з банером дебафу — над обома. Сцена має власне правило нижче. */
+body:has(.duel-banner) .live-notice {
+  bottom: calc(var(--banner-base) + var(--duel-banner-room));
+}
+
+body:has(.duel-banner):has(.debuff-banner) .live-notice {
+  bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room));
 }
 
 @media (prefers-reduced-motion: no-preference) {

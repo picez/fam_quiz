@@ -46,7 +46,17 @@ export function DuelButton({
     if (!open) return;
     dialog.current?.querySelector<HTMLButtonElement>('button')?.focus();
     const back = trigger.current;
-    return () => back?.focus();
+    // Escape закриває діалог, навіть коли фокус уже не в ньому.
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setOpen(false);
+    };
+    document.addEventListener('keydown', onEscape);
+    return () => {
+      document.removeEventListener('keydown', onEscape);
+      back?.focus();
+    };
   }, [open]);
 
   if (rights === null) return null;
@@ -61,13 +71,8 @@ export function DuelButton({
     onError(result.ok ? null : errorText(result.error));
   };
 
-  // Escape закриває; Tab ходить по колу всередині діалогу.
+  // Tab ходить по колу всередині діалогу.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      close();
-      return;
-    }
     if (event.key !== 'Tab' || dialog.current === null) return;
     const buttons = [...dialog.current.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
     if (buttons.length === 0) return;
@@ -183,13 +188,21 @@ export function DuelPlay({
   send: Send;
   onError: (text: string | null) => void;
 }) {
+  // Поки вибір категорії летить, другий дотик не надсилає вдруге: ref — від подвійного дотику, стан — вимикає кнопки.
+  const picking = useRef(false);
+  const [pickPending, setPickPending] = useState(false);
   const duel = view.duel;
   if (duel === null) return <></>;
   const mine = view.me.duel;
   const duelist = view.me.id === duel.challenger.playerId || view.me.id === duel.opponent.playerId;
 
   const pick = async (categoryId: string) => {
+    if (picking.current) return;
+    picking.current = true;
+    setPickPending(true);
     const result = await send('player:duel-category', { categoryId });
+    picking.current = false;
+    setPickPending(false);
     onError(result.ok ? null : errorText(result.error));
   };
 
@@ -207,7 +220,7 @@ export function DuelPlay({
             <ul className="duel-categories">
               {duel.categories.map((category) => (
                 <li key={category.id}>
-                  <button type="button" className="btn" disabled={category.left === 0} onClick={() => void pick(category.id)}>
+                  <button type="button" className="btn" disabled={pickPending || category.left === 0} onClick={() => void pick(category.id)}>
                     {t('duelCategoryLeft', { title: category.title, left: category.left })}
                   </button>
                 </li>

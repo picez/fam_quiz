@@ -104,6 +104,11 @@ describe('DuelView', () => {
     fireEvent.click(screen.getByRole('button', { name: '⚔ Дуель' }));
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
+    // Escape діє й тоді, коли фокус уже не в діалозі.
+    fireEvent.click(screen.getByRole('button', { name: '⚔ Дуель' }));
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '⚔ Дуель' }));
     fireEvent.click(screen.getByRole('button', { name: 'Скасувати' }));
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -141,13 +146,26 @@ describe('DuelView', () => {
     expect(container.querySelector('.duel-banner')).toBeNull();
   });
 
-  it('the challenger picks a category, the others wait', () => {
+  it('the challenger picks a category, the others wait', async () => {
     const category = duelInfo({ stage: 'category', category: null, number: 0, question: null });
     const { send } = play(view(category, { canPick: true }));
     expect(screen.getByText('Виберіть категорію')).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Хімія · лишилося 0' }).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Столиці · лишилося 3' }));
     expect(send).toHaveBeenCalledWith('player:duel-category', { categoryId: 'dc1' });
+    cleanup();
+
+    // Подвійний дотик: поки вибір летить, другий не йде, кнопки вимкнені.
+    let resolve: (result: SendResult) => void = () => {};
+    const slow = vi.fn<Send>().mockImplementation(() => new Promise<SendResult>((r) => (resolve = r)));
+    play(view(category, { canPick: true }), slow);
+    const capitals = screen.getByRole<HTMLButtonElement>('button', { name: 'Столиці · лишилося 3' });
+    fireEvent.click(capitals);
+    fireEvent.click(capitals);
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(capitals.disabled).toBe(true);
+    await act(async () => resolve({ ok: true }));
+    expect(capitals.disabled).toBe(false);
     cleanup();
 
     play(view(category, { canPick: false }, 'p2'));
