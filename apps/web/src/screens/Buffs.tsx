@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BuffBlock, BuffKind, BuffSlot, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion } from '@quiz/shared';
+import type { BuffBlock, BuffKind, BuffSlot, BuffTag, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { signed } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
+import { useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
 
 /** Скільки чекає підтвердження після першого дотику, мс. */
@@ -205,5 +206,37 @@ export function OvertimeLine({ rows, offsetMs }: { rows: OvertimeRow[]; offsetMs
         return <p key={row.playerId}>{t('overtimeWait', { name: row.nickname, time: clockText(left) })}</p>;
       })}
     </div>
+  );
+}
+
+/**
+ * «Чекаємо …» для сцени й пульта: рядки overtime є в зрізі, щойно баф узято,
+ * а показуються лише після спільного кінця (за годинником сервера).
+ */
+export function SharedOvertime({ view, offsetMs }: { view: { endsAt: number | null; remainingMs: number | null; overtime: OvertimeRow[] }; offsetMs: number }) {
+  const over = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
+  if (!over) return null;
+  return <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />;
+}
+
+/** Значки сцени: «½ Оля» біля кожного гравця, що взяв баф на це запитання; що баф зробив, сцена не знає. */
+export function StageBuffs({ buffs }: { buffs: BuffTag[] }) {
+  if (buffs.length === 0) return null;
+  return (
+    <ul className="stage-buffs" aria-label={t('stageBuffsLabel')}>
+      {buffs.map((tag) => (
+        <li key={tag.playerId} title={buffName(tag.kind)}>{`${BUFF_ICONS[tag.kind]} ${tag.nickname}`}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** Значок бафу біля відповіді (пульт, історія): «🛡» з назвою в підказці. */
+export function BuffBadge({ kind }: { kind: BuffKind }) {
+  const name = buffName(kind);
+  return (
+    <span className="buff-tag" title={name} aria-label={t('buffTagLabel', { name })}>
+      {BUFF_ICONS[kind]}
+    </span>
   );
 }

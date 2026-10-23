@@ -64,3 +64,22 @@ export function Timer({ view, offsetMs, total = null, status = null }: Props) {
     </div>
   );
 }
+
+/**
+ * true, коли час уже вийшов: endsAt у минулому за годинником сервера (той самий offsetMs, що й у Timer)
+ * або на паузі не лишилося ні мілісекунди. Перемикається таймером, без щосекундних перемальовувань.
+ */
+export function useTimeOver(endsAt: number | null, remainingMs: number | null, offsetMs: number): boolean {
+  const passed = () => (remainingMs !== null ? remainingMs <= 0 : endsAt !== null && endsAt <= Date.now() + offsetMs);
+  const [over, setOver] = useState(passed);
+  useEffect(() => {
+    setOver(passed());
+    if (remainingMs !== null || endsAt === null) return;
+    const left = endsAt - (Date.now() + offsetMs);
+    if (left <= 0) return;
+    const id = setTimeout(() => setOver(true), left);
+    return () => clearTimeout(id);
+    // passed читає лише ці три значення.
+  }, [endsAt, remainingMs, offsetMs]);
+  return over;
+}

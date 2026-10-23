@@ -3506,32 +3506,50 @@ button.match-item {
   font-size: 1.5rem;
 }
 
-.stage .stage-debuffs {
+.stage .stage-tags {
   bottom: 0.75rem;
 }
 
-.stage-debuffs {
+/* Значки бафів (над) і дебафів (під) — один стовпчик у кутку сцени; position: fixed, тож нічого не зсувають. */
+.stage-tags {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
   right: 0.75rem;
   z-index: 50;
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 30vw;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.stage-tags:empty {
+  display: none;
+}
+
+.stage-debuffs,
+.stage-buffs {
+  display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  max-width: 30vw;
   gap: 0.4rem;
   margin: 0;
   padding: 0;
   list-style: none;
-  pointer-events: none;
 }
 
-.stage-debuffs li {
+.stage-debuffs li,
+.stage-buffs li {
   padding: 0.3rem 0.8rem;
   border-radius: 999px;
   background: var(--notice-bg);
   color: var(--paper);
   font-size: 1.4rem;
+}
+
+.stage-buffs li {
+  box-shadow: inset 0 0 0 2px var(--buff-accent);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -4740,4 +4758,41 @@ label.powers-item {
 
 .live-notice:has(~ .live-notice.is-buff) {
   translate: 0 -3.5rem;
+}
+
+/* «Чекаємо …» на сцені висить під табло поза потоком: поява на спільному кінці нічого не зсуває. */
+.stage-clock {
+  position: relative;
+  flex: none;
+}
+
+.stage-clock .buff-wait {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  white-space: nowrap;
+  font-size: clamp(1.1rem, 2vw, 1.75rem);
+}
+
+/* Пульт: «Чекаємо …» займає власний рядок у смузі часу, кнопки ±15 с лишаються поруч із табло. */
+.host-time .buff-wait {
+  flex-basis: 100%;
+  order: 1;
+}
+
+/* Значок бафу біля відповіді (пульт, історія): невелика пігулка. */
+.buff-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-width: 1.75rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--buff-accent);
+  border-radius: 999px;
+  color: var(--buff-accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
 }

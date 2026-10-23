@@ -240,6 +240,33 @@ describe('GameHistory: answers', () => {
     expect(details[1].textContent).toContain('Львів');
   });
 
+  it('history answers show the buff they were given with', async () => {
+    const buffed: GameDetail = {
+      ...answered,
+      questions: [
+        {
+          ...answered.questions[1],
+          answered: 2,
+          responses: [
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: 'double' },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null },
+          ],
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: buffed });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (2)'));
+    const rows = [...container.querySelectorAll('details.responses li')];
+    const tag = rows[0].querySelector('.buff-tag');
+    expect(tag?.textContent).toBe('×2');
+    expect(tag?.getAttribute('aria-label')).toBe('Баф: Подвійні бали');
+    expect(tag?.getAttribute('title')).toBe('Подвійні бали');
+    // Значок стоїть перед відповіддю.
+    expect(tag?.nextElementSibling?.className).toBe('responses-answer');
+    expect(rows[1].querySelector('.buff-tag')).toBeNull();
+  });
+
   it('shows no answers block for a question nobody answered', async () => {
     vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
     const { container } = open('/history/g1');
@@ -461,6 +488,7 @@ describe('GameHistory sort', () => {
     const sorted = (nickname: string, n: number, timeMs: number | null, misses: number) => ({
       nickname,
       answer: { type: 'sort' as const, sorted: n, total: 4, misses, timeMs },
+      buff: null,
       accepted: n === 4,
     });
     vi.mocked(getGame).mockResolvedValue({

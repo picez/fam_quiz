@@ -186,6 +186,48 @@ describe('HostScreen', () => {
     expect(given.closest('li')?.textContent).toContain('Олена');
   });
 
+  it('the host can stop waiting', async () => {
+    const olena = { playerId: 'p1', nickname: 'Олена' };
+    const now = Date.now();
+    const send = show(
+      during('question', single, { endsAt: now - 1000, limitMs: 20_000, overtime: [{ ...olena, deadline: now + 24_000, remainingMs: null }] }),
+    );
+    expect(screen.queryByRole('button', { name: 'Закрити запитання' })).toBeNull();
+    expect(screen.getByText('Чекаємо: Олена · 0:24')).toBeTruthy();
+    fireEvent.click(button('Не чекати'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:lock', undefined));
+    cleanup();
+    // Баф узято, але спільний час ще йде: кнопка звичайна, рядка «Чекаємо» немає.
+    show(during('question', single, { endsAt: now + 10_000, limitMs: 20_000, overtime: [{ ...olena, deadline: now + 40_000, remainingMs: null }] }));
+    expect(button('Закрити запитання')).toBeTruthy();
+    expect(screen.queryByText(/Чекаємо:/)).toBeNull();
+    cleanup();
+    show(during('question', single, { endsAt: now - 1000, limitMs: 20_000 }));
+    expect(button('Закрити запитання')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Не чекати' })).toBeNull();
+  });
+
+  it('responses show the buff icon', () => {
+    show(
+      during('reveal', single, {
+        responses: [
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: 'shield' },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null },
+        ],
+      }),
+    );
+    const tag = screen.getByText('🛡');
+    expect(tag.className).toContain('buff-tag');
+    expect(tag.getAttribute('title')).toBe('Щит');
+    expect(tag.closest('li')?.textContent).toContain('Олена');
+    expect(document.querySelectorAll('.buff-tag')).toHaveLength(1);
+  });
+
+  it('a buff notice reaches the host console', () => {
+    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), nickname: 'Олена', kind: 'fifty' } }));
+    expect(screen.getByText('Олена: 50/50')).toBeTruthy();
+  });
+
   it('lets the host accept or reject text answers on reveal', () => {
     const responses = [
       { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null },
@@ -1254,6 +1296,16 @@ describe('HostScreen player tools', () => {
     expect(debuffs[1].closest('li')?.contains(screen.getByText('Спрацює в наступному запитанні, де гравець відповідає.'))).toBe(true);
     fireEvent.click(debuffs[1]);
     expect(screen.queryByText('Спрацює в наступному запитанні, де гравець відповідає.')).toBeNull();
+  });
+
+  it('the host sees only allowed debuffs and no debuff tool when none are allowed', () => {
+    show(running({ allowed: { debuffs: ['fog', 'mud'], buffs: [] } }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Дебаф' })[0]);
+    expect([...document.querySelectorAll('.debuff-picks button')].map((node) => node.textContent)).toEqual(['🌫️ Туман', '🟫 Брудний екран']);
+    cleanup();
+    show(running({ allowed: { debuffs: [], buffs: [] } }));
+    expect(screen.queryByRole('button', { name: 'Дебаф' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Бали' })).toHaveLength(2);
   });
 
   it('the player row shows the debuff tag', () => {

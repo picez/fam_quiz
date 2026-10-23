@@ -904,6 +904,44 @@ describe('StageScreen final', () => {
     expect(document.querySelector('.live-notice')).toBeNull();
     expect(document.querySelector('.stage-debuffs')).toBeNull();
   });
+
+  it('the stage shows who took which buff, not what it did', () => {
+    const four = { ...question, choices: [...choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
+    const buffs = [
+      { playerId: 'p1', nickname: 'Оля', kind: 'fifty' as const },
+      { playerId: 'p2', nickname: 'Петро', kind: 'double' as const },
+    ];
+    for (const phase of ['question', 'locked', 'reveal'] as const) {
+      show(view({ phase, questionIndex: 0, question: four, endsAt: Date.now() + 10_000, buffs, reveal: phase === 'reveal' ? { ...full, options: four.choices } : null }));
+      const list = screen.getByRole('list', { name: 'Бафи гравців' });
+      expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['½ Оля', '×2 Петро']);
+      // Усі чотири варіанти на місці й без приглушення: що прибрала 50/50, сцена не знає.
+      expect(document.querySelectorAll('.choice')).toHaveLength(4);
+      expect(document.querySelector('.is-removed')).toBeNull();
+      cleanup();
+    }
+    show(view({ phase: 'question', questionIndex: 0, question: four, endsAt: Date.now() + 10_000 }));
+    expect(screen.queryByRole('list', { name: 'Бафи гравців' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'leaderboard', buffs, standings: [] }));
+    expect(screen.queryByRole('list', { name: 'Бафи гравців' })).toBeNull();
+  });
+
+  it('the stage waits for a player with extra time', () => {
+    const now = Date.now();
+    const overtime = [{ playerId: 'p1', nickname: 'Оля', deadline: now + 24_000, remainingMs: null }];
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: now - 500, limitMs: 20_000, overtime }));
+    expect(screen.getByText('Чекаємо: Оля · 0:24')).toBeTruthy();
+    cleanup();
+    // Баф узято до спільного кінця: рядок з'явиться лише після нього.
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: now + 6000, limitMs: 20_000, overtime: [{ ...overtime[0], deadline: now + 36_000 }] }));
+    expect(screen.queryByText(/Чекаємо:/)).toBeNull();
+  });
+
+  it('a buff notice on the stage', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), nickname: 'Оля', kind: 'fifty' } }));
+    expect(screen.getByText('Оля: 50/50')).toBeTruthy();
+  });
 });
 
 const olya = { playerId: 'p1', nickname: 'Оля' };

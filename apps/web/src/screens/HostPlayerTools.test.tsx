@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostPlayer } from '@quiz/shared';
+import { DEBUFF_KINDS, type HostPlayer } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { DebuffPanel, parseAdjust, PointsPanel } from './HostPlayerTools';
 
@@ -65,21 +65,27 @@ describe('failed send', () => {
 describe('DebuffPanel', () => {
   it('the debuff panel lists six debuffs and sends the chosen one', () => {
     const send = okSend();
-    render(<DebuffPanel player={player()} send={send} onError={vi.fn()} />);
+    render(<DebuffPanel player={player()} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
     for (const label of ['📳 Тремтіння екрана', '🌫️ Туман', '🧊 Заморозка', '🪞 Дзеркало', '🐾 Гості на екрані', '🟫 Брудний екран']) expect(button(label)).toBeTruthy();
     expect(screen.getByText('Спрацює в наступному запитанні, де гравець відповідає.')).toBeTruthy();
     fireEvent.click(button('🌫️ Туман'));
     expect(send).toHaveBeenCalledWith('host:debuff', { playerId: 'p1', kind: 'fog' });
   });
 
+  it('DebuffPanel lists the given kinds only', () => {
+    render(<DebuffPanel player={player()} kinds={['fog', 'mud']} send={okSend()} onError={vi.fn()} />);
+    const picks = [...document.querySelectorAll('.debuff-picks button')].map((node) => node.textContent);
+    expect(picks).toEqual(['🌫️ Туман', '🟫 Брудний екран']);
+  });
+
   it('a waiting debuff can be cancelled, a firing one cannot', () => {
     const send = okSend();
-    const { rerender } = render(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: false } })} send={send} onError={vi.fn()} />);
+    const { rerender } = render(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: false } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
     expect(screen.getByText('🌫️ Туман · чекає')).toBeTruthy();
     expect(button('🧊 Заморозка').disabled).toBe(true);
     fireEvent.click(button('Скасувати дебаф'));
     expect(send).toHaveBeenCalledWith('host:undebuff', { playerId: 'p1' });
-    rerender(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: true } })} send={send} onError={vi.fn()} />);
+    rerender(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: true } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
     expect(screen.getByText('🌫️ Туман · діє')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Скасувати дебаф' })).toBeNull();
   });

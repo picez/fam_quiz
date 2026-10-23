@@ -5,7 +5,8 @@ import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
-import { AdjustmentToast, StageDebuffs } from '../live/LiveNotices';
+import { AdjustmentToast, BuffToast, StageDebuffs } from '../live/LiveNotices';
+import { SharedOvertime, StageBuffs } from './Buffs';
 import { DuelBanner, DuelStage } from './DuelView';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -195,7 +196,13 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
       {/* На розкритті фіналу запитання не розтягується: лічильник банку й список стоять на місці, поки рядків більшає. */}
       <div className={finalReveal ? 'stage-main is-reveal' : 'stage-main'}>
         <h1 className={questionClass(question.text)}>{question.text}</h1>
-        {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
+        {view.phase === 'question' && (
+          // «Чекаємо …» висить під табло поза потоком: його поява на спільному кінці нічого не зсуває.
+          <div className="stage-clock">
+            <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />
+            {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
+          </div>
+        )}
       </div>
       {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} presented={view.question?.choices} />}
       {!finalReveal && <QuestionImage url={question.imageUrl} />}
@@ -322,7 +329,12 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
     <main className="app stage">
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
-      <StageDebuffs debuffs={view.debuffs} />
+      <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      {/* Значки бафів і дебафів — один стовпчик у кутку, position: fixed. */}
+      <div className="stage-tags">
+        {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} />}
+        <StageDebuffs debuffs={view.debuffs} />
+      </div>
       {view.paused && (
         <p className="banner" role="status">
           {t(hostOnline ? 'paused' : 'waitingHost')}

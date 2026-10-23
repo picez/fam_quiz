@@ -4,7 +4,7 @@ import { correctText, markText, pickedText, shownChoices, num, questionClass, qu
 import { countText, errorText, t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast, BuffToast } from '../live/LiveNotices';
-import { Timer, timerStatus } from '../live/Timer';
+import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -248,25 +248,6 @@ function FinalResult({ view }: { view: PlayerView }) {
       {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
     </section>
   );
-}
-
-/**
- * true, коли час уже вийшов: endsAt у минулому за годинником сервера (той самий offsetMs, що й у Timer)
- * або на паузі не лишилося ні мілісекунди. Перемикається таймером, без щосекундних перемальовувань.
- */
-function useTimeOver(endsAt: number | null, remainingMs: number | null, offsetMs: number): boolean {
-  const passed = () => (remainingMs !== null ? remainingMs <= 0 : endsAt !== null && endsAt <= Date.now() + offsetMs);
-  const [over, setOver] = useState(passed);
-  useEffect(() => {
-    setOver(passed());
-    if (remainingMs !== null || endsAt === null) return;
-    const left = endsAt - (Date.now() + offsetMs);
-    if (left <= 0) return;
-    const id = setTimeout(() => setOver(true), left);
-    return () => clearTimeout(id);
-    // passed читає лише ці три значення.
-  }, [endsAt, remainingMs, offsetMs]);
-  return over;
 }
 
 /** Рядок стану миттєвого бліцу під варіантами: власне місце в черзі чи вердикт. */
