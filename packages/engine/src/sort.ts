@@ -1,7 +1,7 @@
 import { rulesOf, type Question } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { autoLock, fail, ok, recordOf, withFinalPoints, type AnswerRecord, type GameState, type Play, type Result, type SortProgress } from './game';
+import { autoLock, fail, lockNow, ok, recordOf, revealNow, withFinalPoints, type AnswerRecord, type GameState, type Play, type Result, type SortProgress } from './game';
 import { finalPoints } from './score';
 import { limitMsOf, timeOver } from './timing';
 
@@ -26,9 +26,10 @@ export function sortsHere(state: GameState, play: Play, playerId: string): boole
   return play.board === undefined || play.board.kind !== 'normal' || play.board.chooserId === playerId;
 }
 
-/** Бали за sortedCount слів за правилами раунду (× множник раунду). */
+/** Бали за sortedCount слів за правилами раунду (× множник раунду, на полі ще × множник клітинки; ціна клітинки не діє). */
 export function sortPoints(state: GameState, play: Play, sortedCount: number): number {
-  return Math.round(sortedCount * play.question.points * rulesOf(state.quiz.rounds[play.roundIndex]).multiplier);
+  const cell = play.board?.multiplier ?? 1;
+  return Math.round(sortedCount * play.question.points * cell * rulesOf(state.quiz.rounds[play.roundIndex]).multiplier);
 }
 
 function withProgress(state: GameState, play: Play, playerId: string, progress: SortProgress): GameState {
@@ -38,6 +39,11 @@ function withProgress(state: GameState, play: Play, playerId: string, progress: 
 /** Чи зіграно запитання в раунді фіналу. */
 function isFinal(state: GameState, play: Play): boolean {
   return state.quiz.rounds[play.roundIndex]?.type === 'final';
+}
+
+/** Чи зіграно запитання в бліц-раунді: перемагає перший, хто відсортував усе. */
+function isBlitz(state: GameState, play: Play): boolean {
+  return state.quiz.rounds[play.roundIndex]?.type === 'blitz';
 }
 
 function wagerOf(play: Play, playerId: string): number {
@@ -99,23 +105,36 @@ export function sortWord(state: GameState, playerId: string, wordId: string, cat
     overridden: false,
   };
   const current = advanced.plays[advanced.questionIndex];
+  const done = withPlay(advanced, { ...current, answers: { ...current.answers, [playerId]: record } });
+  // На полі останнє слово закриває клітинку й одразу розкриває оцінку, як «Прийняти».
+  if (play.board !== undefined) return ok(revealNow(done));
+  // У бліці перший, хто відсортував усе, — переможець: запитання закривається одразу.
+  if (isBlitz(state, play)) return ok(lockNow(done));
   // У фіналі бали рахуються за типом ставок (спільний банк залежить від інших записів).
-  return ok(autoLock(withFinalPoints(withPlay(advanced, { ...current, answers: { ...current.answers, [playerId]: record } })), now));
+  return ok(autoLock(withFinalPoints(done), now));
 }
 
-/** На етапі question: записи тим, хто ходив і не закінчив; інакше стан без змін. */
+/**
+ * На етапі question: записи тим, хто ходив і не закінчив (у бліці — 0 балів, мінус раунду не діє);
+ * на полі той, хто вибрав, отримує запис завжди, тож мінусу за мовчання немає. Інакше стан без змін.
+ */
 export function scoreSort(state: GameState): GameState {
   const play = sortPlay(state);
   if (state.phase !== 'question' || play === null) return state;
   const limitMs = limitMsOf(play) ?? 0;
   const final = isFinal(state, play);
+  const blitz = isBlitz(state, play);
   const total = play.question.words.length;
   const answers = { ...play.answers };
-  for (const [playerId, progress] of Object.entries(play.sort ?? {})) {
+  const sorters = Object.keys(play.sort ?? {});
+  const chooser = play.board?.chooserId;
+  if (chooser !== undefined && state.players.some((p) => p.id === chooser) && !sorters.includes(chooser)) sorters.push(chooser);
+  for (const playerId of sorters) {
     if (Object.hasOwn(answers, playerId)) continue;
+    const progress = sortOf(state, playerId);
     const sorted = progress.sorted.length;
-    const accuracy = final ? 0 : sorted / total;
-    const points = final ? finalPoints(wagerOf(play, playerId), false) : sortPoints(state, play, sorted);
+    const accuracy = final || blitz ? 0 : sorted / total;
+    const points = final ? finalPoints(wagerOf(play, playerId), false) : blitz ? 0 : sortPoints(state, play, sorted);
     answers[playerId] = {
       answer: { type: 'sort', sorted, total, misses: progress.misses, timeMs: null },
       timeMs: limitMs,

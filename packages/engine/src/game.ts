@@ -467,7 +467,10 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     answers: {},
     extraMs: 0,
     ...(board !== undefined ? { board } : {}),
-    ...(round.type === 'blitz' || board?.kind === 'blitz' ? { blitz: { queue: [], attempts: [], buzzed: [], dropped: [] } } : {}),
+    // Сортування в бліц-раунді без черги натискань: перемагає перший, хто відсортував усе.
+    ...((round.type === 'blitz' && question.type !== 'sort') || board?.kind === 'blitz'
+      ? { blitz: { queue: [], attempts: [], buzzed: [], dropped: [] } }
+      : {}),
   };
   // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
   // Дебафи, що чекають, спрацьовують для тих, хто відповідає на це запитання з телефона.
@@ -657,7 +660,7 @@ function advance(state: GameState, now: number, rng: Rng): GameState {
 /**
  * Серія кожного гравця після перших upTo запитань журналу: поспіль правильні відповіді в раунді
  * останнього з них. Без відповіді серія перервана, але в бліці запитання, де гравець не натискав,
- * серію не обриває й не продовжує (натискання без правильної спроби обриває); на межі раундів вона скидається;
+ * серію не обриває й не продовжує (натискання без правильної спроби обриває; так само сортування без ходів); на межі раундів вона скидається;
  * якщо правил серії в тому раунді немає, серій немає.
  */
 export function streakCounts(state: GameState, upTo: number): Record<string, number> {
@@ -672,6 +675,8 @@ export function streakCounts(state: GameState, upTo: number): Record<string, num
       const record = recordOf(state, i, player.id);
       const blitz = state.plays[i].blitz;
       if (record === undefined && blitz !== undefined && !blitz.buzzed.includes(player.id)) continue;
+      // Сортування в бліц-раунді (без черги): хто не ходив, серію не обриває й не продовжує.
+      if (record === undefined && blitz === undefined && round.type === 'blitz') continue;
       // На полі серію рахують лише власні ходи гравця.
       const board = state.plays[i].board;
       if (board !== undefined && board.chooserId !== player.id) continue;

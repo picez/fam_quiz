@@ -1,4 +1,4 @@
-import { cellAnswerMode, findCell, type Answer } from '@quiz/shared';
+import { cellAnswerMode, findCell, questionPrice, type Answer } from '@quiz/shared';
 import { advanceTurn, cellMultiplier, cellPlayed, chooserOf, enterBoard } from './board-turns';
 import { fail, ok, openQuestion, withCurrentPlay, type GameState, type Result, type Rng } from './game';
 
@@ -34,7 +34,8 @@ export function pickCell(state: GameState, by: string | null, cellId: string, no
     openQuestion(turned, question, now, rng, {
       cellId,
       chooserId: chooser,
-      price: question.points,
+      // Для сортування — найбільша можлива сума; бали все одно рахуються за відсортовані слова.
+      price: questionPrice(question),
       multiplier: cellMultiplier(found.cell.mark),
       kind: found.cell.kind,
       answerMode: cellAnswerMode(round, found.cell),
