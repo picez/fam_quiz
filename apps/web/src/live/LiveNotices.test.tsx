@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdjustmentNotice } from '@quiz/shared';
-import { AdjustmentToast, NOTICE_MS, StageDebuffs } from './LiveNotices';
+import { AdjustmentToast, BuffToast, NOTICE_MS, StageDebuffs } from './LiveNotices';
 
 const NOW = 1_000_000;
 
@@ -142,5 +142,22 @@ describe('LiveNotices', () => {
     cleanup();
     const empty = render(<StageDebuffs debuffs={[]} />);
     expect(empty.container.firstChild).toBeNull();
+  });
+
+  it('buff toast shows «Оля: 50/50» for four seconds', () => {
+    const { container } = render(<BuffToast notice={{ seq: 1, at: NOW, nickname: 'Оля', kind: 'fifty' }} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('Оля: 50/50');
+    expect(container.firstElementChild?.className).toBe('live-notice is-buff');
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_MS - 1);
+    });
+    expect(screen.queryByRole('status')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<BuffToast notice={{ seq: 1, at: NOW - 10_000, nickname: 'Оля', kind: 'fifty' }} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

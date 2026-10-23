@@ -1314,4 +1314,84 @@ describe('PlayerScreen: sort', () => {
     expect(document.querySelector('header.bar .score')?.textContent).toBe('700');
     expect(document.querySelector('.live-notice')).not.toBeNull();
   });
+
+  const buffs = {
+    slots: [
+      { kind: 'fifty' as const, state: 'ready' as const, block: null },
+      { kind: 'double' as const, state: 'ready' as const, block: null },
+    ],
+    active: null,
+  };
+
+  it('the buff row sits under the question for the whole question', () => {
+    show(onQuestion({ me: { ...me, buffs } }));
+    const zone = document.querySelector('.debuff-zone')!;
+    const row = zone.querySelector('.buff-row');
+    expect(row).not.toBeNull();
+    expect(row!.querySelectorAll('button')).toHaveLength(2);
+    // Ряд — після тексту запитання й перед варіантами.
+    const children = [...zone.querySelectorAll('h1.question, .buff-row, .choice')];
+    expect(children[0].tagName).toBe('H1');
+    expect(children[1].className).toBe('buff-row');
+    cleanup();
+    show(onQuestion());
+    expect(document.querySelector('.buff-row')).toBeNull();
+    expect(document.querySelector('.buff-why')).toBeNull();
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: publicQuestion, me: { ...me, buffs } }));
+    expect(document.querySelector('.buff-row')).toBeNull();
+  });
+
+  it('50/50 fades the removed options on the phone, the second try asks again', () => {
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null } } } }));
+    const lviv = screen.getByRole('button', { name: 'Львів — прибрано' }) as HTMLButtonElement;
+    expect(lviv.disabled).toBe(true);
+    expect(lviv.className).toContain('is-removed');
+    cleanup();
+    const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first } } } }));
+    expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+    cleanup();
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 } } } } }));
+    expect(screen.getByRole('button', { name: 'Залишити' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+  });
+
+  it("another player's buff only shows a fixed notice", () => {
+    const before = onQuestion({ me: { ...me, buffs } });
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const { rerender } = render(<PlayerScreen view={before} hostOnline offsetMs={0} send={send} />);
+    const shape = () => [...document.querySelector('main')!.querySelectorAll('*')].filter((el) => !el.closest('.live-notice')).map((el) => el.tagName + '.' + el.className);
+    const was = shape();
+    rerender(
+      <PlayerScreen
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double' }], buffNotice: { seq: 1, at: Date.now(), nickname: 'Петро', kind: 'double' } }}
+        hostOnline
+        offsetMs={0}
+        send={send}
+      />,
+    );
+    expect(document.querySelector('.live-notice')?.textContent).toBe('Петро: Подвійні бали');
+    expect(document.querySelector('.live-notice')?.className).toContain('is-buff');
+    expect(shape()).toEqual(was);
+  });
+
+  it('extra time shows my own timer', () => {
+    const now = Date.now();
+    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('24');
+    expect(screen.getByText('+30 с — ваш час')).toBeTruthy();
+    expect(screen.queryByText(/Чекаємо/)).toBeNull();
+  });
+
+  it('others see who the reveal waits for', () => {
+    const now = Date.now();
+    const overtime = [{ playerId: 'p2', nickname: 'Оля', deadline: now + 24_000, remainingMs: null }];
+    show(onQuestion({ endsAt: now + 5000, overtime, me: { ...me, buffs } }));
+    expect(screen.queryByText(/Чекаємо/)).toBeNull();
+    cleanup();
+    show(onQuestion({ endsAt: now - 1000, overtime, me: { ...me, buffs } }));
+    expect(screen.getByText('Чекаємо: Оля · 0:24')).toBeTruthy();
+  });
 });

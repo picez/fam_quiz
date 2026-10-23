@@ -32,6 +32,9 @@
   --duel-accent-soft: rgb(255 107 74 / 0.16);
   --duel-challenger: #5ec8ff;
   --duel-opponent: #ff7eb6;
+  --buff-accent: #7ee0ff;
+  --buff-used: rgb(245 241 230 / 0.28);
+  --buff-active: #b8ff5c;
   /* Нижні смуги (дебаф, дуель) складаються стосом від цієї лінії; room — висота смуги з проміжком. */
   --banner-base: max(1rem, env(safe-area-inset-bottom));
   --debuff-banner-room: 6.25rem;
@@ -4622,4 +4625,119 @@ label.powers-item {
 .powers-soon {
   margin-left: auto;
   font-size: 0.8125rem;
+}
+
+/* Бафи на телефоні. Ряд і рядок пояснень однакові в усіх станах: кнопки не з'являються й не зникають,
+   рядок пояснень завжди займає місце, тож запитання й варіанти не стрибають. */
+.buff-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+
+.buff-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.buff-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--buff-accent);
+  border-radius: 0.75rem;
+  background: var(--panel);
+  color: var(--buff-accent);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.buff-btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.buff-btn.is-confirm {
+  background: var(--buff-accent);
+  color: var(--stage);
+}
+
+.buff-btn.is-active,
+.buff-btn.is-active[aria-disabled='true'] {
+  border-color: var(--buff-active);
+  background: var(--buff-active);
+  color: var(--stage);
+  opacity: 1;
+}
+
+.buff-btn.is-used {
+  border-color: var(--buff-used);
+  color: var(--buff-used);
+  text-decoration: line-through;
+}
+
+.buff-why {
+  min-height: 1.4em;
+  margin: 0;
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .buff-btn.is-active {
+    animation: buff-flash 0.6s ease-out 2;
+  }
+
+  @keyframes buff-flash {
+    50% {
+      box-shadow: 0 0 0 4px var(--buff-active);
+    }
+  }
+}
+
+/* 50/50: прибраний варіант на своєму місці, тієї самої висоти. */
+.choice.is-removed {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.choice.is-removed .choice-text,
+.choice.is-removed > span:not(.letter) {
+  text-decoration: line-through;
+}
+
+.buff-retry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.buff-wait-slot {
+  min-height: 1.4em;
+}
+
+.buff-wait p {
+  margin: 0;
+  color: var(--buff-accent);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* Сповіщення про баф — у тому ж стовпчику, під сповіщенням балів від ведучого: те піднімається на рядок. */
+.live-notice.is-buff {
+  border-color: var(--buff-accent);
+}
+
+.live-notice:has(~ .live-notice.is-buff) {
+  translate: 0 -3.5rem;
 }

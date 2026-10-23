@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AdjustmentNotice, BlitzPlayer } from '@quiz/shared';
+import type { AdjustmentNotice, BlitzPlayer, BuffNotice } from '@quiz/shared';
+import { buffName } from '../buff-meta';
 import { signed } from '../format';
 import { t } from '../i18n';
 
-/** Скільки сповіщення про бали видно, мс. */
+/** Скільки сповіщення (бали від ведучого, баф) видно, мс. */
 export const NOTICE_MS = 4000;
 
 /**
  * Видиме сповіщення: нове (seq більший за вже показані) і молодше за NOTICE_MS за часом сервера; ховається таймером.
  * Після вилучення гравця сервер може знову віддати старіше коригування — воно не спливає вдруге.
  */
-export function useNotice(notice: AdjustmentNotice | null, offsetMs: number): AdjustmentNotice | null {
-  const [shown, setShown] = useState<AdjustmentNotice | null>(null);
+export function useNotice<T extends { seq: number; at: number }>(notice: T | null, offsetMs: number): T | null {
+  const [shown, setShown] = useState<T | null>(null);
   // Зсув годинника доходить після першого зрізу; ефект читає найсвіжіший.
   const offsetRef = useRef(offsetMs);
   offsetRef.current = offsetMs;
@@ -52,6 +53,17 @@ export function AdjustmentToast({ notice, offsetMs }: { notice: AdjustmentNotice
   return (
     <div className={shown.points > 0 ? 'live-notice is-up' : 'live-notice is-down'} role="status" aria-live="polite">
       {t('adjustNotice', { points: signed(shown.points), name: shown.nickname })}
+    </div>
+  );
+}
+
+/** «Оля: 50/50» — хтось узяв баф; position: fixed під сповіщенням балів, тож нічого не зсуває. */
+export function BuffToast({ notice, offsetMs }: { notice: BuffNotice | null; offsetMs: number }) {
+  const shown = useNotice(notice, offsetMs);
+  if (shown === null) return null;
+  return (
+    <div className="live-notice is-buff" role="status" aria-live="polite">
+      {t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind) })}
     </div>
   );
 }

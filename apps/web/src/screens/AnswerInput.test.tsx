@@ -233,4 +233,28 @@ describe('AnswerInput', () => {
       expect(button(/Дніпро/).querySelector('.match-badge')?.textContent).toBe('2');
     });
   });
+
+  it('50/50 keeps removed options in place, faded and disabled', () => {
+    const four = [...cities, { id: 'd', text: 'Харків' }];
+    const onSubmit = vi.fn();
+    const { container, unmount } = render(<AnswerInput question={question({ choices: four })} removed={['a', 'c']} onSubmit={onSubmit} />);
+    const buttons = [...container.querySelectorAll('button.choice')] as HTMLButtonElement[];
+    expect(buttons).toHaveLength(4);
+    ['Львів', 'Київ', 'Одеса', 'Харків'].forEach((city, index) => expect(buttons[index].textContent).toContain(city));
+    expect(buttons.map((b) => b.className.includes('is-removed'))).toEqual([true, false, true, false]);
+    expect(buttons.map((b) => b.disabled)).toEqual([true, false, true, false]);
+    expect(buttons[0].getAttribute('aria-label')).toBe('Львів — прибрано');
+    fireEvent.click(buttons[0]);
+    fireEvent.click(button(/Київ/));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+    unmount();
+
+    const multi = vi.fn();
+    render(<AnswerInput question={question({ type: 'multi', choices: four })} removed={['a']} onSubmit={multi} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Львів — прибрано' }));
+    fireEvent.click(button(/Київ/));
+    fireEvent.click(button('Відповісти'));
+    expect(multi).toHaveBeenCalledWith({ type: 'multi', optionIds: ['b'] });
+  });
 });
