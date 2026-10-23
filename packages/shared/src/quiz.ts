@@ -422,6 +422,8 @@ export const quizSettingsSchema = z.object({
   debuffs: z.array(z.enum(DEBUFF_KINDS)).max(DEBUFF_KINDS.length).optional(),
   /** Дозволені бафи; немає поля — жодного. */
   buffs: z.array(z.enum(BUFF_KINDS)).max(BUFF_KINDS.length).optional(),
+  /** Пояснення для новачків (8d): «Як грати», пам'ятка раунду, підказка нового типу; немає поля — вимкнено. */
+  newcomers: z.boolean().optional(),
 });
 
 export type QuizSettings = z.infer<typeof quizSettingsSchema>;
