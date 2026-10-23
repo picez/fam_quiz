@@ -642,6 +642,11 @@ button.choice {
   overflow-wrap: anywhere;
 }
 
+/* Ім'я в рядках пульта не рветься посеред слова (нікнейм ≤ 20 знаків): стискається відповідь поруч. */
+.rows .name {
+  overflow-wrap: break-word;
+}
+
 .standings .is-me {
   background: rgb(255 179 0 / 0.14);
   border-radius: 0.5rem;
@@ -2695,6 +2700,14 @@ button.match-item {
   overflow-wrap: anywhere;
 }
 
+/* Ім'я і значок бафу в одному рядку. */
+.responses-who {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  min-width: 0;
+}
+
 .responses-answer {
   overflow-wrap: anywhere;
 }
@@ -4741,14 +4754,24 @@ label.powers-item {
 }
 
 .buff-wait {
+  display: flex;
   min-width: 0;
   margin: 0;
-  overflow: hidden;
   color: var(--buff-accent);
   font-weight: 700;
   line-height: 1.4;
-  white-space: nowrap;
+  white-space: pre;
+}
+
+/* Вузький екран обрізає імена, а відлік лишається видно. */
+.buff-wait-names {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.buff-wait-time {
+  flex: none;
 }
 
 /* Підпис запитання й «Чекаємо …» в одній клітинці сітки: висота — підпису, рядок очікування його лише заступає. */

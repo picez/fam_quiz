@@ -262,8 +262,10 @@ describe('GameHistory: answers', () => {
     expect(tag?.textContent).toBe('×2');
     expect(tag?.getAttribute('aria-label')).toBe('Баф: Подвійні бали');
     expect(tag?.getAttribute('title')).toBe('Подвійні бали');
-    // Значок стоїть перед відповіддю.
-    expect(tag?.nextElementSibling?.className).toBe('responses-answer');
+    // Значок стоїть поруч з ім'ям в одному рядку, а відповідь — під ними.
+    expect(tag?.parentElement?.className).toBe('responses-who');
+    expect(tag?.previousElementSibling?.className).toBe('responses-name');
+    expect(tag?.parentElement?.nextElementSibling?.className).toBe('responses-answer');
     expect(rows[1].querySelector('.buff-tag')).toBeNull();
   });
 

@@ -32,6 +32,8 @@ export const EXTRA_TIME_MS = 30_000;
 /** Баф гравця на одному запитанні. */
 export interface BuffPlay {
   kind: BuffKind;
+  /** Номер узяття в грі, 1-базовий; після вилучення гравця номери не повторюються. */
+  seq: number;
   /** Мить, коли баф узято (час сервера). */
   at: number;
   /** fifty: прибрані неправильні варіанти; інакше []. */
@@ -152,14 +154,16 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (buffOf(play, playerId) !== null) return fail('buff_busy');
   if (fitBlock(state, play, kind) !== null) return fail('buff_unfit');
+  const seq = state.buffSeq + 1;
   const buff: BuffPlay = {
     kind,
+    seq,
     at: now,
     removed: kind === 'fifty' ? pickRemoved(play.question, rng) : [],
     retry: kind === 'retry' ? 'armed' : null,
     first: null,
   };
-  const taken = withCurrentPlay(state, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
+  const taken = withCurrentPlay({ ...state, buffSeq: seq }, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
   return ok(kind === 'time' ? grantOvertime(taken, playerId, EXTRA_TIME_MS) : taken);
 }
 
@@ -247,15 +251,14 @@ export function currentBuffs(state: GameState): BuffTag[] {
   });
 }
 
-/** Останній узятий баф у грі: усі бафи журналу за at, потім за порядком гравців; seq — 1-базова позиція останнього. */
+/** Останній узятий баф у грі — з найбільшим seq серед бафів, що лишилися в журналі. */
 export function lastBuff(state: GameState): BuffNotice | null {
-  const taken = state.plays.flatMap((play) =>
-    state.players.flatMap((p, order) => {
+  let last: BuffNotice | null = null;
+  for (const play of state.plays) {
+    for (const p of state.players) {
       const buff = buffOf(play, p.id);
-      return buff === null ? [] : [{ at: buff.at, order, nickname: p.nickname, kind: buff.kind }];
-    }),
-  );
-  if (taken.length === 0) return null;
-  const last = [...taken].sort((a, b) => a.at - b.at || a.order - b.order)[taken.length - 1];
-  return { seq: taken.length, at: last.at, nickname: last.nickname, kind: last.kind };
+      if (buff !== null && (last === null || buff.seq > last.seq)) last = { seq: buff.seq, at: buff.at, nickname: p.nickname, kind: buff.kind };
+    }
+  }
+  return last;
 }

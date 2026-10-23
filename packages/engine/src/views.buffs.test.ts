@@ -106,6 +106,8 @@ describe('buff views', () => {
     expect(hostView(s).buffNotice?.seq).toBe(2);
     s = must(removePlayer(s, 'p2'));
     expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, nickname: 'Оля', kind: 'fifty' });
+    s = take(s, 'p3', 'double', T0 + 3000); // номер не перевикористовується після вилучення
+    expect(stageView(s).buffNotice).toEqual({ seq: 3, at: T0 + 3000, nickname: 'Іра', kind: 'double' });
   });
 
   it('overtime rows for the stage and host; the player gets a personal timer', () => {
@@ -139,11 +141,15 @@ describe('buff views', () => {
     expect(mine?.me.answer).toBeNull();
     expect(hostView(s).responses.map((r) => r.playerId)).not.toContain('p1');
     for (const view of [playerView(s, 'p2'), stageView(s)]) expect(JSON.stringify(view)).not.toContain('2111');
+    // Лічильник не видає неправильну першу спробу: той, хто відповів, уже відповів.
+    expect(stageView(s).answeredCount).toBe(1);
+    expect(hostView(s).answeredCount).toBe(1);
 
     let w = take(toBuffQuestion(), 'p1', 'retry');
     expect(playerView(w, 'p1')?.me.buffs?.active).toMatchObject({ retry: 'armed', first: null });
     w = answer(w, 'p1', pick('a'), T0 + 1000);
     expect(playerView(w, 'p1')?.me.buffs?.active).toMatchObject({ retry: 'again', first: { answer: pick('a'), points: -1000 } });
+    expect(playerView(w, 'p2')?.answeredCount).toBe(1);
   });
 
   it('the host sees allowed debuffs and buffs, and the buff of each response', () => {

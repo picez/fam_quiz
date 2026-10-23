@@ -1356,6 +1356,11 @@ describe('PlayerScreen: sort', () => {
     show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 } } } } }));
     expect(screen.getByRole('button', { name: 'Залишити' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+    cleanup();
+    // На паузі вибір чекає.
+    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 } } } } }));
+    expect((screen.getByRole('button', { name: 'Залишити' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Ще спроба' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("another player's buff only shows a fixed notice", () => {
@@ -1392,7 +1397,7 @@ describe('PlayerScreen: sort', () => {
     expect(screen.queryByText(/Чекаємо/)).toBeNull();
     cleanup();
     show(onQuestion({ endsAt: now - 1000, overtime, me: { ...me, buffs } }));
-    expect(screen.getByText('Чекаємо: Оля · 0:24')).toBeTruthy();
+    expect(screen.getByTitle('Чекаємо: Оля · 0:24')).toBeTruthy();
   });
 
   it('«waiting for» never adds height: it stands in the question head, also for a board watcher', () => {

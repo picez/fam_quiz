@@ -475,7 +475,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </section>
             ) : activeBuff !== null && retryStage === 'choice' ? (
               // Часткова перша відповідь: вибір замість поля відповіді.
-              <RetryPrompt active={activeBuff} question={question} send={send} onError={setError} />
+              <RetryPrompt active={activeBuff} question={question} send={send} onError={setError} paused={view.paused} />
             ) : (
               // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.

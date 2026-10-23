@@ -141,17 +141,20 @@ export function BuffRow({
   );
 }
 
-/** Друга спроба: «Неправильно, ще одна спроба» (again) або вибір «Залишити» / «Ще спроба» (choice). */
+/** Друга спроба: «Неправильно, ще одна спроба» (again) або вибір «Залишити» / «Ще спроба» (choice); на паузі вибір вимкнено. */
 export function RetryPrompt({
   active,
   send,
   onError,
+  paused = false,
 }: {
   active: PlayerActiveBuff;
   /** Запитання, на яке друга спроба (для майбутніх підказок; поки не показується). */
   question: PublicQuestion;
   send: Send;
   onError: (message: string | null) => void;
+  /** Гра на паузі: сервер однаково відмовив би, тож кнопки чекають. */
+  paused?: boolean;
 }) {
   const [sending, setSending] = useState(false);
   const mountedRef = useRef(true);
@@ -164,7 +167,7 @@ export function RetryPrompt({
   if (active.retry === 'again') return <p className="lead buff-retry">{t('retryAgain')}</p>;
   if (active.retry !== 'choice') return null;
   const choose = (keep: boolean) => {
-    if (sending) return;
+    if (sending || paused) return;
     setSending(true);
     void send('player:retry', { keep })
       .then((result) => {
@@ -178,10 +181,10 @@ export function RetryPrompt({
     <section className="buff-retry">
       <p className="lead">{t('retryChoice', { points: signed(active.first?.points ?? 0) })}</p>
       <div className="buff-retry-actions">
-        <button type="button" className="btn btn-primary" disabled={sending} onClick={() => choose(true)}>
+        <button type="button" className="btn btn-primary" disabled={sending || paused} onClick={() => choose(true)}>
           {t('retryKeep')}
         </button>
-        <button type="button" className="btn" disabled={sending} onClick={() => choose(false)}>
+        <button type="button" className="btn" disabled={sending || paused} onClick={() => choose(false)}>
           {t('retryMore')}
         </button>
       </div>
@@ -198,6 +201,7 @@ function clockText(ms: number): string {
 /**
  * «Чекаємо: Оля · 0:24» — для сцени, пульта й телефонів, коли спільний час сплив.
  * Кілька гравців — в одному рядку («…, Петро · 0:12») з трикрапкою: рядок не росте вниз.
+ * Трикрапка з'їдає імена, а не відлік: останній « · 0:12» — окремий шматок, що не стискається.
  */
 export function OvertimeLine({ rows, offsetMs }: { rows: OvertimeRow[]; offsetMs: number }) {
   const [now, setNow] = useState(() => Date.now());
@@ -214,9 +218,12 @@ export function OvertimeLine({ rows, offsetMs }: { rows: OvertimeRow[]; offsetMs
   const text =
     t('overtimeWait', { name: first.nickname, time: timeOf(first) }) +
     rest.map((row) => `, ${t('overtimeWaitMore', { name: row.nickname, time: timeOf(row) })}`).join('');
+  // Обидва шаблони закінчуються на « · {time}»: відрізаємо відлік останнього гравця.
+  const time = ` · ${timeOf(rows[rows.length - 1])}`;
   return (
-    <p className="buff-wait" title={text}>
-      {text}
+    <p className="buff-wait" title={text} aria-label={text}>
+      <span className="buff-wait-names">{text.slice(0, text.length - time.length)}</span>
+      <span className="buff-wait-time">{time}</span>
     </p>
   );
 }

@@ -4825,7 +4825,7 @@ async function buffsGame() {
   await stageWait.waitFor({ timeout: 8000 });
   expect(await stageWait.textContent()).toMatch(/^Чекаємо: Іра · 0:\d\d$/);
   await host.getByRole('button', { name: 'Не чекати', ...exact }).waitFor();
-  await petro.locator('.question-head .buff-wait').getByText(/^Чекаємо: Іра · 0:\d\d$/).waitFor();
+  await petro.locator('.question-head .buff-wait', { hasText: /^Чекаємо: Іра · 0:\d\d$/ }).waitFor();
   await shot(stage, 'buff8a-overtime-stage');
   await shot(petro, 'buff8a-overtime-phone');
   await shot(ira, 'buff8a-overtime-mine');
@@ -4833,6 +4833,26 @@ async function buffsGame() {
   await host.setViewportSize({ width: 375, height: 812 });
   await host.getByRole('button', { name: 'Не чекати', ...exact }).waitFor();
   await expectNoSideScroll(host, 'buff8a-overtime-host-375');
+  // На 375 px імена в рядках пульта не рвуться посеред слова, а відлік «Чекаємо» видно повністю.
+  const brokenNames = await host.locator('.rows .name').evaluateAll((names) =>
+    names
+      .filter((name) => !/\s/.test(name.textContent ?? '') && name.getClientRects().length > 0)
+      .filter((name) => {
+        const range = name.ownerDocument.createRange();
+        range.selectNodeContents(name);
+        return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size > 1;
+      })
+      .map((name) => name.textContent),
+  );
+  expect(brokenNames).toEqual([]);
+  const timeShown = async (page: Page) =>
+    page.locator('.buff-wait').evaluate((line) => {
+      const time = line.querySelector('.buff-wait-time')!.getBoundingClientRect();
+      return time.width > 0 && time.right <= line.getBoundingClientRect().right + 0.5;
+    });
+  expect(await timeShown(host)).toBe(true);
+  expect(await timeShown(petro)).toBe(true); // телефон Петра — 360 px
+  expect(await timeShown(stage)).toBe(true);
   await host.setViewportSize({ width: 1280, height: 900 });
   await stage.waitForTimeout(1500);
   await pickOption(ira, 'Чернівці');

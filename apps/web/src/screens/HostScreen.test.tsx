@@ -193,7 +193,7 @@ describe('HostScreen', () => {
       during('question', single, { endsAt: now - 1000, limitMs: 20_000, overtime: [{ ...olena, deadline: now + 24_000, remainingMs: null }] }),
     );
     expect(screen.queryByRole('button', { name: 'Закрити запитання' })).toBeNull();
-    expect(screen.getByText('Чекаємо: Олена · 0:24')).toBeTruthy();
+    expect(screen.getByTitle('Чекаємо: Олена · 0:24')).toBeTruthy();
     fireEvent.click(button('Не чекати'));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:lock', undefined));
     cleanup();

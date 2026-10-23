@@ -139,8 +139,10 @@ export function GameHistory() {
                             <ul>
                               {question.responses.map((response, at) => (
                                 <li key={at} className={response.accepted ? 'is-correct' : 'is-wrong'}>
-                                  <span className="responses-name">{response.nickname}</span>
-                                  {response.buff !== null && <BuffBadge kind={response.buff} />}
+                                  <span className="responses-who">
+                                    <span className="responses-name">{response.nickname}</span>
+                                    {response.buff !== null && <BuffBadge kind={response.buff} />}
+                                  </span>
                                   {response.answer?.type === 'match' ? (
                                     <PairList pairs={pairTexts(response.answer.links, choicesOf(question.question))} tone="" />
                                   ) : (

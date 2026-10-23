@@ -931,7 +931,7 @@ describe('StageScreen final', () => {
     const now = Date.now();
     const overtime = [{ playerId: 'p1', nickname: 'Оля', deadline: now + 24_000, remainingMs: null }];
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: now - 500, limitMs: 20_000, overtime }));
-    expect(screen.getByText('Чекаємо: Оля · 0:24')).toBeTruthy();
+    expect(screen.getByTitle('Чекаємо: Оля · 0:24')).toBeTruthy();
     cleanup();
     // Баф узято до спільного кінця: рядок з'явиться лише після нього.
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: now + 6000, limitMs: 20_000, overtime: [{ ...overtime[0], deadline: now + 36_000 }] }));

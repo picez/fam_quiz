@@ -39,7 +39,7 @@ describe('buffs', () => {
     expect(takeBuff(toBuffQuestion({ buffs: [] }), 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'not_allowed' });
     expect(takeBuff(toBuffQuestion({ buffs: ['shield'] }), 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'not_allowed' });
     let s = must(takeBuff(toBuffQuestion(), 'p1', 'double', T0 + 1000, rng0));
-    expect(s.plays[0].buffs?.p1).toEqual({ kind: 'double', at: T0 + 1000, removed: [], retry: null, first: null });
+    expect(s.plays[0].buffs?.p1).toEqual({ kind: 'double', seq: 1, at: T0 + 1000, removed: [], retry: null, first: null });
     s = must(next(must(lock(s)), T0 + 30_000, rng0)); // reveal
     s = must(next(s, T0 + 31_000, rng0)); // q2
     expect(takeBuff(s, 'p1', 'double', T0 + 32_000, rng0)).toEqual({ ok: false, error: 'buff_used' });

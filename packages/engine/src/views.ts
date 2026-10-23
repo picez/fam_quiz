@@ -794,10 +794,13 @@ function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
 
 /**
  * Скільки відповіли. У фіналі сортування — скільки зробили хоч один хід: лічильник записів
- * видав би, скільки вже відсортували все (тобто відповіли правильно).
+ * видав би, скільки вже відсортували все (тобто відповіли правильно). Перша спроба під бафом
+ * «Ще спроба» теж рахується, інакше лічильник видав би, що вона неправильна.
  */
 function answeredCount(state: GameState): number {
-  const answered = Object.keys(currentAnswers(state));
+  const play = state.plays[state.questionIndex];
+  const held = state.players.filter((p) => (buffOf(play, p.id)?.first ?? null) !== null).map((p) => p.id);
+  const answered = [...new Set([...Object.keys(currentAnswers(state)), ...held])];
   const open = currentSort(state);
   if (open === null || !inFinalRound(state)) return answered.length;
   const moved = new Set([...Object.keys(open.play.sort ?? {}), ...answered]);

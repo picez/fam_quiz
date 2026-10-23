@@ -200,20 +200,35 @@ describe('Buffs', () => {
     expect(send).toHaveBeenCalledWith('player:retry', { keep: false });
     cleanup();
 
+    // На паузі вибір чекає: обидві кнопки вимкнено.
+    send.mockClear();
+    render(<RetryPrompt active={choice} question={question} send={send} onError={vi.fn()} paused />);
+    for (const name of ['Залишити', 'Ще спроба']) {
+      const button = screen.getByRole('button', { name }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      fireEvent.click(button);
+    }
+    expect(send).not.toHaveBeenCalled();
+    cleanup();
+
     const none = render(<RetryPrompt active={{ ...choice, retry: 'armed', first: null }} question={question} send={send} onError={vi.fn()} />);
     expect(none.container.firstChild).toBeNull();
   });
 
   it('overtime line counts down the personal deadline', () => {
     render(<OvertimeLine rows={[{ playerId: 'p2', nickname: 'Оля', deadline: NOW + 24_000, remainingMs: null }]} offsetMs={0} />);
-    expect(screen.getByText('Чекаємо: Оля · 0:24')).toBeTruthy();
+    const line = screen.getByTitle('Чекаємо: Оля · 0:24');
+    expect(line.getAttribute('aria-label')).toBe('Чекаємо: Оля · 0:24');
+    // Вузький екран обрізає ім'я, а не відлік: час — окремий шматок, що не стискається.
+    expect(line.querySelector('.buff-wait-names')?.textContent).toBe('Чекаємо: Оля');
+    expect(line.querySelector('.buff-wait-time')?.textContent).toBe(' · 0:24');
     act(() => {
       vi.advanceTimersByTime(1000);
     });
-    expect(screen.getByText('Чекаємо: Оля · 0:23')).toBeTruthy();
+    expect(screen.getByTitle('Чекаємо: Оля · 0:23').textContent).toBe('Чекаємо: Оля · 0:23');
     cleanup();
     render(<OvertimeLine rows={[{ playerId: 'p2', nickname: 'Оля', deadline: null, remainingMs: 65_000 }]} offsetMs={0} />);
-    expect(screen.getByText('Чекаємо: Оля · 1:05')).toBeTruthy();
+    expect(screen.getByTitle('Чекаємо: Оля · 1:05')).toBeTruthy();
     cleanup();
     const empty = render(<OvertimeLine rows={[]} offsetMs={0} />);
     expect(empty.container.firstChild).toBeNull();
@@ -231,6 +246,7 @@ describe('Buffs', () => {
     );
     expect(container.querySelectorAll('p')).toHaveLength(1);
     expect(container.textContent).toBe('Чекаємо: Оля · 0:24, Петро · 0:12');
+    expect(container.querySelector('.buff-wait-time')?.textContent).toBe(' · 0:12');
   });
 
   it('the again prompt stands in the explanation line, not above the options', () => {

@@ -297,6 +297,8 @@ export interface GameState {
   adjustments: ScoreAdjustment[];
   /** Останній виданий seq; після вилучення гравця номери не повторюються. */
   adjustmentSeq: number;
+  /** Останній виданий seq бафу; після вилучення гравця номери не повторюються. */
+  buffSeq: number;
   /** Дебафи за id гравця: що чекають на наступне запитання або діють у поточному. */
   debuffs: Record<string, DebuffState>;
   /** Оголошена або поточна дуель; null — немає. */
@@ -331,6 +333,7 @@ export function createGame(quiz: Quiz): GameState {
     final: null,
     adjustments: [],
     adjustmentSeq: 0,
+    buffSeq: 0,
     debuffs: {},
     duel: null,
     duelsDeclared: [],
@@ -805,10 +808,11 @@ export function withTotals(input: GameState): GameState {
     for (const play of plays.slice(0, closedCount)) {
       const record = Object.hasOwn(play.answers, player.id) ? play.answers[player.id] : undefined;
       score += record ? record.points : 0;
-      // Час для рівного рахунку йде лише за класичні раунди й лише за запитання з таймером.
+      // Час для рівного рахунку йде лише за класичні раунди й лише за запитання з таймером;
+      // відповідь у додатковий час коштує не більше за ліміт, як і мовчання.
       const limitMs = limitMsOf(play);
       if (state.quiz.rounds[play.roundIndex].type !== 'classic' || limitMs === null) continue;
-      totalTimeMs += record ? record.timeMs : limitMs;
+      totalTimeMs += record ? Math.min(record.timeMs, limitMs) : limitMs;
     }
     score += adjustmentTotal(state, player.id);
     return { ...player, score, totalTimeMs, streak: counters[player.id] ?? 0 };

@@ -184,6 +184,15 @@ describe('extra time', () => {
     expect(answer(o, 'p1', pick('b'), T0 + 30_000).phase).toBe('locked');
   });
 
+  it('an overtime answer costs no more tiebreak time than silence', () => {
+    let s = answer(toBuffQuestion(), 'p2', pick('b'), T0 + 500);
+    s = take(s, 'p1', 'time', T0 + 1000);
+    s = tick(s, T0 + 20_000);
+    s = must(next(answer(s, 'p1', pick('b'), T0 + 30_000), T0 + 31_000, rng0));
+    expect(s.plays[0].answers.p1.timeMs).toBe(30_000);
+    expect(s.players.map((p) => [p.id, p.totalTimeMs])).toEqual([['p1', 20_000], ['p2', 500], ['p3', 20_000]]);
+  });
+
   it('nextDeadline follows the personal deadline', () => {
     const s = take(toBuffQuestion(), 'p1', 'time', T0 + 1000);
     expect(nextDeadline(s, T0 + 2000)).toBe(T0 + 50_000);
