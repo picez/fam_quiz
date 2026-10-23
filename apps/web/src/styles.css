@@ -25,6 +25,8 @@
   --fog: rgb(222 226 238 / 0.78);
   --mud: #5b3a1e;
   --mud-dark: #3e2612;
+  --sort-zone: rgb(155 140 255 / 0.16);
+  --sort-lock: rgb(58 10 22 / 0.86);
   --display: 'Unbounded Variable', system-ui, sans-serif;
   --body: 'Onest Variable', system-ui, sans-serif;
   color-scheme: dark;
@@ -3557,6 +3559,11 @@ button.match-item {
   transform: scaleX(-1);
 }
 
+/* Зони сортування теж перевертаються вдруге: «Дзеркало» в сортуванні — це зсув зон по колу, а ліво лишається лівом для стрілок і свайпів. */
+.is-mirror .debuff-content .sort-arena {
+  transform: scaleX(-1);
+}
+
 /* Шари й банер ніколи не перехоплюють дотики. */
 .debuff-layer {
   position: absolute;
@@ -3788,4 +3795,216 @@ body:has(.debuff-banner) .live-notice {
   min-width: 0;
   width: 100%;
   font-size: 1rem;
+}
+
+/* Сортування: зони по краях, картка посередині; розміри фіксовані, тож підвисання й кінець нічого не зсувають. */
+.sort-play {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sort-arena {
+  display: grid;
+  grid-template-columns: minmax(0, 28%) minmax(0, 1fr) minmax(0, 28%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  height: min(60vh, 520px);
+  min-height: 16rem;
+}
+
+.sort-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0.5rem 0.375rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--sort-zone);
+  color: var(--paper);
+  font: 600 1rem/1.2 var(--body);
+  text-align: center;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+button.sort-zone {
+  cursor: pointer;
+}
+
+button.sort-zone:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 2px;
+}
+
+button.sort-zone:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.sort-zone[data-pos='left'] {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
+.sort-zone[data-pos='right'] {
+  grid-column: 3;
+  grid-row: 1 / -1;
+}
+
+.sort-zone[data-pos='top'] {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 4rem;
+}
+
+.sort-zone[data-pos='bottom'] {
+  grid-column: 2;
+  grid-row: 3;
+  min-height: 4rem;
+}
+
+.sort-center {
+  position: relative;
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sort-arena[data-zones='2'] .sort-center {
+  grid-row: 1 / -1;
+}
+
+.sort-arena[data-zones='3'] .sort-center {
+  grid-row: 2 / -1;
+}
+
+.sort-card {
+  max-width: 100%;
+  max-height: 100%;
+  padding: 0.875rem 0.625rem;
+  border-radius: 0.875rem;
+  background: var(--paper);
+  color: var(--stage);
+  font: 700 1.125rem/1.25 var(--body);
+  text-align: center;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.35);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.sort-card.is-dragging {
+  position: relative;
+  z-index: 2;
+  cursor: grabbing;
+}
+
+.sort-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 0.875rem;
+  background: var(--sort-lock);
+  color: var(--paper);
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.sort-done {
+  color: var(--correct);
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.sort-watching {
+  color: var(--dim);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.sort-progress {
+  min-height: 1.5em;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sort-hint {
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sort-card {
+    transition:
+      transform 0.15s ease-out,
+      opacity 0.15s ease-out;
+  }
+
+  .sort-card.is-dragging {
+    transition: none;
+  }
+
+  .sort-card.is-flying {
+    opacity: 0;
+  }
+
+  .sort-card.is-to-left {
+    transform: translateX(-70%) scale(0.85);
+  }
+
+  .sort-card.is-to-right {
+    transform: translateX(70%) scale(0.85);
+  }
+
+  .sort-card.is-to-top {
+    transform: translateY(-70%) scale(0.85);
+  }
+
+  .sort-card.is-to-bottom {
+    transform: translateY(70%) scale(0.85);
+  }
+
+  .sort-card.is-shaking {
+    animation: sort-shake 0.4s ease-in-out;
+  }
+
+  @keyframes sort-shake {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+
+    20% {
+      translate: -0.5rem 0;
+    }
+
+    40% {
+      translate: 0.5rem 0;
+    }
+
+    60% {
+      translate: -0.375rem 0;
+    }
+
+    80% {
+      translate: 0.375rem 0;
+    }
+  }
 }

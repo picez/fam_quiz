@@ -2,9 +2,11 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
-import type { Answer, DebuffKind, PublicQuestion } from '@quiz/shared';
+import type { Answer, DebuffKind, PlayerSort, PublicQuestion } from '@quiz/shared';
+import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 import { BANNER_MS, DebuffZone, MIRROR_SWAP_MS, freezeMs, rotateChoices, useDebuffQuestion } from './Debuffs';
+import { SortPlay } from './SortView';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -33,6 +35,41 @@ const single: PublicQuestion = {
   sort: null,
 };
 const order: PublicQuestion = { ...single, type: 'order', orderLabels: { top: '', bottom: '' } };
+const sortQuestion: PublicQuestion = {
+  ...single,
+  type: 'sort',
+  choices: [],
+  sort: {
+    categories: [
+      { id: 'c1', text: 'Овочі' },
+      { id: 'c2', text: 'Фрукти' },
+      { id: 'c3', text: 'Ягоди' },
+    ],
+    total: 4,
+    lockSeconds: 3,
+  },
+};
+const playerSort: PlayerSort = {
+  card: { id: 'w1', text: 'Морква' },
+  sorted: 0,
+  total: 4,
+  misses: 0,
+  lockedUntil: null,
+  lockRemainingMs: null,
+  missed: null,
+  canSort: true,
+  timeMs: null,
+};
+
+function MirrorSort({ send }: { send: Send }) {
+  const [debuff] = useState(() => ({ kind: 'mirror' as const, since: Date.now() }));
+  const shown = useDebuffQuestion(sortQuestion, debuff);
+  return (
+    <DebuffZone debuff={debuff} limitMs={30_000} offsetMs={0} questionIndex={0}>
+      {shown !== null && <SortPlay question={shown} sort={playerSort} paused={false} offsetMs={0} send={send} />}
+    </DebuffZone>
+  );
+}
 
 const reduce = () =>
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)', media: query }));
@@ -159,5 +196,55 @@ describe('DebuffZone', () => {
     for (const guest of document.querySelectorAll('.debuff-guest')) expect(guest.classList.contains('debuff-layer')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: /c/ }));
     expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'c' });
+  });
+
+  it('mirror moves the zones, the move counts by category', async () => {
+    expect(rotateChoices(sortQuestion, 1).sort?.categories.map((c) => c.id)).toEqual(['c2', 'c3', 'c1']);
+    expect(rotateChoices(sortQuestion, 2).sort?.categories.map((c) => c.id)).toEqual(['c3', 'c1', 'c2']);
+    expect(rotateChoices(sortQuestion, 3)).toBe(sortQuestion);
+    const send = vi.fn<Send>().mockResolvedValue({ ok: true });
+    render(<MirrorSort send={send} />);
+    const left = () => document.querySelector<HTMLButtonElement>('.sort-zone[data-pos="left"]')!;
+    expect(left().textContent).toBe('Овочі');
+    act(() => {
+      vi.advanceTimersByTime(MIRROR_SWAP_MS);
+    });
+    expect(left().textContent).toBe('Фрукти');
+    expect(document.querySelector('.sort-zone[data-pos="top"]')?.textContent).toBe('Овочі');
+    fireEvent.click(left());
+    expect(send).toHaveBeenCalledWith('player:sort', { wordId: 'w1', categoryId: 'c2' });
+  });
+
+  it('freeze blocks drag, taps and arrows', async () => {
+    const send = vi.fn<Send>().mockResolvedValue({ ok: true });
+    render(
+      <DebuffZone debuff={{ kind: 'freeze', since: Date.now() }} limitMs={30_000} offsetMs={0} questionIndex={0}>
+        <SortPlay question={sortQuestion} sort={playerSort} paused={false} offsetMs={0} send={send} />
+      </DebuffZone>,
+    );
+    const left = () => document.querySelector<HTMLButtonElement>('.sort-zone[data-pos="left"]')!;
+    const card = () => document.querySelector<HTMLElement>('.sort-card')!;
+    const drag = () => {
+      fireEvent.pointerDown(card(), { pointerId: 1, clientX: 200, clientY: 300 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 90, clientY: 300 });
+      fireEvent.pointerUp(card(), { pointerId: 1, clientX: 90, clientY: 300 });
+    };
+    expect(content().disabled).toBe(true);
+    fireEvent.click(left());
+    fireEvent.keyDown(document, { key: 'ArrowLeft' });
+    drag();
+    expect(send).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(freezeMs(30_000));
+    });
+    expect(content().disabled).toBe(false);
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(send).toHaveBeenCalledWith('player:sort', { wordId: 'w1', categoryId: 'c2' });
+    await act(async () => {});
+    drag();
+    expect(send).toHaveBeenLastCalledWith('player:sort', { wordId: 'w1', categoryId: 'c1' });
+    await act(async () => {});
+    fireEvent.click(left());
+    expect(send).toHaveBeenCalledTimes(3);
   });
 });
