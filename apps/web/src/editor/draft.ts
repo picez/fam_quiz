@@ -565,6 +565,7 @@ export function problemsOf(quiz: Quiz): string[] {
       const messages = parsed.error.issues.map((issue) => issue.message);
       if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
       if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
+      if (messages.includes('buff_unavailable') || messages.includes('duplicate_powers')) problems.push(t('problemPowers'));
       if (problems.length === 0) problems.push(t('problemGeneric', { index: 1 }));
     }
   }

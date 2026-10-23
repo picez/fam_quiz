@@ -219,6 +219,62 @@ describe('QuizEditor', () => {
     expect(roundQuestions(quiz.rounds[0])[0]).toMatchObject({ timeLimit: 45, points: 500, correct: true });
   });
 
+  it('a new quiz shows every debuff on and every buff off, and saves without power fields', async () => {
+    const { onSave } = open();
+    const debuffs = within(screen.getByRole('group', { name: t('powersDebuffs') }));
+    const buffs = within(screen.getByRole('group', { name: t('powersBuffs') }));
+    expect(debuffs.getAllByRole('checkbox')).toHaveLength(6);
+    debuffs.getAllByRole('checkbox').forEach((box) => expect((box as HTMLInputElement).checked).toBe(true));
+    expect(buffs.getAllByRole('checkbox')).toHaveLength(8);
+    buffs.getAllByRole('checkbox').forEach((box) => expect((box as HTMLInputElement).checked).toBe(false));
+    for (const name of ['Запитання в залі', 'Підказка ведучого', 'Заміна запитання']) {
+      expect((buffs.getByLabelText(new RegExp(name)) as HTMLInputElement).disabled).toBe(true);
+    }
+    expect(buffs.getAllByText(t('powersSoon'))).toHaveLength(3);
+
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Так?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).settings).toEqual({ leaderboard: 'each' });
+  });
+
+  it('all / none and single boxes write both lists', async () => {
+    const { onSave } = open();
+    const debuffs = () => within(screen.getByRole('group', { name: t('powersDebuffs') }));
+    const buffs = () => within(screen.getByRole('group', { name: t('powersBuffs') }));
+    fireEvent.click(buffs().getByRole('button', { name: t('powersAll') }));
+    expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(5);
+    fireEvent.click(debuffs().getByRole('button', { name: t('powersNone') }));
+    expect(debuffs().getAllByRole('checkbox').some((box) => (box as HTMLInputElement).checked)).toBe(false);
+    fireEvent.click(buffs().getByLabelText(/Щит/));
+    fireEvent.click(debuffs().getByLabelText(/Туман/));
+
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Так?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).settings).toEqual({
+      leaderboard: 'each',
+      debuffs: ['fog'],
+      buffs: ['fifty', 'double', 'retry', 'time'],
+    });
+  });
+
+  it('an existing quiz shows its stored powers', () => {
+    const initial = newQuiz();
+    open({ ...initial, settings: { ...initial.settings, debuffs: ['shake'], buffs: ['time'] } });
+    const checked = screen
+      .getAllByRole('checkbox')
+      .filter((box) => (box as HTMLInputElement).checked && box.closest('.powers') !== null)
+      .map((box) => box.closest('label')?.textContent ?? '');
+    expect(checked).toHaveLength(2);
+    expect(checked[0]).toMatch(/Тремтіння/);
+    expect(checked[1]).toMatch(/Додатковий час/);
+  });
+
   it('opens an existing quiz for editing and cancels', () => {
     const initial: Quiz = { ...newQuiz(), title: 'Стара назва' };
     const { onCancel } = open(initial);

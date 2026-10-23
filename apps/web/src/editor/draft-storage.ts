@@ -1,8 +1,10 @@
 import {
   ANSWER_MODES,
+  BUFF_KINDS,
   CELL_KINDS,
   CELL_MARKS,
   CELL_PENALTIES,
+  DEBUFF_KINDS,
   LIMITS,
   upgradeQuiz,
   videoSchema,
@@ -92,6 +94,22 @@ function reviveDuels(duels: Duels): Duels | null {
   };
 }
 
+/** Масив дозволених видів із чернетки: невідомі значення відкидаються, не масив — поле зникає. */
+const reviveKinds = <K extends string>(value: unknown, all: readonly K[]): K[] | null =>
+  Array.isArray(value) ? all.filter((kind) => value.includes(kind)) : null;
+
+const reviveSettings = (settings: Quiz['settings']): Quiz['settings'] => {
+  const { debuffs, buffs, ...others } = settings;
+  const revivedDebuffs = reviveKinds(debuffs, DEBUFF_KINDS);
+  const revivedBuffs = reviveKinds(buffs, BUFF_KINDS);
+  return {
+    ...others,
+    leaderboard: settings.leaderboard ?? 'each',
+    ...(revivedDebuffs === null ? {} : { debuffs: revivedDebuffs }),
+    ...(revivedBuffs === null ? {} : { buffs: revivedBuffs }),
+  };
+};
+
 const withDuels = (duels: Duels | null) => (duels === null ? {} : { duels });
 
 function looksLikeQuiz(value: unknown): value is Quiz {
@@ -130,7 +148,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
     return {
       ...rest,
       ...withDuels(looksLikeDuels(rawDuels) ? reviveDuels(rawDuels) : null),
-      settings: { ...parsed.settings, leaderboard: parsed.settings.leaderboard ?? 'each' },
+      settings: reviveSettings(parsed.settings),
       rounds: parsed.rounds.map((round): Round => {
         if (round.type === 'board') {
           const { categories, ...rest } = round;
