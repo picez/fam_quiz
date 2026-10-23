@@ -262,6 +262,10 @@ export interface BoardInfo {
   scheduleRepeats: boolean;
   /** Мить автоматичного пропуску ходу відсутнього гравця; null — гравець на місці або пауза. */
   skipAt: number | null;
+  /** Які позначки є в раунді (x2, x3 — у цьому порядку), без місць: для легенди. */
+  marks: Exclude<CellMark, 'none'>[];
+  /** Позначки незіграних клітинок приховані (сцена й гравці); ведучий — false. */
+  marksHidden: boolean;
 }
 
 export interface HostBoard extends BoardInfo {

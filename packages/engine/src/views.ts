@@ -12,12 +12,14 @@ import {
   type BlitzInfo,
   type BlitzPlayer,
   type BlitzRow,
+  type BoardCell,
   type BoardCellView,
   type BoardInfo,
   type DiceInfo,
   type DuelInfo,
   type HostDuel,
   type PlayerDuel,
+  type CellMark,
   type ChainInfo,
   type DebuffKind,
   type PlayerChain,
@@ -330,14 +332,19 @@ function boardRemoved(state: GameState): string[] {
 
 const BOARD_PHASES: Phase[] = ['intro', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
-/** Поле для всіх ролей: вид клітинок видно всім, формат запитань ні. */
-function boardInfo(state: GameState): BoardInfo | null {
+/**
+ * Поле для ролей: вид клітинок видно всім, формат запитань ні; forHost — справжні позначки всіх клітинок.
+ * Сцені й гравцям ×2/×3 — сюрприз: позначка лише зіграної клітинки чи вибраної зараз.
+ */
+function boardInfo(state: GameState, forHost: boolean): BoardInfo | null {
   const round = currentRound(state);
   if (round?.type !== 'board' || state.board === null || !BOARD_PHASES.includes(state.phase)) return null;
   const open = currentBoardPlay(state);
   const turnId = state.phase === 'board' ? chooserOf(state) : (open?.board.chooserId ?? null);
   const cell = open === null ? undefined : findCell(round, open.board.cellId);
   const schedule = turnSchedule(state);
+  const shownMark = (cell: BoardCell): CellMark =>
+    forHost || cellPlayed(state, cell.question.id) || cell.question.id === open?.board.cellId ? cell.mark : 'none';
   return {
     categories: round.categories.map((category) => ({
       id: category.id,
@@ -347,7 +354,7 @@ function boardInfo(state: GameState): BoardInfo | null {
           id: cell.question.id,
           price: questionPrice(cell.question),
           played: cellPlayed(state, cell.question.id),
-          mark: cell.mark,
+          mark: shownMark(cell),
           kind: cell.kind,
           answerMode: cellAnswerMode(round, cell),
           penalty: cell.penalty,
@@ -373,6 +380,8 @@ function boardInfo(state: GameState): BoardInfo | null {
     schedule: schedule.circles.map((circle) => ({ ...circle, order: circle.order.map((id) => blitzPlayer(state, id)) })),
     scheduleRepeats: schedule.repeats,
     skipAt: state.board.awaySince === null ? null : state.board.awaySince + BOARD_AWAY_MS,
+    marks: (['x2', 'x3'] as const).filter((mark) => round.categories.some((c) => c.cells.some((cell) => cell.mark === mark))),
+    marksHidden: !forHost,
   };
 }
 
@@ -392,7 +401,7 @@ function diceInfo(state: GameState): DiceInfo | null {
 }
 
 function hostBoard(state: GameState): HostBoard | null {
-  const info = boardInfo(state);
+  const info = boardInfo(state, true);
   const round = currentRound(state);
   if (info === null || round?.type !== 'board') return null;
   return {
@@ -788,7 +797,7 @@ function base(state: GameState, forHost: boolean) {
     playerCount: state.players.length,
     answeredCount: answeredCount(state),
     blitz: blitzInfo(state, forHost),
-    board: boardInfo(state),
+    board: boardInfo(state, forHost),
     spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
     chain: inFinalRound(state) ? null : chainInfo(state),

@@ -508,6 +508,8 @@ describe('PlayerScreen: blitz', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
       ...over,
     });
     const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
@@ -731,6 +733,8 @@ describe('PlayerScreen: blitz cell', () => {
     schedule: [],
     scheduleRepeats: false,
     skipAt: null,
+    marks: [],
+    marksHidden: false,
   });
   const blitzMe = (blitz: PlayerBlitz | null, extra = {}) => ({ ...me, blitz, ...extra });
   const canBuzz = { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null, canAnswer: false, grade: null };
@@ -805,6 +809,8 @@ describe('PlayerScreen: spotlight', () => {
     schedule: [],
     scheduleRepeats: false,
     skipAt: null,
+    marks: [],
+    marksHidden: false,
   });
   const anna = { playerId: 'p2', nickname: 'Анна' };
 
@@ -1196,6 +1202,8 @@ describe('PlayerScreen: sort', () => {
     schedule: [],
     scheduleRepeats: false,
     skipAt: null,
+    marks: [],
+    marksHidden: false,
   };
   const info = (over = {}) => ({ total: 4, rows: [{ playerId: 'p2', nickname: 'Оля', sorted: 2, misses: 0, timeMs: null, points: null, ...over }], winner: null });
 

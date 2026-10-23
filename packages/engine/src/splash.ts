@@ -12,9 +12,17 @@ export interface Splash {
   until: number;
 }
 
-/** Ставить заставку kind з миті now; без state.transitions — splash: null. */
-export function withSplash(state: GameState, kind: SplashKind, now: number): GameState {
-  return state.transitions ? { ...state, splash: { kind, at: now, until: now + SPLASH_MS[kind] } } : { ...state, splash: null };
+/** Скільки довше триває перегортання клітинки з ×2/×3: сюрприз після перегортання, мс. */
+export const CELL_SURPRISE_MS = 800;
+
+/** Ставить заставку kind з миті now тривалістю ms (типово SPLASH_MS[kind]); без state.transitions — splash: null. */
+export function withSplash(state: GameState, kind: SplashKind, now: number, ms: number = SPLASH_MS[kind]): GameState {
+  return state.transitions ? { ...state, splash: { kind, at: now, until: now + ms } } : { ...state, splash: null };
+}
+
+/** Тривалість заставки перед запитанням: клітинка з множником — SPLASH_MS.cell + CELL_SURPRISE_MS. */
+export function questionSplashMs(kind: SplashKind, board?: BoardPlay): number {
+  return kind === 'cell' && board !== undefined && board.multiplier > 1 ? SPLASH_MS.cell + CELL_SURPRISE_MS : SPLASH_MS[kind];
 }
 
 /** Заставка перед запитанням: поле (board задано) — cell; класика й фінал — question; бліц — null. */

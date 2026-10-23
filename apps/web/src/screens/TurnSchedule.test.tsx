@@ -24,6 +24,8 @@ const boardOf = (over: Partial<BoardInfo> = {}): BoardInfo => ({
   schedule: twoCircles(),
   scheduleRepeats: false,
   skipAt: null,
+  marks: [],
+  marksHidden: false,
   ...over,
 });
 

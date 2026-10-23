@@ -68,6 +68,8 @@ const board: BoardInfo = {
   schedule: [],
   scheduleRepeats: false,
   skipAt: null,
+  marks: ['x2'],
+  marksHidden: true,
 } as unknown as BoardInfo;
 const duel = {
   challenger: { playerId: 'p1', nickname: 'Іра' },

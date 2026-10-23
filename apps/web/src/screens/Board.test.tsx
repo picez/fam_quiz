@@ -29,6 +29,8 @@ const board = (cells: BoardCellView[], more: BoardCellView[] = []): BoardInfo =>
   schedule: [],
   scheduleRepeats: false,
   skipAt: null,
+  marks: (['x2', 'x3'] as const).filter((mark) => [...cells, ...more].some((cell) => cell.mark === mark)),
+  marksHidden: false,
 });
 
 describe('Board', () => {

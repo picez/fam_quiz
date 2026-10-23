@@ -536,12 +536,13 @@ describe('board views', () => {
   };
   const picked = (cell: string, options = {}) => must(pickCell(onBoard(options), null, cell, 0, Math.random));
 
-  it("every role sees each cell's mark, kind, answer mode and penalty but never its question", () => {
+  it("every role sees each cell's kind, answer mode and penalty but never its question; marks only the host", () => {
     const state = onBoard();
     for (const view of [stageView(state), playerView(state, 'p2')!, hostView(state)]) {
       const cells = view.board!.categories.flatMap((c) => c.cells);
-      expect(view.board?.categories[0].cells[1].mark).toBe('x2');
-      expect(view.board?.categories[1].cells[2].mark).toBe('x3');
+      const hidden = view.board!.marksHidden;
+      expect(view.board?.categories[0].cells[1].mark).toBe(hidden ? 'none' : 'x2');
+      expect(view.board?.categories[1].cells[2].mark).toBe(hidden ? 'none' : 'x3');
       for (const cell of cells) expect(Object.keys(cell).sort()).toEqual(['answerMode', 'id', 'kind', 'mark', 'penalty', 'played', 'price']);
     }
     for (const json of [JSON.stringify(stageView(state)), JSON.stringify(playerView(state, 'p2'))]) {

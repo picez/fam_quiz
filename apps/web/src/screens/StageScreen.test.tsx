@@ -343,6 +343,8 @@ describe('StageScreen: blitz', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
       ...over,
     });
 
@@ -488,6 +490,8 @@ describe('StageScreen: spotlight', () => {
     schedule: [],
     scheduleRepeats: false,
     skipAt: null,
+    marks: [],
+    marksHidden: false,
   };
   const picked = { playerId: 'p2', nickname: 'Анна', answer: { type: 'single' as const, optionId: 'a' } };
   const cls = (text: string) => screen.getByText(text).closest('.choice')?.className ?? '';
@@ -573,6 +577,8 @@ describe('StageScreen: match', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
     };
     const { container } = show(view({ phase: 'question', questionIndex: 0, question: matchQ, round, board, endsAt: Date.now() + 20_000 }));
     expect(container.querySelector('.match-columns')).not.toBeNull();
@@ -590,6 +596,8 @@ describe('StageScreen: match', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
     };
     const at = { phase: 'question' as const, questionIndex: 0, round, board, endsAt: Date.now() + 20_000 };
     const marked = show(view({ ...at, question, spotlight: { playerId: 'p2', nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, grade: null } }));
@@ -611,6 +619,8 @@ describe('StageScreen: match', () => {
       schedule: [],
       scheduleRepeats: false,
       skipAt: null,
+      marks: [],
+      marksHidden: false,
     };
     show(
       view({
