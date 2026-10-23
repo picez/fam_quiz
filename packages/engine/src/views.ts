@@ -18,6 +18,7 @@ import {
   type Choice,
   type FinalEntry,
   type FinalInfo,
+  type FinalSplit,
   type HostFinal,
   type HostBlitz,
   type HostBoard,
@@ -35,7 +36,7 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalShown, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type GameState, type PlayerState } from './game';
+import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type PlayerState } from './game';
 import { lastNotice } from './adjust';
 import { activeDebuff, shownDebuff } from './debuffs';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
@@ -371,15 +372,29 @@ function finalRoundOf(state: GameState) {
     : null;
 }
 
-/** Записи гравців із записом на запитання фіналу; після входу в reveal — у порядку розкриття, інакше в порядку гравців. */
-function finalEntries(state: GameState): FinalEntry[] {
+/** Бали банку після кроку розподілу; null у класиці й до розподілу. */
+function splitOutcome(state: GameState) {
+  const open = finalRoundOf(state);
+  if (open === null || open.round.wagerMode !== 'bank' || !open.final.split) return null;
+  return finalOutcome(state);
+}
+
+/**
+ * Записи гравців із записом на запитання фіналу; після входу в reveal — у порядку розкриття, інакше в порядку гравців.
+ * visible — для сцени й телефонів: «після» включає лише вже розкрите (finalVisiblePoints); ведучий бачить справжні бали.
+ */
+function finalEntries(state: GameState, visible: boolean): FinalEntry[] {
   const open = finalRoundOf(state);
   const play = inQuestion(state) ? state.plays[state.questionIndex] : undefined;
   if (open === null || play?.final === undefined) return [];
   const wagers = play.final.wagers;
+  const outcome = splitOutcome(state);
   const entries = state.players.flatMap((player): FinalEntry[] => {
     const record = recordOf(state, state.questionIndex, player.id);
     if (record === undefined) return [];
+    const before = player.score - record.points;
+    // При поверненні ставок часток немає: сцена не показує «+0 з банку».
+    const won = outcome !== null && !outcome.refund && record.grade === 'correct' && Object.hasOwn(outcome.points, player.id);
     return [
       {
         playerId: player.id,
@@ -387,8 +402,10 @@ function finalEntries(state: GameState): FinalEntry[] {
         answer: record.answer,
         grade: record.grade,
         wager: Object.hasOwn(wagers, player.id) ? wagers[player.id] : 0,
-        before: player.score - record.points,
-        after: player.score,
+        allIn: play.final?.allIn.includes(player.id) ?? false,
+        before,
+        after: visible ? before + finalVisiblePoints(state, player.id) : player.score,
+        share: won ? outcome.points[player.id] : null,
       },
     ];
   });
@@ -403,13 +420,32 @@ function finalInfo(state: GameState): FinalInfo | null {
   const open = finalRoundOf(state);
   if (open === null) return null;
   const reveal = state.phase === 'reveal';
+  const shown = reveal ? finalEntries(state, true).filter((entry) => finalShown(state, entry.playerId)) : [];
+  const mode = open.round.wagerMode;
   return {
     theme: open.round.title,
     placed: state.players.filter((p) => Object.hasOwn(open.final.wagers, p.id)).length,
     total: state.players.length,
-    shown: reveal ? finalEntries(state).filter((entry) => finalShown(state, entry.playerId)) : [],
+    shown,
     left: reveal ? Math.max(0, open.final.order.length - open.final.shown) : 0,
+    mode,
+    // Банк росте лише з уже розкритими програвшими.
+    bank: mode === 'bank' ? shown.filter((e) => e.grade !== 'correct').reduce((sum, e) => sum + e.wager, 0) : 0,
+    split: finalSplit(state),
   };
+}
+
+/** Підсумок розподілу банку після кроку розподілу; частки — переможців з часткою > 0, за спаданням. */
+function finalSplit(state: GameState): FinalSplit | null {
+  const outcome = splitOutcome(state);
+  const play = state.plays[state.questionIndex];
+  if (outcome === null || play?.final === undefined) return null;
+  const wagers = play.final.wagers;
+  const shares = state.players
+    .filter((p) => recordOf(state, state.questionIndex, p.id)?.grade === 'correct' && (outcome.points[p.id] ?? 0) > 0)
+    .map((p) => ({ playerId: p.id, nickname: p.nickname, wager: Object.hasOwn(wagers, p.id) ? wagers[p.id] : 0, share: outcome.points[p.id] }))
+    .sort((a, b) => b.share - a.share);
+  return { bank: outcome.bank, refund: outcome.refund, shares };
 }
 
 function hostFinal(state: GameState): HostFinal | null {
@@ -418,15 +454,10 @@ function hostFinal(state: GameState): HostFinal | null {
   if (info === null || open === null) return null;
   const manual = open.round.check === 'manual';
   const graded = state.plays[state.questionIndex]?.final?.graded ?? [];
-  const entries = finalEntries(state);
+  const entries = finalEntries(state, false);
   return {
     ...info,
-    wagers: state.players.map((p) => ({
-      playerId: p.id,
-      nickname: p.nickname,
-      wager: Object.hasOwn(open.final.wagers, p.id) ? open.final.wagers[p.id] : null,
-      limit: Object.hasOwn(open.final.limits, p.id) ? open.final.limits[p.id] : 0,
-    })),
+    wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
     entries,
     manual,
     pending: manual
@@ -436,16 +467,20 @@ function hostFinal(state: GameState): HostFinal | null {
             : [{ playerId: entry.playerId, nickname: entry.nickname, answer: entry.answer }],
         )
       : [],
+    splitNext: state.phase === 'reveal' && open.final.shown >= open.final.order.length && needsSplit(state),
   };
 }
 
-function playerFinal(state: GameState, playerId: string): { wager: number | null; limit: number } | null {
+/** Ставка гравця (null — ще не поставив), межа й ознака ва-банку: ставка дорівнює межі й більша за 0. */
+function ownWager(final: FinalState, playerId: string): { wager: number | null; limit: number; allIn: boolean } {
+  const wager = Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : null;
+  const limit = Object.hasOwn(final.limits, playerId) ? final.limits[playerId] : 0;
+  return { wager, limit, allIn: wager !== null && wager > 0 && wager === limit };
+}
+
+function playerFinal(state: GameState, playerId: string): { wager: number | null; limit: number; allIn: boolean } | null {
   const open = finalRoundOf(state);
-  if (open === null) return null;
-  return {
-    wager: Object.hasOwn(open.final.wagers, playerId) ? open.final.wagers[playerId] : null,
-    limit: Object.hasOwn(open.final.limits, playerId) ? open.final.limits[playerId] : 0,
-  };
+  return open === null ? null : ownWager(open.final, playerId);
 }
 
 /** Поточне запитання-ланцюжок із його грою; null поза запитанням або для інших типів. */
@@ -600,9 +635,10 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   const revealed = isRevealed(state);
   const standings = publicStandings(state);
   // На етапі locked бали за поточне запитання ще не показуємо: це видало б правильність до розкриття.
-  // У фіналі рахунок гравця змінюється лише в мить його розкриття.
-  const concealed = state.phase === 'locked' || (state.phase === 'reveal' && !finalShown(state, playerId));
-  const hidden = concealed && record !== undefined ? record.points : 0;
+  // У фіналі рахунок гравця змінюється лише в мить його розкриття, а частка банку — на кроці розподілу.
+  const visible = finalVisiblePoints(state, playerId);
+  const hidden =
+    record === undefined ? 0 : state.phase === 'locked' ? record.points : state.phase === 'reveal' ? record.points - visible : 0;
   return {
     ...base(state, false),
     role: 'player',
@@ -621,7 +657,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
               accuracy: record.accuracy,
               grade: record.grade,
               streakBonus: record.streakBonus,
-              points: record.points,
+              points: currentRound(state)?.type === 'final' ? visible : record.points,
             }
           : null,
       blitz: playerBlitz(state, playerId),

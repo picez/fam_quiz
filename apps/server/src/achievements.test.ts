@@ -131,7 +131,7 @@ describe('new achievements', () => {
   });
 
   it('blitz_win needs a strict lead and comeback needs to trail before the last round', () => {
-    const row = (roundIndex: number, points: number, accepted = points > 0) => ({ roundIndex, attempt: 0, accepted, points });
+    const row = (roundIndex: number, points: number, accepted = points > 0) => ({ roundIndex, attempt: 0, accepted, points, wager: null });
     const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
     const blitz = table(['blitz', 'classic'], [p('a', 1, 30, [row(0, 20), row(1, 10)]), p('b', 2, 20, [row(0, 20)])]);
     expect(wonBlitzRound(blitz, 'a')).toBe(false); // 20 = 20
@@ -149,9 +149,19 @@ describe('new achievements', () => {
     expect(isComeback(oneRound, 'a')).toBe(false);
   });
 
+  it('hitFinal counts a right answer with a stake even when the bank was empty', () => {
+    const one = (row: Omit<TableRow, 'roundIndex' | 'attempt'>) =>
+      table(['classic', 'final'], [{ participantId: 'a', userId: 'a', rank: 1, score: 0, rows: [{ roundIndex: 1, attempt: 0, ...row }] }]);
+    expect(hitFinal(one({ accepted: true, points: 0, wager: 300 }), 'a')).toBe(true);
+    expect(hitFinal(one({ accepted: true, points: 0, wager: 0 }), 'a')).toBe(false);
+    // Старі рядки без ставки: ставка дорівнює |points|.
+    expect(hitFinal(one({ accepted: true, points: 500, wager: null }), 'a')).toBe(true);
+    expect(hitFinal(one({ accepted: false, points: -500, wager: 500 }), 'a')).toBe(false);
+  });
+
   it('adjustments count for blitz rounds and comebacks but never for the final hit', () => {
-    const row = (roundIndex: number, points: number, accepted = points > 0) => ({ roundIndex, attempt: 0, accepted, points });
-    const adj = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points });
+    const row = (roundIndex: number, points: number, accepted = points > 0) => ({ roundIndex, attempt: 0, accepted, points, wager: null });
+    const adj = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null });
     const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
 
     // Фінал: коригування з points > 0 у раунді фіналу — не влучання; відповідь — влучання.

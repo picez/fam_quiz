@@ -1,4 +1,4 @@
-import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type Round, type RoundRules } from './quiz';
+import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type Round, type RoundRules, type WagerMode } from './quiz';
 
 /** Налаштування раунду, від яких залежать бали; з цього клієнт складає пояснення для гравців. */
 export interface RoundBrief {
@@ -23,9 +23,11 @@ export interface RoundBrief {
   penaltyAll: boolean;
   /** Поле: способи відповіді клітинок (cellAnswerMode), без повторів, у порядку ['phone', 'voice']; поза полем []. */
   answerModes: AnswerMode[];
+  /** Фінал: тип ставок; null поза фіналом. */
+  wagerMode: WagerMode | null;
 }
 
-/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts і answerWindow null, answerModes []. */
+/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow і wagerMode null, answerModes []. */
 export function emptyBrief(type: Round['type']): RoundBrief {
   return {
     type,
@@ -40,12 +42,13 @@ export function emptyBrief(type: Round['type']): RoundBrief {
     blitzCells: false,
     penaltyAll: false,
     answerModes: [],
+    wagerMode: null,
   };
 }
 
 export function roundBrief(round: Round): RoundBrief {
   const base = emptyBrief(round.type);
-  if (round.type === 'final') return base;
+  if (round.type === 'final') return { ...base, wagerMode: round.wagerMode };
   const rules = rulesOf(round);
   const withRules = { ...base, penalty: rules.penalty === 'minus', streak: rules.streak, multiplier: rules.multiplier };
   if (round.type === 'classic') return { ...withRules, speedBonus: round.speedBonus };

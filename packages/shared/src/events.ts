@@ -29,7 +29,8 @@ export const judgeSchema = z.object({ playerId, correct: z.boolean() });
 export const pendingSchema = z.object({ playerId });
 export const timeSchema = z.object({ seconds: z.union([z.literal(-15), z.literal(15)]) });
 export const pickSchema = z.object({ cellId: z.string().min(1).max(64) });
-export const wagerSchema = z.object({ amount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) });
+/** allIn — «Ва-банк»: ставиться вся межа, amount тоді ігнорується. */
+export const wagerSchema = z.object({ amount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), allIn: z.boolean().optional() });
 export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.maxPlayers) });
 export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).refine(isStorable, UNSTORABLE) });
 /** Варіант, названий уголос на усній клітинці; null знімає позначку. */

@@ -274,6 +274,7 @@ export const eruditeQuiz: Quiz = {
       description: 'Поставте частину своїх балів. Правильна відповідь додає ставку, неправильна її забирає.',
       shuffleOptions: true,
       check: 'auto',
+      wagerMode: 'classic',
       questions: [single('Яке місто — столиця найбільшої за площею країни Африки?', ['Алжир', 'Кіншаса', 'Хартум', 'Каїр'], 0, 1000, 60)],
     },
   ],

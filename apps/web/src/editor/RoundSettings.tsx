@@ -115,13 +115,23 @@ export function RoundSettings({ round, index, onChange }: Props) {
         </>
       )}
       {round.type === 'final' && (
-        <label className="field">
-          <span>{t('finalCheck')}</span>
-          <select value={round.check} onChange={(event) => onChange({ ...round, check: event.target.value === 'manual' ? 'manual' : 'auto' })}>
-            <option value="auto">{t('blitzCheckAuto')}</option>
-            <option value="manual">{t('blitzCheckManual')}</option>
-          </select>
-        </label>
+        <>
+          <label className="field">
+            <span>{t('finalCheck')}</span>
+            <select value={round.check} onChange={(event) => onChange({ ...round, check: event.target.value === 'manual' ? 'manual' : 'auto' })}>
+              <option value="auto">{t('blitzCheckAuto')}</option>
+              <option value="manual">{t('blitzCheckManual')}</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>{t('finalWagerMode')}</span>
+            <select value={round.wagerMode} onChange={(event) => onChange({ ...round, wagerMode: event.target.value === 'bank' ? 'bank' : 'classic' })}>
+              <option value="classic">{t('wagerModeClassic')}</option>
+              <option value="bank">{t('wagerModeBank')}</option>
+            </select>
+          </label>
+          <p className="meta">{t(round.wagerMode === 'bank' ? 'wagerModeBankHint' : 'wagerModeClassicHint')}</p>
+        </>
       )}
       {round.type === 'blitz' && (
         <>

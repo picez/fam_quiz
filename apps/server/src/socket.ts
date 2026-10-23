@@ -128,7 +128,7 @@ export function attachSockets(server: HttpServer, manager: RoomManager): GameSer
     on('player:wager', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = wagerSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.wager(room, identity.playerId, payload.data.amount) : INVALID;
+      return payload.success ? manager.wager(room, identity.playerId, payload.data.amount, payload.data.allIn ?? false) : INVALID;
     });
 
     for (const type of SIMPLE_HOST_ACTIONS) {

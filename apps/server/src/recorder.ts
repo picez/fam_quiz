@@ -49,6 +49,8 @@ interface AnswerRow {
   points: number;
   streakBonus: number;
   overridden: boolean;
+  /** Ставка фіналу; null поза фіналом. */
+  wager: number | null;
 }
 
 /** Рядки таблиці answer для гравця на запитання: у бліці по рядку на спробу, інакше один. */
@@ -58,9 +60,12 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
   const attempts = state.plays[index].blitz?.attempts.filter((a) => a.playerId === playerId);
   if (attempts === undefined) {
     const { answer: payload, timeMs, accepted, points, streakBonus, overridden } = record;
-    // Мовчання у фіналі — рядок балів без відповіді, як штраф бліц-клітинки; ставка дорівнює |points|.
-    const silent = state.plays[index].final !== undefined && payload === null;
-    return [{ attempt: silent ? PENALTY_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden }];
+    const { final } = state.plays[index];
+    // Мовчання у фіналі — рядок балів без відповіді, як штраф бліц-клітинки. Ставка йде окремо:
+    // у спільному банку бали не дорівнюють ±ставці.
+    const silent = final !== undefined && payload === null;
+    const wager = final === undefined ? null : Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
+    return [{ attempt: silent ? PENALTY_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden, wager }];
   }
   const rows = attempts.map((attempt, number) => {
     // Бонус серії належить виграшній спробі; бали спроби в журналі бліцу його не містять.
@@ -73,6 +78,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
       points: attempt.points + streakBonus,
       streakBonus,
       overridden: false,
+      wager: null,
     };
   });
   // Штраф бліц-клітинки не належить жодній спробі (його платить і той, хто не натискав):
@@ -81,7 +87,7 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
   if (penalty === 0) return rows;
   return [
     ...rows,
-    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false },
+    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false, wager: null },
   ];
 }
 

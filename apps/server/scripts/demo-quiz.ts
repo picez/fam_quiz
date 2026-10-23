@@ -254,6 +254,7 @@ export const demoQuiz: Quiz = {
       title: 'Фінал: Космос',
       shuffleOptions: true,
       check: 'auto',
+      wagerMode: 'classic',
       questions: [single('Яка планета найбільша в Сонячній системі?', ['Сатурн', 'Юпітер', 'Нептун', 'Земля'], 1, 1000, 30)],
     },
   ],

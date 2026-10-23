@@ -134,6 +134,7 @@ export const movieQuiz: Quiz = {
       description: 'Поставте частину своїх балів. Правильна відповідь додає ставку, неправильна її забирає.',
       shuffleOptions: true,
       check: 'auto',
+      wagerMode: 'bank',
       questions: [
         single(
           'Який із цих фільмів вийшов найраніше?',

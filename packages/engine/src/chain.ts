@@ -1,7 +1,7 @@
 import { rulesOf, type ChainMask, type Question } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { autoLock, fail, ok, recordOf, type AnswerRecord, type ChainProgress, type GameState, type Play, type Result } from './game';
+import { autoLock, fail, ok, recordOf, withFinalPoints, type AnswerRecord, type ChainProgress, type GameState, type Play, type Result } from './game';
 import { normalizeText } from './normalize';
 import { chainFactor, finalPoints } from './score';
 import { limitMsOf } from './timing';
@@ -81,7 +81,7 @@ function wagerOf(play: Play, playerId: string): number {
 
 /**
  * Наступне слово ланцюжка. Хибне слово стану не змінює. Після останнього слова гравець отримує запис:
- * у класиці з тимчасовими 0 балів (бали рахує scoreChain при закритті), у фіналі одразу +ставка.
+ * у класиці з тимчасовими 0 балів (бали рахує scoreChain при закритті), у фіналі одразу бали за типом ставок.
  */
 export function guessWord(state: GameState, playerId: string, word: string, now: number): Result {
   const checked = checkTurn(state, playerId, now);
@@ -106,7 +106,8 @@ export function guessWord(state: GameState, playerId: string, word: string, now:
     overridden: false,
   };
   const current = advanced.plays[advanced.questionIndex];
-  return ok(autoLock(withPlay(advanced, { ...current, answers: { ...current.answers, [playerId]: record } }), now));
+  // У фіналі бали рахуються за типом ставок (спільний банк залежить від інших записів).
+  return ok(autoLock(withFinalPoints(withPlay(advanced, { ...current, answers: { ...current.answers, [playerId]: record } })), now));
 }
 
 /** Відкриває гравцеві наступну літеру поточного слова (ніколи останню) і додає до його часу секунди підказки. */

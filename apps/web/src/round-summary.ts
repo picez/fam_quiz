@@ -16,7 +16,7 @@ function modifiers(brief: RoundBrief, lead: string[], penaltyKey: 'summaryPenalt
 export function roundSummary(brief: RoundBrief): string[] {
   const lines: string[] = [];
   if (brief.type === 'final') {
-    lines.push(t('summaryFinal'), t('summaryFinalScore'));
+    lines.push(t('summaryFinal'), t(brief.wagerMode === 'bank' ? 'summaryFinalBank' : 'summaryFinalScore'));
     return lines;
   }
   if (brief.type === 'classic') {

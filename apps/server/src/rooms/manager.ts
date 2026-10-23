@@ -258,9 +258,9 @@ export class RoomManager {
     return this.apply(room, rollDie(room.state, playerId, this.rng));
   }
 
-  wager(room: Room, playerId: string, amount: number): AckResult {
+  wager(room: Room, playerId: string, amount: number, allIn = false): AckResult {
     if (!this.alive(room)) return GONE;
-    return this.apply(room, placeWager(room.state, playerId, amount, this.now(), this.rng));
+    return this.apply(room, placeWager(room.state, playerId, amount, this.now(), this.rng, allIn));
   }
 
   host(room: Room, action: HostAction): AckResult {

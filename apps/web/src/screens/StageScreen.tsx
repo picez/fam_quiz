@@ -63,17 +63,58 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
 
 /** Розкриті гравці фіналу: найновіший зверху й виділений, щоб він завжди був на екрані. */
 function FinalReveal({ final, question, presented }: { final: FinalInfo; question: FullQuestion | null; presented?: Choice[] }) {
+  const bank = final.mode === 'bank';
+  const refund = final.split?.refund === true;
+  // Коротко, щоб лічильник завжди лишався в один рядок; повне пояснення — на телефонах.
+  const meter =
+    final.split === null
+      ? t('finalBank', { bank: final.bank })
+      : final.split.refund
+        ? t('finalRefundMeter')
+        : t('finalBankSplit', { bank: final.split.bank });
+  /** Куди пішла ставка: при поверненні — назад гравцю; за ставки 0 нічого не дописується. */
+  const stakeNote = (entry: FinalInfo['shown'][number]) => {
+    if (!bank || entry.wager === 0) return '';
+    if (refund) return ` · ${t('finalStakeReturned')}`;
+    return ` · ${t(entry.grade === 'correct' ? 'finalStakeKept' : 'finalStakeToBank')}`;
+  };
+  // Найдовші підписи резервують ширину колонок, щоб розподіл і повернення нічого не зсували.
+  const shareReserve = t('finalBankShare', { share: final.split?.bank ?? final.bank });
   return (
     <>
-      <ol className="rows wager-list">
+      {bank && (
+        // Лічильник завжди на місці з першого розкриття: змінюється лише текст.
+        <div className="bank-meter" role="status">
+          <span key={meter} className="bank-meter-text">
+            {meter}
+          </span>
+        </div>
+      )}
+      {/* Сталі колонки: ім'я з «ВА-БАНК!», відповідь, ставка, рахунок і (у банку) частка — значок не зсуває решту. */}
+      <ol className={bank ? 'rows wager-list wager-reveal is-bank' : 'rows wager-list wager-reveal'}>
         {[...final.shown].reverse().map((entry, index) => (
           <li key={entry.playerId} className={index === 0 ? 'wager-latest' : undefined}>
-            <span className="name">{entry.nickname}</span>
+            <span className="wager-who">
+              <span className="name">{entry.nickname}</span>
+              {entry.allIn && <span className="allin-badge">{t('finalAllInBadge')}</span>}
+            </span>
             <span className="given">{answerText(entry.answer, question, presented)}</span>
-            <span className="tag">{t('finalWagerTag', { wager: entry.wager })}</span>
+            <span
+              className="tag wager-stake"
+              data-reserve={bank ? `${t('finalWagerTag', { wager: entry.wager })} · ${t('finalStakeKept')}` : undefined}
+              data-reserve-alt={bank ? `${t('finalWagerTag', { wager: entry.wager })} · ${t('finalStakeReturned')}` : undefined}
+            >
+              {t('finalWagerTag', { wager: entry.wager })}
+              {stakeNote(entry)}
+            </span>
             <span className={entry.after === entry.before ? 'wager-delta' : entry.after > entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
               {`${entry.before} → ${entry.after}`}
             </span>
+            {bank && (
+              <span className="wager-share" data-reserve={shareReserve}>
+                {entry.share === null ? '' : t('finalBankShare', { share: entry.share })}
+              </span>
+            )}
           </li>
         ))}
       </ol>
@@ -146,7 +187,8 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
       ) : (
         view.board === null && answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>
       )}
-      <div className="stage-main">
+      {/* На розкритті фіналу запитання не розтягується: лічильник банку й список стоять на місці, поки рядків більшає. */}
+      <div className={finalReveal ? 'stage-main is-reveal' : 'stage-main'}>
         <h1 className={questionClass(question.text)}>{question.text}</h1>
         {view.phase === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
       </div>

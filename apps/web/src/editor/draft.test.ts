@@ -328,6 +328,12 @@ describe('rounds', () => {
 });
 
 describe('draft storage', () => {
+  it('a draft without a wager mode loads as classic', () => {
+    const final = { id: 'f1', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [{ ...filled(newQuestion('boolean')), id: 'q1' }] };
+    sessionStorage.setItem('quiz:draft:nomode', JSON.stringify({ title: 'Т', description: '', settings: { leaderboard: 'end' }, rounds: [final] }));
+    expect(loadDraft('nomode')?.rounds[0]).toMatchObject({ type: 'final', wagerMode: 'classic' });
+  });
+
   it('opens a draft of the old format as a quiz with one round', () => {
     sessionStorage.setItem(
       'quiz:draft:old',
@@ -642,7 +648,7 @@ describe('final round drafts', () => {
 
   it('newFinalRound passes the schema once its question is filled', () => {
     const round = newFinalRound();
-    expect(round).toMatchObject({ type: 'final', title: '', shuffleOptions: false, check: 'auto' });
+    expect(round).toMatchObject({ type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic' });
     expect(round.questions).toHaveLength(1);
     const quiz = withFinal(filled(round.questions[0]));
     expect(problemsOf(quiz)).toEqual([]);

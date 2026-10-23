@@ -12,6 +12,7 @@ import {
   type GameStatus,
   type GameSummary,
   type PlayedGame,
+  type FinalRound,
   type Question,
   type Quiz,
   type Round,
@@ -123,16 +124,19 @@ function responsesOf(
 
 /** Запитання фіналу: ставка кожного учасника з рядками на нього (мовчання теж), за турнірною таблицею. */
 function finalResult(
-  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; points: number }[],
+  round: FinalRound,
+  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; points: number; wager: number | null }[],
   standings: { participantId: string; nickname: string }[],
 ): GameQuestionResult['final'] {
   return {
+    // Знімок пройшов схему, тож у старих іграх тут «Класичні» за замовчуванням.
+    mode: round.wagerMode,
     entries: standings.flatMap(({ participantId, nickname }) => {
       const row = given.filter((a) => a.participantId === participantId).sort((a, b) => b.attempt - a.attempt)[0];
-      // Ставка не зберігається окремо: бали фіналу завжди «плюс» або «мінус» ставка.
+      // Старі ігри не зберігали ставку: у класиці бали фіналу завжди «плюс» або «мінус» ставка.
       return row === undefined
         ? []
-        : [{ nickname, answer: row.attempt === PENALTY_ATTEMPT ? null : row.payload, wager: Math.abs(row.points), points: row.points, accepted: row.accepted }];
+        : [{ nickname, answer: row.attempt === PENALTY_ATTEMPT ? null : row.payload, wager: row.wager ?? Math.abs(row.points), points: row.points, accepted: row.accepted }];
     }),
   };
 }
@@ -190,6 +194,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
             payload: answer.payload,
             accepted: answer.accepted,
             points: answer.points,
+            wager: answer.wager,
           })
           .from(answer)
           .where(
@@ -231,6 +236,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     // Знімок не змінюється, тож запитання з журналу в ньому є; перевірка лише від зіпсованого рядка.
     if (question === undefined) return [];
     const given = answers.filter((a) => a.questionIndex === index);
+    const round = quiz?.rounds[roundIndex];
     return [
       {
         index,
@@ -242,7 +248,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
         responses: responsesOf(given, standings),
-        final: quiz?.rounds[roundIndex]?.type === 'final' ? finalResult(given, standings) : null,
+        final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },
     ];
   });
@@ -333,6 +339,8 @@ export interface TableRow {
   attempt: number;
   accepted: boolean;
   points: number;
+  /** Ставка фіналу; null поза фіналом і в старих іграх. */
+  wager: number | null;
 }
 
 export interface TablePlayer {
@@ -405,7 +413,7 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
     participants.length === 0
       ? []
       : await db
-          .select({ participantId: answer.participantId, roundIndex: answer.roundIndex, attempt: answer.attempt, accepted: answer.accepted, points: answer.points })
+          .select({ participantId: answer.participantId, roundIndex: answer.roundIndex, attempt: answer.attempt, accepted: answer.accepted, points: answer.points, wager: answer.wager })
           .from(answer)
           .where(
             inArray(
@@ -426,7 +434,7 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
             ),
           );
   // Коригування — рядки без відповіді: входять у бали раунду (бліц, камбек), але не в «влучив у фінал».
-  const adjustmentRows = adjustments.map(({ participantId, roundIndex, points }) => ({ participantId, roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points }));
+  const adjustmentRows = adjustments.map(({ participantId, roundIndex, points }) => ({ participantId, roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null }));
   const playersByGame = groupBy(participants, (p) => p.gameId);
   const rowsByParticipant = groupBy([...answers, ...adjustmentRows], (a) => a.participantId);
   return games.map((row) => ({
@@ -439,7 +447,7 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
       userId: p.userId,
       score: p.score,
       rank: p.rank,
-      rows: (rowsByParticipant.get(p.id) ?? []).map(({ roundIndex, attempt, accepted, points }) => ({ roundIndex, attempt, accepted, points })),
+      rows: (rowsByParticipant.get(p.id) ?? []).map(({ roundIndex, attempt, accepted, points, wager }) => ({ roundIndex, attempt, accepted, points, wager })),
     })),
   }));
 }

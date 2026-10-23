@@ -14,6 +14,8 @@
   --cell-blitz: rgb(255 179 0 / 0.2);
   --cell-voice: rgb(155 140 255 / 0.22);
   --video-mask: #000;
+  --allin: #ff4f81;
+  --bank: #ffd166;
   --pending: #ff7a1a;
   --pending-soft: rgb(255 122 26 / 0.18);
   --panel: rgb(255 255 255 / 0.05);
@@ -838,6 +840,10 @@ button.choice {
   justify-content: space-between;
   gap: 4vw;
   flex: 1;
+}
+
+.stage-main.is-reveal {
+  flex: 0 0 auto;
 }
 
 .stage .flap {
@@ -2930,6 +2936,33 @@ button.match-item {
   max-width: 100%;
 }
 
+/* Поле ставки й «Ва-банк» в одному рядку; рядок підсумку банку має сталу висоту, щоб нічого не стрибало. */
+.wager-form .wager-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.wager-form .wager-row label {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-allin {
+  flex: none;
+  color: var(--allin);
+  border: 2px solid var(--allin);
+  background: transparent;
+  white-space: nowrap;
+}
+
+/* Підказка банку резервує два рядки: на вузькому телефоні довгий текст переноситься, а картка не стрибає. */
+.wager-note {
+  min-height: 3em;
+  line-height: 1.5;
+  color: var(--bank);
+}
+
 .wager-theme {
   text-transform: uppercase;
 }
@@ -2953,6 +2986,176 @@ button.match-item {
 
 .wager-list li {
   flex-wrap: wrap;
+}
+
+/* Лічильник банку: фіксована висота, змінюється лише текст. */
+.bank-meter {
+  margin: 0 0 0.5rem;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  border: 2px solid var(--bank);
+  color: var(--bank);
+  font-family: var(--display);
+  font-size: 1.25rem;
+  overflow: hidden;
+}
+.stage .bank-meter {
+  min-height: clamp(3rem, 5vw, 5rem);
+  font-size: clamp(1.5rem, 2.8vw, 3rem);
+}
+/* Текст лічильника завжди в один рядок: довше — три крапки, висота не змінюється. */
+.bank-meter-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform-origin: left center;
+}
+
+.allin-badge,
+.allin-tag {
+  color: var(--allin);
+  border: 2px solid var(--allin);
+  padding: 0 0.5rem;
+  font-family: var(--display);
+  white-space: nowrap;
+}
+.allin-tag {
+  font-size: 0.875rem;
+}
+.stage .allin-badge {
+  font-size: clamp(1.25rem, 2.4vw, 2.5rem);
+}
+
+/* Стале місце для «ва-банк» у рядках ведучого: позначка є не в кожному рядку, а колонки не зсуваються. */
+.allin-slot {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  min-width: 6.5rem;
+}
+.allin-slot + .meta {
+  min-width: 5.5rem;
+  text-align: right;
+}
+
+/* Частка з банку: місце резервується з першого розкриття (порожній рядок невидимий, але тримає висоту й ширину). */
+.wager-share {
+  flex: none;
+  display: block;
+  min-width: 13ch;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--bank);
+  font-family: var(--display);
+}
+.wager-share:empty {
+  visibility: hidden;
+}
+.wager-share:empty::before {
+  content: '\00a0';
+}
+/* Невидимий найдовший підпис колонки тримає її ширину; генерований текст не потрапляє в текст сторінки. */
+.wager-share[data-reserve]::after,
+.wager-stake[data-reserve]::after,
+.wager-stake[data-reserve-alt]::before {
+  content: attr(data-reserve);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+/* Розкриття фіналу на сцені: сталі колонки спільні для всіх рядків (subgrid), значок «ВА-БАНК!» живе в колонці імені. */
+.wager-reveal {
+  column-gap: clamp(0.75rem, 1.5vw, 2rem);
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
+}
+.wager-reveal.is-bank {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto auto;
+}
+.rows.wager-reveal li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+.rows.wager-reveal.is-bank li {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto auto;
+  grid-template-columns: subgrid;
+}
+.wager-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25em 0.6em;
+  min-width: 0;
+}
+.wager-who .name {
+  flex: 0 1 auto;
+}
+.wager-reveal .wager-stake,
+.wager-reveal .wager-delta {
+  display: block;
+  white-space: nowrap;
+}
+.wager-stake[data-reserve-alt]::before {
+  content: attr(data-reserve-alt);
+}
+.wager-reveal .wager-delta {
+  text-align: right;
+}
+/* Цифри однакової ширини: нові рахунки й частки не розсувають колонки. */
+.wager-reveal .wager-delta,
+.wager-share {
+  font-variant-numeric: tabular-nums;
+}
+.stage .wager-reveal li {
+  font-size: clamp(1.125rem, 1.9vw, 2.5rem);
+}
+.stage .wager-reveal .wager-stake {
+  font-size: clamp(1.125rem, 1.5vw, 2rem);
+}
+.stage .wager-reveal .allin-badge {
+  font-size: 0.8em;
+}
+/* На сцені ширина в em: цифри Unbounded широкі, і 13ch забирали б зайве місце в колонки імені й відповіді. */
+.stage .wager-share {
+  font-size: 1em;
+  min-width: 9em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wager-latest .allin-badge {
+    animation: allin-pop 0.6s ease-out;
+  }
+  .bank-meter-text {
+    display: inline-block;
+    animation: bank-pulse 0.5s ease-out;
+  }
+
+  @keyframes allin-pop {
+    from {
+      transform: scale(0.6) rotate(-6deg);
+    }
+    60% {
+      transform: scale(1.2) rotate(3deg);
+    }
+  }
+
+  @keyframes bank-pulse {
+    from {
+      transform: scale(0.9);
+    }
+    50% {
+      transform: scale(1.04);
+    }
+  }
 }
 
 .wager-list .wager-latest {

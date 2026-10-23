@@ -182,6 +182,25 @@ describe('profile facts', () => {
     expect(earned).not.toContain('blitz_win');
   });
 
+  it('a right final answer with a stake earns final_hit even when the bank was empty', async () => {
+    const ids = Array.from({ length: 3 }, () => randomUUID());
+    const [hostId, me, other] = ids as [string, string, string];
+    await db.insert(user).values(ids.map((id) => ({ id, name: 'Гравець', email: `${id}@example.com` })));
+    // Обидва відповіли правильно, банк порожній: влучання — лише в того, хто ставив.
+    await seedGame(db, {
+      hostId,
+      snapshot: makeRoundsQuiz([finalRound('f', withId(single, 'f1'), { wagerMode: 'bank' })]),
+      startedAt: new Date(Date.UTC(2026, 0, 2)),
+      players: [
+        { userId: me, nickname: 'Я', score: 0, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 0, wager: 300 }] },
+        { userId: other, nickname: 'Б', score: 0, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 0, wager: 0 }] },
+      ],
+    });
+    const earned = async (userId: string) => (await profileFacts(db, userId)).achievements.filter((a) => a.earned).map((a) => a.id);
+    expect(await earned(me)).toContain('final_hit');
+    expect(await earned(other)).not.toContain('final_hit');
+  });
+
   it('a game the host abandoned does not count as hosted', async () => {
     const host = await signUp(ctx.app, 'Ведуча');
     const { game: created } = await startGame(ctx.app, makeQuiz([single, text]), host.cookie);

@@ -29,6 +29,7 @@ import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
+import { splitBank, type BankOutcome } from './bank';
 import { isTimed, limitMsOf, timeOver } from './timing';
 
 export interface PlayerState {
@@ -114,16 +115,22 @@ export interface FinalState {
   limits: Record<string, number>;
   /** Ставки; гравця без ставки тут немає. */
   wagers: Record<string, number>;
+  /** Хто натиснув «Ва-банк»: ставка йде за межею, поки триває етап ставок. */
+  allIn: string[];
   /** Порядок розкриття; заповнюється на вході в reveal. */
   order: string[];
   /** Скільки гравців з order уже розкрито. */
   shown: number;
+  /** Банк розподілено (крок після останнього розкриття); у класиці не використовується. */
+  split: boolean;
 }
 
 /** Запитання фіналу в журналі. */
 export interface FinalPlay {
   /** Ставка кожного гравця на мить відкриття запитання (без ставки — 0). */
   wagers: Record<string, number>;
+  /** Хто на мить відкриття запитання поставив усю межу (> 0), у порядку гравців. */
+  allIn: string[];
   /** Кого ведучий уже оцінив вручну (check 'manual'). */
   graded: string[];
 }
@@ -317,7 +324,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
     }
     if (play.final !== undefined) {
       const { [playerId]: _wager, ...wagers } = play.final.wagers;
-      kept.final = { wagers, graded: play.final.graded.filter((id) => id !== playerId) };
+      const without = (ids: string[]) => ids.filter((id) => id !== playerId);
+      kept.final = { wagers, allIn: without(play.final.allIn), graded: without(play.final.graded) };
     }
     if (play.blitz === undefined) return kept;
     const blitz = {
@@ -336,18 +344,20 @@ export function removePlayer(state: GameState, playerId: string): Result {
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
   const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
   const { [playerId]: _debuff, ...debuffs } = state.debuffs;
-  const kicked = { ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments, debuffs };
+  // Без вилученого банк фіналу менший: бали решти перераховуються.
+  const kicked = withTotals({ ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments, debuffs });
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
 
-/** Гравець зникає з меж, ставок і порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */
+/** Гравець зникає з меж, ставок, ва-банку й порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */
 function dropFromFinal(final: FinalState, playerId: string): FinalState {
   const { [playerId]: _limit, ...limits } = final.limits;
   const { [playerId]: _wager, ...wagers } = final.wagers;
   const index = final.order.indexOf(playerId);
   const shown = index !== -1 && index < final.shown ? final.shown - 1 : final.shown;
-  return { limits, wagers, order: final.order.filter((id) => id !== playerId), shown };
+  const without = (ids: string[]) => ids.filter((id) => id !== playerId);
+  return { ...final, limits, wagers, allIn: without(final.allIn), order: without(final.order), shown };
 }
 
 export function setConnected(state: GameState, playerId: string, connected: boolean, now: number): Result {
@@ -459,9 +469,12 @@ export function openFinalQuestion(state: GameState, now: number, rng: Rng): Game
   const round = currentRound(state);
   if (round?.type !== 'final' || state.final === null) return state;
   const placed = state.final.wagers;
-  const wagers = Object.fromEntries(state.players.map((p) => [p.id, Object.hasOwn(placed, p.id) ? placed[p.id] : 0]));
+  const wagers: Record<string, number> = Object.fromEntries(state.players.map((p) => [p.id, Object.hasOwn(placed, p.id) ? placed[p.id] : 0]));
+  const limits = state.final.limits;
+  // «ВА-БАНК!» — кожен, чия ставка дорівнює межі й більша за 0, натиснув він кнопку чи ввів суму.
+  const allIn = state.players.filter((p) => wagers[p.id] > 0 && Object.hasOwn(limits, p.id) && wagers[p.id] === limits[p.id]).map((p) => p.id);
   const opened = openQuestion(state, round.questions[0], now, rng);
-  return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers, graded: [] } });
+  return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers, allIn, graded: [] } });
 }
 
 /** Замінює поточне запитання в журналі; експортовано для board.ts. */
@@ -479,6 +492,69 @@ function finalPlayOf(state: GameState): (Play & { final: FinalPlay }) | undefine
 /** Ставка гравця, знята на відкритті запитання фіналу. */
 function wagerOf(final: FinalPlay, playerId: string): number {
   return Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
+}
+
+/** Бали фіналу кожного гравця поточного запитання фіналу за типом ставок раунду; гравець без запису — програвший. */
+export function finalOutcome(state: GameState): BankOutcome | null {
+  const play = finalPlayOf(state);
+  if (play === undefined) return null;
+  const round = state.quiz.rounds[play.roundIndex];
+  const entries = state.players.map((player) => ({
+    playerId: player.id,
+    wager: wagerOf(play.final, player.id),
+    correct: recordOf(state, state.questionIndex, player.id)?.grade === 'correct',
+  }));
+  if (round.type === 'final' && round.wagerMode === 'bank') return splitBank(entries);
+  const points = Object.fromEntries(entries.map((e) => [e.playerId, finalPoints(e.wager, e.correct)]));
+  return { bank: 0, refund: false, points };
+}
+
+/**
+ * Фінал скінчився: раунд закрито (round_end чи finished), а всіх гравців уже розкрито.
+ * Тоді записи фіналу сталі — вилучення чи коригування після фіналу не змінюють уже показаних часток банку.
+ */
+function finalFrozen(state: GameState): boolean {
+  if (state.phase !== 'round_end' && state.phase !== 'finished') return false;
+  const final = state.final;
+  return final !== null && final.order.length > 0 && final.shown >= final.order.length;
+}
+
+/** Перезаписує basePoints і points усіх записів поточного запитання фіналу за finalOutcome; поза ним — стан без змін. */
+export function withFinalPoints(state: GameState): GameState {
+  if (finalFrozen(state)) return state;
+  const outcome = finalOutcome(state);
+  if (outcome === null) return state;
+  const play = state.plays[state.questionIndex];
+  const answers = { ...play.answers };
+  for (const [playerId, record] of Object.entries(answers)) {
+    const points = Object.hasOwn(outcome.points, playerId) ? outcome.points[playerId] : record.points;
+    answers[playerId] = { ...record, basePoints: points, streakBonus: 0, points };
+  }
+  return withCurrentPlay(state, { ...play, answers });
+}
+
+/** Раунд з банком, запитання відкрито, загальний банк > 0 і розподілу ще не було. */
+export function needsSplit(state: GameState): boolean {
+  const play = finalPlayOf(state);
+  if (play === undefined || state.final === null || state.final.split) return false;
+  const round = state.quiz.rounds[play.roundIndex];
+  return round.type === 'final' && round.wagerMode === 'bank' && (finalOutcome(state)?.bank ?? 0) > 0;
+}
+
+/**
+ * Бали фіналу гравця, які вже можна показати сцені й телефонам: поза фіналом — points запису;
+ * до розкриття гравця — 0; у банку до розподілу — помилка −ставка, правильно 0; далі — points запису.
+ */
+export function finalVisiblePoints(state: GameState, playerId: string): number {
+  const record = recordOf(state, state.questionIndex, playerId);
+  const points = record?.points ?? 0;
+  const play = finalPlayOf(state);
+  if (play === undefined || state.final === null) return points;
+  if (!finalShown(state, playerId)) return 0;
+  const round = state.quiz.rounds[play.roundIndex];
+  if (round.type !== 'final' || round.wagerMode !== 'bank' || state.final.split) return points;
+  // Частки й повернення залежать від усіх; до розподілу видно лише власну ставку в банку.
+  return record?.grade === 'correct' ? 0 : 0 - wagerOf(play.final, playerId);
 }
 
 /**
@@ -530,11 +606,11 @@ function settleFinalWithOrder(state: GameState): GameState {
   return { ...totals, final: { ...totals.final, order } };
 }
 
-/** Після відкриття запитання фіналу дострокове завершення оцінює всіх і вважає всіх розкритими. */
+/** Після відкриття запитання фіналу дострокове завершення оцінює всіх, вважає всіх розкритими, а банк — розподіленим. */
 function closeFinal(state: GameState): GameState {
   if (finalPlayOf(state) === undefined) return withTotals(state);
   const settled = settleFinalWithOrder(state);
-  return settled.final === null ? settled : { ...settled, final: { ...settled.final, shown: settled.final.order.length } };
+  return settled.final === null ? settled : { ...settled, final: { ...settled.final, shown: settled.final.order.length, split: true } };
 }
 
 /** Скидає відлік відсутності гравця, чий хід. */
@@ -593,7 +669,9 @@ function streakBase(play: Play, playerId: string, record: AnswerRecord): number 
  * Перераховує рахунок, серії й сумарний час за всіма вже закритими запитаннями; до рахунку додаються коригування.
  * Внутрішня функція рушія: експортовано для adjust.ts, не для сервера.
  */
-export function withTotals(state: GameState): GameState {
+export function withTotals(input: GameState): GameState {
+  // Бали фіналу залежать від усіх записів запитання (спільний банк), тож перераховуються першими.
+  const state = withFinalPoints(input);
   // Відкрите запитання завжди останнє в журналі.
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
@@ -744,7 +822,8 @@ function submitFinalAnswer(state: GameState, round: FinalRound, playerId: string
     points,
     overridden: false,
   };
-  return ok(autoLock(withRecord(state, playerId, record)));
+  // У спільному банку бали залежать від інших записів: ведучий одразу бачить формулу раунду.
+  return ok(autoLock(withFinalPoints(withRecord(state, playerId, record))));
 }
 
 /** Відповідь на запитання поля: лише від гравця, чий хід; годинник стоїть, поки ведучий не прийме відповідь або не дасть перевибрати. */
@@ -930,7 +1009,7 @@ function enterRound(state: GameState): GameState {
   return {
     ...state,
     board: type === 'board' ? initBoard(state) : null,
-    final: type === 'final' ? { limits: {}, wagers: {}, order: [], shown: 0 } : null,
+    final: type === 'final' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
   };
 }
 
@@ -956,6 +1035,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       if (state.final !== null && finalPlayOf(state) !== undefined) {
         // Гравці розкриваються по одному; рейтингу між запитаннями після фіналу немає.
         if (state.final.shown < state.final.order.length) return ok({ ...state, final: { ...state.final, shown: state.final.shown + 1 } });
+        // Після останнього гравця банк (якщо він не порожній) розподіляється окремим кроком.
+        if (needsSplit(state)) return ok({ ...state, final: { ...state.final, split: true } });
         return ok(finishRound(state));
       }
       if (currentRound(state)?.type === 'board') {

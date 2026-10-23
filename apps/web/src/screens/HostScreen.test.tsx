@@ -825,18 +825,20 @@ describe('HostScreen final', () => {
     { id: 'p2', nickname: 'Богдан', connected: true, score: 500, streak: 0, debuff: null },
     { id: 'p3', nickname: 'Віра', connected: true, score: 300, streak: 0, debuff: null },
   ];
-  const info = { theme: 'Космос', placed: 2, total: 3, shown: [], left: 0 };
+  const info = { theme: 'Космос', placed: 2, total: 3, shown: [], left: 0, mode: 'classic' as const, bank: 0, split: null };
   const entry = (playerId: string, nickname: string, over: object = {}) => ({
     playerId,
     nickname,
     answer: { type: 'single' as const, optionId: 'b' },
     grade: 'correct' as const,
     wager: 300,
+    allIn: false,
     before: 1000,
     after: 1300,
+    share: null,
     ...over,
   });
-  const hostFinal = (over: object = {}) => ({ ...info, wagers: [], entries: [], manual: false, pending: [], ...over });
+  const hostFinal = (over: object = {}) => ({ ...info, wagers: [], entries: [], manual: false, pending: [], splitNext: false, ...over });
 
   it('shows who has wagered and opens the final question', () => {
     const send = show(
@@ -846,9 +848,9 @@ describe('HostScreen final', () => {
         players: three,
         final: hostFinal({
           wagers: [
-            { playerId: 'p1', nickname: 'Анна', wager: 300, limit: 1000 },
-            { playerId: 'p2', nickname: 'Богдан', wager: 200, limit: 500 },
-            { playerId: 'p3', nickname: 'Віра', wager: null, limit: 300 },
+            { playerId: 'p1', nickname: 'Анна', wager: 300, limit: 1000, allIn: false },
+            { playerId: 'p2', nickname: 'Богдан', wager: 200, limit: 500, allIn: false },
+            { playerId: 'p3', nickname: 'Віра', wager: null, limit: 300, allIn: false },
           ],
         }),
       }),
@@ -962,6 +964,91 @@ describe('HostScreen final', () => {
     );
     fireEvent.click(button('Не зараховувати'));
     expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'wrong' });
+  });
+
+  it('the wager list marks all-in', () => {
+    show(
+      view({
+        phase: 'wager',
+        round: finalRound,
+        players: three,
+        final: hostFinal({ wagers: [{ playerId: 'p1', nickname: 'Анна', wager: 1000, limit: 1000, allIn: true }] }),
+      }),
+    );
+    expect(document.querySelector('.wager-list li .allin-tag')?.textContent).toBe('ва-банк');
+  });
+
+  it('the all-in tag has a fixed slot in every wager row', () => {
+    show(
+      view({
+        phase: 'wager',
+        round: finalRound,
+        players: three,
+        final: hostFinal({
+          wagers: [
+            { playerId: 'p1', nickname: 'Анна', wager: 1000, limit: 1000, allIn: true },
+            { playerId: 'p2', nickname: 'Богдан', wager: 100, limit: 400, allIn: false },
+          ],
+        }),
+      }),
+    );
+    const rows = [...document.querySelectorAll('.wager-list li')];
+    for (const li of rows) expect([...li.children].map((child) => child.className)).toEqual(['name', 'given', 'allin-slot', 'meta']);
+    expect(rows[0].querySelector('.allin-slot .allin-tag')?.textContent).toBe('ва-банк');
+    expect(rows[1].querySelector('.allin-slot')?.textContent).toBe('');
+  });
+
+  it('the host splits the bank after the last reveal', () => {
+    const send = show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 0, splitNext: true, mode: 'bank' }) }));
+    fireEvent.click(button('Розділити банк'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+    expect(screen.queryByRole('button', { name: 'Далі' })).toBeNull();
+  });
+
+  it('keeps the usual buttons without a split step', () => {
+    show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 0, splitNext: false, mode: 'bank' }) }));
+    expect(button('Далі')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Розділити банк' })).toBeNull();
+    cleanup();
+    show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 1, splitNext: true, mode: 'bank' }) }));
+    expect(button('Наступний гравець')).toBeTruthy();
+  });
+
+  it('the host reveal list shows the bank and the shares', () => {
+    const winner = entry('p1', 'Анна', { wager: 1000, before: 1000, after: 1642, share: 642 });
+    show(
+      during('reveal', single, {
+        round: finalRound,
+        players: three,
+        final: hostFinal({
+          left: 0,
+          mode: 'bank',
+          bank: 1500,
+          shown: [winner],
+          entries: [winner],
+          split: { bank: 1500, refund: false, shares: [{ playerId: 'p1', nickname: 'Анна', wager: 1000, share: 642 }] },
+        }),
+      }),
+    );
+    expect(screen.getByText('Банк 1500 розділено')).toBeTruthy();
+    expect(screen.getByText('+642 з банку')).toBeTruthy();
+  });
+
+  it('shows the running bank before the split', () => {
+    show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 1, mode: 'bank', bank: 1500 }) }));
+    expect(screen.getByText('Банк: 1500')).toBeTruthy();
+  });
+
+  it('reserves the share slot before the split and keeps the refund meter short', () => {
+    const loser = entry('p1', 'Анна', { wager: 1000, before: 1000, after: 0 });
+    const final = (split: object | null) =>
+      hostFinal({ left: 0, mode: 'bank', bank: 1000, shown: [loser], entries: [loser], split: split as never });
+    show(during('reveal', single, { round: finalRound, players: three, final: final(null) }));
+    expect(document.querySelectorAll('.wager-list li .wager-share')).toHaveLength(1);
+    expect(document.querySelector('.wager-list li .wager-share')?.textContent).toBe('');
+    cleanup();
+    show(during('reveal', single, { round: finalRound, players: three, final: final({ bank: 1000, refund: true, shares: [] }) }));
+    expect(document.querySelector('.bank-meter')?.textContent).toBe('Ставки повернуто');
   });
 
   it('goes on with the usual next button once everyone is revealed', () => {

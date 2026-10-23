@@ -20,6 +20,7 @@ export function adjustScore(state: GameState, playerId: string, points: number, 
 /**
  * На етапі ставок межа йде за рахунком, тож «ставка ≤ рахунок» тримається і після балів від ведучого:
  * межа стає max(0, рахунок), а вже зроблена ставка понад неї зменшується до межі.
+ * Ставка ва-банк дорівнює новій межі (і вгору, і вниз); межа 0 знімає ва-банк.
  */
 function followWagerLimit(state: GameState, playerId: string): GameState {
   if (state.phase !== 'wager' || state.final === null) return state;
@@ -27,8 +28,11 @@ function followWagerLimit(state: GameState, playerId: string): GameState {
   const limit = Math.max(0, score);
   const limits = { ...state.final.limits, [playerId]: limit };
   const placed = state.final.wagers;
-  const wagers = Object.hasOwn(placed, playerId) && placed[playerId] > limit ? { ...placed, [playerId]: limit } : placed;
-  return { ...state, final: { ...state.final, limits, wagers } };
+  const has = Object.hasOwn(placed, playerId);
+  const followsLimit = has && (state.final.allIn.includes(playerId) || placed[playerId] > limit);
+  const wagers = followsLimit ? { ...placed, [playerId]: limit } : placed;
+  const allIn = limit === 0 ? state.final.allIn.filter((id) => id !== playerId) : state.final.allIn;
+  return { ...state, final: { ...state.final, limits, wagers, allIn } };
 }
 
 /** Сума всіх коригувань гравця. */

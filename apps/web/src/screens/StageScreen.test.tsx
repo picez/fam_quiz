@@ -606,15 +606,17 @@ describe('StageScreen: match', () => {
 
 describe('StageScreen final', () => {
   const round: RoundInfo = { index: 0, total: 1, title: 'Космос', type: 'final', partial: false, description: '', brief: emptyBrief('final'), times: null };
-  const info = { theme: 'Космос', placed: 1, total: 3, shown: [], left: 0 };
+  const info = { theme: 'Космос', placed: 1, total: 3, shown: [], left: 0, mode: 'classic' as const, bank: 0, split: null };
   const entry = (nickname: string, wager: number, before: number, after: number) => ({
     playerId: nickname,
     nickname,
     answer: { type: 'single' as const, optionId: 'b' },
     grade: 'correct' as const,
     wager,
+    allIn: false,
     before,
     after,
+    share: null,
   });
 
   it('explains the wager on the intro only', () => {
@@ -651,6 +653,85 @@ describe('StageScreen final', () => {
     expect(screen.getByText('Ставка 400')).toBeTruthy();
     expect(screen.getByText('Ще 1')).toBeTruthy();
     expect(screen.queryByText('Анна')).toBeNull();
+  });
+
+  const bankRevealView = (final: object) =>
+    view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, final: { ...info, mode: 'bank' as const, ...final } });
+
+  it('an all-in stake is announced on the reveal', () => {
+    const { unmount } = show(
+      view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, final: { ...info, shown: [{ ...entry('Віра', 300, 300, 600), allIn: true }], left: 1 } }),
+    );
+    expect(document.querySelector('.allin-badge')?.textContent).toBe('ВА-БАНК!');
+    expect(document.querySelector('.bank-meter')).toBeNull();
+    unmount();
+    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, final: { ...info, shown: [entry('Віра', 100, 300, 400)], left: 1 } }));
+    expect(document.querySelector('.allin-badge')).toBeNull();
+  });
+
+  it('the bank meter keeps its place from the first reveal to the split', () => {
+    const { rerender } = show(bankRevealView({ bank: 0, left: 2 }));
+    const meter = document.querySelector('.bank-meter');
+    expect(meter?.textContent).toBe('Банк: 0');
+    const again = (final: object) =>
+      rerender(<StageScreen view={bankRevealView(final)} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    again({ bank: 1500, left: 1 });
+    expect(document.querySelector('.bank-meter')).toBe(meter);
+    expect(meter?.textContent).toBe('Банк: 1500');
+    again({ bank: 1500, left: 0, split: { bank: 1500, refund: false, shares: [] } });
+    expect(document.querySelector('.bank-meter')).toBe(meter);
+    expect(meter?.textContent).toBe('Банк 1500 розділено');
+    again({ bank: 1500, left: 0, split: { bank: 1500, refund: true, shares: [] } });
+    expect(document.querySelector('.bank-meter')).toBe(meter);
+    // На сцені коротко, щоб лічильник лишався в один рядок; повний текст — на телефонах.
+    expect(meter?.textContent).toBe('Ставки повернуто');
+  });
+
+  it('refund rows say the stake came back, a zero stake has no suffix, nobody gets a share', () => {
+    const lost = { ...entry('Богдан', 500, 500, 500), grade: 'wrong' as const };
+    const zero = { ...entry('Віра', 0, 300, 300), grade: 'wrong' as const };
+    show(bankRevealView({ bank: 500, left: 0, shown: [zero, lost], split: { bank: 500, refund: true, shares: [] } }));
+    const row = (name: string) => screen.getByText(name).closest('li')!;
+    expect(row('Богдан').querySelector('.wager-stake')?.textContent).toBe('Ставка 500 · ставку повернуто');
+    expect(row('Віра').querySelector('.wager-stake')?.textContent).toBe('Ставка 0');
+    expect(document.body.textContent).not.toContain('у банк');
+    expect(document.body.textContent).not.toContain('з банку');
+    // Місце частки є в кожному рядку з першого розкриття, щоб розподіл нічого не зсував.
+    expect(document.querySelectorAll('.wager-list li .wager-share')).toHaveLength(2);
+  });
+
+  it('the all-in badge sits in the name column, so the other columns stay in place', () => {
+    show(bankRevealView({ bank: 0, left: 1, shown: [{ ...entry('Віра', 300, 300, 300), allIn: true }, entry('Богдан', 100, 400, 400)] }));
+    const rows = [...document.querySelectorAll('.wager-list li')];
+    for (const li of rows) expect([...li.children].map((child) => child.className)).toEqual(['wager-who', 'given', 'tag wager-stake', 'wager-delta', 'wager-share']);
+    expect(rows.find((li) => li.textContent?.includes('Віра'))?.querySelector('.wager-who .allin-badge')?.textContent).toBe('ВА-БАНК!');
+  });
+
+  it('bank rows say where the stake went and the share after the split', () => {
+    const lost = { ...entry('Богдан', 500, 500, 0), grade: 'wrong' as const };
+    const kept = { ...entry('Віра', 1000, 1000, 1000), share: null };
+    const { rerender } = show(bankRevealView({ bank: 500, left: 0, shown: [kept, lost] }));
+    expect(document.body.textContent).toContain('у банк');
+    expect(screen.getByText('500 → 0')).toBeTruthy();
+    expect(document.body.textContent).toContain('ставку збережено');
+    expect(screen.getByText('1000 → 1000')).toBeTruthy();
+    expect(screen.queryByText(/з банку/)).toBeNull();
+    rerender(
+      <StageScreen
+        view={bankRevealView({
+          bank: 500,
+          left: 0,
+          shown: [{ ...kept, after: 1642, share: 642 }, lost],
+          split: { bank: 500, refund: false, shares: [{ playerId: 'Віра', nickname: 'Віра', wager: 1000, share: 642 }] },
+        })}
+        code="123456"
+        joinUrl="http://quiz.test/play/123456"
+        offsetMs={0}
+        hostOnline
+      />,
+    );
+    expect(screen.getByText('1000 → 1642')).toBeTruthy();
+    expect(screen.getByText('+642 з банку')).toBeTruthy();
   });
 
   it('hides the video and image during the reveal and keeps the answer', () => {

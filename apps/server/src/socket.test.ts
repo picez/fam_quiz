@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, chain, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -414,5 +414,15 @@ describe('host presence', () => {
     }
     expect(await send(olena, 'player:wager')).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(olena, 'player:wager', { amount: 0 })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+  it('player:wager takes an optional all-in flag', async () => {
+    const game = (await startGame(ctx.app, makeRoundsQuiz([finalRound('f', single)]))).game;
+    const { host, olena } = await lobby(game);
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    await until(olena, inPhase('wager'));
+    expect(await send(olena, 'player:wager', { amount: 0, allIn: 'yes' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:wager', { amount: 0, allIn: true })).toEqual({ ok: true });
+    expect(await send(olena, 'player:wager', { amount: 0, allIn: false })).toEqual({ ok: true });
   });
 });

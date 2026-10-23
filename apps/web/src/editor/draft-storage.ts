@@ -100,7 +100,9 @@ export function loadDraft(id: string | undefined): Quiz | null {
           return { ...rest, categories: categories.map(reviveCategory) };
         }
         const questions = round.questions.map(revive);
-        if (round.type === 'blitz' || round.type === 'final') return { ...round, questions };
+        if (round.type === 'blitz') return { ...round, questions };
+        // Чернетка до типів ставок — класичні ставки.
+        if (round.type === 'final') return { ...round, wagerMode: round.wagerMode ?? 'classic', questions };
         return {
           ...round,
           // Чернетка старого формату могла не мати цих полів.
