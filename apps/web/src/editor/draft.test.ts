@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels } from './draft';
+import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -962,5 +962,56 @@ describe('duel drafts in storage', () => {
     sessionStorage.setItem('quiz:draft:noneduels', JSON.stringify({ ...quiz, duels: none }));
     expect(loadDraft('noneduels')).not.toBeNull();
     expect('duels' in loadDraft('noneduels')!).toBe(false);
+  });
+});
+
+describe('hints and the spare pool in the draft', () => {
+  it('cleaned drops empty hints and an empty pool', () => {
+    const quiz = quizWith({ ...filled(newQuestion('boolean')), hint: '   ' });
+    const clean = cleaned({ ...quiz, spares: [] });
+    expect('hint' in roundQuestions(clean.rounds[0])[0]).toBe(false);
+    expect('spares' in clean).toBe(false);
+    const hinted = cleaned(quizWith({ ...filled(newQuestion('boolean')), hint: '  Тече через Київ ' }));
+    expect(roundQuestions(hinted.rounds[0])[0].hint).toBe('Тече через Київ');
+  });
+
+  it('changing the type keeps the hint', () => {
+    expect(changeType({ ...newQuestion('single'), hint: 'Підказка' }, 'text').hint).toBe('Підказка');
+  });
+
+  it('problemsOf names the spare with a problem', () => {
+    const quiz = quizWith(filled(newQuestion('boolean')));
+    const withPool: Quiz = { ...quiz, spares: [filled(newQuestion('boolean')), newQuestion('boolean')] };
+    expect(problemsOf(withPool)).toEqual(['Запасне 2: впишіть текст запитання.']);
+    expect(problemsOf({ ...withPool, spares: [filled(newQuestion('boolean'))] })).toEqual([]);
+  });
+
+  it('swap without a pool is a problem', () => {
+    const quiz = quizWith(filled(newQuestion('boolean')));
+    expect(problemsOf({ ...quiz, settings: { ...quiz.settings, buffs: ['swap'] } })).toEqual([t('problemSparesEmpty')]);
+  });
+
+  it('a forged pool with a wrong type is still caught', () => {
+    const quiz = quizWith(filled(newQuestion('boolean')));
+    expect(problemsOf({ ...quiz, spares: [filled(newQuestion('order'))] })).toEqual([t('problemSpareType')]);
+  });
+
+  it('newSpare is a plain question without a hint', () => {
+    const spare = newSpare('text');
+    expect(spare).toMatchObject({ type: 'text', video: null });
+    expect('hint' in spare).toBe(false);
+  });
+});
+
+describe('spare drafts in storage', () => {
+  it('a draft keeps the spare pool and drops a broken one', () => {
+    const s1 = filled(newQuestion('boolean'));
+    const quiz: Quiz = { ...quizWith(filled(newQuestion('boolean'))), spares: [s1] };
+    saveDraft('withspares', quiz);
+    expect(loadDraft('withspares')?.spares).toEqual([s1]);
+    sessionStorage.setItem('quiz:draft:brokenspares', JSON.stringify({ ...quiz, spares: 'x' }));
+    expect('spares' in loadDraft('brokenspares')!).toBe(false);
+    sessionStorage.setItem('quiz:draft:emptyspares', JSON.stringify({ ...quiz, spares: [null, 5] }));
+    expect('spares' in loadDraft('emptyspares')!).toBe(false);
   });
 });

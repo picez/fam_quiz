@@ -20,6 +20,7 @@ import { PowersEditor } from './PowersEditor';
 import { QuestionEditor } from './QuestionEditor';
 import { RoundSettings } from './RoundSettings';
 import { RoundStrip } from './RoundStrip';
+import { SparesEditor } from './SparesEditor';
 
 interface Props {
   initial: Quiz;
@@ -47,6 +48,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const [saving, setSaving] = useState(false);
   /** Розділ «Дуелі» розгорнуто: автором або помилкою в ньому. */
   const [duelsOpen, setDuelsOpen] = useState(false);
+  /** Розділ «Запасні запитання» розгорнуто: автором або помилкою в ньому. */
+  const [sparesOpen, setSparesOpen] = useState(false);
   /** Клітинка поля, яку треба показати після невдалого збереження. */
   const [boardFocus, setBoardFocus] = useState<{ category: number; index: number } | null>(null);
   /** Запитання, яке зараз перетягують у списку. */
@@ -164,6 +167,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     setProblems(found);
     if (found.length > 0) {
       if (found.some((problem) => problem.startsWith(t('duelsTitle')))) setDuelsOpen(true);
+      const sparePrefixes = [t('sparesTitle'), t('problemSparesEmpty'), t('spareN', { index: '' }).trim()];
+      if (found.some((problem) => sparePrefixes.some((prefix) => problem.startsWith(prefix)))) setSparesOpen(true);
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
       const broken = firstProblem(quiz);
       if (broken !== null) {
@@ -220,7 +225,18 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
         <details className="rules powers">
           <summary>{t('powersTitle')}</summary>
-          <PowersEditor settings={settings} onChange={(powers) => setSettings(powers)} />
+          <PowersEditor settings={settings} spares={quiz.spares} onChange={(powers) => setSettings(powers)} />
+        </details>
+
+        <details className="rules spares" open={sparesOpen} onToggle={(event) => setSparesOpen(event.currentTarget.open)}>
+          <summary>{t('sparesTitle')}</summary>
+          <SparesEditor
+            spares={quiz.spares}
+            onChange={(spares) => {
+              const { spares: _old, ...rest } = quiz;
+              update(spares === undefined ? rest : { ...rest, spares });
+            }}
+          />
         </details>
 
         <details className="rules duels" open={duelsOpen} onToggle={(event) => setDuelsOpen(event.currentTarget.open)}>

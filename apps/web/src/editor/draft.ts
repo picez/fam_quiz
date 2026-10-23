@@ -34,7 +34,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
   return roundType === 'blitz' || roundType === 'board' ? QUESTION_TYPES.filter((type) => type !== 'chain') : QUESTION_TYPES;
 }
 
-type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points'>;
+type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint'>;
 
 const blank = () => ({ id: newId(), text: '' });
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -94,11 +94,16 @@ export function newQuestion(type: QuestionType): Question {
   );
 }
 
-/** Змінює тип, зберігаючи текст, час і бали; між single і multi зберігаються й варіанти. */
+/** Запасне запитання: звичайне просте запитання з типовими часом і балами, без підказки (час і бали беруться з основного запитання). */
+export function newSpare(type: QuestionType = 'single'): Question {
+  return newQuestion(type);
+}
+
+/** Змінює тип, зберігаючи текст, підказку, час і бали; між single і multi зберігаються й варіанти. */
 export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === type) return question;
-  const { id, text, imageUrl, video, timeLimit, points } = question;
-  const common: Common = { id, text, imageUrl, video, timeLimit, points };
+  const { id, text, imageUrl, video, timeLimit, points, hint } = question;
+  const common: Common = { id, text, imageUrl, video, timeLimit, points, ...(hint === undefined ? {} : { hint }) };
 
   if (question.type === 'single' && type === 'multi') {
     return { ...common, type, options: question.options, correctIds: [question.correctId] };
@@ -303,7 +308,7 @@ export function cleaned(quiz: Quiz): Quiz {
     while (end > min && items[end - 1].text === '') end -= 1;
     return items.slice(0, end);
   };
-  const cleanQuestion = (question: Question): Question => {
+  const cleanBody = (question: Question): Question => {
     const text = question.text.trim();
     switch (question.type) {
       case 'single':
@@ -351,6 +356,12 @@ export function cleaned(quiz: Quiz): Quiz {
         return { ...question, text };
     }
   };
+  // Порожня підказка не зберігається: ключа немає, як у старих запитань.
+  const cleanQuestion = (question: Question): Question => {
+    const { hint, ...rest } = cleanBody(question);
+    const trimmed = hint?.trim() ?? '';
+    return (trimmed === '' ? rest : { ...rest, hint: trimmed }) as Question;
+  };
   // У фіналі бали — ставки, поля балів за слово немає: прихована ціна не має блокувати збереження.
   const inFinal = (question: Question): Question =>
     question.type === 'sort' && question.words.length > 0 && question.points * question.words.length > LIMITS.maxPoints
@@ -371,8 +382,9 @@ export function cleaned(quiz: Quiz): Quiz {
       return { ...category, title: category.title.trim(), questions: questions.slice(0, end) };
     }),
   });
+  const { spares, ...whole } = quiz;
   return {
-    ...quiz,
+    ...whole,
     title: quiz.title.trim(),
     description: quiz.description.trim(),
     rounds: quiz.rounds.map((round) => {
@@ -390,6 +402,7 @@ export function cleaned(quiz: Quiz): Quiz {
       };
     }),
     ...(quiz.duels === undefined ? {} : { duels: cleanDuels(quiz.duels) }),
+    ...(spares === undefined || spares.length === 0 ? {} : { spares: spares.map(cleanQuestion) }),
   };
 }
 
@@ -526,6 +539,19 @@ function duelProblems(duels: Duels): string[] {
   return problems;
 }
 
+/** Проблеми розділу «Запасні запитання»: кожне запасне перевіряється так само, як запитання. */
+function spareProblems(spares: Question[]): string[] {
+  const problems: string[] = [];
+  spares.forEach((spare, index) => {
+    const key = problemKey(spare);
+    if (key === null) return;
+    // «Запитання N: текст» → «Запасне N: текст».
+    const problem = t(key, { index: index + 1 }).replace(/^[^:]*:\s*/, '');
+    problems.push(t('problemSpare', { index: index + 1, problem }));
+  });
+  return problems;
+}
+
 /** Що заважає зберегти вікторину; порожній список означає, що все гаразд. */
 export function problemsOf(quiz: Quiz): string[] {
   const draft = cleaned(quiz);
@@ -555,6 +581,8 @@ export function problemsOf(quiz: Quiz): string[] {
     });
   });
   if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));
+  if (draft.spares !== undefined) problems.push(...spareProblems(draft.spares));
+  if (draft.settings.buffs?.includes('swap') && draft.spares === undefined) problems.push(t('problemSparesEmpty'));
   // Та сама умова, що в грі: без досить запитань до межі кнопка дуелі не з’явиться ніколи.
   const shortfall = duelShortfall(draft);
   if (shortfall !== null) problems.push(t('problemDuelUnreachable', { needed: shortfall }));
@@ -565,6 +593,10 @@ export function problemsOf(quiz: Quiz): string[] {
       const messages = parsed.error.issues.map((issue) => issue.message);
       if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
       if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
+      if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
+      if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
+      if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));
+      if (messages.includes('spares_empty')) problems.push(t('problemSparesEmpty'));
       if (messages.includes('buff_unavailable') || messages.includes('duplicate_powers')) problems.push(t('problemPowers'));
       if (problems.length === 0) problems.push(t('problemGeneric', { index: 1 }));
     }

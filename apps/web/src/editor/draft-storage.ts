@@ -112,6 +112,13 @@ const reviveSettings = (settings: Quiz['settings']): Quiz['settings'] => {
 
 const withDuels = (duels: Duels | null) => (duels === null ? {} : { duels });
 
+/** Пул запасних із чернетки: зіпсовані записи відкидаються, не масив чи порожній пул — поле зникає. */
+const reviveSpares = (value: unknown): { spares: Question[] } | Record<string, never> => {
+  if (!Array.isArray(value)) return {};
+  const spares = value.filter(looksLikeQuestion).map(revive);
+  return spares.length === 0 ? {} : { spares };
+};
+
 function looksLikeQuiz(value: unknown): value is Quiz {
   if (typeof value !== 'object' || value === null) return false;
   const { title, description, settings, rounds } = value as Record<string, unknown>;
@@ -144,9 +151,10 @@ export function loadDraft(id: string | undefined): Quiz | null {
     // Чернетка старого формату (один список запитань) стає вікториною з одним раундом.
     const parsed = upgradeQuiz(JSON.parse(raw));
     if (!looksLikeQuiz(parsed)) return null;
-    const { duels: rawDuels, ...rest } = parsed;
+    const { duels: rawDuels, spares: rawSpares, ...rest } = parsed;
     return {
       ...rest,
+      ...reviveSpares(rawSpares),
       ...withDuels(looksLikeDuels(rawDuels) ? reviveDuels(rawDuels) : null),
       settings: reviveSettings(parsed.settings),
       rounds: parsed.rounds.map((round): Round => {

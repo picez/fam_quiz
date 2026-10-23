@@ -1,10 +1,12 @@
-import { allowedBuffs, allowedDebuffs, BUFF_KINDS, DEBUFF_KINDS, READY_BUFFS, type BuffKind, type DebuffKind, type QuizSettings } from '@quiz/shared';
+import { allowedBuffs, allowedDebuffs, BUFF_KINDS, DEBUFF_KINDS, READY_BUFFS, type BuffKind, type DebuffKind, type Question, type QuizSettings } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
 
 interface Props {
   settings: QuizSettings;
+  /** Пул запасних: «Заміна запитання» без нього не збережеться. */
+  spares: Question[] | undefined;
   onChange: (powers: { debuffs: DebuffKind[]; buffs: BuffKind[] }) => void;
 }
 
@@ -12,7 +14,7 @@ const toggled = <K extends string>(all: readonly K[], list: K[], kind: K, on: bo
   all.filter((item) => (item === kind ? on : list.includes(item)));
 
 /** Розділ «Бафи й дебафи»: прапорці й «Усі / Жодного»; onChange завжди дає обидва масиви у порядку списків. */
-export function PowersEditor({ settings, onChange }: Props) {
+export function PowersEditor({ settings, spares, onChange }: Props) {
   const debuffs = allowedDebuffs({ settings });
   const buffs = allowedBuffs({ settings });
 
@@ -54,28 +56,26 @@ export function PowersEditor({ settings, onChange }: Props) {
           </button>
         </div>
         <div className="powers-list">
-          {BUFF_KINDS.map((kind) => {
-            const ready = READY_BUFFS.includes(kind);
-            return (
-              <label className="powers-item" key={kind}>
-                <input
-                  type="checkbox"
-                  disabled={!ready}
-                  checked={buffs.includes(kind)}
-                  onChange={(event) => onChange({ debuffs, buffs: toggled(BUFF_KINDS, buffs, kind, event.target.checked) })}
-                />
-                <span aria-hidden="true">{BUFF_ICONS[kind]}</span>
-                <span>{buffName(kind)}</span>
-                {!ready && <span className="powers-soon">{t('powersSoon')}</span>}
-              </label>
-            );
-          })}
+          {BUFF_KINDS.map((kind) => (
+            <label className="powers-item" key={kind}>
+              <input
+                type="checkbox"
+                checked={buffs.includes(kind)}
+                onChange={(event) => onChange({ debuffs, buffs: toggled(BUFF_KINDS, buffs, kind, event.target.checked) })}
+              />
+              <span aria-hidden="true">{BUFF_ICONS[kind]}</span>
+              <span>{buffName(kind)}</span>
+            </label>
+          ))}
         </div>
         {buffs.map((kind) => (
           <p className="meta" key={kind}>
             {`${BUFF_ICONS[kind]} ${buffName(kind)} — ${t(`buffTip_${kind}` as TextKey)}`}
           </p>
         ))}
+        {buffs.includes('swap') && (spares === undefined || spares.length === 0) && (
+          <p className="meta powers-warn">{t('powersSwapNeedsSpares')}</p>
+        )}
       </fieldset>
     </>
   );

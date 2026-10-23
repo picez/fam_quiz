@@ -13,6 +13,12 @@ interface Props {
   onChange: (next: Question) => void;
   /** Поле «Бали»; у фіналі бали ні на що не впливають, тому там його немає. */
   showPoints?: boolean;
+  /** Поле «Підказка» (типово є); у запасних запитань його немає. */
+  showHint?: boolean;
+  /** Поле «Час» (типово є); у запасних час береться з основного запитання. */
+  showTime?: boolean;
+  /** Поле відео (типово є); запасні запитання без відео. */
+  showVideo?: boolean;
   /** Типи запитань, доступні в цьому раунді. */
   types: readonly QuestionType[];
 }
@@ -535,7 +541,7 @@ function timeInLimits(timeLimit: number): boolean {
 }
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange, types, showPoints = true }: Props) {
+export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
@@ -558,7 +564,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true }:
 
       <div className="stage-card">
         <ImageField url={question.imageUrl} onChange={(imageUrl) => latest.current.onChange({ ...latest.current.question, imageUrl })} />
-        {question.type !== 'chain' && question.type !== 'sort' && (
+        {showVideo && question.type !== 'chain' && question.type !== 'sort' && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -575,17 +581,35 @@ export function QuestionEditor({ question, onChange, types, showPoints = true }:
             onChange={(event) => onChange({ ...question, text: event.target.value })}
           />
         </label>
+        {showHint && (
+          <label className="field hint-field">
+            <span>{t('hintLabel')}</span>
+            <textarea
+              rows={2}
+              value={question.hint ?? ''}
+              maxLength={LIMITS.hintText}
+              placeholder={t('hintPlaceholder')}
+              onChange={(event) => {
+                const { hint: _old, ...rest } = question;
+                // Порожнє значення прибирає ключ, щоб запитання без підказки лишалося як раніше.
+                onChange((event.target.value === '' ? rest : { ...rest, hint: event.target.value }) as Question);
+              }}
+            />
+          </label>
+        )}
         <Body question={question} onChange={onChange} showPoints={showPoints} />
       </div>
 
-      <div className="pair">
-        {question.video === null || !timeInLimits(question.timeLimit) ? (
-          <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
-        ) : (
-          <p className="meta">{t('noTimerHint')}</p>
-        )}
-        {showPoints && question.type !== 'sort' && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
-      </div>
+      {(showTime || (showPoints && question.type !== 'sort')) && (
+        <div className="pair">
+          {!showTime ? null : question.video === null || !timeInLimits(question.timeLimit) ? (
+            <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
+          ) : (
+            <p className="meta">{t('noTimerHint')}</p>
+          )}
+          {showPoints && question.type !== 'sort' && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
+        </div>
+      )}
     </div>
   );
 }

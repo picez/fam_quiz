@@ -230,7 +230,7 @@ describe('QuizEditor', () => {
     for (const name of ['Запитання в залі', 'Підказка ведучого', 'Заміна запитання']) {
       expect((buffs.getByLabelText(new RegExp(name)) as HTMLInputElement).disabled).toBe(false);
     }
-    expect(buffs.queryAllByText(t('powersSoon'))).toHaveLength(0);
+    expect(buffs.queryAllByText(/скоро/)).toHaveLength(0);
 
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
@@ -1552,5 +1552,91 @@ describe('QuizEditor duels', () => {
     const fields = [...section.querySelectorAll('input, textarea')].filter((el) => el !== toggle && !el.closest('.answer-row'));
     expect(fields.length).toBeGreaterThan(5);
     for (const el of fields) expect(el.closest('label.field')).not.toBeNull();
+  });
+});
+
+describe('QuizEditor hints and spares', () => {
+  const base = (): Quiz => {
+    const quiz = newQuiz();
+    return { ...quiz, title: 'Гра', rounds: [{ ...newClassicRound(), questions: [{ ...newQuestion('boolean'), text: 'Так?' }] }] };
+  };
+  const buffs = () => within(screen.getByRole('group', { name: t('powersBuffs') }));
+  const sparesSection = () => within(screen.getByText(t('sparesTitle')).closest('details')!);
+
+  it('all eight buffs can be chosen; «Усі» turns on all eight', async () => {
+    const { onSave } = open(base());
+    buffs().getAllByRole('checkbox').forEach((box) => expect((box as HTMLInputElement).disabled).toBe(false));
+    expect(buffs().queryAllByText(/скоро/)).toHaveLength(0);
+    fireEvent.click(buffs().getByRole('button', { name: t('powersAll') }));
+    expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(8);
+    expect(screen.getByText(t('powersSwapNeedsSpares'))).toBeTruthy();
+    click('Зберегти');
+    await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
+    expect(onSave).not.toHaveBeenCalled();
+    expect(document.querySelector('.problems')!.textContent).toContain(t('problemSparesEmpty'));
+    expect((screen.getByText(t('sparesTitle')).closest('details') as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it('the spare pool: add, edit, remove; saving sends the pool', async () => {
+    const quiz = base();
+    const { onSave } = open({ ...quiz, settings: { ...quiz.settings, buffs: ['swap'] } });
+    fireEvent.click(screen.getByText(t('sparesTitle')));
+    const section = sparesSection();
+    fireEvent.click(section.getByRole('button', { name: t('addSpare') }));
+    expect(section.getByRole('button', { name: /^Запасне 1 · / })).toBeTruthy();
+    const names = within(section.getByRole('group', { name: t('questionType') }))
+      .getAllByRole('button')
+      .map((b) => b.textContent);
+    expect(names).toHaveLength(5);
+    for (const gone of ['порядок', 'пари', 'ланцюжок', 'сортування']) expect(names.some((n) => n?.toLowerCase().includes(gone))).toBe(false);
+    expect(section.queryByLabelText(t('timeLimit'))).toBeNull();
+    expect(section.queryByLabelText(t('pointsLabel'))).toBeNull();
+    expect(section.queryByLabelText(t('hintLabel'))).toBeNull();
+    expect(section.queryByLabelText(t('videoLabel'))).toBeNull();
+    expect(screen.queryByText(t('powersSwapNeedsSpares'))).toBeNull();
+
+    fireEvent.change(section.getByLabelText('Текст запитання'), { target: { value: 'Запасне?' } });
+    fireEvent.change(section.getByLabelText('Варіант 1'), { target: { value: 'А' } });
+    fireEvent.change(section.getByLabelText('Варіант 2'), { target: { value: 'Б' } });
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const sent = saved(onSave);
+    expect(quizSchema.safeParse(sent).success).toBe(true);
+    expect(sent.spares).toHaveLength(1);
+    expect(sent.spares?.[0]).toMatchObject({ type: 'single', text: 'Запасне?' });
+    expect('hint' in sent.spares![0]).toBe(false);
+
+    fireEvent.click(buffs().getByLabelText(/Заміна запитання/));
+    fireEvent.click(sparesSection().getByRole('button', { name: t('removeSpare') }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect('spares' in onSave.mock.calls[1][0]).toBe(false);
+  });
+
+  it('saving is blocked when swap is on and the pool is empty', () => {
+    const quiz = base();
+    const { onSave } = open({ ...quiz, settings: { ...quiz.settings, buffs: ['swap'] } });
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain(t('problemSparesEmpty'));
+  });
+
+  it('a question hint is optional; an empty one is not saved', async () => {
+    const { onSave } = open(base());
+    const field = () => screen.getByLabelText(t('hintLabel')) as HTMLTextAreaElement;
+    expect(field().getAttribute('maxlength')).toBe('200');
+    fireEvent.change(field(), { target: { value: 'Тече через Київ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'один варіант' }));
+    expect(field().value).toBe('Тече через Київ');
+    fireEvent.change(screen.getByLabelText('Варіант 1'), { target: { value: 'А' } });
+    fireEvent.change(screen.getByLabelText('Варіант 2'), { target: { value: 'Б' } });
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(roundQuestions(saved(onSave).rounds[0])[0].hint).toBe('Тече через Київ');
+
+    fireEvent.change(field(), { target: { value: '' } });
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect('hint' in roundQuestions(onSave.mock.calls[1][0].rounds[0])[0]).toBe(false);
   });
 });

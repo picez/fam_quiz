@@ -35,6 +35,7 @@
   --buff-accent: #7ee0ff;
   --buff-used: rgb(245 241 230 / 0.28);
   --buff-active: #b8ff5c;
+  --spare-accent: #ffcf5c;
   /* Нижні смуги (дебаф, дуель) складаються стосом від цієї лінії; room — висота смуги з проміжком. */
   --banner-base: max(1rem, env(safe-area-inset-bottom));
   --debuff-banner-room: 6.25rem;
@@ -4653,9 +4654,27 @@ label.powers-item {
   opacity: 0.6;
 }
 
-.powers-soon {
-  margin-left: auto;
-  font-size: 0.8125rem;
+.powers-warn {
+  color: var(--spare-accent);
+}
+
+.hint-field textarea {
+  font-size: 1rem;
+  max-width: 100%;
+}
+
+/* Розділ «Запасні запитання» в редакторі: як «Дуелі», нічого не ширше за екран. */
+.spares .type-chips .chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.spares .spare-remove {
+  justify-self: start;
+}
+
+.spares textarea {
+  max-width: 100%;
 }
 
 /* Бафи на телефоні. Ряд і рядок пояснень однакові в усіх станах: кнопки не з'являються й не зникають,
