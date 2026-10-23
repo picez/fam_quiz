@@ -98,6 +98,37 @@ describe('Splash', () => {
     expect(container.querySelector<HTMLElement>('.splash')!.style.getPropertyValue('--splash-elapsed')).toBe('-900ms');
   });
 
+  it('re-renders do not move the animation: elapsed is frozen for the same splash', () => {
+    const view = stage({ phase: 'question', questionIndex: 0, splash: { kind: 'question', at: T, until: T + 1200 } });
+    const { container, rerender } = render(<Splash view={view} offsetMs={0} size="stage" />);
+    act(() => vi.advanceTimersByTime(500));
+    rerender(<Splash view={{ ...view, answeredCount: 1 }} offsetMs={0} size="stage" />);
+    expect(container.querySelector<HTMLElement>('.splash')!.style.getPropertyValue('--splash-elapsed')).toBe('0ms');
+  });
+
+  it('a new splash restarts the animation on a fresh layer', () => {
+    const first = stage({ phase: 'question', questionIndex: 0, splash: { kind: 'question', at: T, until: T + 1200 } });
+    const { container, rerender } = render(<Splash view={first} offsetMs={0} size="stage" />);
+    const layer = container.querySelector('.splash');
+    act(() => vi.advanceTimersByTime(500));
+    rerender(<Splash view={{ ...first, questionIndex: 1, splash: { kind: 'question', at: T + 500, until: T + 1700 } }} offsetMs={0} size="stage" />);
+    expect(container.querySelector('.splash')).not.toBe(layer);
+  });
+
+  it('a timer that fires early re-arms instead of leaving the splash forever', () => {
+    const { container } = render(
+      <Splash view={stage({ phase: 'question', questionIndex: 0, splash: { kind: 'question', at: T, until: T + 1200 } })} offsetMs={0} size="stage" />,
+    );
+    // Годинник пристрою відстає від таймера на 1 мс: таймер спрацював, а заставка ще «йде».
+    const realNow = Date.now.bind(Date);
+    const lag = vi.spyOn(Date, 'now').mockImplementation(() => realNow() - 1);
+    act(() => vi.advanceTimersByTime(1200));
+    expect(container.querySelector('.splash')).not.toBeNull();
+    lag.mockRestore();
+    act(() => vi.advanceTimersByTime(1));
+    expect(container.querySelector('.splash')).toBeNull();
+  });
+
   it('no splash while paused or after it ended', () => {
     const { container, rerender } = render(
       <Splash view={stage({ phase: 'question', questionIndex: 0, paused: true, splash: at('question', 1200) })} offsetMs={0} size="stage" />,
@@ -176,6 +207,8 @@ describe('splash styles', () => {
   it('the splash is a fixed layer and moves only without reduced motion', () => {
     expect(rule('.splash')).toContain('position: fixed');
     expect(rule('.splash')).toContain('inset: 0');
+    // Згасла (fill both) заставка ніколи не лишає невидимий шар, що ковтає натискання.
+    expect(rule('.splash')).toContain('pointer-events: none');
     expect(rule('.splash')).toContain('splash-fade');
     const fade = css.slice(css.indexOf('@keyframes splash-fade'), css.indexOf('}\n}', css.indexOf('@keyframes splash-fade')));
     expect(fade).toContain('opacity');

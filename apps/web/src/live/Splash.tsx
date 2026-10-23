@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { BoardInfo, GameView, SplashView } from '@quiz/shared';
 import { splashLeft } from '../clock';
 import { markText, roundLabel } from '../format';
@@ -6,23 +6,30 @@ import { t } from '../i18n';
 
 /** Поточна заставка, поки годинник сервера < until і гра не на паузі; elapsed — скільки мс уже минуло. */
 export function useSplash(splash: SplashView | null, paused: boolean, offsetMs: number): { splash: SplashView; elapsed: number } | null {
-  // Стан лише будить перемальовування; час читається під час кожного рендера (як у Timer).
-  const [, setTick] = useState(0);
+  // Стан лише будить перемальовування; видимість читається під час кожного рендера (як у Timer).
+  const [tick, setTick] = useState(0);
+  const at = splash?.at ?? null;
   const until = splash?.until ?? null;
 
   useEffect(() => {
     if (until === null || paused) return;
     const left = splashLeft({ until }, offsetMs, Date.now());
     if (left <= 0) return;
-    const id = setTimeout(() => setTick((tick) => tick + 1), left);
+    // tick у залежностях: таймер, що спрацював на мить раніше за годинник, ставиться знову.
+    const id = setTimeout(() => setTick((value) => value + 1), left);
     return () => clearTimeout(id);
-  }, [until, paused, offsetMs]);
+  }, [until, paused, offsetMs, tick]);
+
+  // elapsed рахується раз на заставку: зміна animation-delay на живому шарі зсунула б анімацію вперед.
+  // Від кінця, а не від at: після зсуву паузою анімація продовжується з місця зупинки.
+  const elapsed = useMemo(
+    () => (at === null || until === null ? 0 : until - at - splashLeft({ until }, offsetMs, Date.now())),
+    [at, until, offsetMs, paused],
+  );
 
   if (splash === null || paused) return null;
-  const left = splashLeft(splash, offsetMs, Date.now());
-  if (left <= 0) return null;
-  // Від кінця, а не від at: після зсуву паузою анімація продовжується з місця зупинки.
-  return { splash, elapsed: splash.until - splash.at - left };
+  if (splashLeft(splash, offsetMs, Date.now()) <= 0) return null;
+  return { splash, elapsed };
 }
 
 /** Перегортання вибраної клітинки поля: лице — ціна, зворот — категорія, ціна й позначки. */
@@ -119,7 +126,8 @@ export function Splash({ view, offsetMs, size }: { view: GameView; offsetMs: num
   } as CSSProperties;
   // aria-hidden: той самий зміст уже стоїть у розкладці етапу під шаром.
   return (
-    <div className={`splash is-${splash.kind} is-${size}`} aria-hidden="true" style={style}>
+    // key: нова заставка або новий годинник — свіжий шар, тож анімація починається з потрібного місця.
+    <div key={`${splash.at}:${splash.until}:${offsetMs}`} className={`splash is-${splash.kind} is-${size}`} aria-hidden="true" style={style}>
       <SplashContent view={view} kind={splash.kind} />
     </div>
   );

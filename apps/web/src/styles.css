@@ -5113,6 +5113,8 @@ label.powers-item {
     radial-gradient(ellipse 65% 55% at 50% 45%, var(--spot) 0%, transparent 72%),
     var(--splash-bg);
   text-align: center;
+  /* Натискання проходять крізь шар: згасла заставка не ковтає їх, а дії до старту сервер однаково відхиляє. */
+  pointer-events: none;
   animation: splash-fade var(--splash-ms) linear var(--splash-elapsed) both;
 }
 
