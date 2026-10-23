@@ -1,7 +1,9 @@
 import { pause, setConnected, tick, type GameState } from './game';
 
-/** Версія формату GameState для збережених кімнат (9b). Піднімати, коли змінюється форма стану; кімнати іншої версії не відновлюються. */
-export const GAME_STATE_VERSION = 1;
+/** Версія формату GameState для збережених кімнат (9b). Піднімати, коли змінюється форма стану; кімнати іншої версії не відновлюються.
+ * 2 — 9c: DebuffState.by, ScoreAdjustment.target/debuff, QuizSettings.debuffPrices.
+ */
+export const GAME_STATE_VERSION = 2;
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

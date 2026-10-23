@@ -234,7 +234,7 @@ export interface BlitzPlay {
   dropped: BuzzEntry[];
 }
 
-/** Коригування рахунку поза відповідями: бали від ведучого, пізніше — дуелі. */
+/** Коригування рахунку поза відповідями: бали від ведучого, ставки дуелей, покупки дебафів. */
 export interface ScoreAdjustment {
   /** Зростаючий номер у межах гри, від 1. */
   seq: number;
@@ -245,15 +245,21 @@ export interface ScoreAdjustment {
   afterQuestion: number;
   source: AdjustmentSource;
   at: number;
+  /** Лише для source 'debuff': кому куплено дебаф. */
+  target?: string;
+  /** Лише для source 'debuff': який дебаф куплено. */
+  debuff?: DebuffKind;
 }
 
-/** Дебаф від ведучого на гравця. */
+/** Дебаф на гравця: від ведучого або куплений іншим гравцем. */
 export interface DebuffState {
   kind: DebuffKind;
   /** Індекс у plays запитання, у якому дебаф спрацював; null — чекає. */
   firedAt: number | null;
   /** Мить спрацювання; null — чекає. */
   since: number | null;
+  /** Хто купив (id гравця); null — наслав ведучий. */
+  by: string | null;
 }
 
 /** Одне запитання дуелі. */
