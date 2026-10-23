@@ -1189,7 +1189,7 @@ describe('debuff views', () => {
     expect(stageView(state).debuffs).toEqual([{ playerId: 'p1', nickname: 'Олена' }]);
     expect(JSON.stringify(stageView(state))).not.toContain('fog');
     expect(JSON.stringify({ ...playerView(state, 'p2'), me: { ...playerView(state, 'p2')!.me, shop: null } })).not.toContain('fog');
-    expect(hostView(state).players[0].debuff).toEqual({ kind: 'fog', fired: true });
+    expect(hostView(state).players[0].debuff).toEqual({ kind: 'fog', fired: true, by: null });
 
     state = must(lock(state));
     expect(playerView(state, 'p1')?.me.debuff).toBeNull();
