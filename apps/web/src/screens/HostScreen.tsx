@@ -21,6 +21,7 @@ import { Standings } from './Standings';
 import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
 import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
 import { BuffToast } from '../live/LiveNotices';
+import { SplashChip } from '../live/Splash';
 import { HostDuelPanel } from './DuelView';
 
 interface Props {
@@ -119,7 +120,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   // На бліц-клітинці відповідає голова черги, а не вибравший.
   const instant = blitz?.instant === true;
   const answering = blitz !== null ? (instant ? null : (blitz.queue[0] ?? null)) : (board?.turn ?? null);
-  const secondsNow = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
+  // Під час заставки залишок більший за ліміт (таймер стартує після неї): обрізаємо до повного часу, як Timer.
+  const secondsRaw = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
+  const secondsNow = secondsRaw !== null && view.limitMs !== null ? Math.min(secondsRaw, Math.ceil(view.limitMs / 1000)) : secondsRaw;
   const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
   // Спільний час сплив, а розкриття чекає на гравця з додатковим часом: головна кнопка — «Не чекати» (та сама host:lock).
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
@@ -236,6 +239,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   return (
     <main className="app host">
       <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      {/* Пульт заставкою не закривається: лише значок position: fixed у правому верхньому куті. */}
+      <SplashChip view={view} offsetMs={offsetMs} />
       <header className="bar">
         <span>{t('hostTitle')}</span>
         <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>

@@ -30,6 +30,8 @@ export interface AppOptions {
   storage?: ImageStorage;
   /** Тека зі зібраним web-клієнтом. */
   webRoot?: string;
+  /** Заставки переходів; типово вимкнено, справжній сервер (main.ts) вмикає. */
+  transitions?: boolean;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -39,7 +41,7 @@ const BODY_LIMIT = 512 * 1024;
 const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
 
 export async function buildApp(options: AppOptions) {
-  const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng);
+  const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false });
   const recorder = attachRecorder(manager, options.db);
   const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
   // Fastify приймає й кількість проксі; з об'єднаним типом його оголошення вибирають не той вид сервера.

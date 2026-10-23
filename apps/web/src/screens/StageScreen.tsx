@@ -8,6 +8,7 @@ import { MatchColumns, PairList } from './MatchView';
 import { AdjustmentToast, BuffToast, StageDebuffs } from '../live/LiveNotices';
 import { SharedOvertime, StageBuffs } from './Buffs';
 import { DuelBanner, DuelStage } from './DuelView';
+import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { BoardIntro } from './Dice';
@@ -128,6 +129,9 @@ function FinalReveal({ final, question, presented }: { final: FinalInfo; questio
 
 function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'offsetMs'> & { blink: boolean; blinking: ReadonlySet<string> }) {
   const { question, reveal, stats } = view;
+  // Поки йде заставка запитання чи клітинки, запитання під шаром ще не почалося: aria-busy для читачів екрана.
+  const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  const busy = view.phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell');
   if (question === null) return null;
   const correctIds =
     reveal === null
@@ -156,7 +160,7 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
   const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
-    <div className="stage-question">
+    <div className="stage-question" aria-busy={busy || undefined}>
       <header className="bar">
         <span>{questionLabel(view.round, view.questionIndex, view.total)}</span>
         {view.board === null && (
@@ -330,6 +334,8 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      {/* Заставка — шар position: fixed над розкладкою етапу, яка вже стоїть під ним. */}
+      <Splash view={view} offsetMs={offsetMs} size="stage" />
       {/* Значки бафів і дебафів — один стовпчик у кутку, position: fixed. */}
       <div className="stage-tags">
         {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} board={view.board !== null} />}

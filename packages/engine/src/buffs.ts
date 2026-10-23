@@ -29,6 +29,7 @@ import {
 } from './game';
 import { normalizeText } from './normalize';
 import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
+import { notStarted } from './splash';
 
 /** Скільки додає «Додатковий час», мс. */
 export const EXTRA_TIME_MS = 30_000;
@@ -186,7 +187,7 @@ export function answerLimitMs(play: Play, playerId: string): number | null {
 
 /**
  * Чому гравець не може взяти цей баф зараз; null — можна. Дозвіл вікторини не перевіряє.
- * Причину time видно лише з now (зрізи без часу її не показують — сплив час рахує телефон).
+ * Причини not_started і time видно лише з now (зрізи без часу їх не показують — заставку й сплив час рахує телефон).
  */
 export function buffBlock(state: GameState, playerId: string, kind: BuffKind, now?: number): BuffBlock | null {
   if (buffsUsed(state, playerId).includes(kind)) return 'used';
@@ -194,6 +195,7 @@ export function buffBlock(state: GameState, playerId: string, kind: BuffKind, no
   if (play === undefined) return 'elsewhere';
   if (buffOf(play, playerId) !== null) return 'taken';
   if (hasAnswered(state, play, playerId)) return 'answered';
+  if (!state.paused && now !== undefined && notStarted(state, now)) return 'not_started';
   if (!state.paused && now !== undefined && timeOverFor(state, play, playerId, now)) return 'time';
   if (state.paused) return 'paused';
   return placeBlock(state, play, playerId) ?? fitBlock(state, play, playerId, kind);
@@ -209,6 +211,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   const place = placeBlock(state, play, playerId);
   if (place === 'elsewhere') return fail('wrong_phase');
   if (state.paused) return fail('paused');
+  if (notStarted(state, now)) return fail('not_started');
   if (place === 'not_chooser') return fail('not_your_turn');
   if (hasAnswered(state, play, playerId)) return fail('already_answered');
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');

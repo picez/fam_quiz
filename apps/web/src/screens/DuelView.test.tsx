@@ -55,6 +55,7 @@ const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): Player
   notice: null,
   buffs: [],
   buffNotice: null,
+  splash: null,
   overtime: [],
   duel,
   round: null,
@@ -227,6 +228,57 @@ describe('DuelView', () => {
     const tries = document.querySelector('.duel-tries');
     expect(tries).not.toBeNull();
     expect(tries?.children).toHaveLength(0);
+  });
+
+  it('a category picked during the «Дуель!» splash keeps the answer field off until the splash ends', () => {
+    vi.useFakeTimers();
+    try {
+      const now = Date.now();
+      const send = okSend();
+      play({ ...view(duelInfo(), { canAnswer: true }), splash: { kind: 'duel', at: now - 500, until: now + 1500 } }, send);
+      const input = screen.getByLabelText<HTMLInputElement>('Ваша відповідь');
+      expect(input.disabled).toBe(true);
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Відповісти' }).disabled).toBe(true);
+      act(() => vi.advanceTimersByTime(1600));
+      expect(input.disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('the challenger cannot blindly tap a category under the «Дуель!» splash, even with a phone clock off by minutes', () => {
+    vi.useFakeTimers();
+    try {
+      // Годинник телефона відстає на 5 хв: offsetMs — сервер мінус пристрій.
+      const offset = 300_000;
+      const server = Date.now() + offset;
+      const send = okSend();
+      const category = duelInfo({ stage: 'category', category: null, number: 0, question: null });
+      const onError = vi.fn();
+      render(
+        <DuelPlay view={{ ...view(category, { canPick: true }), splash: { kind: 'duel', at: server - 500, until: server + 1500 } }} offsetMs={offset} send={send} onError={onError} />,
+      );
+      const capitals = screen.getByRole<HTMLButtonElement>('button', { name: 'Столиці · лишилося 3' });
+      expect(capitals.disabled).toBe(true);
+      fireEvent.click(capitals);
+      expect(send).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(1600));
+      expect(capitals.disabled).toBe(false);
+      fireEvent.click(capitals);
+      expect(send).toHaveBeenCalledWith('player:duel-category', { categoryId: 'dc1' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('the duel button is off under a splash; an open dialog (above the splash) stays', () => {
+    const duel = playerDuel({ rights: { canDeclare: true, opponents: [petro] } });
+    const { rerender } = render(<DuelButton duel={duel} send={okSend()} onError={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: '⚔ Дуель' }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    rerender(<DuelButton duel={duel} paused send={okSend()} onError={vi.fn()} />);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '⚔ Дуель' }).disabled).toBe(true);
   });
 
   it('spectators see the question, the clock and the score, not the tries', () => {

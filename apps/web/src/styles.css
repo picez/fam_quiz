@@ -37,6 +37,11 @@
   --buff-active: #b8ff5c;
   --spare-accent: #ffcf5c;
   --vote-bar: rgb(126 224 255 / 0.22);
+  /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
+  --splash-bg: rgb(14 16 32);
+  --splash-accent: var(--amber);
+  --final-gold: #ffd166;
+  --final-ray: rgb(255 209 102 / 0.14);
   /* Нижні смуги (дебаф, дуель) складаються стосом від цієї лінії; room — висота смуги з проміжком. */
   --banner-base: max(1rem, env(safe-area-inset-bottom));
   --debuff-banner-room: 6.25rem;
@@ -3494,7 +3499,7 @@ button.match-item {
   bottom: max(1rem, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 60;
+  z-index: 66; /* над заставкою (65): тости ±15 с і бафів не ховаються під нею */
   max-width: calc(100vw - 2rem);
   padding: 0.6rem 1.1rem;
   border: 2px solid var(--notice-up);
@@ -5092,4 +5097,403 @@ label.powers-item {
 .responses-who > .spare-tag {
   flex: none;
   margin-left: 0;
+}
+
+/* Заставки 8c. Шар position: fixed над незмінною розкладкою етапу: поява й зникнення нічого не зсувають.
+   Тривалість — годинник сервера (--splash-ms), від'ємна затримка (--splash-elapsed) — місце, з якого продовжити.
+   Базова анімація — лише проявлення й згасання; рух — тільки за prefers-reduced-motion: no-preference. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 65% 55% at 50% 45%, var(--spot) 0%, transparent 72%),
+    var(--splash-bg);
+  text-align: center;
+  /* Натискання проходять крізь шар: згасла заставка не ковтає їх, а дії до старту сервер однаково відхиляє. */
+  pointer-events: none;
+  animation: splash-fade var(--splash-ms) linear var(--splash-elapsed) both;
+}
+
+@keyframes splash-fade {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Картка на всю ширину шару: заголовок 9rem («Запитання 1») ширший за 60rem, у вужчій картці слово ламалося б посеред літер. Підрядки мають свою межу 60rem. */
+.splash-card {
+  position: relative;
+  max-width: 100%;
+}
+
+.splash-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(4rem, 10vw, 9rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--paper);
+  overflow-wrap: anywhere;
+}
+
+/* Найдовший заголовок «Запитання фіналу» — у вужчому розмірі (≈12 em шириною), щоб стати в один рядок. */
+.splash-title.is-long {
+  font-size: clamp(3rem, 7.5vw, 7rem);
+}
+
+/* Телефон: «Запитання 12» (≈8,6 em) і «Запитання фіналу» (≈12 em) — в один рядок від 320 px; слово ніколи не ламається посередині. */
+.splash.is-phone .splash-title {
+  font-size: clamp(1.75rem, 10vw, 3.25rem);
+  overflow-wrap: normal;
+}
+
+.splash.is-phone .splash-title.is-long {
+  font-size: clamp(1.25rem, 7.2vw, 2.5rem);
+}
+
+/* Підрядок під заголовком: бурштинова риска зверху — табличка ведучого шоу. */
+.splash-sub,
+.splash-pair {
+  max-width: min(100%, 60rem);
+  margin: 0 auto;
+  overflow-wrap: anywhere;
+}
+
+.splash-sub {
+  display: inline-block;
+  margin-top: clamp(1rem, 2.5vw, 2rem);
+  padding-top: clamp(0.5rem, 1.2vw, 1rem);
+  border-top: 0.25rem solid var(--splash-accent);
+  font-size: clamp(1.5rem, 3.2vw, 3rem);
+  font-weight: 600;
+  color: var(--dim);
+}
+
+.splash.is-phone .splash-sub {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top-width: 0.1875rem;
+  font-size: clamp(1.0625rem, 5vw, 1.375rem);
+}
+
+.splash.is-round .splash-sub {
+  color: var(--paper);
+}
+
+.splash.is-question .splash-sub {
+  border-top-color: var(--line);
+}
+
+/* Фінал: золото, промені з центру й іскри — урочистіше за звичайний раунд. */
+.splash.is-final {
+  background:
+    radial-gradient(circle at 50% 48%, rgb(255 209 102 / 0.18) 0%, transparent 45%),
+    radial-gradient(ellipse 65% 55% at 50% 45%, var(--spot) 0%, transparent 72%),
+    var(--splash-bg);
+}
+
+.splash.is-final .splash-title {
+  color: var(--final-gold);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 0.35em rgb(255 209 102 / 0.45);
+}
+
+.splash.is-final .splash-sub {
+  border-top-color: var(--final-gold);
+  color: var(--paper);
+}
+
+.splash-rays {
+  position: absolute;
+  inset: -50%;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, var(--final-ray) 0deg 7deg, transparent 7deg 22.5deg);
+  mask-image: radial-gradient(circle at 50% 50%, #000 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.splash-sparks {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.splash-sparks > span {
+  position: absolute;
+  top: -0.3rem;
+  left: -0.3rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--final-gold);
+  box-shadow: 0 0 0.75rem var(--final-gold);
+  opacity: 0;
+}
+
+/* Дуель: імена кольорами сторін, між ними схрещені мечі. */
+.splash.is-duel .splash-title {
+  color: var(--duel-accent);
+}
+
+.splash-pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25em 0.6em;
+  margin-top: clamp(1rem, 2.5vw, 2rem);
+  font-family: var(--display);
+  font-size: clamp(1.75rem, 4.5vw, 4rem);
+  font-weight: 700;
+}
+
+.splash.is-phone .splash-pair {
+  margin-top: 0.75rem;
+  font-size: clamp(1.25rem, 6.5vw, 1.75rem);
+}
+
+.splash-side {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.splash-side.is-challenger {
+  color: var(--duel-challenger);
+}
+
+.splash-side.is-opponent {
+  color: var(--duel-opponent);
+}
+
+.splash-cross {
+  color: var(--paper);
+}
+
+/* Клітинка поля: лице й зворот у кольорах .gb-cell. Без руху видно зворот у повному розмірі. */
+.splash-flip {
+  position: relative;
+  width: 9rem;
+  height: 6rem;
+  transform: rotateY(180deg) scale(2.4);
+  transform-style: preserve-3d;
+}
+
+.splash.is-phone .splash-flip {
+  width: 6.5rem;
+  height: 4.25rem;
+}
+
+.splash-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  background: var(--stage) linear-gradient(var(--panel), var(--panel));
+  color: var(--paper);
+  font-family: var(--display);
+  backface-visibility: hidden;
+}
+
+.splash-face.is-blitz {
+  border-color: var(--amber);
+  background: var(--stage) linear-gradient(var(--cell-blitz), var(--cell-blitz));
+}
+
+.splash-face.is-voice {
+  border-color: var(--voice);
+  background: var(--stage) linear-gradient(var(--cell-voice), var(--cell-voice));
+}
+
+.splash-face.is-back {
+  transform: rotateY(180deg);
+}
+
+.splash-face.is-front .price {
+  font-size: 2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.splash-cell-title {
+  max-width: 100%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.splash-cell-marks {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.splash-cell-mark {
+  font-size: 0.5625rem;
+  color: var(--amber);
+}
+
+.splash.is-phone .splash-face.is-front .price {
+  font-size: 1.5rem;
+}
+
+.splash.is-phone .splash-cell-title {
+  font-size: 0.5625rem;
+}
+
+.splash.is-phone .splash-cell-mark {
+  font-size: 0.4375rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .splash-card,
+  .splash-rays,
+  .splash-sparks > span,
+  .splash-flip,
+  .splash-side.is-challenger,
+  .splash-side.is-opponent {
+    animation-duration: var(--splash-ms);
+    animation-delay: var(--splash-elapsed);
+    animation-fill-mode: both;
+  }
+
+  .splash-card {
+    animation-name: splash-zoom;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .splash.is-final .splash-rays {
+    animation-name: splash-rays;
+    animation-timing-function: linear;
+  }
+
+  .splash-sparks > span {
+    animation-name: splash-sparks;
+    animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
+  }
+
+  .splash-flip {
+    animation-name: splash-flip;
+    animation-timing-function: ease-in-out;
+  }
+
+  .splash-side.is-challenger {
+    animation-name: splash-slide-left;
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  .splash-side.is-opponent {
+    animation-name: splash-slide-right;
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  @keyframes splash-zoom {
+    0% {
+      transform: scale(0.8);
+    }
+    18% {
+      transform: scale(1);
+    }
+    100% {
+      transform: scale(1.05);
+    }
+  }
+
+  @keyframes splash-rays {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(40deg);
+    }
+  }
+
+  /* Кожна іскра летить зі свого кута (--spark × 30°) від центру назовні й гасне. */
+  @keyframes splash-sparks {
+    0%,
+    12% {
+      transform: rotate(calc(var(--spark) * 30deg)) translateY(0) scale(0.4);
+      opacity: 0;
+    }
+    20% {
+      opacity: 1;
+    }
+    70%,
+    100% {
+      transform: rotate(calc(var(--spark) * 30deg)) translateY(-38vmin) scale(1);
+      opacity: 0;
+    }
+  }
+
+  @keyframes splash-flip {
+    0% {
+      transform: rotateY(0deg) scale(1);
+    }
+    45% {
+      transform: rotateY(180deg) scale(1);
+    }
+    100% {
+      transform: rotateY(180deg) scale(2.4);
+    }
+  }
+
+  @keyframes splash-slide-left {
+    0%,
+    10% {
+      transform: translateX(-40vw);
+    }
+    35%,
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes splash-slide-right {
+    0%,
+    10% {
+      transform: translateX(40vw);
+    }
+    35%,
+    100% {
+      transform: translateX(0);
+    }
+  }
+}
+
+/* Значок для пульта: стоїть поверх, нічого не зсуває й не перехоплює натискань. */
+.splash-chip {
+  position: fixed;
+  top: calc(var(--menu-h) + 0.5rem);
+  right: 1rem;
+  z-index: 60;
+  margin: 0;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--splash-accent);
+  border-radius: 999px;
+  background: var(--notice-bg);
+  color: var(--splash-accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+  pointer-events: none;
 }

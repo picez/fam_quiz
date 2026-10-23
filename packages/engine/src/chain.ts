@@ -5,6 +5,7 @@ import { autoLock, fail, ok, recordOf, withFinalPoints, type AnswerRecord, type 
 import { normalizeText } from './normalize';
 import { chainFactor, finalPoints } from './score';
 import { limitMsOf } from './timing';
+import { notStarted } from './splash';
 
 const LETTER = /\p{L}/u;
 
@@ -56,6 +57,7 @@ type Checked = { ok: true; play: ChainPlay; progress: ChainProgress; startedAt: 
 function checkTurn(state: GameState, playerId: string, now: number): Checked {
   if (state.phase !== 'question') return { ok: false, result: fail('wrong_phase') };
   if (state.paused) return { ok: false, result: fail('paused') };
+  if (notStarted(state, now)) return { ok: false, result: fail('not_started') };
   if (!state.players.some((p) => p.id === playerId)) return { ok: false, result: fail('not_found') };
   const play = chainPlay(state);
   if (play === null) return { ok: false, result: fail('type_mismatch') };

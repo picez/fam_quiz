@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, CloseReason, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
+import { freshSplash } from '../clock';
 import type { Send, SendResult } from './types';
 
 export type Status = 'connecting' | 'live' | 'offline' | 'unauthorized';
@@ -31,7 +32,8 @@ export function useGame(auth: SocketAuth | null) {
     socketRef.current = socket;
 
     socket.on('state', (next, meta) => {
-      setView(next);
+      // Заставка, що скінчилася до відправлення, відкидається за часом сервера, а не за годинником пристрою.
+      setView(freshSplash(next, meta.serverNow));
       setHostOnline(meta.hostOnline);
       setOffsetMs(meta.serverNow - Date.now());
       setStatus('live');

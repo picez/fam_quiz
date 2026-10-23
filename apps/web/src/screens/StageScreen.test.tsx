@@ -27,6 +27,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  splash: null,
   overtime: [],
   duel: null,
   debuffs: [],
@@ -1051,5 +1052,160 @@ describe('StageScreen: duel', () => {
   it('a declared duel shows its banner over the round', () => {
     show(view({ phase: 'reveal', duel: duelInfo({ stage: 'declared' }) }));
     expect(document.querySelector('.duel-banner')).not.toBeNull();
+  });
+});
+
+describe('StageScreen: splashes', () => {
+  const T = 1_000_000;
+  const at = (kind: NonNullable<StageView['splash']>['kind'], ms: number) => ({ kind, at: T, until: T + ms });
+  const round: RoundInfo = { index: 1, total: 3, title: 'Столиці', type: 'classic', partial: false, description: 'Опис', brief: emptyBrief('classic'), times: null };
+  const finalInfo = { theme: 'Космос', placed: 0, total: 3, shown: [], left: 0, mode: 'classic' as const, bank: 0, split: null };
+
+  const timed = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+  };
+  afterEach(() => vi.useRealTimers());
+
+  it('a round splash covers the round intro, which is already in place under it', () => {
+    timed();
+    show(view({ phase: 'intro', round, splash: at('round', 2500) }));
+    const layer = document.querySelector('.splash.is-round');
+    expect(layer?.textContent).toContain('Раунд 2');
+    expect(layer?.textContent).toContain('Столиці');
+    const heading = document.querySelector('h1.question');
+    expect(heading?.textContent).toBe('Столиці');
+    expect(document.querySelector('.round-brief')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(document.querySelector('h1.question')).toBe(heading);
+  });
+
+  it('the question is in place under «Запитання N»; the timer shows the full time', () => {
+    timed();
+    show(view({ phase: 'question', round, questionIndex: 0, question, endsAt: T + 21_200, limitMs: 20_000, splash: at('question', 1200) }));
+    expect(document.querySelector('.splash.is-question')).not.toBeNull();
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('20');
+    act(() => {
+      vi.advanceTimersByTime(1200);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('20');
+  });
+
+  it('a picked cell flips on the stage', () => {
+    timed();
+    const cell = { id: 'c1', category: 'Міста', price: 300, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+    const board = { rows: [], cell, turn: null, dice: null, schedule: [] } as unknown as BoardInfo;
+    show(view({ phase: 'question', questionIndex: 0, question, board, endsAt: T + 21_000, limitMs: 20_000, splash: at('cell', 1000) }));
+    expect(document.querySelector('.splash .splash-flip')?.textContent).toContain('Міста · 300');
+  });
+
+  it('the cell flip shows the price in front, the ×2 mark and the blitz and voice colours behind; it goes away after 1 s', () => {
+    timed();
+    const base = { id: 'c1', category: 'Міста', price: 300, mark: 'x2' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+    const boardOf = (cell: typeof base | Record<string, unknown>) => ({ rows: [], cell, turn: null, dice: null, schedule: [] }) as unknown as BoardInfo;
+    const onCell = (cell: typeof base | Record<string, unknown>) =>
+      show(view({ phase: 'question', questionIndex: 0, question, board: boardOf(cell), endsAt: T + 21_000, limitMs: 20_000, splash: at('cell', 1000) }));
+
+    onCell(base);
+    expect(document.querySelector('.splash-face.is-front .price')?.textContent).toBe('300');
+    expect(document.querySelector('.splash-face.is-back .splash-cell-marks')?.textContent).toBe('×2');
+    expect(document.querySelector('.splash-face.is-blitz, .splash-face.is-voice')).toBeNull();
+    // Запитання під шаром ще не почалося: aria-busy, поки йде перегортання.
+    expect(document.querySelector('.stage-question')?.getAttribute('aria-busy')).toBe('true');
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(document.querySelector('.stage-question')?.hasAttribute('aria-busy')).toBe(false);
+    cleanup();
+
+    vi.setSystemTime(T);
+    onCell({ ...base, mark: 'none', kind: 'blitz' });
+    expect(document.querySelectorAll('.splash-face.is-blitz')).toHaveLength(2);
+    expect(document.querySelector('.splash-cell-marks')?.textContent).toBe('Бліц');
+    cleanup();
+
+    onCell({ ...base, mark: 'none', answerMode: 'voice' });
+    expect(document.querySelectorAll('.splash-face.is-voice')).toHaveLength(2);
+    expect(document.querySelector('.splash-cell-marks')).toBeNull();
+  });
+
+  it('duel and podium splashes go away after their time; the screen under them stays', () => {
+    timed();
+    show(view({ phase: 'duel', duel: duelInfo({ stage: 'category', category: null, question: null, number: 0 }), splash: at('duel', 2000) }));
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(document.querySelector('.splash.is-duel')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(screen.getByText('Оля вибирає категорію')).toBeTruthy();
+    cleanup();
+
+    vi.setSystemTime(T);
+    const standings = [{ participantId: 'p1', nickname: 'Олена', score: 500, totalTimeMs: 1, rank: 1 }];
+    show(view({ phase: 'finished', standings, splash: at('podium', 2500) }));
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(screen.getAllByText('Олена').length).toBeGreaterThan(0);
+  });
+
+  it('after a pause the splash comes back with its shifted end and plays the rest', () => {
+    timed();
+    const props = { phase: 'question' as const, round, questionIndex: 0, question, limitMs: 20_000 };
+    const { rerender } = show(view({ ...props, endsAt: T + 21_200, splash: at('question', 1200) }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    const rerenderWith = (current: StageView) =>
+      rerender(<StageScreen view={current} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    rerenderWith(view({ ...props, paused: true, endsAt: null, remainingMs: 20_000, splash: at('question', 1200) }));
+    expect(document.querySelector('.splash')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    // Сервер зсунув заставку на паузу: лишилося 700 мс.
+    rerenderWith(view({ ...props, endsAt: T + 31_200, splash: { kind: 'question', at: T + 10_000, until: T + 11_200 } }));
+    expect(document.querySelector('.splash.is-question')).not.toBeNull();
+    expect(document.querySelector('.stage-question')?.getAttribute('aria-busy')).toBe('true');
+    act(() => {
+      vi.advanceTimersByTime(699);
+    });
+    expect(document.querySelector('.splash')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+  });
+
+  it('the final, duel and podium splashes', () => {
+    timed();
+    const finalRound: RoundInfo = { ...round, type: 'final', title: '' };
+    show(view({ phase: 'intro', round: finalRound, final: finalInfo, splash: at('final', 3200) }));
+    expect(document.querySelector('.splash.is-final')?.textContent).toContain('Фінал');
+    cleanup();
+    show(view({ phase: 'duel', duel: duelInfo({ stage: 'category', category: null, question: null, number: 0 }), splash: at('duel', 2000) }));
+    expect(document.querySelector('.splash.is-duel')?.textContent).toContain('Дуель!');
+    expect(document.querySelector('.splash.is-duel')?.textContent).toContain('Оля');
+    cleanup();
+    const standings = [{ participantId: 'p1', nickname: 'Олена', score: 500, totalTimeMs: 1, rank: 1 }];
+    show(view({ phase: 'finished', standings, splash: at('podium', 2500) }));
+    expect(document.querySelector('.splash.is-podium')?.textContent).toContain('Підсумки');
+    expect(screen.getAllByText('Олена').length).toBeGreaterThan(0);
+  });
+
+  it('no splash while paused', () => {
+    timed();
+    show(view({ phase: 'question', round, questionIndex: 0, question, paused: true, splash: at('question', 1200) }));
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(screen.getByRole('status').textContent).toBeTruthy();
   });
 });

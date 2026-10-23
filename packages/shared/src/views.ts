@@ -1,5 +1,5 @@
 import type { Answer } from './answer';
-import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage } from './game';
+import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, SplashKind } from './game';
 import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video, WagerMode } from './quiz';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
@@ -518,8 +518,17 @@ interface BaseView {
   buffs: BuffTag[];
   /** Останній узятий баф у грі; null — не було. */
   buffNotice: BuffNotice | null;
+  /** Заставка поточного етапу (round/final — intro, question/cell — question, duel — duel, podium — finished); інакше null. */
+  splash: SplashView | null;
   /** Гравці з додатковим часом без відповіді (етап question) — від миті, коли баф узято, а не лише після спільного кінця; інакше []. */
   overtime: OvertimeRow[];
+}
+
+/** Заставка переходу: вид і час сервера початку й кінця; клієнт показує її, поки годинник сервера < until. */
+export interface SplashView {
+  kind: SplashKind;
+  at: number;
+  until: number;
 }
 
 export interface StageView extends BaseView {
