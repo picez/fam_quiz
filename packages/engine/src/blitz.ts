@@ -194,6 +194,11 @@ export function nextDeadline(state: GameState, now: number): number | null {
     if (state.paused || since === null) return null;
     return since + BOARD_AWAY_MS > now ? since + BOARD_AWAY_MS : null;
   }
+  // Годинник запитання дуелі; на інших етапах дуелі чекати нічого.
+  if (state.phase === 'duel') {
+    if (state.paused || state.endsAt === null) return null;
+    return state.endsAt > now ? state.endsAt : null;
+  }
   // Під час утримання годинник стоїть: tick нічого не змінить, доки ведучий не вирішить.
   if (state.phase !== 'question' || state.paused || state.heldAt !== null) return null;
   const away = state.board?.awaySince ?? null;

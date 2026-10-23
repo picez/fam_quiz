@@ -27,7 +27,7 @@ import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, ent
 import { chainDone, scoreChain } from './chain';
 import { scoreSort, shiftSortLocks } from './sort';
 import { fireDebuffs, spendDebuffs } from './debuffs';
-import { advanceDuel, beginDuel, duelDue, tickDuel } from './duel';
+import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -404,8 +404,23 @@ export function removePlayer(state: GameState, playerId: string): Result {
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
   const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
   const { [playerId]: _debuff, ...debuffs } = state.debuffs;
+  // Дуель з вилученим скасовується; якщо вилучено суперника до підсумку, той, хто оголосив, отримує право назад.
+  const duel = state.duel;
+  const inDuel = duel !== null && (duel.challengerId === playerId || duel.opponentId === playerId);
+  const regained = inDuel && duel.opponentId === playerId && duel.stage !== 'result' ? duel.challengerId : null;
+  const duelsDeclared = state.duelsDeclared.filter((id) => id !== playerId && id !== regained);
+  const undueled = inDuel ? dropDuel(state) : state;
   // Без вилученого банк фіналу менший: бали решти перераховуються.
-  const kicked = withTotals({ ...state, players: state.players.filter((p) => p.id !== playerId), plays, board, final, adjustments, debuffs });
+  const kicked = withTotals({
+    ...undueled,
+    players: state.players.filter((p) => p.id !== playerId),
+    plays,
+    board,
+    final,
+    adjustments,
+    debuffs,
+    duelsDeclared,
+  });
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   return ok(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)));
 }
@@ -1139,13 +1154,15 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   }
 }
 
-const IN_ROUND: Phase[] = ['intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
+const IN_ROUND: Phase[] = ['intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard', 'duel'];
 
 /** Ведучий завершує раунд достроково; незіграні запитання раунду так і лишаються незіграними. */
 export function endRound(state: GameState, now: number): Result {
   if (!IN_ROUND.includes(state.phase)) return fail('wrong_phase');
+  // Поточна дуель скасовується (оголошена, ще не почата, лишається й стартує з round_end).
+  const current = state.phase === 'duel' ? dropDuel(state) : state;
   // Відкрите запитання спершу закривається й оцінюється, як при lock.
-  const closed = state.phase === 'question' ? lockNow(state) : state;
+  const closed = current.phase === 'question' ? lockNow(current) : current;
   // Після відкриття запитання фіналу мовчання оцінюється, а всіх вважають розкритими.
   const settled = finalPlayOf(closed) !== undefined ? closeFinal(closed) : closed;
   return ok(finishRound({ ...settled, paused: false, startedAt: null, endsAt: null, remainingMs: null }));
@@ -1156,7 +1173,7 @@ export function pause(state: GameState, now: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   // Під час утримання годинник уже стоїть: пауза його не чіпає.
   if (state.phase === 'question' && state.heldAt !== null) return ok({ ...state, paused: true, pausedAt: now });
-  if (state.phase === 'question' && state.endsAt !== null) {
+  if ((state.phase === 'question' || state.phase === 'duel') && state.endsAt !== null) {
     const remainingMs = Math.max(0, state.endsAt - now);
     return ok({ ...state, paused: true, pausedAt: now, remainingMs, startedAt: null, endsAt: null });
   }
@@ -1169,6 +1186,11 @@ export function resume(state: GameState, now: number): Result {
   if (state.phase === 'question' && state.heldAt !== null) {
     // Якщо утримання знялося, а відповідати вже нікому, запитання закривається одразу.
     return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now), now));
+  }
+  if (state.phase === 'duel' && state.remainingMs !== null) {
+    const endsAt = now + state.remainingMs;
+    const startedAt = endsAt - (state.quiz.duels?.timeLimit ?? 0) * 1000;
+    return ok({ ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt });
   }
   if (state.phase === 'question' && state.remainingMs !== null) {
     const limitMs = limitMsOf(state.plays[state.questionIndex]) ?? 0;
@@ -1309,6 +1331,7 @@ export function end(state: GameState): Result {
       endsAt: null,
       remainingMs: null,
       heldAt: null,
+      duel: null,
     }),
   );
 }
