@@ -1,6 +1,8 @@
 import {
   allowedBuffs,
   rulesOf,
+  type Answer,
+  SIMPLE_TYPES,
   type BuffBlock,
   type BuffKind,
   type BuffNotice,
@@ -14,6 +16,7 @@ import {
   autoLock,
   fail,
   ok,
+  present,
   recordOf,
   revealNow,
   withCurrentPlay,
@@ -24,10 +27,20 @@ import {
   type Result,
   type Rng,
 } from './game';
-import { grantOvertime, isTimed, timeOverFor } from './timing';
+import { normalizeText } from './normalize';
+import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
 
 /** Скільки додає «Додатковий час», мс. */
 export const EXTRA_TIME_MS = 30_000;
+
+/** Скільки триває голосування залу, мс. */
+export const AUDIENCE_MS = 15_000;
+
+/** Запасне запитання дає щонайменше стільки часу, мс. */
+export const SWAP_MIN_MS = 20_000;
+
+/** Скільки рядків здогадок показує підсумок голосування. */
+const MAX_GUESSES = 6;
 
 /** Баф гравця на одному запитанні. */
 export interface BuffPlay {
@@ -42,10 +55,13 @@ export interface BuffPlay {
   retry: RetryStage | null;
   /** retry: перша відповідь (неправильна або часткова), поки друга не зарахована; інакше null. */
   first: AnswerRecord | null;
+  /** audience: голосування; лише в бафі audience. */
+  vote?: { endsAt: number; ballots: Record<string, Answer> };
+  /** hint: text null — чекає ведучого; aloud — ведучий підказав уголос; лише в бафі hint. */
+  hint?: { text: string | null; aloud: boolean };
+  /** swap: id запасного, порядок його варіантів, мить видачі, межа для бонусу швидкості (null — без таймера). */
+  spare?: { id: string; presented: string[]; startedAt: number; limitMs: number | null };
 }
-
-/** Типи запитань, на які діє друга спроба. */
-const RETRY_TYPES: Question['type'][] = ['single', 'multi', 'boolean', 'text', 'numeric'];
 
 /** Баф гравця на запитанні; null — немає. */
 export function buffOf(play: Play | undefined, playerId: string): BuffPlay | null {
@@ -99,13 +115,24 @@ export function buffsHere(state: GameState, play: Play, playerId: string): boole
 }
 
 /** Відповідь гравця вже надіслана або чекає на ведучого. */
-function hasAnswered(state: GameState, play: Play, playerId: string): boolean {
+export function hasAnswered(state: GameState, play: Play, playerId: string): boolean {
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return true;
   return play.board !== undefined && play.board.chooserId === playerId && play.board.answer !== null;
 }
 
+/** Чи може гравець голосувати за askerId (без перевірки часу й повторного голосу). */
+export function canVote(state: GameState, voterId: string, askerId: string): boolean {
+  const play = state.plays[state.questionIndex];
+  if (play === undefined || voterId === askerId || !state.players.some((p) => p.id === voterId)) return false;
+  // На полі голосують усі, крім вибравшого; у класиці — ті, хто вже відповів (перша спроба, що чекає другої, не рахується).
+  if (play.board !== undefined) return voterId !== play.board.chooserId;
+  // Хто відповідав на запасне, бачив інше запитання: голос за основне від нього нічого не значить.
+  if (buffOf(play, voterId)?.spare !== undefined) return false;
+  return recordOf(state, state.questionIndex, voterId) !== undefined;
+}
+
 /** Чи баф пасує запитанню; null — так. */
-function fitBlock(state: GameState, play: Play, kind: BuffKind): BuffBlock | null {
+function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind): BuffBlock | null {
   const round = state.quiz.rounds[play.roundIndex];
   const { question } = play;
   switch (kind) {
@@ -113,15 +140,48 @@ function fitBlock(state: GameState, play: Play, kind: BuffKind): BuffBlock | nul
       if (question.type !== 'single' && question.type !== 'multi') return 'unfit_type';
       return fiftyCount(question) === 0 ? 'unfit_options' : null;
     case 'retry':
-      if (!RETRY_TYPES.includes(question.type)) return 'unfit_type';
+      if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
       return round.type === 'board' && round.check === 'manual' ? 'unfit_manual' : null;
     case 'time':
       return isTimed(question) ? null : 'unfit_timer';
     case 'shield':
       return rulesOf(round).penalty === 'none' ? 'unfit_penalty' : null;
-    default:
+    case 'double':
+    case 'hint':
       return null;
+    case 'audience':
+      if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
+      return state.players.some((p) => p.connected && canVote(state, p.id, playerId)) ? null : 'no_voters';
+    case 'swap':
+      return nextSpare(state) === null ? 'spares_out' : null;
   }
+  // Новий вид бафу без власної гілки не пройде перевірку типів.
+  const unknown: never = kind;
+  return unknown;
+}
+
+/** Наступне невикористане запасне; null — пулу немає або він вичерпаний. */
+export function nextSpare(state: GameState): Question | null {
+  return (state.quiz.spares ?? []).find((spare) => !state.sparesUsed.includes(spare.id)) ?? null;
+}
+
+/** Запитання, на яке відповідає гравець: запасне після заміни, інакше основне. */
+export function questionFor(state: GameState, play: Play, playerId: string): Question {
+  const spare = buffOf(play, playerId)?.spare;
+  if (spare === undefined) return play.question;
+  // Запасне видано з пулу цієї гри; якщо його там немає, лишається основне.
+  return (state.quiz.spares ?? []).find((q) => q.id === spare.id) ?? play.question;
+}
+
+/** Порядок варіантів того, що бачить гравець: presented запасного або state.presented. */
+export function presentedFor(state: GameState, play: Play, playerId: string): string[] {
+  return buffOf(play, playerId)?.spare?.presented ?? state.presented;
+}
+
+/** Межа для бонусу швидкості: limitMs запасного або limitMsOf(play). */
+export function answerLimitMs(play: Play, playerId: string): number | null {
+  const spare = buffOf(play, playerId)?.spare;
+  return spare === undefined ? limitMsOf(play) : spare.limitMs;
 }
 
 /**
@@ -136,7 +196,7 @@ export function buffBlock(state: GameState, playerId: string, kind: BuffKind, no
   if (hasAnswered(state, play, playerId)) return 'answered';
   if (!state.paused && now !== undefined && timeOverFor(state, play, playerId, now)) return 'time';
   if (state.paused) return 'paused';
-  return placeBlock(state, play, playerId) ?? fitBlock(state, play, kind);
+  return placeBlock(state, play, playerId) ?? fitBlock(state, play, playerId, kind);
 }
 
 /** Узяти баф на поточне запитання. fifty тягне rng; time дає гравцеві особистий час понад спільний кінець. */
@@ -153,7 +213,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   if (hasAnswered(state, play, playerId)) return fail('already_answered');
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (buffOf(play, playerId) !== null) return fail('buff_busy');
-  if (fitBlock(state, play, kind) !== null) return fail('buff_unfit');
+  if (fitBlock(state, play, playerId, kind) !== null) return fail('buff_unfit');
   const seq = state.buffSeq + 1;
   const buff: BuffPlay = {
     kind,
@@ -162,9 +222,31 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
     removed: kind === 'fifty' ? pickRemoved(play.question, rng) : [],
     retry: kind === 'retry' ? 'armed' : null,
     first: null,
+    ...(kind === 'audience' ? { vote: { endsAt: now + AUDIENCE_MS, ballots: {} } } : {}),
+    ...(kind === 'hint' ? { hint: { text: play.question.hint ?? null, aloud: false } } : {}),
   };
+  if (kind === 'swap') return ok(takeSpare(state, play, playerId, buff, now, rng));
   const taken = withCurrentPlay({ ...state, buffSeq: seq }, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
   return ok(kind === 'time' ? grantOvertime(taken, playerId, EXTRA_TIME_MS) : taken);
+}
+
+/**
+ * Заміна: наступне запасне (fitBlock гарантує, що воно є) з власним порядком варіантів і часом
+ * щонайменше SWAP_MIN_MS — особистим понад спільний кінець. Без таймера — без особистого часу.
+ */
+function takeSpare(state: GameState, play: Play, playerId: string, buff: BuffPlay, now: number, rng: Rng): GameState {
+  const spare = nextSpare(state);
+  if (spare === null) return state;
+  const round = state.quiz.rounds[play.roundIndex];
+  const timed = isTimed(play.question) && state.endsAt !== null;
+  const endsAt = state.endsAt ?? now;
+  const limitMs = timed ? Math.max(endsAt - now, SWAP_MIN_MS) : null;
+  const withSpare: BuffPlay = { ...buff, spare: { id: spare.id, presented: present(spare, round.shuffleOptions, rng), startedAt: now, limitMs } };
+  const taken = withCurrentPlay(
+    { ...state, buffSeq: buff.seq, sparesUsed: [...state.sparesUsed, spare.id] },
+    { ...play, buffs: { ...play.buffs, [playerId]: withSpare } },
+  );
+  return timed ? grantOvertime(taken, playerId, Math.max(0, now + SWAP_MIN_MS - endsAt)) : taken;
 }
 
 /** Змінює баф гравця на поточному запитанні; без бафу стан без змін. */
@@ -220,6 +302,94 @@ export function settleRetries(state: GameState): GameState {
   return settled;
 }
 
+/**
+ * Чи голосування гравця відкрите на мить now: етап question, не пізніше endsAt, гравець з бафом ще не відповів.
+ * На паузі час стоїть: рахується мить паузи.
+ */
+export function voteOpen(state: GameState, askerId: string, now: number): boolean {
+  const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
+  const vote = buffOf(play, askerId)?.vote;
+  if (play === undefined || vote === undefined) return false;
+  const at = state.paused && state.pausedAt !== null ? state.pausedAt : now;
+  return at <= vote.endsAt && !hasAnswered(state, play, askerId);
+}
+
+/** Підсумок голосування: counts — за id варіанта (boolean — "true"/"false"); guesses — для text і numeric, не більше шести рядків. */
+export function voteTally(
+  question: Question,
+  ballots: Record<string, Answer>,
+): { cast: number; counts: Record<string, number>; guesses: { text: string; count: number }[] } {
+  const counts: Record<string, number> = {};
+  const groups = new Map<string, { text: string; count: number }>();
+  const bump = (key: string) => {
+    counts[key] = (counts[key] ?? 0) + 1;
+  };
+  const guess = (key: string, text: string) => {
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, { text, count: 1 });
+    else group.count += 1;
+  };
+  const cast = Object.values(ballots);
+  for (const ballot of cast) {
+    if (ballot.type !== question.type) continue;
+    if (ballot.type === 'single') bump(ballot.optionId);
+    else if (ballot.type === 'multi') new Set(ballot.optionIds).forEach(bump);
+    else if (ballot.type === 'boolean') bump(String(ballot.value));
+    else if (ballot.type === 'text') guess(normalizeText(ballot.value), ballot.value.trim());
+    else if (ballot.type === 'numeric') guess(String(ballot.value), String(ballot.value));
+  }
+  // Map зберігає порядок першого голосу, а сортування стабільне: рівні йдуть за першим голосом.
+  const guesses = [...groups.values()].sort((a, b) => b.count - a.count).slice(0, MAX_GUESSES);
+  return { cast: cast.length, counts, guesses };
+}
+
+/** Голос за гравця з бафом audience: голос — відповідь того самого типу, що й запитання; один на голосування. */
+export function castVote(state: GameState, voterId: string, askerId: string, answer: Answer, now: number): Result {
+  if (!state.players.some((p) => p.id === voterId)) return fail('not_found');
+  if (state.phase !== 'question') return fail('wrong_phase');
+  if (state.paused) return fail('paused');
+  const play = state.plays[state.questionIndex];
+  const buff = buffOf(play, askerId);
+  if (buff?.kind !== 'audience' || buff.vote === undefined) return fail('not_found');
+  if (!canVote(state, voterId, askerId)) return fail('vote_denied');
+  if (!voteOpen(state, askerId, now)) return fail('vote_closed');
+  if (Object.hasOwn(buff.vote.ballots, voterId)) return fail('already_answered');
+  if (answer.type !== play.question.type) return fail('type_mismatch');
+  return ok(withBuff(state, askerId, { vote: { ...buff.vote, ballots: { ...buff.vote.ballots, [voterId]: answer } } }));
+}
+
+/** Відповідь ведучого на запит підказки: text — підказка текстом, null — «Підказав уголос». Пауза не заважає. */
+export function giveHint(state: GameState, playerId: string, text: string | null): Result {
+  if (state.phase !== 'question') return fail('wrong_phase');
+  const hint = buffOf(state.plays[state.questionIndex], playerId)?.hint;
+  // Немає бафу hint, що чекає: уже підказано або підказка з редактора.
+  if (hint === undefined || hint.text !== null || hint.aloud) return fail('not_found');
+  return ok(withBuff(state, playerId, { hint: { text, aloud: text === null } }));
+}
+
+/** Після паузи: endsAt голосувань і startedAt запасних поточного запитання зсуваються на shiftMs. */
+export function shiftBuffClocks(state: GameState, shiftMs: number): GameState {
+  const play = state.plays[state.questionIndex];
+  if (play?.buffs === undefined || shiftMs === 0) return state;
+  const shifted = (buff: BuffPlay): BuffPlay => ({
+    ...buff,
+    ...(buff.vote === undefined ? {} : { vote: { ...buff.vote, endsAt: buff.vote.endsAt + shiftMs } }),
+    ...(buff.spare === undefined ? {} : { spare: { ...buff.spare, startedAt: buff.spare.startedAt + shiftMs } }),
+  });
+  const buffs = Object.fromEntries(Object.entries(play.buffs).map(([id, buff]) => [id, shifted(buff)]));
+  return withCurrentPlay(state, { ...play, buffs });
+}
+
+/** Вилучений гравець зникає з голосів усіх голосувань запитання. */
+export function dropBallots(buffs: Record<string, BuffPlay>, playerId: string): Record<string, BuffPlay> {
+  const dropped = (buff: BuffPlay): BuffPlay => {
+    if (buff.vote === undefined || !Object.hasOwn(buff.vote.ballots, playerId)) return buff;
+    const { [playerId]: _ballot, ...ballots } = buff.vote.ballots;
+    return { ...buff, vote: { ...buff.vote, ballots } };
+  };
+  return Object.fromEntries(Object.entries(buffs).map(([id, buff]) => [id, dropped(buff)]));
+}
+
 /** 50/50: fiftyCount разів випадковий неправильний варіант з тих, що лишилися. */
 function pickRemoved(question: Question, rng: Rng): string[] {
   const pool = wrongOptions(question);
@@ -228,14 +398,15 @@ function pickRemoved(question: Question, rng: Rng): string[] {
   return removed;
 }
 
-/** Для withRecord: подвійні (+ ×2) і щит (− → 0), позначка buff. Вхід — запис без бафу. */
+/** Для withRecord: подвійні (+ ×2) і щит (− → 0), позначки buff і spare. Вхід — запис без бафу. */
 export function applyBuff(record: AnswerRecord, buff: BuffPlay | null): AnswerRecord {
-  const { buff: _stale, ...raw } = record;
+  const { buff: _stale, spare: _staleSpare, ...raw } = record;
   if (buff === null) return raw;
   const doubled = buff.kind === 'double' && raw.basePoints > 0;
   const shielded = buff.kind === 'shield' && raw.basePoints < 0;
   const basePoints = doubled ? raw.basePoints * 2 : shielded ? 0 : raw.basePoints;
-  return { ...raw, basePoints, points: basePoints + raw.streakBonus, buff: buff.kind };
+  const spare = buff.kind === 'swap' && buff.spare !== undefined ? { spare: buff.spare.id } : {};
+  return { ...raw, basePoints, points: basePoints + raw.streakBonus, buff: buff.kind, ...spare };
 }
 
 /** Етапи, на яких значки бафів поточного запитання ще видно. */

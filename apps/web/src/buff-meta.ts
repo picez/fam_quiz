@@ -1,15 +1,16 @@
 import type { BuffKind } from '@quiz/shared';
 import { t, type TextKey } from './i18n';
 
+/** Значки — одноколірні текстові гліфи (не кольорові емодзі): на темному тлі всі вісім однаково контрастні. */
 export const BUFF_ICONS: Record<BuffKind, string> = {
   fifty: '½',
   double: '×2',
   retry: '↻',
   time: '⏱',
   shield: '🛡',
-  audience: '👥',
-  hint: '💡',
-  swap: '🔄',
+  audience: '%',
+  hint: '?',
+  swap: '⇄',
 };
 
 export function buffName(kind: BuffKind): string {

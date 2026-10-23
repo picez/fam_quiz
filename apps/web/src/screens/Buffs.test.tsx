@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerActiveBuff, PlayerBuffs, PublicQuestion } from '@quiz/shared';
+import type { PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
+// Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import type { Send } from '../live/types';
-import { BuffRow, OvertimeLine, RetryPrompt } from './Buffs';
+import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, StageBuffs, VoteSheet } from './Buffs';
 
 const NOW = 1_000_000;
 
@@ -31,7 +34,7 @@ const active: PlayerBuffs = {
     { kind: 'double', state: 'blocked', block: 'taken' },
     { kind: 'shield', state: 'blocked', block: 'taken' },
   ],
-  active: { kind: 'fifty', removed: ['a'], retry: null, first: null },
+  active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false },
 };
 
 const used: PlayerBuffs = {
@@ -181,13 +184,13 @@ describe('Buffs', () => {
 
   it('retry prompt: again or keep / more', async () => {
     const send = okSend();
-    const again: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'again', first: { answer: { type: 'numeric', value: 3 }, points: 0 } };
+    const again: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'again', first: { answer: { type: 'numeric', value: 3 }, points: 0 }, hint: null, votes: null, spare: false };
     render(<RetryPrompt active={again} question={question} send={send} onError={vi.fn()} />);
     expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
     cleanup();
 
-    const choice: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'choice', first: { answer: { type: 'numeric', value: 42 }, points: 750 } };
+    const choice: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'choice', first: { answer: { type: 'numeric', value: 42 }, points: 750 }, hint: null, votes: null, spare: false };
     render(<RetryPrompt active={choice} question={question} send={send} onError={vi.fn()} />);
     expect(screen.getByText(/Частково правильно: \+750\. Залишити чи ще спроба\?/)).toBeTruthy();
     await act(async () => {
@@ -250,7 +253,222 @@ describe('Buffs', () => {
   });
 
   it('the again prompt stands in the explanation line, not above the options', () => {
-    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 } } });
+    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 }, hint: null, votes: null, spare: false } });
     expect(why().textContent).toBe('Неправильно, ще одна спроба');
+  });
+});
+
+// Тести запускаються з кореня репозиторію або з apps/web.
+const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+
+/** Тіло першого правила з точно цим селектором у styles.css. */
+function rule(selector: string): string {
+  const start = css.indexOf(`\n${selector} {`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  return css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+}
+
+const single: PublicQuestion = {
+  ...question,
+  type: 'single',
+  text: 'Столиця України?',
+  choices: [
+    { id: 'a', text: 'Львів' },
+    { id: 'b', text: 'Київ' },
+    { id: 'c', text: 'Одеса' },
+    { id: 'd', text: 'Харків' },
+  ],
+};
+const text: PublicQuestion = { ...question, type: 'text' };
+
+const base: PlayerActiveBuff = { kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false };
+const tally = (over: Partial<VoteTally> = {}): VoteTally => ({ endsAt: NOW + 15_000, remainingMs: null, closed: false, cast: 0, counts: {}, guesses: [], ...over });
+const audience = (votes: VoteTally): PlayerActiveBuff => ({ ...base, kind: 'audience', votes });
+
+describe('BuffPanel', () => {
+  it('the buff panel keeps its size for waiting, text, votes and guesses', () => {
+    const cases: [PlayerActiveBuff, PublicQuestion, string][] = [
+      [{ ...base, hint: { state: 'waiting', text: null } }, single, 'Ведучий думає…'],
+      [{ ...base, hint: { state: 'text', text: 'Д'.repeat(200) } }, single, `? ${'Д'.repeat(200)}`],
+      [{ ...base, hint: { state: 'aloud', text: null } }, single, 'Ведучий підказав уголос'],
+      [audience(tally()), single, 'Чекаємо голосів…'],
+      [audience(tally({ cast: 2, counts: { b: 1, c: 1 } })), single, 'Київ'],
+      [
+        audience(tally({ cast: 6, guesses: ['А', 'Б', 'В', 'Г', 'Ґ', 'Д'].map((g) => ({ text: g, count: 1 })) })),
+        text,
+        'Здогадки залу: А ×1, Б ×1, В ×1, Г ×1, Ґ ×1, Д ×1',
+      ],
+    ];
+    for (const [active, q, shown] of cases) {
+      const { container, unmount } = render(<BuffPanel active={active} question={q} offsetMs={0} />);
+      const panels = container.querySelectorAll('section');
+      expect(panels).toHaveLength(1);
+      expect(panels[0].className).toBe('buff-panel');
+      expect(panels[0].getAttribute('aria-live')).toBe('polite');
+      expect(panels[0].textContent).toContain(shown);
+      unmount();
+    }
+    // Сталий розмір — у CSS: висота не залежить від вмісту, зайве прокручується всередині.
+    const panel = rule('.buff-panel');
+    expect(panel).toMatch(/(^|[;\s])height:\s*6\.5rem/);
+    expect(panel).not.toMatch(/min-height|max-height/);
+    expect(panel).toMatch(/overflow-y:\s*auto/);
+    // До чотирьох варіантів — два стовпчики по два рядки: влазить без прокрутки; довгий текст обрізається.
+    expect(rule('.vote-rows')).toMatch(/grid-template-columns:\s*repeat\(2,/);
+    expect(rule('.vote-text')).toMatch(/text-overflow:\s*ellipsis/);
+    // Інші бафи панелі не мають.
+    const { container } = render(<BuffPanel active={{ ...base, kind: 'fifty' }} question={single} offsetMs={0} />);
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('votes show percentages per option, never which one is right', () => {
+    const { container } = render(<BuffPanel active={audience(tally({ cast: 2, counts: { b: 1, c: 1 } }))} question={single} offsetMs={0} />);
+    const rows = [...container.querySelectorAll('.vote-row')].map((row) => row.textContent);
+    expect(rows).toEqual(['Львів 0 %', 'Київ 50 %', 'Одеса 50 %', 'Харків 0 %']);
+    expect((container.querySelectorAll('.vote-bar')[1] as HTMLElement).style.width).toBe('50%');
+    expect(container.querySelector('.correct, .is-right, .is-correct')).toBeNull();
+    expect(container.textContent).toContain('Ще 0:15');
+    cleanup();
+
+    const yesNo = render(<BuffPanel active={audience(tally({ cast: 3, counts: { true: 2, false: 1 } }))} question={{ ...question, type: 'boolean' }} offsetMs={0} />);
+    expect([...yesNo.container.querySelectorAll('.vote-row')].map((row) => row.textContent)).toEqual(['Так 67 %', 'Ні 33 %']);
+    cleanup();
+
+    const guesses = render(
+      <BuffPanel active={audience(tally({ cast: 3, guesses: [{ text: 'Львів', count: 2 }, { text: 'Київ', count: 1 }] }))} question={text} offsetMs={0} />,
+    );
+    expect(guesses.container.textContent).toContain('Здогадки залу: Львів ×2, Київ ×1');
+    cleanup();
+
+    const closed = render(<BuffPanel active={audience(tally({ cast: 1, counts: { a: 1 }, closed: true }))} question={single} offsetMs={0} />);
+    expect(closed.container.textContent).toContain('Голосування закінчено');
+    cleanup();
+
+    // Час сплив — теж закінчено, без нового зрізу.
+    render(<BuffPanel active={audience(tally())} question={single} offsetMs={0} />);
+    act(() => {
+      vi.advanceTimersByTime(16_000);
+    });
+    expect(document.querySelector('.buff-panel')?.textContent).toContain('Голосування закінчено');
+  });
+});
+
+describe('VoteSheet', () => {
+  const prompt = (over: Partial<VotePrompt> = {}): VotePrompt => ({ asker: { playerId: 'p1', nickname: 'Оля' }, endsAt: Date.now() + 15_000, remainingMs: null, ...over });
+
+  function sheet(current: VotePrompt | null, over: { paused?: boolean; send?: Send; q?: PublicQuestion } = {}) {
+    const send = over.send ?? okSend();
+    const onError = vi.fn();
+    const props = { question: over.q ?? single, paused: over.paused ?? false, offsetMs: 0, send, onError };
+    const result = render(<VoteSheet prompt={current} {...props} />);
+    const again = (next: VotePrompt | null) => result.rerender(<VoteSheet prompt={next} {...props} />);
+    return { send, onError, again, ...result };
+  }
+
+  it('the vote sheet sends a ballot, thanks, and can be skipped', async () => {
+    const { send, again } = sheet(prompt());
+    expect(document.querySelector('.vote-sheet strong')?.textContent).toBe('Оля питає зал: як думаєте?');
+    const live = document.querySelector('.vote-live')!;
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(live.textContent).toBe('Оля питає зал: як думаєте?');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    });
+    expect(send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'single', optionId: 'b' } });
+    expect(document.querySelector('.vote-thanks')?.textContent).toBe('Голос прийнято');
+    // Той самий живий регіон, що оголосив аркуш, оголошує й подяку: він не перемонтовується.
+    expect(document.querySelector('.vote-live')).toBe(live);
+    expect(live.textContent).toBe('Голос прийнято');
+    // Зріз прибирає запрошення, а подяка ще стоїть 1,5 с.
+    again(null);
+    expect(document.querySelector('.vote-thanks')?.textContent).toBe('Голос прийнято');
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(document.querySelector('.vote-sheet')).toBeNull();
+    expect(document.querySelector('.vote-live')).toBe(live);
+    expect(live.textContent).toBe('');
+    cleanup();
+
+    // «Пропустити» ховає аркуш; запрошення від іншого гравця — знову аркуш.
+    const skip = sheet(prompt());
+    fireEvent.click(screen.getByRole('button', { name: 'Пропустити' }));
+    expect(document.querySelector('.vote-sheet')).toBeNull();
+    expect(skip.send).not.toHaveBeenCalled();
+    skip.again(prompt());
+    expect(document.querySelector('.vote-sheet')).toBeNull();
+    skip.again(prompt({ asker: { playerId: 'p3', nickname: 'Петро' } }));
+    expect(document.querySelector('.vote-sheet strong')?.textContent).toBe('Петро питає зал: як думаєте?');
+    cleanup();
+
+    // Час сплив — аркуш зник.
+    sheet(prompt());
+    act(() => {
+      vi.advanceTimersByTime(15_001);
+    });
+    expect(document.querySelector('.vote-sheet')).toBeNull();
+    cleanup();
+
+    // Пауза — кнопки вимкнено.
+    sheet(prompt({ endsAt: null, remainingMs: 9000 }), { paused: true });
+    expect(screen.getByRole('button', { name: /Київ/ }).matches(':disabled')).toBe(true);
+    expect(screen.getByText(/Ще 0:09/)).toBeTruthy();
+    cleanup();
+
+    // Текст — поле в label.field і «Голосувати».
+    const typed = sheet(prompt(), { q: text });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Львів' } });
+    expect(document.querySelector('.vote-sheet label.field input')).not.toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Голосувати' }));
+    });
+    expect(typed.send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'text', value: 'Львів' } });
+  });
+
+  it('multi and numeric questions vote with their own inputs', async () => {
+    const multiQ: PublicQuestion = { ...single, type: 'multi' };
+    const many = sheet(prompt(), { q: multiQ });
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Одеса/ }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Голосувати' }));
+    });
+    expect(many.send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'multi', optionIds: ['b', 'c'] } });
+    cleanup();
+
+    const numericQ: PublicQuestion = { ...question, type: 'numeric' };
+    const number = sheet(prompt(), { q: numericQ });
+    fireEvent.change(document.querySelector('.vote-sheet input')!, { target: { value: '1991' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Голосувати' }));
+    });
+    expect(number.send).toHaveBeenCalledWith('player:vote', { askerId: 'p1', answer: { type: 'numeric', value: 1991 } });
+  });
+
+  it('the vote sheet is fixed and does not take room in the page', () => {
+    sheet(prompt());
+    expect(document.querySelector('.vote-sheet')).not.toBeNull();
+    const body = rule('.vote-sheet');
+    expect(body).toMatch(/position:\s*fixed/);
+    expect(body).toMatch(/max-height:\s*60vh/);
+    expect(body).toMatch(/overflow-y:\s*auto/);
+  });
+});
+
+describe('StageBuffs', () => {
+  it('the swap tag on the stage uses the spare colour', () => {
+    render(
+      <StageBuffs
+        buffs={[
+          { playerId: 'p1', nickname: 'Оля', kind: 'swap' },
+          { playerId: 'p2', nickname: 'Петро', kind: 'hint' },
+        ]}
+      />,
+    );
+    const [swap, hint] = [...document.querySelectorAll('.stage-buffs li')];
+    expect(swap.className).toBe('is-swap');
+    expect(hint.className).toBe('');
+    expect(rule('.stage-buffs li.is-swap')).toMatch(/var\(--spare-accent\)/);
   });
 });

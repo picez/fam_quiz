@@ -66,6 +66,10 @@ export const LIMITS = {
   defaultDuelStake: 300,
   /** Спроб одного дуелянта на одне запитання. */
   maxDuelTries: 30,
+  /** Підказка до запитання (редактор) і від ведучого в грі, символів. */
+  hintText: 200,
+  /** Запасних запитань для бафу «Заміна запитання». */
+  maxSpares: 20,
 } as const;
 
 /** Обмеження для зображень у запитаннях. */
@@ -101,6 +105,8 @@ const base = {
   video: videoSchema.nullable().default(null),
   timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
   points: z.number().int().min(0).max(LIMITS.maxPoints),
+  /** Підказка для бафу «Підказка ведучого»; немає — ведучий підкаже сам. Старі запитання без неї. */
+  hint: z.string().trim().min(1).max(LIMITS.hintText).refine(isStorable, UNSTORABLE).optional(),
 };
 
 /** Слово ланцюжка: літери, між ними по одному пробілу, дефісу чи апострофу. */
@@ -227,6 +233,9 @@ export const questionSchema = z
   });
 
 export type Question = z.infer<typeof questionSchema>;
+
+/** Типи з автоматичною перевіркою й простою відповіддю: друга спроба, голосування залу, запасні запитання. */
+export const SIMPLE_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric'] as const satisfies readonly Question['type'][];
 
 /** Ціна запитання: для сортування — найбільша сума (слова × бали за слово), інакше points. */
 export function questionPrice(question: Question): number {
@@ -429,6 +438,8 @@ export const quizSchema = z
     rounds: z.array(roundSchema).min(1).max(LIMITS.maxRounds),
     /** Дуелі між гравцями; старі вікторини без поля — без дуелей. */
     duels: duelsSchema.optional(),
+    /** Запасні запитання для бафу «Заміна запитання»; старі вікторини без поля. */
+    spares: z.array(questionSchema).min(1).max(LIMITS.maxSpares).optional(),
   })
   .superRefine((quiz, ctx) => {
     const questions = quiz.rounds.flatMap(roundQuestions);
@@ -453,6 +464,15 @@ export const quizSchema = z
       ctx.addIssue({ code: 'custom', message: 'duplicate_powers' });
     }
     if (buffs?.some((kind) => !READY_BUFFS.includes(kind))) ctx.addIssue({ code: 'custom', message: 'buff_unavailable' });
+    if (quiz.spares) {
+      const types: readonly string[] = SIMPLE_TYPES;
+      if (quiz.spares.some((s) => !types.includes(s.type))) ctx.addIssue({ code: 'custom', message: 'spare_type' });
+      if (quiz.spares.some((s) => s.video !== null)) ctx.addIssue({ code: 'custom', message: 'spare_video' });
+      if (hasDuplicates([...questions.map((x) => x.id), ...quiz.spares.map((s) => s.id)].filter(Boolean)) ) {
+        ctx.addIssue({ code: 'custom', message: 'duplicate_spare_ids' });
+      }
+    }
+    if (buffs?.includes('swap') && !quiz.spares) ctx.addIssue({ code: 'custom', message: 'spares_empty' });
     if (quiz.duels) {
       const { categories, questionsPerDuel } = quiz.duels;
       if (categories.some((c) => c.questions.length < questionsPerDuel)) {

@@ -19,18 +19,21 @@ interface Props {
 
 /** Табло відліку: кожна цифра на окремій пластині. */
 export function Timer({ view, offsetMs, total = null, status = null }: Props) {
-  const [now, setNow] = useState(() => Date.now());
+  // Стан лише будить перемальовування; час читається під час кожного рендера,
+  // тож перемальовування з іншої причини (зсув годинника) не показує застарілий відлік.
+  const [, setTick] = useState(0);
   const running = view.endsAt !== null;
 
   useEffect(() => {
     if (!running) return;
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 200);
+    const id = setInterval(() => setTick((tick) => tick + 1), 200);
     return () => clearInterval(id);
   }, [running, view.endsAt]);
 
-  const seconds = secondsLeft(view, offsetMs, now);
-  if (seconds === null) return null;
+  const left = secondsLeft(view, offsetMs, Date.now());
+  if (left === null) return null;
+  // Не більше за повний час: «31 / 30 с» не буває.
+  const seconds = total === null ? left : Math.min(left, Math.ceil(total / 1000));
   const pct = total === null ? 0 : Math.min(100, Math.max(0, ((seconds * 1000) / total) * 100));
   const totalText = total === null ? '' : t('timerOf', { seconds: Math.round(total / 1000) });
   return (

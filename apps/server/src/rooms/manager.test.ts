@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
@@ -856,6 +856,38 @@ describe('personal deadline of the extra time buff', () => {
     scheduler.advance(25_000);
     expect(room.state.phase).toBe('question');
     expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+  });
+});
+
+describe('personal deadline of the swap buff', () => {
+  /** Оля бере «Заміну» на 18-й секунді 20-секундного запитання; Тарас уже відповів. */
+  function swapped() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create({ ...makeQuiz([single, text], { buffs: ['swap'] }), spares: [withId(bool, 's1')] });
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.answer(room, taras.playerId, wrong)).toEqual({ ok: true });
+    scheduler.advance(18_000);
+    expect(manager.buff(room, olena.playerId, 'swap')).toEqual({ ok: true });
+    return { scheduler, manager, room };
+  }
+
+  it('a swap holds the reveal for 20 s and the host may not wait', () => {
+    const { room, scheduler } = swapped();
+    scheduler.advance(2_000);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(18_000);
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('the host may stop waiting for a swap', () => {
+    const { manager, room } = swapped();
+    expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
     expect(room.state.phase).toBe('locked');
   });
 });

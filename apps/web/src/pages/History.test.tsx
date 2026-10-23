@@ -202,8 +202,8 @@ describe('GameHistory: answers', () => {
         cell: null,
         question: matchQ,
         responses: [
-          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true, buff: null },
-          { nickname: 'Тарас', answer: null, accepted: false, buff: null },
+          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true, buff: null, spare: null },
+          { nickname: 'Тарас', answer: null, accepted: false, buff: null, spare: null },
         ],
         final: null,
       },
@@ -216,7 +216,7 @@ describe('GameHistory: answers', () => {
         accepted: 0,
         cell: null,
         question: singleQ,
-        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null }],
+        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null }],
         final: null,
       },
     ],
@@ -248,8 +248,8 @@ describe('GameHistory: answers', () => {
           ...answered.questions[1],
           answered: 2,
           responses: [
-            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: 'double' },
-            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null },
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: 'double', spare: null },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null },
           ],
         },
       ],
@@ -267,6 +267,34 @@ describe('GameHistory: answers', () => {
     expect(tag?.previousElementSibling?.className).toBe('responses-name');
     expect(tag?.parentElement?.nextElementSibling?.className).toBe('responses-answer');
     expect(rows[1].querySelector('.buff-tag')).toBeNull();
+  });
+
+  it('history shows the spare text and reads the answer against it', async () => {
+    const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
+    const swapped: GameDetail = {
+      ...answered,
+      questions: [
+        {
+          ...answered.questions[1],
+          answered: 2,
+          responses: [
+            { nickname: 'Оля', answer: { type: 'boolean', value: true }, accepted: true, buff: 'swap', spare },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null },
+          ],
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: swapped });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (2)'));
+    const rows = [...container.querySelectorAll('details.responses li')];
+    const mark = rows[0].querySelector('.spare-tag');
+    expect(mark?.textContent).toBe('запасне');
+    expect(mark?.getAttribute('title')).toBe('Чорне море солоніше за Азовське?');
+    expect(rows[0].querySelector('.spare-text')?.textContent).toBe('Запасне: Чорне море солоніше за Азовське?');
+    expect(rows[0].querySelector('.responses-answer')?.textContent).toBe('Так');
+    expect(rows[1].querySelector('.spare-tag')).toBeNull();
+    expect(rows[1].querySelector('.spare-text')).toBeNull();
   });
 
   it('shows no answers block for a question nobody answered', async () => {
@@ -491,6 +519,7 @@ describe('GameHistory sort', () => {
       nickname,
       answer: { type: 'sort' as const, sorted: n, total: 4, misses, timeMs },
       buff: null,
+      spare: null,
       accepted: n === 4,
     });
     vi.mocked(getGame).mockResolvedValue({

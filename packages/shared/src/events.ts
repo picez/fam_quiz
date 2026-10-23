@@ -55,6 +55,13 @@ export const buffSchema = z.object({ kind: z.enum(BUFF_KINDS) });
 /** Друга спроба після часткової першої: keep — залишити першу, інакше ще спроба. */
 export const retrySchema = z.object({ keep: z.boolean() });
 export const undebuffSchema = z.object({ playerId });
+/** Голос залу за гравця з бафом «Запитання в залі». */
+export const voteSchema = z.object({ askerId: playerId, answer: answerSchema });
+/** Підказка ведучого: text — текстом, null — «Підказав уголос». */
+export const hintSchema = z.object({
+  playerId,
+  text: z.string().trim().min(1).max(LIMITS.hintText).refine(isStorable, UNSTORABLE).nullable(),
+});
 /** Оголосити дуель суперникові. */
 export const declareSchema = z.object({ opponentId: playerId });
 /** Категорія дуелі. */
@@ -74,6 +81,8 @@ export interface ClientToServerEvents {
   'player:buff': (payload: z.infer<typeof buffSchema>, ack: Ack) => void;
   /** Вибір після часткової першої відповіді другої спроби. */
   'player:retry': (payload: z.infer<typeof retrySchema>, ack: Ack) => void;
+  /** Голос залу за гравця з бафом «Запитання в залі». */
+  'player:vote': (payload: z.infer<typeof voteSchema>, ack: Ack) => void;
   'player:buzz': (ack: Ack) => void;
   'player:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   /** Гравець кидає свій кубик на заставці раунду поля. */
@@ -99,6 +108,8 @@ export interface ClientToServerEvents {
   'host:debuff': (payload: z.infer<typeof debuffSchema>, ack: Ack) => void;
   /** Скасувати дебаф, що ще чекає. */
   'host:undebuff': (payload: z.infer<typeof undebuffSchema>, ack: Ack) => void;
+  /** Підказка гравцеві: текстом або «Підказав уголос» (text: null). */
+  'host:hint': (payload: z.infer<typeof hintSchema>, ack: Ack) => void;
   'host:judge': (payload: z.infer<typeof judgeSchema>, ack: Ack) => void;
   'host:name': (payload: z.infer<typeof nameSchema>, ack: Ack) => void;
   'host:time': (payload: z.infer<typeof timeSchema>, ack: Ack) => void;

@@ -4680,11 +4680,12 @@ async function buffsGame() {
   };
   expect(await checkedDebuffs()).toEqual(['Тремтіння екрана', 'Туман']);
   for (const name of ['50/50', 'Подвійні бали', 'Друга спроба', 'Додатковий час', 'Щит']) expect(await box(buffGroup, name).isChecked(), name).toBe(true);
+  // Усі вісім бафів можна вибрати: жодного «скоро».
   for (const name of ['Запитання в залі', 'Підказка ведучого', 'Заміна запитання']) {
-    expect(await box(buffGroup, name).isDisabled(), name).toBe(true);
+    expect(await box(buffGroup, name).isDisabled(), name).toBe(false);
     expect(await box(buffGroup, name).isChecked(), name).toBe(false);
-    await buffGroup.locator('label.powers-item', { hasText: name }).locator('.powers-soon').getByText('скоро', exact).waitFor();
   }
+  expect(await buffGroup.getByText('скоро').count()).toBe(0);
   await shot(host, 'buff8a-editor');
   await debuffGroup.getByRole('button', { name: 'Жодного', ...exact }).click();
   expect(await checkedDebuffs()).toEqual([]);
@@ -4930,6 +4931,350 @@ async function buffsGame() {
   expect(await badgeOf('Столиця Буковини', 'Іра')).toBe('⏱');
   expect(await badgeOf('Міста 100', 'Оля')).toBe('×2');
   await shot(host, 'buff8a-history-host');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 8b: hints and spares in the editor, a written hint, the audience vote with percentages and guesses, a host hint and «Підказав уголос», a spare question on one phone and on the board stage, «Не чекати» for a swap, spares in the history', async () => {
+  try {
+    await sparesGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Текст у полі відповіді й «Відповісти». */
+const textAnswer = numericAnswer;
+
+/** Голос в аркуші «… питає зал»: дотик варіанта або поле й «Голосувати»; чекає «Голос прийнято». */
+async function vote(page: Page, text: string) {
+  const sheet = page.locator('.vote-sheet');
+  const input = sheet.getByLabel('Ваша відповідь', exact);
+  if ((await input.count()) > 0) {
+    await input.fill(text);
+    await sheet.getByRole('button', { name: 'Голосувати', ...exact }).click();
+  } else {
+    await sheet.getByRole('button', { name: new RegExp(text) }).click();
+  }
+  await sheet.getByText('Голос прийнято', exact).waitFor();
+}
+
+async function sparesGame() {
+  const host = await open('host8b', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host8b@example.com');
+
+  const choice = (id: string, text: string, timeLimit: number, options: string[]) => ({
+    id,
+    type: 'single' as const,
+    text,
+    imageUrl: null,
+    video: null,
+    timeLimit,
+    points: 100,
+    options: options.map((option, at) => ({ id: `${id}o${at}`, text: option })),
+    correctId: `${id}o0`,
+  });
+  const base8b = { imageUrl: null, video: null, points: 100 };
+  const q1 = { ...choice('q1', 'Найдовша річка України?', 30, ['Дніпро', 'Дністер', 'Південний Буг', 'Десна']), hint: 'Тече через Київ' };
+  const q2 = { ...base8b, id: 'q2', type: 'numeric' as const, text: 'Скільки областей в Україні?', timeLimit: 30, correct: 24, tolerance: 0 };
+  // 60 с: на цьому запитанні — підказка від ведучого, заміна й два голосування, а кадри з E2E_SHOTS забирають час.
+  const q3 = { ...base8b, id: 'q3', type: 'text' as const, text: 'Столиця Галичини?', timeLimit: 60, accepted: ['Львів'] };
+  // 8 с замість 5: підказку «уголос» і заміну треба встигнути до спільного кінця.
+  const q4 = choice('q4', 'Найвища гора України?', 8, ['Говерла', 'Піп Іван', 'Петрос']);
+  const cellQ = (category: string, price: number) => ({
+    ...withPoints(withId(single, `b-${category}-${price}`), price),
+    text: `${category} ${price}: столиця України?`,
+  });
+  const rounds = [
+    classicRound('r1', [q1, q2, q3, q4], { title: 'Розминка', speedBonus: false }),
+    boardRound(
+      'r2',
+      ['Міста', 'Річки', 'Гори'].map((title) => ({ title, cells: [100, 200, 300].map((price) => cellQ(title, price)) })),
+      { title: 'Поле', answerMode: 'phone', check: 'auto' },
+    ),
+  ];
+  const data = { ...makeRoundsQuiz(rounds, { leaderboard: 'end', buffs: ['audience', 'hint'] }), title: 'Бафи 2' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // Редактор: підказка q1; заміна без пулу не зберігається; три запасні без часу, балів і підказки.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Бафи 2' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('label.hint-field', { hasText: "Підказка (необов'язково)" }).first().waitFor();
+  expect(await host.locator('.hint-field textarea').first().inputValue()).toBe('Тече через Київ');
+  await shot(host, 'buff8b-editor-hint');
+  await host.locator('details.powers > summary').click();
+  const buffGroup = host.locator('fieldset.powers-group').nth(1);
+  expect(await buffGroup.getByText('скоро').count()).toBe(0);
+  for (const item of await buffGroup.locator('label.powers-item input').all()) expect(await item.isDisabled()).toBe(false);
+  await buffGroup.locator('label.powers-item', { hasText: 'Заміна запитання' }).locator('input').check();
+  await buffGroup.locator('.powers-warn').getByText('Заміна запитання: додайте запасні запитання', exact).waitFor();
+  const sparesBox = host.locator('details.spares');
+  expect(await sparesBox.getAttribute('open')).toBeNull();
+  await click(host, 'Зберегти');
+  await host.getByText('Заміна запитання: додайте запасні запитання.', exact).waitFor();
+  await expect.poll(() => sparesBox.getAttribute('open')).not.toBeNull();
+  expect(host.url()).not.toMatch(/\/quizzes$/);
+  await shot(host, 'buff8b-editor-empty');
+  const spareText = sparesBox.locator('.question-field textarea');
+  await sparesBox.getByRole('button', { name: 'Додати запасне', ...exact }).click();
+  await sparesBox.getByRole('button', { name: 'так чи ні', ...exact }).click();
+  await spareText.fill('Чорне море солоніше за Азовське?');
+  await sparesBox.getByRole('button', { name: 'Правильна відповідь: Так', ...exact }).click();
+  await sparesBox.getByRole('button', { name: 'Додати запасне', ...exact }).click();
+  await sparesBox.getByRole('button', { name: 'текст', ...exact }).click();
+  await spareText.fill('Столиця Буковини?');
+  await sparesBox.getByLabel('Написання 1', exact).fill('Чернівці');
+  await sparesBox.getByRole('button', { name: 'Додати запасне', ...exact }).click();
+  await sparesBox.getByRole('button', { name: 'число', ...exact }).click();
+  await spareText.fill('Скільки днів у високосному році?');
+  await sparesBox.getByLabel('Правильне число', exact).fill('366');
+  for (const label of ['Запасне 1 · так чи ні', 'Запасне 2 · текст', 'Запасне 3 · число']) await sparesBox.getByRole('button', { name: label, ...exact }).waitFor();
+  expect(await sparesBox.getByLabel('Час, с', exact).count()).toBe(0);
+  expect(await sparesBox.getByLabel('Бали', exact).count()).toBe(0);
+  expect(await sparesBox.locator('.hint-field').count()).toBe(0);
+  await shot(host, 'buff8b-editor-spares');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'buff8b-editor-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // Гра: сцена 1600 × 900, Оля 375, Петро 360, Іра 390.
+  await host.locator('.quiz-list li', { hasText: 'Бафи 2' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage8b', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya8b', 375, 812);
+  const petro = await open('petro8b', 360, 740);
+  const ira = await open('ira8b', 390, 844);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const hostScore = async (nickname: string) => (await row(nickname).locator('.score').textContent())!;
+  const scores = async () => ({ Оля: await hostScore('Оля'), Петро: await hostScore('Петро'), Іра: await hostScore('Іра') });
+  const response = (nickname: string) => host.locator('.rows li', { has: host.locator('.given') }).filter({ hasText: nickname });
+  const reveal = async () => {
+    await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+    await click(host, 'Показати відповідь');
+    for (const page of phones) await page.locator('section.result').first().waitFor();
+  };
+  const panel = (page: Page) => page.locator('.buff-panel');
+  const answerY = async (page: Page) => Math.round((await field(page, 'Ваша відповідь').boundingBox())!.y);
+
+  // 1. q1: підказка з редактора — одразу й лише в Олі; на сцені значок і сповіщення.
+  await click(host, 'Почати гру');
+  await click(host, 'Почати раунд');
+  for (const page of phones) {
+    await page.locator('h1', { hasText: 'Найдовша річка України?' }).waitFor();
+    expect(await page.locator('.buff-row .buff-btn').allTextContents()).toEqual(['%', '?', '⇄']);
+  }
+  await takeBuff(olya, 'Підказка ведучого');
+  await panel(olya).getByText('? Тече через Київ', exact).waitFor();
+  await shot(olya, 'buff8b-hint-written');
+  await expectNoSideScroll(olya, 'buff8b-hint-375');
+  await stage.locator('.stage-buffs li').getByText('? Оля', exact).waitFor();
+  await stage.locator('.live-notice.is-buff').getByText('Оля: Підказка ведучого', exact).waitFor();
+  for (const page of [stage, petro, ira]) expect(await page.content()).not.toContain('Тече через Київ');
+  await pickOption(olya, 'Дніпро');
+  await pickOption(petro, 'Дніпро');
+  await pickOption(ira, 'Дністер');
+  await reveal();
+  for (const page of [stage, petro, ira]) expect(await page.content()).not.toContain('Тече через Київ');
+  await expect.poll(scores).toEqual({ Оля: '100', Петро: '100', Іра: '0' });
+
+  // 2. q2: зал голосує числом; аркуш не зсуває запитання; здогадки лише в Олі.
+  await click(host, 'Далі');
+  await petro.locator('h1', { hasText: 'Скільки областей' }).waitFor();
+  await numericAnswer(petro, '24');
+  await numericAnswer(ira, '25');
+  await petro.getByText('Відповідь прийнято', exact).waitFor();
+  await ira.getByText('Відповідь прийнято', exact).waitFor();
+  const petroQuestion = await boxOf(petro, 'h1.question');
+  await takeBuff(olya, 'Запитання в залі');
+  for (const page of [petro, ira]) await page.locator('.vote-sheet').getByText('Оля питає зал: як думаєте?', exact).waitFor();
+  await petro.waitForTimeout(300); // аркуш виїжджає 0,2 с: кадр — після анімації
+  await shot(petro, 'buff8b-vote-sheet');
+  expect(await boxOf(petro, 'h1.question'), 'the vote sheet moved the question').toEqual(petroQuestion);
+  expect(await noSideScroll(petro), 'vote sheet: horizontal scroll').toBe(true);
+  await vote(petro, '24');
+  await panel(olya).getByText('Здогадки залу: 24 ×1', exact).waitFor();
+  await vote(ira, '25');
+  await panel(olya).getByText('Здогадки залу: 24 ×1, 25 ×1', exact).waitFor();
+  await shot(olya, 'buff8b-vote-guesses');
+  expect(await bodyText(stage)).not.toContain('Здогадки');
+  expect(await bodyText(ira)).not.toContain('Здогадки');
+  await numericAnswer(olya, '24');
+  await reveal();
+  await expect.poll(scores).toEqual({ Оля: '200', Петро: '200', Іра: '0' });
+
+  // 3. q3: голосувати нікому; підказка від ведучого; заміна в Олі; голос текстом.
+  await click(host, 'Далі');
+  await ira.locator('h1', { hasText: 'Столиця Галичини?' }).waitFor();
+  await tapBuff(ira, 'Запитання в залі', 'Поки ніхто не може проголосувати.');
+  await takeBuff(petro, 'Підказка ведучого');
+  await panel(petro).getByText('Ведучий думає…', exact).waitFor();
+  const petroPanel = await boxOf(petro, '.buff-panel');
+  const petroField = await answerY(petro);
+  const card = host.locator('.hint-request', { hasText: 'Петро просить підказку' });
+  await card.waitFor();
+  await shot(host, 'buff8b-hint-request');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await card.scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'buff8b-hint-request-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await card.locator('textarea').fill('Місто Лева');
+  await card.getByRole('button', { name: 'Надіслати', ...exact }).click();
+  await panel(petro).getByText('? Місто Лева', exact).waitFor();
+  await card.waitFor({ state: 'detached' });
+  expect(await answerY(petro), 'the host hint moved the answer field').toBe(petroField);
+  expect(await boxOf(petro, '.buff-panel'), 'the host hint resized the panel').toEqual(petroPanel);
+  for (const page of [stage, olya, ira]) expect(await page.content()).not.toContain('Місто Лева');
+  await takeBuff(olya, 'Заміна запитання');
+  await olya.locator('h1', { hasText: 'Чорне море солоніше за Азовське?' }).waitFor();
+  for (const name of ['Так', 'Ні']) await olya.getByRole('button', { name, ...exact }).waitFor();
+  await olya.locator('.question-meta .spare-tag').getByText('Запасне запитання', exact).waitFor();
+  await olya.locator('.buff-why').getByText('⇄ Запасне запитання: щонайменше 20 с', exact).waitFor();
+  await shot(olya, 'buff8b-swap-phone');
+  await expectNoSideScroll(olya, 'buff8b-swap-375');
+  await stage.locator('.stage-buffs li').getByText('⇄ Оля відповідає на запасне', exact).waitFor();
+  await stage.locator('h1', { hasText: 'Столиця Галичини?' }).waitFor();
+  for (const page of [stage, petro, ira]) expect(await page.content()).not.toContain('Чорне море');
+  await shot(stage, 'buff8b-swap-stage');
+  await textAnswer(petro, 'Львів');
+  await petro.getByText('Відповідь прийнято', exact).waitFor();
+  await takeBuff(ira, 'Запитання в залі');
+  await petro.locator('.vote-sheet').getByText('Іра питає зал: як думаєте?', exact).waitFor();
+  expect(await olya.locator('.vote-sheet').count(), 'a player on a spare votes on the main question').toBe(0);
+  await vote(petro, 'Львів');
+  await panel(ira).getByText('Здогадки залу: Львів ×1', exact).waitFor();
+  await textAnswer(ira, 'Львів');
+  await click(olya, 'Так');
+  await reveal();
+  await olya.getByText('Правильна відповідь: Так', exact).waitFor();
+  expect(await bodyText(stage)).not.toContain('Чорне море');
+  await response('Оля').locator('.spare-tag').getByText('запасне', exact).waitFor();
+  expect(await response('Оля').locator('.spare-tag').getAttribute('title')).toBe('Чорне море солоніше за Азовське?');
+  expect(await response('Оля').locator('.given').textContent()).toBe('Так');
+  await shot(host, 'buff8b-swap-reveal-host');
+  await expect.poll(scores).toEqual({ Оля: '300', Петро: '300', Іра: '100' });
+
+  // 4. q4 (8 с): Іра просить підказку, ведучий «Підказав уголос»; заміна Петра чекає 20 с, ведучий не чекає.
+  await click(host, 'Далі');
+  await ira.locator('h1', { hasText: 'Найвища гора України?' }).waitFor();
+  await takeBuff(ira, 'Підказка ведучого');
+  await panel(ira).getByText('Ведучий думає…', exact).waitFor();
+  await host.locator('.hint-request', { hasText: 'Іра просить підказку' }).getByRole('button', { name: 'Підказав уголос', ...exact }).click();
+  await panel(ira).getByText('Ведучий підказав уголос', exact).waitFor();
+  await takeBuff(petro, 'Заміна запитання');
+  await petro.locator('h1', { hasText: 'Столиця Буковини?' }).waitFor();
+  await field(petro, 'Ваша відповідь').waitFor();
+  expect(await seconds(petro)).toBeGreaterThanOrEqual(17);
+  await pickOption(olya, 'Говерла');
+  await pickOption(ira, 'Говерла');
+  const stageWait = stage.locator('.buff-wait');
+  await stageWait.waitFor({ timeout: 10000 });
+  expect(await stageWait.textContent()).toMatch(/^Чекаємо: Петро · 0:1\d$/);
+  await shot(stage, 'buff8b-swap-wait-stage');
+  await click(host, 'Не чекати');
+  await reveal();
+  await expect.poll(scores).toEqual({ Оля: '400', Петро: '300', Іра: '200' });
+
+  // 5. Поле: голосують усі, крім вибравшого; заміна на полі — запасне бачать усі.
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  const cell = (page: Page, category: string, price: number) => page.getByRole('button', { name: `${category}, ${price}`, ...exact });
+  const toBoard = async () => {
+    await click(host, 'Далі');
+    const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+    const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+    await Promise.race([next.waitFor(), picking.waitFor()]);
+    if (await next.isVisible()) await next.click();
+    await picking.waitFor();
+  };
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(olya, 'Міста', 100).click();
+  await olya.locator('h1', { hasText: 'Міста 100' }).waitFor();
+  await pickOption(olya, 'Київ');
+  await click(host, 'Прийняти');
+  await olya.getByText('Правильно!').waitFor();
+  await expect.poll(scores).toEqual({ Оля: '500', Петро: '300', Іра: '200' });
+  await toBoard();
+
+  await petro.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(petro, 'Річки', 100).click();
+  for (const page of phones) await page.locator('h1', { hasText: 'Річки 100' }).waitFor();
+  await takeBuff(petro, 'Запитання в залі');
+  for (const page of [olya, ira]) await page.locator('.vote-sheet').getByText('Петро питає зал: як думаєте?', exact).waitFor();
+  await olya.waitForTimeout(300);
+  await expectNoSideScroll(olya, 'buff8b-vote-board-375');
+  await vote(olya, 'Київ');
+  await vote(ira, 'Київ');
+  await panel(petro).locator('.vote-row', { hasText: 'Київ' }).locator('.vote-pct').getByText('100 %', exact).waitFor();
+  await shot(petro, 'buff8b-vote-board-pct');
+  // Усі варіанти влазять у панель сталої висоти: прокрутки всередині немає.
+  expect(await panel(petro).evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
+  expect(await bodyText(stage)).not.toContain(' %');
+  await pickOption(petro, 'Київ');
+  await click(host, 'Прийняти');
+  await petro.getByText('Правильно!').waitFor();
+  await expect.poll(scores).toEqual({ Оля: '500', Петро: '400', Іра: '200' });
+  await toBoard();
+
+  await ira.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(ira, 'Гори', 100).click();
+  await ira.locator('h1', { hasText: 'Гори 100' }).waitFor();
+  await takeBuff(ira, 'Заміна запитання');
+  for (const page of [stage, ...phones]) await page.locator('h1', { hasText: 'Скільки днів у високосному році?' }).waitFor();
+  await stage.locator('.stage-buffs li').getByText('⇄ Іра: запасне запитання', exact).waitFor();
+  await shot(stage, 'buff8b-swap-board-stage');
+  await numericAnswer(ira, '366');
+  await click(host, 'Прийняти');
+  await ira.getByText('Правильно!').waitFor();
+  await expect.poll(scores).toEqual({ Оля: '500', Петро: '400', Іра: '300' });
+
+  // 6. Історія: та сама таблиця; запасні з текстом і відповіддю, значки бафів.
+  await click(host, 'Завершити гру');
+  await olya.getByText('Гру завершено').first().waitFor();
+  await expectNoSideScroll(olya, 'buff8b-phone-375');
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Бафи 2/ }).click();
+  const standings = host.locator('.standings li');
+  await standings.first().waitFor();
+  const table: [string, string][] = [];
+  for (let i = 0; i < (await standings.count()); i++) {
+    table.push([(await standings.nth(i).locator('.name').textContent())!, (await standings.nth(i).locator('.score').textContent())!]);
+  }
+  expect(table).toEqual([
+    ['Оля', '500'],
+    ['Петро', '400'],
+    ['Іра', '300'],
+  ]);
+  await host.evaluate("document.querySelectorAll('details.responses').forEach((d) => { d.open = true; })");
+  const line = (question: string, nickname: string) =>
+    host
+      .locator('.rows.stacked > li', { hasText: question })
+      .locator('details.responses li', { has: host.locator('.responses-name', { hasText: nickname }) });
+  expect(await line('Найдовша річка', 'Оля').locator('.buff-tag').allTextContents()).toEqual(['?']);
+  const olyaSpare = line('Столиця Галичини', 'Оля');
+  expect(await olyaSpare.locator('.buff-tag').allTextContents()).toEqual(['⇄']);
+  expect(await olyaSpare.locator('.spare-tag').textContent()).toBe('запасне');
+  expect(await olyaSpare.locator('.spare-text').textContent()).toBe('Запасне: Чорне море солоніше за Азовське?');
+  expect(await olyaSpare.locator('.responses-answer').textContent()).toBe('Так');
+  const iraSpare = line('Гори 100', 'Іра');
+  expect(await iraSpare.locator('.spare-text').textContent()).toBe('Запасне: Скільки днів у високосному році?');
+  expect(await iraSpare.locator('.responses-answer').textContent()).toBe('366');
+  await shot(host, 'buff8b-history-host');
 
   expect(problems).toEqual([]);
 }

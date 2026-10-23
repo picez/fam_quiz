@@ -23,9 +23,17 @@ const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
 /** JSON не вміє зберігати NaN (порожнє числове поле) і перетворює його на null. */
 const numberOr = (value: unknown) => (typeof value === 'number' ? value : Number.NaN);
 
-function revive(question: Question): Question {
+function revive(stored: Question): Question {
+  // Підказка — лише рядок: зіпсоване значення зникає, а не ламає редактор.
+  const { hint, ...question } = stored;
   const video = videoSchema.safeParse(question.video).success ? question.video : null;
-  const base = { ...question, video, timeLimit: numberOr(question.timeLimit), points: numberOr(question.points) };
+  const base = {
+    ...question,
+    ...(typeof hint === 'string' ? { hint } : {}),
+    video,
+    timeLimit: numberOr(question.timeLimit),
+    points: numberOr(question.points),
+  } as Question;
   if (base.type === 'numeric') return { ...base, correct: numberOr(base.correct), tolerance: numberOr(base.tolerance) };
   if (base.type === 'sort') return { ...base, lockSeconds: numberOr(base.lockSeconds) };
   return base;
@@ -112,6 +120,13 @@ const reviveSettings = (settings: Quiz['settings']): Quiz['settings'] => {
 
 const withDuels = (duels: Duels | null) => (duels === null ? {} : { duels });
 
+/** Пул запасних із чернетки: зіпсовані записи відкидаються, не масив чи порожній пул — поле зникає. */
+const reviveSpares = (value: unknown): { spares: Question[] } | Record<string, never> => {
+  if (!Array.isArray(value)) return {};
+  const spares = value.filter(looksLikeQuestion).map(revive);
+  return spares.length === 0 ? {} : { spares };
+};
+
 function looksLikeQuiz(value: unknown): value is Quiz {
   if (typeof value !== 'object' || value === null) return false;
   const { title, description, settings, rounds } = value as Record<string, unknown>;
@@ -144,9 +159,10 @@ export function loadDraft(id: string | undefined): Quiz | null {
     // Чернетка старого формату (один список запитань) стає вікториною з одним раундом.
     const parsed = upgradeQuiz(JSON.parse(raw));
     if (!looksLikeQuiz(parsed)) return null;
-    const { duels: rawDuels, ...rest } = parsed;
+    const { duels: rawDuels, spares: rawSpares, ...rest } = parsed;
     return {
       ...rest,
+      ...reviveSpares(rawSpares),
       ...withDuels(looksLikeDuels(rawDuels) ? reviveDuels(rawDuels) : null),
       settings: reviveSettings(parsed.settings),
       rounds: parsed.rounds.map((round): Round => {

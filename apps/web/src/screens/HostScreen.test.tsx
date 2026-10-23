@@ -53,6 +53,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   correct: null,
   responses: [],
   allowed: { debuffs: [...DEBUFF_KINDS], buffs: [] },
+  hints: [],
   standings: [],
   ...over,
 });
@@ -157,7 +158,7 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null },
         ],
       }),
     );
@@ -176,7 +177,7 @@ describe('HostScreen', () => {
       during('reveal', pictured, {
         question: { ...publicOf(pictured), choices: shown },
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null },
         ],
       }),
     );
@@ -211,8 +212,8 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: 'shield' },
-          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: 'shield', spare: null },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null },
         ],
       }),
     );
@@ -223,6 +224,66 @@ describe('HostScreen', () => {
     expect(document.querySelectorAll('.buff-tag')).toHaveLength(1);
   });
 
+  it('the host answers a hint request with text or aloud', async () => {
+    const now = Date.now();
+    const hints = [{ playerId: 'p1', nickname: 'Олена', at: now - 2000 }];
+    const send = show(during('question', single, { endsAt: now + 10_000, limitMs: 20_000, hints }));
+    const card = screen.getByText('Олена просить підказку').closest('article') as HTMLElement;
+    expect(card.className).toContain('hint-request');
+    const sendBtn = within(card).getByRole('button', { name: 'Надіслати' }) as HTMLButtonElement;
+    expect(sendBtn.disabled).toBe(true);
+    const field = within(card).getByLabelText('Підказка') as HTMLTextAreaElement;
+    expect(field.maxLength).toBe(200);
+    expect(field.closest('label')?.className).toContain('field');
+    fireEvent.change(field, { target: { value: 'Тече через Київ' } });
+    expect(sendBtn.disabled).toBe(false);
+    fireEvent.click(sendBtn);
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:hint', { playerId: 'p1', text: 'Тече через Київ' }));
+    fireEvent.click(within(card).getByRole('button', { name: 'Підказав уголос' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:hint', { playerId: 'p1', text: null }));
+    // Запити стоять першими в панелі запитання — над «Відповіді».
+    const responses = screen.getByRole('heading', { name: 'Відповіді' });
+    expect(card.compareDocumentPosition(responses) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    show(during('question', { ...single, hint: 'Тече через Київ' } as Question, { endsAt: now + 10_000, limitMs: 20_000 }));
+    expect(document.querySelector('.hint-request')).toBeNull();
+    expect(screen.getByText('Підказка: Тече через Київ').className).toContain('hint-known');
+  });
+
+  it('a spare answer shows the mark and is read against the spare', () => {
+    const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
+    show(
+      during('reveal', single, {
+        responses: [
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean', value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: 'swap', spare },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null },
+        ],
+      }),
+    );
+    const mark = screen.getByText('запасне');
+    expect(mark.className).toContain('spare-tag');
+    expect(mark.getAttribute('title')).toBe('Чорне море солоніше за Азовське?');
+    const row = mark.closest('li') as HTMLElement;
+    expect(row.textContent).toContain('Олена');
+    expect(row.querySelector('.given')?.textContent).toBe('Так');
+    expect(document.querySelectorAll('.spare-tag')).toHaveLength(1);
+  });
+
+  it('the host does not wait for a swap', async () => {
+    const now = Date.now();
+    const send = show(
+      during('question', single, {
+        endsAt: now - 1000,
+        limitMs: 20_000,
+        buffs: [{ playerId: 'p1', nickname: 'Олена', kind: 'swap' }],
+        overtime: [{ playerId: 'p1', nickname: 'Олена', deadline: now + 19_000, remainingMs: null }],
+      }),
+    );
+    expect(screen.getByTitle('Чекаємо: Олена · 0:19')).toBeTruthy();
+    fireEvent.click(button('Не чекати'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:lock', undefined));
+  });
+
   it('a buff notice reaches the host console', () => {
     show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), nickname: 'Олена', kind: 'fifty' } }));
     expect(screen.getByText('Олена: 50/50')).toBeTruthy();
@@ -230,8 +291,8 @@ describe('HostScreen', () => {
 
   it('lets the host accept or reject text answers on reveal', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null },
-      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Одеса' }, timeMs: 5000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 875, overridden: false, buff: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null },
+      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Одеса' }, timeMs: 5000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 875, overridden: false, buff: null, spare: null },
     ];
     const send = show(during('reveal', textQuestion, { responses }));
     fireEvent.click(button('Зарахувати'));
@@ -242,7 +303,7 @@ describe('HostScreen', () => {
 
   it('does not offer manual grading for choice questions or before reveal', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null },
     ];
     show(during('reveal', single, { responses }));
     expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
@@ -371,7 +432,7 @@ describe('HostScreen: rounds', () => {
 
   it('offers «partially» only when the round allows it', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null },
     ];
     show(during('reveal', textQuestion, { responses, round: round() }));
     expect(screen.queryByRole('button', { name: 'Частково' })).toBeNull();
@@ -459,7 +520,7 @@ describe('HostScreen: blitz', () => {
         round,
         blitz: blitz({ queue: [] }),
         responses: [
-          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Київ' }, timeMs: 1, accepted: false, grade: 'wrong', streakBonus: 0, points: -1000, overridden: false, buff: null },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Київ' }, timeMs: 1, accepted: false, grade: 'wrong', streakBonus: 0, points: -1000, overridden: false, buff: null, spare: null },
         ],
       }),
     );
@@ -750,6 +811,21 @@ describe('HostScreen: blitz', () => {
       expect(document.body.textContent).not.toContain('×');
     });
 
+    it("the chooser's row marks a spare answer and reads it against the spare", () => {
+      const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const responses = [
+        { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean' as const, value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 100, overridden: false, buff: 'swap' as const, spare },
+      ];
+      show(during('reveal', single, { round: boardRound, players: three, board: boardOf({ cell }), responses }));
+      const mark = screen.getByText('запасне');
+      expect(mark.className).toContain('spare-tag');
+      expect(mark.getAttribute('title')).toBe('Чорне море солоніше за Азовське?');
+      const row = mark.closest('li') as HTMLElement;
+      expect(row.querySelector('.name')?.textContent).toBe('Олена');
+      expect(row.querySelector('.given')?.textContent).toBe('Так');
+    });
+
     it('does not show a stale question number in the board phase', () => {
       show(onBoard({ questionIndex: 0 }));
       expect(document.body.textContent).not.toMatch(/Запитання \d/);
@@ -975,7 +1051,7 @@ describe('HostScreen final', () => {
         players: three,
         final: hostFinal(),
         responses: [
-          { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, grade: 'correct', accepted: true, points: 0, streakBonus: 0, overridden: false, buff: null, timeMs: 1000 },
+          { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, grade: 'correct', accepted: true, points: 0, streakBonus: 0, overridden: false, buff: null, spare: null, timeMs: 1000 },
         ],
       }),
     );
@@ -1004,7 +1080,7 @@ describe('HostScreen final', () => {
         round: finalRound,
         players: three,
         responses: [
-          { playerId: 'p2', nickname: 'Богдан', answer: { type: 'single', optionId: 'a' }, grade: 'wrong', accepted: false, points: -200, streakBonus: 0, overridden: false, buff: null, timeMs: 1000 },
+          { playerId: 'p2', nickname: 'Богдан', answer: { type: 'single', optionId: 'a' }, grade: 'wrong', accepted: false, points: -200, streakBonus: 0, overridden: false, buff: null, spare: null, timeMs: 1000 },
         ],
         final: hostFinal({
           left: 1,

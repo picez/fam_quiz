@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type BlitzRow, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
+import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS } from './verdict-blink';
@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null, buffs: null, overtime: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, duel: null, buffs: null, overtime: null, vote: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -90,8 +90,9 @@ describe('PlayerScreen', () => {
     expect(document.querySelector('.debuff-zone')).not.toBeNull();
     expect(document.querySelector('[data-debuff]')).toBeNull();
     expect(document.querySelector('.debuff-zone h1.question')).not.toBeNull();
-    expect(classes()).toEqual(['bar', 'question-head', 'debuff-zone']);
-    expect(debuffed).toEqual(['bar', 'question-head', 'debuff-zone is-mirror']);
+    // Перший — постійний живий регіон аркуша голосування (невидимий).
+    expect(classes()).toEqual(['sr-only vote-live', 'bar', 'question-head', 'debuff-zone']);
+    expect(debuffed).toEqual(['sr-only vote-live', 'bar', 'question-head', 'debuff-zone is-mirror']);
   });
 
   it('a video question shows the player and no timer on the phone', () => {
@@ -1343,22 +1344,22 @@ describe('PlayerScreen: sort', () => {
   });
 
   it('50/50 fades the removed options on the phone, the second try asks again', () => {
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false } } } }));
     const lviv = screen.getByRole('button', { name: 'Львів — прибрано' }) as HTMLButtonElement;
     expect(lviv.disabled).toBe(true);
     expect(lviv.className).toContain('is-removed');
     cleanup();
     const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false } } } }));
     expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
     cleanup();
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 } } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false } } } }));
     expect(screen.getByRole('button', { name: 'Залишити' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
     cleanup();
     // На паузі вибір чекає.
-    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 } } } } }));
+    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false } } } }));
     expect((screen.getByRole('button', { name: 'Залишити' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Ще спроба' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -1384,10 +1385,26 @@ describe('PlayerScreen: sort', () => {
 
   it('extra time shows my own timer', () => {
     const now = Date.now();
-    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
+    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null, hint: null, votes: null, spare: false } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
     expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('24');
     expect(screen.getByText('+30 с — ваш час')).toBeTruthy();
     expect(screen.queryByText(/Чекаємо/)).toBeNull();
+  });
+
+  it('my own clock is measured against the limit plus my extra time', () => {
+    const now = Date.now();
+    const active = { kind: 'time' as const, removed: [], retry: null, first: null, hint: null, votes: null, spare: false };
+    const { container } = render(
+      <PlayerScreen
+        view={onQuestion({ endsAt: now - 1000, limitMs: 20_000, me: { ...me, buffs: { ...buffs, active }, overtime: { deadline: now + 29_000, remainingMs: null } } })}
+        hostOnline
+        offsetMs={0}
+        send={vi.fn(async () => ({ ok: true as const }))}
+      />,
+    );
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('29');
+    expect(screen.getByText('/ 50 с')).toBeTruthy();
+    expect(parseFloat((container.querySelector('.timer-bar > span') as HTMLElement).style.width)).toBeCloseTo(58, 0);
   });
 
   it('others see who the reveal waits for', () => {
@@ -1425,11 +1442,112 @@ describe('PlayerScreen: sort', () => {
   it('the again prompt does not push the options down', () => {
     const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
     const zoneShape = () => [...document.querySelector('.debuff-content, .debuff-zone')!.querySelectorAll('*')].map((el) => el.tagName);
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null, hint: null, votes: null, spare: false } } } }));
     const armed = zoneShape();
     cleanup();
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false } } } }));
     expect(zoneShape()).toEqual(armed);
     expect(document.querySelector('.buff-why')?.textContent).toBe('Неправильно, ще одна спроба');
+  });
+});
+
+describe('PlayerScreen: buffs with others', () => {
+  const slots = [
+    { kind: 'hint' as const, state: 'active' as const, block: null },
+    { kind: 'audience' as const, state: 'blocked' as const, block: 'taken' as const },
+    { kind: 'swap' as const, state: 'blocked' as const, block: 'taken' as const },
+  ];
+  const activeOf = (over: Partial<PlayerActiveBuff>): PlayerActiveBuff => ({ kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, ...over });
+  const withActive = (active: PlayerActiveBuff | null) => ({ slots, active });
+
+  it('a hint arrives inside the panel without moving the answer', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const waiting = onQuestion({ me: { ...me, buffs: withActive(activeOf({ hint: { state: 'waiting', text: null } })) } });
+    const { rerender } = render(<PlayerScreen view={waiting} hostOnline offsetMs={0} send={send} />);
+    const zone = () => document.querySelector('.debuff-zone')!;
+    const shape = () => [...zone().children].map((el) => el.tagName + '.' + el.className);
+    const panel = document.querySelector('.debuff-zone .buff-panel')!;
+    expect(panel.textContent).toContain('Ведучий думає…');
+    // Панель — одразу під рядом бафів.
+    expect(panel.previousElementSibling?.className).toBe('buff-bar');
+    const before = shape();
+    rerender(
+      <PlayerScreen
+        view={{ ...waiting, me: { ...me, buffs: withActive(activeOf({ hint: { state: 'text', text: 'Місто на Дніпрі' } })) } }}
+        hostOnline
+        offsetMs={0}
+        send={send}
+      />,
+    );
+    expect(document.querySelector('.buff-panel')).toBe(panel);
+    expect(panel.textContent).toContain('? Місто на Дніпрі');
+    expect(shape()).toEqual(before);
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it('a hint given aloud says so in the panel', () => {
+    show(onQuestion({ me: { ...me, buffs: withActive(activeOf({ hint: { state: 'aloud', text: null } })) } }));
+    const panel = document.querySelector('.debuff-zone .buff-panel')!;
+    expect(panel.textContent).toBe('Ведучий підказав уголос');
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it('voters get a sheet over the page', () => {
+    const answered = { ...me, answer: { type: 'single' as const, optionId: 'b' } };
+    show(onQuestion({ me: { ...answered, vote: { asker: { playerId: 'p2', nickname: 'Оля' }, endsAt: Date.now() + 15_000, remainingMs: null } } }));
+    const sheet = document.querySelector('.vote-sheet')!;
+    expect(sheet).not.toBeNull();
+    // Аркуш — поза зоною запитання, на рівні main; «Відповідь прийнято» на місці.
+    expect(sheet.closest('.debuff-zone')).toBeNull();
+    expect(sheet.parentElement?.tagName).toBe('MAIN');
+    expect(sheet.querySelector('strong')?.textContent).toBe('Оля питає зал: як думаєте?');
+    expect(document.querySelector('.debuff-zone .sent h2')?.textContent).toBe('Відповідь прийнято');
+  });
+
+  it('the spare question replaces the question on my phone only', () => {
+    const spare = { ...publicQuestion, text: 'Найдовша річка України?', choices: [{ id: 's1', text: 'Дніпро' }, { id: 's2', text: 'Дунай' }] };
+    show(onQuestion({ question: spare, me: { ...me, buffs: withActive(activeOf({ kind: 'swap', spare: true })) } }));
+    expect(screen.getByText('Найдовша річка України?')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Дніпро/ })).toBeTruthy();
+    const tag = document.querySelector('.question-meta .spare-tag')!;
+    expect(tag.textContent).toBe('Запасне запитання');
+    // У тому самому рядку підпису, без нового блоку.
+    expect(tag.parentElement?.className).toBe('meta');
+    expect(document.querySelector('.buff-why')?.textContent).toBe('⇄ Запасне запитання: щонайменше 20 с');
+    expect(document.querySelector('.buff-panel')).toBeNull();
+    cleanup();
+    show(onQuestion({ me: { ...me, buffs: withActive(null) } }));
+    expect(document.querySelector('.spare-tag')).toBeNull();
+  });
+
+  it('after a swap the answer field starts empty', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const textQuestion = { ...publicQuestion, type: 'text' as const, choices: [] };
+    const main = onQuestion({ question: textQuestion, me: { ...me, buffs: withActive(null) } });
+    const { rerender } = render(<PlayerScreen view={main} hostOnline offsetMs={0} send={send} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Київ' } });
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('Київ');
+    const swapped = { ...main, question: { ...textQuestion, text: 'Найдовша річка?' }, me: { ...me, buffs: withActive(activeOf({ kind: 'swap', spare: true })) } };
+    rerender(<PlayerScreen view={swapped} hostOnline offsetMs={0} send={send} />);
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('');
+  });
+
+  it("another player's audience changes nothing on my screen", () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const before = onQuestion({ me: { ...me, buffs: withActive(null) } });
+    const { rerender } = render(<PlayerScreen view={before} hostOnline offsetMs={0} send={send} />);
+    const shape = () => [...document.querySelector('main')!.querySelectorAll('*')].filter((el) => !el.closest('.live-notice')).map((el) => el.tagName + '.' + el.className);
+    const was = shape();
+    rerender(
+      <PlayerScreen
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience' }], buffNotice: { seq: 1, at: Date.now(), nickname: 'Оля', kind: 'audience' } }}
+        hostOnline
+        offsetMs={0}
+        send={send}
+      />,
+    );
+    expect(document.querySelector('.live-notice')).not.toBeNull();
+    expect(document.querySelector('.vote-sheet')).toBeNull();
+    expect(shape()).toEqual(was);
   });
 });

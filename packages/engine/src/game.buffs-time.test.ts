@@ -1,10 +1,10 @@
-import { DEFAULT_RULES, READY_BUFFS, type Answer } from '@quiz/shared';
+import { DEFAULT_RULES, type Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
 import { nextDeadline } from './blitz';
 import { chooseRetry, takeBuff } from './buffs';
 import { acceptAnswer, lock, next, pause, recordOf, removePlayer, resume, start, submitAnswer, tick, type GameState } from './game';
-import { T0, toBuffCell, toBuffQuestion } from './testing/buffs';
+import { FIRST_BUFFS, T0, toBuffCell, toBuffQuestion } from './testing/buffs';
 import { boardRound, chain, makeQuiz, makeRoundsQuiz, match, numeric, single4, sortQ, withId, withVideo } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { adjustTime, closesAt, deadlineOf } from './timing';
@@ -14,8 +14,8 @@ const answer = (s: GameState, id: string, a: Answer, at: number) => must(submitA
 const points = (s: GameState, id: string) => s.players.find((p) => p.id === id)?.score;
 const pick = (optionId: string): Answer => ({ type: 'single', optionId });
 const num = (value: number): Answer => ({ type: 'numeric', value });
-const buffs = [...READY_BUFFS];
-const take = (s: GameState, id: string, kind: (typeof READY_BUFFS)[number], at: number) => must(takeBuff(s, id, kind, at, rng0));
+const buffs = [...FIRST_BUFFS];
+const take = (s: GameState, id: string, kind: (typeof FIRST_BUFFS)[number], at: number) => must(takeBuff(s, id, kind, at, rng0));
 
 /** Від закритого запитання класики до наступного відкритого. */
 const toNext = (s: GameState, at: number) => must(next(must(next(s, at, rng0)), at, rng0));

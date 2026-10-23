@@ -453,6 +453,23 @@ describe('StageScreen: blitz', () => {
       expect(screen.getByText('Відповідає Анна')).toBeTruthy();
       expect(document.body.textContent).not.toContain('×');
     });
+
+    it('on the board the swap tag says the cell has a spare question', () => {
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      show(
+        view({
+          phase: 'question',
+          round,
+          questionIndex: 0,
+          question,
+          endsAt: Date.now() + 20_000,
+          board: boardOf({ cell }),
+          buffs: [{ playerId: 'p1', nickname: 'Анна', kind: 'swap' }],
+        }),
+      );
+      const list = screen.getByRole('list', { name: 'Бафи гравців' });
+      expect(list.textContent).toBe('⇄ Анна: запасне запитання');
+    });
   });
 });
 
@@ -925,6 +942,38 @@ describe('StageScreen final', () => {
     cleanup();
     show(view({ phase: 'leaderboard', buffs, standings: [] }));
     expect(screen.queryByRole('list', { name: 'Бафи гравців' })).toBeNull();
+  });
+
+  it('the stage says who answers a spare, not what it is', () => {
+    const buffs = [{ playerId: 'p1', nickname: 'Оля', kind: 'swap' as const }];
+    for (const phase of ['question', 'locked', 'reveal'] as const) {
+      show(view({ phase, questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs, reveal: phase === 'reveal' ? full : null }));
+      const list = screen.getByRole('list', { name: 'Бафи гравців' });
+      expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['⇄ Оля відповідає на запасне']);
+      // Сцена показує основне запитання: запасного в її зрізі немає.
+      expect(screen.getByText('Столиця України?')).toBeTruthy();
+      cleanup();
+    }
+  });
+
+  it('the stage shows the hint and audience icons only', () => {
+    const buffs = [
+      { playerId: 'p2', nickname: 'Петро', kind: 'hint' as const },
+      { playerId: 'p3', nickname: 'Іра', kind: 'audience' as const },
+    ];
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs }));
+    const list = screen.getByRole('list', { name: 'Бафи гравців' });
+    expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['? Петро', '% Іра']);
+    expect(document.querySelector('.buff-panel, .hint-text, .vote-rows')).toBeNull();
+  });
+
+  it('the stage never shows a hint, not even at the reveal', () => {
+    const buffs = [{ playerId: 'p2', nickname: 'Петро', kind: 'hint' as const }];
+    for (const phase of ['question', 'locked', 'reveal'] as const) {
+      show(view({ phase, questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs, reveal: phase === 'reveal' ? { ...full, hint: 'Тече через Київ' } : null }));
+      expect(document.body.textContent).not.toContain('Тече через Київ');
+      cleanup();
+    }
   });
 
   it('the stage waits for a player with extra time', () => {

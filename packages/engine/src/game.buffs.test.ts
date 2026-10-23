@@ -1,10 +1,10 @@
-import { DEFAULT_RULES, READY_BUFFS, DEBUFF_KINDS, type Answer, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, DEBUFF_KINDS, type Answer, type Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
 import { buffBlock, buffsUsed, fiftyCount, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
 import { acceptAnswer, lock, next, override, pause, removePlayer, start, submitAnswer, type GameState } from './game';
-import { T0, buffQuiz, toBuffCell, toBuffQuestion } from './testing/buffs';
+import { FIRST_BUFFS, T0, buffQuiz, toBuffCell, toBuffQuestion } from './testing/buffs';
 import {
   blitzRound,
   bool,
@@ -29,7 +29,7 @@ const rng9 = () => 0.99;
 const answer = (s: GameState, id: string, a: Answer, at: number) => must(submitAnswer(s, id, a, at));
 const points = (s: GameState, id: string) => s.players.find((p) => p.id === id)?.score;
 const pick = (optionId: string): Answer => ({ type: 'single', optionId });
-const buffs = [...READY_BUFFS];
+const buffs = [...FIRST_BUFFS];
 
 /** Від закритого запитання класики до наступного відкритого. */
 const toNext = (s: GameState, at: number) => must(next(must(next(s, at, rng0)), at, rng0));

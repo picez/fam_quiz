@@ -113,15 +113,16 @@ function cellResult(
 
 /** Відповіді на запитання: учасники за турнірною таблицею, потім за номером спроби. */
 function responsesOf(
-  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; buff: BuffKind | null }[],
+  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; buff: BuffKind | null; spareId: string | null }[],
   standings: { participantId: string; nickname: string }[],
+  spares: Question[],
 ): GameResponse[] {
   return standings.flatMap(({ participantId, nickname }) =>
     given
       // Штрафний рядок бліц-клітинки не є відповіддю.
       .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
       .sort((a, b) => a.attempt - b.attempt)
-      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null })),
+      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null })),
   );
 }
 
@@ -199,6 +200,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
             points: answer.points,
             wager: answer.wager,
             buff: answer.buff,
+            spareId: answer.spareId,
           })
           .from(answer)
           .where(
@@ -240,6 +242,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     // Знімок не змінюється, тож запитання з журналу в ньому є; перевірка лише від зіпсованого рядка.
     if (question === undefined) return [];
     const given = answers.filter((a) => a.questionIndex === index);
+    // Як на сцені: у класиці відповіді на запасні — інше запитання, лічильники їх не рахують; на полі рахують.
+    const main = ref?.cell !== undefined ? given : given.filter((a) => a.spareId === null);
     const round = quiz?.rounds[roundIndex];
     return [
       {
@@ -247,11 +251,11 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         roundIndex,
         text: question.text,
         type: question.type,
-        answered: distinct(given.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
-        accepted: distinct(given.filter((a) => a.accepted).map((a) => a.participantId)),
+        answered: distinct(main.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
+        accepted: distinct(main.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
-        responses: responsesOf(given, standings),
+        responses: responsesOf(given, standings, quiz?.spares ?? []),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },
     ];

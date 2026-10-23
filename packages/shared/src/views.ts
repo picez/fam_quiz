@@ -430,6 +430,48 @@ export interface PlayerActiveBuff {
   retry: RetryStage | null;
   /** retry на again/choice: перша відповідь і її бали (choice — часткові); інакше null. */
   first: { answer: Answer | null; points: number } | null;
+  /** hint: підказка; інакше null. */
+  hint: PlayerHint | null;
+  /** audience: голосування залу; інакше null. */
+  votes: VoteTally | null;
+  /** swap: гравець відповідає на запасне. */
+  spare: boolean;
+}
+
+/** Підказка для гравця: waiting — ведучий думає; text — текст; aloud — ведучий підказав уголос. */
+export interface PlayerHint {
+  state: 'waiting' | 'text' | 'aloud';
+  text: string | null;
+}
+
+/** Голосування залу для гравця з бафом: правильної відповіді тут немає. */
+export interface VoteTally {
+  /** Кінець голосування (час сервера); null на паузі. */
+  endsAt: number | null;
+  /** На паузі: залишок; інакше null. */
+  remainingMs: number | null;
+  /** Гравець уже відповів — голосування закрите. */
+  closed: boolean;
+  cast: number;
+  /** Голоси за id варіанта (boolean — "true"/"false"). */
+  counts: Record<string, number>;
+  /** text, numeric: здогадки за кількістю; не більше 6. */
+  guesses: { text: string; count: number }[];
+}
+
+/** Запрошення проголосувати: лише ім'я гравця з бафом і час. */
+export interface VotePrompt {
+  asker: BlitzPlayer;
+  /** Кінець голосування (час сервера); null на паузі. */
+  endsAt: number | null;
+  /** На паузі: залишок; інакше null. */
+  remainingMs: number | null;
+}
+
+/** Запит підказки для ведучого. */
+export interface HintRequest extends BlitzPlayer {
+  /** Мить, коли баф узято (час сервера). */
+  at: number;
 }
 
 export interface PlayerBuffs {
@@ -523,6 +565,8 @@ export interface PlayerView extends BaseView {
     buffs: PlayerBuffs | null;
     /** Власний особистий кінець, якщо він пізніший за спільний (етап question); інакше null. */
     overtime: { deadline: number | null; remainingMs: number | null } | null;
+    /** Відкрите голосування, у якому гравець може й ще не голосував; null — немає. */
+    vote: VotePrompt | null;
   };
   reveal: Question | null;
   standings: Standing[] | null;
@@ -540,6 +584,8 @@ export interface HostResponse {
   points: number;
   overridden: boolean;
   buff: BuffKind | null;
+  /** Запасне запитання, на яке дано відповідь (з правильною відповіддю); null — основне. */
+  spare: Question | null;
 }
 
 export interface HostPlayer extends LobbyPlayer {
@@ -565,6 +611,8 @@ export interface HostView extends BaseView {
   duel: HostDuel | null;
   /** Що дозволено у вікторині: пульт показує лише ці дебафи. */
   allowed: { debuffs: DebuffKind[]; buffs: BuffKind[] };
+  /** Запити підказки без відповіді на поточному запитанні (етап question), у порядку гравців. */
+  hints: HintRequest[];
   standings: Standing[];
 }
 

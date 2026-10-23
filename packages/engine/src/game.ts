@@ -21,7 +21,18 @@ import {
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
-import { applyBuff, buffOf, finishRetry, holdFirstTry, settleRetries, type BuffPlay } from './buffs';
+import {
+  answerLimitMs,
+  applyBuff,
+  buffOf,
+  dropBallots,
+  finishRetry,
+  holdFirstTry,
+  questionFor,
+  settleRetries,
+  shiftBuffClocks,
+  type BuffPlay,
+} from './buffs';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
@@ -62,6 +73,8 @@ export interface AnswerRecord {
   overridden: boolean;
   /** Баф, узятий на це запитання; бали вже з ним. Немає — без бафу. */
   buff?: BuffKind;
+  /** Відповідь на запасне запитання з цим id; немає — на основне. */
+  spare?: string;
 }
 
 /** Натискання «Відповісти» в бліці або відповідь у миттєвому бліці. */
@@ -307,6 +320,8 @@ export interface GameState {
   duelsDeclared: string[];
   /** id запитань пулу, які вже з'являлися в дуелях цієї гри. */
   duelUsed: string[];
+  /** Id запасних запитань, уже виданих у цій грі; вилучення гравця їх не повертає. */
+  sparesUsed: string[];
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -338,6 +353,7 @@ export function createGame(quiz: Quiz): GameState {
     duel: null,
     duelsDeclared: [],
     duelUsed: [],
+    sparesUsed: [],
   };
 }
 
@@ -398,7 +414,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
     }
     if (play.buffs !== undefined) {
       const { [playerId]: _buff, ...buffs } = play.buffs;
-      kept.buffs = buffs;
+      // Голос вилученого більше не рахується.
+      kept.buffs = dropBallots(buffs, playerId);
     }
     if (play.overtime !== undefined) {
       const { [playerId]: _overtime, ...overtime } = play.overtime;
@@ -504,7 +521,8 @@ export function shuffle<T>(items: T[], rng: Rng): T[] {
   return result;
 }
 
-function present(question: Question, shuffleOptions: boolean, rng: Rng): string[] {
+/** Порядок показу варіантів; експортовано для buffs.ts. */
+export function present(question: Question, shuffleOptions: boolean, rng: Rng): string[] {
   if (question.type === 'order') {
     const ids = question.items.map((item) => item.id);
     const mixed = shuffle(ids, rng);
@@ -899,11 +917,15 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   // Після часткової першої відповіді гравець вибирає через chooseRetry.
   if (buffOf(play, playerId)?.retry === 'choice') return fail('wrong_phase');
   if (state.startedAt === null || timeOverFor(state, play, playerId, now)) return fail('time_over');
-  if (question.type !== answer.type) return fail('type_mismatch');
+  // Після заміни гравець відповідає на запасне, але бали — основного запитання.
+  const asked = questionFor(state, play, playerId);
+  if (asked.type !== answer.type) return fail('type_mismatch');
 
-  const timeMs = Math.max(0, now - state.startedAt);
-  const { accepted, accuracy } = checkAnswer(question, answer);
-  const limit = limitMsOf(play);
+  // Швидкість на запасному — від миті, коли його отримано.
+  const spare = buffOf(play, playerId)?.spare;
+  const timeMs = Math.max(0, now - (spare?.startedAt ?? state.startedAt));
+  const { accepted, accuracy } = checkAnswer(asked, answer);
+  const limit = answerLimitMs(play, playerId);
   const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
   const points = answerPoints({
     points: question.points,
@@ -965,7 +987,7 @@ function submitBoardAnswer(state: GameState, round: BoardRound, playerId: string
   if (recordOf(state, state.questionIndex, playerId) !== undefined || board.answer !== null) return fail('already_answered');
   if (buffOf(play, playerId)?.retry === 'choice') return fail('wrong_phase');
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');
-  if (play.question.type !== answer.type) return fail('type_mismatch');
+  if (questionFor(state, play, playerId).type !== answer.type) return fail('type_mismatch');
   return ok(holdAt(withBoard(state, { ...board, answer }), now));
 }
 
@@ -985,7 +1007,7 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
   }
   if (round.type !== 'board' || play.board === undefined || round.check === 'manual') return fail('wrong_phase');
 
-  const checked = checkAnswer(play.question, pending.answer);
+  const checked = checkAnswer(questionFor(state, play, pending.playerId), pending.answer);
   // Часткові бали лише за увімкненого правила; інакше неповна відповідь неправильна.
   const accuracy = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && rulesOf(round).partial !== null ? checked.accuracy : 0;
   const points = boardPoints(round, play.board, accuracy);
@@ -1245,7 +1267,7 @@ export function resume(state: GameState, now: number): Result {
     // Підвисання в сортуванні зсувається разом із годинником.
     const resumed = shiftSortLocks({ ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs }, shift);
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
-    return ok(autoLock(settleQueue(shiftQueue(resumed, shift), now), now));
+    return ok(autoLock(settleQueue(shiftQueue(shiftBuffClocks(resumed, shift), shift), now), now));
   }
   if (state.phase === 'question' && !isTimed(state.plays[state.questionIndex].question)) {
     // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
@@ -1257,7 +1279,7 @@ export function resume(state: GameState, now: number): Result {
       startedAt: state.startedAt === null ? null : state.startedAt + shift,
     };
     // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
-    return ok(watchAway(autoLock(settleQueue(shiftQueue(resumed, shift), now), now), now));
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(shiftBuffClocks(resumed, shift), shift), now), now), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.
@@ -1341,7 +1363,7 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   if (record === undefined) return fail('not_found');
   if (grade === 'partial' && rulesOf(round).partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
-  const limit = limitMsOf(play);
+  const limit = answerLimitMs(play, playerId);
   const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
   const points = answerPoints({
     points: question.points,

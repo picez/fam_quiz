@@ -20,7 +20,7 @@ import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortWatch } from './SortView';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
-import { BuffRow, OvertimeLine, RetryPrompt } from './Buffs';
+import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 
 interface Props {
   view: PlayerView;
@@ -261,6 +261,29 @@ function instantStatus(blitz: PlayerBlitz, timeOver: boolean): string {
   return '';
 }
 
+/**
+ * Повний час для власного годинника: спільний ліміт плюс власний додатковий час (кінець особистий − кінець спільний;
+ * на паузі — різниця залишків). Найбільше значення за запитання тримається: пауза після спільного кінця
+ * зменшує додатковий час на витрачене, а смужка не має стрибати.
+ */
+function usePersonalTotal(
+  view: { questionIndex: number; limitMs: number | null; endsAt: number | null; remainingMs: number | null },
+  myClock: { endsAt: number | null; remainingMs: number | null } | null,
+): number | null {
+  const kept = useRef<{ questionIndex: number; total: number } | null>(null);
+  if (view.limitMs === null || myClock === null) return view.limitMs;
+  const extra =
+    myClock.endsAt !== null && view.endsAt !== null
+      ? myClock.endsAt - view.endsAt
+      : myClock.remainingMs !== null && view.remainingMs !== null
+        ? myClock.remainingMs - view.remainingMs
+        : 0;
+  let total = view.limitMs + Math.max(0, extra);
+  if (kept.current !== null && kept.current.questionIndex === view.questionIndex) total = Math.max(total, kept.current.total);
+  kept.current = { questionIndex: view.questionIndex, total };
+  return total;
+}
+
 export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
@@ -301,6 +324,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const myClock = me.overtime !== null ? { endsAt: me.overtime.deadline, remainingMs: me.overtime.remainingMs } : null;
   const buffTimeOver = useTimeOver(myClock?.endsAt ?? view.endsAt, myClock !== null ? myClock.remainingMs : view.remainingMs, offsetMs);
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
+  const clockTotal = usePersonalTotal(view, myClock);
   const waiting = phase === 'question' && myClock === null && sharedOver && view.overtime.length > 0;
   const activeBuff = me.buffs?.active ?? null;
   const retryStage = activeBuff?.retry ?? null;
@@ -325,6 +349,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <BuffToast notice={view.buffNotice} offsetMs={offsetMs} />
+      {/* Запрошення проголосувати — нижній аркуш position: fixed: чужий баф нічого не зсуває. */}
+      {phase === 'question' && question !== null && (
+        <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
+      )}
       <header className="bar">
         <span>{me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
@@ -379,10 +407,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <div className="question-head">
             {/* «Чекаємо …» стає на місце підпису (той лишається прихованим і тримає висоту): поява на спільному кінці нічого не зсуває. */}
             <div className="question-meta">
-              <p className={waiting ? 'meta is-hidden' : 'meta'}>{questionLabel(view.round, view.questionIndex, view.total)}</p>
+              <p className={waiting ? 'meta is-hidden' : 'meta'}>
+                {questionLabel(view.round, view.questionIndex, view.total)}
+                {/* Запасне — власна заміна: позначка в тому самому рядку підпису, без нового блоку. */}
+                {activeBuff?.spare === true && <span className="spare-tag">{t('spareTag')}</span>}
+              </p>
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
-            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
+            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">
@@ -404,6 +436,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
             {me.buffs !== null && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} send={send} onError={setError} />}
+            {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
+            {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
             {isSort && me.sort !== null ? (
@@ -480,7 +514,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
               <fieldset className="inputs" disabled={view.paused}>
-                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}`} question={shown ?? question} removed={activeBuff?.removed} onSubmit={submit} />
+                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed} onSubmit={submit} />
               </fieldset>
             )}
           </DebuffZone>

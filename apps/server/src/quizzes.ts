@@ -1,4 +1,4 @@
-import { questionsOf, quizSchema, type Duels, type Quiz, type QuizSettings } from '@quiz/shared';
+import { questionsOf, quizSchema, type Duels, type Question, type Quiz, type QuizSettings } from '@quiz/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { quiz } from './db/schema';
@@ -12,11 +12,14 @@ export interface QuizSummary {
 }
 
 /**
- * Дуелі зберігаються в тому ж jsonb, що й налаштування: окремої колонки немає, міграції теж.
- * Старі рядки поля не мають.
+ * Дуелі й запасні запитання зберігаються в тому ж jsonb, що й налаштування: окремої колонки немає, міграції теж.
+ * Старі рядки цих полів не мають.
  */
-const storedSettings = (data: Quiz): QuizSettings & { duels?: Duels } =>
-  data.duels === undefined ? data.settings : { ...data.settings, duels: data.duels };
+const storedSettings = (data: Quiz): QuizSettings & { duels?: Duels; spares?: Question[] } => ({
+  ...data.settings,
+  ...(data.duels === undefined ? {} : { duels: data.duels }),
+  ...(data.spares === undefined ? {} : { spares: data.spares }),
+});
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,8 +42,8 @@ export async function getQuiz(db: Db, ownerId: string, id: string): Promise<Quiz
   if (where === null) return null;
   const [row] = await db.select().from(quiz).where(where);
   if (row === undefined) return null;
-  const { duels, ...settings } = row.settings;
-  const stored = { title: row.title, description: row.description, settings, rounds: row.rounds, ...(duels === undefined ? {} : { duels }) };
+  const { duels, spares, ...settings } = row.settings;
+  const stored = { title: row.title, description: row.description, settings, rounds: row.rounds, ...(duels === undefined ? {} : { duels }), ...(spares === undefined ? {} : { spares }) };
   // Схема дописує типові значення в старих вікторинах; зламаний рядок лишається як є.
   const parsed = quizSchema.safeParse(stored);
   return parsed.success ? parsed.data : stored;

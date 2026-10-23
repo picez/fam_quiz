@@ -1,18 +1,18 @@
-import { DEBUFF_KINDS, READY_BUFFS, type Answer } from '@quiz/shared';
+import { DEBUFF_KINDS, type Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { takeBuff } from './buffs';
 import { lock, next, pause, removePlayer, start, submitAnswer, type GameState } from './game';
-import { T0, toBuffCell, toBuffQuestion } from './testing/buffs';
+import { FIRST_BUFFS, T0, toBuffCell, toBuffQuestion } from './testing/buffs';
 import { blitzRound, finalRound, makeQuiz, makeRoundsQuiz, single, single4, text } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
 const rng0 = () => 0;
-const buffs = [...READY_BUFFS];
+const buffs = [...FIRST_BUFFS];
 const answer = (s: GameState, id: string, a: Answer, at: number) => must(submitAnswer(s, id, a, at));
 const pick = (optionId: string): Answer => ({ type: 'single', optionId });
 const num = (value: number): Answer => ({ type: 'numeric', value });
-const take = (s: GameState, id: string, kind: (typeof READY_BUFFS)[number], at = T0) => must(takeBuff(s, id, kind, at, rng0));
+const take = (s: GameState, id: string, kind: (typeof FIRST_BUFFS)[number], at = T0) => must(takeBuff(s, id, kind, at, rng0));
 /** Від закритого запитання класики до наступного відкритого. */
 const toNext = (s: GameState, at: number) => must(next(must(next(s, at, rng0)), at, rng0));
 const slotsOf = (s: GameState, id: string) => playerView(s, id)?.me.buffs?.slots.map((slot) => [slot.kind, slot.state, slot.block]);
@@ -31,7 +31,7 @@ describe('buff views', () => {
       ['time', 'blocked', 'taken'],
       ['shield', 'blocked', 'taken'],
     ]);
-    expect(playerView(s, 'p1')?.me.buffs?.active).toEqual({ kind: 'double', removed: [], retry: null, first: null });
+    expect(playerView(s, 'p1')?.me.buffs?.active).toEqual({ kind: 'double', removed: [], retry: null, first: null, hint: null, votes: null, spare: false });
     expect(playerView(s, 'p2')?.me.buffs?.active).toBeNull();
 
     s = must(lock(s));
@@ -137,7 +137,7 @@ describe('buff views', () => {
     s = take(s, 'p1', 'retry');
     s = answer(s, 'p1', num(2111), T0 + 1000);
     const mine = playerView(s, 'p1');
-    expect(mine?.me.buffs?.active).toEqual({ kind: 'retry', removed: [], retry: 'choice', first: { answer: num(2111), points: 750 } });
+    expect(mine?.me.buffs?.active).toEqual({ kind: 'retry', removed: [], retry: 'choice', first: { answer: num(2111), points: 750 }, hint: null, votes: null, spare: false });
     expect(mine?.me.answer).toBeNull();
     expect(hostView(s).responses.map((r) => r.playerId)).not.toContain('p1');
     for (const view of [playerView(s, 'p2'), stageView(s)]) expect(JSON.stringify(view)).not.toContain('2111');

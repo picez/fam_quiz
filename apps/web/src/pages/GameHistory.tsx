@@ -4,7 +4,7 @@ import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { t } from '../i18n';
 import { PairList } from '../screens/MatchView';
-import { BuffBadge } from '../screens/Buffs';
+import { BuffBadge, SpareMark } from '../screens/Buffs';
 import { usePrivateData } from '../usePrivateData';
 
 /** Рядки дуелей: пари 'duel' з сусідніми seq (+N і −N) — один рядок; непарне — окремо. */
@@ -142,11 +142,13 @@ export function GameHistory() {
                                   <span className="responses-who">
                                     <span className="responses-name">{response.nickname}</span>
                                     {response.buff !== null && <BuffBadge kind={response.buff} />}
+                                    {response.spare !== null && <SpareMark spare={response.spare} />}
                                   </span>
+                                  {response.spare !== null && <span className="spare-text">{t('spareText', { text: response.spare.text })}</span>}
                                   {response.answer?.type === 'match' ? (
                                     <PairList pairs={pairTexts(response.answer.links, choicesOf(question.question))} tone="" />
                                   ) : (
-                                    <span className="responses-answer">{answerText(response.answer, question.question)}</span>
+                                    <span className="responses-answer">{answerText(response.answer, response.spare ?? question.question)}</span>
                                   )}
                                 </li>
                               ))}
