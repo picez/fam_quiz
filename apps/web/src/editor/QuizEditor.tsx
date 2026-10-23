@@ -15,6 +15,7 @@ import {
   questionTypesFor,
 } from './draft';
 import { BoardEditor } from './BoardEditor';
+import { DuelsEditor } from './DuelsEditor';
 import { QuestionEditor } from './QuestionEditor';
 import { RoundSettings } from './RoundSettings';
 import { RoundStrip } from './RoundStrip';
@@ -43,6 +44,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const [listOpen, setListOpen] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  /** Розділ «Дуелі» розгорнуто: автором або помилкою в ньому. */
+  const [duelsOpen, setDuelsOpen] = useState(false);
   /** Клітинка поля, яку треба показати після невдалого збереження. */
   const [boardFocus, setBoardFocus] = useState<{ category: number; index: number } | null>(null);
   /** Запитання, яке зараз перетягують у списку. */
@@ -159,6 +162,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     const found = problemsOf(quiz);
     setProblems(found);
     if (found.length > 0) {
+      if (found.some((problem) => problem.startsWith(t('duelsTitle')))) setDuelsOpen(true);
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
       const broken = firstProblem(quiz);
       if (broken !== null) {
@@ -211,6 +215,18 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               <option value="end">{t('leaderboardEnd')}</option>
             </select>
           </label>
+        </details>
+
+        <details className="rules duels" open={duelsOpen} onToggle={(event) => setDuelsOpen(event.currentTarget.open)}>
+          <summary>{t('duelsTitle')}</summary>
+          <DuelsEditor
+            duels={quiz.duels}
+            onChange={(duels) => {
+              const { duels: _old, ...rest } = quiz;
+              update(duels === undefined ? rest : { ...rest, duels });
+              if (duels !== undefined) setDuelsOpen(true);
+            }}
+          />
         </details>
       </section>
 

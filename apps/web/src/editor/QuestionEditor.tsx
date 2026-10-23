@@ -33,7 +33,7 @@ const sameNumber = (a: number, b: number) => a === b || (Number.isNaN(a) && Numb
  * Поле для числа. Показує саме те, що набрано ("-", "2,", "30x"), і віддає назовні число
  * або NaN: якби поле перемальовувалося з числа, проміжні стани набору зникали б.
  */
-function NumberField(props: { label: string; value: number; decimal?: boolean; onChange: (value: number) => void }) {
+export function NumberField(props: { label: string; value: number; decimal?: boolean; onChange: (value: number) => void }) {
   const [raw, setRaw] = useState(() => shown(props.value));
 
   // Значення змінили ззовні (наприклад, відновили чернетку): показати його.
@@ -61,7 +61,7 @@ function NumberField(props: { label: string; value: number; decimal?: boolean; o
  * Рядки з текстом у вигляді, близькому до того, що побачать гравці: варіанти, елементи
  * впорядкування, допустимі написання. Enter переходить до наступного рядка або додає новий.
  */
-function Rows(props: {
+export function Rows(props: {
   rows: Row[];
   min: number;
   max: number;

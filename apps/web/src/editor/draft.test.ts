@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz } from '@quiz/shared';
+import { DEFAULT_RULES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf } from './draft';
+import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -817,5 +817,85 @@ describe('sort questions in the editor', () => {
     const single = { ...newQuestion('single'), text: 'Питання', timeLimit: 45, points: 1000 };
     const result = changeType(single, 'sort');
     expect(result).toMatchObject({ type: 'sort', text: 'Питання', timeLimit: 60, points: 100 });
+  });
+});
+
+const fillDuels = (duels: Duels): Duels => ({
+  ...duels,
+  categories: duels.categories.map((c) => ({
+    ...c,
+    title: 'Столиці',
+    questions: c.questions.map((q, i) => ({ ...q, text: `Столиця ${i + 1}?`, accepted: ['Київ'] })),
+  })),
+});
+const withDuels = (duels: Duels): Quiz => ({ ...quizWith(filled(newQuestion('boolean'))), duels });
+
+describe('duels in the draft', () => {
+  it('new duels are valid once their texts are filled', () => {
+    const duels = newDuels();
+    expect(duels.categories).toHaveLength(1);
+    expect(duels.categories[0].questions).toHaveLength(3);
+    expect(duels).toMatchObject({ questionsPerDuel: 3, timeLimit: 30, stake: 300 });
+    expect(problemsOf(withDuels(duels)).length).toBeGreaterThan(0);
+    const quiz = withDuels(fillDuels(duels));
+    expect(problemsOf(quiz)).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+  });
+
+  it('cleaning duels trims texts, drops blank spellings and blank trailing questions above the need', () => {
+    const filledDuels = fillDuels(newDuels());
+    const base = filledDuels.categories[0];
+    const extra = [
+      { id: 'e1', text: '', accepted: [''] },
+      { id: 'e2', text: '', accepted: [''] },
+    ];
+    const quiz = withDuels({
+      ...filledDuels,
+      categories: [
+        {
+          ...base,
+          title: '  Столиці ',
+          questions: [{ ...base.questions[0], text: ' Франція? ', accepted: [' Париж ', ''] }, ...base.questions.slice(1), ...extra],
+        },
+      ],
+    });
+    const result = cleaned(quiz).duels!.categories[0];
+    expect(result.questions).toHaveLength(3);
+    expect(result.title).toBe('Столиці');
+    expect(result.questions[0]).toMatchObject({ text: 'Франція?', accepted: ['Париж'] });
+  });
+
+  it('duel problems name the cause', () => {
+    const ok = fillDuels(newDuels());
+    expect(problemsOf(withDuels({ ...ok, questionsPerDuel: 8 }))).toContain(t('problemDuelSettings'));
+    expect(problemsOf(withDuels({ ...ok, categories: [{ ...ok.categories[0], title: '' }] }))).toContain(t('problemDuelTitle', { index: 1 }));
+    const noSpelling = { ...ok.categories[0], questions: ok.categories[0].questions.map((q, i) => (i === 1 ? { ...q, accepted: [''] } : q)) };
+    expect(problemsOf(withDuels({ ...ok, categories: [noSpelling] }))).toContain(t('problemDuelQuestion', { category: 'Столиці', index: 2 }));
+    const short = { ...ok.categories[0], questions: ok.categories[0].questions.slice(0, 2) };
+    expect(problemsOf(withDuels({ ...ok, categories: [short] }))).toContain('Дуелі, «Столиці»: замало запитань — потрібно щонайменше 3.');
+  });
+
+  it('a quiz without duels has no duel problems', () => {
+    expect(problemsOf(quizWith(filled(newQuestion('boolean'))))).toEqual([]);
+  });
+
+  it('schema issue codes of duels read as sentences', () => {
+    const ok = fillDuels(newDuels());
+    const dup = { ...ok.categories[0], id: 'same' };
+    const problems = problemsOf(withDuels({ ...ok, categories: [dup, { ...dup, title: 'Інша' }] }));
+    expect(problems).toEqual([t('problemDuelDuplicate')]);
+  });
+});
+
+describe('duel drafts in storage', () => {
+  it('a draft keeps its duels; broken duels are dropped', () => {
+    const quiz = withDuels(fillDuels(newDuels()));
+    saveDraft('withduels', quiz);
+    expect(loadDraft('withduels')?.duels).toEqual(quiz.duels);
+    sessionStorage.setItem('quiz:draft:brokenduels', JSON.stringify({ ...quiz, duels: 'x' }));
+    expect(loadDraft('brokenduels')).not.toBeNull();
+    expect('duels' in loadDraft('brokenduels')!).toBe(false);
+    saveDraft('noduels', quizWith(filled(newQuestion('boolean'))));
+    expect('duels' in loadDraft('noduels')!).toBe(false);
   });
 });

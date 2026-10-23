@@ -3,9 +3,11 @@ import {
   CELL_KINDS,
   CELL_MARKS,
   CELL_PENALTIES,
+  LIMITS,
   upgradeQuiz,
   videoSchema,
   type BoardCategory,
+  type Duels,
   type Question,
   type Quiz,
   type Round,
@@ -59,6 +61,20 @@ function reviveCategory(category: BoardCategory): BoardCategory {
   };
 }
 
+const looksLikeDuels = (value: unknown): value is Duels =>
+  typeof value === 'object' && value !== null && Array.isArray((value as Duels).categories);
+
+/** Чернетка могла не мати чисел (NaN у JSON стає null): беремо типові значення. */
+function reviveDuels(duels: Duels): Duels {
+  const number = (value: unknown, fallback: number) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
+  return {
+    ...duels,
+    questionsPerDuel: number(duels.questionsPerDuel, LIMITS.defaultDuelQuestions),
+    timeLimit: number(duels.timeLimit, LIMITS.defaultDuelTime),
+    stake: number(duels.stake, LIMITS.defaultDuelStake),
+  };
+}
+
 function looksLikeQuiz(value: unknown): value is Quiz {
   if (typeof value !== 'object' || value === null) return false;
   const { title, description, settings, rounds } = value as Record<string, unknown>;
@@ -91,8 +107,10 @@ export function loadDraft(id: string | undefined): Quiz | null {
     // Чернетка старого формату (один список запитань) стає вікториною з одним раундом.
     const parsed = upgradeQuiz(JSON.parse(raw));
     if (!looksLikeQuiz(parsed)) return null;
+    const { duels: rawDuels, ...rest } = parsed;
     return {
-      ...parsed,
+      ...rest,
+      ...(looksLikeDuels(rawDuels) ? { duels: reviveDuels(rawDuels) } : {}),
       settings: { ...parsed.settings, leaderboard: parsed.settings.leaderboard ?? 'each' },
       rounds: parsed.rounds.map((round): Round => {
         if (round.type === 'board') {

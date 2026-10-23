@@ -12,6 +12,9 @@ import {
   type BoardCategory,
   type BoardRound,
   type ClassicRound,
+  type DuelCategory,
+  type DuelQuestion,
+  type Duels,
   type FinalRound,
   type Round,
   type Question,
@@ -261,6 +264,24 @@ export function newQuiz(): Quiz {
   return { title: '', description: '', settings: { ...DEFAULT_SETTINGS }, rounds: [newClassicRound()] };
 }
 
+export function newDuelQuestion(): DuelQuestion {
+  return { id: newId(), text: '', accepted: [''] };
+}
+
+export function newDuelCategory(count: number): DuelCategory {
+  return { id: newId(), title: '', questions: Array.from({ length: count }, newDuelQuestion) };
+}
+
+/** Увімкнені дуелі: одна категорія з трьома порожніми запитаннями й типові налаштування. */
+export function newDuels(): Duels {
+  return {
+    categories: [newDuelCategory(LIMITS.defaultDuelQuestions)],
+    questionsPerDuel: LIMITS.defaultDuelQuestions,
+    timeLimit: LIMITS.defaultDuelTime,
+    stake: LIMITS.defaultDuelStake,
+  };
+}
+
 /** Порожній варіант: без тексту й без картинки. */
 const isBlankOption = (option: { text: string; imageUrl?: string }) => option.text === '' && option.imageUrl === undefined;
 
@@ -334,6 +355,21 @@ export function cleaned(quiz: Quiz): Quiz {
     question.type === 'sort' && question.words.length > 0 && question.points * question.words.length > LIMITS.maxPoints
       ? { ...question, points: Math.floor(LIMITS.maxPoints / question.words.length) }
       : question;
+  const cleanDuels = (duels: Duels): Duels => ({
+    ...duels,
+    categories: duels.categories.map((category) => {
+      const questions = category.questions.map((question) => ({
+        ...question,
+        text: question.text.trim(),
+        accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== ''),
+      }));
+      // Порожні запитання в кінці прибираються, поки їх не менше, ніж потрібно для дуелі.
+      let end = questions.length;
+      const need = Number.isInteger(duels.questionsPerDuel) ? duels.questionsPerDuel : 1;
+      while (end > Math.max(1, need) && questions[end - 1].text === '' && questions[end - 1].accepted.length === 0) end -= 1;
+      return { ...category, title: category.title.trim(), questions: questions.slice(0, end) };
+    }),
+  });
   return {
     ...quiz,
     title: quiz.title.trim(),
@@ -352,6 +388,7 @@ export function cleaned(quiz: Quiz): Quiz {
         })),
       };
     }),
+    ...(quiz.duels === undefined ? {} : { duels: cleanDuels(quiz.duels) }),
   };
 }
 
@@ -462,6 +499,32 @@ function cellProblem(category: number, index: number, key: TextKey): string {
   return t('problemCell', { category, problem: text.charAt(0).toLowerCase() + text.slice(1) });
 }
 
+/** Проблеми розділу «Дуелі»: налаштування, назви, запитання, їх кількість. */
+function duelProblems(duels: Duels): string[] {
+  const problems: string[] = [];
+  const inRange = (value: number, min: number, max: number) => Number.isInteger(value) && value >= min && value <= max;
+  if (
+    !inRange(duels.questionsPerDuel, 1, LIMITS.maxDuelQuestions) ||
+    !inRange(duels.timeLimit, LIMITS.minTime, LIMITS.maxTime) ||
+    !inRange(duels.stake, 0, LIMITS.maxDuelStake)
+  ) {
+    problems.push(t('problemDuelSettings'));
+  }
+  duels.categories.forEach((category, categoryIndex) => {
+    if (category.title === '') problems.push(t('problemDuelTitle', { index: categoryIndex + 1 }));
+    const name = category.title === '' ? t('duelCategoryN', { index: categoryIndex + 1 }) : category.title;
+    category.questions.forEach((question, index) => {
+      if (question.text === '' || question.accepted.length === 0) {
+        problems.push(t('problemDuelQuestion', { category: name, index: index + 1 }));
+      }
+    });
+    if (category.questions.length < duels.questionsPerDuel) {
+      problems.push(t('problemDuelShort', { category: name, needed: duels.questionsPerDuel }));
+    }
+  });
+  return problems;
+}
+
 /** Що заважає зберегти вікторину; порожній список означає, що все гаразд. */
 export function problemsOf(quiz: Quiz): string[] {
   const draft = cleaned(quiz);
@@ -490,7 +553,16 @@ export function problemsOf(quiz: Quiz): string[] {
       if (key !== null) problems.push(where(t(key, { index: index + 1 })));
     });
   });
-  // Остання перевірка тією самою схемою, що й на сервері.
-  if (problems.length === 0 && !quizSchema.safeParse(draft).success) problems.push(t('problemGeneric', { index: 1 }));
+  if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));
+  // Остання перевірка тією самою схемою, що й на сервері; коди помилок дуелей читаються як речення.
+  if (problems.length === 0) {
+    const parsed = quizSchema.safeParse(draft);
+    if (!parsed.success) {
+      const messages = parsed.error.issues.map((issue) => issue.message);
+      if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
+      if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
+      if (problems.length === 0) problems.push(t('problemGeneric', { index: 1 }));
+    }
+  }
   return problems;
 }

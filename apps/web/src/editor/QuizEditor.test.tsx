@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
@@ -1391,5 +1391,92 @@ describe('QuizEditor: sort questions', () => {
     ];
     expect(controls.length).toBe(6);
     for (const control of controls) expect(control.closest('label.field')).not.toBeNull();
+  });
+});
+
+describe('QuizEditor duels', () => {
+  const filledQuiz = (): Quiz => {
+    const quiz = newQuiz();
+    return {
+      ...quiz,
+      title: 'Гра',
+      rounds: [{ ...newClassicRound(), questions: [{ ...newQuestion('boolean'), text: 'Так?' }] }],
+    };
+  };
+  const duelsToggle = () => screen.getByLabelText('Дуелі між гравцями');
+  const fillPool = () => {
+    const section = within(screen.getByText('Дуелі').closest('details')!);
+    const set = (label: string, value: string) => fireEvent.change(section.getByLabelText(label), { target: { value } });
+    set('Назва категорії', 'Столиці');
+    for (let i = 1; i <= 3; i += 1) set(`Запитання ${i}`, `Столиця ${i}?`);
+    for (const input of section.getAllByLabelText('Написання 1')) fireEvent.change(input, { target: { value: 'Київ' } });
+  };
+
+  it('the author turns on duels and fills the pool', async () => {
+    const { onSave } = open(filledQuiz());
+    const details = screen.getByText('Дуелі').closest('details')!;
+    expect(details.open).toBe(false);
+    fireEvent.click(duelsToggle());
+    expect((screen.getByLabelText('Запитань за дуель') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('Час на запитання дуелі, с') as HTMLInputElement).value).toBe('30');
+    expect((screen.getByLabelText('Ставка: програвший віддає переможцю') as HTMLInputElement).value).toBe('300');
+    expect(screen.getByText(t('duelsHint'))).toBeTruthy();
+    expect(screen.getByText(t('duelsStakeHint'))).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Категорія 1 · 3 запитання' })).toBeTruthy();
+    fillPool();
+    click('Додати категорію');
+    expect(screen.getByRole('button', { name: 'Категорія 2 · 3 запитання' }).className).toContain('is-on');
+    click('Прибрати категорію «Категорія 2»');
+    expect(screen.queryByRole('button', { name: /Категорія 2 ·/ })).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(quiz.duels?.categories).toHaveLength(1);
+    expect(quiz.duels?.categories[0]).toMatchObject({ title: 'Столиці' });
+  });
+
+  it('too few questions in a duel category stops saving with a clear message', async () => {
+    const { onSave } = open(filledQuiz());
+    fireEvent.click(duelsToggle());
+    fillPool();
+    fill('Запитань за дуель', '4');
+    click('Зберегти');
+    await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
+    expect(document.querySelector('.problems')!.textContent).toContain('Дуелі, «Столиці»: замало запитань — потрібно щонайменше 4.');
+    expect((screen.getByText('Дуелі').closest('details') as HTMLDetailsElement).open).toBe(true);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('turning duels off asks before dropping a filled pool', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onSave } = open(filledQuiz());
+    fireEvent.click(duelsToggle());
+    // порожній пул — без запитання
+    fireEvent.click(duelsToggle());
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Запитань за дуель')).toBeNull();
+    fireEvent.click(duelsToggle());
+    fillPool();
+    fireEvent.click(duelsToggle());
+    expect(confirm).toHaveBeenCalledWith(t('duelsOffConfirm'));
+    expect(screen.getByLabelText('Запитань за дуель')).toBeTruthy();
+    confirm.mockReturnValue(true);
+    fireEvent.click(duelsToggle());
+    expect(screen.queryByLabelText('Запитань за дуель')).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect('duels' in saved(onSave)).toBe(false);
+  });
+
+  it('every duel input sits in a field wrapper', () => {
+    open(filledQuiz());
+    const toggle = duelsToggle();
+    expect(toggle.closest('label.check')).not.toBeNull();
+    fireEvent.click(toggle);
+    const section = screen.getByText('Дуелі').closest('details')!;
+    const fields = [...section.querySelectorAll('input, textarea')].filter((el) => el !== toggle && !el.closest('.answer-row'));
+    expect(fields.length).toBeGreaterThan(5);
+    for (const el of fields) expect(el.closest('label.field')).not.toBeNull();
   });
 });
