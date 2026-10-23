@@ -1775,4 +1775,19 @@ describe('PlayerScreen: table and menu', () => {
     show(view({ phase: 'finished', questionIndex: 1, standings: rows }));
     expect(screen.getByRole('link', { name: 'До меню' }).getAttribute('href')).toBe('/');
   });
+
+  it('the header has «Дебафи» only when the view has a shop, between «Дуель» and «Таблиця»; purchases toast on the phone', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
+    expect(screen.queryByRole('button', { name: 'Дебафи' })).toBeNull();
+    cleanup();
+    const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false }], block: null };
+    const debuffNotice = { seq: 1, at: Date.now(), buyer: { playerId: 'p2', nickname: 'Петро' }, target: { playerId: 'p3', nickname: 'Іра' } };
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true }, debuffNotice, me: { ...me, shop } }));
+    const header = document.querySelector('header.bar')!;
+    const shopButton = screen.getByRole('button', { name: 'Дебафи' });
+    expect(header.contains(shopButton)).toBe(true);
+    expect(shopButton.nextElementSibling).toBe(screen.getByRole('button', { name: 'Таблиця' }));
+    expect(shopButton.classList.contains('table-button')).toBe(true);
+    expect(screen.getByText('Петро насилає дебаф на гравця Іра')).toBeTruthy();
+  });
 });

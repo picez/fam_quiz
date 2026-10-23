@@ -5913,7 +5913,7 @@ async function denseGuide() {
     ['Типи запитань', 'types-5', 5],
     ['Типи запитань', 'types-2', 2],
     ['Бафи — ваші допомоги', 'buffs-8', 8],
-    ['Дебафи від ведучого', 'debuffs-6', 6],
+    ['Дебафи', 'debuffs-6', 6],
     ['Дуелі', 'duels', 0],
   ];
   for (const [at, [title, name, items]] of pages.entries()) {

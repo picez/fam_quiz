@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AdjustmentNotice, BlitzPlayer, BuffNotice, SplashView } from '@quiz/shared';
+import type { AdjustmentNotice, BlitzPlayer, BuffNotice, DebuffNotice, SplashView } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { signed } from '../format';
 import { t } from '../i18n';
@@ -78,6 +78,17 @@ export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; off
   return (
     <div className="live-notice is-buff" role="status" aria-live="polite">
       {t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind) })}
+    </div>
+  );
+}
+
+/** «Оля насилає дебаф на гравця Петро» — сцена, пульт і телефони; без виду дебафу; position: fixed, як сповіщення бафу. */
+export function DebuffToast({ notice, offsetMs }: { notice: DebuffNotice | null; offsetMs: number }) {
+  const shown = useNotice(notice, offsetMs);
+  if (shown === null) return null;
+  return (
+    <div className="live-notice is-debuff" role="status" aria-live="polite">
+      {t('debuffBoughtNotice', { buyer: shown.buyer.nickname, target: shown.target.nickname })}
     </div>
   );
 }

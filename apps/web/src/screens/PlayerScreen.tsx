@@ -4,7 +4,7 @@ import { correctText, markText, pickedText, shownChoices, num, questionClass, qu
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
-import { AdjustmentToast, BuffToast } from '../live/LiveNotices';
+import { AdjustmentToast, BuffToast, DebuffToast } from '../live/LiveNotices';
 import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
@@ -24,6 +24,7 @@ import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { MenuLinks } from './MenuLinks';
+import { DebuffShop } from './DebuffShop';
 import { TableButton } from './TableSheet';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 
@@ -365,6 +366,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
+      <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />
       {/* Запрошення проголосувати — нижній аркуш position: fixed: чужий баф нічого не зсуває. */}
       {phase === 'question' && question !== null && (
         <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
@@ -375,6 +377,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <span>{me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
         <DuelButton duel={me.duel} paused={view.paused || splashUp} send={send} onError={setError} />
+        {me.shop !== null && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
         {view.table !== null && <TableButton table={view.table} meId={me.id} />}
         <strong className="score">{num(me.score)}</strong>
       </header>

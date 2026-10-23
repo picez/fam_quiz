@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdjustmentNotice } from '@quiz/shared';
-import { AdjustmentToast, BuffToast, NOTICE_MS, StageDebuffs, type BuffToastView } from './LiveNotices';
+import { AdjustmentToast, BuffToast, DebuffToast, NOTICE_MS, StageDebuffs, type BuffToastView } from './LiveNotices';
 
 const NOW = 1_000_000;
 
@@ -190,5 +190,22 @@ describe('LiveNotices', () => {
     cleanup();
     render(<BuffToast view={buffView()} offsetMs={0} selfId="p2" />);
     expect(screen.getByRole('status').textContent).toBe('Оля: 50/50');
+  });
+
+  it('debuff toast names the buyer and the target, not the kind, for four seconds', () => {
+    const debuffNotice = { seq: 3, at: NOW, buyer: { playerId: 'p1', nickname: 'Оля' }, target: { playerId: 'p2', nickname: 'Петро' } };
+    const { container } = render(<DebuffToast notice={debuffNotice} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('Оля насилає дебаф на гравця Петро');
+    expect(container.firstElementChild?.className).toBe('live-notice is-debuff');
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_MS);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<DebuffToast notice={{ ...debuffNotice, at: NOW - 10_000 }} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    const none = render(<DebuffToast notice={null} offsetMs={0} />);
+    expect(none.container.firstChild).toBeNull();
   });
 });

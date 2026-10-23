@@ -5,7 +5,7 @@ import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
-import { AdjustmentToast, BuffToast, StageDebuffs } from '../live/LiveNotices';
+import { AdjustmentToast, BuffToast, DebuffToast, StageDebuffs } from '../live/LiveNotices';
 import { SharedOvertime, StageBuffs } from './Buffs';
 import { DuelBanner, DuelStage } from './DuelView';
 import { GuidePageView } from '../live/Guide';
@@ -341,6 +341,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <BuffToast view={view} offsetMs={offsetMs} />
+      <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />
       {/* Заставка — шар position: fixed над розкладкою етапу, яка вже стоїть під ним. */}
       <Splash view={view} offsetMs={offsetMs} size="stage" />
       {/* Значки бафів і дебафів — один стовпчик у кутку, position: fixed. */}

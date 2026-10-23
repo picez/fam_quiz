@@ -5100,6 +5100,28 @@ label.powers-price {
   translate: 0 -3.5rem;
 }
 
+/* Сповіщення про покупку дебафу — у тому ж стовпчику найнижче: ті, що над ним, піднімаються на рядок (обидва — на два). */
+.live-notice.is-debuff {
+  border-color: var(--amber);
+}
+
+.live-notice:has(~ .live-notice.is-debuff) {
+  translate: 0 -3.5rem;
+}
+
+.live-notice:has(~ .live-notice.is-buff ~ .live-notice.is-debuff) {
+  translate: 0 -7rem;
+}
+
+/* На пульті сповіщення стоять угорі: покупка дебафу опускається під сповіщення бафу, а не штовхає його за край. */
+.host .live-notice:has(~ .live-notice.is-debuff) {
+  translate: none;
+}
+
+.host .live-notice ~ .live-notice.is-debuff {
+  translate: 0 3.5rem;
+}
+
 /* «Чекаємо …» на сцені висить під табло поза потоком: поява на спільному кінці нічого не зсуває. */
 .stage-clock {
   position: relative;
@@ -6107,6 +6129,89 @@ label.powers-price {
 .table-card h2,
 .table-card p {
   margin: 0;
+}
+
+/* «😈» у шапці: лише значок, висота як у «Таблиця», тож шапка 375 px лишається в один рядок. */
+.table-button.shop-button {
+  padding-inline: 0.5rem;
+}
+
+/* З «😈» у шапці стоїть до трьох кнопок: проміжки вужчі, щоб ім'я на 375 px не стискалося до самої трикрапки. */
+.bar:has(.shop-button) {
+  gap: 0.5rem;
+}
+
+/* Аркуш «Дебафи»: сітка дебафів у дві колонки, кнопка покупки — на всю ширину внизу картки. */
+.shop-card h3,
+.shop-card p {
+  margin: 0;
+}
+
+.shop-card h3 {
+  font-size: 1rem;
+}
+
+.shop-block {
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid var(--amber);
+  background: var(--tip-bg);
+}
+
+.shop-items,
+.shop-targets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.shop-item,
+.shop-target {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  min-height: 3rem;
+  padding: 0.5rem 0.6rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.shop-item:disabled,
+.shop-target:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.shop-target[aria-pressed='true'] {
+  border-color: var(--amber);
+  background: var(--tip-bg);
+}
+
+.shop-item-name,
+.shop-target-name {
+  font-weight: 700;
+}
+
+.shop-item-desc,
+.shop-item-note {
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+.shop-item-price {
+  color: var(--amber);
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-buy {
+  width: 100%;
 }
 
 /* «До меню» після гри: у розкладці екрана гравця й ведучого; на сцені — кнопка в куті. */

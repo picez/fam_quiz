@@ -21,7 +21,7 @@ import { Standings } from './Standings';
 import { MenuLinks } from './MenuLinks';
 import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
 import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
-import { BuffToast } from '../live/LiveNotices';
+import { BuffToast, DebuffToast } from '../live/LiveNotices';
 import { SplashChip } from '../live/Splash';
 import { GuidePageView } from '../live/Guide';
 import { HostDuelPanel } from './DuelView';
@@ -247,6 +247,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   return (
     <main className="app host">
       <BuffToast view={view} offsetMs={offsetMs} />
+      <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />
       {/* Пульт заставкою не закривається: лише значок position: fixed у правому верхньому куті. */}
       <SplashChip view={view} offsetMs={offsetMs} />
       <header className="bar">

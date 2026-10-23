@@ -100,6 +100,8 @@ export function DebuffZone({
   children: ReactNode;
 }) {
   const kind = debuff?.kind ?? null;
+  // Хто наслав: нікнейм покупця; null — ведучий або покупця вилучено.
+  const by = debuff?.by ?? null;
   const freezeFor = freezeMs(limitMs);
   const marks =
     kind === 'freeze'
@@ -143,7 +145,7 @@ export function DebuffZone({
         ))}
       {banner && kind !== null && (
         <p className="debuff-banner" role="status">
-          <strong>{t('debuffCast', { name: debuffName(kind) })}</strong>
+          <strong>{by !== null ? t('debuffCastBy', { by, name: debuffName(kind) }) : t('debuffCast', { name: debuffName(kind) })}</strong>
           {tip !== undefined && <span>{t(tip)}</span>}
         </p>
       )}

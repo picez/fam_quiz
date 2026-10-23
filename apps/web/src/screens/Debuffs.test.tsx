@@ -108,6 +108,18 @@ describe('DebuffZone', () => {
     expect(document.querySelector('.debuff-layer')).toBeNull();
   });
 
+  it('the victim banner names the buyer', () => {
+    render(
+      <DebuffZone debuff={{ kind: 'fog', since: Date.now(), by: 'Оля' }} limitMs={30_000} offsetMs={0} questionIndex={0}>
+        <AnswerInput question={single} onSubmit={() => {}} />
+      </DebuffZone>,
+    );
+    expect(screen.getByRole('status').textContent).toContain('Оля насилає на вас: Туман');
+    cleanup();
+    render(<Zone kind="fog" />);
+    expect(screen.getByRole('status').textContent).toContain('На вас наслано: Туман');
+  });
+
   it('the target sees what was cast for three seconds', () => {
     render(<Zone kind="fog" />);
     expect(zone().dataset.debuff).toBe('fog');
