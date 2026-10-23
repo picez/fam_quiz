@@ -266,7 +266,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
     questions,
-    adjustments: adjustments.map(({ participantId, roundIndex, afterQuestion, points, source }) => ({
+    adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source }) => ({
+      seq,
       roundIndex,
       afterQuestion,
       // Коригування вилученого гравця зникають разом з учасником (каскадом), тож нікнейм є завжди.

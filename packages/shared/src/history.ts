@@ -79,6 +79,8 @@ export interface GameDetail extends Omit<GameSummary, 'playerCount'> {
 
 /** Коригування рахунку учасника поза відповідями в історії гри. */
 export interface GameAdjustment {
+  /** Номер коригування в грі: два дуельні поспіль — одна дуель. */
+  seq: number;
   roundIndex: number;
   /** Скільки запитань гри було закрито в мить коригування. */
   afterQuestion: number;

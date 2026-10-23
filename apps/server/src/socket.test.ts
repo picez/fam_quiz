@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text } from '@quiz/engine/testing';
+import { blitzRound, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -425,6 +425,43 @@ describe('host presence', () => {
     expect(await send(olena, 'player:sort', { wordId: card, categoryId: other })).toEqual({ ok: true });
     expect(await send(olena, 'player:sort', { wordId: card, categoryId: category })).toEqual({ ok: false, error: 'sort_locked' });
     expect(await send(olena, 'player:answer', { type: 'sort' })).toMatchObject({ ok: false });
+  });
+
+  it('duel events are role-checked and validated', async () => {
+    const quiz = {
+      ...makeRoundsQuiz([classicRound('r1', [withId(single, 'q1'), withId(single, 'q2')]), finalRound('rf', withId(single, 'qf'))]),
+      duels,
+    };
+    const created = (await startGame(ctx.app, quiz)).game;
+    const { host, stage, olena, taras, tarasJoin } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('reveal'));
+
+    expect(await send(host, 'host:duel-skip')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:duel-cancel')).toEqual({ ok: false, error: 'not_found' });
+    for (const who of [host, stage]) {
+      expect(await send(who, 'player:duel', { opponentId: tarasJoin.playerId })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:duel-category', { categoryId: 'dc1' })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:duel-answer', { text: 'Париж' })).toEqual({ ok: false, error: 'forbidden' });
+    }
+    expect(await send(olena, 'host:duel-category', { categoryId: 'dc1' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:duel-skip')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:duel-cancel')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:duel-category', { categoryId: 5 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:duel-category', { categoryId: 'dc1' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'player:duel', { opponentId: 5 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:duel')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:duel-category', { categoryId: 5 })).toEqual({ ok: false, error: 'invalid_payload' });
+    for (const value of ['я'.repeat(201), '', '   ', 5]) {
+      expect(await send(olena, 'player:duel-answer', { text: value })).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:duel', { opponentId: tarasJoin.playerId })).toEqual({ ok: true });
+    expect(await send(host, 'host:duel-cancel')).toEqual({ ok: true });
   });
 
   it('player:sort on a question of another type is a type mismatch', async () => {

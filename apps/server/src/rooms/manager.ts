@@ -4,9 +4,12 @@ import {
   addPlayer,
   adjustScore,
   adjustTime,
+  answerDuel,
   buzz,
   cancelDebuff,
+  cancelDuel,
   createGame,
+  declareDuel,
   end,
   endRound,
   guessWord,
@@ -18,6 +21,7 @@ import {
   nextDeadline,
   override,
   pause,
+  pickDuelCategory,
   pickCell,
   placeWager,
   playerView,
@@ -29,6 +33,7 @@ import {
   setConnected,
   setDebuff,
   setOrder,
+  skipDuelQuestion,
   skipTurn,
   sortWord,
   startDice,
@@ -80,7 +85,7 @@ export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' }
   | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
@@ -90,6 +95,7 @@ export type HostAction =
   | { type: 'judge'; playerId: string; correct: boolean }
   | { type: 'name'; answer: SubmittedAnswer | null }
   | { type: 'pick'; cellId: string }
+  | { type: 'duel-category'; categoryId: string }
   | { type: 'order'; playerIds: string[] }
   | { type: 'time'; seconds: -15 | 15 };
 
@@ -249,6 +255,21 @@ export class RoomManager {
     return this.apply(room, sortWord(room.state, playerId, wordId, categoryId, this.now()));
   }
 
+  declareDuel(room: Room, playerId: string, opponentId: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, declareDuel(room.state, playerId, opponentId));
+  }
+
+  duelCategory(room: Room, playerId: string, categoryId: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, pickDuelCategory(room.state, playerId, categoryId, this.now(), this.rng));
+  }
+
+  duelAnswer(room: Room, playerId: string, text: string): AckResult {
+    if (!this.alive(room)) return GONE;
+    return this.apply(room, answerDuel(room.state, playerId, text, this.now()));
+  }
+
   hint(room: Room, playerId: string): AckResult {
     if (!this.alive(room)) return GONE;
     return this.apply(room, takeHint(room.state, playerId, this.now()));
@@ -297,6 +318,12 @@ export class RoomManager {
         return this.apply(room, skipTurn(state, this.now()));
       case 'pick':
         return this.apply(room, pickCell(state, null, action.cellId, this.now(), this.rng));
+      case 'duel-category':
+        return this.apply(room, pickDuelCategory(state, null, action.categoryId, this.now(), this.rng));
+      case 'duel-skip':
+        return this.apply(room, skipDuelQuestion(state, this.now(), this.rng));
+      case 'duel-cancel':
+        return this.apply(room, cancelDuel(state));
       case 'order':
         return this.apply(room, setOrder(state, action.playerIds));
       case 'kick':

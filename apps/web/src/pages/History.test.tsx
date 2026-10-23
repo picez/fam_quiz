@@ -353,9 +353,9 @@ describe('GameHistory: adjustments', () => {
           { title: 'Поле', type: 'board' },
         ],
         adjustments: [
-          { roundIndex: 0, afterQuestion: 0, nickname: 'Оля', points: -100, source: 'host' },
-          { roundIndex: 0, afterQuestion: 2, nickname: 'Петро', points: 75, source: 'host' },
-          { roundIndex: 1, afterQuestion: 2, nickname: 'Оля', points: 50, source: 'host' },
+          { seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Оля', points: -100, source: 'host' },
+          { seq: 2, roundIndex: 0, afterQuestion: 2, nickname: 'Петро', points: 75, source: 'host' },
+          { seq: 3, roundIndex: 1, afterQuestion: 2, nickname: 'Оля', points: 50, source: 'host' },
         ],
       },
     });

@@ -836,8 +836,26 @@ describe('history: score adjustments', () => {
       players: [{ userId: null, nickname: 'Віра', score: 0, rank: 1 }],
     });
 
-    expect((await hostGame(db, host.id, gameId))?.adjustments).toEqual([{ roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: -100, source: 'host' }]);
+    expect((await hostGame(db, host.id, gameId))?.adjustments).toEqual([{ seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: -100, source: 'host' }]);
     expect((await hostGame(db, host.id, oldId))?.adjustments).toEqual([]);
+  });
+
+  it('history adjustments carry seq and source', async () => {
+    const host = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 4),
+      players: [
+        { userId: null, nickname: 'Олена', score: 200, rank: 1, adjustments: [{ seq: 1, points: 50 }, { seq: 2, points: 300, source: 'duel' }] },
+        { userId: null, nickname: 'Тарас', score: -300, rank: 2, adjustments: [{ seq: 3, points: -300, source: 'duel' }] },
+      ],
+    });
+    const detail = await hostGame(db, host.id, gameId);
+    expect(detail?.adjustments.map((a) => [a.seq, a.nickname, a.points, a.source])).toEqual([
+      [1, 'Олена', 50, 'host'],
+      [2, 'Олена', 300, 'duel'],
+      [3, 'Тарас', -300, 'duel'],
+    ]);
   });
 
   it('the game detail orders adjustments of several players by seq', async () => {

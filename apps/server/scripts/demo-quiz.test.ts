@@ -100,3 +100,19 @@ describe('blitz rounds in the demo quizzes', () => {
     }
   });
 });
+
+describe('the duel pool of the erudite quiz', () => {
+  it('the erudite quiz has a duel pool', () => {
+    const pool = eruditeQuiz.duels;
+    expect(pool?.categories.map((c) => [c.title, c.questions.length])).toEqual([
+      ['Столиці', 5],
+      ['Хімічні елементи', 5],
+      ['Українська література', 5],
+    ]);
+    expect([pool?.questionsPerDuel, pool?.timeLimit, pool?.stake]).toEqual([3, 30, 300]);
+    expect(quizSchema.safeParse(eruditeQuiz).success).toBe(true);
+    for (const category of pool?.categories ?? []) {
+      for (const question of category.questions) expect(question.accepted.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
