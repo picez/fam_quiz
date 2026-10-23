@@ -655,6 +655,64 @@ describe('StageScreen final', () => {
     expect(screen.queryByText('Анна')).toBeNull();
   });
 
+  const bankRevealView = (final: object) =>
+    view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, final: { ...info, mode: 'bank' as const, ...final } });
+
+  it('an all-in stake is announced on the reveal', () => {
+    const { unmount } = show(
+      view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, final: { ...info, shown: [{ ...entry('Віра', 300, 300, 600), allIn: true }], left: 1 } }),
+    );
+    expect(document.querySelector('.allin-badge')?.textContent).toBe('ВА-БАНК!');
+    expect(document.querySelector('.bank-meter')).toBeNull();
+    unmount();
+    show(view({ phase: 'reveal', round, questionIndex: 0, question, reveal: full, final: { ...info, shown: [entry('Віра', 100, 300, 400)], left: 1 } }));
+    expect(document.querySelector('.allin-badge')).toBeNull();
+  });
+
+  it('the bank meter keeps its place from the first reveal to the split', () => {
+    const { rerender } = show(bankRevealView({ bank: 0, left: 2 }));
+    const meter = document.querySelector('.bank-meter');
+    expect(meter?.textContent).toBe('Банк: 0');
+    const again = (final: object) =>
+      rerender(<StageScreen view={bankRevealView(final)} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    again({ bank: 1500, left: 1 });
+    expect(document.querySelector('.bank-meter')).toBe(meter);
+    expect(meter?.textContent).toBe('Банк: 1500');
+    again({ bank: 1500, left: 0, split: { bank: 1500, refund: false, shares: [] } });
+    expect(document.querySelector('.bank-meter')).toBe(meter);
+    expect(meter?.textContent).toBe('Банк 1500 розділено');
+    again({ bank: 1500, left: 0, split: { bank: 1500, refund: true, shares: [] } });
+    expect(document.querySelector('.bank-meter')).toBe(meter);
+    expect(meter?.textContent).toBe('Ніхто не відповів правильно — ставки повертаються');
+  });
+
+  it('bank rows say where the stake went and the share after the split', () => {
+    const lost = { ...entry('Богдан', 500, 500, 0), grade: 'wrong' as const };
+    const kept = { ...entry('Віра', 1000, 1000, 1000), share: null };
+    const { rerender } = show(bankRevealView({ bank: 500, left: 0, shown: [kept, lost] }));
+    expect(document.body.textContent).toContain('у банк');
+    expect(screen.getByText('500 → 0')).toBeTruthy();
+    expect(document.body.textContent).toContain('ставку збережено');
+    expect(screen.getByText('1000 → 1000')).toBeTruthy();
+    expect(screen.queryByText(/з банку/)).toBeNull();
+    rerender(
+      <StageScreen
+        view={bankRevealView({
+          bank: 500,
+          left: 0,
+          shown: [{ ...kept, after: 1642, share: 642 }, lost],
+          split: { bank: 500, refund: false, shares: [{ playerId: 'Віра', nickname: 'Віра', wager: 1000, share: 642 }] },
+        })}
+        code="123456"
+        joinUrl="http://quiz.test/play/123456"
+        offsetMs={0}
+        hostOnline
+      />,
+    );
+    expect(screen.getByText('1000 → 1642')).toBeTruthy();
+    expect(screen.getByText('+642 з банку')).toBeTruthy();
+  });
+
   it('hides the video and image during the reveal and keeps the answer', () => {
     const video = { id: 'dQw4w9WgXcQ', start: 0 };
     show(

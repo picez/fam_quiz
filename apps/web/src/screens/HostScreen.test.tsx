@@ -966,6 +966,59 @@ describe('HostScreen final', () => {
     expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'wrong' });
   });
 
+  it('the wager list marks all-in', () => {
+    show(
+      view({
+        phase: 'wager',
+        round: finalRound,
+        players: three,
+        final: hostFinal({ wagers: [{ playerId: 'p1', nickname: 'Анна', wager: 1000, limit: 1000, allIn: true }] }),
+      }),
+    );
+    expect(document.querySelector('.wager-list li .allin-tag')?.textContent).toBe('ва-банк');
+  });
+
+  it('the host splits the bank after the last reveal', () => {
+    const send = show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 0, splitNext: true, mode: 'bank' }) }));
+    fireEvent.click(button('Розділити банк'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+    expect(screen.queryByRole('button', { name: 'Далі' })).toBeNull();
+  });
+
+  it('keeps the usual buttons without a split step', () => {
+    show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 0, splitNext: false, mode: 'bank' }) }));
+    expect(button('Далі')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Розділити банк' })).toBeNull();
+    cleanup();
+    show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 1, splitNext: true, mode: 'bank' }) }));
+    expect(button('Наступний гравець')).toBeTruthy();
+  });
+
+  it('the host reveal list shows the bank and the shares', () => {
+    const winner = entry('p1', 'Анна', { wager: 1000, before: 1000, after: 1642, share: 642 });
+    show(
+      during('reveal', single, {
+        round: finalRound,
+        players: three,
+        final: hostFinal({
+          left: 0,
+          mode: 'bank',
+          bank: 1500,
+          shown: [winner],
+          entries: [winner],
+          split: { bank: 1500, refund: false, shares: [{ playerId: 'p1', nickname: 'Анна', wager: 1000, share: 642 }] },
+        }),
+      }),
+    );
+    expect(screen.getByText('Банк 1500 розділено')).toBeTruthy();
+    expect(screen.getByText('+642 з банку')).toBeTruthy();
+  });
+
+  it('shows the running bank before the split', () => {
+    show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 1, mode: 'bank', bank: 1500 }) }));
+    expect(screen.getByText('Банк: 1500')).toBeTruthy();
+  });
+
   it('goes on with the usual next button once everyone is revealed', () => {
     show(during('reveal', single, { round: finalRound, players: three, final: hostFinal({ left: 0 }) }));
     expect(button('Далі')).toBeTruthy();

@@ -63,17 +63,37 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
 
 /** Розкриті гравці фіналу: найновіший зверху й виділений, щоб він завжди був на екрані. */
 function FinalReveal({ final, question, presented }: { final: FinalInfo; question: FullQuestion | null; presented?: Choice[] }) {
+  const bank = final.mode === 'bank';
+  const meter =
+    final.split === null
+      ? t('finalBank', { bank: final.bank })
+      : final.split.refund
+        ? t('finalRefund')
+        : t('finalBankSplit', { bank: final.split.bank });
   return (
     <>
+      {bank && (
+        // Лічильник завжди на місці з першого розкриття: змінюється лише текст.
+        <div className="bank-meter" role="status">
+          <span key={meter} className="bank-meter-text">
+            {meter}
+          </span>
+        </div>
+      )}
       <ol className="rows wager-list">
         {[...final.shown].reverse().map((entry, index) => (
           <li key={entry.playerId} className={index === 0 ? 'wager-latest' : undefined}>
             <span className="name">{entry.nickname}</span>
+            {entry.allIn && <span className="allin-badge">{t('finalAllInBadge')}</span>}
             <span className="given">{answerText(entry.answer, question, presented)}</span>
-            <span className="tag">{t('finalWagerTag', { wager: entry.wager })}</span>
+            <span className="tag">
+              {t('finalWagerTag', { wager: entry.wager })}
+              {bank && ` · ${t(entry.grade === 'correct' ? 'finalStakeKept' : 'finalStakeToBank')}`}
+            </span>
             <span className={entry.after === entry.before ? 'wager-delta' : entry.after > entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
               {`${entry.before} → ${entry.after}`}
             </span>
+            {bank && <span className="wager-share">{entry.share === null ? '' : t('finalShare', { share: entry.share })}</span>}
           </li>
         ))}
       </ol>

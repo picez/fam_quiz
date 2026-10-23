@@ -81,9 +81,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       ? { label: 'finalStart' as const, event: 'host:next' as const }
       : isFinal && phase === 'wager'
         ? { label: 'finalShowQuestion' as const, event: 'host:next' as const }
-        : isFinal && phase === 'reveal' && final !== null && final.left > 0
-          ? { label: 'finalNextPlayer' as const, event: 'host:next' as const }
-          : base;
+        : isFinal && phase === 'reveal' && final !== null && final.left === 0 && final.splitNext
+          ? { label: 'finalSplitBank' as const, event: 'host:next' as const }
+          : isFinal && phase === 'reveal' && final !== null && final.left > 0
+            ? { label: 'finalNextPlayer' as const, event: 'host:next' as const }
+            : base;
   const blitz = view.blitz;
   const board = view.board;
   const chooserId = board?.turn?.playerId ?? null;
@@ -417,6 +419,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               <li key={entry.playerId}>
                 <span className="name">{entry.nickname}</span>
                 <span className="given">{entry.wager === null ? t('finalThinking') : num(entry.wager)}</span>
+                {entry.allIn && <span className="allin-tag">{t('finalAllInTag')}</span>}
                 <span className="meta">{t('finalLimit', { limit: num(entry.limit) })}</span>
               </li>
             ))}
@@ -449,6 +452,15 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       {phase === 'reveal' && final !== null && (
         <section className="panel">
           <h2>{t('finalRevealed', { shown: final.shown.length, total: final.total })}</h2>
+          {final.mode === 'bank' && (
+            <p className="bank-meter" role="status">
+              {final.split === null
+                ? t('finalBank', { bank: num(final.bank) })
+                : final.split.refund
+                  ? t('finalRefund')
+                  : t('finalBankSplit', { bank: num(final.split.bank) })}
+            </p>
+          )}
           <ul className="rows wager-list">
             {final.entries.map((entry) => {
               const revealed = final.shown.some((shown) => shown.playerId === entry.playerId);
@@ -459,6 +471,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
                   <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct, view.question?.choices)}</span>
                   <span className="tag">{num(entry.wager)}</span>
                   <span className="score">{`${num(entry.before)} → ${num(entry.after)}`}</span>
+                  {entry.allIn && <span className="allin-tag">{t('finalAllInTag')}</span>}
+                  {entry.share !== null && <span className="wager-share">{t('finalShare', { share: num(entry.share) })}</span>}
                   {revealed && (
                     <span className={entry.grade === 'correct' ? 'tag is-correct' : 'tag is-wrong'}>{entry.grade === 'correct' ? '✓' : '✗'}</span>
                   )}
