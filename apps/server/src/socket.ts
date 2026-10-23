@@ -29,6 +29,7 @@ import {
 } from '@quiz/shared';
 import { Server, type Socket } from 'socket.io';
 import type { Identity, Room, RoomManager } from './rooms/manager';
+import type { Located } from './rooms/store';
 
 interface SocketData {
   room: Room;
@@ -53,12 +54,20 @@ function payloadOf(args: unknown[]): unknown {
   return typeof args[0] === 'function' ? undefined : args[0];
 }
 
-export function attachSockets(server: HttpServer, manager: RoomManager): GameServer {
+/** locate — де кімната: у пам'яті (або щойно піднята з бази), за живим іншим процесом (restarting) чи ніде. */
+export function attachSockets(
+  server: HttpServer,
+  manager: RoomManager,
+  locate: (code: string) => Promise<Located>,
+): GameServer {
   const io: GameServer = new Server(server, { serveClient: false });
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const auth = socketAuthSchema.safeParse(socket.handshake.auth);
-    const found = auth.success ? manager.identify(auth.data.code, auth.data.role, auth.data.token) : null;
+    if (!auth.success) return next(new Error('unauthorized'));
+    // Кімнату ще веде стара версія (розгортання) або сервер зупиняється: клієнт перепідключиться пізніше.
+    if (manager.frozen || (await locate(auth.data.code)) === 'restarting') return next(new Error('restarting'));
+    const found = manager.identify(auth.data.code, auth.data.role, auth.data.token);
     if (found === null) return next(new Error('unauthorized'));
     socket.data.room = found.room;
     socket.data.identity = found.identity;

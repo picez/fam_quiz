@@ -258,10 +258,13 @@ export function attachRecorder(
 
   manager.onEvent((room, event) => {
     if (event.type === 'changed') {
+      // Перехоплена кімната могла повернутися в цей процес: вона знову жива.
+      closedRooms.delete(room.id);
       record(room);
       return;
     }
-    if (event.type === 'closed') {
+    // Кімнату перехопив інший процес — як закриту: дописати почате й забути (повернеться — пишеться з початку).
+    if (event.type === 'closed' || event.type === 'moved') {
       closedRooms.add(room.id);
       // Якщо останній запис не вдався, його повтор ще попереду; пам'ять звільнить він.
       if (failures.has(room.id)) return;

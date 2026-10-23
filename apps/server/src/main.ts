@@ -1,10 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import { buildApp } from './app';
 import { baseUrl, localOrigins, proxyTrust, secretProblem } from './config';
 import { connectDb } from './db/client';
-import { markInterrupted } from './recorder';
 import { diskStorage, type ImageStorage } from './storage/images';
 import { r2Storage } from './storage/r2';
 
@@ -73,9 +73,10 @@ if (process.env.NODE_ENV === 'production' && address.startsWith('http://localhos
   console.warn('Не задано BETTER_AUTH_URL: вхід працюватиме лише за адресою цього комп’ютера.');
 }
 const { db, close: closeDb } = await connectDb(databaseUrl);
-// Кімнати живуть у пам'яті: гри, що лишилися «в процесі» з минулого запуску, уже ніхто не дограє.
-await markInterrupted(db);
-const { app, recorder } = await buildApp({
+// Кімнати живуть у пам'яті й у таблиці live_room: після перезапуску вони піднімаються з бази, а «в процесі»
+// з минулого запуску перериваються лише ігри кімнат, яких там немає (це робить сховище кімнат на старті).
+// Кілька екземплярів одночасно не підтримуються: оренда лише не дає двом версіям вести ту саму кімнату під час розгортання.
+const { app, shutdown } = await buildApp({
   db,
   auth: {
     secret,
@@ -90,13 +91,14 @@ const { app, recorder } = await buildApp({
   webRoot: existsSync(built) ? built : undefined,
   // Єдине місце, де вмикаються заставки переходів справжньої гри (8c).
   transitions: true,
+  persist: { instanceId: randomUUID() },
 });
 await app.listen({ port, host: '0.0.0.0' });
 console.log(`Quiz server is listening on port ${port}`);
 for (const origin of local.lan) console.log(`У локальній мережі: ${origin}`);
 
-// Платформа зупиняє сервіс сигналом (нова версія, перезапуск): закриваємо з'єднання й базу,
-// а не обриваємо запити на півдорозі. Ігри, що тривали, наступний запуск позначить перерваними.
+// Платформа зупиняє сервіс сигналом (нова версія, перезапуск): записуємо й віддаємо кімнати наступній версії,
+// закриваємо з'єднання й базу, а не обриваємо запити на півдорозі.
 let stopping = false;
 async function stop(signal: string) {
   if (stopping) return;
@@ -105,9 +107,9 @@ async function stop(signal: string) {
   // Якщо щось зависло, процес усе одно має завершитися.
   setTimeout(() => process.exit(1), 10_000).unref();
   try {
-    await app.close();
-    // Записи результатів, що вже почалися, мають дійти до бази.
-    await recorder.idle();
+    // Заморозити кімнати, сказати клієнтам restarting, записати кімнати з owner = null, закрити застосунок
+    // і дочекатися записів результатів.
+    await shutdown();
     await closeDb();
   } catch (error) {
     console.error('Помилка під час зупинки:', error instanceof Error ? error.message : error);

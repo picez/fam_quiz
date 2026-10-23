@@ -159,6 +159,16 @@ describe('invites', () => {
     expect(await invitesOf(olya.cookie)).toEqual([]);
   });
 
+  it('invites of a room taken over by another process are forgotten', async () => {
+    const code = await newGame();
+    await invite(code, [olyaId]);
+    const room = ctx.manager.get(code)!;
+    const saved = ctx.manager.snapshot(room);
+    ctx.manager.evict(room);
+    expect(ctx.manager.restore(saved)).not.toBeNull();
+    expect((await request('GET', `/api/games/by-code/${code}/invites`, galyna.cookie)).json()).toEqual({ invited: [] });
+  });
+
   it('lists the newest invites first', async () => {
     const first = await newGame();
     await invite(first, [olyaId]);

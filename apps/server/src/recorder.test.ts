@@ -262,6 +262,27 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('forgets a room taken over by another process: back here, it is written again from the first question', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    ctx.host('next');
+    ctx.host('next');
+    ctx.host('next');
+    ctx.manager.answer(ctx.room, ctx.olena, { type: 'text', value: 'одеса' });
+    ctx.manager.answer(ctx.room, ctx.taras, { type: 'text', value: 'Львів' });
+    ctx.host('next');
+    expect(ctx.room.state.phase).toBe('reveal');
+    expect((await ctx.saved()).answers.map((a) => a.questionIndex)).toEqual([0, 0, 1, 1]);
+
+    const saved = ctx.manager.snapshot(ctx.room);
+    ctx.manager.evict(ctx.room);
+    await ctx.db.delete(answer);
+    expect(ctx.manager.restore(saved)).not.toBeNull();
+    expect((await ctx.saved()).answers.map((a) => a.questionIndex)).toEqual([0, 0, 1, 1]);
+  });
+
   it('does not record a game that has no host account', async () => {
     const ctx = await setup();
     const anonymous = ctx.manager.create(makeQuiz([single]));

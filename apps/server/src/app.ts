@@ -10,6 +10,7 @@ import { registerProfileRoutes } from './profile-routes';
 import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
+import { RoomStore, type Located } from './rooms/store';
 import { attachSockets } from './socket';
 import { memoryStorage, type ImageStorage } from './storage/images';
 import { registerUploadRoutes } from './upload-routes';
@@ -32,6 +33,8 @@ export interface AppOptions {
   webRoot?: string;
   /** Заставки переходів; типово вимкнено, справжній сервер (main.ts) вмикає. */
   transitions?: boolean;
+  /** Зберігати живі кімнати в базі й піднімати їх після перезапуску (9b). main.ts і наскрізні тести вмикають. */
+  persist?: { instanceId: string; saveDelayMs?: number };
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -43,10 +46,27 @@ const CODE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } }
 export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false });
   const recorder = attachRecorder(manager, options.db);
+  const store = options.persist === undefined ? null : new RoomStore(options.db, manager, options.persist);
+  if (store !== null) {
+    await store.boot();
+    store.start();
+  }
+  /** Де кімната: тут, у базі за живим іншим процесом (restarting) чи ніде. Збій бази — як перезапуск: клієнт повторить. */
+  const locate = async (code: string): Promise<Located> => {
+    if (store === null) return manager.get(code) === undefined ? 'none' : 'here';
+    try {
+      return await store.locate(code);
+    } catch (error) {
+      console.error('Не вдалося знайти кімнату в базі:', error);
+      return 'restarting';
+    }
+  };
+  const RESTARTING = { error: 'restarting' };
   const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
   // Fastify приймає й кількість проксі; з об'єднаним типом його оголошення вибирають не той вид сервера.
   const trustProxy = (options.trustProxy ?? false) as boolean;
   const app = Fastify({ trustProxy, bodyLimit: BODY_LIMIT });
+  if (store !== null) app.addHook('onClose', async () => store.stop());
   await app.register(rateLimit, { global: false });
 
   app.get('/health', async () => ({ ok: true }));
@@ -55,6 +75,7 @@ export async function buildApp(options: AppOptions) {
     db: options.db,
     auth: createAuth(options.db, options.auth),
     manager,
+    locate,
     maxRooms,
     baseURL: options.auth.baseURL,
     attemptsPerMinute: options.auth.attemptsPerMinute ?? 10,
@@ -67,6 +88,7 @@ export async function buildApp(options: AppOptions) {
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
+    if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     const room = manager.get(request.params.code);
     if (room === undefined) return reply.code(404).send({ error: 'game_not_found' });
     return { phase: room.state.phase, title: room.state.quiz.title };
@@ -75,11 +97,13 @@ export async function buildApp(options: AppOptions) {
   app.post<{ Params: { code: string } }>('/api/games/by-code/:code/join', CODE_LIMIT, async (request, reply) => {
     const body = joinSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
+    if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     // Гравець з акаунтом потрапляє у власну історію ігор; без акаунта чи з простроченою сесією грає як гість.
     const account = await currentUser(request);
     const joined = manager.join(request.params.code, body.data.nickname, account?.id ?? null);
     if (!joined.ok) {
-      return reply.code(joined.error === 'game_not_found' ? 404 : 409).send({ error: joined.error });
+      const status = joined.error === 'game_not_found' ? 404 : joined.error === 'restarting' ? 503 : 409;
+      return reply.code(status).send({ error: joined.error });
     }
     return reply.code(201).send({ token: joined.token, playerId: joined.playerId });
   });
@@ -97,11 +121,21 @@ export async function buildApp(options: AppOptions) {
     return reply.code(404).send({ error: 'not_found' });
   });
 
-  const io = attachSockets(app.server, manager);
+  const io = attachSockets(app.server, manager, locate);
   // Відкриті WebSocket-з'єднання не дали б HTTP-серверу завершитись.
   app.addHook('preClose', async () => {
     io.disconnectSockets(true);
   });
 
-  return { app, manager, io, recorder, invites };
+  /** Зупинка без втрати ігор: заморозити, сказати клієнтам restarting, записати й віддати кімнати, закрити застосунок, дочекатися записувача. */
+  const shutdown = async (): Promise<void> => {
+    manager.freeze();
+    io.emit('restarting');
+    await store?.flushAll({ release: true });
+    store?.stop();
+    await app.close();
+    await recorder.idle();
+  };
+
+  return { app, manager, io, recorder, invites, store, shutdown };
 }
