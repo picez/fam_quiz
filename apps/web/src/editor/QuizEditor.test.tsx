@@ -228,9 +228,9 @@ describe('QuizEditor', () => {
     expect(buffs.getAllByRole('checkbox')).toHaveLength(8);
     buffs.getAllByRole('checkbox').forEach((box) => expect((box as HTMLInputElement).checked).toBe(false));
     for (const name of ['Запитання в залі', 'Підказка ведучого', 'Заміна запитання']) {
-      expect((buffs.getByLabelText(new RegExp(name)) as HTMLInputElement).disabled).toBe(true);
+      expect((buffs.getByLabelText(new RegExp(name)) as HTMLInputElement).disabled).toBe(false);
     }
-    expect(buffs.getAllByText(t('powersSoon'))).toHaveLength(3);
+    expect(buffs.queryAllByText(t('powersSoon'))).toHaveLength(0);
 
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
@@ -245,7 +245,9 @@ describe('QuizEditor', () => {
     const debuffs = () => within(screen.getByRole('group', { name: t('powersDebuffs') }));
     const buffs = () => within(screen.getByRole('group', { name: t('powersBuffs') }));
     fireEvent.click(buffs().getByRole('button', { name: t('powersAll') }));
-    expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(5);
+    expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(8);
+    // Заміна без запасних не збережеться (пул — у редакторі запасних), тож її знімаємо.
+    fireEvent.click(buffs().getByLabelText(/Заміна запитання/));
     fireEvent.click(debuffs().getByRole('button', { name: t('powersNone') }));
     expect(debuffs().getAllByRole('checkbox').some((box) => (box as HTMLInputElement).checked)).toBe(false);
     fireEvent.click(buffs().getByLabelText(/Щит/));
@@ -259,7 +261,7 @@ describe('QuizEditor', () => {
     expect(saved(onSave).settings).toEqual({
       leaderboard: 'each',
       debuffs: ['fog'],
-      buffs: ['fifty', 'double', 'retry', 'time'],
+      buffs: ['fifty', 'double', 'retry', 'time', 'audience', 'hint'],
     });
   });
 

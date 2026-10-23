@@ -1,6 +1,7 @@
 import {
   allowedBuffs,
   rulesOf,
+  SIMPLE_TYPES,
   type BuffBlock,
   type BuffKind,
   type BuffNotice,
@@ -45,7 +46,6 @@ export interface BuffPlay {
 }
 
 /** Типи запитань, на які діє друга спроба. */
-const RETRY_TYPES: Question['type'][] = ['single', 'multi', 'boolean', 'text', 'numeric'];
 
 /** Баф гравця на запитанні; null — немає. */
 export function buffOf(play: Play | undefined, playerId: string): BuffPlay | null {
@@ -113,7 +113,7 @@ function fitBlock(state: GameState, play: Play, kind: BuffKind): BuffBlock | nul
       if (question.type !== 'single' && question.type !== 'multi') return 'unfit_type';
       return fiftyCount(question) === 0 ? 'unfit_options' : null;
     case 'retry':
-      if (!RETRY_TYPES.includes(question.type)) return 'unfit_type';
+      if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
       return round.type === 'board' && round.check === 'manual' ? 'unfit_manual' : null;
     case 'time':
       return isTimed(question) ? null : 'unfit_timer';

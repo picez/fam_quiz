@@ -10,6 +10,8 @@ import {
   allowedDebuffs,
   buffSchema,
   retrySchema,
+  voteSchema,
+  hintSchema,
   IMAGE_LIMITS,
   answerSchema,
   finalRoundSchema,
@@ -890,9 +892,9 @@ describe('buffs and debuffs in the settings', () => {
     expect(valid(quizSchema, withPowers({ debuffs: ['rain'] }))).toBe(false);
     expect(issues(withPowers({ buffs: ['double', 'double'] }))).toContain('duplicate_powers');
     expect(issues(withPowers({ debuffs: ['fog', 'fog'] }))).toContain('duplicate_powers');
-    expect(issues(withPowers({ buffs: ['swap'] }))).toContain('buff_unavailable');
-    expect(issues(withPowers({ buffs: ['audience', 'hint'] }))).toContain('buff_unavailable');
-    expect(valid(quizSchema, withPowers({ buffs: [...READY_BUFFS] }))).toBe(true);
+    expect(issues(withPowers({ buffs: ['swap'] }))).toContain('spares_empty');
+    expect(valid(quizSchema, withPowers({ buffs: ['audience', 'hint'] }))).toBe(true);
+    expect(valid(quizSchema, { ...withPowers({ buffs: [...READY_BUFFS] }), spares: [spareSingle] })).toBe(true);
   });
   it('buff events check their payloads', () => {
     expect(valid(buffSchema, { kind: 'fifty' })).toBe(true);
@@ -900,8 +902,70 @@ describe('buffs and debuffs in the settings', () => {
     expect(valid(retrySchema, { keep: true })).toBe(true);
     expect(valid(retrySchema, { keep: 'yes' })).toBe(false);
   });
-  it('all eight buff kinds are known, five are ready', () => {
+  it('all eight buff kinds are known and ready', () => {
     expect(BUFF_KINDS).toHaveLength(8);
-    expect(READY_BUFFS).toEqual(['fifty', 'double', 'retry', 'time', 'shield']);
+    expect(READY_BUFFS).toEqual([...BUFF_KINDS]);
+  });
+
+  const spareSingle = {
+    id: 's1',
+    type: 'single',
+    text: 'Яка річка тече через Київ?',
+    imageUrl: null,
+    timeLimit: LIMITS.defaultTime,
+    points: LIMITS.defaultPoints,
+    options: [
+      { id: 'a', text: 'Дніпро' },
+      { id: 'b', text: 'Дунай' },
+    ],
+    correctId: 'a',
+  };
+  const orderSpare = {
+    id: 's2',
+    type: 'order',
+    text: 'Розставте за зростанням',
+    imageUrl: null,
+    timeLimit: LIMITS.defaultTime,
+    points: LIMITS.defaultPoints,
+    items: [
+      { id: 'i1', text: 'Один' },
+      { id: 'i2', text: 'Два' },
+      { id: 'i3', text: 'Три' },
+    ],
+  };
+  const PLAYER_UUID = 'p1';
+
+  it('a question may carry a short hint; old questions have none', () => {
+    const parsed = quizSchema.parse(baseQuiz);
+    expect(questionsOf(parsed)[0].hint).toBeUndefined();
+    const withHint = { ...baseQuiz, rounds: [{ ...baseQuiz.rounds[0], questions: [{ ...single, hint: '  Тече через Київ ' }] }] };
+    expect(questionsOf(quizSchema.parse(withHint))[0].hint).toBe('Тече через Київ');
+    const long = { ...baseQuiz, rounds: [{ ...baseQuiz.rounds[0], questions: [{ ...single, hint: 'я'.repeat(LIMITS.hintText + 1) }] }] };
+    expect(valid(quizSchema, long)).toBe(false);
+    const empty = { ...baseQuiz, rounds: [{ ...baseQuiz.rounds[0], questions: [{ ...single, hint: '   ' }] }] };
+    expect(valid(quizSchema, empty)).toBe(false);
+  });
+  it('spare pool rules', () => {
+    expect(valid(quizSchema, { ...baseQuiz, spares: [spareSingle] })).toBe(true);
+    expect(valid(quizSchema, { ...baseQuiz, spares: [] })).toBe(false);
+    expect(issues({ ...baseQuiz, spares: [orderSpare] })).toContain('spare_type');
+    expect(issues({ ...baseQuiz, spares: [{ ...spareSingle, video: { id: 'dQw4w9WgXcQ', start: 0 } }] })).toContain('spare_video');
+    expect(issues({ ...baseQuiz, spares: [spareSingle, spareSingle] })).toContain('duplicate_spare_ids');
+    expect(issues({ ...baseQuiz, spares: [{ ...spareSingle, id: single.id }] })).toContain('duplicate_spare_ids');
+    expect(valid(quizSchema, { ...baseQuiz, spares: Array.from({ length: LIMITS.maxSpares + 1 }, (_, i) => ({ ...spareSingle, id: `s${i}` })) })).toBe(false);
+  });
+  it('swap needs spares; a pool without swap is fine', () => {
+    expect(issues(withPowers({ buffs: ['swap'] }))).toContain('spares_empty');
+    expect(valid(quizSchema, { ...withPowers({ buffs: ['swap'] }), spares: [spareSingle] })).toBe(true);
+    expect(valid(quizSchema, withPowers({ buffs: ['audience', 'hint'] }))).toBe(true);
+    expect(valid(quizSchema, { ...baseQuiz, spares: [spareSingle] })).toBe(true);
+  });
+  it('vote and hint events check their payloads', () => {
+    expect(valid(voteSchema, { askerId: PLAYER_UUID, answer: { type: 'single', optionId: 'a' } })).toBe(true);
+    expect(valid(voteSchema, { askerId: PLAYER_UUID, answer: { type: 'magic' } })).toBe(false);
+    expect(valid(hintSchema, { playerId: PLAYER_UUID, text: 'Тече через Київ' })).toBe(true);
+    expect(valid(hintSchema, { playerId: PLAYER_UUID, text: null })).toBe(true);
+    expect(valid(hintSchema, { playerId: PLAYER_UUID, text: '  ' })).toBe(false);
+    expect(valid(hintSchema, { playerId: PLAYER_UUID, text: 'я'.repeat(LIMITS.hintText + 1) })).toBe(false);
   });
 });

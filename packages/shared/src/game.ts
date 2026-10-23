@@ -16,8 +16,8 @@ export type DebuffKind = (typeof DEBUFF_KINDS)[number];
 /** Бафи: гравець бере сам на своєму телефоні, по одному кожного дозволеного на гру. */
 export const BUFF_KINDS = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'] as const;
 export type BuffKind = (typeof BUFF_KINDS)[number];
-/** Бафи, які вже працюють; решту редактор показує з позначкою «скоро», схема їх не приймає. */
-export const READY_BUFFS: readonly BuffKind[] = ['fifty', 'double', 'retry', 'time', 'shield'];
+/** Усі бафи працюють (частина 8b); перевірка buff_unavailable лишається для майбутніх видів. */
+export const READY_BUFFS: readonly BuffKind[] = [...BUFF_KINDS];
 
 /** armed — чекає першої відповіді; again — друга спроба відкрита; choice — перша часткова, гравець вибирає; done. */
 export type RetryStage = 'armed' | 'again' | 'choice' | 'done';
@@ -25,7 +25,8 @@ export type RetryStage = 'armed' | 'again' | 'choice' | 'done';
 /** Чому кнопку бафу зараз не натиснути. */
 export type BuffBlock =
   | 'used' | 'taken' | 'answered' | 'time' | 'paused' | 'elsewhere' | 'not_chooser'
-  | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual';
+  | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual'
+  | 'no_voters' | 'spares_out';
 
 export type ErrorCode =
   | 'wrong_phase'
@@ -60,4 +61,6 @@ export type ErrorCode =
   | 'not_allowed'
   | 'buff_used'
   | 'buff_busy'
-  | 'buff_unfit';
+  | 'buff_unfit'
+  | 'vote_closed'
+  | 'vote_denied';
