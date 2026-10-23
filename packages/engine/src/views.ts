@@ -24,6 +24,7 @@ import {
   type DebuffKind,
   type PlayerChain,
   type PlayerSort,
+  type PlayerTable,
   type SortInfo,
   type SortRow,
   type Choice,
@@ -663,7 +664,12 @@ function sortInfo(state: GameState): SortInfo | null {
   // sort стабільний: рівні лишаються в порядку гравців.
   if (closed) rows.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity) || b.sorted - a.sorted);
   const won = blitz && closed ? state.players.find((p) => recordOf(state, state.questionIndex, p.id)?.accepted) : undefined;
-  return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id) };
+  // Слова за абеткою: порядок автора видав би групування за категоріями.
+  const words =
+    play.board === undefined
+      ? null
+      : open.question.words.map(({ id, text }) => ({ id, text })).sort((a, b) => a.text.localeCompare(b.text, 'uk'));
+  return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id), words };
 }
 
 /** Власна поточна картка й стан гравця; чужих слів і правильних категорій тут немає. */
@@ -1031,11 +1037,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   const seen = spare ?? shownQuestion(state);
   const shared = base(state, false);
   const play = state.plays[state.questionIndex];
-  // На етапі locked бали за поточне запитання ще не показуємо: це видало б правильність до розкриття.
-  // У фіналі рахунок гравця змінюється лише в мить його розкриття, а частка банку — на кроці розподілу.
   const visible = finalVisiblePoints(state, playerId);
-  const hidden =
-    record === undefined ? 0 : state.phase === 'locked' ? record.points : state.phase === 'reveal' ? record.points - visible : 0;
   return {
     ...shared,
     ...(spare === null
@@ -1048,7 +1050,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
     me: {
       id: player.id,
       nickname: player.nickname,
-      score: player.score - hidden,
+      score: player.score - hiddenPoints(state, playerId),
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
       // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули;
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
@@ -1076,7 +1078,27 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
     },
     reveal: revealed && seen !== null ? withoutHint(seen.question) : null,
     standings,
+    table: liveTable(state, playerId),
   };
+}
+
+/**
+ * Бали поточного запитання, яких гравцеві ще не видно: на етапі locked — уся оцінка (видала б правильність до розкриття);
+ * у фіналі рахунок змінюється лише в мить розкриття гравця, а частка банку — на кроці розподілу.
+ */
+function hiddenPoints(state: GameState, playerId: string): number {
+  const record = currentRecord(state, playerId);
+  if (record === undefined) return 0;
+  if (state.phase === 'locked') return record.points;
+  return state.phase === 'reveal' ? record.points - finalVisiblePoints(state, playerId) : 0;
+}
+
+/** Таблиця для кнопки «Таблиця»: з leaderboard 'end' поза підсумками — лише власний рядок зі справжнім місцем. */
+function liveTable(state: GameState, playerId: string): PlayerTable | null {
+  if (state.phase === 'lobby') return null;
+  const rows = rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hiddenPoints(state, p.id) })));
+  const full = state.quiz.settings.leaderboard === 'each' || WITH_STANDINGS.includes(state.phase);
+  return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
 }
 
 /** Власний дебаф гравця, лише поки він діє: до спрацювання гравець про нього не знає. */

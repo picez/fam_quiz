@@ -76,6 +76,7 @@ describe('sort views', () => {
         { playerId: 'p2', nickname: 'Богдан', sorted: 0, misses: 1, timeMs: null, points: null },
       ],
       winner: null,
+      words: null,
     });
     expect(hostView(s).sort?.rows.map((r) => r.points)).toEqual([null, null]);
     expect(stageView(toReveal(s, 10_000)).sort?.rows.map((r) => r.points)).toEqual([400, 0]);
@@ -149,8 +150,9 @@ describe('sort views', () => {
     expect(playerView(s, 'p1')?.me.sort).toMatchObject({ sorted: 1, canSort: true });
     expect(stageView(s).sort?.rows.map((r) => [r.playerId, r.sorted])).toEqual([['p1', 1]]);
     expect(playerView(s, 'p2')?.sort?.rows.map((r) => r.playerId)).toEqual(['p1']);
-    const p2 = JSON.stringify(playerView(s, 'p2'));
-    for (const w of sortQ.words) expect(p2).not.toContain(w.text);
+    // Глядачі бачать слова (за абеткою), але не правильні категорії й не чужу картку.
+    expect(playerView(s, 'p2')?.sort?.words).toHaveLength(sortQ.words.length);
+    expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('categoryId');
     expect(stageView(s).spotlight).toBeNull();
     const locked = must(lock(s));
     expect(stageView(locked).spotlight).toBeNull();

@@ -93,6 +93,8 @@ export interface SortInfo {
   rows: SortRow[];
   /** Бліц: хто першим відсортував усе; з locked. null — ще ніхто або не бліц. */
   winner: BlitzPlayer | null;
+  /** Клітинка поля: усі слова за абеткою (для глядачів); інакше null. */
+  words: { id: string; text: string }[] | null;
 }
 
 /** Сортування для самого гравця: лише власна поточна картка, правильних категорій немає. */
@@ -567,6 +569,12 @@ export interface PlayerResult {
   points: number;
 }
 
+/** Таблиця балів для кнопки «Таблиця»: full — усі гравці, інакше лише власний рядок (leaderboard 'end'). */
+export interface PlayerTable {
+  rows: Standing[];
+  full: boolean;
+}
+
 export interface PlayerView extends BaseView {
   role: 'player';
   me: {
@@ -598,6 +606,8 @@ export interface PlayerView extends BaseView {
   };
   reveal: Question | null;
   standings: Standing[] | null;
+  /** Живий рейтинг без балів ще не розкритого запитання; null у лобі. */
+  table: PlayerTable | null;
 }
 
 export interface HostResponse {

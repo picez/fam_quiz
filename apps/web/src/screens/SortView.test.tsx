@@ -248,7 +248,7 @@ describe('SortBoard and SortReveal', () => {
     { playerId: 'p1', nickname: 'Анна', sorted: 4, misses: 0, timeMs: 8000, points: null },
     { playerId: 'p2', nickname: 'Богдан', sorted: 1, misses: 1, timeMs: null, points: null },
   ];
-  const info = (over: Partial<SortInfo> = {}): SortInfo => ({ total: 4, rows, winner: null, ...over });
+  const info = (over: Partial<SortInfo> = {}): SortInfo => ({ total: 4, rows, winner: null, words: null, ...over });
   const items = () => [...document.querySelectorAll('.sort-board li')].map((li) => li.textContent ?? '');
 
   it('SortBoard keeps rows steady', () => {

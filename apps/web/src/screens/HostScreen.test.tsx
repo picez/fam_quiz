@@ -715,7 +715,7 @@ describe('HostScreen: blitz', () => {
         ],
       };
       const cell = { id: 'c1', category: 'Міста', price: 400, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
-      const sort = { total: 4, winner: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 0, timeMs: null, points: null }] };
+      const sort = { total: 4, winner: null, words: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 0, timeMs: null, points: null }] };
       for (const phase of ['locked', 'reveal'] as const) {
         show(
           during(phase, sortQ, {
@@ -1293,7 +1293,7 @@ describe('HostScreen sort', () => {
         { id: 'w4', text: 'Груша', categoryId: 'c2' },
       ],
     };
-    const info = { total: 4, winner: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 1, timeMs: null, points: null }] };
+    const info = { total: 4, winner: null, words: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 2, misses: 1, timeMs: null, points: null }] };
     const send = vi.fn(async () => ({ ok: true as const }));
     show(
       view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'sort', choices: [], sort: { categories, total: 4, lockSeconds: 3 } }, correct: sortQ, endsAt: Date.now() + 20_000, sort: info }),

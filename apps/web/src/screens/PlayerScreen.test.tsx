@@ -68,6 +68,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   me,
   reveal: null,
   standings: null,
+  table: null,
   ...over,
 });
 
@@ -1205,7 +1206,7 @@ describe('PlayerScreen: sort', () => {
     marks: [],
     marksHidden: false,
   };
-  const info = (over = {}) => ({ total: 4, rows: [{ playerId: 'p2', nickname: 'Оля', sorted: 2, misses: 0, timeMs: null, points: null, ...over }], winner: null });
+  const info = (over = {}) => ({ total: 4, rows: [{ playerId: 'p2', nickname: 'Оля', sorted: 2, misses: 0, timeMs: null, points: null, ...over }], winner: null, words: null });
 
   it('a sort question on the phone', () => {
     const send = show(onQuestion({ question: sortQ, sort: info(), me: { ...me, sort: mine } }));
