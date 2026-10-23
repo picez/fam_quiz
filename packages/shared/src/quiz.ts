@@ -465,6 +465,30 @@ export function roundQuestions(round: Round): Question[] {
   return round.type === 'board' ? boardCells(round).map(({ cell }) => cell.question) : round.questions;
 }
 
+/** ⌈запитань не-фінальних раундів / 3⌉; null — дуелей немає (немає duels або таких запитань 0). */
+export function duelThreshold(quiz: Quiz): number | null {
+  if (quiz.duels === undefined) return null;
+  const count = quiz.rounds.reduce((sum, round) => (round.type === 'final' ? sum : sum + roundQuestions(round).length), 0);
+  return count === 0 ? null : Math.ceil(count / 3);
+}
+
+/** Індекс першого фінального раунду; без фіналу — останнього раунду. */
+export function duelCutoff(quiz: Quiz): number {
+  const final = quiz.rounds.findIndex((round) => round.type === 'final');
+  return final === -1 ? quiz.rounds.length - 1 : final;
+}
+
+/**
+ * Скільки запитань має бути в раундах до межі, якщо їх замало й дуель ніколи не стане можливою;
+ * null — запитань досить або дуелей немає.
+ */
+export function duelShortfall(quiz: Quiz): number | null {
+  if (quiz.duels === undefined) return null;
+  const needed = duelThreshold(quiz) ?? 1;
+  const before = quiz.rounds.slice(0, duelCutoff(quiz)).reduce((sum, round) => sum + roundQuestions(round).length, 0);
+  return before >= needed ? null : needed;
+}
+
 export interface CellRef {
   categoryIndex: number;
   index: number;

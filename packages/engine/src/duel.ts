@@ -1,4 +1,4 @@
-import { LIMITS, roundQuestions, type DuelQuestion, type Phase, type Quiz } from '@quiz/shared';
+import { LIMITS, duelCutoff, duelThreshold, type DuelQuestion, type Phase, type Quiz } from '@quiz/shared';
 import { adjustScore } from './adjust';
 import { textMatches } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
@@ -10,18 +10,8 @@ const DECLARE_PHASES: Phase[] = ['intro', 'board', 'question', 'locked', 'reveal
 /** Етапи, з яких оголошена дуель стартує замість звичайного кроку. */
 const START_PHASES: Phase[] = ['intro', 'reveal', 'leaderboard', 'round_end'];
 
-/** ⌈запитань не-фінальних раундів / 3⌉; null — дуелей немає (немає duels або таких запитань 0). */
-export function duelThreshold(quiz: Quiz): number | null {
-  if (quiz.duels === undefined) return null;
-  const count = quiz.rounds.reduce((sum, round) => (round.type === 'final' ? sum : sum + roundQuestions(round).length), 0);
-  return count === 0 ? null : Math.ceil(count / 3);
-}
-
-/** Індекс першого фінального раунду; без фіналу — останнього раунду. */
-export function duelCutoff(quiz: Quiz): number {
-  const final = quiz.rounds.findIndex((round) => round.type === 'final');
-  return final === -1 ? quiz.rounds.length - 1 : final;
-}
+// Поріг і межа живуть у shared: редактор перевіряє ту саму умову, що й гра.
+export { duelCutoff, duelThreshold };
 
 /** Скільки запитань не-фінальних раундів уже закрито. */
 export function duelPlayed(state: GameState): number {

@@ -4159,7 +4159,7 @@ async function duelGame() {
   await shot(olya, 'duel7g-pick-phone');
   await expectNoSideScroll(olya, 'duel7g-pick-375');
   await dialog.getByRole('button', { name: 'Петро', ...exact }).click();
-  const banner = '⚔ Дуель: Оля — Петро. Почнеться після цього запитання.';
+  const banner = '⚔ Дуель: Оля — Петро. Почнеться, щойно ведучий продовжить гру.';
   for (const page of [stage, ...phones]) await page.locator('.duel-banner').getByText(banner, exact).waitFor();
   await expect.poll(() => duelButton(petro).isDisabled()).toBe(true);
   await expect.poll(() => duelButton(ira).isDisabled()).toBe(true);
@@ -4220,6 +4220,9 @@ async function duelGame() {
   await host.getByRole('button', { name: 'Пропустити запитання', ...exact }).waitFor();
   await host.getByRole('button', { name: 'Скасувати дуель', ...exact }).waitFor();
   await host.getByRole('button', { name: 'Пауза', ...exact }).first().waitFor();
+  // Ведучий бачить таймер дуелі; «Завершити раунд» під час дуелі немає.
+  await host.locator('.duel-host').getByRole('timer').waitFor();
+  expect(await host.getByRole('button', { name: 'Завершити раунд', ...exact }).count()).toBe(0);
   await shot(host, 'duel7g-question-host');
   await nowhere(
     [
@@ -4295,7 +4298,7 @@ async function duelGame() {
   expect(await duelButton(olya).count(), 'Оля already used her duel').toBe(0);
   await duelButton(ira).click();
   await ira.getByRole('dialog').getByRole('button', { name: 'Оля', ...exact }).click();
-  await ira.locator('.duel-banner').getByText('⚔ Дуель: Іра — Оля. Почнеться після цього запитання.', exact).waitFor();
+  await ira.locator('.duel-banner').getByText('⚔ Дуель: Іра — Оля. Почнеться, щойно ведучий продовжить гру.', exact).waitFor();
   await expect.poll(() => duelButton(petro).isDisabled()).toBe(true);
   await click(host, 'Почати дуель');
   await stageSay('Іра вибирає категорію');

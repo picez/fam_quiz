@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type HostDuel, type HostView, Question, RoundInfo } from '@quiz/shared';
+import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
 
@@ -1314,6 +1315,26 @@ describe('HostScreen: duel', () => {
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:pause', undefined));
   });
 
+  it('no round end mid-duel, even one started at the intro; it is back once the duel is over', () => {
+    show(view({ phase: 'duel', round: duelRound, duel: hostDuel({ stage: 'category', category: null, question: null, accepted: null }) }));
+    expect(screen.queryByRole('button', { name: 'Завершити раунд' })).toBeNull();
+    expect(button('Скасувати дуель')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'intro', round: duelRound, duel: hostDuel({ stage: 'declared', category: null, question: null, accepted: null }) }));
+    expect(button('Завершити раунд')).toBeTruthy();
+  });
+
+  it('the host sees the duel timer while a duel question runs, and not at the reveal', () => {
+    const endsAt = Date.now() + 20_000;
+    show(view({ phase: 'duel', round: duelRound, duel: hostDuel(), endsAt, remainingMs: null, limitMs: 30_000 }));
+    const timer = within(document.querySelector('.duel-host') as HTMLElement).getByRole('timer');
+    expect(Number(timer.getAttribute('aria-label'))).toBeGreaterThanOrEqual(19);
+    expect(timer.querySelector('.timer-label')?.getAttribute('data-total')).toBe(t('timerOf', { seconds: 30 }));
+    cleanup();
+    show(view({ phase: 'duel', round: duelRound, duel: hostDuel({ stage: 'answer' }), endsAt: null, remainingMs: null, limitMs: 30_000 }));
+    expect(document.querySelector('.duel-host [role="timer"]')).toBeNull();
+  });
+
   it('the main button walks the duel', async () => {
     const labels: [Partial<HostDuel>, string][] = [
       [{ stage: 'answer', ending: false }, 'Наступне запитання дуелі'],
@@ -1322,7 +1343,8 @@ describe('HostScreen: duel', () => {
     ];
     for (const [patch, label] of labels) {
       const send = show(view({ phase: 'duel', round: duelRound, duel: hostDuel(patch) }));
-      expect(button('Завершити раунд')).toBeTruthy();
+      // Раунд під час дуелі не завершують; вихід — «Скасувати дуель».
+      expect(screen.queryByRole('button', { name: 'Завершити раунд' })).toBeNull();
       fireEvent.click(button(label));
       await waitFor(() => expect(send).toHaveBeenCalledWith('host:next', undefined));
       cleanup();

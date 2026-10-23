@@ -6,14 +6,14 @@ import { t } from '../i18n';
 import { PairList } from '../screens/MatchView';
 import { usePrivateData } from '../usePrivateData';
 
-/** Рядки дуелей: пари 'duel' з сусідніми seq (+ і −) — один рядок; непарне — окремо. */
+/** Рядки дуелей: пари 'duel' з сусідніми seq (+N і −N) — один рядок; непарне — окремо. */
 export function duelLines(adjustments: GameAdjustment[]): string[] {
   const duel = adjustments.filter((adjustment) => adjustment.source === 'duel').sort((a, b) => a.seq - b.seq);
   const lines: string[] = [];
   for (let at = 0; at < duel.length; at++) {
     const first = duel[at];
     const second = duel[at + 1];
-    if (second !== undefined && second.seq === first.seq + 1 && first.points > 0 && second.points < 0) {
+    if (second !== undefined && second.seq === first.seq + 1 && first.points > 0 && second.points === -first.points) {
       lines.push(t('historyDuel', { winner: first.nickname, plus: signed(first.points), loser: second.nickname, minus: signed(second.points) }));
       at++;
     } else {

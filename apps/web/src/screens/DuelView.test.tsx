@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DuelInfo, GameAdjustment, PlayerDuel, PlayerView } from '@quiz/shared';
+import type { DuelInfo, GameAdjustment, Phase, PlayerDuel, PlayerView } from '@quiz/shared';
 import { duelLines } from '../pages/GameHistory';
 import type { Send, SendResult } from '../live/types';
-import { DuelBanner, DuelButton, DuelPlay, duelScoreText } from './DuelView';
+import { DuelBanner, DuelButton, DuelPlay, duelScoreText, sideClass } from './DuelView';
 
 afterEach(() => {
   cleanup();
@@ -136,14 +136,37 @@ describe('DuelView', () => {
   });
 
   it('the declared duel shows a fixed banner', () => {
-    const { rerender, container } = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} />);
+    const { rerender, container } = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} phase="question" />);
     const banner = container.querySelector('.duel-banner');
     expect(banner?.textContent).toBe('⚔ Дуель: Оля — Петро. Почнеться після цього запитання.');
     expect(banner?.getAttribute('role')).toBe('status');
-    rerender(<DuelBanner duel={duelInfo({ stage: 'question' })} />);
+    rerender(<DuelBanner duel={duelInfo({ stage: 'question' })} phase="duel" />);
     expect(container.querySelector('.duel-banner')).toBeNull();
-    rerender(<DuelBanner duel={null} />);
+    rerender(<DuelBanner duel={null} phase="question" />);
     expect(container.querySelector('.duel-banner')).toBeNull();
+  });
+
+  it('the banner says when the duel starts by the phase it was declared in', () => {
+    const text = (phase: Phase) => {
+      const { container, unmount } = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} phase={phase} />);
+      const content = container.querySelector('.duel-banner')?.textContent;
+      unmount();
+      return content;
+    };
+    expect(text('locked')).toBe('⚔ Дуель: Оля — Петро. Почнеться після цього запитання.');
+    expect(text('board')).toBe('⚔ Дуель: Оля — Петро. Почнеться після наступного запитання.');
+    for (const phase of ['intro', 'reveal', 'leaderboard', 'round_end'] as Phase[]) {
+      expect(text(phase)).toBe('⚔ Дуель: Оля — Петро. Почнеться, щойно ведучий продовжить гру.');
+    }
+  });
+
+  it('a long nickname on the stage gets a smaller font by its longest unbreakable piece', () => {
+    expect(sideClass('is-challenger', 'Петро')).toBe('duel-stage-side is-challenger');
+    expect(sideClass('is-challenger', 'Оля Петро Іра')).toBe('duel-stage-side is-challenger');
+    // «Олександра-» з дефісом — 11 знаків: ще is-long.
+    expect(sideClass('is-opponent', 'Олександра-Марійка К')).toBe('duel-stage-side is-opponent is-long');
+    expect(sideClass('is-opponent', 'Олександр')).toBe('duel-stage-side is-opponent is-long');
+    expect(sideClass('is-challenger', 'Найдовшеімʼяпідряд')).toBe('duel-stage-side is-challenger is-longer');
   });
 
   it('the challenger picks a category, the others wait', async () => {
@@ -244,11 +267,11 @@ describe('DuelView', () => {
   });
 
   it('reduced motion: the banner does not pulse', () => {
-    const { container, unmount } = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} />);
+    const { container, unmount } = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} phase="question" />);
     expect(container.querySelector('.duel-banner')?.classList.contains('is-pulsing')).toBe(true);
     unmount();
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)', media: query }));
-    const calm = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} />);
+    const calm = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} phase="question" />);
     expect(calm.container.querySelector('.duel-banner')?.classList.contains('is-pulsing')).toBe(false);
   });
 });
@@ -267,5 +290,7 @@ describe('duelLines', () => {
       'Дуель: Іра +300, Оля −300',
       'Дуель: Петро +200',
     ]);
+    // Сусідні +300 і −200 — не одна ставка: два окремі рядки.
+    expect(duelLines([row(1, 'Іра', 300, 'duel'), row(2, 'Оля', -200, 'duel')])).toEqual(['Дуель: Іра +300', 'Дуель: Оля −200']);
   });
 });

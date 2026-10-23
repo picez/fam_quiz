@@ -333,7 +333,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   return (
     <main className="app player">
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
-      <DuelBanner duel={view.duel} />
+      <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <header className="bar">
         <span>{me.nickname}</span>

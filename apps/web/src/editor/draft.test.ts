@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
 import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels } from './draft';
 
@@ -828,7 +828,11 @@ const fillDuels = (duels: Duels): Duels => ({
     questions: c.questions.map((q, i) => ({ ...q, text: `Столиця ${i + 1}?`, accepted: ['Київ'] })),
   })),
 });
-const withDuels = (duels: Duels): Quiz => ({ ...quizWith(filled(newQuestion('boolean'))), duels });
+// Два раунди: до останнього є запитання, тож дуель досяжна.
+const withDuels = (duels: Duels): Quiz => {
+  const quiz = quizWith(filled(newQuestion('boolean')));
+  return { ...quiz, rounds: [...quiz.rounds, { ...newClassicRound(), questions: [filled(newQuestion('boolean'))] }], duels };
+};
 
 describe('duels in the draft', () => {
   it('new duels are valid once their texts are filled', () => {
@@ -875,6 +879,30 @@ describe('duels in the draft', () => {
     expect(problemsOf(withDuels({ ...ok, categories: [short] }))).toContain('Дуелі, «Столиці»: замало запитань — потрібно щонайменше 3.');
   });
 
+  it('duels that can never start stop saving; the threshold is the one the game uses', () => {
+    const duels = fillDuels(newDuels());
+    const unreachable = t('problemDuelUnreachable', { needed: 1 });
+    // Один раунд без фіналу: до межі немає жодного запитання.
+    const single = { ...quizWith(filled(newQuestion('boolean'))), duels };
+    expect(duelShortfall(single)).toBe(1);
+    expect(problemsOf(single)).toEqual([unreachable]);
+    // 1 запитання до межі з 4 не-фінальних: потрібно ⌈4/3⌉ = 2.
+    const few = withDuels(duels);
+    const last = few.rounds[1] as ClassicRound;
+    const lopsided = { ...few, rounds: [few.rounds[0], { ...last, questions: [0, 1, 2].map(() => filled(newQuestion('boolean'))) }] };
+    expect(duelThreshold(lopsided)).toBe(2);
+    expect(problemsOf(lopsided)).toEqual([t('problemDuelUnreachable', { needed: 2 })]);
+    expect(problemsOf(lopsided)[0]).toBe('Дуелі: до останнього раунду (або фіналу) має бути зіграно щонайменше 2 запитань — інакше кнопка дуелі не з’явиться.');
+    // З фіналом межа — фінал: один раунд перед ним уже досить.
+    const final = { ...newFinalRound(), questions: [filled(newQuestion('single'))] };
+    const withFinal = { ...single, rounds: [...single.rounds, final] };
+    expect(problemsOf(withFinal)).toEqual([]);
+    // Без дуелей перевірки немає.
+    const { duels: _omit, ...plain } = single;
+    expect(duelShortfall(plain)).toBeNull();
+    expect(problemsOf(plain)).toEqual([]);
+  });
+
   it('a quiz without duels has no duel problems', () => {
     expect(problemsOf(quizWith(filled(newQuestion('boolean'))))).toEqual([]);
   });
@@ -897,5 +925,27 @@ describe('duel drafts in storage', () => {
     expect('duels' in loadDraft('brokenduels')!).toBe(false);
     saveDraft('noduels', quizWith(filled(newQuestion('boolean'))));
     expect('duels' in loadDraft('noduels')!).toBe(false);
+  });
+
+  it('broken duel categories and questions are dropped; no category left means no duels', () => {
+    const quiz = withDuels(fillDuels(newDuels()));
+    const good = quiz.duels!.categories[0];
+    const [q1, q2] = good.questions;
+    const mixed = {
+      ...quiz.duels,
+      categories: [
+        null,
+        'x',
+        { id: 'c0', title: 'Без запитань' },
+        { id: 'c1', title: 'Зіпсовані', questions: 'x' },
+        { ...good, questions: [q1, null, { id: 'n1', text: 5, accepted: [] }, { id: 'n2', text: 'Без відповідей' }, q2] },
+      ],
+    };
+    sessionStorage.setItem('quiz:draft:mixedduels', JSON.stringify({ ...quiz, duels: mixed }));
+    expect(loadDraft('mixedduels')?.duels?.categories).toEqual([{ ...good, questions: [q1, q2] }]);
+    const none = { ...quiz.duels, categories: [null, { id: 'c1', title: 'Зіпсовані', questions: {} }] };
+    sessionStorage.setItem('quiz:draft:noneduels', JSON.stringify({ ...quiz, duels: none }));
+    expect(loadDraft('noneduels')).not.toBeNull();
+    expect('duels' in loadDraft('noneduels')!).toBe(false);
   });
 });

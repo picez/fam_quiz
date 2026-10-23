@@ -190,6 +190,25 @@ describe('new achievements', () => {
     expect(wonBlitzRound(fined, 'a')).toBe(false);
   });
 
+  it('a duel stake that lands in a blitz round does not win it, but still counts for a comeback', () => {
+    const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
+    const duel = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null, source: 'duel' as const });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
+
+    // a виграв дуель у бліц-раунді: +300 у нього, −300 у b. За бліцем вони нарівні — короля бліцу немає.
+    const stake = table(['blitz', 'classic'], [p('a', 1, 320, [row(0, 20), duel(0, 300)]), p('b', 2, -280, [row(0, 20), duel(0, -300)])]);
+    expect(wonBlitzRound(stake, 'a')).toBe(false);
+    // Ставка не забирає й чесно виграного бліцу: b програв дуель, але за бліцем вів.
+    const lost = table(['blitz', 'classic'], [p('a', 1, 310, [row(0, 10), duel(0, 300)]), p('b', 2, -280, [row(0, 20), duel(0, -300)])]);
+    expect(wonBlitzRound(lost, 'b')).toBe(true);
+    // Камбек рахує бали як табло, разом з дуеллю: перед останнім раундом a вів завдяки ставці — не камбек.
+    const ahead = table(['blitz', 'classic'], [p('a', 1, 330, [row(0, 10), duel(0, 300), row(1, 20)]), p('b', 2, -270, [row(0, 20), duel(0, -300), row(1, 10)])]);
+    expect(isComeback(ahead, 'a')).toBe(false);
+    // А програна дуель могла відкинути b назад, і тоді його перемога — камбек.
+    const back = table(['blitz', 'classic'], [p('b', 1, 500, [row(0, 20), duel(0, -300), row(1, 780)]), p('a', 2, 320, [row(0, 20), duel(0, 300)])]);
+    expect(isComeback(back, 'b')).toBe(true);
+  });
+
   it('friendsPlayedWith counts distinct friends other than the player', () => {
     const p = (userId: string | null) => ({ participantId: `${userId}-p`, userId, rank: null, score: 0, rows: [] });
     const tables = [table(['classic'], [p('me'), p('f1'), p('f2'), p(null)]), table(['classic'], [p('me'), p('f1'), p('x')])];

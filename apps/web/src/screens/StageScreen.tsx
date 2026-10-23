@@ -320,7 +320,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   return (
     <main className="app stage">
-      <DuelBanner duel={view.duel} />
+      <DuelBanner duel={view.duel} phase={view.phase} />
       <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
       <StageDebuffs debuffs={view.debuffs} />
       {view.paused && (

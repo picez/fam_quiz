@@ -6,6 +6,7 @@ import {
   questionSchema,
   quizSchema,
   boardRoundIssues,
+  duelShortfall,
   roundRulesSchema,
   type AnswerMode,
   type BlitzRound,
@@ -554,6 +555,9 @@ export function problemsOf(quiz: Quiz): string[] {
     });
   });
   if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));
+  // Та сама умова, що в грі: без досить запитань до межі кнопка дуелі не з’явиться ніколи.
+  const shortfall = duelShortfall(draft);
+  if (shortfall !== null) problems.push(t('problemDuelUnreachable', { needed: shortfall }));
   // Остання перевірка тією самою схемою, що й на сервері; коди помилок дуелей читаються як речення.
   if (problems.length === 0) {
     const parsed = quizSchema.safeParse(draft);

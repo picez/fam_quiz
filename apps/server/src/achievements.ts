@@ -64,14 +64,19 @@ export function roundPoints(player: TablePlayer, roundIndex: number): number {
   return player.rows.filter((row) => row.roundIndex === roundIndex).reduce((sum, row) => sum + row.points, 0);
 }
 
-/** Учасник має строгу перевагу > 0 хоч в одному бліц-раунді гри з ≥ 2 учасниками. */
+/** Бали учасника в раунді без ставок дуелей: дуель грають поза раундом, хоч її рядок і лягає в раунд. */
+function roundPointsWithoutDuels(player: TablePlayer, roundIndex: number): number {
+  return player.rows.filter((row) => row.roundIndex === roundIndex && row.source !== 'duel').reduce((sum, row) => sum + row.points, 0);
+}
+
+/** Учасник має строгу перевагу > 0 хоч в одному бліц-раунді гри з ≥ 2 учасниками; ставки дуелей не рахуються. */
 export function wonBlitzRound(table: GameTable, participantId: string): boolean {
   const me = table.players.find((p) => p.participantId === participantId);
   if (me === undefined || table.players.length < 2) return false;
   return table.roundTypes.some((type, index) => {
     if (type !== 'blitz') return false;
-    const mine = roundPoints(me, index);
-    return mine > 0 && table.players.every((p) => p === me || roundPoints(p, index) < mine);
+    const mine = roundPointsWithoutDuels(me, index);
+    return mine > 0 && table.players.every((p) => p === me || roundPointsWithoutDuels(p, index) < mine);
   });
 }
 

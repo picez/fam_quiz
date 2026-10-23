@@ -1400,7 +1400,11 @@ describe('QuizEditor duels', () => {
     return {
       ...quiz,
       title: 'Гра',
-      rounds: [{ ...newClassicRound(), questions: [{ ...newQuestion('boolean'), text: 'Так?' }] }],
+      // Два раунди: до останнього є запитання, тож дуель досяжна.
+      rounds: [
+        { ...newClassicRound(), questions: [{ ...newQuestion('boolean'), text: 'Так?' }] },
+        { ...newClassicRound(), questions: [{ ...newQuestion('boolean'), text: 'Ні?' }] },
+      ],
     };
   };
   const duelsToggle = () => screen.getByLabelText('Дуелі між гравцями');
@@ -1444,6 +1448,18 @@ describe('QuizEditor duels', () => {
     click('Зберегти');
     await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
     expect(document.querySelector('.problems')!.textContent).toContain('Дуелі, «Столиці»: замало запитань — потрібно щонайменше 4.');
+    expect((screen.getByText('Дуелі').closest('details') as HTMLDetailsElement).open).toBe(true);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('duels in a single round can never start: saving stops with the reason', async () => {
+    const quiz = filledQuiz();
+    const { onSave } = open({ ...quiz, rounds: quiz.rounds.slice(0, 1) });
+    fireEvent.click(duelsToggle());
+    fillPool();
+    click('Зберегти');
+    await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
+    expect(document.querySelector('.problems')!.textContent).toContain(t('problemDuelUnreachable', { needed: 1 }));
     expect((screen.getByText('Дуелі').closest('details') as HTMLDetailsElement).open).toBe(true);
     expect(onSave).not.toHaveBeenCalled();
   });

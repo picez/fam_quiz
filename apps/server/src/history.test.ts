@@ -888,10 +888,21 @@ describe('history: score adjustments', () => {
     expect(table.players[0].rows).toEqual(
       expect.arrayContaining([
         { roundIndex: 0, attempt: 0, accepted: true, points: 1000, wager: null },
-        { roundIndex: 0, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points: -100, wager: null },
+        { roundIndex: 0, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points: -100, wager: null, source: 'host' },
       ]),
     );
     expect(table.players[0].rows).toHaveLength(2);
+  });
+
+  it('gameTables keeps where an adjustment came from: a duel stake is marked duel', async () => {
+    const host = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 5),
+      players: [{ userId: null, nickname: 'Олена', score: 300, rank: 1, rows: [], adjustments: [{ seq: 1, points: 300, source: 'duel' }] }],
+    });
+    const [table] = await gameTables(db, [gameId]);
+    expect(table.players[0].rows).toEqual([{ roundIndex: 0, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points: 300, wager: null, source: 'duel' }]);
   });
 
   it('history and my games match the leaderboard with adjustments', async () => {

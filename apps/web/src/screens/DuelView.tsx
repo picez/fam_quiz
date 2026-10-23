@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import type { DuelInfo, HostView, PlayerDuel, PlayerView, StageView } from '@quiz/shared';
+import type { DuelInfo, HostView, Phase, PlayerDuel, PlayerView, StageView } from '@quiz/shared';
 import { num, questionClass } from '../format';
-import { errorText, t } from '../i18n';
+import { errorText, t, type TextKey } from '../i18n';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { reducedMotion } from '../motion';
@@ -124,12 +124,19 @@ export function DuelButton({
   );
 }
 
+/** Коли почнеться оголошена дуель: після відкритого запитання, після наступного (з поля) або щойно ведучий продовжить. */
+function duelStartText(phase: Phase): TextKey {
+  if (phase === 'question' || phase === 'locked') return 'duelStartsAfterQuestion';
+  if (phase === 'board') return 'duelStartsAfterNext';
+  return 'duelStartsOnContinue';
+}
+
 /** Закріплена смуга оголошеної дуелі (stage 'declared'); position: fixed — нічого не зсуває. */
-export function DuelBanner({ duel }: { duel: DuelInfo | null }) {
+export function DuelBanner({ duel, phase }: { duel: DuelInfo | null; phase: Phase }) {
   if (duel === null || duel.stage !== 'declared') return null;
   return (
     <div className={reducedMotion() ? 'duel-banner' : 'duel-banner is-pulsing'} role="status" aria-live="polite">
-      {t('duelBanner', { challenger: duel.challenger.nickname, opponent: duel.opponent.nickname })}
+      {t('duelBanner', { challenger: duel.challenger.nickname, opponent: duel.opponent.nickname, start: t(duelStartText(phase)) })}
     </div>
   );
 }
@@ -296,6 +303,18 @@ export function DuelPlay({
   );
 }
 
+/** Найдовший шматок імені, що не переноситься: слово між пробілами або до дефіса разом із дефісом. */
+function longestPiece(nickname: string): number {
+  return Math.max(1, ...(nickname.match(/[^\s-]+-?|-/g) ?? []).map((piece) => piece.length));
+}
+
+/** Клас імені збоку сцени: шрифт менший за найдовшим шматком, щоб він влізв у стовпець цілим. */
+export function sideClass(side: 'is-challenger' | 'is-opponent', nickname: string): string {
+  const piece = longestPiece(nickname);
+  const size = piece > 11 ? ' is-longer' : piece > 6 ? ' is-long' : '';
+  return `duel-stage-side ${side}${size}`;
+}
+
 /** Дуель на великому екрані: імена один проти одного, рахунок, категорія, запитання, таймер, кількість спроб, розкриття, підсумок. */
 export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: number }) {
   const duel = view.duel;
@@ -305,7 +324,7 @@ export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: numbe
   const playing = duel.stage === 'question' || duel.stage === 'answer';
   return (
     <section className="duel-stage">
-      <p className="duel-stage-side is-challenger">{duel.challenger.nickname}</p>
+      <p className={sideClass('is-challenger', duel.challenger.nickname)}>{duel.challenger.nickname}</p>
       <div className="duel-stage-center">
         <p className="duel-stage-mark" aria-hidden="true">
           ⚔
@@ -365,13 +384,23 @@ export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: numbe
             ))}
         </div>
       </div>
-      <p className="duel-stage-side is-opponent">{duel.opponent.nickname}</p>
+      <p className={sideClass('is-opponent', duel.opponent.nickname)}>{duel.opponent.nickname}</p>
     </section>
   );
 }
 
 /** Панель дуелі в пульті: оголошена (скасувати), вибір категорії за гравця, відповіді й спроби, пропуск, скасування. */
-export function HostDuelPanel({ view, send, onError }: { view: HostView; send: Send; onError: (text: string | null) => void }) {
+export function HostDuelPanel({
+  view,
+  offsetMs,
+  send,
+  onError,
+}: {
+  view: HostView;
+  offsetMs: number;
+  send: Send;
+  onError: (text: string | null) => void;
+}) {
   const duel = view.duel;
   if (duel === null) return null;
   const act = async (event: 'host:duel-category' | 'host:duel-skip' | 'host:duel-cancel', payload?: { categoryId: string }) => {
@@ -411,6 +440,7 @@ export function HostDuelPanel({ view, send, onError }: { view: HostView; send: S
         <>
           <p className="meta">{t('duelQuestionOf', { index: duel.number, total: duel.total, category: duel.category ?? '' })}</p>
           {duel.question !== null && <p>{duel.question}</p>}
+          {duel.stage === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
           {duel.accepted !== null && duel.accepted.length > 0 && <p className="meta">{t('duelAccepted', { list: duel.accepted.join(', ') })}</p>}
           {tries.map(
             ({ player, texts }) =>

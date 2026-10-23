@@ -689,7 +689,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
         </section>
       )}
 
-      {view.duel !== null && <HostDuelPanel view={view} send={send} onError={setError} />}
+      {view.duel !== null && <HostDuelPanel view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
       {phase === 'round_end' && round !== null && (
         <section className="panel">
@@ -754,7 +754,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       <footer className="actions">
         {live && (
           <>
-            {inRound && !lastRound && (
+            {/* Під час дуелі раунд не завершують: дуель могла початися на заставці, і раунд пропустився б увесь. Вихід — «Скасувати дуель». */}
+            {inRound && !lastRound && phase !== 'duel' && (
               <button type="button" className="btn btn-danger" onClick={endRound}>
                 {t('endRound')}
               </button>
