@@ -1613,6 +1613,60 @@ describe('where surveys live (10e)', () => {
   });
 });
 
+describe('bluff (10f)', () => {
+  const bluffQ = { id: 'b1', type: 'bluff', text: 'Ейфелеву вежу спершу пропонували поставити в …, але місто відмовилося.', imageUrl: null, video: null,
+    timeLimit: 60, choiceTime: 30, points: 1000, accepted: ['Барселона', 'Барселоні'], lies: ['Мадрид', 'Лондон', 'Брюссель'] } as const;
+  const issues = (value: unknown) => {
+    const result = questionSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  it('a bluff is a scored, not simple question type with a truth, 2–3 spare lies and a choice time', () => {
+    expect(QUESTION_TYPES).toContain('bluff');
+    expect(SIMPLE_TYPES).not.toContain('bluff');
+    expect(isUnscored(bluffQ as unknown as Question)).toBe(false);
+    expect(proximityPartial(bluffQ as unknown as Question)).toBe(false);
+    expect(valid(questionSchema, bluffQ)).toBe(true);
+    expect(valid(questionSchema, { ...bluffQ, lies: ['Мадрид'] })).toBe(false);
+    expect(valid(questionSchema, { ...bluffQ, lies: ['a', 'b', 'c', 'd'] })).toBe(false);
+    expect(valid(questionSchema, { ...bluffQ, choiceTime: 4 })).toBe(false);
+    expect(valid(questionSchema, { ...bluffQ, accepted: [] })).toBe(false);
+  });
+  it('checks the truth length, spare duplicates, spares equal to the truth and video', () => {
+    expect(issues({ ...bluffQ, accepted: ['Б'.repeat(61)] })).toContain('bluff_truth_long');
+    expect(issues({ ...bluffQ, lies: ['Мадрид', ' мадрид '] })).toContain('bluff_spare_duplicate');
+    expect(issues({ ...bluffQ, lies: ['Мадрид', 'БАРСЕЛОНІ'] })).toContain('bluff_spare_truth');
+    expect(issues({ ...bluffQ, video: { id: 'dQw4w9WgXcQ', start: 0 } })).toContain('bluff_video');
+  });
+});
+
+describe('where bluffs live (10f)', () => {
+  const bluffQ = { id: 'b1', type: 'bluff', text: 'Факт з …', imageUrl: null, video: null, timeLimit: 60, choiceTime: 30, points: 1000,
+    accepted: ['Барселона'], lies: ['Мадрид', 'Лондон'] };
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const blitz = (q: object) => ({ id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: DEFAULT_ANSWER_WINDOW, attempts: 1,
+    check: 'auto', rules: { ...DEFAULT_RULES, partial: null }, questions: [q] });
+  const finalR = (q: object) => ({ id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [q] });
+  const board = (q: object) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+  it('bluff: classic only; not blitz, final or any board cell', () => {
+    expect(issues(quizOf([round('r', [bluffQ])]))).toEqual([]);
+    expect(issues(quizOf([blitz(bluffQ)]))).toContain('bluff_place');
+    expect(issues(quizOf([finalR(bluffQ)]))).toContain('bluff_place');
+    expect(issues(quizOf([board(bluffQ)]))).toContain('bluff_place');
+  });
+  it('spares cannot be bluffs', () => {
+    const base = quizOf([round('r', [single])]);
+    expect(issues({ ...base, spares: [{ ...bluffQ, id: 'b9' }] })).toContain('spare_type');
+  });
+});
+
 describe('type lists', () => {
   it('ROUND_TYPES and QUESTION_TYPES list every schema discriminator in editor order', () => {
     expect(roundSchema.options.map((o) => o.shape.type.value)).toEqual([...ROUND_TYPES]);

@@ -184,6 +184,27 @@ describe('host help', () => {
     expect(survey.how.join(' ')).toContain('пропускається');
   });
 
+  it('10f entries tell the engine numbers', () => {
+    const bluff = helpEntry('question.bluff');
+    const limits = (bluff.limits ?? []).join(' ');
+    expect(limits).toContain(`${LIMITS.bluffLie}`);
+    expect(limits).toContain(`${LIMITS.minBluffSpares}–${LIMITS.maxBluffSpares}`);
+    expect(bluff.points.join(' ')).toContain('половина ціни');
+    expect(bluff.points.join(' ')).toContain('Множник раунду');
+    expect(bluff.how.join(' ')).toContain('Це правда!');
+    expect(bluff.how.join(' ')).toContain('Прибрати');
+    expect(bluff.how.join(' ')).toContain('правда — остання');
+  });
+
+  it('related entries mention the bluff', () => {
+    for (const id of ['buff.double', 'buff.shield', 'buff.time', 'buff.hint', 'buff.swap', 'setting.speedBonus'] as HelpId[]) {
+      expect(text(id), id).toContain('блеф');
+    }
+    for (const id of ['round.board', 'round.blitz', 'round.final'] as HelpId[]) {
+      expect(text(id), id).toContain('Блеф');
+    }
+  });
+
   it('related entries mention 100 до 1', () => {
     const ids: HelpId[] = ['buff.fifty', 'buff.retry', 'buff.audience', 'buff.double', 'cell.normal', 'cell.voice', 'cell.blitz', 'round.board', 'round.blitz', 'round.final', 'round.classic', 'setting.speedBonus'];
     for (const id of ids) {

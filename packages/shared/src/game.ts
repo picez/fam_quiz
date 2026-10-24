@@ -35,7 +35,9 @@ export type BuffBlock =
   /** На полі: у категорії клітинки немає власних запасних (9d). */
   | 'no_category_spares'
   /** Картинка, що проявляється: відповідь одна (10b). */
-  | 'unfit_reveal';
+  | 'unfit_reveal'
+  /** Блеф: діють лише «Подвійні бали» і «Щит» (10f). */
+  | 'unfit_bluff';
 
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';
@@ -64,6 +66,10 @@ export type ErrorCode =
   | 'wall_pick'
   /** Цей неправильний вибір уже був — помилка не рахується (10d). */
   | 'wall_repeat'
+  /** Вигадка збігається з правдою (10f). */
+  | 'bluff_truth'
+  /** Свою вигадку вибрати не можна (10f). */
+  | 'bluff_own'
   | 'time_over'
   | 'type_mismatch'
   | 'partial_disabled'

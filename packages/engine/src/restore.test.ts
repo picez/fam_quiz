@@ -19,6 +19,10 @@ import {
   type AnswerRecord,
   type Attempt,
   type BlitzPlay,
+  type BluffLie,
+  type BluffOption,
+  type BluffPick,
+  type BluffPlay,
   type BoardPlay,
   type BoardState,
   type BuzzEntry,
@@ -39,9 +43,10 @@ import {
 } from './game';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
 import type { Splash } from './splash';
+import { writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
-import { blitzRound, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, wall, withAudio, withId, withReveal } from './testing/fixtures';
+import { blitzRound, bluff, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, wall, withAudio, withId, withReveal } from './testing/fixtures';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
@@ -112,6 +117,20 @@ describe('suspend after a restart', () => {
     expect(finished.phase).toBe('finished');
     expect(finished.paused).toBe(false);
     expect(finished.players.every((p) => !p.connected)).toBe(true);
+  });
+
+  it('a bluff in the lies survives suspend: the lie deadline that passed before saving starts the choice', () => {
+    let open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [bluff])]), 'Оля', 'Петро'), T0, () => 0);
+    open = must(writeLie(open, 'p1', 'Рим', T0 + 1000));
+    const endsAt = open.endsAt!;
+    const s = suspend(open, endsAt + 1);
+    expect(s.phase).toBe('question');
+    expect(s.plays[0].bluff?.stage).toBe('choice');
+    expect(s.paused).toBe(true);
+    expect(s.remainingMs).toBe(30_000);
+    expect(roundTrip(s)).toEqual(s);
+    // година простою: вибір має повні 30 с від «Продовжити»
+    expect(must(resume(s, endsAt + 1 + HOUR)).endsAt).toBe(endsAt + 1 + HOUR + 30_000);
   });
 
   it('pauses a board cell and a duel too', () => {
@@ -216,7 +235,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -232,6 +251,10 @@ const STATE_SHAPE: Record<string, string> = {
   SortProgress: keysOf<SortProgress>()(['queue', 'sorted', 'misses', 'lockedUntil', 'missed'], true),
   WallProgress: keysOf<WallProgress>()(['found', 'mistakes', 'tried'], true),
   SurveyPlay: keysOf<SurveyPlay>()(['source', 'shown'], true),
+  BluffPlay: keysOf<BluffPlay>()(['stage', 'seed', 'lies', 'options', 'picks', 'shown'], true),
+  BluffLie: keysOf<BluffLie>()(['text', 'at'], true),
+  BluffPick: keysOf<BluffPick>()(['optionId', 'timeMs'], true),
+  BluffOption: keysOf<BluffOption>()(['id', 'text', 'kind', 'authors', 'removed'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare'], true),
   DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since', 'by'], true),
@@ -366,6 +389,36 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  6: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,bluff,board,buffs,chain,cloudHidden,clues,extraMs,final,overtime,question,roundIndex,sort,survey,wall',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,misses,queue,sorted',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -401,7 +454,27 @@ function representative(): GameState[] {
     ...surveyed,
     plays: surveyed.plays.map((p) => ({ ...p, question: { ...surveyCloud, rows: built }, survey: { source: 'cloud' as const, shown: 2 } })),
   };
+  // 10f: блеф у фазі вибору — вигадки, варіанти (один прибрано), вибір Олі — Play.bluff, BluffPlay, BluffLie, BluffOption, BluffPick.
+  let bluffed = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [bluff])]), 'Оля', 'Петро'), T0, () => 0);
+  bluffed = must(writeLie(bluffed, 'p1', 'Рим', T0 + 1000));
+  bluffed = must(writeLie(bluffed, 'p2', 'Мілан', T0 + 2000));
+  const chosen: GameState = {
+    ...bluffed,
+    plays: bluffed.plays.map((p) =>
+      p.bluff === undefined
+        ? p
+        : {
+            ...p,
+            bluff: {
+              ...p.bluff,
+              options: p.bluff.options.map((o) => (o.text === 'Мілан' ? { ...o, removed: true } : o)),
+              picks: { p1: { optionId: p.bluff.options.find((o) => o.kind === 'truth')!.id, timeMs: 1500 } },
+            },
+          },
+    ),
+  };
   return [
+    chosen,
     fromCloud,
     walled,
     hidden,
@@ -449,7 +522,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -486,6 +559,10 @@ describe('the saved state', () => {
       add('Splash', [s.splash]);
       add('WallProgress', s.plays.flatMap((p) => Object.values(p.wall ?? {})));
       add('SurveyPlay', s.plays.map((p) => p.survey));
+      add('BluffPlay', s.plays.map((p) => p.bluff));
+      add('BluffLie', s.plays.flatMap((p) => Object.values(p.bluff?.lies ?? {})));
+      add('BluffPick', s.plays.flatMap((p) => Object.values(p.bluff?.picks ?? {})));
+      add('BluffOption', s.plays.flatMap((p) => p.bluff?.options ?? []));
       // стан без змін переживає JSON
       expect(roundTrip(s)).toEqual(s);
     }

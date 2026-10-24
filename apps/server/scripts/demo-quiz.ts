@@ -190,6 +190,16 @@ export const surveyFromCloud = (
   time: number = LIMITS.defaultSurveyTime,
 ): Question => ({ ...survey(text, spare, answers, points, time), cloudId: cloudQ.id } as Question);
 
+/** Блеф: факт із пропуском, правда з написаннями (перше — текст варіанта), 2–3 запасні вигадки. */
+export const bluff = (
+  text: string,
+  accepted: string[],
+  lies: string[],
+  points = 1000,
+  time: number = LIMITS.defaultBluffTime,
+  choiceTime: number = LIMITS.defaultChoiceTime,
+): Question => ({ ...q(text, points, time), type: 'bluff', accepted, lies, choiceTime });
+
 /** Додає до запитання відео з YouTube: id і секунда початку. */
 export const video = (question: Question, id: string, start = 0): Question => ({ ...question, video: { id, start } });
 
@@ -222,7 +232,7 @@ const kyivCloud = cloud('Одним словом: з чим у вас асоці
 export const demoQuiz: Quiz = {
   title: 'Демо: усі можливості',
   description:
-    'Усі типи запитань (один варіант, кілька, так/ні, текст, число, порядок, пари, ланцюжок слів, «Хто я?», точка на мапі, стіна зв’язків, опитування, «хмара слів», «100 до 1»), класичні раунди з різними правилами, бліц (авто й ручна перевірка) та ігрове поле (телефони й голос, ×2/×3).',
+    'Усі типи запитань (один варіант, кілька, так/ні, текст, число, порядок, пари, ланцюжок слів, «Хто я?», точка на мапі, стіна зв’язків, опитування, «хмара слів», «100 до 1», блеф), класичні раунди з різними правилами, бліц (авто й ручна перевірка) та ігрове поле (телефони й голос, ×2/×3).',
   settings: { leaderboard: 'each' },
   rounds: [
     {
@@ -245,6 +255,7 @@ export const demoQuiz: Quiz = {
         chain('Ланцюжок: від форелі до літака', ['Форель', 'Риба', 'Океан', 'Корабель', 'Порт', 'Подорож', 'Літак'], 5, 1500, 90),
         poll('Яка пора року найкраща для вікторини?', ['Весна', 'Літо', 'Осінь', 'Зима']),
         kyivCloud,
+        bluff('Блеф: Ейфелеву вежу спершу пропонували поставити в …, але місто відмовилося.', ['Барселона', 'Барселоні'], ['Мадрид', 'Лондон', 'Брюссель']),
       ],
     },
     {

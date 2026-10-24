@@ -91,6 +91,24 @@ function reviveSurvey(base: Extract<Question, { type: 'survey' }>): Question {
   };
 }
 
+/**
+ * Блеф з чернетки: правда й написання — рядки (інакше одне порожнє), запасні вигадки — рядки (інакше дві порожні);
+ * час вибору — число, порожнє поле (null у JSON) — NaN, будь-що інше — типові 30. Відео блеф не має.
+ */
+function reviveBluff(base: Extract<Question, { type: 'bluff' }>): Question {
+  const strings = (value: unknown) => (Array.isArray(value) ? value.map((item) => (typeof item === 'string' ? item : '')) : null);
+  const accepted = strings(base.accepted);
+  const lies = strings(base.lies);
+  const choice: unknown = base.choiceTime;
+  return {
+    ...base,
+    video: null,
+    accepted: accepted === null || accepted.length === 0 ? [''] : accepted.slice(0, LIMITS.maxAccepted),
+    lies: lies === null || lies.length === 0 ? ['', ''] : lies.slice(0, LIMITS.maxBluffSpares),
+    choiceTime: typeof choice === 'number' ? choice : choice === null ? Number.NaN : LIMITS.defaultChoiceTime,
+  };
+}
+
 function revive(stored: Question): Question {
   // Підказка — лише рядок: зіпсоване значення зникає, а не ламає редактор.
   const { hint, audio, reveal, ...question } = stored;
@@ -145,6 +163,7 @@ function revive(stored: Question): Question {
   if (base.type === 'sort') return { ...base, lockSeconds: numberOr(base.lockSeconds) };
   if (base.type === 'wall') return reviveWall(base);
   if (base.type === 'survey') return reviveSurvey(base);
+  if (base.type === 'bluff') return reviveBluff(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({

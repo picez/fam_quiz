@@ -1,3 +1,4 @@
+import type { BluffOption } from '@quiz/engine';
 import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, Question, QuizSettings, Round, SurveyRow } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
@@ -91,6 +92,8 @@ export interface PlayRef {
   cloudHidden?: string[];
   /** «100 до 1» з дошкою з хмари: збудовані рядки (знімок вікторини їх не має). */
   surveyRows?: SurveyRow[];
+  /** Блеф: варіанти (з авторами, видами й позначкою «прибрано») і вибори гравців за id; знімок вікторини їх не має. */
+  bluff?: { options: BluffOption[]; picks: Record<string, string> };
 }
 
 /** Зіграна або поточна гра. id збігається з id кімнати. */

@@ -24,6 +24,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   final: null,
   chain: null,
   sort: null,
+  bluff: null,
   notice: null,
   buffs: [],
   buffNotice: null,
@@ -1542,5 +1543,73 @@ describe('StageScreen: survey (10e)', () => {
   it('a board built from the word cloud says so', () => {
     show(view({ phase: 'question', questionIndex: 0, question: surveyQuestion, endsAt: Date.now() + 45_000, survey: board(0, 'cloud') }));
     expect(screen.getByText('Дошка з ваших відповідей у хмарі слів')).toBeTruthy();
+  });
+});
+
+describe('StageScreen: bluff (10f)', () => {
+  const bluffQuestion = { ...question, type: 'bluff' as const, text: 'Вежу хотіли поставити в …', choices: [] };
+  const bluffFull = { id: 'bl1', type: 'bluff', text: bluffQuestion.text, imageUrl: null, video: null, timeLimit: 60, points: 1000, accepted: ['Барселона'], lies: ['Мілан', 'Лісабон'], choiceTime: 30 } as unknown as Question;
+  const texts = ['Рим', 'Мілан', 'Париж', 'Барселона', 'Лісабон'];
+  const info = (stage: 'lies' | 'choice' | 'reveal', shown = 0) => ({
+    stage,
+    written: 1,
+    picked: 0,
+    options:
+      stage === 'lies'
+        ? []
+        : texts.map((text, at) => {
+            const open = stage === 'reveal' && at < shown;
+            return { id: `b${at + 1}`, text, open, kind: open ? (text === 'Барселона' ? ('truth' as const) : ('lie' as const)) : null, authors: open ? (text === 'Барселона' ? [] : ['Олена']) : null, pickedBy: open ? [] : null, removed: false };
+          }),
+    shown,
+    total: stage === 'lies' ? 0 : 5,
+    lastOpenedId: null,
+    lies: null,
+  });
+
+  it('lies phase: the prompt and how many wrote', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: bluffQuestion, endsAt: Date.now() + 60_000, bluff: info('lies'), playerCount: 3 }));
+    expect(screen.getByText('Вигадайте відповідь на телефоні')).toBeTruthy();
+    expect(screen.getByText('Вигадали 1 з 3')).toBeTruthy();
+  });
+
+  it('choice phase: five plain tiles with no truth or lie marks', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: bluffQuestion, endsAt: Date.now() + 30_000, bluff: info('choice'), playerCount: 3 }));
+    expect(document.querySelectorAll('.bluff-row')).toHaveLength(5);
+    expect(screen.getByText('Що з цього правда?')).toBeTruthy();
+    expect(screen.queryByText('Правда')).toBeNull();
+    expect(screen.queryByText(/Вигадка/)).toBeNull();
+  });
+
+  it('reveal with shown 2: two opened, no correct answer line', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: bluffQuestion, reveal: bluffFull, bluff: info('reveal', 2) }));
+    expect(screen.getAllByText('Вигадка: Олена')).toHaveLength(2);
+    expect(document.querySelectorAll('.bluff-row.is-closed')).toHaveLength(3);
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+  });
+
+  it('more than twelve options switch the stage board to three columns', () => {
+    const make = (n: number) => Array.from({ length: n }, (_, at) => ({ id: `b${at + 1}`, text: `Вигадка ${at + 1}`, open: false, kind: null, authors: null, pickedBy: null, removed: false }));
+    show(view({ phase: 'question', questionIndex: 0, question: bluffQuestion, endsAt: Date.now() + 30_000, bluff: { ...info('choice'), options: make(13), total: 13 }, playerCount: 13 }));
+    expect(document.querySelector('.bluff-board.is-dense.is-wide')).not.toBeNull();
+    cleanup();
+    show(view({ phase: 'question', questionIndex: 0, question: bluffQuestion, endsAt: Date.now() + 30_000, bluff: { ...info('choice'), options: make(12), total: 12 }, playerCount: 12 }));
+    expect(document.querySelector('.bluff-board.is-dense')).not.toBeNull();
+    expect(document.querySelector('.is-wide')).toBeNull();
+  });
+
+  it('the choice timer ignores the audio lead of a long clip: no «Слухайте»', () => {
+    const audio = { duration: 100, clip: { source: 'file', url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 100 } };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...bluffQuestion, audio } as never, endsAt: Date.now() + 28_000, limitMs: 30_000, bluff: info('choice'), playerCount: 3 }));
+    expect(document.querySelector('.timer-status')).toBeNull();
+    expect(document.querySelector('.timer-total')).not.toBeNull();
+  });
+
+  it('eight options: dense board, whole option text kept, buyers clamped with «+N»', () => {
+    const many = Array.from({ length: 8 }, (_, at) => ({ id: `b${at + 1}`, text: `Дуже довга вигадка номер ${at + 1} про те, де саме поставили вежу`, open: true, kind: 'lie' as const, authors: ['Олена'], pickedBy: ['Аня', 'Богдан', 'Віка', 'Гліб', 'Дана', 'Єва'], removed: false }));
+    show(view({ phase: 'reveal', questionIndex: 0, question: bluffQuestion, reveal: bluffFull, bluff: { ...info('reveal', 8), options: many, total: 8, shown: 8 } }));
+    expect(document.querySelector('.bluff-board.is-dense')).not.toBeNull();
+    expect(screen.getByText('Дуже довга вигадка номер 3 про те, де саме поставили вежу')).toBeTruthy();
+    expect(screen.getAllByText('Купилися: Аня, Богдан, Віка +3')).toHaveLength(8);
   });
 });

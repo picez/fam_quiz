@@ -120,6 +120,13 @@ export const LIMITS = {
   defaultSurveyAnswers: 3,
   surveyAnswer: 40,
   defaultSurveyTime: 45,
+  /** Блеф: символів у вигадці (і в тексті правди-варіанта), запасних вигадок, до скількох варіантів доповнюють запасні, типовий час вигадок і вибору (с). */
+  bluffLie: 60,
+  minBluffSpares: 2,
+  maxBluffSpares: 3,
+  bluffOptions: 5,
+  defaultBluffTime: 60,
+  defaultChoiceTime: 30,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -223,7 +230,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'bluff'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Рядок дошки «100 до 1». */
@@ -392,6 +399,19 @@ export const questionSchema = z
       /** Дошка з відповідей на «хмару слів» з цим id, що звучала раніше в грі. */
       cloudId: z.string().min(1).refine(isStorable, UNSTORABLE).optional(),
     }),
+    z.object({
+      ...base,
+      type: z.literal('bluff'),
+      /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
+      accepted: spellings,
+      /** Запасні вигадки ведучого: стають варіантами, коли варіантів менше LIMITS.bluffOptions. */
+      lies: z
+        .array(z.string().trim().min(1).max(LIMITS.bluffLie).refine(isStorable, UNSTORABLE))
+        .min(LIMITS.minBluffSpares)
+        .max(LIMITS.maxBluffSpares),
+      /** Час фази вибору, с. */
+      choiceTime: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
@@ -455,6 +475,14 @@ export const questionSchema = z
       // Ключ той самий, що й у перевірці відповіді рушієм: одне написання не веде у два рядки; повтор у межах рядка не заважає.
       const keys = q.rows.flatMap((r) => [...new Set([r.text, ...r.accepted].map(answerKey))]);
       if (hasDuplicates(keys)) ctx.addIssue({ code: 'custom', message: 'survey_duplicate' });
+    }
+    if (q.type === 'bluff') {
+      if ((q.accepted[0] ?? '').length > LIMITS.bluffLie) ctx.addIssue({ code: 'custom', message: 'bluff_truth_long' });
+      const spareKeys = q.lies.map(answerKey);
+      if (hasDuplicates(spareKeys)) ctx.addIssue({ code: 'custom', message: 'bluff_spare_duplicate' });
+      const truthKeys = q.accepted.map(answerKey);
+      if (spareKeys.some((k) => truthKeys.includes(k))) ctx.addIssue({ code: 'custom', message: 'bluff_spare_truth' });
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'bluff_video' });
     }
     if ((q.type === 'poll' || q.type === 'wordcloud') && q.points !== 0) ctx.addIssue({ code: 'custom', message: 'vote_points' });
     if (q.audio !== undefined && q.video !== null) ctx.addIssue({ code: 'custom', message: 'audio_video' });
@@ -890,6 +918,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'survey' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'survey');
       if (surveyPlace) ctx.addIssue({ code: 'custom', message: 'survey_place' });
+      // Блеф: лише класика.
+      const bluffPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'bluff')
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'bluff');
+      if (bluffPlace) ctx.addIssue({ code: 'custom', message: 'bluff_place' });
       // Дошка з хмари — лише в класиці.
       if (round.type === 'board' && boardCells(round).some(({ cell }) => cell.question.type === 'survey' && cell.question.cloudId !== undefined)) {
         ctx.addIssue({ code: 'custom', message: 'survey_cloud_place' });

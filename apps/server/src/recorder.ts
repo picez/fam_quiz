@@ -115,6 +115,9 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       ...(play.board === undefined ? {} : { cell: { cellId: play.board.cellId, chooserId: play.board.chooserId } }),
       ...(play.cloudHidden === undefined || play.cloudHidden.length === 0 ? {} : { cloudHidden: play.cloudHidden }),
       ...(play.survey?.source === 'cloud' && play.question.type === 'survey' ? { surveyRows: play.question.rows } : {}),
+      ...(play.bluff?.stage === 'choice'
+        ? { bluff: { options: play.bluff.options, picks: Object.fromEntries(Object.entries(play.bluff.picks).map(([id, pick]) => [id, pick.optionId])) } }
+        : {}),
     })),
     finishedAt: finished ? new Date() : null,
   };

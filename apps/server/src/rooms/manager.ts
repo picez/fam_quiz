@@ -43,6 +43,10 @@ import {
   guessWall,
   hideCloudWord,
   revealSurveyAll,
+  revealBluffAll,
+  removeBluffOption,
+  pickBluff,
+  writeLie,
   takeBuff,
   chooseRetry,
   nextClue,
@@ -107,7 +111,7 @@ export type RoomEvent =
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' | 'clue' | 'survey-all' }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' | 'clue' | 'survey-all' | 'bluff-all' }
   | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
@@ -120,6 +124,7 @@ export type HostAction =
   | { type: 'duel-category'; categoryId: string }
   | { type: 'order'; playerIds: string[] }
   | { type: 'cloud-hide'; key: string; hidden: boolean }
+  | { type: 'bluff-remove'; optionId: string }
   | { type: 'time'; seconds: -15 | 15 };
 
 export type JoinResult =
@@ -428,6 +433,16 @@ export class RoomManager {
     return this.apply(room, guessWall(room.state, playerId, tiles, this.now()));
   }
 
+  lie(room: Room, playerId: string, text: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, writeLie(room.state, playerId, text, this.now()));
+  }
+
+  bluff(room: Room, playerId: string, optionId: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, pickBluff(room.state, playerId, optionId, this.now()));
+  }
+
   buff(room: Room, playerId: string, kind: BuffKind): AckResult {
     if (!this.alive(room)) return this.gone();
     return this.apply(room, takeBuff(room.state, playerId, kind, this.now(), this.rng));
@@ -497,7 +512,7 @@ export class RoomManager {
       case 'start':
         return this.apply(room, start(state, this.now()));
       case 'lock':
-        return this.apply(room, lock(state));
+        return this.apply(room, lock(state, this.now()));
       case 'next':
         return this.apply(room, next(state, this.now(), this.rng));
       case 'pause':
@@ -530,6 +545,10 @@ export class RoomManager {
         return this.apply(room, nextClue(state, this.now()));
       case 'survey-all':
         return this.apply(room, revealSurveyAll(state));
+      case 'bluff-all':
+        return this.apply(room, revealBluffAll(state));
+      case 'bluff-remove':
+        return this.apply(room, removeBluffOption(state, action.optionId));
       case 'order':
         return this.apply(room, setOrder(state, action.playerIds));
       case 'cloud-hide':

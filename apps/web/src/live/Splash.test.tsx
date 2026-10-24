@@ -29,6 +29,7 @@ const stage = (over: Partial<StageView> = {}): StageView => ({
   final: null,
   chain: null,
   sort: null,
+  bluff: null,
   notice: null,
   buffs: [],
   buffNotice: null,

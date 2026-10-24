@@ -16,8 +16,9 @@ export function isTimed(question: Question): boolean {
   return question.video == null;
 }
 
-/** Повний час запитання (з довшим фрагментом аудіо) з урахуванням змін ведучого; null — без таймера. */
+/** Повний час запитання (з довшим фрагментом аудіо) з урахуванням змін ведучого; null — без таймера. У фазі вибору блефу — choiceTime. */
 export function limitMsOf(play: Play): number | null {
+  if (play.bluff?.stage === 'choice' && play.question.type === 'bluff') return play.question.choiceTime * 1000 + play.extraMs;
   return isTimed(play.question) ? answerWindowMs(play.question) + play.extraMs : null;
 }
 

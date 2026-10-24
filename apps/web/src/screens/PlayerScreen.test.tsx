@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, survey: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -48,6 +48,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   sort: null,
   wall: null,
   survey: null,
+  bluff: null,
   notice: null,
   buffs: [],
   buffNotice: null,
@@ -2145,6 +2146,144 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       );
       expect(document.querySelectorAll('.survey-row.is-closed')).toHaveLength(5);
       expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+    });
+  });
+  describe('bluff (10f)', () => {
+    const bluffPublic = { ...publicQuestion, type: 'bluff' as const, choices: [], points: 1000 };
+    const bluffFull = { ...fullQuestion, type: 'bluff' } as unknown as Question;
+    const opt = (id: string, text: string) => ({ id, text, open: false, kind: null, authors: null, pickedBy: null, removed: false });
+    const options = [opt('b1', 'Рим'), opt('b2', 'Мілан'), opt('b3', 'Барселона'), opt('b4', 'Париж'), opt('b5', 'Лондон')];
+    const info = (over: Record<string, unknown> = {}) => ({ stage: 'lies' as const, written: 1, picked: 0, options: [], shown: 0, total: 0, lastOpenedId: null, lies: null, ...over });
+    const mine = (over: Record<string, unknown> = {}) => ({ ...me, bluff: { lie: null, own: [], pick: null, truth: null, fooled: null, ...over } });
+
+    it('the lies phase: a field; after sending, the own lie and the counter', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info(), me: mine() }));
+      expect(screen.getByLabelText('Твоя вигадка')).toBeTruthy();
+      cleanup();
+      show(onQuestion({ question: bluffPublic, bluff: info({ written: 1 }), me: mine({ lie: 'Рим' }) }));
+      expect(screen.getByText('Твоя вигадка: «Рим». Чекаємо на інших.')).toBeTruthy();
+      expect(screen.getByText('Вигадали 1 з 2')).toBeTruthy();
+      expect(screen.queryByLabelText('Твоя вигадка')).toBeNull();
+    });
+
+    it('the choice phase: the list with the own lie disabled; after picking, the pick', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options }), me: mine({ lie: 'Мілан', own: ['b2'] }) }));
+      expect(screen.getByText('Що з цього правда?')).toBeTruthy();
+      expect((screen.getByRole('button', { name: /Мілан/ }) as HTMLButtonElement).disabled).toBe(true);
+      cleanup();
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options, picked: 1 }), me: mine({ pick: 'b3' }) }));
+      expect(screen.getByText('Твій вибір: «Барселона»')).toBeTruthy();
+      expect(screen.getByText('Вибрали 1 з 2')).toBeTruthy();
+      expect(screen.queryByText('Що з цього правда?')).toBeNull();
+    });
+
+    it('a pick the host removed brings the list back', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options: options.filter((o) => o.id !== 'b3') }), me: mine({ pick: null }) }));
+      expect(screen.getByText('Що з цього правда?')).toBeTruthy();
+    });
+
+    it('the host removing the pick shows a one-line notice, and picking again clears it', () => {
+      const send: Send = vi.fn(async () => ({ ok: true as const }));
+      const node = (v: PlayerView) => <PlayerScreen view={v} hostOnline offsetMs={0} send={send} />;
+      const { rerender } = render(node(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options, picked: 1 }), me: mine({ pick: 'b3' }) })));
+      expect(screen.queryByText('Ведучий прибрав цей варіант — вибери інший')).toBeNull();
+      rerender(node(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options: options.filter((o) => o.id !== 'b3') }), me: mine({ pick: null }) })));
+      expect(screen.getByText('Ведучий прибрав цей варіант — вибери інший')).toBeTruthy();
+      rerender(node(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options: options.filter((o) => o.id !== 'b3'), picked: 1 }), me: mine({ pick: 'b1' }) })));
+      expect(screen.queryByText('Ведучий прибрав цей варіант — вибери інший')).toBeNull();
+    });
+
+    it('tapping an option the host just removed says so instead of a generic error', async () => {
+      const send: Send = vi.fn(async () => ({ ok: false as const, error: 'not_found' as const }));
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options }), me: mine() }), { send });
+      fireEvent.click(screen.getByRole('button', { name: 'Париж' }));
+      expect(await screen.findByText('Цей варіант щойно прибрали — вибери інший')).toBeTruthy();
+    });
+
+    it('a player who wrote a lie but never picked gets «Ти не вибирав варіант», with the fooled count', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: bluffPublic,
+          reveal: bluffFull,
+          bluff: info({ stage: 'reveal', options, shown: 3, total: 3, lastOpenedId: 'b1' }),
+          me: { ...mine({ lie: 'Рим', pick: null, truth: false, fooled: 2 }), result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: 1000 } },
+        }),
+      );
+      expect(screen.getByText('Ти не вибирав варіант')).toBeTruthy();
+      expect(screen.queryByText('Не вгадав')).toBeNull();
+      expect(screen.getByText('На твою вигадку купилися: 2')).toBeTruthy();
+    });
+
+    it('the choice timer ignores the audio lead of a long clip: no «Слухайте»', () => {
+      const audio = { duration: 100, clip: { source: 'file', url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 100 } };
+      show(onQuestion({ question: { ...bluffPublic, audio } as never, bluff: info({ stage: 'choice', options }), me: mine(), limitMs: 30_000, remainingMs: 28_000, endsAt: null }));
+      expect(screen.queryByText('🎵 Слухайте')).toBeNull();
+    });
+
+    it('the input is disabled during the pause', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info(), me: mine(), paused: true }));
+      expect((screen.getByLabelText('Твоя вигадка') as HTMLInputElement).closest('fieldset')!.disabled).toBe(true);
+    });
+
+    it('the reveal before the truth: the board, a hint and no score', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: bluffPublic,
+          reveal: bluffFull,
+          bluff: info({ stage: 'reveal', options, shown: 0, total: 3 }),
+          me: mine({ lie: 'Рим' }),
+        }),
+      );
+      expect(document.querySelectorAll('li.bluff-row')).toHaveLength(5);
+      expect(screen.getByText('Правду відкриють останньою')).toBeTruthy();
+      expect(screen.queryByText('Ти знайшов правду!')).toBeNull();
+      expect(document.querySelector('.earned')).toBeNull();
+    });
+
+    it('a silent player gets a neutral line once every option is open, not the waiting hint', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: bluffPublic,
+          reveal: bluffFull,
+          bluff: info({ stage: 'reveal', options, shown: 3, total: 3, lastOpenedId: 'b1' }),
+          me: mine(),
+        }),
+      );
+      expect(screen.getByText('Ти не брав участі в цьому запитанні')).toBeTruthy();
+      expect(screen.queryByText('Правду відкриють останньою')).toBeNull();
+    });
+
+    it('a merged lie marks every own option', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options }), me: mine({ lie: 'Рим', own: ['b1', 'b2'] }) }));
+      expect((screen.getByRole('button', { name: /Рим/ }) as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByRole('button', { name: /Мілан/ }) as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByRole('button', { name: 'Париж' }) as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('the reveal after the truth: the verdict, the fooled and the points', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: bluffPublic,
+          reveal: bluffFull,
+          bluff: info({ stage: 'reveal', options, shown: 3, total: 3, lastOpenedId: 'b1' }),
+          me: {
+            ...mine({ lie: 'Рим', truth: true, fooled: 1 }),
+            result: { accepted: true, accuracy: 1, grade: 'correct', streakBonus: 0, points: 1500 },
+          },
+        }),
+      );
+      expect(screen.getByText('Ти знайшов правду!')).toBeTruthy();
+      expect(screen.getByText('На твою вигадку купилися: 1')).toBeTruthy();
+      expect(document.querySelector('.earned')!.textContent).toContain('1');
+      expect(screen.queryByText('Правду відкриють останньою')).toBeNull();
     });
   });
 });

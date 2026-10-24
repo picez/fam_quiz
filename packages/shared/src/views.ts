@@ -125,6 +125,39 @@ export interface SurveyInfo {
   rows: SurveyRowView[];
 }
 
+export interface BluffOptionView {
+  id: string;
+  text: string;
+  /** Відкрито на розкритті. */
+  open: boolean;
+  /** Сцена й телефони — лише для відкритих; пульт — завжди. Інакше null. */
+  kind: 'truth' | 'lie' | 'spare' | null;
+  /** Нікнейми авторів ([] — правда чи запасна); null — як kind. */
+  authors: string[] | null;
+  /** Нікнейми тих, хто вибрав; null — як kind. */
+  pickedBy: string[] | null;
+  /** Прибрано ведучим; сцена й телефони прибраних не отримують. */
+  removed: boolean;
+}
+
+/** Блеф поточного запитання. */
+export interface BluffInfo {
+  /** reveal — етапи reveal і пізніше. */
+  stage: 'lies' | 'choice' | 'reveal';
+  /** Скільки гравців написали вигадку; скільки вибрали. */
+  written: number;
+  picked: number;
+  /** lies — []; choice — у порядку показу; reveal — сцена й телефони в порядку показу, пульт у порядку розкриття (правда остання). */
+  options: BluffOptionView[];
+  /** Скільки варіантів відкрито; скільки їх буде відкрито. */
+  shown: number;
+  total: number;
+  /** Остання відкрита на розкритті (для підсвічування); сцена й телефони отримують варіанти в порядку показу, тож порядок розкриття не видно. */
+  lastOpenedId: string | null;
+  /** Пульт: вигадки наживо (нікнейм, текст) у порядку гравців; сцена й телефони — null. */
+  lies: { nickname: string; text: string }[] | null;
+}
+
 export interface PlayerSurveyLine {
   value: string;
   /** Місце влученого рядка; null — мимо. */
@@ -683,6 +716,8 @@ interface BaseView {
   wall: WallInfo | null;
   /** null поза «100 до 1» (і на полі із заміною — там показано запасне); див. SurveyInfo. */
   survey: SurveyInfo | null;
+  /** null поза блефом; див. BluffInfo. */
+  bluff: BluffInfo | null;
   /** Останнє коригування балів ведучим; null — не було. */
   notice: AdjustmentNotice | null;
   /** Оголошена або поточна дуель; null — немає. */
@@ -790,6 +825,11 @@ export interface PlayerView extends BaseView {
     wall: PlayerWall | null;
     /** Власні відповіді «100 до 1» зі збігами — лише на reveal і пізніше, для того, хто відповідав. Інакше null. */
     survey: { lines: PlayerSurveyLine[] } | null;
+    /**
+     * Власний блеф гравця: вигадка, id своїх варіантів (вибрати не можна), вибір;
+     * truth і fooled — лише коли правду відкрито. null поза блефом.
+     */
+    bluff: { lie: string | null; own: string[]; pick: string | null; truth: boolean | null; fooled: number | null } | null;
     /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера); by — нікнейм покупця (null — ведучий або покупця вилучено). */
     debuff: { kind: DebuffKind; since: number; by: string | null } | null;
     /** null — у вікторині немає дебафів чи купівлю вимкнено, немає суперників або етап lobby/guide/finished. */

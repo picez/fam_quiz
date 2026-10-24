@@ -2126,3 +2126,52 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
     expect(screen.queryByRole('group', { name: /^Рядок \d$/ })).toBeNull();
   });
 });
+
+describe('QuizEditor: bluff (10f)', () => {
+  it('the chip shows the truth, two spares and both times; filled in, it saves a bluff', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перший чемпіон світу … був з Уругваю');
+    click('Блеф');
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    expect(screen.getAllByLabelText(/^Запасна вигадка \d$/)).toHaveLength(2);
+    expect((screen.getByLabelText('Час на вигадки, с') as HTMLInputElement).value).toBe('60');
+    expect((screen.getByLabelText('Час на вибір, с') as HTMLInputElement).value).toBe('30');
+    expect(screen.queryByLabelText('Час, с')).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemBluffTruth', { index: 1 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+    fill('Правда', 'Барселона');
+    fill('Запасна вигадка 1', 'Мадрид');
+    fill('Запасна вигадка 2', 'Лондон');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'bluff', accepted: ['Барселона'], lies: ['Мадрид', 'Лондон'], timeLimit: 60, choiceTime: 30 });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('a spare that is the truth blocks saving with a named message', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Де?');
+    click('Блеф');
+    fill('Правда', 'Барселона');
+    fill('Запасна вигадка 1', 'барселона');
+    fill('Запасна вигадка 2', 'Лондон');
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemBluffSpareTruth', { index: 1, text: 'барселона' })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('a blitz round and the final have no bluff chip; neither has the board', () => {
+    open();
+    addRound('Бліц');
+    expect(screen.queryByRole('button', { name: 'Блеф' })).toBeNull();
+    addRound('Фінал');
+    expect(screen.queryByRole('button', { name: 'Блеф' })).toBeNull();
+    click('+ Раунд');
+    click('Ігрове поле');
+    expect(screen.queryByRole('button', { name: 'Блеф' })).toBeNull();
+  });
+});

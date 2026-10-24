@@ -22,6 +22,7 @@ export * from './sort';
 export * from './wall';
 export * from './votes';
 export * from './survey';
+export * from './bluff';
 export * from './duel';
 export * from './splash';
 export * from './restore';

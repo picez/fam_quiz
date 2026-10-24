@@ -19,6 +19,8 @@ import {
   socketAuthSchema,
   sortSchema,
   wallSchema,
+  lieSchema,
+  bluffOptionSchema,
   cloudHideSchema,
   buffSchema,
   hintSchema,
@@ -50,7 +52,7 @@ const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue', 'survey-all'] as const;
+const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue', 'survey-all', 'bluff-all'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
@@ -220,6 +222,18 @@ export function attachSockets(
       return payload.success ? manager.wall(room, identity.playerId, payload.data.tiles) : INVALID;
     });
 
+    on('player:lie', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = lieSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.lie(room, identity.playerId, payload.data.text) : INVALID;
+    });
+
+    on('player:bluff', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = bluffOptionSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.bluff(room, identity.playerId, payload.data.optionId) : INVALID;
+    });
+
     on('player:buff', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = buffSchema.safeParse(payloadOf(args));
@@ -316,6 +330,12 @@ export function attachSockets(
       if (!isHost) return FORBIDDEN;
       const payload = cloudHideSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'cloud-hide', ...payload.data }) : INVALID;
+    });
+
+    on('host:bluff-remove', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = bluffOptionSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'bluff-remove', ...payload.data }) : INVALID;
     });
 
     on('host:kick', (args) => {

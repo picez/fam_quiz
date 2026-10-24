@@ -143,6 +143,8 @@ export function buffRowHere(state: GameState, play: Play, playerId: string): boo
 /** Відповідь гравця вже надіслана або чекає на ведучого. */
 export function hasAnswered(state: GameState, play: Play, playerId: string): boolean {
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return true;
+  // Блеф: вигадка — ще не відповідь, баф можна взяти до вибору.
+  if (play.question.type === 'bluff') return play.bluff !== undefined && Object.hasOwn(play.bluff.picks, playerId);
   const board = play.board;
   if (board === undefined || board.chooserId !== playerId) return false;
   // Усна відповідь: щойно ведучий позначив названий варіант, відповідь уже прозвучала.
@@ -164,6 +166,8 @@ export function canVote(state: GameState, voterId: string, askerId: string): boo
 function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind): BuffBlock | null {
   const round = state.quiz.rounds[play.roundIndex];
   const { question } = play;
+  // Блеф: ×2 і щит; час спільний для всіх, підказка видала б правду, заміна зламала б вибір інших.
+  if (question.type === 'bluff' && kind !== 'double' && kind !== 'shield') return 'unfit_bluff';
   switch (kind) {
     case 'fifty':
       if (question.type !== 'single' && question.type !== 'multi') return 'unfit_type';

@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, text, wall, withAudio, withId } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, text, wall, withAudio, withId } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -496,6 +496,124 @@ describe('host presence', () => {
       for (const group of wall.groups) expect(frame).not.toContain(group.name);
       expect(frame).not.toContain('"groups"');
       for (const group of wall.groups) for (const tile of group.tiles) expect(frame).not.toContain(`"${tile.id}"`);
+    }
+  });
+
+  /** Блеф (10f): гра з блефом і запитанням після нього, Олена й Тарас у фазі вигадок. */
+  const bluffGame = async () => {
+    const created = (await startGame(ctx.app, makeQuiz([bluff, single]))).game;
+    const all = await lobby(created);
+    expect(await send(all.host, 'host:start')).toEqual({ ok: true });
+    expect(await send(all.host, 'host:next')).toEqual({ ok: true });
+    await until(all.olena, inPhase('question'));
+    return all;
+  };
+  const meBluff = (view: GameView) => (view.role === 'player' ? view.me.bluff : null);
+  const choiceOf = (view: GameView) => view.role === 'player' && view.bluff?.stage === 'choice';
+  /** Перший варіант, що не належить гравцеві. */
+  const notMine = (view: GameView) => (view.role === 'player' ? view.bluff?.options.find((o) => !(view.me.bluff?.own ?? []).includes(o.id))?.id : undefined) ?? '';
+
+  it('player:lie refuses the truth with bluff_truth and takes a lie', async () => {
+    const { olena } = await bluffGame();
+    expect(await send(olena, 'player:lie', { text: ' барселоні ' })).toEqual({ ok: false, error: 'bluff_truth' });
+    expect(await send(olena, 'player:lie', { text: 'Рим' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:lie', { text: 'Париж' })).toEqual({ ok: false, error: 'already_answered' });
+    const view = await until(olena, (v) => meBluff(v)?.lie === 'Рим');
+    expect(view.role === 'player' && view.bluff?.stage).toBe('lies');
+  });
+
+  it('player:lie: bad payload — invalid; the host cannot send it', async () => {
+    const { host, olena } = await bluffGame();
+    expect(await send(host, 'player:lie', { text: 'Рим' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:lie')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:lie', { text: 'я'.repeat(61) })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:bluff', { optionId: '' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:bluff', { optionId: 'b1' })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('the choice starts when everyone wrote; player:bluff refuses the own lie with bluff_own', async () => {
+    const { olena, taras } = await bluffGame();
+    expect(await send(olena, 'player:lie', { text: 'Рим' })).toEqual({ ok: true });
+    expect(await send(taras, 'player:lie', { text: 'Париж' })).toEqual({ ok: true });
+    const view = await until(olena, choiceOf);
+    const mine = meBluff(view)?.own[0] ?? '';
+    expect(mine).not.toBe('');
+    expect(view.role === 'player' && view.bluff?.options).toHaveLength(5);
+    expect(await send(olena, 'player:bluff', { optionId: mine })).toEqual({ ok: false, error: 'bluff_own' });
+    expect(await send(olena, 'player:bluff', { optionId: 'nope' })).toEqual({ ok: false, error: 'not_found' });
+    expect(await send(olena, 'player:bluff', { optionId: notMine(view) })).toEqual({ ok: true });
+    expect(await send(olena, 'player:bluff', { optionId: notMine(view) })).toEqual({ ok: false, error: 'already_answered' });
+  });
+
+  it('host:lock in the lies starts the choice', async () => {
+    const { host, olena } = await bluffGame();
+    expect(await send(olena, 'player:lie', { text: 'Рим' })).toEqual({ ok: true });
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    const view = await until(olena, choiceOf);
+    expect(view.phase).toBe('question');
+    expect(view.role === 'player' && view.bluff?.options).toHaveLength(5);
+  });
+
+  it('host:bluff-remove hides a lie; a player cannot remove', async () => {
+    const { host, olena, taras } = await bluffGame();
+    expect(await send(olena, 'player:lie', { text: 'Рим' })).toEqual({ ok: true });
+    expect(await send(taras, 'player:lie', { text: 'Париж' })).toEqual({ ok: true });
+    const view = await until(taras, choiceOf);
+    const rome = view.role === 'player' ? view.bluff?.options.find((o) => o.text === 'Рим') : undefined;
+    if (rome === undefined) throw new Error('no option');
+    expect(await send(olena, 'host:bluff-remove', { optionId: rome.id })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:bluff-remove', {})).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:bluff-remove', { optionId: rome.id })).toEqual({ ok: true });
+    const after = await until(taras, (v) => v.role === 'player' && v.bluff?.options.some((o) => o.text === 'Рим') === false);
+    expect(after.role === 'player' && after.bluff?.options).toHaveLength(4);
+  });
+
+  it('host:next steps options, host:bluff-all opens all', async () => {
+    const { host, stage, olena, taras } = await bluffGame();
+    expect(await send(olena, 'player:lie', { text: 'Рим' })).toEqual({ ok: true });
+    expect(await send(taras, 'player:lie', { text: 'Париж' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:bluff', { optionId: notMine(await until(olena, choiceOf)) })).toEqual({ ok: true });
+    expect(await send(taras, 'player:bluff', { optionId: notMine(await until(taras, choiceOf)) })).toEqual({ ok: true });
+    await until(host, inPhase('locked'));
+    expect(await send(host, 'host:bluff-all')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(stage, inPhase('reveal'));
+    expect(await send(olena, 'host:bluff-all')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const one = await until(stage, (v) => v.role === 'stage' && v.bluff?.shown === 1);
+    expect(one.role === 'stage' && one.bluff?.total).toBe(5);
+    expect(await send(host, 'host:bluff-all')).toEqual({ ok: true });
+    const all = await until(stage, (v) => v.role === 'stage' && v.bluff?.shown === 5);
+    if (all.role !== 'stage') throw new Error('not the stage');
+    expect(all.bluff?.options.filter((o) => o.kind === 'truth')).toHaveLength(1);
+  });
+
+  it('no socket frame to a phone or the stage carries the truth or spares before the choice, or kind and authors before the reveal', async () => {
+    const { host, stage, olena, taras } = await bluffGame();
+    const lies: string[] = [];
+    const choice: string[] = [];
+    for (const watcher of [olena, taras, stage]) {
+      watcher.socket.on('state', (view) => {
+        if (view.phase !== 'question' && view.phase !== 'locked') return;
+        (view.role !== 'host' && view.bluff?.stage === 'choice' ? choice : lies).push(JSON.stringify(view));
+      });
+    }
+    expect(await send(olena, 'player:lie', { text: 'Рим' })).toEqual({ ok: true });
+    expect(await send(taras, 'player:lie', { text: 'Париж' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:bluff', { optionId: notMine(await until(olena, choiceOf)) })).toEqual({ ok: true });
+    expect(await send(taras, 'player:bluff', { optionId: notMine(await until(taras, choiceOf)) })).toEqual({ ok: true });
+    await until(host, inPhase('locked'));
+    await until(stage, (v) => v.phase === 'locked');
+
+    expect(lies.length).toBeGreaterThan(1);
+    for (const frame of lies) {
+      for (const secret of ['Барселона', 'Барселоні', 'Мадрид', 'Лондон', 'Брюссель']) expect(frame).not.toContain(secret);
+    }
+    expect(choice.length).toBeGreaterThan(1);
+    for (const frame of choice) {
+      for (const kind of ['truth', 'lie', 'spare']) expect(frame).not.toContain(`"kind":"${kind}"`);
+      expect(frame).not.toContain('"authors":["');
+      expect(frame).not.toContain('"pickedBy":["');
     }
   });
 

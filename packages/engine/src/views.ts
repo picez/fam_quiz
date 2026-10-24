@@ -35,6 +35,8 @@ import {
   type WallRow,
   type SortInfo,
   type SurveyInfo,
+  type BluffInfo,
+  type BluffOptionView,
   type SurveyRowView,
   type SortRow,
   type Choice,
@@ -103,6 +105,7 @@ import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain
 import { sortOf, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
 import { cloudTally, cloudVoters } from './votes';
+import { bluffOrder, bluffShown } from './bluff';
 import { skippedSurveys, surveyShown } from './survey';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
@@ -159,12 +162,19 @@ function withoutSurveyRows(question: Question): Question {
   return question.type === 'survey' ? { ...question, rows: [] } : question;
 }
 
+/** Копія запитання-блефу без правди й запасних вигадок: вони приходять лише з відкритим варіантом. Інші типи — без змін. */
+function withoutBluffSecrets(question: Question): Question {
+  return question.type === 'bluff' ? { ...question, accepted: [], lies: [] } : question;
+}
+
 /**
  * Відповідь для сцени й телефонів: збіги «100 до 1» (rows) видали б дошку до розкриття, тож без revealed лишаються лише values.
- * Інші відповіді без змін.
+ * Підсумок блефу (вибір, правда) до відкриття правди — null. Інші відповіді без змін.
  */
-function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T | Answer {
-  return answer !== null && answer.type === 'survey' && !revealed ? { type: 'survey', values: answer.values } : answer;
+function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T | Answer | null {
+  if (answer === null) return answer;
+  if (answer.type === 'bluff') return revealed ? answer : null;
+  return answer.type === 'survey' && !revealed ? { type: 'survey', values: answer.values } : answer;
 }
 
 /** Запитання без правильної відповіді й підказки; choices у порядку presented. */
@@ -336,7 +346,7 @@ function currentRecord(state: GameState, playerId: string) {
 
 /** Серія гравця для показу: на етапі locked без поточного запитання, щоб не видати правильність. */
 function shownStreak(state: GameState, player: PlayerState): number {
-  return state.phase === 'locked' || surveyClosing(state) ? previousStreak(state, player.id) : player.streak;
+  return state.phase === 'locked' || spoilerHeld(state) ? previousStreak(state, player.id) : player.streak;
 }
 
 /** Серія гравця перед поточним запитанням: поспіль правильні відповіді в цьому раунді. */
@@ -544,7 +554,7 @@ function spotlightOf(state: GameState, forHost: boolean): Spotlight | null {
   // Збіги «100 до 1» сцені й телефонам не потрібні: табло показує лише відкриті рядки.
   // Вердикт дошки теж чекає, поки ведучий не відкриє всі рядки.
   if (spot === null || forHost) return spot;
-  return { ...spot, answer: publicAnswer(spot.answer, false), grade: surveyClosing(state) ? null : spot.grade };
+  return { ...spot, answer: publicAnswer(spot.answer, spot.answer?.type === 'bluff' && !spoilerHeld(state)), grade: spoilerHeld(state) ? null : spot.grade };
 }
 
 function rawSpotlight(state: GameState, forHost: boolean): Spotlight | null {
@@ -937,6 +947,84 @@ function surveyClosing(state: GameState): boolean {
   return open !== null && state.phase === 'reveal' && surveyShown(state, open.play) < open.question.rows.length;
 }
 
+/** Блеф поточного запитання з його грою; null поза ним. */
+function currentBluff(state: GameState) {
+  const shown = shownQuestion(state);
+  const play = state.plays[state.questionIndex];
+  if (shown === null || play === undefined || play.bluff === undefined || shown.question !== play.question || play.question.type !== 'bluff') return null;
+  return { play, question: play.question };
+}
+
+/** Блеф на розкритті, поки ведучий не відкрив усі варіанти: бали, вердикт і серія видали б, який варіант правдивий. */
+function bluffClosing(state: GameState): boolean {
+  const open = currentBluff(state);
+  return open !== null && state.phase === 'reveal' && bluffShown(state, open.play) < bluffOrder(open.play).length;
+}
+
+/** «Розкриття ще триває»: результат ховається, поки не відкрито всі рядки «100 до 1» чи всі варіанти блефу. */
+function spoilerHeld(state: GameState): boolean {
+  return surveyClosing(state) || bluffClosing(state);
+}
+
+/**
+ * Блеф для всіх ролей. Фаза вигадок: лише лічильники (пульт — ще й вигадки наживо). Фаза вибору: варіанти в порядку показу
+ * без kind/authors/pickedBy і без прибраних (пульт бачить усе). Розкриття: порядок розкриття, kind/authors/pickedBy лише відкритих.
+ */
+function bluffInfo(state: GameState, forHost: boolean): BluffInfo | null {
+  const open = currentBluff(state);
+  if (open === null) return null;
+  const { play } = open;
+  const bluff = play.bluff!;
+  const names = (ids: string[]) => ids.flatMap((id) => state.players.find((p) => p.id === id)?.nickname ?? []);
+  const written = state.players.filter((p) => Object.hasOwn(bluff.lies, p.id)).length;
+  const picked = state.players.filter((p) => Object.hasOwn(bluff.picks, p.id)).length;
+  const stage: BluffInfo['stage'] = isRevealed(state) ? 'reveal' : state.phase === 'question' ? bluff.stage : 'choice';
+  const lies = forHost
+    ? state.players.flatMap((p) => (Object.hasOwn(bluff.lies, p.id) ? [{ nickname: p.nickname, text: bluff.lies[p.id].text }] : []))
+    : null;
+  if (stage === 'lies') return { stage, written, picked, options: [], shown: 0, total: 0, lastOpenedId: null, lies };
+  const full = (o: (typeof bluff.options)[number], isOpen: boolean): BluffOptionView => ({
+    id: o.id,
+    text: o.text,
+    open: isOpen,
+    kind: o.kind,
+    authors: names(o.authors),
+    pickedBy: names(Object.keys(bluff.picks).filter((id) => bluff.picks[id].optionId === o.id)),
+    removed: o.removed,
+  });
+  const closed = (o: (typeof bluff.options)[number]): BluffOptionView => ({ id: o.id, text: o.text, open: false, kind: null, authors: null, pickedBy: null, removed: false });
+  if (stage === 'choice') {
+    const options = forHost ? bluff.options.map((o) => full(o, false)) : bluff.options.filter((o) => !o.removed).map(closed);
+    return { stage, written, picked, options, shown: 0, total: 0, lastOpenedId: null, lies };
+  }
+  const order = bluffOrder(play);
+  const shown = bluffShown(state, play);
+  const lastOpenedId = shown > 0 ? order[shown - 1].id : null;
+  if (forHost) {
+    // Пульт: порядок розкриття, прибрані наприкінці.
+    const options = order.map((o, index) => full(o, index < shown));
+    const removed = bluff.options.filter((o) => o.removed).map((o) => full(o, false));
+    return { stage, written, picked, options: [...options, ...removed], shown, total: order.length, lastOpenedId, lies };
+  }
+  // Сцена й телефони: порядок показу, як у виборі, щоб ні місце, ні черга не видали правду; відкриті несуть kind і імена.
+  const opened = new Set(order.slice(0, shown).map((o) => o.id));
+  const options = bluff.options.filter((o) => !o.removed).map((o) => (opened.has(o.id) ? full(o, true) : closed(o)));
+  return { stage, written, picked, options, shown, total: order.length, lastOpenedId, lies };
+}
+
+/** Власний блеф гравця; truth і fooled — лише коли правду відкрито. */
+function playerBluff(state: GameState, playerId: string): PlayerView['me']['bluff'] {
+  const open = currentBluff(state);
+  if (open === null) return null;
+  const bluff = open.play.bluff!;
+  const lie = Object.hasOwn(bluff.lies, playerId) ? bluff.lies[playerId].text : null;
+  const own = bluff.options.filter((o) => !o.removed && o.authors.includes(playerId)).map((o) => o.id);
+  const pick = Object.hasOwn(bluff.picks, playerId) ? bluff.picks[playerId].optionId : null;
+  const answer = currentRecord(state, playerId)?.answer;
+  const known = isRevealed(state) && !spoilerHeld(state) && answer?.type === 'bluff';
+  return { lie, own, pick, truth: known ? answer.truth : null, fooled: known ? answer.fooled : null };
+}
+
 /**
  * Табло «100 до 1»: рядки за місцем; відкриті знизу (surveyShown). Сцена й телефони бачать text/popularity/by лише відкритих,
  * пульт — усю дошку, а by наживо з етапу question.
@@ -1100,6 +1188,7 @@ function base(state: GameState, forHost: boolean) {
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
     survey: surveyInfo(state, forHost),
+    bluff: bluffInfo(state, forHost),
     notice: lastNotice(state),
     duel: duelInfo(state, false),
     buffs: currentBuffs(state),
@@ -1243,6 +1332,12 @@ function hintRequests(state: GameState): HintRequest[] {
 function answeredCount(state: GameState): number {
   const play = state.plays[state.questionIndex];
   const held = state.players.filter((p) => (buffOf(play, p.id)?.first ?? null) !== null).map((p) => p.id);
+  // Блеф: у фазі вигадок — хто написав, у фазі вибору — хто вибрав; з закриття — записи.
+  const bluff = currentBluff(state)?.play.bluff;
+  if (bluff !== undefined && state.phase === 'question') {
+    const own = bluff.stage === 'lies' ? bluff.lies : bluff.picks;
+    return state.players.filter((p) => Object.hasOwn(own, p.id)).length;
+  }
   const answered = [...new Set([...Object.keys(currentAnswers(state)), ...held])];
   const open = currentSort(state);
   if (open === null || !inFinalRound(state)) return answered.length;
@@ -1288,13 +1383,13 @@ function revealStats(state: GameState, question: Question): RevealStats {
     }
   }
   // Голоси без балів не бувають «прийнятими»: лише answered і counts. «100 до 1» ховає прийняті, поки дошка не відкрита.
-  const hidden = isUnscored(question) || surveyClosing(state);
+  const hidden = isUnscored(question) || spoilerHeld(state);
   return { answered: records.length, accepted: hidden ? null : records.filter((r) => r.accepted).length, counts };
 }
 
 export function stageView(state: GameState): StageView {
   const shown = isRevealed(state) ? shownQuestion(state) : null;
-  const revealed = shown === null ? null : withoutSurveyRows(withoutHint(shown.question));
+  const revealed = shown === null ? null : withoutBluffSecrets(withoutSurveyRows(withoutHint(shown.question)));
   return {
     ...base(state, false),
     role: 'stage',
@@ -1357,9 +1452,9 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
       // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули;
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
-      answer: publicAnswer(queued === undefined ? (record?.answer ?? pending) : queued, revealed && !surveyClosing(state)),
+      answer: publicAnswer(queued === undefined ? (record?.answer ?? pending) : queued, revealed && !spoilerHeld(state)),
       result:
-        revealed && record !== undefined && finalShown(state, playerId) && !surveyClosing(state) && !(seen !== null && isUnscored(seen.question))
+        revealed && record !== undefined && finalShown(state, playerId) && !spoilerHeld(state) && !(seen !== null && isUnscored(seen.question))
           ? {
               accepted: record.accepted,
               accuracy: record.accuracy,
@@ -1374,6 +1469,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),
       survey: playerSurvey(state, playerId),
+      bluff: playerBluff(state, playerId),
       debuff: playerDebuff(state, playerId),
       shop: playerShop(state, playerId),
       duel: playerDuel(state, playerId),
@@ -1382,7 +1478,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       tip: typeTip(state, playerId),
       vote: votePrompt(state, playerId),
     },
-    reveal: revealed && seen !== null ? withoutSurveyRows(withoutHint(seen.question)) : null,
+    reveal: revealed && seen !== null ? withoutBluffSecrets(withoutSurveyRows(withoutHint(seen.question))) : null,
     standings,
     table: liveTable(state, playerId),
   };
@@ -1395,7 +1491,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
 function hiddenPoints(state: GameState, playerId: string): number {
   const record = currentRecord(state, playerId);
   if (record === undefined) return 0;
-  if (state.phase === 'locked' || surveyClosing(state)) return record.points;
+  if (state.phase === 'locked' || spoilerHeld(state)) return record.points;
   return state.phase === 'reveal' ? record.points - finalVisiblePoints(state, playerId) : 0;
 }
 

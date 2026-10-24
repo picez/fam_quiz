@@ -29,6 +29,9 @@ import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
 import { WallInput } from './WallInput';
 import { SurveyBoard } from './SurveyBoard';
+import { BluffBoard } from './BluffBoard';
+import { BluffChoice } from './BluffChoice';
+import { BluffLieInput } from './BluffLieInput';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { MenuLinks } from './MenuLinks';
@@ -133,6 +136,79 @@ function VoteResult({ view }: { view: PlayerView }) {
     <section className="result vote-result">
       <h2>{t('voteResultsOnStage')}</h2>
       {me.answer !== null && question !== null && <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>}
+    </section>
+  );
+}
+
+/** Блеф на етапі question: вигадка, потім вибір; кожен етап підписаний. */
+function BluffPlay({ view, paused, send }: { view: PlayerView; paused: boolean; send: Send }) {
+  const { bluff } = view;
+  const mine = view.me.bluff;
+  // Вибір, що раптом зник посеред фази, означає: ведучий прибрав цей варіант.
+  const pickNow = mine?.pick ?? null;
+  const stageNow = bluff?.stage ?? null;
+  const lastPick = useRef<string | null>(null);
+  const [lost, setLost] = useState(false);
+  useEffect(() => {
+    if (pickNow !== null) setLost(false);
+    else if (lastPick.current !== null && stageNow === 'choice') setLost(true);
+    lastPick.current = pickNow;
+  }, [pickNow, stageNow]);
+  if (bluff === null || mine === null) return null;
+  if (bluff.stage === 'lies') {
+    return (
+      <section className="bluff-play">
+        <p className="bluff-stage">{t('bluffStageLies')}</p>
+        {mine.lie === null ? (
+          <fieldset className="inputs" disabled={paused}>
+            <BluffLieInput send={send} />
+          </fieldset>
+        ) : (
+          <p className="lead">{t('bluffLieSent', { lie: mine.lie })}</p>
+        )}
+        <p className="meta">{t('bluffWritten', { n: bluff.written, total: view.playerCount })}</p>
+      </section>
+    );
+  }
+  const picked = mine.pick === null ? null : (bluff.options.find((option) => option.id === mine.pick) ?? null);
+  return (
+    <section className="bluff-play">
+      <p className="bluff-stage">{t('bluffStageChoice')}</p>
+      {picked === null && lost && <p className="meta bluff-lost" role="status">{t('bluffPickRemoved')}</p>}
+      {picked === null ? (
+        <fieldset className="inputs" disabled={paused}>
+          <BluffChoice options={bluff.options} own={mine.own} send={send} />
+        </fieldset>
+      ) : (
+        <p className="lead">{t('bluffPicked', { text: picked.text })}</p>
+      )}
+      <p className="meta">{t('bluffPickedCount', { n: bluff.picked, total: view.playerCount })}</p>
+    </section>
+  );
+}
+
+/** Розкриття блефу: табло; власний результат — лише коли правду відкрито. */
+function BluffResult({ view }: { view: PlayerView }) {
+  const { bluff, me } = view;
+  if (bluff === null || me.bluff === null) return null;
+  const { result } = me;
+  // Правду відкрито, коли відкрито всі варіанти (як spoilerHeld); мовчун без запису правди не отримує.
+  const open = bluff.total > 0 && bluff.shown >= bluff.total;
+  const took = me.bluff.truth !== null;
+  const tone = result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
+  return (
+    <section className={open && took ? `result ${tone}` : 'result'}>
+      <BluffBoard info={bluff} />
+      {open ? (
+        <>
+          <h2>{took ? t(me.bluff.truth ? 'bluffTruthYes' : me.bluff.pick === null ? 'bluffNoChoice' : 'bluffTruthNo') : t('bluffSilent')}</h2>
+          {me.bluff.fooled !== null && me.bluff.fooled > 0 && <p>{t('bluffFooledYou', { n: me.bluff.fooled })}</p>}
+          {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
+          {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
+        </>
+      ) : (
+        <p className="lead">{t('bluffWaitTruth')}</p>
+      )}
     </section>
   );
 }
@@ -490,6 +566,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const isSort = question?.type === 'sort';
   const isWall = question?.type === 'wall';
   const isSurvey = question?.type === 'survey';
+  const isBluff = question?.type === 'bluff';
   const unscored = question !== null && isUnscored(question);
 
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
@@ -575,7 +652,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </p>
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
-            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
+            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">
@@ -614,7 +691,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
-            {isSort && me.sort !== null ? (
+            {isBluff ? (
+              <BluffPlay view={view} paused={locked} send={send} />
+            ) : isSort && me.sort !== null ? (
               <SortPlay question={shown ?? question} sort={me.sort} paused={locked} offsetMs={offsetMs} send={send} />
             ) : isSort ? (
               view.sort !== null && <SortWatch question={question} info={view.sort} />
@@ -735,6 +814,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <SortWinner view={view} />
               <p className="lead">{t('sortWaitResults')}</p>
             </section>
+          ) : isBluff ? (
+            <section className="sent">
+              {me.bluff?.lie != null && <p>{t('bluffLieSent', { lie: me.bluff.lie })}</p>}
+              <p className="lead">{t('waitReveal')}</p>
+            </section>
           ) : isWall && question?.wall != null ? (
             <section className="sent">
               <WallGrid wall={question.wall} found={me.wall !== null ? me.wall.found : foundOf(view.wall?.rows[0]?.tiles)} />
@@ -786,6 +870,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
           {view.final !== null ? (
             <FinalResult view={view} />
+          ) : isBluff ? (
+            <BluffResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
               {/* «100 до 1»: підсумок — на табло (SurveyBoard), рядок відповіді з вердиктом зайвий. */}

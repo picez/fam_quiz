@@ -1,5 +1,5 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { cloudKey, isUnscored, pinDistance, surveyHitsOf, surveyOrder, type GameAdjustment, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
+import { cloudKey, isUnscored, pinDistance, surveyHitsOf, surveyOrder, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
@@ -9,6 +9,7 @@ import { BuffBadge, SpareMark } from '../screens/Buffs';
 import { PinBoard, type PinBoardMark } from '../screens/PinBoard';
 import { WallReveal } from '../screens/WallReveal';
 import { PollBars } from '../screens/PollBars';
+import { BluffBoard } from '../screens/BluffBoard';
 import { SurveyBoard } from '../screens/SurveyBoard';
 import { usePrivateData } from '../usePrivateData';
 
@@ -53,6 +54,22 @@ export function historySurvey(question: GameQuestionResult): SurveyInfo | null {
   }
   const rows = surveyOrder(q.rows).map((row, index) => ({ rank: index + 1, open: true, text: row.text, popularity: row.popularity, by: authors.get(row.id) ?? [] }));
   return { source: question.surveyFromCloud === true ? 'cloud' : 'host', total: rows.length, shown: rows.length, rows };
+}
+
+/** Табло блефу з історії: усе відкрито; варіанти в порядку розкриття, прибрані — в кінці. Не блеф — null. */
+export function historyBluff(question: GameQuestionResult): BluffInfo | null {
+  if (question.question.type !== 'bluff' || question.bluff === undefined) return null;
+  const options = question.bluff.options.map((option, at) => ({
+    id: `h${at}`,
+    text: option.text,
+    open: true,
+    kind: option.kind,
+    authors: option.authors,
+    pickedBy: option.pickedBy,
+    removed: option.removed,
+  }));
+  const shown = options.filter((option) => !option.removed).length;
+  return { stage: 'reveal', written: 0, picked: 0, options, shown, total: shown, lastOpenedId: null, lies: null };
 }
 
 /** Голоси опитування за варіантами (відповіді на основне запитання). */
@@ -249,6 +266,14 @@ export function GameHistory() {
                             {(() => {
                               const info = historySurvey(question);
                               return info === null ? null : <SurveyBoard info={info} />;
+                            })()}
+                          </div>
+                        )}
+                        {question.question.type === 'bluff' && (
+                          <div className="history-bluff">
+                            {(() => {
+                              const info = historyBluff(question);
+                              return info === null ? null : <BluffBoard info={info} host />;
                             })()}
                           </div>
                         )}

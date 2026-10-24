@@ -8491,3 +8491,346 @@ async function surveyGame() {
 
   expect(problems).toEqual([]);
 }
+
+/** Пише вигадку й натискає «Надіслати вигадку». */
+async function writeLie(page: Page, text: string): Promise<void> {
+  await field(page, 'Твоя вигадка').fill(text);
+  await click(page, 'Надіслати вигадку');
+}
+
+/** Торкається варіанта з текстом на телефоні. */
+async function pickBluff(page: Page, text: string): Promise<void> {
+  await page.locator('.bluff-choice button').filter({ has: page.getByText(text, exact) }).click();
+}
+
+/** Тексти відкритих варіантів на сторінці (зверху вниз). */
+const openOptions = async (page: Page) => page.locator('.bluff-row:not(.is-closed) .bluff-text').allTextContents();
+
+/** Рядок варіанта блефу з точним текстом. */
+const bluffRow = (scope: Page | ReturnType<Page['locator']>, text: string) => {
+  const owner = 'goto' in scope ? scope : scope.page();
+  return scope.locator('.bluff-row').filter({ has: owner.locator('.bluff-text').getByText(text, exact) });
+};
+
+it('part 10f: bluff — the editor builds a bluff (375 px too), the truth is refused as a lie, equal lies merge, spares fill up to five, truth, spares and authors never leak before their time, the host removes a lie, options open one by one with the truth last, truth and fooled-player scoring', async () => {
+  try {
+    await bluffGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function bluffGame() {
+  const host = await open('host10f', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10f@example.com');
+
+  const common = { imageUrl: null, video: null };
+  const b1 = {
+    ...common,
+    id: 'b1',
+    type: 'bluff' as const,
+    text: 'Ейфелеву вежу спершу пропонували поставити в …, але місто відмовилося.',
+    points: 1000,
+    timeLimit: 60,
+    choiceTime: 30,
+    accepted: ['Барселона', 'Барселоні'],
+    lies: ['Мадрид', 'Лондон', 'Брюссель'],
+  };
+  // Південний Буг (806 км) — найдовша річка лише в Україні: Дніпро й Дністер довші, але течуть і в інших країнах.
+  const b2 = {
+    ...common,
+    id: 'b2',
+    type: 'bluff' as const,
+    text: 'Найдовша річка, що тече лише Україною, — …',
+    points: 1000,
+    timeLimit: 60,
+    choiceTime: 30,
+    accepted: ['Південний Буг', 'Буг'],
+    lies: ['Сула', 'Псел'],
+  };
+  const q1 = {
+    ...common,
+    id: 'q1',
+    type: 'single' as const,
+    text: 'Кінець?',
+    points: 100,
+    timeLimit: 20,
+    options: [
+      { id: 'q1-yes', text: 'Так' },
+      { id: 'q1-no', text: 'Ні' },
+    ],
+    correctId: 'q1-yes',
+  };
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [b1, b2, q1] as never, { title: 'Блеф', speedBonus: true, rules: DEFAULT_RULES, shuffleOptions: false })], { leaderboard: 'end' }),
+    title: 'Блеф 10f',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const quizId = ((await saved.json()) as { id: string }).id;
+
+  // 1. Редактор.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Блеф 10f' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  await host.getByRole('button', { name: /^Запитання 1 / }).click();
+  expect(await field(host, 'Правда').inputValue()).toBe('Барселона');
+  expect(await field(host, 'Написання 1').inputValue()).toBe('Барселоні');
+  for (const [i, lie] of ['Мадрид', 'Лондон', 'Брюссель'].entries()) expect(await field(host, `Запасна вигадка ${i + 1}`).inputValue()).toBe(lie);
+  expect(await field(host, 'Час на вигадки, с').inputValue()).toBe('60');
+  expect(await field(host, 'Час на вибір, с').inputValue()).toBe('30');
+  await shot(host, 'p10f-editor-bluff');
+
+  await field(host, 'Запасна вигадка 3').fill('барселоні');
+  await click(host, 'Зберегти');
+  await host.getByText('запасна вигадка «барселоні» — це правда', { exact: false }).waitFor();
+  await shot(host, 'p10f-editor-bluff-problem');
+  await field(host, 'Запасна вигадка 3').fill('Брюссель');
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await field(host, 'Правда').scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10f-editor-bluff-375');
+  await field(host, 'Час на вибір, с').scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10f-editor-bluff-375-end');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as {
+    rounds: { questions?: { id: string; choiceTime?: number; lies?: string[] }[] }[];
+  };
+  const storedB1 = stored.rounds[0]!.questions!.find((q) => q.id === 'b1')!;
+  expect(storedB1.choiceTime).toBe(30);
+  expect(storedB1.lies).toHaveLength(3);
+
+  // 2. Гра.
+  await host.locator('.quiz-list li', { hasText: 'Блеф 10f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10f', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya10f', 375, 812);
+  const petro = await open('petro10f', 375, 812);
+  const vira = await open('vira10f', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const viraFrames = socketFrames(vira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(vira, code, 'Віра', false);
+  await click(host, 'Почати гру');
+  await afterSplash(host, olya, petro, vira, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, olya, petro, vira, stage);
+
+  // 3. b1, вигадки.
+  await stage.getByText('Вигадайте відповідь на телефоні', exact).waitFor();
+  await shot(stage, 'p10f-stage-lies');
+  await writeLie(olya, 'Рим');
+  await olya.getByText('Твоя вигадка: «Рим»', { exact: false }).waitFor();
+  await stage.getByText('Вигадали 1 з 3', exact).waitFor();
+
+  await writeLie(petro, 'барселоні');
+  await petro.getByText('Це правда! Вигадай щось інше', exact).waitFor();
+  expect(await field(petro, 'Твоя вигадка').inputValue(), 'a refused lie stays in the field').toBe('барселоні');
+  await expectNoSideScroll(petro, 'p10f-phone-truth-refused');
+  await writeLie(petro, 'РИМ');
+  await petro.getByText('Твоя вигадка: «РИМ»', { exact: false }).waitFor();
+  await stage.getByText('Вигадали 2 з 3', exact).waitFor();
+
+  const liveLies = host.locator('.bluff-live');
+  await liveLies.getByText('Оля: Рим', exact).waitFor();
+  await liveLies.getByText('Петро: РИМ', exact).waitFor();
+  await shot(host, 'p10f-host-lies');
+
+  // Витік (вигадки): ні правди, ні запасних, ні чужих вигадок.
+  const liesFrames = { stage: stageFrames.length, olya: olyaFrames.length, petro: petroFrames.length, vira: viraFrames.length };
+  for (const [who, frames, upTo] of [['stage', stageFrames, liesFrames.stage], ['olya', olyaFrames, liesFrames.olya], ['petro', petroFrames, liesFrames.petro], ['vira', viraFrames, liesFrames.vira]] as const) {
+    const text = frames.slice(0, upTo).join('\n');
+    for (const secret of ['Барселона', 'Мадрид', 'Лондон', 'Брюссель']) {
+      const at = text.indexOf(secret);
+      expect(at < 0, `${who} got «${secret}» during the lies: ${text.slice(Math.max(0, at - 150), at + 150)}`).toBe(true);
+    }
+  }
+  for (const [who, frames, upTo] of [['stage', stageFrames, liesFrames.stage], ['vira', viraFrames, liesFrames.vira]] as const) {
+    expect(frames.slice(0, upTo).join('\n').includes('Рим'), `${who} got a lie of another player during the lies`).toBe(false);
+  }
+  const fromChoice = { stage: stageFrames.length, olya: olyaFrames.length, petro: petroFrames.length, vira: viraFrames.length };
+
+  await writeLie(vira, 'Мілан');
+
+  // 4. b1, вибір.
+  await stage.getByText('Що з цього правда?', exact).waitFor();
+  await expect.poll(() => stage.locator('.bluff-row').count()).toBe(5);
+  const stageChoice = await stage.locator('.bluff-text').allTextContents();
+  expect(stageChoice.filter((text) => text === 'Рим'), 'merged lie appears once').toHaveLength(1);
+  expect(stageChoice).toEqual(expect.arrayContaining(['Мілан', 'Барселона']));
+  expect(stageChoice.filter((text) => ['Мадрид', 'Лондон', 'Брюссель'].includes(text)), 'two spares fill up to five').toHaveLength(2);
+  await expectStageFits(stage, 'p10f-stage-choice');
+  await shot(stage, 'p10f-stage-choice');
+
+  await expect.poll(() => olya.locator('.bluff-choice button').count()).toBe(5);
+  const olyaRim = olya.locator('.bluff-choice button').filter({ has: olya.getByText('Рим', exact) });
+  expect(await olyaRim.isDisabled()).toBe(true);
+  await olyaRim.getByText('Твоя вигадка', exact).waitFor();
+  expect(await olya.locator('.bluff-choice button:disabled').count()).toBe(1);
+  for (const button of await olya.locator('.bluff-choice button').all()) expect((await button.boundingBox())!.height, 'option is a tap target').toBeGreaterThanOrEqual(44);
+  await expectNoSideScroll(olya, 'p10f-phone-choice');
+  await petro.locator('.bluff-choice button').first().waitFor();
+  expect(await petro.locator('.bluff-choice button').filter({ has: petro.getByText('Рим', exact) }).isDisabled()).toBe(true);
+  expect(await petro.locator('.bluff-choice button:disabled').count()).toBe(1);
+
+  // Витік (вибір): варіанти без виду, авторів і виборів.
+  const choiceLeak = (who: string, frames: string[], from: number) => {
+    const text = framesBeforeReveal(frames).slice(from).join('\n');
+    for (const secret of [/"kind":"(truth|lie|spare)"/, /"authors":\["/, /"pickedBy":\["/]) {
+      const at = text.search(secret);
+      expect(at < 0, `${who} got ${secret} before the reveal: ${text.slice(Math.max(0, at - 150), at + 150)}`).toBe(true);
+    }
+  };
+  choiceLeak('stage', stageFrames, fromChoice.stage);
+  choiceLeak('olya', olyaFrames, fromChoice.olya);
+  choiceLeak('petro', petroFrames, fromChoice.petro);
+  choiceLeak('vira', viraFrames, fromChoice.vira);
+
+  await pickBluff(olya, 'Мілан');
+  await pickBluff(petro, 'Барселона');
+  await pickBluff(vira, 'Рим');
+  await host.getByText('Запитання закрите').waitFor();
+
+  const hostBoard = host.locator('.bluff-host .bluff-board');
+  await hostBoard.waitFor();
+  const rimRow = bluffRow(hostBoard, 'Рим');
+  expect(await rimRow.innerText()).toContain('Вигадка: Оля, Петро');
+  expect(await rimRow.innerText()).toContain('Купилися: Віра');
+  expect(await bluffRow(hostBoard, 'Барселона').innerText()).toContain('Правда');
+  expect(await host.getByRole('button', { name: /^(Правильно|Частково|Не зараховувати)/ }).count(), 'no grading buttons').toBe(0);
+  await hostBoard.scrollIntoViewIfNeeded();
+  await shot(host, 'p10f-host-choice');
+
+  // 5. b1, розкриття.
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Відкрити варіант 1 з 5', ...exact }).waitFor();
+  expect(await openOptions(stage), 'nothing is open yet').toEqual([]);
+  const nextOption = host.getByRole('button', { name: /^Відкрити варіант / });
+  expect((await nextOption.boundingBox())!.height, 'next option button is a tap target').toBeGreaterThanOrEqual(44);
+  let afterFour: string[] = [];
+  for (let n = 1; n <= 4; n += 1) {
+    await host.getByRole('button', { name: `Відкрити варіант ${n} з 5`, ...exact }).click();
+    await expect.poll(async () => (await openOptions(stage)).length).toBe(n);
+    afterFour = await openOptions(stage);
+    expect(afterFour, `the truth opens last, not at step ${n}`).not.toContain('Барселона');
+  }
+  const opened = (await stage.locator('.bluff-row:not(.is-closed)').allInnerTexts()).join('\n');
+  expect((opened.match(/Запасна вигадка ведучого/g) ?? []).length).toBe(2);
+  const stageMilan = await bluffRow(stage, 'Мілан').innerText();
+  expect(stageMilan).toContain('Вигадка: Віра');
+  expect(stageMilan).toContain('Купилися: Оля');
+  expect(await bluffRow(stage, 'Рим').innerText()).toContain('Вигадка: Оля, Петро');
+  expect(await stage.locator('.bluff-row.is-truth').count(), 'the truth is not marked yet').toBe(0);
+  expect(await stage.locator('.bluff-row.is-closed').count()).toBe(1);
+  expect(await stage.locator('.bluff-row.is-closed .bluff-text').innerText()).toBe('Барселона');
+  await expect.poll(() => stage.locator('.bluff-row.is-flipping').count()).toBe(0);
+  await expectStageFits(stage, 'p10f-stage-reveal-half');
+  await shot(stage, 'p10f-stage-reveal-half');
+
+  await petro.getByText('Правду відкриють останньою', exact).waitFor();
+  expect(await bodyText(petro)).not.toContain('Ти знайшов правду');
+  expect(await bodyText(petro)).not.toMatch(/1\s?500/);
+  for (const [who, frames] of [['stage', stageFrames], ['olya', olyaFrames], ['petro', petroFrames], ['vira', viraFrames]] as const) {
+    expect(frames.join('\n').includes('"kind":"truth"'), `${who} got the truth before it was opened`).toBe(false);
+  }
+
+  await host.getByRole('button', { name: 'Відкрити варіант 5 з 5', ...exact }).click();
+  await expect.poll(async () => (await openOptions(stage)).length).toBe(5);
+  expect((await openOptions(stage)).filter((text) => !afterFour.includes(text))).toEqual(['Барселона']);
+  const truthRow = bluffRow(stage, 'Барселона');
+  expect(await truthRow.innerText()).toContain('Правда');
+  expect(await truthRow.innerText()).toContain('Купилися: Петро');
+  await expect.poll(() => stage.locator('.bluff-row.is-flipping').count()).toBe(0);
+  await expectStageFits(stage, 'p10f-stage-reveal-full');
+  await shot(stage, 'p10f-stage-reveal-full');
+  expect(await host.getByRole('button', { name: /^Відкрити/ }).count(), 'no open buttons once everything is open').toBe(0);
+
+  await petro.getByText('Ти знайшов правду!', exact).waitFor();
+  await petro.getByText('На твою вигадку купилися: 1', exact).waitFor();
+  expect(await bodyText(petro)).toMatch(/1\s?500/);
+  await expectNoSideScroll(petro, 'p10f-phone-result');
+  expect(await totalOf(host, 'Оля')).toBe(500);
+  expect(await totalOf(host, 'Петро')).toBe(1500);
+  expect(await totalOf(host, 'Віра')).toBe(500);
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, vira, stage);
+
+  // 6. b2: без вигадки, «До вибору», «Прибрати».
+  await stage.getByText('Вигадайте відповідь на телефоні', exact).waitFor();
+  await writeLie(olya, 'Дурня');
+  await writeLie(petro, 'Сула');
+  await stage.getByText('Вигадали 2 з 3', exact).waitFor();
+  await click(host, 'До вибору');
+  await stage.getByText('Що з цього правда?', exact).waitFor();
+  await expect.poll(() => stage.locator('.bluff-row').count()).toBe(4);
+  expect(await stage.locator('.bluff-text').allTextContents()).toEqual(expect.arrayContaining(['Дурня', 'Південний Буг', 'Псел', 'Сула']));
+
+  const removeLie = host.getByRole('button', { name: 'Прибрати «Дурня»', ...exact });
+  expect((await removeLie.boundingBox())!.height, 'remove is a tap target').toBeGreaterThanOrEqual(44);
+  await removeLie.click();
+  await expect.poll(() => stage.locator('.bluff-row').count()).toBe(3);
+  await expect.poll(() => vira.locator('.bluff-choice button').count()).toBe(3);
+  await expect.poll(() => olya.locator('.bluff-choice button').count()).toBe(3);
+  expect(await stage.locator('.bluff-text').allTextContents()).not.toContain('Дурня');
+  expect(await vira.locator('.bluff-choice').innerText()).not.toContain('Дурня');
+  await host.locator('.bluff-row.is-removed').waitFor();
+  await host.locator('.bluff-host').scrollIntoViewIfNeeded();
+  await shot(host, 'p10f-host-removed');
+
+  await pickBluff(olya, 'Південний Буг');
+  await pickBluff(petro, 'Псел');
+  await pickBluff(vira, 'Сула');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Відкрити всі');
+  await expect.poll(() => openOptions(stage)).toHaveLength(3);
+  expect(await openOptions(stage)).not.toContain('Дурня');
+  await expect.poll(() => stage.locator('.bluff-row.is-flipping').count()).toBe(0);
+  await expectStageFits(stage, 'p10f-stage-reveal-b2');
+  await shot(stage, 'p10f-stage-reveal-b2');
+  expect(await totalOf(host, 'Оля')).toBe(1500);
+  expect(await totalOf(host, 'Петро')).toBe(2000);
+  expect(await totalOf(host, 'Віра')).toBe(500);
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, vira, stage);
+
+  // 7. q1.
+  await stage.getByText('Кінець?', exact).waitFor();
+  await olya.getByRole('button', { name: /Так/ }).click();
+  await petro.getByRole('button', { name: /Так/ }).click();
+  await vira.getByRole('button', { name: /Ні/ }).click();
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+
+  // 8. Історія.
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Блеф 10f/ }).click();
+  const items = host.locator('.rows.stacked > li');
+  await items.first().waitFor();
+  const first = items.filter({ hasText: 'Ейфелеву вежу' });
+  const history1 = await first.locator('.history-bluff').innerText();
+  expect(history1).toContain('Правда');
+  expect(history1).toContain('Вигадка: Оля, Петро');
+  expect(history1).toContain('Купилися: Віра');
+  await first.getByText('Відповіді (3)').click();
+  await first.locator('.responses li', { hasText: 'Оля' }).getByText('вигадка «Рим» · вибір «Мілан» ✗ · купилися: 1', { exact: false }).waitFor();
+  const second = items.filter({ hasText: 'Найдовша річка' });
+  const history2 = await second.locator('.history-bluff').innerText();
+  expect(history2).toContain('Дурня');
+  expect(history2).toContain('Прибрано');
+  await shot(host, 'p10f-history');
+
+  expect(problems).toEqual([]);
+}

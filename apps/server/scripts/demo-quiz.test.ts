@@ -3,7 +3,7 @@ import { LIMITS, READY_BUFFS, allowedBuffs, boardSpareSource, questionSchema, qu
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
-import { clues, cloud, demoQuiz, pin, poll, revealing, single, slider, survey, surveyFromCloud, wall, withAudio } from './demo-quiz';
+import { bluff, clues, cloud, demoQuiz, pin, poll, revealing, single, slider, survey, surveyFromCloud, wall, withAudio } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
@@ -104,7 +104,7 @@ describe('the seeded demo quiz', () => {
   it('demo has a 4×4 wall in classic, a 3×3 wall on a phone board cell, a poll and a word cloud in the warm-up', () => {
     expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
     const warmup = demoQuiz.rounds.find((r) => r.id === 'r-warmup');
-    expect(warmup?.type === 'classic' && warmup.questions.slice(-2).map((x) => x.type)).toEqual(['poll', 'wordcloud']);
+    expect(warmup?.type === 'classic' && warmup.questions.slice(-3).map((x) => x.type)).toEqual(['poll', 'wordcloud', 'bluff']);
     const classic = demoQuiz.rounds.find((r) => r.id === 'r-x3');
     const big = classic?.type === 'classic' ? classic.questions.find((x) => x.type === 'wall') : undefined;
     expect(big?.type === 'wall' && [big.groups.length, big.groups.map((g) => g.tiles.length)]).toEqual([4, [4, 4, 4, 4]]);
@@ -380,5 +380,27 @@ describe('«100 до 1» in the demo quiz', () => {
     expect(linked).toMatchObject({ type: 'survey', rows: [], cloudId: word.id, answers: 2 });
     const quiz = { ...demoQuiz, rounds: [{ id: 'a', type: 'classic' as const, title: 'A', speedBonus: false, shuffleOptions: false, rules: demoQuiz.rounds[0].type === 'classic' ? demoQuiz.rounds[0].rules : (undefined as never), questions: [word, linked] }] };
     expect(quizSchema.safeParse(quiz).success).toBe(true);
+  });
+});
+
+describe('the bluff in the demo quiz', () => {
+  it('demo has a bluff at the end of r-warmup', () => {
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+    const warmup = demoQuiz.rounds.find((r) => r.id === 'r-warmup');
+    const last = warmup?.type === 'classic' ? warmup.questions.at(-1) : undefined;
+    expect(last?.type).toBe('bluff');
+    expect(last?.type === 'bluff' && [last.accepted[0], last.lies.length]).toEqual(['Барселона', 3]);
+    expect(demoQuiz.description).toContain('блеф');
+    expect(demoQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
+    for (const round of demoQuiz.rounds) {
+      expect(questionsOf({ ...demoQuiz, rounds: [round] }).length).toBeLessThanOrEqual(LIMITS.maxQuestions);
+    }
+  });
+
+  it('the bluff helper builds a valid question', () => {
+    const ok = bluff('Факт з …', ['Правда'], ['А', 'Б']);
+    expect(questionSchema.safeParse(ok).success).toBe(true);
+    expect(ok).toMatchObject({ type: 'bluff', points: 1000, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime });
+    expect(questionSchema.safeParse(bluff('Факт з …', ['Правда'], ['А'])).success).toBe(false);
   });
 });

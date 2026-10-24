@@ -8,6 +8,7 @@ import { ImageField } from './ImageField';
 import { OptionImage } from './OptionImage';
 import { PinEditor } from './PinEditor';
 import { VideoField } from './VideoField';
+import { BluffEditor } from './BluffEditor';
 import { SurveyEditor } from './SurveyEditor';
 import { WallEditor } from './WallEditor';
 import { changeType, moveItem, type QuestionType } from './draft';
@@ -721,6 +722,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud 
           <p className="meta">{t('pollHint')}</p>
         </>
       );
+    case 'bluff':
+      return <BluffEditor question={question} onChange={onChange} />;
     case 'survey':
       return <SurveyEditor question={question} onChange={onChange} clouds={clouds} allowCloud={allowCloud} />;
     case 'wordcloud':
@@ -801,7 +804,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -835,7 +838,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'chain' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall';
+              const noVideo = rest.type === 'chain' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />
@@ -872,7 +875,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
       {(showTime || (showPoints && question.type !== 'sort' && !isVote)) && (
         <div className="pair">
           {!showTime ? null : question.video === null || !timeInLimits(question.timeLimit) ? (
-            <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
+            <NumberField label={t(question.type === 'bluff' ? 'bluffLieTime' : 'timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
           ) : (
             <p className="meta">{t('noTimerHint')}</p>
           )}

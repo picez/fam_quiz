@@ -263,6 +263,22 @@ export const surveyCloud = {
   cloudId: cloud.id,
 } satisfies Question;
 
+/**
+ * Блеф: правда «Барселона» (ще «Барселоні»), запасні вигадки Мадрид, Лондон, Брюссель; 60 с на вигадки, 30 с на вибір, 1000 балів;
+ * до типового списку makeQuiz не входить.
+ */
+export const bluff = {
+  ...base,
+  id: 'q19',
+  type: 'bluff',
+  text: 'Ейфелеву вежу спершу пропонували поставити в …, але місто відмовилося.',
+  timeLimit: 60,
+  choiceTime: 30,
+  points: 1000,
+  accepted: ['Барселона', 'Барселоні'],
+  lies: ['Мадрид', 'Лондон', 'Брюссель'],
+} satisfies Question;
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 
