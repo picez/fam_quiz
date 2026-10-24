@@ -12,21 +12,35 @@ interface Props {
   ready: boolean;
   paused: boolean;
   command: AudioCommand | null;
+  /** Скільки мс запитання вже минуло в мить автостарту: фрагмент грає лише залишок, а повністю минулий не грає. */
+  elapsedMs?: number;
+  /** Іде заставка: команди «ще раз» у цей час ігноруються. */
+  splash?: boolean;
 }
 
 type PlayState = 'idle' | 'playing' | 'stopped' | 'blocked' | 'failed';
 
+const LISTEN_INTERVAL_MS = 250;
+/** Скільки чекаємо, поки YouTube підтвердить, що грає, перш ніж вважати звук заблокованим. */
+export const YOUTUBE_BLOCK_MS = 2000;
+
 /** Браузер ще не дозволив звук: на сторінку не було жодного дотику. */
 const needsTouch = () => (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive === false;
+
+interface Command {
+  func: string;
+  args: unknown[];
+}
 
 /**
  * Грає фрагмент: файл через <audio>, YouTube — у прихованій рамці.
  * Автостарт раз на questionKey, коли ready; нова command.seq — «ще раз» чи «стоп»;
  * пауза гри ставить звук на паузу; через duration с від старту (без пауз) фрагмент зупиняється.
+ * YouTube: команди чекають, поки плеєр відгукнеться, а «не заграло» за 2 с — це заблокований звук.
  */
-export function QuestionAudio({ clip, questionKey, ready, paused, command }: Props) {
+export function QuestionAudio({ clip, questionKey, ready, paused, command, elapsedMs = 0, splash = false }: Props) {
   const media = useRef<HTMLAudioElement | null>(null);
-  // React отвʼязує ref до очищення ефектів: останній елемент тримаємо окремо, щоб при виході його можна було зупинити.
+  // React відв'язує ref до очищення ефектів: останній елемент тримаємо окремо, щоб при виході його можна було зупинити.
   const lastMedia = useRef<HTMLAudioElement | null>(null);
   const setMedia = (element: HTMLAudioElement | null) => {
     media.current = element;
@@ -35,8 +49,8 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
   const frame = useRef<HTMLIFrameElement>(null);
   const [state, setState] = useState<PlayState>('idle');
   const [plays, setPlays] = useState(0);
-  // Змінний стан відтворення живе в ref: таймер і команди читають його без перемальовувань.
-  const run = useRef({ active: false, running: false, held: false, remaining: 0, since: 0, token: 0, seek: false });
+  // Змінний стан відтворення живе в ref: таймери й команди читають його без перемальовувань.
+  const run = useRef({ active: false, running: false, held: false, remaining: 0, since: 0, token: 0, seek: false, seekPos: 0 });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedKey = useRef<string | null>(null);
   const lastSeq = useRef<number | null>(command?.seq ?? null);
@@ -44,15 +58,46 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
   pausedRef.current = paused;
   const clipRef = useRef(clip);
   clipRef.current = clip;
-
-  const youtube = useCallback((func: string, args: unknown[] = []) => {
-    frame.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args, id: 1, channel: 'widget' }), YOUTUBE_ORIGIN);
-  }, []);
+  const elapsedRef = useRef(elapsedMs);
+  elapsedRef.current = elapsedMs;
+  const splashRef = useRef(splash);
+  splashRef.current = splash;
+  // YouTube: плеєр відповів, черга команд до цього, чи підтвердив він «грає», таймер перевірки.
+  const yt = useRef({ ready: false, queue: [] as Command[], playing: false, block: null as ReturnType<typeof setTimeout> | null, poll: null as ReturnType<typeof setInterval> | null });
+  // Таймер блокування звертається до halt, оголошеного нижче.
+  const haltRef = useRef<(next: PlayState | null) => void>(() => {});
 
   const clearTimer = () => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
   };
+  const clearBlock = () => {
+    if (yt.current.block !== null) clearTimeout(yt.current.block);
+    yt.current.block = null;
+  };
+
+  const post = (message: object) => {
+    frame.current?.contentWindow?.postMessage(JSON.stringify({ ...message, id: 1, channel: 'widget' }), YOUTUBE_ORIGIN);
+  };
+
+  const sendNow = useCallback((command: Command) => {
+    frame.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func: command.func, args: command.args, id: 1, channel: 'widget' }), YOUTUBE_ORIGIN);
+    if (command.func === 'playVideo') {
+      if (yt.current.block !== null) clearTimeout(yt.current.block);
+      yt.current.block = setTimeout(() => {
+        yt.current.block = null;
+        if (run.current.active && run.current.running && !yt.current.playing) haltRef.current('blocked');
+      }, YOUTUBE_BLOCK_MS);
+    }
+  }, []);
+
+  const youtube = useCallback(
+    (func: string, args: unknown[] = []) => {
+      if (yt.current.ready) sendNow({ func, args });
+      else yt.current.queue.push({ func, args });
+    },
+    [sendNow],
+  );
 
   /** Зупиняє звук і скидає відлік фрагмента. */
   const halt = useCallback(
@@ -63,24 +108,33 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
       r.running = false;
       r.held = false;
       clearTimer();
+      clearBlock();
+      yt.current.playing = false;
       lastMedia.current?.pause();
-      if (clipRef.current.source === 'youtube') youtube('pauseVideo');
+      if (clipRef.current.source === 'youtube') {
+        // Плеєр, що ще не відгукнувся, нічого не грає: команди до нього не потрібні.
+        yt.current.queue = [];
+        if (yt.current.ready) sendNow({ func: 'pauseVideo', args: [] });
+      }
       if (next !== null) setState(next);
     },
-    [youtube],
+    [sendNow],
   );
+  haltRef.current = halt;
 
-  /** Запускає (з початку) або продовжує фрагмент. */
+  /** Запускає (з початку, зі зсувом offsetMs від початку фрагмента) або продовжує фрагмент. */
   const begin = useCallback(
-    (fromStart: boolean) => {
+    (fromStart: boolean, offsetMs = 0) => {
       const r = run.current;
       const current = clipRef.current;
       if (fromStart) {
         r.token += 1;
-        r.remaining = current.duration * 1000;
+        r.remaining = current.duration * 1000 - offsetMs;
         r.active = true;
         r.held = false;
         r.seek = true;
+        r.seekPos = current.start + Math.floor(offsetMs / 1000);
+        yt.current.queue = [];
         setPlays((count) => count + 1);
       }
       if (!r.active) return;
@@ -93,6 +147,7 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
       const token = r.token;
       r.running = true;
       r.since = Date.now();
+      yt.current.playing = false;
       clearTimer();
       timer.current = setTimeout(() => halt('stopped'), Math.max(0, r.remaining));
       setState('playing');
@@ -101,7 +156,7 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
       if (current.source === 'file') {
         const element = media.current;
         if (element === null) return;
-        if (seek) element.currentTime = current.start;
+        if (seek) element.currentTime = r.seekPos;
         try {
           void Promise.resolve(element.play()).catch((error: unknown) => {
             if (run.current.token !== token) return;
@@ -111,7 +166,7 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
           halt('failed');
         }
       } else {
-        if (seek) youtube('seekTo', [current.start, true]);
+        if (seek) youtube('seekTo', [r.seekPos, true]);
         youtube('playVideo');
       }
     },
@@ -126,9 +181,14 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
     r.running = false;
     r.held = true;
     clearTimer();
-    media.current?.pause();
-    if (clipRef.current.source === 'youtube') youtube('pauseVideo');
-  }, [youtube]);
+    clearBlock();
+    yt.current.playing = false;
+    lastMedia.current?.pause();
+    if (clipRef.current.source === 'youtube') {
+      yt.current.queue = [];
+      if (yt.current.ready) sendNow({ func: 'pauseVideo', args: [] });
+    }
+  }, [sendNow]);
 
   // Нове запитання чи вихід: звук і таймер зупиняються.
   useEffect(
@@ -138,17 +198,79 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
     [questionKey, halt],
   );
 
-  // Автостарт: раз на ключ запитання, коли можна починати.
+  // Рамка YouTube: слухаємо відповіді плеєра; до першої відповіді повторюємо «listening».
+  useEffect(() => {
+    if (clip.source !== 'youtube') return;
+    const state = yt.current;
+    state.ready = false;
+    state.queue = [];
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frame.current?.contentWindow || event.origin !== YOUTUBE_ORIGIN) return;
+      let data: { event?: unknown; info?: unknown } | null;
+      try {
+        data = JSON.parse(String(event.data)) as { event?: unknown; info?: unknown } | null;
+      } catch {
+        return;
+      }
+      if (typeof data !== 'object' || data === null) return;
+      if (!state.ready) {
+        state.ready = true;
+        if (state.poll !== null) clearInterval(state.poll);
+        state.poll = null;
+        const queued = state.queue;
+        state.queue = [];
+        for (const queuedCommand of queued) sendNow(queuedCommand);
+      }
+      const playerState =
+        data.event === 'onStateChange'
+          ? data.info
+          : data.event === 'infoDelivery' && typeof data.info === 'object' && data.info !== null
+            ? (data.info as { playerState?: unknown }).playerState
+            : undefined;
+      if (data.event === 'onError') haltRef.current('failed');
+      else if (playerState === 1) {
+        state.playing = true;
+        clearBlock();
+      } else if (playerState === 0 && run.current.active) haltRef.current('stopped');
+    };
+    window.addEventListener('message', onMessage);
+    return () => {
+      window.removeEventListener('message', onMessage);
+      if (state.poll !== null) clearInterval(state.poll);
+      state.poll = null;
+      state.ready = false;
+    };
+  }, [clip.source, sendNow]);
+
+  const onFrameLoad = () => {
+    const state = yt.current;
+    if (state.ready || state.poll !== null) return;
+    const tick = () => {
+      post({ event: 'listening' });
+      post({ event: 'command', func: 'addEventListener', args: ['onStateChange'] });
+      post({ event: 'command', func: 'addEventListener', args: ['onError'] });
+    };
+    tick();
+    state.poll = setInterval(tick, LISTEN_INTERVAL_MS);
+  };
+
+  // Автостарт: раз на ключ запитання, коли можна починати; без того, що вже минуло.
   useEffect(() => {
     if (!ready || startedKey.current === questionKey) return;
     startedKey.current = questionKey;
     setPlays(0);
+    const offset = Math.max(0, elapsedRef.current);
+    if (offset >= clipRef.current.duration * 1000) {
+      run.current.active = false;
+      setState('stopped');
+      return;
+    }
     if (needsTouch()) {
       run.current.active = false;
       setState('blocked');
       return;
     }
-    begin(true);
+    begin(true, offset);
   }, [ready, questionKey, begin]);
 
   // Нова команда ведучого.
@@ -156,6 +278,8 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
     if (command === null || command.seq === lastSeq.current) return;
     lastSeq.current = command.seq;
     if (command.action === 'stop') halt('stopped');
+    else if (splashRef.current) return;
+    else if (needsTouch()) halt('blocked');
     else begin(true);
   }, [command, begin, halt]);
 
@@ -169,19 +293,10 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
     }
   }, [paused, suspend, begin]);
 
-  const onFrameLoad = () => {
-    const target = frame.current?.contentWindow;
-    target?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YOUTUBE_ORIGIN);
-    // Команди, надіслані до завантаження рамки, пропали: повторюємо, якщо звук має грати.
-    if (run.current.running && clipRef.current.source === 'youtube') {
-      youtube('seekTo', [clipRef.current.start, true]);
-      youtube('playVideo');
-    }
-  };
-
   const playing = state === 'playing';
+  const quiet = state === 'idle' || state === 'stopped';
   return (
-    <div className={playing ? 'audio-card is-playing' : 'audio-card'} data-state={state} data-plays={plays}>
+    <div className={`audio-card${playing ? ' is-playing' : ''}${quiet ? ' is-quiet' : ''}`} data-state={state} data-plays={plays}>
       {clip.source === 'file' ? (
         <audio
           ref={setMedia}
@@ -189,6 +304,11 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command }: Pro
           preload="auto"
           onEnded={() => halt('stopped')}
           onError={() => halt('failed')}
+          onLoadedMetadata={(event) => {
+            // Позицію, поставлену до метаданих, браузер міг скинути: ставимо ще раз, поки фрагмент на початку.
+            const element = event.currentTarget;
+            if (run.current.active && element.currentTime < run.current.seekPos - 0.5) element.currentTime = run.current.seekPos;
+          }}
         />
       ) : (
         <iframe

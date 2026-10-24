@@ -38,6 +38,13 @@ export function revealProgress(view: Clock, question: Windowed, serverNow: numbe
   return Math.min(1, Math.max(0, (view.limitMs - left) / window));
 }
 
+/** Скільки мс минуло від старту таймера запитання (з урахуванням паузи); 0 до старту, поза етапом question чи без таймера. */
+export function questionElapsedMs(view: Clock, serverNow: number): number {
+  if (view.phase !== 'question' || view.limitMs === null) return 0;
+  const left = view.remainingMs !== null ? view.remainingMs : view.endsAt !== null ? view.endsAt - serverNow : null;
+  return left === null ? 0 : Math.max(0, view.limitMs - left);
+}
+
 /** Стадія 0…10: floor(p × 10). */
 export function revealStage(progress: number): number {
   return Math.min(REVEAL_STAGES, Math.max(0, Math.floor(progress * REVEAL_STAGES + 1e-9)));

@@ -1653,6 +1653,34 @@ describe('HostScreen media (10b)', () => {
     expect(document.querySelector('.audio-card')).not.toBeNull();
   });
 
+  it('a short stage drop does not start local sound; a lasting one does', () => {
+    vi.useFakeTimers();
+    try {
+      const props = { code: '123456', stageUrl: 'x', joinUrl: 'y', send: vi.fn(async () => ({ ok: true as const })) };
+      const quick = during('question', single, { question: withAudio });
+      const { rerender } = render(<HostScreen view={quick} {...props} stageOnline />);
+      rerender(<HostScreen view={quick} {...props} stageOnline={false} />);
+      expect(screen.getByText('🎵 Звук грає на сцені')).toBeTruthy();
+      expect(document.querySelector('.audio-card')).toBeNull();
+      act(() => void vi.advanceTimersByTime(1000));
+      rerender(<HostScreen view={quick} {...props} stageOnline />);
+      act(() => void vi.advanceTimersByTime(5000));
+      rerender(<HostScreen view={quick} {...props} stageOnline={false} />);
+      act(() => void vi.advanceTimersByTime(3100));
+      expect(screen.getByText('🎵 Сцена не відкрита — звук грає тут')).toBeTruthy();
+      expect(document.querySelector('.audio-card')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('without a stage and past the clip, offers replay but does not start the sound', () => {
+    const late = during('question', single, { question: withAudio, limitMs: 20_000, endsAt: Date.now() + 5000 });
+    render(<HostScreen view={late} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />);
+    expect(document.querySelector('.audio-card')?.getAttribute('data-state')).toBe('stopped');
+    expect(button('Програти ще раз')).toBeTruthy();
+  });
+
   it('shows a revealing picture whole, with a tag', () => {
     const revealing = { ...publicOf(single), imageUrl: '/uploads/a.png', reveal: 'pixels' as const };
     show(during('question', single, { question: revealing }));

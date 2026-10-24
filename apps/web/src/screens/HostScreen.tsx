@@ -13,7 +13,7 @@ import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
 import { QuestionAudio } from './QuestionAudio';
 import { SliderScale } from './SliderScale';
-import { publicLeadMs, useRevealProgress } from '../reveal';
+import { publicLeadMs, questionElapsedMs, useRevealProgress } from '../reveal';
 import type { AudioCommand } from '../live/useGame';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -101,6 +101,23 @@ function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView;
   return view.paused && view.phase === 'board' ? <p className="banner is-away">{t('chooserAwayPaused', { name })}</p> : null;
 }
 
+/** Сцена, якої нема вже STAGE_GONE_MS: короткий розрив (перепідключення, оновлення сцени) не вмикає звук на пульті. */
+export const STAGE_GONE_MS = 3000;
+
+function useStageGone(stageOnline: boolean): boolean {
+  // Якщо сцени немає вже при відкритті пульту, чекати нічого.
+  const [gone, setGone] = useState(!stageOnline);
+  useEffect(() => {
+    if (stageOnline) {
+      setGone(false);
+      return;
+    }
+    const id = setTimeout(() => setGone(true), STAGE_GONE_MS);
+    return () => clearTimeout(id);
+  }, [stageOnline]);
+  return gone && !stageOnline;
+}
+
 export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
@@ -163,6 +180,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
   // Звук без сцени грає тут: починається після заставки запитання, як на сцені.
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  const stageGone = useStageGone(stageOnline);
   const underSplash = phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell');
   // Поступ проявлення потрібен лише запитанню з проявленням: решта не перемальовується щоразу.
   const revealP = useRevealProgress(view, view.question?.reveal ? view.question : null, offsetMs);
@@ -447,7 +465,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">
-          <p className="meta">{stageOnline ? t('audioOnStage') : t('audioHere')}</p>
+          <p className="meta">{stageGone ? t('audioHere') : t('audioOnStage')}</p>
           <div className="panel-actions">
             <button type="button" className="btn btn-small" onClick={() => void act('host:audio', { action: 'replay' })}>
               {t('audioReplay')}
@@ -456,13 +474,16 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               {t('audioStop')}
             </button>
           </div>
-          {!stageOnline && (
+          {stageGone && (
             <QuestionAudio
+              key={`${view.round?.index ?? 0}:${view.questionIndex}`}
               clip={clip}
               questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
               ready={phase === 'question' && !underSplash && !view.paused}
               paused={view.paused}
               command={audioCommand}
+              elapsedMs={questionElapsedMs(view, Date.now() + offsetMs)}
+              splash={underSplash}
             />
           )}
         </section>

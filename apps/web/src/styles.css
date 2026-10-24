@@ -6596,8 +6596,17 @@ label.powers-price {
   }
 }
 
+.audio-card.is-quiet {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
 .audio-only-frame {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 200px;
   height: 200px;
   border: 0;
@@ -6616,12 +6625,13 @@ label.powers-price {
 /* Шкала повзунка на розкритті. */
 .slider-scale {
   --mark-rows: 1;
-  --row-h: 1.6rem;
+  --row-h: 1.9rem;
   width: 100%;
   max-width: 56rem;
   margin: 1rem auto 0;
   padding: 0 1.5rem;
   box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .scale-axis {
@@ -6661,20 +6671,36 @@ label.powers-price {
 .scale-correct-label {
   position: absolute;
   bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0.175rem;
   margin-bottom: 0.25rem;
   font-size: 1.5rem;
   font-weight: 700;
   white-space: nowrap;
 }
 
+.scale-dot {
+  position: absolute;
+  top: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin: -0.2rem 0 0 -0.2rem;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
 .scale-limits {
+  position: relative;
   display: flex;
   justify-content: space-between;
   margin-top: 0.25rem;
   color: var(--dim);
   font-size: 0.875rem;
+}
+
+.scale-more {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .scale-marks {
@@ -6683,22 +6709,31 @@ label.powers-price {
   margin-top: 0.25rem;
 }
 
+/* Позначка стоїть рівно на значенні; ім'я зсувається так, щоб крайні не виходили за шкалу. */
 .scale-mark {
   position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transform: translateX(-50%);
+  width: 0;
   font-size: 0.875rem;
   line-height: 1.2;
   white-space: nowrap;
 }
 
 .scale-pin {
+  display: block;
   width: 0.5rem;
   height: 0.5rem;
+  margin-left: -0.25rem;
   border-radius: 50%;
   background: var(--dim);
+}
+
+.scale-name {
+  position: absolute;
+  top: 0.6rem;
+  left: 0;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scale-mark.is-near .scale-pin {

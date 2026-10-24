@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { QuestionAudio as Clip } from '@quiz/shared';
 import { QuestionAudio } from './QuestionAudio';
+import { YOUTUBE_ORIGIN } from './YouTubePlayer';
 
 const file: Clip = { source: 'file', url: '/uploads/abcdef0123456789.mp3', start: 12, duration: 10 };
 const tube: Clip = { source: 'youtube', id: 'fJ9rUzIMcZQ', start: 30, duration: 15 };
@@ -138,20 +139,99 @@ describe('QuestionAudio', () => {
     expect(pause).toHaveBeenCalled();
   });
 
-  it('drives a hidden YouTube frame by postMessage', async () => {
-    mount({ clip: tube, ready: false });
-    const frame = document.querySelector('iframe') as HTMLIFrameElement;
-    expect(frame.src).toContain('youtube-nocookie.com/embed/fJ9rUzIMcZQ');
-    expect(frame.getAttribute('aria-hidden')).toBe('true');
-    const post = vi.spyOn(frame.contentWindow as Window, 'postMessage');
-    cleanup();
+  it('plays only the rest of the clip when the question is already under way', async () => {
+    mount({ elapsedMs: 4000 });
+    await flush();
+    expect(document.querySelector('audio')?.currentTime).toBe(16);
+    act(() => void vi.advanceTimersByTime(5900));
+    expect(card().dataset.state).toBe('playing');
+    act(() => void vi.advanceTimersByTime(200));
+    expect(card().dataset.state).toBe('stopped');
+  });
+
+  it('does not start a clip that has already finished', async () => {
+    mount({ elapsedMs: 10_000 });
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    expect(card().dataset.state).toBe('stopped');
+    expect(card().className).toContain('is-quiet');
+  });
+
+  it('ignores replay during a splash and asks for a touch on a never-touched page', async () => {
+    const view = mount();
+    await flush();
+    view.again({ splash: true, command: { action: 'replay', seq: 1 } });
+    await flush();
+    expect(card().dataset.plays).toBe('1');
+    Object.defineProperty(navigator, 'userActivation', { value: { hasBeenActive: false }, configurable: true });
+    try {
+      view.again({ splash: false, command: { action: 'replay', seq: 2 } });
+      await flush();
+      expect(card().dataset.state).toBe('blocked');
+    } finally {
+      delete (navigator as unknown as { userActivation?: unknown }).userActivation;
+    }
+  });
+});
+
+describe('QuestionAudio on YouTube', () => {
+  const frame = () => document.querySelector('iframe') as HTMLIFrameElement;
+  const reply = (data: object, origin = YOUTUBE_ORIGIN) =>
+    act(() => void window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data), origin, source: frame().contentWindow })));
+  const funcs = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.flatMap(([message]) => {
+      const data = JSON.parse(String(message)) as { func?: string };
+      return data.func === undefined ? [] : [data.func];
+    });
+
+  it('is a hidden frame; commands wait for the player to answer, then flush in order', async () => {
     const view = mount({ clip: tube, ready: false });
-    const next = document.querySelector('iframe') as HTMLIFrameElement;
-    const spy = vi.spyOn(next.contentWindow as Window, 'postMessage');
+    expect(frame().src).toContain('youtube-nocookie.com/embed/fJ9rUzIMcZQ');
+    expect(frame().getAttribute('aria-hidden')).toBe('true');
+    const spy = vi.spyOn(frame().contentWindow as Window, 'postMessage');
     view.again({ ready: true });
     await flush();
-    const funcs = spy.mock.calls.map(([message]) => (JSON.parse(String(message)) as { func: string }).func);
-    expect(funcs).toEqual(expect.arrayContaining(['seekTo', 'playVideo']));
-    void post;
+    expect(funcs(spy)).not.toContain('playVideo');
+    fireEvent.load(frame());
+    act(() => void vi.advanceTimersByTime(500));
+    expect(spy.mock.calls.some(([message]) => String(message).includes('listening'))).toBe(true);
+    expect(funcs(spy)).not.toContain('playVideo');
+    reply({ event: 'initialDelivery' }, 'https://evil.example');
+    expect(funcs(spy)).not.toContain('playVideo');
+    reply({ event: 'initialDelivery' });
+    expect(funcs(spy).filter((func) => func === 'seekTo' || func === 'playVideo')).toEqual(['seekTo', 'playVideo']);
+    const polls = spy.mock.calls.length;
+    act(() => void vi.advanceTimersByTime(1000));
+    expect(spy.mock.calls.length).toBe(polls);
+  });
+
+  it('turns to blocked when the player does not start in time, and stays playing when it does', async () => {
+    mount({ clip: tube });
+    fireEvent.load(frame());
+    reply({ event: 'initialDelivery' });
+    act(() => void vi.advanceTimersByTime(1900));
+    reply({ event: 'onStateChange', info: 1 });
+    act(() => void vi.advanceTimersByTime(1000));
+    expect(card().dataset.state).toBe('playing');
+    cleanup();
+    mount({ clip: tube });
+    fireEvent.load(frame());
+    reply({ event: 'initialDelivery' });
+    act(() => void vi.advanceTimersByTime(2100));
+    expect(card().dataset.state).toBe('blocked');
+    expect(screen.getByRole('button', { name: '🔊 Увімкнути звук' })).toBeTruthy();
+  });
+
+  it('reports a player error and a finished video', async () => {
+    mount({ clip: tube });
+    fireEvent.load(frame());
+    reply({ event: 'onStateChange', info: 1 });
+    reply({ event: 'onStateChange', info: 0 });
+    expect(card().dataset.state).toBe('stopped');
+    cleanup();
+    mount({ clip: tube });
+    fireEvent.load(frame());
+    reply({ event: 'onError', info: 150 });
+    expect(card().dataset.state).toBe('failed');
   });
 });

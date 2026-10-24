@@ -17,7 +17,7 @@ import { TurnSchedule } from './TurnSchedule';
 import { RevealImage } from './RevealImage';
 import { QuestionAudio } from './QuestionAudio';
 import { SliderScale } from './SliderScale';
-import { publicLeadMs, revealStage, useRevealProgress } from '../reveal';
+import { publicLeadMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import type { AudioCommand } from '../live/useGame';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -224,11 +224,14 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
       {!finalReveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(revealP)} />}
       {question.audio?.clip != null && (
         <QuestionAudio
+          key={`${view.round?.index ?? 0}:${view.questionIndex}`}
           clip={question.audio.clip}
           questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
           ready={view.phase === 'question' && !busy && !view.paused}
           paused={view.paused}
           command={audioCommand}
+          elapsedMs={questionElapsedMs(view, Date.now() + offsetMs)}
+          splash={busy}
         />
       )}
       {!finalReveal && <YouTubePlayer video={question.video} masked={reveal === null} />}

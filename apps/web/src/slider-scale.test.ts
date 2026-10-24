@@ -17,4 +17,11 @@ describe('slider scale', () => {
     const rows = layoutMarks([{ value: -10 }, { value: 200 }], 0, 100);
     expect(rows.map((mark) => mark.pct)).toEqual([0, 100]);
   });
+
+  it('caps the rows and leaves the rest without a label', () => {
+    const marks = Array.from({ length: 20 }, (_, index) => ({ value: 50 + index * 0.1 }));
+    const laid = layoutMarks(marks, 0, 100, 8, 3);
+    expect(Math.max(...laid.map((mark) => mark.row ?? -1))).toBe(2);
+    expect(laid.filter((mark) => mark.row === null)).toHaveLength(17);
+  });
 });
