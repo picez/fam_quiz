@@ -1982,6 +1982,13 @@ describe('HostScreen: survey (10e)', () => {
     expect(screen.queryByRole('button', { name: /Відкрити рядок/ })).toBeNull();
   });
 
+  it('has a help button on the survey panel that sends nothing', () => {
+    const send = show(surveyView('question', 0));
+    fireEvent.click(within(document.querySelector('.host-survey') as HTMLElement).getByRole('button', { name: 'Довідка: 100 до 1' }));
+    expect(send).not.toHaveBeenCalled();
+    screen.getByRole('dialog', { name: '100 до 1' });
+  });
+
   it('warns about a skipped survey', () => {
     show(view({ phase: 'intro', surveySkipped: ['Що ви назвали про Київ?'] }));
     expect(screen.getByText('Запитання «Що ви назвали про Київ?» пропущено: хмара не дала слів, а запасних рядків немає.')).toBeTruthy();
