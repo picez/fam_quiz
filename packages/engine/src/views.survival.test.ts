@@ -51,6 +51,9 @@ const trialOpen = (options: RoundOptions = {}, trialRng = rng, wrong: string[] =
   return must(next(must(next(locked, 2000, rng)), 3000, trialRng));
 };
 
+/** Помилилися всі: «Далі» о 3000 — leaderboard без випробування. */
+const trialAllWrong = (): GameState => must(next(must(next(s1Answered(['p1', 'p2', 'p3']), 2000, rng)), 3000, rng));
+
 /** p2 вибув (питання на виживання не пройдено); p1 і p3 живі. Стан leaderboard. */
 const p2Out = () => must(answerTrial(trialOpen(), 'p2', NO, 4000));
 
@@ -108,13 +111,37 @@ describe('survival views (10h)', () => {
     expect(trial).toMatchObject({ kind: 'question', stage: 'open', done: 0, total: 1, reveal: null, limitMs: 15_000 });
     expect(trial?.question).not.toBeNull();
     expect(JSON.stringify(trial?.question)).not.toMatch(/"correct"|"accepted"/);
-    expect(JSON.stringify(hostView(s).survival)).not.toMatch(/"correct"|"accepted"/);
+    const { correct: _correct, responses: _responses, ...hostRest } = hostView(s);
+    expect(JSON.stringify(hostRest)).not.toMatch(/"correct"|"accepted"/);
+    expect(hostRow(s, 'p2')?.answer).toBeNull();
     // До закриття ніхто не бачить, правильна чи ні відповідь.
     expect(row(s, 'p2').trial).toBe('pending');
     const closed = must(answerTrial(s, 'p2', YES, 4000));
     expect(trialOf(closed)).toBe('closed');
     expect(survivalOf(closed).trial?.reveal).toMatchObject({ id: 't1', type: 'boolean', correct: true });
     expect(row(closed, 'p2').trial).toBe('safe');
+    expect(hostRow(closed, 'p2')?.answer).toEqual(YES);
+  });
+
+  it('the open trial hides who answered what from the host until it closes', () => {
+    const open = trialOpen({}, rng, ['p1', 'p2']);
+    const one = must(answerTrial(open, 'p2', YES, 4000));
+    expect(trialOf(one)).toBe('open');
+    expect(hostRow(one, 'p2')).toMatchObject({ trial: 'done', answer: null });
+    expect(JSON.stringify(hostView(one).survival)).not.toContain('"answer":{');
+    const closed = closeTrial(one);
+    expect(hostRow(closed, 'p2')?.answer).toEqual(YES);
+    expect(hostRow(closed, 'p1')?.answer).toBeNull();
+  });
+
+  it('nobody stays on the edge when everyone erred', () => {
+    const s = trialAllWrong();
+    expect(s.phase).toBe('leaderboard');
+    expect(survivalOf(s).verdict).toBe('all_wrong');
+    expect(survivalOf(s).rows.map((r) => r.status)).toEqual(['alive', 'alive', 'alive']);
+    expect(phone(s, 'p2').me.survival?.status).toBe('alive');
+    const revealed = must(next(s1Answered(['p1', 'p2', 'p3']), 2000, rng));
+    expect(survivalOf(revealed).rows.map((r) => r.status)).toEqual(['edge', 'edge', 'edge']);
   });
 
   it('traps stay hidden from everyone, the host included, until the trial closes', () => {

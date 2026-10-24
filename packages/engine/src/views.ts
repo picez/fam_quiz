@@ -1249,8 +1249,8 @@ function survivalInfo(state: GameState, forHost: boolean): SurvivalInfo | null {
   const rows = state.players.map((p): SurvivalRow => {
     const isOut = !alive.includes(p.id);
     const onEdge = edge.includes(p.id);
-    // Після закриття випробування хто вцілів, знову живий.
-    const status: SurvivalStatus = isOut ? 'ghost' : onEdge && trial?.stage !== 'closed' ? 'edge' : 'alive';
+    // «На межі» — лише на розкритті й поки відкрите випробування: після закриття (чи коли ніхто не вибуває) знову живий.
+    const status: SurvivalStatus = isOut ? 'ghost' : onEdge && (state.phase === 'reveal' || trial?.stage === 'open') ? 'edge' : 'alive';
     let trialState: SurvivalRow['trial'] = null;
     let door: SurvivalRow['door'] = null;
     if (trial !== null && onEdge) {
@@ -1268,6 +1268,7 @@ function survivalInfo(state: GameState, forHost: boolean): SurvivalInfo | null {
       status,
       outAfter: survivalOutAfter(state, p.id),
       ghost: Object.hasOwn(ghosts, p.id) ? { correct: shown ? ghosts[p.id].correct : null } : null,
+      answer: trial?.stage === 'closed' && onEdge ? (trial.answers[p.id]?.answer ?? null) : null,
       trial: trialState,
       door,
     };

@@ -636,6 +636,8 @@ export interface SurvivalRow extends BlitzPlayer {
   outAfter: number | null;
   /** Привид на поточному запитанні: correct — лише з розкриття (до того null); null — не привид або не відповідав. */
   ghost: { correct: boolean | null } | null;
+  /** Відповідь на питання на виживання — лише після закриття випробування (і пульту теж); інакше null. */
+  answer: Answer | null;
   /** Для «на межі»: pending / done, поки випробування відкрите (і пульт); safe / out — після закриття; інакше null. */
   trial: 'pending' | 'done' | 'safe' | 'out' | null;
   /** Удача: picked — вибрані двері (сцена й телефони — лише після закриття, пульт — наживо); auto — вибрано самі; trap — лише після закриття. */
