@@ -2161,8 +2161,9 @@ describe('HostScreen: bluff (10f)', () => {
     });
 
     it('a text answer on the reveal can be accepted or rejected, never «partly»', () => {
-      show(during('reveal', textQuestion, { round: wRound, wipeout: wInfo({ decide: null }), allowed: noDebuffs }));
+      show(during('reveal', textQuestion, { round: wRound, wipeout: wInfo({ decide: null }), allowed: noDebuffs, responses: [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Одеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null, clue: null }] }));
       expect(screen.queryByRole('button', { name: /Частково/ })).toBeNull();
+      expect(screen.getByRole('button', { name: t('accept') })).toBeTruthy();
     });
   });
 });

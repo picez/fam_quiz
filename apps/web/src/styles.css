@@ -8293,17 +8293,27 @@ button.wall-tile:disabled {
   overflow: hidden;
 }
 
-.stage-wipeout {
+/* Справжня колонка: заголовок і табло — за змістом, драбина бере всю решту висоти. */
+.stage-board.stage-wipeout {
+  display: flex;
   flex: 1 1 0;
+  flex-direction: column;
+  gap: 1.5vh;
   min-height: 0;
+  width: min(100%, 80rem);
 }
 
 .stage-wipeout .question {
   font-size: clamp(1.5rem, 3vw, 2.5rem);
 }
 
+.stage-wipeout .stage-clock .flap {
+  font-size: clamp(1.25rem, 4.5vh, 2.5rem);
+}
+
 .wipeout-ladder.is-stage {
   grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 2vw;
   min-height: 0;
@@ -8313,7 +8323,7 @@ button.wall-tile:disabled {
 .wipeout-ladder.is-stage .wipeout-steps {
   gap: 0.2rem;
   min-height: 0;
-  max-height: 56vh;
+  max-height: 62vh;
 }
 
 .wipeout-ladder.is-stage .wipeout-step {
@@ -8321,21 +8331,22 @@ button.wall-tile:disabled {
   min-height: 0;
   align-items: center;
   padding: 0 0.75rem;
-  font-size: clamp(0.75rem, 2.2vh, 1.375rem);
+  font-size: clamp(0.75rem, 2.8vh, 1.5rem);
   line-height: 1;
 }
 
 .wipeout-players.is-stage {
   align-content: start;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: 0.5rem 1.5vw;
   min-height: 0;
   overflow: hidden;
-  font-size: clamp(0.8125rem, 2.4vh, 1.375rem);
+  font-size: clamp(0.8125rem, 2.6vh, 1.375rem);
 }
 
-.wipeout-players.is-stage .wipeout-decided {
-  grid-column: 1 / -1;
+/* Багато гравців в одній групі — у дві й більше колонок. */
+.wipeout-players.is-stage .wipeout-group ul {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  column-gap: 1.5vw;
 }
 
 .wipeout-players.is-stage li {

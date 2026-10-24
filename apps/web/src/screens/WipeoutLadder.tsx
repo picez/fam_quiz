@@ -12,8 +12,10 @@ const GROUPS: { status: WipeoutStatus; title: 'wipeoutGroupIn' | 'wipeoutGroupTo
 ];
 
 /** Позначка рішення у вікні: сцена й телефон бачать лише «вирішив», пульт — вибір наживо. */
-function decisionMark(row: WipeoutRow): string | null {
+function decisionMark(row: WipeoutRow, size: Size): string | null {
   if (row.decision === 'decided') return t('wipeoutDecidedMark');
+  // Вибір наживо лише на пульті, навіть якщо зріз його містить.
+  if (size !== 'host') return row.decision === 'pending' ? t('wipeoutPendingMark') : null;
   if (row.decision === 'take') return t('wipeoutChoseTake');
   if (row.decision === 'stay') return t('wipeoutChoseStay');
   if (row.decision === 'pending') return t('wipeoutPendingMark');
@@ -33,7 +35,7 @@ export function WipeoutPlayers({ info, size, highlightId }: { info: WipeoutInfo;
             <h3 className="meta">{t(title)}</h3>
             <ul>
               {rows.map((row) => {
-                const mark = status === 'in' ? decisionMark(row) : null;
+                const mark = status === 'in' ? decisionMark(row, size) : null;
                 return (
                   <li key={row.playerId} className={row.playerId === highlightId ? 'is-me' : undefined}>
                     <span className="name">{row.nickname}</span>
@@ -51,7 +53,7 @@ export function WipeoutPlayers({ info, size, highlightId }: { info: WipeoutInfo;
 }
 
 /** Драбина «Ва-банк»: сходинки цін знизу вгору з поточною, а під нею гравці за станом. */
-export function WipeoutLadder({ info, size, highlightId }: { info: WipeoutInfo; size: Size; highlightId?: string }) {
+export function WipeoutLadder({ info, size, highlightId, players = true }: { info: WipeoutInfo; size: Size; highlightId?: string; players?: boolean }) {
   const steps = info.ladder.map((price, index) => ({ price, index })).reverse();
   return (
     <section className={`wipeout-ladder is-${size}`} aria-label={t('wipeoutLadderTitle')}>
@@ -71,7 +73,7 @@ export function WipeoutLadder({ info, size, highlightId }: { info: WipeoutInfo; 
           );
         })}
       </ol>
-      <WipeoutPlayers info={info} size={size} highlightId={highlightId} />
+      {players && <WipeoutPlayers info={info} size={size} highlightId={highlightId} />}
     </section>
   );
 }
