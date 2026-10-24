@@ -6373,7 +6373,7 @@ label.powers-price {
   font-size: 0.8125rem;
 }
 
-.host-help section + section {
+.host-help > section + section {
   margin-top: 2rem;
 }
 

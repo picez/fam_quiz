@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HELP_TOPICS, helpAnchor, helpIds } from '../help/host-help';
 import { HostHelp } from './HostHelp';
@@ -16,6 +16,15 @@ const renderAt = (path: string) =>
       <HostHelp />
     </MemoryRouter>,
   );
+
+function Jump() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate('/help#help-buff-shield')}>
+      jump
+    </button>
+  );
+}
 
 describe('HostHelp', () => {
   it('groups every entry by topic in order; teams stay hidden while empty', () => {
@@ -42,5 +51,21 @@ describe('HostHelp', () => {
     const marks = document.getElementById('help-cell-marks')!;
     expect(marks.classList.contains('is-target')).toBe(true);
     expect(marks.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it('a new anchor after mount clears the search and highlights its entry', () => {
+    render(
+      <MemoryRouter initialEntries={['/help']}>
+        <Jump />
+        <HostHelp />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText('Пошук за назвою'), { target: { value: 'зззз' } });
+    expect(document.getElementById('help-buff-shield')).toBeNull();
+    fireEvent.click(screen.getByText('jump'));
+    const shield = document.getElementById('help-buff-shield')!;
+    expect((screen.getByLabelText('Пошук за назвою') as HTMLInputElement).value).toBe('');
+    expect(shield.classList.contains('is-target')).toBe(true);
+    expect(shield.scrollIntoView).toHaveBeenCalled();
   });
 });

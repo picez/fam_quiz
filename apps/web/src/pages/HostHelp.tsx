@@ -23,16 +23,25 @@ export function HostHelp() {
   const { hash } = useLocation();
   const [query, setQuery] = useState('');
   const [target, setTarget] = useState<HelpId | null>(null);
+  const [jump, setJump] = useState(0);
   const found = searchHelp(query);
 
   useEffect(() => {
     const anchor = hash.slice(1);
-    if (anchor === '') return;
     const id = searchHelp('').find((candidate) => helpAnchor(candidate) === anchor);
-    if (id === undefined) return;
+    if (id === undefined) {
+      setTarget(null);
+      return;
+    }
+    // Пошук ховає записи, тож скидаємо його, щоб запис був у сторінці.
+    setQuery('');
     setTarget(id);
-    document.getElementById(anchor)?.scrollIntoView({ block: 'start' });
+    setJump((n) => n + 1);
   }, [hash]);
+
+  useEffect(() => {
+    if (jump > 0 && target !== null) document.getElementById(helpAnchor(target))?.scrollIntoView({ block: 'start' });
+  }, [jump, target]);
 
   return (
     <main className="app wide host-help">
