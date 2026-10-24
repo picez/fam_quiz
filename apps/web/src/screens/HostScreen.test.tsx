@@ -37,6 +37,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   notice: null,
   buffs: [],
   buffNotice: null,
+  debuffNotice: null,
   removed: [],
   splash: null,
   overtime: [],
@@ -1393,7 +1394,7 @@ describe('HostScreen player tools', () => {
   });
 
   it('the player row shows the debuff tag', () => {
-    show(running({ players: [{ ...players[0], debuff: { kind: 'mud', fired: true } }, players[1]] }));
+    show(running({ players: [{ ...players[0], debuff: { kind: 'mud', fired: true, by: null } }, players[1]] }));
     expect(screen.getByText('🟫 Брудний екран · діє')).toBeTruthy();
   });
 });

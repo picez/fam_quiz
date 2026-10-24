@@ -97,6 +97,15 @@ describe('changeType', () => {
 });
 
 describe('problemsOf', () => {
+  it('names the allowed range for an out-of-range or fractional debuff price', () => {
+    const base = quizWith(filled(newQuestion('boolean')));
+    for (const fog of [10, 9000, 150.5]) {
+      const quiz = { ...base, settings: { ...base.settings, debuffs: ['fog' as const], debuffPrices: { fog } } };
+      expect(problemsOf(quiz), String(fog)).toEqual(['Ціна дебафу — від 50 до 5000 балів.']);
+    }
+    expect(problemsOf({ ...base, settings: { ...base.settings, debuffs: ['fog'], debuffPrices: { fog: 2000 } } })).toEqual([]);
+  });
+
   it('asks for a title', () => {
     expect(problemsOf({ ...quizWith(filled(newQuestion('boolean'))), title: '  ' })).toEqual(['Дайте вікторині назву.']);
   });

@@ -14,7 +14,12 @@ export const MIRROR_SWAP_MS = 4000;
 const FREEZE_MS = 5000;
 /** Останні мілісекунди заморозки лід розсипається. */
 const CRUMBLE_MS = 400;
-const GUESTS = ['🐞', '🐈', '🐕', '🐞'];
+const GUESTS = ['🐞', '🐈', '🐕', '🐞', '🐈'];
+/** Цикл тремтіння, мс: поштовх — перші SHAKE_BURST частки, решта — спокій. CSS бере те саме число через --shake-cycle. */
+export const SHAKE_CYCLE_MS = 2800;
+export const SHAKE_BURST = 0.3;
+/** Вібрація на початку поштовху: дзиж — пауза — дзиж. */
+const SHAKE_BUZZ = [120, 60, 120];
 const TIPS: Partial<Record<DebuffKind, TextKey>> = { fog: 'debuffTip_fog', mud: 'debuffTip_mud', freeze: 'debuffTip_freeze' };
 
 /** 5000 мс, але не більше половини часу запитання; без таймера — 5000. */
@@ -71,6 +76,37 @@ function useElapsed(since: number | null, marks: number[], offsetMs: number): nu
   return elapsed;
 }
 
+/** Фаза циклу тремтіння від since за годинником сервера, мс (0…SHAKE_CYCLE_MS). */
+function shakePhase(since: number, offsetMs: number): number {
+  return Math.max(0, Date.now() + offsetMs - since) % SHAKE_CYCLE_MS;
+}
+
+/**
+ * Вібрація на початку кожного поштовху (якщо є navigator.vibrate і не зменшена анімація);
+ * since — мить спрацювання за годинником сервера. Перший поштовх — у мить спрацювання, далі за фазою циклу.
+ */
+export function useShakeBuzz(active: boolean, since: number | null, offsetMs: number): void {
+  useEffect(() => {
+    if (!active || since === null || reducedMotion()) return;
+    if (typeof navigator.vibrate !== 'function') return;
+    const buzz = () => navigator.vibrate(SHAKE_BUZZ);
+    let id: ReturnType<typeof setTimeout> | undefined;
+    const schedule = (early: boolean) => {
+      let wait = SHAKE_CYCLE_MS - shakePhase(since, offsetMs);
+      // Таймер спрацював трохи раніше межі циклу — не дзижчати двічі поспіль.
+      if (early && wait < SHAKE_CYCLE_MS / 2) wait += SHAKE_CYCLE_MS;
+      id = setTimeout(() => {
+        buzz();
+        schedule(true);
+      }, wait);
+    };
+    // Уже йде поштовх (зокрема в мить спрацювання) — дзижчимо одразу.
+    if (shakePhase(since, offsetMs) < SHAKE_CYCLE_MS * SHAKE_BURST) buzz();
+    schedule(false);
+    return () => clearTimeout(id);
+  }, [active, since, offsetMs]);
+}
+
 /** Лід заморозки: тріщини проявляються за етапами, на останньому лід розсипається. */
 function Ice({ stage }: { stage: number }) {
   return (
@@ -100,6 +136,8 @@ export function DebuffZone({
   children: ReactNode;
 }) {
   const kind = debuff?.kind ?? null;
+  // Хто наслав: нікнейм покупця; null — ведучий або покупця вилучено.
+  const by = debuff?.by ?? null;
   const freezeFor = freezeMs(limitMs);
   const marks =
     kind === 'freeze'
@@ -107,6 +145,10 @@ export function DebuffZone({
       : [BANNER_MS];
   const elapsed = useElapsed(debuff?.since ?? null, marks, offsetMs);
   const calm = kind !== null && reducedMotion();
+  const shakeSince = kind === 'shake' ? (debuff?.since ?? null) : null;
+  useShakeBuzz(kind === 'shake', shakeSince, offsetMs);
+  // Фаза на мить спрацювання: CSS-поштовх іде в такт із вібрацією, перемальовування його не зсувають.
+  const phase = useMemo(() => (shakeSince === null ? null : shakePhase(shakeSince, offsetMs)), [shakeSince, offsetMs]);
   const zoneRef = useRef<HTMLDivElement>(null);
 
   const banner = elapsed !== null && kind !== null && elapsed < BANNER_MS;
@@ -117,7 +159,12 @@ export function DebuffZone({
 
   const className = ['debuff-zone', kind !== null && `is-${kind}`, calm && 'is-calm'].filter(Boolean).join(' ');
   return (
-    <div ref={zoneRef} className={className} data-debuff={kind ?? undefined}>
+    <div
+      ref={zoneRef}
+      className={className}
+      data-debuff={kind ?? undefined}
+      style={phase === null ? undefined : ({ '--shake-cycle': `${SHAKE_CYCLE_MS}ms`, '--shake-phase': `${phase}ms` } as CSSProperties)}
+    >
       <fieldset className="debuff-content" disabled={frozen}>
         {children}
       </fieldset>
@@ -143,7 +190,7 @@ export function DebuffZone({
         ))}
       {banner && kind !== null && (
         <p className="debuff-banner" role="status">
-          <strong>{t('debuffCast', { name: debuffName(kind) })}</strong>
+          <strong>{by !== null ? t('debuffCastBy', { by, name: debuffName(kind) }) : t('debuffCast', { name: debuffName(kind) })}</strong>
           {tip !== undefined && <span>{t(tip)}</span>}
         </p>
       )}

@@ -583,6 +583,10 @@ export function problemsOf(quiz: Quiz): string[] {
   if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));
   if (draft.spares !== undefined) problems.push(...spareProblems(draft.spares));
   if (draft.settings.buffs?.includes('swap') && draft.spares === undefined) problems.push(t('problemSparesEmpty'));
+  const prices = Object.values(draft.settings.debuffPrices ?? {});
+  if (prices.some((price) => !Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice)) {
+    problems.push(t('problemDebuffPrice', { min: LIMITS.minDebuffPrice, max: LIMITS.maxDebuffPrice }));
+  }
   // Та сама умова, що в грі: без досить запитань до межі кнопка дуелі не з’явиться ніколи.
   const shortfall = duelShortfall(draft);
   if (shortfall !== null) problems.push(t('problemDuelUnreachable', { needed: shortfall }));

@@ -3145,7 +3145,7 @@ async function pranksGame() {
   await cast('Іра', /Тремтіння/);
   await nextQuestion(5);
   await olya.locator('.debuff-zone.is-guests.is-calm').waitFor();
-  expect(await olya.locator('.debuff-guest').count()).toBe(4);
+  expect(await olya.locator('.debuff-guest').count()).toBe(5);
   await olya.waitForTimeout(2000); // спокійні гості повільно проявляються
   await shot(olya, 'debuff7d-guests-calm-phone');
   await expectNoSideScroll(olya, 'debuff7d-guests-375');
@@ -5913,7 +5913,7 @@ async function denseGuide() {
     ['Типи запитань', 'types-5', 5],
     ['Типи запитань', 'types-2', 2],
     ['Бафи — ваші допомоги', 'buffs-8', 8],
-    ['Дебафи від ведучого', 'debuffs-6', 6],
+    ['Дебафи', 'debuffs-6', 6],
     ['Дуелі', 'duels', 0],
   ];
   for (const [at, [title, name, items]] of pages.entries()) {
@@ -6486,6 +6486,444 @@ async function restartGame() {
   await petro.goto(`${base}/play/${gone}`);
   await petro.getByText('Цієї гри вже немає', { exact: false }).waitFor();
   expect(await bodyText(petro)).not.toContain('Сервер перезапускається');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 9c: a player buys every debuff for a rival with points — prices from the editor, not enough points, one per question, a busy rival, the buyer named on every screen; each debuff is clearly visible on a 375 px phone and the rival still answers; purchases in the history', async () => {
+  try {
+    await debuffShopGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/**
+ * Розкид яскравості (стандартне відхилення luma 0…255) знімка елемента: однотонний «білий екран» дає ~0.
+ * Декодування — у самій сторінці (createImageBitmap + canvas), без нових залежностей.
+ */
+async function lumaSpread(page: Page, selector: string): Promise<number> {
+  const png = await page.locator(selector).first().screenshot();
+  return (await page.evaluate(`(async () => {
+    const bytes = Uint8Array.from(atob(${JSON.stringify(png.toString('base64'))}), (c) => c.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    const data = ctx.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    let sum = 0;
+    let squares = 0;
+    const n = data.length / 4;
+    for (let i = 0; i < data.length; i += 4) {
+      const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      sum += luma;
+      squares += luma * luma;
+    }
+    return Math.sqrt(Math.max(0, squares / n - (sum / n) ** 2));
+  })()`)) as number;
+}
+
+/**
+ * Зсув .debuff-content по x за ~ms, вибірка на кожен кадр (requestAnimationFrame): найбільший |зсув|
+ * і частка кадрів у спокої (|зсув| < 0,5 px).
+ */
+async function shakeSamples(page: Page, ms = 3000): Promise<{ max: number; calm: number }> {
+  const xs = (await page.evaluate(`new Promise((done) => {
+    const el = document.querySelector('.debuff-content');
+    const out = [];
+    const end = performance.now() + ${ms};
+    const step = () => {
+      out.push(parseFloat(getComputedStyle(el).translate) || 0);
+      if (performance.now() < end) requestAnimationFrame(step);
+      else done(out);
+    };
+    requestAnimationFrame(step);
+  })`)) as number[];
+  return { max: Math.max(...xs.map(Math.abs)), calm: xs.filter((x) => Math.abs(x) < 0.5).length / xs.length };
+}
+
+/** Частка площі зони, яку вкривають елементи selector (сума площ їхніх перетинів із зоною). */
+const COVERED = (selector: string) => `(() => {
+  const zone = document.querySelector('.debuff-zone').getBoundingClientRect();
+  let area = 0;
+  for (const el of document.querySelectorAll(${JSON.stringify(selector)})) {
+    const r = el.getBoundingClientRect();
+    const w = Math.max(0, Math.min(r.right, zone.right) - Math.max(r.left, zone.left));
+    const h = Math.max(0, Math.min(r.bottom, zone.bottom) - Math.max(r.top, zone.top));
+    area += w * h;
+  }
+  return area / (zone.width * zone.height);
+})()`;
+
+/** Висота найвищого видимого гостя, що перетинає зону, px; 0 — немає. */
+const TALLEST_GUEST = `(() => {
+  const zone = document.querySelector('.debuff-zone').getBoundingClientRect();
+  let tallest = 0;
+  for (const el of document.querySelectorAll('.debuff-guest')) {
+    const r = el.getBoundingClientRect();
+    const inside = r.right > zone.left && r.left < zone.right && r.bottom > zone.top && r.top < zone.bottom;
+    if (inside && Number(getComputedStyle(el).opacity) > 0.5) tallest = Math.max(tallest, r.height);
+  }
+  return tallest;
+})()`;
+
+/** Шапка телефона в один рядок і в межах екрана: кожен її елемент перетинається по вертикалі з кожним. */
+const HEADER_ONE_LINE = `(() => {
+  const items = [...document.querySelectorAll('header.bar > *')].map((el) => el.getBoundingClientRect()).filter((r) => r.height > 0);
+  const header = document.querySelector('header.bar').getBoundingClientRect();
+  return Math.max(...items.map((r) => r.top)) < Math.min(...items.map((r) => r.bottom)) && header.right <= innerWidth;
+})()`;
+
+const CONTENT_X = `parseFloat(getComputedStyle(document.querySelector('.debuff-content')).translate) || 0`;
+
+async function debuffShopGame() {
+  const host = await open('host9c', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host9c@example.com');
+
+  const options = [...single.options, { id: 'd', text: 'Харків' }];
+  const questions = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
+    ...withId(single, `q${n}`),
+    options,
+    text: `Запитання ${n}: столиця України?`,
+    points: 100,
+    timeLimit: 30,
+  }));
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', questions, { speedBonus: false, shuffleOptions: false })], {
+      leaderboard: 'each',
+      debuffs: ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'],
+    }),
+    title: 'Дебафи',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // Редактор: ціни Туману й Тремтіння, решта — плейсхолдер 200.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Дебафи' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('details.powers > summary').click();
+  const price = (name: string) => host.locator('.powers-row', { hasText: name }).getByLabel('Ціна, балів', exact);
+  await price('Туман').fill('100');
+  await price('Тремтіння').fill('150');
+  for (const name of ['Заморозка', 'Дзеркало', 'Гості', 'Брудний']) {
+    expect(await price(name).inputValue(), name).toBe('');
+    expect(await price(name).getAttribute('placeholder'), name).toBe('200');
+  }
+  await shot(host, 'debuff9c-editor-prices');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'debuff9c-editor-prices-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  await host.locator('.quiz-list li', { hasText: 'Дебафи' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage9c', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya9c', 375, 812);
+  const petro = await open('petro9c', 375, 812);
+  const ira = await open('ira9c', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const all = [stage, host, olya, petro, ira];
+
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const rowScore = async (nickname: string) => (await row(nickname).locator('.score').textContent())!;
+  const tool = async (nickname: string, kind: 'Бали' | 'Дебаф') => {
+    const button = row(nickname).getByRole('button', { name: kind, ...exact });
+    if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+    await row(nickname).locator('.player-tools').waitFor();
+  };
+  const give = async (nickname: string, points: number) => {
+    await tool(nickname, 'Бали');
+    await row(nickname).getByLabel('Своя сума', exact).fill(String(points));
+    await row(nickname).getByRole('button', { name: 'Нарахувати', ...exact }).click();
+    await expect.poll(() => rowScore(nickname)).toBe(String(points));
+  };
+  const sheet = (page: Page) => page.getByRole('dialog', { name: 'Дебафи для суперників' });
+  const openShop = async (page: Page) => {
+    await page.getByRole('button', { name: 'Дебафи', ...exact }).click();
+    await sheet(page).waitFor();
+  };
+  const notice = (page: Page) => page.locator('.live-notice.is-debuff');
+  const bought = 'Оля насилає дебаф на гравця Петро';
+  /** Покупка в аркуші: дебаф → суперник → «Купити за …»; аркуш закривається, сповіщення в Іри (жертві — ні: банер назве покупця). */
+  const buy = async (page: Page, debuff: RegExp, target: string, cost: number) => {
+    await openShop(page);
+    await sheet(page).locator('.shop-item', { hasText: debuff }).click();
+    await sheet(page).locator('.shop-target', { hasText: target }).click();
+    await sheet(page).getByRole('button', { name: `Купити за ${cost}`, ...exact }).click();
+    await sheet(page).waitFor({ state: 'detached' });
+    await notice(ira).getByText(bought, exact).waitFor();
+    expect(await notice(petro).count(), 'the victim gets no purchase notice').toBe(0);
+  };
+  const answer = async (page: Page) => {
+    await page.getByRole('button', { name: /Київ/ }).click();
+    await page.getByText(/^(Відповідь прийнято|Чекаємо на правильну відповідь)$/).first().waitFor();
+  };
+  const everyoneAnswers = async () => {
+    await answer(petro);
+    await answer(olya);
+    await answer(ira);
+  };
+  const toTable = async () => {
+    await click(host, 'Показати відповідь');
+    await click(host, 'Далі');
+    await host.getByRole('button', { name: 'Наступне запитання', ...exact }).waitFor();
+  };
+  const nextQuestion = async (n: number) => {
+    await click(host, 'Наступне запитання');
+    await petro.locator('h1', { hasText: `Запитання ${n}:` }).waitFor();
+  };
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await host.getByRole('button', { name: 'Почати раунд', ...exact }).waitFor();
+
+  // 1. Без балів: усі шість вимкнені з «Не вистачає балів», ціни 150 / 100 / 200; Escape закриває, фокус на кнопці.
+  await openShop(ira);
+  const items = sheet(ira).locator('.shop-item');
+  expect(await items.count()).toBe(6);
+  for (let i = 0; i < 6; i++) {
+    expect(await items.nth(i).isDisabled()).toBe(true);
+    await items.nth(i).getByText('Не вистачає балів', exact).waitFor();
+  }
+  expect(await sheet(ira).locator('.shop-item-price').allTextContents()).toEqual(['150', '100', '200', '200', '200', '200']);
+  await shot(ira, 'debuff9c-shop-poor-360');
+  await expectNoSideScroll(ira, 'debuff9c-shop-poor-360');
+  await ira.keyboard.press('Escape');
+  await sheet(ira).waitFor({ state: 'detached' });
+  expect(await ira.evaluate('document.activeElement?.getAttribute("aria-label")')).toBe('Дебафи');
+
+  // 2–3. Бали Олі від ведучого; покупка Туману для Петра; сповіщення без виду дебафу на кожному екрані.
+  await give('Оля', 2000);
+  await olya.locator('header.bar .score').getByText('2000', exact).waitFor();
+  expect(await olya.evaluate(HEADER_ONE_LINE), 'the phone header wraps at 375').toBe(true);
+  await shot(olya, 'debuff9c-header-375');
+  await openShop(olya);
+  await sheet(olya).locator('.shop-item', { hasText: /Туман/ }).click();
+  await sheet(olya).getByText('🌫️ Туман · 100').waitFor();
+  await sheet(olya).locator('.shop-target', { hasText: 'Петро' }).click();
+  await shot(olya, 'debuff9c-shop-pick-375');
+  await expectNoSideScroll(olya, 'debuff9c-shop-pick-375');
+  await sheet(olya).getByRole('button', { name: 'Купити за 100', ...exact }).click();
+  await sheet(olya).waitFor({ state: 'detached' });
+  await olya.locator('header.bar .score').getByText('1900', exact).waitFor();
+  for (const page of [stage, host, olya, ira]) {
+    await notice(page).getByText(bought, exact).waitFor();
+    expect(await notice(page).textContent()).not.toContain('Туман');
+  }
+  // Жертві сповіщення про покупку немає: її дебаф чекає, а банер, коли спрацює, назве покупця.
+  expect(await notice(petro).count(), 'the victim gets no purchase notice').toBe(0);
+  await stage.waitForTimeout(300); // сповіщення проявляється 0,25 с
+  await shot(stage, 'debuff9c-notice-stage');
+  await shot(olya, 'debuff9c-notice-375');
+  await expectApart(olya, '.live-notice.is-debuff', ['header.bar'], 'purchase notice 375×812');
+  await row('Петро').locator('.debuff-tag').getByText('🌫️ Туман від гравця Оля · чекає', exact).waitFor();
+  await tool('Петро', 'Дебаф');
+  await row('Петро').getByText('Куплено гравцем — скасувати не можна.', exact).waitFor();
+  expect(await host.getByRole('button', { name: 'Скасувати дебаф', ...exact }).count()).toBe(0);
+  await shot(host, 'debuff9c-host-row');
+  expect(await petro.locator('.debuff-zone').count()).toBe(0);
+
+  // 4. Обмеження: друга покупка Олі в тому ж циклі; Петро вже має дебаф — в Іри він вимкнений.
+  await openShop(olya);
+  await sheet(olya).getByText('Ви вже купили дебаф до наступного запитання', exact).waitFor();
+  for (let i = 0; i < 6; i++) expect(await sheet(olya).locator('.shop-item').nth(i).isDisabled()).toBe(true);
+  await olya.keyboard.press('Escape');
+  await sheet(olya).waitFor({ state: 'detached' });
+  await give('Іра', 300);
+  await ira.locator('header.bar .score').getByText('300', exact).waitFor();
+  await openShop(ira);
+  await sheet(ira).locator('.shop-item', { hasText: /Заморозка/ }).click();
+  const petroTarget = sheet(ira).locator('.shop-target', { hasText: 'Петро' });
+  expect(await petroTarget.isDisabled()).toBe(true);
+  await petroTarget.getByText('Уже має дебаф', exact).waitFor();
+  expect(await sheet(ira).locator('.shop-target', { hasText: 'Оля' }).isDisabled()).toBe(false);
+  await shot(ira, 'debuff9c-shop-busy-360');
+  await ira.keyboard.press('Escape');
+  await sheet(ira).waitFor({ state: 'detached' });
+
+  // 5. Туман (Q1): розмито, але не однотонно; протирається; відповідь проходить.
+  await click(host, 'Почати раунд');
+  await petro.locator('.debuff-zone[data-debuff="fog"]').waitFor();
+  await petro.getByText('Оля насилає на вас: Туман', exact).waitFor();
+  await afterSplash(...all);
+  await olya.locator('.debuff-zone h1', { hasText: 'Запитання 1:' }).waitFor();
+  if ((await petro.locator('.debuff-banner').count()) > 0) {
+    await expectApart(petro, '.debuff-banner', ['.debuff-zone h1', '.choice'], 'fog banner 375×812');
+  }
+  const clear = await lumaSpread(olya, '.debuff-zone h1');
+  const foggy = await lumaSpread(petro, '.debuff-zone h1');
+  console.log(`fog luma spread: ${foggy.toFixed(1)} under fog vs ${clear.toFixed(1)} clear`);
+  expect(foggy, `fog spread ${foggy} vs clear ${clear}: a flat wall`).toBeGreaterThan(0.15 * clear);
+  expect(foggy, `fog spread ${foggy} vs clear ${clear}: not blurred`).toBeLessThan(0.9 * clear);
+  const fogStyle = (await petro.evaluate(`(() => {
+    const style = getComputedStyle(document.querySelector('.debuff-fog'));
+    return { background: style.backgroundColor, filter: style.backdropFilter || style.webkitBackdropFilter };
+  })()`)) as { background: string; filter: string };
+  const alpha = /rgba?\(.*[,/]\s*([\d.]+)\)$/.exec(fogStyle.background)?.[1];
+  expect(Number(alpha ?? 1), fogStyle.background).toBeLessThanOrEqual(0.4);
+  expect(fogStyle.filter).toContain('blur(');
+  await shot(petro, 'debuff9c-fog-375');
+  const fogZone = (await petro.locator('.debuff-zone').boundingBox())!;
+  await wipeWithMouse(
+    petro,
+    [0.1, 0.3, 0.5, 0.7, 0.9].map((fx) => [fogZone.x + fogZone.width * fx, fogZone.y + fogZone.height * 0.5]),
+  );
+  await expect.poll(async () => Number(await petro.locator('.debuff-fog').getAttribute('data-cleared'))).toBeGreaterThan(0);
+  await petro.waitForTimeout(100);
+  await shot(petro, 'debuff9c-fog-wiped-375');
+  await answer(petro);
+  await petro.getByText('Відповідь прийнято', exact).waitFor();
+  await expectNoSideScroll(petro, 'debuff9c-fog-answered-375');
+  await answer(olya);
+  await answer(ira);
+  await toTable();
+
+  // 6. Тремтіння (Q2): сильні поштовхи й спокій між ними.
+  await buy(olya, /Тремтіння/, 'Петро', 150);
+  await nextQuestion(2);
+  await petro.locator('.debuff-zone.is-shake').waitFor();
+  await petro.getByText('Оля насилає на вас: Тремтіння екрана', exact).waitFor();
+  await afterSplash(...all);
+  await petro.waitForFunction(`Math.abs(${CONTENT_X}) > 6`, undefined, { timeout: 4000 });
+  await shot(petro, 'debuff9c-shake-burst-375');
+  const shake = await shakeSamples(petro);
+  console.log(`shake samples: ${JSON.stringify(shake)}`);
+  expect(shake.max, `shake ${JSON.stringify(shake)}`).toBeGreaterThanOrEqual(10);
+  expect(shake.calm, `shake ${JSON.stringify(shake)}`).toBeGreaterThanOrEqual(0.5);
+  // Кадр і відповідь у спокої між поштовхами.
+  await petro.waitForFunction(`${CONTENT_X} === 0`);
+  await shot(petro, 'debuff9c-shake-375');
+  await answer(petro);
+  await petro.getByText('Відповідь прийнято', exact).waitFor();
+  await answer(olya);
+  await answer(ira);
+  await toTable();
+
+  // 7. Заморозка (Q3): лід на всю зону, відповісти не можна; до 5,5 с лід тане, і відповідь проходить.
+  await buy(olya, /Заморозка/, 'Петро', 200);
+  await nextQuestion(3);
+  await petro.locator('.debuff-ice').waitFor();
+  const kyiv = petro.getByRole('button', { name: /Київ/ });
+  expect(await kyiv.isDisabled()).toBe(true);
+  expect(await petro.evaluate(COVERED('.debuff-ice'))).toBeGreaterThanOrEqual(0.9);
+  await shot(petro, 'debuff9c-freeze-375');
+  await petro.locator('fieldset.debuff-content:not([disabled])').waitFor({ timeout: 5500 });
+  expect(await kyiv.isDisabled()).toBe(false);
+  await shot(petro, 'debuff9c-freeze-thawed-375');
+  await answer(petro);
+  await petro.getByText('Відповідь прийнято', exact).waitFor();
+  await answer(olya);
+  await answer(ira);
+  await toTable();
+
+  // 8. Дзеркало (Q4) на 375×667: банер жертви й сповіщення про бали — одне над одним, остання відповідь видна; перевернуто, але відповісти можна.
+  await buy(olya, /Дзеркало/, 'Петро', 200);
+  await petro.setViewportSize({ width: 375, height: 667 });
+  await tool('Петро', 'Бали');
+  await nextQuestion(4);
+  await petro.locator('.debuff-banner').waitFor();
+  await row('Петро').getByRole('button', { name: '+100', ...exact }).click();
+  await petro.locator('.live-notice').waitFor();
+  await petro.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+  const victim = (await petro.evaluate(`(() => {
+    const box = (element) => {
+      if (element === null) return null;
+      const r = element.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const choices = [...document.querySelectorAll('.choice')];
+    return {
+      banner: box(document.querySelector('.debuff-banner')),
+      notices: [...document.querySelectorAll('.live-notice')].map(box),
+      content: Math.max(...choices.map((element) => element.getBoundingClientRect().bottom)),
+    };
+  })()`)) as { banner: Box | null; notices: Box[]; content: number };
+  console.log(`victim stack 375×667: ${JSON.stringify(victim)}`);
+  await shot(petro, 'debuff9c-victim-notice-375x667');
+  expect(victim.banner, 'the debuff banner was gone before the check (3 s)').not.toBeNull();
+  expect(victim.notices.length).toBe(1);
+  const [pointsNotice] = victim.notices as [Box];
+  expect(overlaps(pointsNotice, victim.banner!), 'the notice covers the banner').toBe(false);
+  expect(pointsNotice.y + pointsNotice.height <= victim.banner!.y + 0.5, 'the notice is above the banner').toBe(true);
+  expect(victim.content <= pointsNotice.y + 0.5, 'the last answer is under the notice').toBe(true);
+  await petro.setViewportSize({ width: 375, height: 812 });
+  await petro.locator('.debuff-zone.is-mirror').waitFor();
+  await afterSplash(...all);
+  expect(await petro.evaluate(`getComputedStyle(document.querySelector('.debuff-content')).transform`)).toMatch(/^matrix\(-1/);
+  await shot(petro, 'debuff9c-mirror-375');
+  await everyoneAnswers();
+  await toTable();
+
+  // 9. Гості (Q5): великі, видно протягом 2 с; дотик крізь гостя проходить.
+  await buy(olya, /Гості/, 'Петро', 200);
+  await nextQuestion(5);
+  await petro.locator('.debuff-zone.is-guests').waitFor();
+  await afterSplash(...all);
+  expect(await petro.locator('.debuff-guest').count()).toBe(5);
+  await expect.poll(async () => (await petro.evaluate(TALLEST_GUEST)) as number, { timeout: 2000, interval: 100 }).toBeGreaterThanOrEqual(70);
+  await shot(petro, 'debuff9c-guests-375');
+  await everyoneAnswers();
+  await toTable();
+
+  // 10. Бруд (Q6): шість великих плям, протирання зменшує їх.
+  await buy(olya, /Брудний/, 'Петро', 200);
+  await nextQuestion(6);
+  await petro.locator('.debuff-splat').nth(5).waitFor();
+  await afterSplash(...all);
+  expect(await petro.locator('.debuff-splat').count()).toBe(6);
+  expect(await petro.evaluate(COVERED('.debuff-splat'))).toBeGreaterThanOrEqual(0.25);
+  await shot(petro, 'debuff9c-mud-375');
+  const mudLeft = async () =>
+    ((await petro.evaluate(`[...document.querySelectorAll('.debuff-splat')].map((el) => Number(el.style.opacity))`)) as number[]).reduce(
+      (a, b) => a + b,
+      0,
+    );
+  const mudBefore = await mudLeft();
+  const splat = (await petro.locator('.debuff-splat').first().boundingBox())!;
+  await wipeWithMouse(
+    petro,
+    Array.from({ length: 4 }, (_, i) => [splat.x + splat.width / 2 + (i % 2 === 0 ? -2 : 2), splat.y + splat.height / 2]),
+  );
+  await expect.poll(mudLeft).toBeLessThan(mudBefore);
+  await petro.waitForTimeout(250);
+  await shot(petro, 'debuff9c-mud-wiped-375');
+  await answer(petro);
+  await petro.getByText('Відповідь прийнято', exact).waitFor();
+  await expectNoSideScroll(petro, 'debuff9c-mud-answered-375');
+  await answer(olya);
+  await answer(ira);
+  await toTable();
+
+  // 11. Q7 без дебафу; рахунок Олі: 2000 + 7 × 100 − (100 + 150 + 4 × 200) = 1650 — шапка, пульт і сцена.
+  await nextQuestion(7);
+  expect(await petro.locator('.debuff-zone').getAttribute('data-debuff')).toBeNull();
+  await everyoneAnswers();
+  await click(host, 'Показати відповідь');
+  await olya.getByText('Правильно!').waitFor();
+  await olya.locator('header.bar .score').getByText('1650', exact).waitFor();
+  expect(await rowScore('Оля')).toBe('1650');
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const standing = stage.locator('.standings li', { hasText: 'Оля' });
+  await standing.waitFor();
+  expect(await standing.locator('.score').textContent()).toBe('1650');
+
+  // 12. Історія: шість рядків покупок.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Дебафи/ }).click();
+  await host.getByText('Оля купує 🌫️ Туман для гравця Петро: −100', exact).waitFor();
+  await host.getByText('Оля купує 📳 Тремтіння екрана для гравця Петро: −150', exact).waitFor();
+  expect(await host.getByText(/^Оля купує .+ для гравця Петро: −200$/).count()).toBe(4);
+  await shot(host, 'debuff9c-history');
 
   expect(problems).toEqual([]);
 }

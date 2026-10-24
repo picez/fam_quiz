@@ -33,10 +33,10 @@ function toBoard(state: GameState): GameState {
 describe('host debuffs', () => {
   it('a debuff waits until the next question and fires for everyone answering a classic question', () => {
     let state = must(setDebuff(must(start(lobby3())), 'p1', 'fog'));
-    expect(state.debuffs.p1).toEqual({ kind: 'fog', firedAt: null, since: null });
+    expect(state.debuffs.p1).toEqual({ kind: 'fog', firedAt: null, since: null, by: null });
     expect(activeDebuff(state, 'p1')).toBeNull();
     state = must(next(state, T0)); // перше запитання
-    expect(state.debuffs.p1).toEqual({ kind: 'fog', firedAt: 0, since: T0 });
+    expect(state.debuffs.p1).toEqual({ kind: 'fog', firedAt: 0, since: T0, by: null });
     expect(activeDebuff(state, 'p1')?.kind).toBe('fog');
     state = must(lock(state));
     expect(state.debuffs.p1).toBeUndefined();
@@ -64,7 +64,7 @@ describe('host debuffs', () => {
     state = must(next(state, T0 + 2000)); // leaderboard
     expect(state.phase).toBe('leaderboard');
     state = must(next(state, T0 + 3000)); // друге запитання
-    expect(state.debuffs.p1).toEqual({ kind: 'shake', firedAt: 1, since: T0 + 3000 });
+    expect(state.debuffs.p1).toEqual({ kind: 'shake', firedAt: 1, since: T0 + 3000, by: null });
   });
 
   it('a debuff waits through a cell chosen by someone else and a voice cell, fires on a blitz cell', () => {
@@ -80,7 +80,7 @@ describe('host debuffs', () => {
     state = must(pickCell(toBoard(must(lock(state))), 'p2', 'c12', T0, rng)); // усна клітинка p2
     expect(state.debuffs.p3.firedAt).toBeNull();
     state = must(pickCell(toBoard(must(lock(state))), 'p3', 'c13', T0, rng)); // бліц-клітинка
-    expect(state.debuffs.p3).toEqual({ kind: 'mirror', firedAt: 2, since: T0 });
+    expect(state.debuffs.p3).toEqual({ kind: 'mirror', firedAt: 2, since: T0, by: null });
 
     const own = must(pickCell(must(next(must(setDebuff(intro(), 'p1', 'fog')), T0, rng)), 'p1', 'c11', T0, rng));
     expect(own.debuffs.p1.firedAt).toBe(0);
@@ -98,7 +98,7 @@ describe('host debuffs', () => {
     state = must(setConnected(state, 'p2', true, T0 + 1000));
     state = must(next(must(next(must(lock(state)), T0)), T0)); // reveal → leaderboard
     state = must(next(state, T0 + 5000));
-    expect(state.debuffs.p2).toEqual({ kind: 'mirror', firedAt: 1, since: T0 + 5000 });
+    expect(state.debuffs.p2).toEqual({ kind: 'mirror', firedAt: 1, since: T0 + 5000, by: null });
   });
 
   it('blitz rounds, the final and the word chain count as answering for everyone', () => {
@@ -116,7 +116,7 @@ describe('host debuffs', () => {
     final = must(placeWager(final, 'p1', 0, T0, rng));
     final = must(placeWager(final, 'p2', 0, T0 + 500, rng));
     expect(final.phase).toBe('question');
-    expect(final.debuffs.p2).toEqual({ kind: 'freeze', firedAt: 0, since: T0 + 500 });
+    expect(final.debuffs.p2).toEqual({ kind: 'freeze', firedAt: 0, since: T0 + 500, by: null });
   });
 
   it('a kicked player loses the debuff; ending the round mid-question leaves no stale debuff on the stage', () => {
@@ -128,7 +128,7 @@ describe('host debuffs', () => {
     const ended = must(endRound(firing, T0 + 1000));
     expect(ended.phase).toBe('round_end');
     expect(shownDebuff(ended, 'p1')).toBeNull();
-    expect(must(setDebuff(ended, 'p1', 'mud')).debuffs.p1).toEqual({ kind: 'mud', firedAt: null, since: null });
+    expect(must(setDebuff(ended, 'p1', 'mud')).debuffs.p1).toEqual({ kind: 'mud', firedAt: null, since: null, by: null });
   });
 
   it('a waiting debuff does not survive the end of the game on the stage', () => {

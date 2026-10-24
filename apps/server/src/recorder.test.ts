@@ -224,6 +224,28 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('records a purchase with the kind and the target nickname; the participant score includes the price', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.olena, points: 300 })).toEqual({ ok: true });
+    expect(ctx.manager.buyDebuff(ctx.room, ctx.olena, ctx.taras, 'fog')).toEqual({ ok: true });
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    ctx.host('end');
+
+    const { participants } = await ctx.saved();
+    const adjustments = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(adjustments.map((a) => [a.participantId, a.seq, a.points, a.source, a.debuff, a.targetNickname])).toEqual([
+      [ctx.olena, 1, 300, 'host', null, null],
+      [ctx.olena, 2, -200, 'debuff', 'fog', 'Тарас'],
+    ]);
+    expect(participants.map((p) => [p.nickname, p.score])).toEqual([
+      ['Олена', 1100],
+      ['Тарас', 0],
+    ]);
+    expect(ctx.errors).toEqual([]);
+  });
+
   it("a kicked player's adjustments go with the participant", async () => {
     const ctx = await setup();
     ctx.host('start');

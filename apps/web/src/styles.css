@@ -20,9 +20,9 @@
   --pending-soft: rgb(255 122 26 / 0.18);
   --panel: rgb(255 255 255 / 0.05);
   --line: rgb(245 241 230 / 0.16);
-  --ice: rgb(190 230 255 / 0.55);
+  --ice: rgb(190 230 255 / 0.72);
   --ice-line: rgb(255 255 255 / 0.85);
-  --fog: rgb(222 226 238 / 0.78);
+  --fog: rgb(150 160 185 / 0.3);
   --mud: #5b3a1e;
   --mud-dark: #3e2612;
   --sort-zone: rgb(155 140 255 / 0.16);
@@ -3503,17 +3503,28 @@ button.match-item {
   color: var(--amber);
 }
 
-/* Сповіщення про бали й значки дебафів: position: fixed, тож ніщо на екрані не зсувається. */
-.live-notice {
+/*
+ * Стовпчик сповіщень (бали, баф, покупка дебафу): position: fixed, тож ніщо на екрані не зсувається;
+ * усередині — flex-колонка, тож сповіщення, навіть перенесені на два рядки, стоять одне під одним і не накладаються.
+ */
+.live-notices {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  /* По центру без transform: ширина за вмістом до всієї ширини екрана, а не до половини (left: 50%). */
   left: 0;
   right: 0;
-  width: fit-content;
-  margin-inline: auto;
   z-index: 66; /* над заставкою (65): тости ±15 с і бафів не ховаються під нею */
-  max-width: calc(100vw - 2rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 1rem;
+  pointer-events: none;
+}
+
+.live-notice {
+  /* По центру без transform: ширина за вмістом до всієї ширини стовпчика. */
+  width: fit-content;
+  max-width: 100%;
   padding: 0.6rem 1.1rem;
   border: 2px solid var(--notice-up);
   border-radius: 0.75rem;
@@ -3539,22 +3550,25 @@ button.match-item {
 }
 
 .app.player:has(.debuff-banner) {
-  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6rem + var(--notice-room));
+  padding-bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--notice-room));
 }
 
-/* На пульті внизу липка панель дій («Закрити запитання»): сповіщення стоїть угорі, над шапкою. */
-.host .live-notice {
+/* На пульті внизу липка панель дій («Закрити запитання»): сповіщення стоять угорі, над шапкою. */
+.host .live-notices {
   top: max(0.75rem, env(safe-area-inset-top));
   bottom: auto;
 }
 
 /* Поки вгорі смуга «Немає зв'язку», сповіщення пульта стоїть під нею, а не під смугою. */
-body:has(.banner.is-offline) .host .live-notice {
+body:has(.banner.is-offline) .host .live-notices {
   top: calc(max(0.75rem, env(safe-area-inset-top)) + 3rem);
 }
 
-.stage .live-notice {
+.stage .live-notices {
   bottom: 0.75rem;
+}
+
+.stage .live-notice {
   padding: 0.35rem 1rem;
   font-size: 1.5rem;
 }
@@ -3688,9 +3702,9 @@ body:has(.banner.is-offline) .host .live-notice {
   pointer-events: none;
 }
 
-/* Сповіщення про бали в ці секунди стає над банером, а не на нього. */
-body:has(.debuff-banner) .live-notice {
-  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6rem);
+/* Сповіщення в ці секунди стають над банером, а не на нього. */
+body:has(.debuff-banner) .live-notices {
+  bottom: calc(var(--banner-base) + var(--debuff-banner-room));
 }
 
 .debuff-banner span {
@@ -3703,6 +3717,8 @@ body:has(.debuff-banner) .live-notice {
   z-index: 2;
   border-radius: 0.75rem;
   background: var(--ice);
+  /* Іній по краях: лід видно здалеку, а не лише тріщини. */
+  box-shadow: inset 0 0 1.5rem rgb(255 255 255 / 0.8);
 }
 
 .debuff-ice svg {
@@ -3728,14 +3744,22 @@ body:has(.debuff-banner) .live-notice {
   inset: 0;
   z-index: 1;
   border-radius: 0.75rem;
+  /* Легкий серпанок і помірне розмиття (3px): слова й обриси тексту вгадуються, а не біла стіна. */
   background: var(--fog);
-  -webkit-backdrop-filter: blur(7px);
-  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   /* Маска — крихітний canvas сітки; розтягування дає м'які краї протертих місць. */
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
+}
+
+/* Без розмиття туман — лише густіший серпанок. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .debuff-fog {
+    background: rgb(150 160 185 / 0.6);
+  }
 }
 
 .debuff-splat {
@@ -3754,14 +3778,16 @@ body:has(.debuff-banner) .live-notice {
   top: var(--lane);
   left: 0;
   z-index: 1;
-  font-size: 4.5rem;
+  font-size: 5.5rem;
   line-height: 1;
+  filter: drop-shadow(0 0.15rem 0.3rem rgb(0 0 0 / 0.6));
   opacity: 0;
 }
 
-/* Спокійні варіанти для зменшеної анімації: без руху, лише розмиття й прозорість. */
+/* Спокійні варіанти для зменшеної анімації: без руху — розмиття, прозорість і жовта рамка в такт поштовхам. */
 .is-calm.is-shake .debuff-content {
-  animation: debuff-ghost 3s infinite;
+  border-radius: 0.75rem;
+  animation: debuff-ghost var(--shake-cycle, 2800ms) infinite;
 }
 
 .is-calm .debuff-guest {
@@ -3772,14 +3798,16 @@ body:has(.debuff-banner) .live-notice {
 
 @keyframes debuff-ghost {
   0%,
-  26%,
+  30%,
   100% {
+    box-shadow: none;
     filter: none;
     opacity: 1;
   }
 
-  1%,
-  25% {
+  2%,
+  27% {
+    box-shadow: 0 0 0 4px var(--amber);
     filter: blur(1.5px);
     opacity: 0.6;
   }
@@ -3802,14 +3830,16 @@ body:has(.debuff-banner) .live-notice {
     transition: opacity 0.2s ease-out;
   }
 
+  /* Фаза — від миті спрацювання (--shake-phase), тож поштовх збігається з вібрацією телефона. */
   .is-shake:not(.is-calm) .debuff-content {
-    animation: debuff-shake 3s infinite;
+    animation: debuff-shake var(--shake-cycle, 2800ms) infinite;
+    animation-delay: calc(-1 * var(--shake-phase, 0ms));
   }
 
   /* Гість на всю ширину зони: translate 100% — рівно її ширина, рух іде на компоненті (без left). */
   .debuff-guest {
     right: 0;
-    animation: debuff-run 5s linear var(--delay) infinite;
+    animation: debuff-run 4s linear var(--delay) infinite;
   }
 
   .debuff-ice .crack {
@@ -3820,32 +3850,58 @@ body:has(.debuff-banner) .live-notice {
     animation: debuff-crumble 0.4s ease-in forwards;
   }
 
+  /* Поштовх — перші 30 % циклу (≈0,85 с), зсув до ±14px і поворот до ±2,5° зі згасанням; решта 70 % — спокій, щоб натиснути. */
   @keyframes debuff-shake {
     0%,
-    20%,
+    30%,
     100% {
       translate: 0 0;
       rotate: 0deg;
     }
 
-    4% {
-      translate: -6px 2px;
-      rotate: -1deg;
+    3% {
+      translate: -14px 4px;
+      rotate: -2.5deg;
     }
 
-    8% {
-      translate: 6px -2px;
-      rotate: 1deg;
+    6% {
+      translate: 14px -4px;
+      rotate: 2.5deg;
+    }
+
+    9% {
+      translate: -12px -3px;
+      rotate: -2deg;
     }
 
     12% {
-      translate: -5px -1px;
-      rotate: -0.8deg;
+      translate: 12px 3px;
+      rotate: 2deg;
     }
 
-    16% {
-      translate: 4px 1px;
-      rotate: 0.6deg;
+    15% {
+      translate: -10px 3px;
+      rotate: -1.6deg;
+    }
+
+    18% {
+      translate: 10px -3px;
+      rotate: 1.6deg;
+    }
+
+    21% {
+      translate: -8px -2px;
+      rotate: -1.2deg;
+    }
+
+    24% {
+      translate: 6px 2px;
+      rotate: 0.9deg;
+    }
+
+    27% {
+      translate: -4px 1px;
+      rotate: -0.5deg;
     }
   }
 
@@ -4490,11 +4546,11 @@ body:has(.debuff-banner) .duel-banner {
 }
 
 /* Сповіщення про бали стає над смугою, а з банером дебафу — над обома. Сцена має власне правило нижче. */
-body:has(.duel-banner) .live-notice {
+body:has(.duel-banner) .live-notices {
   bottom: calc(var(--banner-base) + var(--duel-banner-room));
 }
 
-body:has(.duel-banner):has(.debuff-banner) .live-notice {
+body:has(.duel-banner):has(.debuff-banner) .live-notices {
   bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room));
 }
 
@@ -4692,7 +4748,7 @@ body:has(.duel-banner):has(.debuff-banner) .live-notice {
   margin: 0;
 }
 
-.stage .duel-banner ~ .live-notice {
+.stage .duel-banner ~ .live-notices {
   bottom: 5rem;
 }
 
@@ -4762,6 +4818,27 @@ label.powers-item {
 
 .powers-item input:disabled ~ span {
   opacity: 0.6;
+}
+
+.powers-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.75rem;
+  min-width: 0;
+}
+
+label.powers-price {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  font-size: 0.875rem;
+}
+
+.powers-price input {
+  width: 6rem;
+  min-width: 0;
 }
 
 .powers-warn {
@@ -5070,13 +5147,14 @@ label.powers-item {
   white-space: pre;
 }
 
-/* Сповіщення про баф — у тому ж стовпчику, під сповіщенням балів від ведучого: те піднімається на рядок. */
+/* Сповіщення про баф — у стовпчику .live-notices під сповіщенням балів від ведучого (порядок DOM). */
 .live-notice.is-buff {
   border-color: var(--buff-accent);
 }
 
-.live-notice:has(~ .live-notice.is-buff) {
-  translate: 0 -3.5rem;
+/* Сповіщення про покупку дебафу — у тому ж стовпчику найнижче; на пульті стовпчик угорі, тож воно під бафом. */
+.live-notice.is-debuff {
+  border-color: var(--amber);
 }
 
 /* «Чекаємо …» на сцені висить під табло поза потоком: поява на спільному кінці нічого не зсуває. */
@@ -6086,6 +6164,89 @@ label.powers-item {
 .table-card h2,
 .table-card p {
   margin: 0;
+}
+
+/* «😈» у шапці: лише значок, висота як у «Таблиця», тож шапка 375 px лишається в один рядок. */
+.table-button.shop-button {
+  padding-inline: 0.5rem;
+}
+
+/* З «😈» у шапці стоїть до трьох кнопок: проміжки вужчі, щоб ім'я на 375 px не стискалося до самої трикрапки. */
+.bar:has(.shop-button) {
+  gap: 0.5rem;
+}
+
+/* Аркуш «Дебафи»: сітка дебафів у дві колонки, кнопка покупки — на всю ширину внизу картки. */
+.shop-card h3,
+.shop-card p {
+  margin: 0;
+}
+
+.shop-card h3 {
+  font-size: 1rem;
+}
+
+.shop-block {
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid var(--amber);
+  background: var(--tip-bg);
+}
+
+.shop-items,
+.shop-targets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.shop-item,
+.shop-target {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  min-height: 3rem;
+  padding: 0.5rem 0.6rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.shop-item:disabled,
+.shop-target:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.shop-target[aria-pressed='true'] {
+  border-color: var(--amber);
+  background: var(--tip-bg);
+}
+
+.shop-item-name,
+.shop-target-name {
+  font-weight: 700;
+}
+
+.shop-item-desc,
+.shop-item-note {
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+.shop-item-price {
+  color: var(--amber);
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-buy {
+  width: 100%;
 }
 
 /* «До меню» після гри: у розкладці екрана гравця й ведучого; на сцені — кнопка в куті. */

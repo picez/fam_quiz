@@ -54,6 +54,8 @@ export const debuffSchema = z.object({ playerId, kind: z.enum(DEBUFF_KINDS) });
 export const buffSchema = z.object({ kind: z.enum(BUFF_KINDS) });
 /** Друга спроба після часткової першої: keep — залишити першу, інакше ще спроба. */
 export const retrySchema = z.object({ keep: z.boolean() });
+/** Купити дебаф для суперника (9c): ціль і вид; покупець — з ідентичності сокета. */
+export const buyDebuffSchema = z.object({ targetId: playerId, kind: z.enum(DEBUFF_KINDS) });
 export const undebuffSchema = z.object({ playerId });
 /** Голос залу за гравця з бафом «Запитання в залі». */
 export const voteSchema = z.object({ askerId: playerId, answer: answerSchema });
@@ -79,6 +81,8 @@ export interface ClientToServerEvents {
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;
   /** Узяти баф на поточне запитання. */
   'player:buff': (payload: z.infer<typeof buffSchema>, ack: Ack) => void;
+  /** Купити дебаф для суперника за бали. */
+  'player:debuff': (payload: z.infer<typeof buyDebuffSchema>, ack: Ack) => void;
   /** Вибір після часткової першої відповіді другої спроби. */
   'player:retry': (payload: z.infer<typeof retrySchema>, ack: Ack) => void;
   /** Голос залу за гравця з бафом «Запитання в залі». */

@@ -11,11 +11,13 @@ import { HEARTBEAT_MS, LEASE_MS, MAX_AGE_MS, RoomStore, type RoomStoreOptions } 
 
 const HOST: Identity = { role: 'host', playerId: null };
 const correct = { type: 'single', optionId: 'b' } as const;
-/** Поля паузи й зв'язку — єдине, чим відновлений зріз може відрізнятися. */
+/** Поля паузи й зв'язку (і «block»: null чи «paused» у shop/buff) — єдине, чим відновлений зріз може відрізнятися. */
 const steady = (view: unknown) =>
   JSON.parse(
     JSON.stringify(view, (key, value) =>
-      ['paused', 'pausedAt', 'endsAt', 'startedAt', 'remainingMs', 'connected', 'serverNow'].includes(key) ? undefined : value,
+      ['paused', 'pausedAt', 'endsAt', 'startedAt', 'remainingMs', 'connected', 'offline', 'serverNow'].includes(key) || (key === 'block' && (value === null || value === 'paused'))
+        ? undefined
+        : value,
     ),
   );
 

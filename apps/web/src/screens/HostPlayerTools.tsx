@@ -1,9 +1,10 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { LIMITS, type DebuffKind, type HostPlayer } from '@quiz/shared';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { signed } from '../format';
-import { errorText, t } from '../i18n';
+import { t } from '../i18n';
 import type { Send } from '../live/types';
+import { useGuardedSend } from '../live/useGuardedSend';
 
 export const QUICK_POINTS = [-50, -100, -200, 50, 100] as const;
 
@@ -19,34 +20,6 @@ interface PanelProps {
   player: HostPlayer;
   send: Send;
   onError: (message: string | null) => void;
-}
-
-/** Один запит за раз: поки відповіді немає, другий дотик не йде (як reorder/decide у HostScreen). */
-function useGuardedSend(send: Send, onError: (message: string | null) => void) {
-  const [busy, setBusy] = useState(false);
-  const ref = useRef(false);
-  const run = async (event: Parameters<Send>[0], payload: unknown): Promise<boolean> => {
-    if (ref.current) return false;
-    const release = () => {
-      ref.current = false;
-      setBusy(false);
-    };
-    ref.current = true;
-    setBusy(true);
-    const fallback = setTimeout(release, 3000);
-    try {
-      const result = await send(event, payload);
-      onError(result.ok ? null : errorText(result.error));
-      return result.ok;
-    } catch {
-      onError(errorText('unknown'));
-      return false;
-    } finally {
-      clearTimeout(fallback);
-      release();
-    }
-  };
-  return { busy, run };
 }
 
 export function PointsPanel({ player, send, onError }: PanelProps) {
@@ -118,7 +91,9 @@ export function DebuffPanel({ player, kinds, send, onError }: PanelProps & { kin
           </button>
         ))}
       </div>
-      {current !== null && !current.fired && (
+      {current !== null && current.by !== null && <p className="meta">{t('debuffBought')}</p>}
+      {/* Куплений дебаф не скасовується: бали вже сплачено (виправити можна «Балами»). */}
+      {current !== null && !current.fired && current.by === null && (
         <button type="button" className="btn btn-danger btn-small" disabled={busy} onClick={() => void run('host:undebuff', { playerId: player.id })}>
           {t('debuffCancel')}
         </button>
@@ -127,7 +102,9 @@ export function DebuffPanel({ player, kinds, send, onError }: PanelProps & { kin
   );
 }
 
-/** «🌫️ Туман · чекає» / «🌫️ Туман · діє». */
+/** «🌫️ Туман · чекає» / «🌫️ Туман · діє»; куплений — «🌫️ Туман від гравця Оля · чекає». */
 export function debuffTagText(debuff: NonNullable<HostPlayer['debuff']>): string {
-  return t(debuff.fired ? 'debuffFiring' : 'debuffWaiting', { icon: DEBUFF_ICONS[debuff.kind], name: debuffName(debuff.kind) });
+  const vars = { icon: DEBUFF_ICONS[debuff.kind], name: debuffName(debuff.kind) };
+  if (debuff.by !== null) return t(debuff.fired ? 'debuffFiringBy' : 'debuffWaitingBy', { ...vars, by: debuff.by });
+  return t(debuff.fired ? 'debuffFiring' : 'debuffWaiting', vars);
 }

@@ -271,7 +271,8 @@ describe('QuizEditor', () => {
     const checked = screen
       .getAllByRole('checkbox')
       .filter((box) => (box as HTMLInputElement).checked && box.closest('.powers') !== null)
-      .map((box) => box.closest('label')?.textContent ?? '');
+      .map((box) => box.closest('label')?.textContent ?? '')
+      .filter((text) => text !== t('powersShop'));
     expect(checked).toHaveLength(2);
     expect(checked[0]).toMatch(/Тремтіння/);
     expect(checked[1]).toMatch(/Додатковий час/);

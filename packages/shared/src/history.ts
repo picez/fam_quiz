@@ -1,5 +1,5 @@
 import type { Answer } from './answer';
-import type { AdjustmentSource, BuffKind } from './game';
+import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
 import type { CellKind, Question, Round, WagerMode } from './quiz';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
@@ -91,6 +91,9 @@ export interface GameAdjustment {
   nickname: string;
   points: number;
   source: AdjustmentSource;
+  /** Лише для source 'debuff': куплений вид і ціль (null — ціль вилучили до запису). */
+  debuff?: DebuffKind;
+  target?: string | null;
 }
 
 /** Гра в історії гравця з акаунтом. */

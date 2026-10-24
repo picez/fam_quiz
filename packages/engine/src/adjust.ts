@@ -1,6 +1,6 @@
 import { LIMITS, type AdjustmentNotice, type AdjustmentSource } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { fail, ok, withTotals, type GameState, type Result } from './game';
+import { fail, ok, withTotals, type GameState, type Result, type ScoreAdjustment } from './game';
 
 /**
  * Коригування рахунку гравця поза відповідями (бали від ведучого, пізніше — дуелі).
@@ -10,11 +10,35 @@ export function adjustScore(state: GameState, playerId: string, points: number, 
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (!Number.isInteger(points) || points === 0 || Math.abs(points) > LIMITS.maxAdjust) return fail('points_invalid');
+  return ok(addAdjustment(state, playerId, points, now, source));
+}
+
+/** Скільки запитань журналу закрито зараз: відкрите запитання — останнє в журналі. */
+export function afterQuestionNow(state: GameState): number {
+  return state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
+}
+
+/** Дописати коригування в журнал (без перевірок) і перерахувати бали; adjustScore і buyDebuff стоять на ньому. */
+export function addAdjustment(
+  state: GameState,
+  playerId: string,
+  points: number,
+  now: number,
+  source: AdjustmentSource,
+  extra: Pick<ScoreAdjustment, 'target' | 'debuff'> = {},
+): GameState {
   const seq = state.adjustmentSeq + 1;
-  // Відкрите запитання завжди останнє в журналі.
-  const afterQuestion = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
-  const adjustment = { seq, playerId, points, roundIndex: state.roundIndex, afterQuestion, source, at: now };
-  return ok(followWagerLimit(withTotals({ ...state, adjustments: [...state.adjustments, adjustment], adjustmentSeq: seq }), playerId));
+  const adjustment: ScoreAdjustment = {
+    seq,
+    playerId,
+    points,
+    roundIndex: state.roundIndex,
+    afterQuestion: afterQuestionNow(state),
+    source,
+    at: now,
+    ...extra,
+  };
+  return followWagerLimit(withTotals({ ...state, adjustments: [...state.adjustments, adjustment], adjustmentSeq: seq }), playerId);
 }
 
 /**

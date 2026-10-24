@@ -128,6 +128,7 @@ describe('freezing on shutdown', () => {
     expect(manager.frozen).toBe(true);
     expect(manager.answer(room, taras.playerId, correct)).toEqual({ ok: false, error: 'restarting' });
     expect(manager.host(room, { type: 'lock' })).toEqual({ ok: false, error: 'restarting' });
+    expect(manager.buyDebuff(room, taras.playerId, taras.playerId, 'fog')).toEqual({ ok: false, error: 'restarting' });
     manager.disconnect(room, { role: 'player', playerId: taras.playerId });
     manager.disconnect(room, HOST);
     scheduler.advance(60_000);

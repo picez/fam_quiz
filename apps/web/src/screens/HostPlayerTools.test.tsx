@@ -80,13 +80,23 @@ describe('DebuffPanel', () => {
 
   it('a waiting debuff can be cancelled, a firing one cannot', () => {
     const send = okSend();
-    const { rerender } = render(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: false } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
+    const { rerender } = render(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: false, by: null } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
     expect(screen.getByText('🌫️ Туман · чекає')).toBeTruthy();
     expect(button('🧊 Заморозка').disabled).toBe(true);
     fireEvent.click(button('Скасувати дебаф'));
     expect(send).toHaveBeenCalledWith('host:undebuff', { playerId: 'p1' });
-    rerender(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: true } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
+    rerender(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: true, by: null } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
     expect(screen.getByText('🌫️ Туман · діє')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Скасувати дебаф' })).toBeNull();
+  });
+
+  it('a bought debuff shows the buyer and cannot be cancelled', () => {
+    const send = okSend();
+    const { rerender } = render(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: false, by: 'Оля' } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
+    expect(screen.getByText('🌫️ Туман від гравця Оля · чекає')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Скасувати дебаф' })).toBeNull();
+    expect(screen.getByText('Куплено гравцем — скасувати не можна.')).toBeTruthy();
+    rerender(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: true, by: 'Оля' } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
+    expect(screen.getByText('🌫️ Туман від гравця Оля · діє')).toBeTruthy();
   });
 });

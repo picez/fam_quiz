@@ -580,6 +580,7 @@ describe('expiry', () => {
 
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: false, error: 'game_not_found' });
     expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: false, error: 'game_not_found' });
+    expect(manager.buyDebuff(room, olena.playerId, olena.playerId, 'fog')).toEqual({ ok: false, error: 'game_not_found' });
     manager.disconnect(room, HOST);
     scheduler.advance(HOST_ABSENCE_MS * 2);
     expect(room.state.phase).toBe(phase);

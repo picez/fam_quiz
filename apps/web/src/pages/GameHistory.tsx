@@ -2,6 +2,7 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import type { GameAdjustment } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
+import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t } from '../i18n';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
@@ -22,6 +23,18 @@ export function duelLines(adjustments: GameAdjustment[]): string[] {
     }
   }
   return lines;
+}
+
+/** Рядки купівель дебафів (source 'debuff') за seq. */
+export function debuffLines(adjustments: GameAdjustment[]): string[] {
+  return adjustments
+    .filter((adjustment) => adjustment.source === 'debuff' && adjustment.debuff !== undefined)
+    .sort((a, b) => a.seq - b.seq)
+    .map((adjustment) => {
+      const kind = adjustment.debuff!;
+      const params = { buyer: adjustment.nickname, debuff: `${DEBUFF_ICONS[kind]} ${debuffName(kind)}`, points: signed(adjustment.points) };
+      return adjustment.target ? t('historyDebuff', { ...params, target: adjustment.target }) : t('historyDebuffNoTarget', params);
+    });
 }
 
 export function GameHistory() {
@@ -91,6 +104,7 @@ export function GameHistory() {
             const roundAdjustments = game.adjustments.filter((adjustment) => adjustment.roundIndex === roundIndex);
             const adjustments = roundAdjustments.filter((adjustment) => adjustment.source === 'host');
             const duels = duelLines(roundAdjustments);
+            const purchases = debuffLines(roundAdjustments);
             if (questions.length === 0 && roundAdjustments.length === 0) return null;
             return (
               <div key={roundIndex} className="round-group">
@@ -166,6 +180,11 @@ export function GameHistory() {
                 )}
                 {duels.map((line, at) => (
                   <p key={at} className="meta history-duel">
+                    {line}
+                  </p>
+                ))}
+                {purchases.map((line, at) => (
+                  <p key={at} className="meta round-adjustments history-debuff">
                     {line}
                   </p>
                 ))}

@@ -840,6 +840,28 @@ describe('history: score adjustments', () => {
     expect((await hostGame(db, host.id, oldId))?.adjustments).toEqual([]);
   });
 
+  it('a purchase row carries the kind and the target; other rows keep their keys', async () => {
+    const host = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 5),
+      players: [
+        {
+          userId: null,
+          nickname: 'Олена',
+          score: 700,
+          rank: 1,
+          adjustments: [{ seq: 1, points: 900 }, { seq: 2, points: -200, source: 'debuff', debuff: 'fog', targetNickname: 'Тарас' }],
+        },
+        { userId: null, nickname: 'Тарас', score: 0, rank: 2 },
+      ],
+    });
+    expect((await hostGame(db, host.id, gameId))?.adjustments).toEqual([
+      { seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: 900, source: 'host' },
+      { seq: 2, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: -200, source: 'debuff', debuff: 'fog', target: 'Тарас' },
+    ]);
+  });
+
   it('history adjustments carry seq and source', async () => {
     const host = await hostAccount();
     const { gameId } = await seedGame(db, {

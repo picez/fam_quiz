@@ -40,4 +40,15 @@ describe('wipe', () => {
     expect(now.map((s) => s.id)).toEqual(splats.slice(1).map((s) => s.id));
     expect(now.every((s) => s.left === 1)).toBe(true);
   });
+
+  it('mud splats cover about a third of the zone and every one can be wiped away', () => {
+    const splats = splatsFor(7);
+    const area = splats.reduce((sum, s) => sum + s.size * s.size, 0);
+    expect(area).toBeGreaterThan(0.28);
+    expect(area).toBeLessThan(0.55);
+    for (const seed of [1, 2, 3, 7, 42]) for (const s of splatsFor(seed)) expect(s.size).toBeGreaterThanOrEqual(0.22);
+    let now = splats;
+    for (const s of splats) for (let i = 0; i < 5; i++) now = wipeSplats(now, s.x, s.y);
+    expect(now).toEqual([]);
+  });
 });

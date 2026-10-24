@@ -1,4 +1,4 @@
-import type { AdjustmentSource, Answer, BuffKind, Duels, GameStatus, Question, QuizSettings, Round } from '@quiz/shared';
+import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, Question, QuizSettings, Round } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -181,6 +181,10 @@ export const scoreAdjustment = pgTable(
     afterQuestion: integer('after_question').notNull(),
     points: integer('points').notNull(),
     source: text('source').$type<AdjustmentSource>().notNull(),
+    /** Купівля дебафу (9c): вид; null — не покупка (і в старих іграх). */
+    debuff: text('debuff').$type<DebuffKind>(),
+    /** Купівля дебафу: нікнейм цілі в мить запису; null — не покупка або ціль уже вилучено. */
+    targetNickname: text('target_nickname'),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.seq] })],
 );

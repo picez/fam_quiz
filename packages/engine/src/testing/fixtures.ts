@@ -217,11 +217,12 @@ export function boardRound(
 /** Вікторина з одним класичним раундом; налаштування раунду й вікторини в одному об'єкті. */
 export function makeQuiz(
   questions: Question[] = [single, multi, bool, text, numeric, order],
-  { leaderboard, debuffs, buffs, ...round }: Partial<QuizSettings> & RoundOptions = {},
+  { leaderboard, debuffs, debuffPrices, buffs, ...round }: Partial<QuizSettings> & RoundOptions = {},
 ): Quiz {
   const settings: Partial<QuizSettings> = {
     ...(leaderboard ? { leaderboard } : {}),
     ...(debuffs ? { debuffs } : {}),
+    ...(debuffPrices ? { debuffPrices } : {}),
     ...(buffs ? { buffs } : {}),
   };
   return makeRoundsQuiz([classicRound('r1', questions, round)], settings);

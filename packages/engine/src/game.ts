@@ -234,7 +234,7 @@ export interface BlitzPlay {
   dropped: BuzzEntry[];
 }
 
-/** Коригування рахунку поза відповідями: бали від ведучого, пізніше — дуелі. */
+/** Коригування рахунку поза відповідями: бали від ведучого, ставки дуелей, покупки дебафів. */
 export interface ScoreAdjustment {
   /** Зростаючий номер у межах гри, від 1. */
   seq: number;
@@ -245,15 +245,21 @@ export interface ScoreAdjustment {
   afterQuestion: number;
   source: AdjustmentSource;
   at: number;
+  /** Лише для source 'debuff': кому куплено дебаф. */
+  target?: string;
+  /** Лише для source 'debuff': який дебаф куплено. */
+  debuff?: DebuffKind;
 }
 
-/** Дебаф від ведучого на гравця. */
+/** Дебаф на гравця: від ведучого або куплений іншим гравцем. */
 export interface DebuffState {
   kind: DebuffKind;
   /** Індекс у plays запитання, у якому дебаф спрацював; null — чекає. */
   firedAt: number | null;
   /** Мить спрацювання; null — чекає. */
   since: number | null;
+  /** Хто купив (id гравця); null — наслав ведучий. */
+  by: string | null;
 }
 
 /** Одне запитання дуелі. */
@@ -466,7 +472,9 @@ export function removePlayer(state: GameState, playerId: string): Result {
   const final = state.final === null ? null : dropFromFinal(state.final, playerId);
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
   const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
-  const { [playerId]: _debuff, ...debuffs } = state.debuffs;
+  const { [playerId]: _debuff, ...kept } = state.debuffs;
+  // Дебаф, куплений вилученим, лишається на цілі, але стає «від ведучого»: ведучий може його скасувати.
+  const debuffs = Object.fromEntries(Object.entries(kept).map(([id, d]) => [id, d.by === playerId ? { ...d, by: null } : d]));
   // Дуель з вилученим скасовується; якщо вилучено суперника до підсумку, той, хто оголосив, отримує право назад.
   const duel = state.duel;
   const inDuel = duel !== null && (duel.challengerId === playerId || duel.opponentId === playerId);

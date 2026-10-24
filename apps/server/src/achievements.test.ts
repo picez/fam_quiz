@@ -190,6 +190,14 @@ describe('new achievements', () => {
     expect(wonBlitzRound(fined, 'a')).toBe(false);
   });
 
+  it('a debuff purchase in a blitz round does not lose its win', () => {
+    const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
+    const buy = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null, source: 'debuff' as const });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
+    // a має 30 проти 20, але купівля −200 у тому ж раунді забрала б перевагу
+    expect(wonBlitzRound(table(['blitz'], [p('a', 2, -170, [row(0, 30), buy(0, -200)]), p('b', 1, 20, [row(0, 20)])]), 'a')).toBe(true);
+  });
+
   it('a duel stake that lands in a blitz round does not win it, but still counts for a comeback', () => {
     const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
     const duel = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null, source: 'duel' as const });

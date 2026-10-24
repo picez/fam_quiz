@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Quiz, QuizSettings } from '@quiz/shared';
 import { takeBuff, type BuffPlay } from './buffs';
 import { chooserOf } from './board-turns';
-import { setDebuff } from './debuffs';
+import { adjustScore } from './adjust';
+import { buyDebuff, setDebuff } from './debuffs';
 import { placeWager } from './final';
 import {
   end,
@@ -210,7 +211,7 @@ const STATE_SHAPE: Record<string, string> = {
     true,
   ),
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
-  QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers'], true),
+  QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
   Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
@@ -228,10 +229,10 @@ const STATE_SHAPE: Record<string, string> = {
   SortProgress: keysOf<SortProgress>()(['queue', 'sorted', 'misses', 'lockedUntil', 'missed'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare'], true),
-  DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since'], true),
+  DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since', 'by'], true),
   DuelState: keysOf<DuelState>()(['challengerId', 'opponentId', 'stage', 'returnPhase', 'categoryId', 'total', 'questions', 'winnerId'], true),
   DuelQuestionPlay: keysOf<DuelQuestionPlay>()(['questionId', 'tries', 'winnerId', 'answer', 'timeMs'], true),
-  ScoreAdjustment: keysOf<ScoreAdjustment>()(['seq', 'playerId', 'points', 'roundIndex', 'afterQuestion', 'source', 'at'], true),
+  ScoreAdjustment: keysOf<ScoreAdjustment>()(['seq', 'playerId', 'points', 'roundIndex', 'afterQuestion', 'source', 'at', 'target', 'debuff'], true),
   Splash: keysOf<Splash>()(['kind', 'at', 'until'], true),
 };
 
@@ -261,11 +262,37 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,playerId,points,roundIndex,seq,source',
     Splash: 'at,kind,until',
   },
+  2: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,board,buffs,chain,extraMs,final,overtime,question,roundIndex,sort',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,misses,queue,sorted',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
 
-/** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, фінал, бліц (черга й спроба). */
+/** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
 function representative(): GameState[] {
   const fogged = must(setDebuff(must(start(lobbyWith(buffQuiz({ debuffs: ['fog'] }), 'Оля', 'Петро'))), 'p1', 'fog'));
+  // покупка: коригування з ціллю й видом, дебаф з покупцем
+  const bought = must(buyDebuff(must(adjustScore(must(start(lobbyWith(buffQuiz(), 'Оля', 'Петро'))), 'p1', 500, T0)), 'p1', 'p2', 'mud', T0));
   const finalQuiz = makeRoundsQuiz([finalRound('f', withId(single, 'f1'))]);
   let final = must(next(must(start(lobbyWith(finalQuiz, 'Оля', 'Петро'))), T0, () => 0));
   final = must(placeWager(final, 'p1', 0, T0 + 1000, () => 0));
@@ -278,6 +305,7 @@ function representative(): GameState[] {
     toDuelQuestion(),
     openAt(lobbyWithSplash(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро'), T0),
     must(next(fogged, T0, () => 0)),
+    bought,
     final,
     buzzed,
     acceptAll(buzzed, T0 + 1000),
@@ -342,8 +370,8 @@ describe('the saved state', () => {
       const declared = new Set(STATE_SHAPE[name].split(','));
       for (const o of objects) for (const key of Object.keys(o)) expect(declared.has(key), `${name}.${key}`).toBe(true);
     }
-    // кожен вкладений тип справді трапився (крім тих, що потребують окремих раундів: сортування, ланцюжок, кубики, коригування)
+    // кожен вкладений тип справді трапився (крім тих, що потребують окремих раундів: сортування, ланцюжок, кубики)
     const missing = Object.keys(STATE_SHAPE).filter((name) => (seen[name]?.length ?? 0) === 0);
-    expect(missing.sort()).toEqual(['ChainProgress', 'DiceState', 'ScoreAdjustment', 'SortProgress']);
+    expect(missing.sort()).toEqual(['ChainProgress', 'DiceState', 'SortProgress']);
   });
 });
