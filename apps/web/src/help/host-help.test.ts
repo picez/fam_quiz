@@ -146,7 +146,7 @@ describe('host help', () => {
     for (const kind of BUFF_KINDS) {
       const e = helpEntry(`buff.${kind}`);
       expect(e.how[0], kind).toContain('раз за гру, не більше одного на запитання і лише до відповіді');
-      expect((e.limits ?? []).join(' '), kind).toContain("Бафи не діють у бліці, на бліц-клітинках, у фіналі, на запитаннях «ланцюжок» і «сортування», на стіні зв'язків, опитуванні й хмарі слів та в дуелях");
+      expect((e.limits ?? []).join(' '), kind).toContain("Бафи не діють у бліці, на бліц-клітинках, у фіналі, у «Ва-банк», на запитаннях «ланцюжок» і «сортування», на стіні зв'язків, опитуванні й хмарі слів та в дуелях");
     }
     expect(text('buff.shield')).toContain('в інших баф узяти не можна');
     expect(text('buff.swap')).toContain('лише за наявності запасних запитань');
@@ -210,6 +210,19 @@ describe('host help', () => {
     for (const id of ids) {
       expect(text(id), id).toContain('100 до 1');
     }
+  });
+
+  it('10g wipeout entries tell the engine numbers and the isolation', () => {
+    const wipeout = text('round.wipeout');
+    expect(wipeout).toContain(String(LIMITS.wipeoutDecideSeconds));
+    expect(wipeout).toContain(`${LIMITS.minWipeoutQuestions}–${LIMITS.maxWipeoutQuestions}`);
+    expect(wipeout).toContain('забирає банк сам');
+    for (const kind of BUFF_KINDS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('у «Ва-банк»');
+    for (const kind of DEBUFF_KINDS) expect(text(`debuff.${kind}`), kind).toContain('«Ва-банк»');
+    for (const key of ['debuffShop', 'duels', 'leaderboard'] as const) expect(text(`setting.${key}`), key).toContain('Ва-банк');
+    expect(text('round.final')).toContain('не те саме, що раунд «Ва-банк»');
+    expect(text('round.classic')).toContain('«Ва-банк» — окремий тип раунду');
+    expect(searchHelp('ва-банк')).toContain('round.wipeout');
   });
 
   it('related entries mention the new limits', () => {
