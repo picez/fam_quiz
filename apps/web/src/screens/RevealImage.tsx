@@ -3,6 +3,8 @@ import type { RevealMode } from '@quiz/shared';
 import { blurRadius, pixelColumns, REVEAL_STAGES } from '../reveal';
 import { QuestionImage } from './QuestionImage';
 
+const MAX_SIDE = 1200;
+
 interface Props {
   url: string | null;
   mode: RevealMode | null;
@@ -34,8 +36,10 @@ function PixelCanvas({ url, stage, alt, onFail }: { url: string; stage: number; 
     const target = canvas.current;
     const columns = pixelColumns(stage);
     if (target === null || image === null || columns === null) return;
-    const width = image.naturalWidth || columns;
-    const height = image.naturalHeight || columns;
+    // Не більше MAX_SIDE по довгій стороні: великий canvas на телефоні — зайва пам'ять.
+    const shrink = Math.min(1, MAX_SIDE / Math.max(image.naturalWidth, image.naturalHeight, 1));
+    const width = Math.round((image.naturalWidth || columns) * shrink);
+    const height = Math.round((image.naturalHeight || columns) * shrink);
     const rows = Math.max(1, Math.round((columns * height) / width));
     const small = document.createElement('canvas');
     small.width = columns;

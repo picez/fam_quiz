@@ -489,7 +489,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <DebuffZone debuff={me.debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)}>{question.text}</h1>
             <RevealImage url={question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />
-            {question.reveal && (
+            {question.reveal && me.answer === null && (
               <p className="meta reveal-hint">
                 {t('revealHint')} {t('revealNow', { percent: Math.round(revealShare(revealP, 1) * 100) })}
               </p>

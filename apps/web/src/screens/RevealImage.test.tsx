@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { blurRadius } from '../reveal';
+import { blurRadius, pixelColumns } from '../reveal';
 import { RevealImage } from './RevealImage';
 
 beforeEach(() => {
@@ -14,6 +14,29 @@ describe('RevealImage', () => {
     const { container } = render(<RevealImage url="/a.png" mode="pixels" stage={3} />);
     expect(container.querySelector('canvas.reveal-canvas[data-stage="3"]')).not.toBeNull();
     expect(container.querySelector('img')).toBeNull();
+  });
+
+  it('draws the small version with pixelColumns(stage) columns and caps the canvas size', async () => {
+    const calls: unknown[][] = [];
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({ drawImage: (...args: unknown[]) => calls.push(args), imageSmoothingEnabled: true })) as never;
+    class FakeImage {
+      naturalWidth = 3000;
+      naturalHeight = 1500;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal('Image', FakeImage);
+    const { container } = render(<RevealImage url="/a.png" mode="pixels" stage={3} />);
+    await waitFor(() => expect(calls).toHaveLength(2));
+    vi.unstubAllGlobals();
+    const columns = pixelColumns(3)!;
+    expect(calls[0].slice(3, 5)).toEqual([columns, Math.round(columns / 2)]);
+    const canvas = container.querySelector('canvas')!;
+    expect(canvas.width).toBe(1200);
+    expect(canvas.height).toBe(600);
   });
 
   it('blur sets the filter by the stage', () => {

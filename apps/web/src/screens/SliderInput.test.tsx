@@ -53,6 +53,18 @@ describe('SliderInput', () => {
     expect(screen.getByRole('button', { name: 'Більше на 0,5' })).toBeTruthy();
   });
 
+  it('snaps on the grid from min: min 0.5 with step 1', () => {
+    const onSubmit = vi.fn();
+    render(<SliderInput question={question({ min: 0.5, max: 5.5, step: 1, unit: '' })} onSubmit={onSubmit} />);
+    expect(value()).toBe('3,5');
+    expect(screen.getByLabelText('Повзунок').getAttribute('aria-valuetext')).toBe('3,5');
+    fireEvent.change(screen.getByLabelText('Повзунок'), { target: { value: '2.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Більше на 1' }));
+    expect(value()).toBe('3,5');
+    fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'slider', value: 3.5 });
+  });
+
   it('ten steps of 0.1 give exactly 1', () => {
     const onSubmit = vi.fn();
     render(<SliderInput question={question({ min: 0, max: 2, step: 0.1, unit: '' })} onSubmit={onSubmit} />);

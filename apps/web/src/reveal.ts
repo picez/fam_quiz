@@ -54,13 +54,15 @@ export function blurRadius(stage: number): number {
 }
 
 /** Хук: поступ, що оновлюється кожні 250 мс, поки йде таймер запитання з проявленням. */
-export function useRevealProgress(view: Clock, question: Windowed | null, offsetMs: number): number {
+export function useRevealProgress(view: Clock, question: (Windowed & { reveal?: unknown }) | null, offsetMs: number): number {
   const [, setTick] = useState(0);
-  const ticking = question !== null && view.phase === 'question' && view.endsAt !== null;
+  // Без режиму проявлення годинник не тикає: усі виклики безпечні.
+  const revealing = question !== null && !!question.reveal;
+  const ticking = revealing && view.phase === 'question' && view.endsAt !== null;
   useEffect(() => {
     if (!ticking) return;
     const id = setInterval(() => setTick((tick) => tick + 1), 250);
     return () => clearInterval(id);
   }, [ticking, view.endsAt]);
-  return question === null ? 1 : revealProgress(view, question, Date.now() + offsetMs);
+  return question === null || !revealing ? 1 : revealProgress(view, question, Date.now() + offsetMs);
 }
