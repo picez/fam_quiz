@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BluffInfo, BluffOptionView } from '@quiz/shared';
 import { BluffBoard } from './BluffBoard';
 
@@ -58,5 +58,27 @@ describe('BluffBoard', () => {
     render(<BluffBoard info={info(options)} />);
     expect(screen.queryByText('Образа')).toBeNull();
     expect(screen.queryByText('Прибрано')).toBeNull();
+  });
+
+  it('flips only the newly opened option, never on the first mount, and the flip ends', () => {
+    vi.useFakeTimers();
+    try {
+      const open = (id: string, text: string): BluffOptionView => ({ id, text, open: true, kind: 'lie', authors: ['Оля'], pickedBy: [], removed: false });
+      const before = info([open('b1', 'Рим'), closed('b2', 'Мілан')]);
+      const { rerender } = render(<BluffBoard info={before} />);
+      expect(document.querySelectorAll('.is-flipping')).toHaveLength(0);
+      rerender(<BluffBoard info={info([open('b1', 'Рим'), open('b2', 'Мілан')])} />);
+      const flipping = document.querySelectorAll('.is-flipping');
+      expect(flipping).toHaveLength(1);
+      expect(flipping[0].textContent).toContain('Мілан');
+      // Нові дані до кінця анімації не залишають клас назавжди.
+      rerender(<BluffBoard info={info([open('b1', 'Рим'), open('b2', 'Мілан')], { shown: 2, lastOpenedId: 'b2' })} />);
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(document.querySelectorAll('.is-flipping')).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

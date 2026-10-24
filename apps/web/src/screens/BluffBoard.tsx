@@ -29,6 +29,13 @@ export function BluffBoard({ info, big = false, host = false }: { info: BluffInf
   // Перегортається лише варіант, що відкрився на очах: перший показ усе відкрите не анімує.
   const seen = useRef<Set<string> | null>(null);
   const [flipping, setFlipping] = useState<string[]>([]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current !== null) clearTimeout(timer.current);
+    },
+    [],
+  );
   useEffect(() => {
     const open = new Set(info.options.filter((option) => option.open).map((option) => option.id));
     const before = seen.current;
@@ -37,8 +44,11 @@ export function BluffBoard({ info, big = false, host = false }: { info: BluffInf
     const fresh = [...open].filter((id) => !before.has(id));
     if (fresh.length === 0) return;
     setFlipping(fresh);
-    const timer = setTimeout(() => setFlipping([]), FLIP_MS);
-    return () => clearTimeout(timer);
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      setFlipping([]);
+    }, FLIP_MS);
   }, [info]);
 
   const options = host ? info.options : info.options.filter((option) => !option.removed);

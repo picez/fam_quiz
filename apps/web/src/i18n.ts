@@ -1103,6 +1103,7 @@ const uk = {
   bluffWaitTruth: 'Правду відкриють останньою',
   bluffTruthYes: 'Ти знайшов правду!',
   bluffTruthNo: 'Не вгадав',
+  bluffSilent: 'Ти не брав участі в цьому запитанні',
   bluffFooledYou: 'На твою вигадку купилися: {n}',
   bluffTruth: 'Правда',
   bluffLieBy: 'Вигадка: {names}',

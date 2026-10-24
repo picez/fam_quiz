@@ -2204,6 +2204,28 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(document.querySelector('.earned')).toBeNull();
     });
 
+    it('a silent player gets a neutral line once every option is open, not the waiting hint', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: bluffPublic,
+          reveal: bluffFull,
+          bluff: info({ stage: 'reveal', options, shown: 3, total: 3, lastOpenedId: 'b1' }),
+          me: mine(),
+        }),
+      );
+      expect(screen.getByText('Ти не брав участі в цьому запитанні')).toBeTruthy();
+      expect(screen.queryByText('Правду відкриють останньою')).toBeNull();
+    });
+
+    it('a merged lie marks every own option', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options }), me: mine({ lie: 'Рим', own: ['b1', 'b2'] }) }));
+      expect((screen.getByRole('button', { name: /Рим/ }) as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByRole('button', { name: /Мілан/ }) as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByRole('button', { name: 'Париж' }) as HTMLButtonElement).disabled).toBe(false);
+    });
+
     it('the reveal after the truth: the verdict, the fooled and the points', () => {
       show(
         view({

@@ -181,14 +181,16 @@ function BluffResult({ view }: { view: PlayerView }) {
   const { bluff, me } = view;
   if (bluff === null || me.bluff === null) return null;
   const { result } = me;
-  const open = me.bluff.truth !== null;
+  // Правду відкрито, коли відкрито всі варіанти (як spoilerHeld); мовчун без запису правди не отримує.
+  const open = bluff.total > 0 && bluff.shown >= bluff.total;
+  const took = me.bluff.truth !== null;
   const tone = result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
   return (
-    <section className={open ? `result ${tone}` : 'result'}>
+    <section className={open && took ? `result ${tone}` : 'result'}>
       <BluffBoard info={bluff} />
       {open ? (
         <>
-          <h2>{t(me.bluff.truth ? 'bluffTruthYes' : 'bluffTruthNo')}</h2>
+          <h2>{took ? t(me.bluff.truth ? 'bluffTruthYes' : 'bluffTruthNo') : t('bluffSilent')}</h2>
           {me.bluff.fooled !== null && me.bluff.fooled > 0 && <p>{t('bluffFooledYou', { n: me.bluff.fooled })}</p>}
           {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
           {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
