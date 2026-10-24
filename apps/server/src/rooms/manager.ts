@@ -42,6 +42,7 @@ import {
   sortWord,
   takeBuff,
   chooseRetry,
+  nextClue,
   skipGuide,
   startDice,
   stageView,
@@ -103,7 +104,7 @@ export type RoomEvent =
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' | 'clue' }
   | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
@@ -516,6 +517,8 @@ export class RoomManager {
         return this.apply(room, cancelDuel(state));
       case 'guide-skip':
         return this.apply(room, skipGuide(state, this.now()));
+      case 'clue':
+        return this.apply(room, nextClue(state, this.now()));
       case 'order':
         return this.apply(room, setOrder(state, action.playerIds));
       case 'kick':

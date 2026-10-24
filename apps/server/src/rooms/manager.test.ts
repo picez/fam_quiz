@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
@@ -230,6 +230,43 @@ function blitzPlaying(options: Parameters<typeof blitzRound>[2] = {}) {
   expect(room.state.phase).toBe('question');
   return { scheduler, manager, room, olena, taras };
 }
+
+describe('clues', () => {
+  function cluesPlaying(early = 0) {
+    const scheduler = new FakeScheduler(early);
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([classicRound('r1', [clues])]));
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    manager.connect(room, HOST);
+    enter(manager, room, 'Олена');
+    enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    return { scheduler, manager, room, events };
+  }
+  const opened = (room: Room) => room.state.plays[room.state.questionIndex].clues;
+
+  it('a clue opens on time and the room pushes it', () => {
+    const { scheduler, room, events } = cluesPlaying();
+    expect(opened(room)).toBe(1);
+    events.length = 0;
+    scheduler.advance(5000);
+    expect(opened(room)).toBe(2);
+    expect(events.some((event) => event.type === 'changed')).toBe(true);
+    scheduler.advance(5000);
+    expect(opened(room)).toBe(3);
+    expect(room.state.phase).toBe('question');
+  });
+
+  it('an early timer still opens the clue', () => {
+    const { scheduler, room } = cluesPlaying(5);
+    scheduler.advance(5000);
+    expect(opened(room)).toBe(2);
+    scheduler.advance(5000);
+    expect(opened(room)).toBe(3);
+  });
+});
 
 describe('blitz', () => {
   it('a blitz window expiry is scheduled and burns the attempt', () => {

@@ -136,6 +136,8 @@ export interface ClientToServerEvents {
   'host:duel-cancel': (ack: Ack) => void;
   /** «До гри»: пропустити решту «Як грати». */
   'host:guide-skip': (ack: Ack) => void;
+  /** «Хто я?» на усній клітинці: відкрити наступну підказку (10c). */
+  'host:clue': (ack: Ack) => void;
   /** Звук поточного запитання: програти ще раз або зупинити (сцена, а без сцени — пульт). Годинник не змінюється. */
   'host:audio': (payload: z.infer<typeof audioCommandSchema>, ack: Ack) => void;
 }

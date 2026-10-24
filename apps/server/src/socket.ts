@@ -48,7 +48,7 @@ const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip'] as const;
+const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
