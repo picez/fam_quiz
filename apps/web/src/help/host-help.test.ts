@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { debuffName } from '../debuff-meta';
+import { ROUND_NAMES } from '../guide-text';
+import { t, type TextKey } from '../i18n';
 import { MIRROR_SWAP_MS, freezeMs } from '../screens/Debuffs';
 import { SETTING_HELP_KEYS } from './settings';
-import { t, type TextKey } from '../i18n';
-import { ROUND_NAMES } from '../guide-text';
 import { HELP_TOPICS, cellHelpId, helpAnchor, helpEntry, helpIds, helpTopic, searchHelp, type HelpId } from './host-help';
 
 const SENTENCE_END = /[.!?…](?=\s|$)/g;
@@ -103,5 +103,20 @@ describe('host help', () => {
     expect(searchHelp('50')).toEqual(['buff.fifty']);
     expect(searchHelp('ЗАМІНА')).toEqual(['buff.swap']);
     expect(searchHelp('туман')).toEqual(['debuff.fog']);
+  });
+
+  it('every buff states the once-per-game rule and where buffs do not work', () => {
+    for (const kind of BUFF_KINDS) {
+      const e = helpEntry(`buff.${kind}`);
+      expect(e.how[0], kind).toContain('раз за гру, не більше одного на запитання і лише до відповіді');
+      expect((e.limits ?? []).join(' '), kind).toContain('Бафи не діють у бліці, на бліц-клітинках, у фіналі, на запитаннях «ланцюжок» і «сортування» та в дуелях');
+    }
+    expect(text('buff.shield')).toContain('в інших баф узяти не можна');
+    expect(text('buff.swap')).toContain('лише за наявності запасних запитань');
+    for (const kind of ['retry', 'audience', 'swap'] as const) expect(text(`buff.${kind}`)).toContain('кілька правильних');
+    expect(text('setting.debuffShop')).toContain('підключений до гри');
+    expect(text('setting.streak')).toContain('У бліці без натискання серія не обривається');
+    expect(text('round.board')).toContain(`до ${LIMITS.maxCategories * LIMITS.maxCategoryQuestions} клітинок`);
+    expect(text('round.classic')).toContain('Запитання з відео бонусу за швидкість не мають');
   });
 });
