@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { t } from '../i18n';
 import { PowersEditor } from './PowersEditor';
 
 afterEach(cleanup);
@@ -77,5 +78,15 @@ describe('PowersEditor prices', () => {
     expect((box as HTMLInputElement).checked).toBe(true);
     fireEvent.click(box);
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ debuffShop: false }));
+  });
+});
+
+describe('PowersEditor swap gaps (9d)', () => {
+  it('swap warns about categories without spares and a classic round without the pool, but not add-spares when categories have them', () => {
+    const gaps = { anyCategory: true, emptyCategories: ['Поле · Річки'], classicWithoutPool: true, legacyBoard: false };
+    render(<PowersEditor settings={{ leaderboard: 'each', buffs: ['swap'] }} spares={undefined} gaps={gaps} onChange={vi.fn()} />);
+    expect(screen.getByText(t('powersSwapCategoriesEmpty', { list: 'Поле · Річки' }))).toBeTruthy();
+    expect(screen.getByText(t('powersSwapClassicEmpty'))).toBeTruthy();
+    expect(screen.queryByText(t('powersSwapNeedsSpares'))).toBeNull();
   });
 });

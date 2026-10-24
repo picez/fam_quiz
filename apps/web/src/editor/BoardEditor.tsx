@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react';
 import { t } from '../i18n';
 import { moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
 import { QuestionEditor } from './QuestionEditor';
+import { SparesEditor } from './SparesEditor';
 
 interface Props {
   round: BoardRound;
@@ -13,6 +14,10 @@ interface Props {
   roomForMore?: boolean;
   /** Чи вміститься в вікторині нова категорія з трьома запитаннями. */
   roomForCategory?: boolean;
+  /** Чи ввімкнена «Заміна запитання» (для попереджень). */
+  swapOn?: boolean;
+  /** Жодна категорія не має запасних, а загальні є: поле бере загальні. */
+  legacySpares?: boolean;
 }
 
 const markText = (mark: CellMark) => (mark === 'x2' ? t('boardMarkX2') : mark === 'x3' ? t('boardMarkX3') : '');
@@ -24,7 +29,7 @@ const toMark = (value: string): CellMark => (value === 'x2' ? 'x2' : value === '
  * а під стовпцем вибраної клітинки ще й «Прибрати запитання» (вимкнена на мінімумі, з підказкою);
  * вибрана клітинка відкривається внизу з позначкою й звичайним редактором запитання.
  */
-export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true }: Props) {
+export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true, swapOn = false, legacySpares = false }: Props) {
   const { categories } = round;
   const [picked, setPicked] = useState({ category: 0, index: 0 });
   useEffect(() => {
@@ -36,6 +41,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
   const index = Math.min(picked.index, cells.length - 1);
   const current = cells[index];
   const hintId = useId();
+  const sparesTitle = categories[category].title.trim() === '' ? t('boardCategoryPlaceholder', { index: category + 1 }) : categories[category].title.trim();
   const atMin = cells.length <= LIMITS.minCategoryQuestions;
   const room = roomForMore && categories.reduce((sum, c) => sum + c.cells.length, 0) < LIMITS.maxQuestions;
 
@@ -90,6 +96,11 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
                 maxLength={LIMITS.categoryTitle}
                 onChange={(event) => setCategory(columnIndex, { title: event.target.value })}
               />
+              {(column.spares?.length ?? 0) > 0 && (
+                <span className="meta board-edit-spares" aria-label={t('categorySparesBadge', { count: column.spares?.length ?? 0 })}>
+                  {`⇄ ${column.spares?.length ?? 0}`}
+                </span>
+              )}
               {categories.length > LIMITS.minCategories && (
                 <button type="button" className="btn btn-small btn-danger" onClick={() => removeCategory(columnIndex)}>
                   {t('boardRemoveCategory')}
@@ -216,6 +227,24 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
             {t('moveDownShort')}
           </button>
         </div>
+      </section>
+
+      <section className="panel category-spares" aria-label={t('categorySparesTitle', { title: sparesTitle })}>
+        <h3>{t('categorySparesTitle', { title: sparesTitle })}</h3>
+        <SparesEditor
+          key={categories[category].id}
+          spares={categories[category].spares}
+          max={LIMITS.maxCategorySpares}
+          hint={t('categorySparesHint')}
+          onChange={(spares) => {
+            const { spares: _old, ...rest } = categories[category];
+            setCategories(categories.map((c, i) => (i === category ? (spares === undefined ? rest : { ...rest, spares }) : c)));
+          }}
+        />
+        {swapOn && legacySpares && <p className="meta">{t('categorySparesLegacy')}</p>}
+        {swapOn && !legacySpares && (categories[category].spares?.length ?? 0) === 0 && (
+          <p className="meta powers-warn">{t('categorySparesNone')}</p>
+        )}
       </section>
     </div>
   );

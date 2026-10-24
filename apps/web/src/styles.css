@@ -6263,3 +6263,17 @@ label.powers-price {
   bottom: 1rem;
   z-index: 50;
 }
+
+.category-spares {
+  margin-top: 1rem;
+}
+
+.category-spares h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.board-edit-spares {
+  text-align: center;
+  font-size: 0.8125rem;
+}
