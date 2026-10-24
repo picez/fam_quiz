@@ -25,8 +25,13 @@ import {
   type ChainInfo,
   type DebuffKind,
   type PlayerChain,
+  type CloudWord,
+  type HostCloudWord,
   type PlayerSort,
   type PlayerTable,
+  type PlayerWall,
+  type WallInfo,
+  type WallRow,
   type SortInfo,
   type SortRow,
   type Choice,
@@ -63,6 +68,8 @@ import {
   type SplashView,
   type StageView,
   guidePages,
+  isUnscored,
+  LIMITS,
   pinDistance,
   newcomersOn,
   roundBrief,
@@ -89,6 +96,8 @@ import {
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { sortOf, sortsHere } from './sort';
+import { wallOf, wallsHere } from './wall';
+import { cloudTally, cloudVoters } from './votes';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { cluesAnswered, cluesByHost, cluesOpen, nextClueAt } from './clues';
@@ -144,9 +153,10 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
   const source: Choice[] =
     question.type === 'order'
       ? question.items
-      : question.type === 'single' || question.type === 'multi'
+      : question.type === 'single' || question.type === 'multi' || question.type === 'poll'
         ? question.options
         : [];
+  const tiles = question.type === 'wall' ? question.groups.flatMap((group) => group.tiles) : [];
   const shown = (from: Choice[]) =>
     presented
       .map((id) => from.find((choice) => choice.id === id))
@@ -183,6 +193,17 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     slider: question.type === 'slider' ? { min: question.min, max: question.max, step: question.step, unit: question.unit ?? '' } : null,
     clues: question.type === 'clues' ? clues : null,
     pin: question.type === 'pin' ? { map: question.map, aspect: question.aspect } : null,
+    // Лише тексти в порядку показу: ні груп, ні назв, ні id плиток.
+    wall:
+      question.type === 'wall'
+        ? {
+            tiles: presented.map((id) => tiles.find((tile) => tile.id === id)?.text ?? ''),
+            size: question.groups.length,
+            groupCount: question.groups.length,
+            maxMistakes: question.mistakes,
+          }
+        : null,
+    cloud: question.type === 'wordcloud' ? { words: question.words } : null,
     // Збережені кімнати — сирий JSON: відсутнє поле читаємо як «немає».
     audio: question.audio ? { duration: question.audio.duration, clip: question.audio } : null,
     reveal: question.reveal ?? null,
@@ -778,6 +799,101 @@ function playerSort(state: GameState, playerId: string): PlayerSort | null {
   };
 }
 
+/** Поточне запитання-стіна з його грою; null поза запитанням або для інших типів. */
+function currentWall(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  return play?.question.type === 'wall' ? { play, question: play.question } : null;
+}
+
+/** Позиції (у state.presented) плиток знайдених груп гравця, у порядку знаходження. */
+function foundTiles(state: GameState, question: Extract<Question, { type: 'wall' }>, playerId: string): number[][] {
+  return wallOf(state, playerId).found.flatMap((id) => {
+    const group = question.groups.find((g) => g.id === id);
+    return group === undefined ? [] : [group.tiles.map((tile) => state.presented.indexOf(tile.id))];
+  });
+}
+
+/**
+ * Поступ стіни без назв груп. Пульт — з question; сцена й телефони в класиці — лише на reveal;
+ * на полі всі ролі з question бачать стіну того, хто вибрав (з позиціями знайдених груп).
+ */
+function wallInfo(state: GameState, forHost: boolean): WallInfo | null {
+  const open = currentWall(state);
+  if (open === null) return null;
+  const { play, question } = open;
+  const onBoard = play.board !== undefined;
+  if (!onBoard && !forHost && !REVEALED.includes(state.phase)) return null;
+  const groupCount = question.groups.length;
+  const players = onBoard ? state.players.filter((p) => p.id === play.board?.chooserId) : state.players;
+  const rows = players.map((player): WallRow => {
+    const record = recordOf(state, state.questionIndex, player.id);
+    const progress = wallOf(state, player.id);
+    const solved = progress.found.length === groupCount;
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      found: progress.found.length,
+      mistakes: progress.mistakes,
+      locked: !solved && progress.mistakes >= question.mistakes,
+      solved,
+      points: state.phase === 'reveal' && record !== undefined ? record.points : null,
+      tiles: onBoard || forHost ? foundTiles(state, question, player.id) : null,
+    };
+  });
+  const timeOf = (row: WallRow) => (row.solved ? (recordOf(state, state.questionIndex, row.playerId)?.timeMs ?? Infinity) : Infinity);
+  // sort стабільний: рівні лишаються в порядку гравців.
+  rows.sort((a, b) => timeOf(a) - timeOf(b) || b.found - a.found || a.mistakes - b.mistakes);
+  return { groupCount, rows };
+}
+
+/** Власна стіна гравця: лише позиції знайдених груп, без назв. */
+function playerWall(state: GameState, playerId: string): PlayerWall | null {
+  const open = currentWall(state);
+  if (open === null || !wallsHere(state, open.play, playerId)) return null;
+  const { question } = open;
+  const progress = wallOf(state, playerId);
+  const solved = progress.found.length === question.groups.length;
+  return {
+    found: foundTiles(state, question, playerId).map((tiles, color) => ({ tiles, color })),
+    mistakes: progress.mistakes,
+    maxMistakes: question.mistakes,
+    locked: !solved && progress.mistakes >= question.mistakes,
+    solved,
+    canGuess: state.phase === 'question' && !state.paused && recordOf(state, state.questionIndex, playerId) === undefined,
+  };
+}
+
+/** Поточне запитання «хмара слів» з його грою; null поза запитанням або для інших типів. */
+function currentCloud(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  return play?.question.type === 'wordcloud' ? play : null;
+}
+
+/** Хмара для сцени: лише на reveal, без схованих слів і авторів, найчастіші LIMITS.cloudShown. */
+function stageCloud(state: GameState): CloudWord[] | null {
+  const play = currentCloud(state);
+  if (play === null || !isRevealed(state)) return null;
+  return cloudTally(play, state.players)
+    .filter((entry) => !entry.hidden)
+    .slice(0, LIMITS.cloudShown)
+    .map(({ key, text, count }) => ({ key, text, count }));
+}
+
+/** Уся хмара для пульта: зі схованими словами й нікнеймами авторів. */
+function hostCloud(state: GameState): HostCloudWord[] | null {
+  const play = currentCloud(state);
+  if (play === null) return null;
+  return cloudTally(play, state.players).map(({ key, text, count, hidden, playerIds }) => ({
+    key,
+    text,
+    count,
+    hidden,
+    by: playerIds.map((id) => state.players.find((p) => p.id === id)?.nickname ?? ''),
+  }));
+}
+
 /** Поточне запитання дуелі з його грою (етапи question, answer); інакше null. */
 function currentDuelPlay(state: GameState) {
   const duel = state.duel;
@@ -889,6 +1005,7 @@ function base(state: GameState, forHost: boolean) {
     final: finalInfo(state),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
+    wall: wallInfo(state, forHost),
     notice: lastNotice(state),
     duel: duelInfo(state, false),
     buffs: currentBuffs(state),
@@ -1050,7 +1167,7 @@ function publicStandings(state: GameState): Standing[] | null {
 /** Лічильники розкриття; у класиці відповіді на запасні не враховуються (там інше запитання). */
 function revealStats(state: GameState, question: Question): RevealStats {
   const known = new Set<string>(
-    question.type === 'single' || question.type === 'multi'
+    question.type === 'single' || question.type === 'multi' || question.type === 'poll'
       ? question.options.map((option) => option.id)
       : question.type === 'boolean'
         ? ['true', 'false']
@@ -1069,12 +1186,15 @@ function revealStats(state: GameState, question: Question): RevealStats {
           ? [...new Set(answer.optionIds)]
           : answer.type === 'boolean'
             ? [String(answer.value)]
-            : [];
+            : answer.type === 'poll'
+              ? [answer.optionId]
+              : [];
     for (const key of keys) {
       if (known.has(key)) counts[key] = (counts[key] ?? 0) + 1;
     }
   }
-  return { answered: records.length, accepted: records.filter((r) => r.accepted).length, counts };
+  // Голоси без балів не бувають «прийнятими»: лише answered і counts.
+  return { answered: records.length, accepted: isUnscored(question) ? null : records.filter((r) => r.accepted).length, counts };
 }
 
 export function stageView(state: GameState): StageView {
@@ -1092,6 +1212,8 @@ export function stageView(state: GameState): StageView {
     debuffs: state.players.filter((p) => shownDebuff(state, p.id) !== null).map((p) => blitzPlayer(state, p.id)),
     sliderMarks: sliderMarks(state, false),
     pinMarks: pinMarks(state, false),
+    cloud: stageCloud(state),
+    cloudVoters: stageCloud(state) === null ? null : cloudVoters(state.plays[state.questionIndex], state.players),
   };
 }
 
@@ -1142,7 +1264,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
       answer: queued === undefined ? (record?.answer ?? pending) : queued,
       result:
-        revealed && record !== undefined && finalShown(state, playerId)
+        revealed && record !== undefined && finalShown(state, playerId) && !(seen !== null && isUnscored(seen.question))
           ? {
               accepted: record.accepted,
               accuracy: record.accuracy,
@@ -1155,6 +1277,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       final: playerFinal(state, playerId),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
+      wall: playerWall(state, playerId),
       debuff: playerDebuff(state, playerId),
       shop: playerShop(state, playerId),
       duel: playerDuel(state, playerId),
@@ -1231,6 +1354,8 @@ function responseClue(state: GameState, playerId: string, timeMs: number): numbe
 }
 
 export function hostView(state: GameState): HostView {
+  const current = state.plays[state.questionIndex]?.question;
+  const unscored = current !== undefined && isUnscored(current);
   const responses = state.players.flatMap((player): HostResponse[] => {
     const record = currentRecord(state, player.id);
     if (record === undefined) return [];
@@ -1240,8 +1365,9 @@ export function hostView(state: GameState): HostView {
         nickname: player.nickname,
         answer: record.answer,
         timeMs: record.timeMs,
-        accepted: record.accepted,
-        grade: record.grade,
+        // Голос без балів не має вердикту: у записі лежить службове «wrong».
+        accepted: unscored ? null : record.accepted,
+        grade: unscored ? null : record.grade,
         streakBonus: record.streakBonus,
         points: record.points,
         overridden: record.overridden,
@@ -1275,5 +1401,6 @@ export function hostView(state: GameState): HostView {
     standings: rankPlayers(state.players),
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),
+    cloud: hostCloud(state),
   };
 }

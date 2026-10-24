@@ -56,6 +56,9 @@ const stage = (over: Partial<StageView> = {}): StageView => ({
   standings: null,
   sliderMarks: null,
   pinMarks: null,
+  wall: null,
+  cloud: null,
+  cloudVoters: null,
   ...over,
 });
 

@@ -33,7 +33,7 @@ const single: PublicQuestion = {
     { id: 'c', text: 'c' },
   ],
   right: [],
-  orderLabels: null, slider: null, clues: null, pin: null, audio: null, reveal: null,
+  orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, audio: null, reveal: null,
   chain: null,
   sort: null,
 };

@@ -56,7 +56,10 @@ function wordsOf(play: Play, playerId: string): string[] {
   return record?.answer?.type === 'wordcloud' ? record.answer.words : [];
 }
 
-/** Підрахунок хмари в play (запитання wordcloud): за count спаданням, далі за text (uk). Для інших типів — []. */
+/**
+ * Підрахунок хмари в play (запитання wordcloud): за count спаданням, далі за text (uk). Для інших типів — [].
+ * Сховані слова лишаються в переліку з hidden true (для ведучого): публічні споживачі (сцена, дошка 10e) мусять відкидати !hidden.
+ */
 export function cloudTally(play: Play, players: readonly { id: string }[]): CloudEntry[] {
   if (play.question.type !== 'wordcloud') return [];
   const hidden = new Set(play.cloudHidden ?? []);
@@ -85,9 +88,9 @@ export function cloudTally(play: Play, players: readonly { id: string }[]): Clou
   return entries.sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, 'uk'));
 }
 
-/** Скільки гравців написали хоч одне слово. */
-export function cloudVoters(play: Play): number {
-  return Object.values(play.answers).filter((r) => r.answer?.type === 'wordcloud' && r.answer.words.length > 0).length;
+/** Скільки гравців (ще в грі, як і в cloudTally) написали хоч одне слово. */
+export function cloudVoters(play: Play, players: readonly { id: string }[]): number {
+  return players.filter(({ id }) => wordsOf(play, id).length > 0).length;
 }
 
 /**

@@ -135,12 +135,12 @@ describe('polls and word clouds (no points)', () => {
       { key: 'лавра', text: 'Лавра', count: 2, playerIds: ['p2', 'p3'], hidden: false },
       { key: 'дніпро', text: 'Дніпро', count: 1, playerIds: ['p1'], hidden: false },
     ]);
-    expect(cloudVoters(s.plays[0])).toBe(3);
+    expect(cloudVoters(s.plays[0], s.players)).toBe(3);
 
     let tie = openClassic([cloud]);
     tie = answerAll(tie, { p2: words('каштани'), p1: words('Каштани') });
     expect(cloudTally(playOf(tie), tie.players)[0]).toMatchObject({ key: 'каштани', text: 'Каштани', count: 2, playerIds: ['p1', 'p2'] });
-    expect(cloudVoters(playOf(tie))).toBe(2);
+    expect(cloudVoters(playOf(tie), tie.players)).toBe(2);
     expect(cloudTally(openClassic([poll]).plays[0], tie.players)).toEqual([]);
   });
 
