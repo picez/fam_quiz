@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -1904,5 +1904,24 @@ describe('wipeout round (10g)', () => {
     expect(problemsOf(wipeoutQuiz(many))).toContain(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions }));
     const multi = filled(newQuestion('multi'));
     expect(problemsOf(wipeoutQuiz([...five.slice(0, 4), multi]))).toContain(t('problemWipeoutType'));
+  });
+});
+
+describe('survival round (10h)', () => {
+  it('a new survival round has three questions of 100, two trial questions, a question trial, one survivor and a bonus of 500', () => {
+    const round = newSurvivalRound();
+    expect(round.type).toBe('survival');
+    expect(round.questions.map((q) => q.points)).toEqual([100, 100, 100]);
+    expect(round.trials).toHaveLength(2);
+    expect([round.trial, round.survivors, round.bonus]).toEqual(['question', 1, 500]);
+    expect(roundSchema.safeParse({ ...round, questions: round.questions.map(filled), trials: round.trials.map(filled) }).success).toBe(true);
+  });
+  it('a survival round offers only its simple types', () => {
+    expect(questionTypesFor('survival')).toEqual(SURVIVAL_TYPES);
+  });
+  it('a survival draft round-trips through storage with its trials and rules', () => {
+    const quiz: Quiz = { ...newQuiz(), title: 'Т', rounds: [newSurvivalRound()] };
+    saveDraft('survival-draft', quiz);
+    expect(loadDraft('survival-draft')!.rounds[0]).toEqual(quiz.rounds[0]);
   });
 });

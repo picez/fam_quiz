@@ -1,4 +1,4 @@
-import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type Round, type RoundRules, type WagerMode } from './quiz';
+import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type Round, type RoundRules, type TrialKind, type WagerMode } from './quiz';
 
 /** Налаштування раунду, від яких залежать бали; з цього клієнт складає пояснення для гравців. */
 export interface RoundBrief {
@@ -25,9 +25,11 @@ export interface RoundBrief {
   answerModes: AnswerMode[];
   /** Фінал: тип ставок; null поза фіналом. */
   wagerMode: WagerMode | null;
+  /** «Вибування»: вид випробування, скільки має лишитися, бонус; null поза ним. */
+  survival: { trial: TrialKind; survivors: number; bonus: number } | null;
 }
 
-/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow і wagerMode null, answerModes []. */
+/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, wagerMode і survival null, answerModes []. */
 export function emptyBrief(type: Round['type']): RoundBrief {
   return {
     type,
@@ -43,6 +45,7 @@ export function emptyBrief(type: Round['type']): RoundBrief {
     penaltyAll: false,
     answerModes: [],
     wagerMode: null,
+    survival: null,
   };
 }
 
@@ -53,6 +56,9 @@ export function roundBrief(round: Round): RoundBrief {
   const rules = rulesOf(round);
   const withRules = { ...base, penalty: rules.penalty === 'minus', streak: rules.streak, multiplier: rules.multiplier };
   if (round.type === 'classic') return { ...withRules, speedBonus: round.speedBonus };
+  if (round.type === 'survival') {
+    return { ...withRules, speedBonus: round.speedBonus, survival: { trial: round.trial, survivors: round.survivors, bonus: round.bonus } };
+  }
   if (round.type === 'blitz') {
     // Миттєвий бліц ігнорує збережені вікно й спроби (як і рушій).
     if (round.check === 'auto') return { ...withRules, instant: true, attempts: 1, answerWindow: null };

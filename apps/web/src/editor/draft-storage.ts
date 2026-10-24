@@ -313,6 +313,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
         }
         const questions = round.questions.map(revive);
         if (round.type === 'blitz' || round.type === 'wipeout') return { ...round, questions };
+        if (round.type === 'survival') return { ...round, questions, trials: round.trials.map(revive) };
         // Чернетка до типів ставок — класичні ставки.
         if (round.type === 'final') return { ...round, wagerMode: round.wagerMode ?? 'classic', questions };
         return {

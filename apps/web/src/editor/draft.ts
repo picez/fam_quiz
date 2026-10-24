@@ -20,7 +20,9 @@ import {
   type Duels,
   type FinalRound,
   type WipeoutRound,
+  type SurvivalRound,
   WIPEOUT_TYPES,
+  SURVIVAL_TYPES,
   type Round,
   type Question,
   type Quiz,
@@ -47,6 +49,7 @@ export { QUESTION_TYPES, type QuestionType };
  * сортування — скрізь; класика — усі.
  * Блеф — лише класика (поле, бліц і фінал його не мають).
  * «Ва-банк» — лише WIPEOUT_TYPES: один варіант, так/ні, число, текст, повзунок.
+ * «Вибування» (основні запитання й питання на виживання) — лише SURVIVAL_TYPES, ті самі п'ять.
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
@@ -59,6 +62,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
     return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
+  if (roundType === 'survival') return SURVIVAL_TYPES;
   return QUESTION_TYPES;
 }
 
@@ -353,6 +357,23 @@ export function newWipeoutRound(): WipeoutRound {
   };
 }
 
+/** Нове «Вибування»: три порожні запитання «один варіант» по 100, два питання на виживання, випробування — питання, лишається 1, бонус 500. */
+export function newSurvivalRound(): SurvivalRound {
+  return {
+    id: newId(),
+    type: 'survival',
+    title: '',
+    speedBonus: false,
+    shuffleOptions: false,
+    rules: defaultRules(),
+    questions: Array.from({ length: LIMITS.minSurvivalQuestions }, () => ({ ...newQuestion('single'), points: 100 })),
+    trials: [newQuestion('single'), newQuestion('single')],
+    trial: 'question',
+    survivors: 1,
+    bonus: 500,
+  };
+}
+
 /** Новий раунд «Фінал»: одне запитання, автоматична перевірка, класичні ставки; правил балів у ньому немає. */
 export function newFinalRound(): FinalRound {
   return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', questions: [newQuestion('single')] };
@@ -599,6 +620,9 @@ export function cleaned(quiz: Quiz): Quiz {
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
       if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanQuestion(question))) };
+      if (round.type === 'survival') {
+        return { ...round, title, questions: round.questions.map(cleanQuestion), trials: round.trials.map(cleanQuestion) };
+      }
       if (round.type !== 'board') return { ...round, title, questions: round.questions.map(cleanQuestion) };
       return {
         ...round,

@@ -71,4 +71,15 @@ describe('roundSummary', () => {
   it('a wipeout round explains the bank and the take', () => {
     expect(roundSummary(emptyBrief('wipeout'))).toEqual([t('summaryWipeout'), t('summaryWipeoutTake')]);
   });
+  it('a survival round explains the edge, the trial and the bonus, then the classic modifiers', () => {
+    const brief = { ...emptyBrief('survival'), penalty: true, survival: { trial: 'luck' as const, survivors: 1, bonus: 500 } };
+    expect(roundSummary(brief)).toEqual([
+      t('summarySurvival'),
+      t('summarySurvivalTrial_luck'),
+      t('summarySurvivalBonus', { bonus: 500 }),
+      t('summaryPenalty'),
+    ]);
+    const none = { ...brief, penalty: false, survival: { trial: 'question' as const, survivors: 1, bonus: 0 } };
+    expect(roundSummary(none)).toEqual([t('summarySurvival'), t('summarySurvivalTrial_question')]);
+  });
 });

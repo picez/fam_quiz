@@ -1288,7 +1288,7 @@ function typeTip(state: GameState, playerId: string): Question['type'] | null {
 }
 
 /** Етап, у якому заставка кожного виду має сенс. */
-const SPLASH_PHASE: Record<SplashKind, Phase> = { round: 'intro', final: 'intro', question: 'question', cell: 'question', duel: 'duel', podium: 'finished' };
+const SPLASH_PHASE: Record<SplashKind, Phase> = { round: 'intro', final: 'intro', question: 'question', cell: 'question', duel: 'duel', podium: 'finished', trial: 'leaderboard' };
 
 /** Заставка поточного етапу з часом сервера; поза своїм етапом — null. */
 function splashView(state: GameState): SplashView | null {

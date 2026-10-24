@@ -12,6 +12,7 @@ import {
   newFinalRound,
   newWipeoutQuestion,
   newWipeoutRound,
+  newSurvivalRound,
   newClassicRound,
   newQuestion,
   problemsOf,
@@ -139,7 +140,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   const addRound = (type: Round['type']) => {
     const fresh =
-      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'wipeout' ? newWipeoutRound() : newClassicRound();
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : newClassicRound();
     setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };

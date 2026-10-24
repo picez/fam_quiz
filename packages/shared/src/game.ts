@@ -7,7 +7,7 @@ export type DuelStage = 'declared' | 'category' | 'question' | 'answer' | 'resul
 export type Grade = 'correct' | 'partial' | 'wrong';
 
 /** Звідки коригування рахунку поза відповідями: бали від ведучого, дуель або купівля дебафу (9c). */
-export type AdjustmentSource = 'host' | 'duel' | 'debuff';
+export type AdjustmentSource = 'host' | 'duel' | 'debuff' | 'survival';
 
 /** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. */
 export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;
@@ -39,13 +39,19 @@ export type BuffBlock =
   /** Блеф: діють лише «Подвійні бали» і «Щит» (10f). */
   | 'unfit_bluff'
   /** «Ва-банк»: бафів немає (10g). */
-  | 'off_wipeout';
+  | 'off_wipeout'
+  /** «Вибування»: бафів немає (10h). */
+  | 'off_survival';
 
 /** Заставки переходів (частина 8c). */
-export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';
+export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium' | 'trial';
 
 /** Тривалість кожної заставки, мс; кінець заставки запитання — старт його таймера. Рушій і веб читають одне число. */
-export const SPLASH_MS: Record<SplashKind, number> = { round: 2500, final: 3200, question: 1200, cell: 1000, duel: 2000, podium: 2500 };
+export const SPLASH_MS: Record<SplashKind, number> = { round: 2500, final: 3200, question: 1200, cell: 1000, duel: 2000,
+  podium: 2500,
+  /** Драматична заставка випробування «Вибування» (10h). */
+  trial: 2200,
+};
 
 /** Скільки довше триває перегортання клітинки з ×2/×3: сюрприз після перегортання, мс. */
 export const CELL_SURPRISE_MS = 800;

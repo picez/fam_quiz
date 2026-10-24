@@ -38,7 +38,7 @@ export function RoundSettings({ round, index, onChange }: Props) {
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
   const setPartial = (partial: number | null) => {
-    if (round.type === 'classic' || round.type === 'board') onChange({ ...round, rules: { ...round.rules, partial } });
+    if (round.type === 'classic' || round.type === 'board' || round.type === 'survival') onChange({ ...round, rules: { ...round.rules, partial } });
   };
 
   return (
@@ -86,7 +86,7 @@ export function RoundSettings({ round, index, onChange }: Props) {
         </button>
       </div>
       )}
-      {round.type === 'classic' && (
+      {(round.type === 'classic' || round.type === 'survival') && (
         <div className="with-help">
           <label className="check">
             <input type="checkbox" checked={round.speedBonus} onChange={(event) => onChange({ ...round, speedBonus: event.target.checked })} />
