@@ -51,6 +51,7 @@ import { blitzRound, bluff, classicRound, clues, finalRound, makeQuiz, makeRound
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
+import { decideWipeout } from './wipeout';
 
 const HOUR = 3_600_000;
 const kyiv = { type: 'single', optionId: 'b' } as const;
@@ -510,11 +511,13 @@ function representative(): GameState[] {
   let wiped = openAt(lobbyWith(makeRoundsQuiz([wipeoutRound('rw', wipeoutLadder)]), 'Оля', 'Петро'), T0, () => 0);
   wiped = must(submitAnswer(wiped, 'p1', kyiv, T0 + 1000));
   wiped = must(next(must(submitAnswer(wiped, 'p2', kyiv, T0 + 1000)), T0 + 2000, () => 0));
-  wiped = { ...wiped, plays: wiped.plays.map((p) => (p.wipeout === undefined ? p : { ...p, wipeout: { took: ['p2'], stay: ['p1'], end: false } })) };
-  wiped = must(next(must(next(wiped, T0 + 3000, () => 0)), T0 + 3000, () => 0));
+  wiped = must(decideWipeout(must(next(wiped, T0 + 2500, () => 0)), 'p2', true, T0 + 2600));
+  wiped = must(next(must(decideWipeout(wiped, 'p1', false, T0 + 2700)), T0 + 3000, () => 0));
   wiped = must(next(must(submitAnswer(wiped, 'p1', { type: 'boolean', value: true }, T0 + 4000)), T0 + 5000, () => 0));
   return [
     wiped,
+    // Вікно «Далі / Забрати» відкрите: на leaderboard є startedAt / endsAt.
+    must(next(wiped, T0 + 6000, () => 0)),
     chosen,
     fromCloud,
     walled,
