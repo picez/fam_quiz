@@ -31,6 +31,10 @@ export const LIMITS = {
   categoryTitle: 40,
   orderLabel: 40,
   maxPlayers: 50,
+  /** «Ва-банк»: запитань у раунді й секунд на «Далі / Забрати». */
+  minWipeoutQuestions: 5,
+  maxWipeoutQuestions: 15,
+  wipeoutDecideSeconds: 10,
   /** Ціна дебафу для гравців (9c), балів. */
   minDebuffPrice: 50,
   maxDebuffPrice: 5000,
@@ -783,8 +787,25 @@ export const finalRoundSchema = z.object({
 
 export type FinalRound = z.infer<typeof finalRoundSchema>;
 
+/** Типи запитань раунду «Ва-банк»: відповідь однозначно правильна чи ні. */
+export const WIPEOUT_TYPES = ['single', 'boolean', 'numeric', 'text', 'slider'] as const satisfies readonly QuestionType[];
+
+/** «Ва-банк»: правильна відповідь додає ціну в банк, помилка спалює його; після кожної правильної — «Далі» чи «Забрати». Правил балів немає. */
+export const wipeoutRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('wipeout'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  shuffleOptions: z.boolean(),
+  /** Драбина: запитання в порядку гри, ціна кожного — його points. */
+  questions: z.array(questionSchema).min(LIMITS.minWipeoutQuestions).max(LIMITS.maxWipeoutQuestions),
+});
+
+export type WipeoutRound = z.infer<typeof wipeoutRoundSchema>;
+
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'wipeout'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -792,6 +813,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   blitzRoundSchema,
   boardRoundSchema,
   finalRoundSchema,
+  wipeoutRoundSchema,
 ]);
 
 export type Round = z.infer<typeof roundSchema>;
@@ -801,9 +823,9 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1). */
+/** Правила балів раунду; у фіналі й «Ва-банк» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1). */
 export function rulesOf(round: Round): RoundRules {
-  return round.type === 'final' ? DEFAULT_RULES : round.rules;
+  return round.type === 'final' || round.type === 'wipeout' ? DEFAULT_RULES : round.rules;
 }
 
 /** Запитання дуелі: текстова відповідь, як у типі text; без картинки й відео. */
@@ -924,6 +946,11 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'bluff')
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'bluff');
       if (bluffPlace) ctx.addIssue({ code: 'custom', message: 'bluff_place' });
+      // «Ва-банк»: лише прості типи з однозначною відповіддю.
+      if (round.type === 'wipeout') {
+        const allowed: readonly string[] = WIPEOUT_TYPES;
+        if (round.questions.some((q) => !allowed.includes(q.type))) ctx.addIssue({ code: 'custom', message: 'wipeout_type' });
+      }
       // Дошка з хмари — лише в класиці.
       if (round.type === 'board' && boardCells(round).some(({ cell }) => cell.question.type === 'survey' && cell.question.cloudId !== undefined)) {
         ctx.addIssue({ code: 'custom', message: 'survey_cloud_place' });

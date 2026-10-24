@@ -33,8 +33,8 @@ export function RoundSettings({ round, index, onChange }: Props) {
   const { streak } = rules;
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
   const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) => {
-    // У фіналі правил немає: їхніх елементів керування там не показано.
-    if (round.type === 'final') return;
+    // У фіналі й «Ва-банк» правил немає: їхніх елементів керування там не показано.
+    if (round.type === 'final' || round.type === 'wipeout') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
   const setPartial = (partial: number | null) => {

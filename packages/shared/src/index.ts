@@ -1,4 +1,5 @@
 export * from './quiz';
+export * from './wipeout';
 export * from './round-brief';
 export * from './upgrade';
 export * from './answer';

@@ -37,7 +37,9 @@ export type BuffBlock =
   /** Картинка, що проявляється: відповідь одна (10b). */
   | 'unfit_reveal'
   /** Блеф: діють лише «Подвійні бали» і «Щит» (10f). */
-  | 'unfit_bluff';
+  | 'unfit_bluff'
+  /** «Ва-банк»: бафів немає (10g). */
+  | 'off_wipeout';
 
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';
@@ -70,6 +72,8 @@ export type ErrorCode =
   | 'bluff_truth'
   /** Свою вигадку вибрати не можна (10f). */
   | 'bluff_own'
+  /** «Ва-банк»: гравці ще вибирають «Далі» чи «Забрати» (10g). */
+  | 'deciding'
   | 'time_over'
   | 'type_mismatch'
   | 'partial_disabled'

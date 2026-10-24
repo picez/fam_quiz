@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -1867,5 +1867,16 @@ describe('bluff: checks and drafts (10f)', () => {
     expect(revived({ accepted: 5 }).accepted).toEqual(['']);
     expect(revived({ lies: ['а', 7, 'б'] }).lies).toEqual(['а', '', 'б']);
     expect(revived({ video: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0 } }).video).toBeNull();
+  });
+});
+
+describe('wipeout round (10g)', () => {
+  it('a new wipeout round is a ladder of five single questions priced 100…500 that passes the schema once filled', () => {
+    const round = newWipeoutRound();
+    expect(round.questions.map((q) => q.points)).toEqual([100, 200, 300, 400, 500]);
+    expect(roundSchema.safeParse({ ...round, questions: round.questions.map(filled) }).success).toBe(true);
+  });
+  it('a wipeout round offers only its simple types', () => {
+    expect(questionTypesFor('wipeout')).toEqual(WIPEOUT_TYPES);
   });
 });

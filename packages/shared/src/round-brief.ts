@@ -49,6 +49,7 @@ export function emptyBrief(type: Round['type']): RoundBrief {
 export function roundBrief(round: Round): RoundBrief {
   const base = emptyBrief(round.type);
   if (round.type === 'final') return { ...base, wagerMode: round.wagerMode };
+  if (round.type === 'wipeout') return base;
   const rules = rulesOf(round);
   const withRules = { ...base, penalty: rules.penalty === 'minus', streak: rules.streak, multiplier: rules.multiplier };
   if (round.type === 'classic') return { ...withRules, speedBonus: round.speedBonus };

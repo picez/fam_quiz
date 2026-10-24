@@ -19,6 +19,10 @@ export function roundSummary(brief: RoundBrief): string[] {
     lines.push(t('summaryFinal'), t(brief.wagerMode === 'bank' ? 'summaryFinalBank' : 'summaryFinalScore'));
     return lines;
   }
+  if (brief.type === 'wipeout') {
+    lines.push(t('summaryWipeout'), t('summaryWipeoutTake'));
+    return lines;
+  }
   if (brief.type === 'classic') {
     lines.push(t('summaryClassic'));
     if (brief.speedBonus) lines.push(t('summarySpeed'));

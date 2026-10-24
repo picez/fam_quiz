@@ -19,6 +19,8 @@ import {
   type DuelQuestion,
   type Duels,
   type FinalRound,
+  type WipeoutRound,
+  WIPEOUT_TYPES,
   type Round,
   type Question,
   type Quiz,
@@ -44,6 +46,7 @@ export { QUESTION_TYPES, type QuestionType };
  * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, «100 до 1», опитування й хмари;
  * сортування — скрізь; класика — усі.
  * Блеф — лише класика (поле, бліц і фінал його не мають).
+ * «Ва-банк» — лише WIPEOUT_TYPES: один варіант, так/ні, число, текст, повзунок.
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
@@ -55,6 +58,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
   if (roundType === 'final') {
     return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
+  if (roundType === 'wipeout') return WIPEOUT_TYPES;
   return QUESTION_TYPES;
 }
 
@@ -335,6 +339,17 @@ export function newBlitzRound(): BlitzRound {
     check: 'auto',
     rules: { ...defaultRules(), partial: null },
     questions: [newQuestion('single')],
+  };
+}
+
+/** Новий «Ва-банк»: п'ять порожніх запитань «один варіант» з цінами 100…500 (драбина зростає), без перемішування. */
+export function newWipeoutRound(): WipeoutRound {
+  return {
+    id: newId(),
+    type: 'wipeout',
+    title: '',
+    shuffleOptions: false,
+    questions: Array.from({ length: LIMITS.minWipeoutQuestions }, (_, i) => ({ ...newQuestion('single'), points: 100 * (i + 1) })),
   };
 }
 

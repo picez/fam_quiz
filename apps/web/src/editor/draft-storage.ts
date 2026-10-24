@@ -284,8 +284,8 @@ function looksLikeQuiz(value: unknown): value is Quiz {
       const common =
         typeof id === 'string' &&
         typeof roundTitle === 'string' &&
-        // У фіналі правил немає.
-        (type === 'final' || (typeof rules === 'object' && rules !== null));
+        // У фіналі й «Ва-банк» правил немає.
+        (type === 'final' || type === 'wipeout' || (typeof rules === 'object' && rules !== null));
       if (type === 'board') return common && Array.isArray(categories) && categories.length > 0 && categories.every(looksLikeCategory);
       return common && Array.isArray(questions) && questions.length > 0 && questions.every(looksLikeQuestion);
     })
@@ -312,7 +312,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
           return { ...rest, categories: categories.map(reviveCategory) };
         }
         const questions = round.questions.map(revive);
-        if (round.type === 'blitz') return { ...round, questions };
+        if (round.type === 'blitz' || round.type === 'wipeout') return { ...round, questions };
         // Чернетка до типів ставок — класичні ставки.
         if (round.type === 'final') return { ...round, wagerMode: round.wagerMode ?? 'classic', questions };
         return {
