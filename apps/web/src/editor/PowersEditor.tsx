@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { allowedBuffs, allowedDebuffs, BUFF_KINDS, DEBUFF_KINDS, LIMITS, READY_BUFFS, type BuffKind, type DebuffKind, type Question, type QuizSettings } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
+import { HelpButton } from '../help/HelpButton';
 import { t, type TextKey } from '../i18n';
 import type { SwapGaps } from './draft';
 
@@ -101,6 +102,7 @@ export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
                   <span aria-hidden="true">{DEBUFF_ICONS[kind]}</span>
                   <span>{debuffName(kind)}</span>
                 </label>
+                <HelpButton id={`debuff.${kind}`} />
                 {on && (
                   <label className="powers-price">
                     {t('powersPrice')}
@@ -124,10 +126,13 @@ export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
         </div>
       </fieldset>
 
-      <label className="powers-item">
-        <input type="checkbox" checked={shopOn} onChange={(event) => emit({ shopOn: event.target.checked })} />
-        <span>{t('powersShop')}</span>
-      </label>
+      <div className="with-help">
+        <label className="powers-item">
+          <input type="checkbox" checked={shopOn} onChange={(event) => emit({ shopOn: event.target.checked })} />
+          <span>{t('powersShop')}</span>
+        </label>
+        <HelpButton id="setting.debuffShop" />
+      </div>
 
       <fieldset className="powers-group">
         <legend>{t('powersBuffs')}</legend>
@@ -141,15 +146,18 @@ export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
         </div>
         <div className="powers-list">
           {BUFF_KINDS.map((kind) => (
-            <label className="powers-item" key={kind}>
-              <input
-                type="checkbox"
-                checked={buffs.includes(kind)}
-                onChange={(event) => emit({ buffs: toggled(BUFF_KINDS, buffs, kind, event.target.checked) })}
-              />
-              <span aria-hidden="true">{BUFF_ICONS[kind]}</span>
-              <span>{buffName(kind)}</span>
-            </label>
+            <div className="powers-row" key={kind}>
+              <label className="powers-item">
+                <input
+                  type="checkbox"
+                  checked={buffs.includes(kind)}
+                  onChange={(event) => emit({ buffs: toggled(BUFF_KINDS, buffs, kind, event.target.checked) })}
+                />
+                <span aria-hidden="true">{BUFF_ICONS[kind]}</span>
+                <span>{buffName(kind)}</span>
+              </label>
+              <HelpButton id={`buff.${kind}`} />
+            </div>
           ))}
         </div>
         {buffs.map((kind) => (

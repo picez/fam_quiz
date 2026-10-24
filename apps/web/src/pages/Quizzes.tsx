@@ -119,6 +119,9 @@ export function Quizzes() {
         <button type="button" className="btn" disabled={busy} onClick={addDemo}>
           {t('addDemo')}
         </button>
+        <Link className="btn" to="/help">
+          {t('helpLink')}
+        </Link>
       </div>
 
       {error !== null && (

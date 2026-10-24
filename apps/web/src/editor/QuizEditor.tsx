@@ -16,6 +16,7 @@ import {
   swapGaps,
 } from './draft';
 import { BoardEditor } from './BoardEditor';
+import { HelpButton } from '../help/HelpButton';
 import { DuelsEditor } from './DuelsEditor';
 import { PowersEditor } from './PowersEditor';
 import { QuestionEditor } from './QuestionEditor';
@@ -194,6 +195,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   return (
     <main className="app editor">
       <h1 className="brand">{heading}</h1>
+      <a className="quiet-link help-link" href="/help" target="_blank" rel="noreferrer">
+        {t('helpLink')}
+        <span aria-hidden="true"> ↗</span>
+      </a>
 
       {notice !== null && (
         <p className="banner" role="status">
@@ -217,20 +222,26 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               onChange={(event) => update({ ...quiz, description: event.target.value })}
             />
           </label>
-          <label className="field">
-            <span>{t('leaderboardLabel')}</span>
-            <select
-              value={settings.leaderboard}
-              onChange={(event) => setSettings({ leaderboard: event.target.value === 'end' ? 'end' : 'each' })}
-            >
-              <option value="each">{t('leaderboardEach')}</option>
-              <option value="end">{t('leaderboardEnd')}</option>
-            </select>
-          </label>
-          <label className="field field-check">
-            <input type="checkbox" checked={settings.newcomers === true} onChange={(event) => setNewcomers(event.target.checked)} />
-            <span>{t('newcomersLabel')}</span>
-          </label>
+          <div className="with-help">
+            <label className="field">
+              <span>{t('leaderboardLabel')}</span>
+              <select
+                value={settings.leaderboard}
+                onChange={(event) => setSettings({ leaderboard: event.target.value === 'end' ? 'end' : 'each' })}
+              >
+                <option value="each">{t('leaderboardEach')}</option>
+                <option value="end">{t('leaderboardEnd')}</option>
+              </select>
+            </label>
+            <HelpButton id="setting.leaderboard" />
+          </div>
+          <div className="with-help">
+            <label className="field field-check">
+              <input type="checkbox" checked={settings.newcomers === true} onChange={(event) => setNewcomers(event.target.checked)} />
+              <span>{t('newcomersLabel')}</span>
+            </label>
+            <HelpButton id="setting.newcomers" />
+          </div>
           <p className="meta">{t('newcomersHint')}</p>
         </details>
 
@@ -241,6 +252,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
         <details className="rules spares" open={sparesOpen} onToggle={(event) => setSparesOpen(event.currentTarget.open)}>
           <summary>{t('sparesTitle')}</summary>
+          <p className="meta with-help">
+            <span>{t('sparesTitle')}</span>
+            <HelpButton id="setting.spares" />
+          </p>
           <SparesEditor
             spares={quiz.spares}
             onChange={(spares) => {
@@ -252,6 +267,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
         <details className="rules duels" open={duelsOpen} onToggle={(event) => setDuelsOpen(event.currentTarget.open)}>
           <summary>{t('duelsTitle')}</summary>
+          <p className="meta with-help">
+            <span>{t('duelsTitle')}</span>
+            <HelpButton id="setting.duels" />
+          </p>
           <DuelsEditor
             duels={quiz.duels}
             onChange={(duels) => {

@@ -25,6 +25,8 @@ import { BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
 import { SplashChip } from '../live/Splash';
 import { GuidePageView } from '../live/Guide';
 import { HostDuelPanel } from './DuelView';
+import { HelpButton } from '../help/HelpButton';
+import { cellHelpId } from '../help/host-help';
 
 interface Props {
   view: HostView;
@@ -52,6 +54,23 @@ const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: Ho
 
 /** Етапи, на яких раунд ще триває й його можна завершити достроково. */
 const IN_ROUND: HostView['phase'][] = ['duel', 'intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
+
+/** Рядок контексту: поточний раунд і (за потреби) тип запитання, кожне з «ⓘ». */
+function HostContext({ round, questionType }: { round: NonNullable<HostView['round']>; questionType?: NonNullable<HostView['question']>['type'] }) {
+  return (
+    <p className="meta host-context">
+      <span>{roundLabel(round.title, round.index, round.type)}</span>
+      <HelpButton id={`round.${round.type}`} />
+      {questionType !== undefined && (
+        <>
+          <span aria-hidden="true"> · </span>
+          <span>{t(`type_${questionType}`)}</span>
+          <HelpButton id={`question.${questionType}`} />
+        </>
+      )}
+    </p>
+  );
+}
 
 /** Відлік до автоматичного пропуску ходу відсутнього гравця. */
 function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView; offsetMs: number }) {
@@ -280,7 +299,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       {phase === 'intro' && round !== null && (
         <section className="panel">
           {round.total > 1 && <p className="meta">{t('roundOf', { index: round.index + 1, total: round.total })}</p>}
-          <h1 className="question">{roundLabel(round.title, round.index, round.type)}</h1>
+          <div className="with-help">
+            <h1 className="question">{roundLabel(round.title, round.index, round.type)}</h1>
+            <HelpButton id={`round.${round.type}`} />
+          </div>
           <RoundFacts round={round} total={view.total} />
           <RoundBriefing brief={round.brief} description={round.description} newcomers={view.newcomers} />
         </section>
@@ -350,6 +372,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
       {phase === 'board' && board !== null && (
         <section className="panel">
+          {round !== null && <HostContext round={round} />}
           {board.turn !== null && <p className="lead">{t('boardChooser', { name: board.turn.nickname })}</p>}
           <SkipNote board={board} view={view} offsetMs={offsetMs} />
           <Board board={board} onPick={(cellId) => void act('host:pick', { cellId })} />
@@ -365,11 +388,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
+          {round !== null && <HostContext round={round} questionType={view.question.type} />}
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
               {board.cell.mark !== 'none' && <span className="cell-mark">{markText(board.cell.mark)}</span>}
               {board.cell.kind === 'blitz' && <span className="cell-mark">{t('cellBlitz')}</span>}
+              <HelpButton id={cellHelpId(board.cell)} />
             </p>
           )}
           {board !== null && <BlitzCellNotes board={board} instant={view.blitz?.instant === true} />}
@@ -792,6 +817,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
       <nav className="links">
         <a href={stageUrl} target="_blank" rel="noreferrer">
           {t('stageLink')}
+        </a>
+        <a href="/help" target="_blank" rel="noreferrer">
+          {t('helpLink')}
         </a>
         <span className="meta">{`${t('joinLink')}: ${joinUrl}`}</span>
       </nav>

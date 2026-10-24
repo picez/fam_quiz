@@ -6991,7 +6991,7 @@ async function categorySparesGame() {
   await host.locator('.round-tabs').getByRole('button', { name: 'Поле', ...exact }).click();
   await host.getByRole('button', { name: /^Категорія 2, клітинка 1: 100/ }).click();
   const citySpares = host.locator('section.category-spares');
-  await citySpares.getByRole('heading', { name: 'Запасні категорії «Міста»', ...exact }).waitFor();
+  await citySpares.getByRole('heading', { name: /^Запасні категорії «Міста»/ }).waitFor();
   await citySpares.getByText('Немає запасних: на клітинках цієї категорії заміна буде недоступна.', exact).waitFor();
   await citySpares.scrollIntoViewIfNeeded();
   await shot(host, 'spares9d-editor-empty');
@@ -7142,6 +7142,195 @@ async function categorySparesGame() {
   expect(await line('Спорт 100', 'Оля').locator('.spare-text').textContent()).toBe('Запасне: Футбольний м’яч — круглий?');
   expect(await line('Міста 200', 'Петро').locator('.spare-text').textContent()).toBe('Запасне: Львів — обласний центр?');
   await shot(host, 'spares9d-history');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 10a: host help — ⓘ in the editor for a setting, a buff, a blitz cell and a round type, a sheet on a phone, reading help leaves the quiz unchanged; the reference with topics, search and an anchor; ⓘ on the host console that never stops the game', async () => {
+  try {
+    await hostHelpGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function hostHelpGame() {
+  const host = await open('host10a', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host10a@example.com');
+
+  const warmup = {
+    imageUrl: null,
+    video: null,
+    timeLimit: 30,
+    points: 100,
+    id: 'q1',
+    type: 'single' as const,
+    text: 'Столиця України?',
+    options: ['Київ', 'Львів', 'Одеса'].map((text, at) => ({ id: `q1o${at}`, text })),
+    correctId: 'q1o0',
+  };
+  const cellQ = (category: string, price: number) => ({
+    ...withPoints(withId(single, `b-${category}-${price}`), price),
+    text: `${category} ${price}: столиця України?`,
+  });
+  const cells = (title: string) =>
+    [100, 200, 300].map((price) => {
+      const question = cellQ(title, price);
+      if (title === 'Міста' && price === 100) return { kind: 'blitz' as const, question };
+      if (title === 'Річки' && price === 100) return { answerMode: 'voice' as const, question };
+      if (title === 'Гори' && price === 300) return { mark: 'x2' as const, question };
+      return question;
+    });
+  const rounds = [
+    classicRound('r1', [warmup], { title: 'Розминка', speedBonus: true }),
+    boardRound(
+      'r2',
+      ['Міста', 'Річки', 'Гори'].map((title) => ({ title, cells: cells(title) })),
+      { title: 'Поле', answerMode: 'phone', check: 'auto' },
+    ),
+  ];
+  const spares = [{ ...warmup, id: 'g1', type: 'text' as const, text: 'Яке місто стоїть на Пруті?', accepted: ['Чернівці'] }];
+  const data = {
+    ...makeRoundsQuiz(rounds, { leaderboard: 'end', buffs: ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'] }),
+    spares,
+    title: 'Довідка 10a',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // Діалоги підтвердження (вихід зі зміненого редактора) не мають з'являтися.
+  const dialogs: string[] = [];
+  host.on('dialog', (dialog) => dialogs.push(dialog.message()));
+
+  // 1. Список вікторин.
+  await host.goto(`${base}/quizzes`);
+  expect(await host.getByRole('link', { name: 'Довідка ведучого', ...exact }).getAttribute('href')).toBe('/help');
+
+  // 2. Редактор.
+  await host.locator('.quiz-list li', { hasText: 'Довідка 10a' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  expect(await host.locator('main.editor').getByRole('link', { name: 'Довідка ведучого', ...exact }).getAttribute('target')).toBe('_blank');
+  const dialog = (name: string) => host.getByRole('dialog', { name, ...exact });
+
+  await host.locator('details.rules').first().locator('summary').click();
+  await host.getByRole('button', { name: 'Довідка: Показувати рейтинг', ...exact }).click();
+  await dialog('Показувати рейтинг').waitFor();
+  await dialog('Показувати рейтинг').getByText(/Лише в кінці гри/).first().waitFor();
+  await shot(host, 'help10a-editor-setting');
+  await host.keyboard.press('Escape');
+  await dialog('Показувати рейтинг').waitFor({ state: 'detached' });
+  expect(await host.evaluate("document.activeElement?.getAttribute('aria-label')")).toBe('Довідка: Показувати рейтинг');
+
+  await host.locator('details.powers > summary').click();
+  await host.getByRole('button', { name: 'Довідка: Заміна запитання', ...exact }).click();
+  const buffDialog = dialog('Заміна запитання');
+  await buffDialog.waitFor();
+  for (const heading of ['Що це', 'Як іде в грі', 'Бали', 'Порада', 'Обмеження']) {
+    await buffDialog.getByRole('heading', { name: heading, ...exact }).waitFor();
+  }
+  expect(await buffDialog.getByRole('link', { name: 'Усі пояснення' }).getAttribute('href')).toBe('/help#help-buff-swap');
+  await shot(host, 'help10a-editor-buff');
+  await host.keyboard.press('Escape');
+  await buffDialog.waitFor({ state: 'detached' });
+
+  await host.locator('.round-tabs').getByRole('button', { name: 'Поле', ...exact }).click();
+  await host.getByRole('button', { name: /^Категорія 1, клітинка 1: 100 бліц/ }).click();
+  await host.getByRole('button', { name: 'Довідка: Бліц-клітинка', ...exact }).first().click();
+  await dialog('Бліц-клітинка').getByText(/Мінус для всіх/).first().waitFor();
+  await shot(host, 'help10a-editor-cell');
+  await host.keyboard.press('Escape');
+  await dialog('Бліц-клітинка').waitFor({ state: 'detached' });
+
+  await click(host, '+ Раунд');
+  await host.getByRole('button', { name: 'Довідка: Фінал', ...exact }).click();
+  await dialog('Фінал').waitFor();
+  await shot(host, 'help10a-editor-round');
+  await dialog('Фінал').getByRole('button', { name: 'Закрити', ...exact }).click();
+  await dialog('Фінал').waitFor({ state: 'detached' });
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.locator('.round-tabs').getByRole('button', { name: 'Розминка', ...exact }).click();
+  await host.getByRole('button', { name: 'Довідка: Один правильний варіант', ...exact }).click();
+  const sheet = dialog('Один правильний варіант');
+  await sheet.waitFor();
+  const box = (await sheet.boundingBox())!;
+  expect(box.x).toBe(0);
+  expect(box.width).toBe(375);
+  // На телефоні аркуш висить зверху (до половини екрана) і лишає нижню частину доступною.
+  expect(box.y).toBeLessThanOrEqual(1);
+  expect(box.height).toBeLessThanOrEqual(812 / 2 + 1);
+  await sheet.getByRole('button', { name: 'Закрити', ...exact }).waitFor();
+  await shot(host, 'help10a-editor-sheet-375');
+  await expectNoSideScroll(host, 'help10a-editor-375');
+  await host.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await click(host, 'Скасувати');
+  await host.waitForURL(/\/quizzes$/);
+  expect(dialogs).toEqual([]);
+
+  // 3. Довідник.
+  await host.goto(`${base}/help`);
+  await host.getByRole('heading', { level: 1, name: 'Довідка ведучого', ...exact }).waitFor();
+  expect(await host.locator('h2').allTextContents()).toEqual(['Раунди', 'Типи запитань', 'Клітинки поля', 'Бафи', 'Дебафи', 'Налаштування']);
+  await shot(host, 'help10a-reference');
+  const search = host.getByLabel('Пошук за назвою', exact);
+  await search.fill('щит');
+  await expect.poll(() => host.locator('h3:visible').allTextContents()).toEqual(['🛡 Щит']);
+  await shot(host, 'help10a-reference-search');
+  await search.fill('зззз');
+  await host.getByText('Нічого не знайдено.', exact).waitFor();
+  await search.fill('');
+  await host.goto(`${base}/help#help-buff-swap`);
+  const target = host.locator('article#help-buff-swap');
+  await target.waitFor();
+  expect(await target.getAttribute('class')).toContain('is-target');
+  await expect.poll(async () => (await target.boundingBox())!.y).toBeLessThan(900);
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.goto(`${base}/help`);
+  await host.getByRole('heading', { level: 1, name: 'Довідка ведучого', ...exact }).waitFor();
+  await expectNoSideScroll(host, 'help10a-reference-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  // 4. Пульт.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Довідка 10a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const helpLink = host.getByRole('link', { name: 'Довідка ведучого', ...exact });
+  expect(await helpLink.getAttribute('href')).toBe('/help');
+  expect(await helpLink.getAttribute('target')).toBe('_blank');
+  const olya = await open('olya10a', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await click(host, 'Почати гру');
+  await afterSplash(host, olya);
+  await host.getByRole('button', { name: 'Довідка: Класичний', ...exact }).waitFor();
+  await click(host, 'Почати раунд');
+  await afterSplash(host, olya);
+
+  const context = host.locator('.host-context');
+  await expect.poll(() => context.textContent()).toContain('Розминка');
+  expect(await context.textContent()).toContain('Один правильний варіант');
+  await host.getByRole('button', { name: 'Довідка: Один правильний варіант', ...exact }).click();
+  await dialog('Один правильний варіант').waitFor();
+  await shot(host, 'help10a-host-popover');
+  const before = await seconds(host);
+  await host.waitForTimeout(1500);
+  expect(await seconds(host)).toBeLessThan(before);
+  expect(await host.locator('p.banner[role="status"]', { hasText: 'Пауза' }).count()).toBe(0);
+  await click(host, 'Пауза');
+  await host.locator('p.banner[role="status"]', { hasText: 'Пауза' }).waitFor();
+  await click(host, 'Продовжити');
+  await host.locator('p.banner[role="status"]', { hasText: 'Пауза' }).waitFor({ state: 'detached' });
+
+  await olya.getByRole('button', { name: /Київ/ }).click();
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await dialog('Один правильний варіант').waitFor({ state: 'detached' });
+  await host.getByText(/Правильна відповідь: .*Київ/).first().waitFor();
+  await shot(host, 'help10a-host-reveal');
 
   expect(problems).toEqual([]);
 }

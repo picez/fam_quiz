@@ -1,4 +1,5 @@
 import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty } from '@quiz/shared';
+import { HelpButton } from '../help/HelpButton';
 import { useEffect, useId, useState } from 'react';
 import { t } from '../i18n';
 import { moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
@@ -165,45 +166,57 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
       </div>
 
       <section className="panel board-panel" aria-label={t('boardCellPanel', { index: index + 1, category: category + 1 })}>
-        <label className="field">
-          <span>{t('boardMark')}</span>
-          <select value={current.mark} onChange={(event) => setCell({ mark: toMark(event.target.value) })}>
-            <option value="none">{t('boardMarkNone')}</option>
-            <option value="x2">{t('boardMarkX2')}</option>
-            <option value="x3">{t('boardMarkX3')}</option>
-          </select>
-        </label>
+        <div className="with-help">
+          <label className="field">
+            <span>{t('boardMark')}</span>
+            <select value={current.mark} onChange={(event) => setCell({ mark: toMark(event.target.value) })}>
+              <option value="none">{t('boardMarkNone')}</option>
+              <option value="x2">{t('boardMarkX2')}</option>
+              <option value="x3">{t('boardMarkX3')}</option>
+            </select>
+          </label>
+          <HelpButton id="cell.marks" />
+        </div>
         {current.question.type === 'sort' ? (
           <p className="meta">{t('sortCellNote')}</p>
         ) : (
           <>
-            <label className="field">
-              <span>{t('boardKind')}</span>
-              <select value={current.kind} onChange={(event) => setCell({ kind: pick<CellKind>(CELL_KINDS, event.target.value, 'normal') })}>
-                <option value="normal">{t('boardKindNormal')}</option>
-                <option value="blitz">{t('boardKindBlitz')}</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>{t('boardCellMode')}</span>
-              <select
-                value={cellAnswerMode(round, current)}
-                onChange={(event) => setCell({ answerMode: pick<AnswerMode>(ANSWER_MODES, event.target.value, 'phone') })}
-              >
-                <option value="phone">{t('boardAnswerPhone')}</option>
-                <option value="voice">{t('boardAnswerVoice')}</option>
-              </select>
-            </label>
+            <div className="with-help">
+              <label className="field">
+                <span>{t('boardKind')}</span>
+                <select value={current.kind} onChange={(event) => setCell({ kind: pick<CellKind>(CELL_KINDS, event.target.value, 'normal') })}>
+                  <option value="normal">{t('boardKindNormal')}</option>
+                  <option value="blitz">{t('boardKindBlitz')}</option>
+                </select>
+              </label>
+              <HelpButton id={`cell.${current.kind}`} />
+            </div>
+            <div className="with-help">
+              <label className="field">
+                <span>{t('boardCellMode')}</span>
+                <select
+                  value={cellAnswerMode(round, current)}
+                  onChange={(event) => setCell({ answerMode: pick<AnswerMode>(ANSWER_MODES, event.target.value, 'phone') })}
+                >
+                  <option value="phone">{t('boardAnswerPhone')}</option>
+                  <option value="voice">{t('boardAnswerVoice')}</option>
+                </select>
+              </label>
+              <HelpButton id="cell.voice" />
+            </div>
           </>
         )}
         {current.kind === 'blitz' && (
-          <label className="field">
-            <span>{t('boardCellPenalty')}</span>
-            <select value={current.penalty} onChange={(event) => setCell({ penalty: pick<CellPenalty>(CELL_PENALTIES, event.target.value, 'none') })}>
-              <option value="none">{t('boardPenaltyNone')}</option>
-              <option value="all">{t('boardPenaltyAll')}</option>
-            </select>
-          </label>
+          <div className="with-help">
+            <label className="field">
+              <span>{t('boardCellPenalty')}</span>
+              <select value={current.penalty} onChange={(event) => setCell({ penalty: pick<CellPenalty>(CELL_PENALTIES, event.target.value, 'none') })}>
+                <option value="none">{t('boardPenaltyNone')}</option>
+                <option value="all">{t('boardPenaltyAll')}</option>
+              </select>
+            </label>
+            <HelpButton id="cell.blitz" />
+          </div>
         )}
         <QuestionEditor
           key={current.question.id}
@@ -230,7 +243,10 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
       </section>
 
       <section className="panel category-spares" aria-label={t('categorySparesTitle', { title: sparesTitle })}>
-        <h3>{t('categorySparesTitle', { title: sparesTitle })}</h3>
+        <h3 className="with-help">
+          <span>{t('categorySparesTitle', { title: sparesTitle })}</span>
+          <HelpButton id="setting.spares" />
+        </h3>
         <SparesEditor
           key={categories[category].id}
           spares={categories[category].spares}

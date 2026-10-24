@@ -62,3 +62,21 @@ describe('BoardEditor category spares (9d)', () => {
     expect(screen.getByLabelText('Запасних: 2')).toBeTruthy();
   });
 });
+
+describe('BoardEditor help (10a)', () => {
+  it('a cell has ⓘ for marks, its kind and voice; the kind ⓘ follows the select; spares of a category have ⓘ', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={boardWith(0)} onChange={onChange} />);
+    screen.getByRole('button', { name: 'Довідка: ×2 і ×3' });
+    screen.getByRole('button', { name: 'Довідка: Звичайна клітинка' });
+    screen.getByRole('button', { name: 'Довідка: Відповідь уголос' });
+    fireEvent.change(screen.getByLabelText('Тип клітинки'), { target: { value: 'blitz' } });
+    const next = onChange.mock.calls[0][0] as BoardRound;
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.getAllByRole('button', { name: 'Довідка: Бліц-клітинка' })).toHaveLength(2);
+    within(screen.getByRole('region', { name: /^Запасні категорії/ })).getByRole('button', { name: 'Довідка: Запасні запитання' });
+    const calls = onChange.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: ×2 і ×3' }));
+    expect(onChange.mock.calls.length).toBe(calls);
+  });
+});

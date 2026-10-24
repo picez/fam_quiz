@@ -56,6 +56,12 @@ describe('Quizzes', () => {
     expect(await screen.findByText('сторінка входу')).toBeTruthy();
   });
 
+  it('links to the host reference', async () => {
+    open();
+    const link = await screen.findByRole('link', { name: 'Довідка ведучого' });
+    expect(link.getAttribute('href')).toBe('/help');
+  });
+
   it('lists the host’s quizzes', async () => {
     open();
     expect(await screen.findByText('Географія')).toBeTruthy();

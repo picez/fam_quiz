@@ -4,6 +4,7 @@ import { EditQuiz } from './pages/EditQuiz';
 import { GameHistory } from './pages/GameHistory';
 import { History } from './pages/History';
 import { Home } from './pages/Home';
+import { HostHelp } from './pages/HostHelp';
 import { Host } from './pages/Host';
 import { Login } from './pages/Login';
 import { MyGames } from './pages/MyGames';
@@ -27,6 +28,7 @@ export function AppRoutes() {
         <Route path="/me" element={<MyGames />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/:id" element={<PublicProfile />} />
+        <Route path="/help" element={<HostHelp />} />
         <Route path="/new" element={<Navigate to="/quizzes" replace />} />
       </Route>
       <Route path="/play/:code" element={<Play />} />

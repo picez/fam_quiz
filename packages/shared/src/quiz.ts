@@ -132,6 +132,10 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
+/** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort'] as const;
+export type QuestionType = (typeof QUESTION_TYPES)[number];
+
 export const questionSchema = z
   .discriminatedUnion('type', [
     z.object({ ...base, type: z.literal('single'), options, correctId: z.string() }),
@@ -380,6 +384,10 @@ export const finalRoundSchema = z.object({
 
 export type FinalRound = z.infer<typeof finalRoundSchema>;
 
+/** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final'] as const;
+export type RoundType = (typeof ROUND_TYPES)[number];
+
 export const roundSchema = z.discriminatedUnion('type', [
   classicRoundSchema,
   blitzRoundSchema,
@@ -388,6 +396,11 @@ export const roundSchema = z.discriminatedUnion('type', [
 ]);
 
 export type Round = z.infer<typeof roundSchema>;
+
+/** Типи-перевірки: списки ROUND_TYPES і QUESTION_TYPES мають збігатися зі схемами (помилка типів, якщо ні). */
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
+export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
 /** Правила балів раунду; у фіналі правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1). */
 export function rulesOf(round: Round): RoundRules {
