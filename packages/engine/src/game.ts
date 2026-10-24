@@ -1391,12 +1391,15 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
   const limitMs = limitMsOf(play) ?? 0;
   const spentMs =
     phase === 'question' && now !== undefined && state.startedAt !== null ? Math.max(0, clockOf(state, now) - state.startedAt) : limitMs;
-  const points = boardPoints(round, board, accuracy);
+  const timeMs = existing?.timeMs ?? spentMs;
+  // Картинка, що проявляється: оцінка ведучого — правильність, час до надсилання знижує ціну, як в acceptAnswer.
+  const paid = accuracy * revealFactor(questionFor(state, play, playerId), timeMs);
+  const points = boardPoints(round, board, paid);
   const record: AnswerRecord = {
     answer: existing?.answer ?? board.answer,
-    timeMs: existing?.timeMs ?? spentMs,
+    timeMs,
     accepted: grade === 'correct',
-    accuracy,
+    accuracy: paid,
     grade,
     basePoints: points,
     streakBonus: 0,
@@ -1453,13 +1456,15 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   if (grade === 'partial' && rulesOf(round).partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
   const limit = answerLimitMs(play, playerId);
-  // Картинка, що проявляється, бонусу швидкості не має: «правильно» від ведучого — повна ціна.
+  // Картинка, що проявляється, бонусу швидкості не має, але оцінка ведучого зберігає плату за час:
+  // «правильно» — це правильність, ціна все одно спадає зі 100 до 30 % за часом відповіді.
   // Після заміни гравець відповідав на запасне: проявлення — з його запитання, як у submitAnswer.
   const asked = questionFor(state, play, playerId);
   const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && asked.reveal == null);
+  const paid = accuracy * revealFactor(asked, record.timeMs);
   const points = answerPoints({
     points: question.points,
-    accuracy,
+    accuracy: paid,
     speed,
     multiplier: rulesOf(round).multiplier,
     penalty: rulesOf(round).penalty,
@@ -1467,7 +1472,7 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   const updated: AnswerRecord = {
     ...record,
     accepted: grade === 'correct',
-    accuracy,
+    accuracy: paid,
     grade,
     basePoints: points,
     streakBonus: 0,

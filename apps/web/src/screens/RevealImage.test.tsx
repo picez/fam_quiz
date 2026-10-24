@@ -9,6 +9,20 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+/** Картинка, що «завантажується» одразу, 800 × 400. */
+function stubImage() {
+  class FakeImage {
+    naturalWidth = 800;
+    naturalHeight = 400;
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    set src(_: string) {
+      queueMicrotask(() => this.onload?.());
+    }
+  }
+  vi.stubGlobal('Image', FakeImage);
+}
+
 describe('RevealImage', () => {
   it('pixels draw into a canvas with the stage', () => {
     const { container } = render(<RevealImage url="/a.png" mode="pixels" stage={3} />);
@@ -39,10 +53,40 @@ describe('RevealImage', () => {
     expect(canvas.height).toBe(600);
   });
 
-  it('blur sets the filter by the stage', () => {
+  it('blur is drawn into a canvas with ctx.filter: no sharp <img> on the page', async () => {
+    const filters: string[] = [];
+    const ctx = {
+      _filter: 'none',
+      get filter() {
+        return this._filter;
+      },
+      set filter(value: string) {
+        this._filter = value;
+        filters.push(value);
+      },
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+    };
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ctx) as never;
+    stubImage();
     const { container } = render(<RevealImage url="/a.png" mode="blur" stage={3} />);
-    expect(container.querySelector('img')!.style.filter).toBe(`blur(${blurRadius(3)}px)`);
-    expect(container.querySelector('.reveal-frame')).not.toBeNull();
+    await waitFor(() => expect(ctx.drawImage).toHaveBeenCalled());
+    vi.unstubAllGlobals();
+    expect(container.querySelector('img')).toBeNull();
+    const canvas = container.querySelector('.reveal-frame canvas.reveal-blur[data-stage="3"]') as HTMLCanvasElement;
+    expect(canvas).not.toBeNull();
+    expect(filters[0]).toBe(`blur(${blurRadius(3)}px)`);
+    expect(canvas.style.filter).toBe('');
+  });
+
+  it('without ctx.filter the canvas is blurred by CSS instead', async () => {
+    const ctx = { clearRect: vi.fn(), drawImage: vi.fn() };
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ctx) as never;
+    stubImage();
+    const { container } = render(<RevealImage url="/a.png" mode="blur" stage={3} />);
+    await waitFor(() => expect((container.querySelector('canvas') as HTMLCanvasElement).style.filter).toBe(`blur(${blurRadius(3)}px)`));
+    vi.unstubAllGlobals();
+    expect(container.querySelector('img')).toBeNull();
   });
 
   it('the last stage is the plain original', () => {

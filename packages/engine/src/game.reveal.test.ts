@@ -52,9 +52,12 @@ describe('a revealing picture in the classic round', () => {
     expect(answered(25_000, odesa, s)).toMatchObject({ points: 300, grade: 'correct' });
   });
 
-  it('a host override still gives the full price', () => {
+  it('a host override grades correctness, the price still falls with time', () => {
     const s = must(next(must(lock(must(submitAnswer(openClassic(), 'p1', kyiv, 12_000)))), 13_000, rng));
-    expect(recordOf(must(override(s, 'p1', 'correct')), 0, 'p1')).toMatchObject({ points: 1000, grade: 'correct' });
+    // 12 с із 20: 100 % − 70 % × 0,6 = 58 %.
+    expect(recordOf(must(override(s, 'p1', 'correct')), 0, 'p1')).toMatchObject({ points: 580, accepted: true, grade: 'correct' });
+    const fast = must(next(must(lock(must(submitAnswer(openClassic(), 'p1', kyiv, 0)))), 1000, rng));
+    expect(recordOf(must(override(fast, 'p1', 'correct')), 0, 'p1')).toMatchObject({ points: 1000, grade: 'correct' });
   });
 });
 
@@ -79,6 +82,20 @@ describe('a revealing picture on a board cell', () => {
     let s = must(pickCell(must(next(intro, 0)), null, cell.id, 0, rng));
     s = must(submitAnswer(s, 'p1', { type: 'single', optionId: 'b' }, 5000));
     s = must(acceptAnswer(s, 'p1', 9000));
+    expect(s.plays.at(-1)?.answers.p1).toMatchObject({ points: 825, accepted: true, grade: 'correct' });
+  });
+});
+
+describe('a revealing picture on a manually checked board cell', () => {
+  it('the host grade keeps the decay by the time to submit, on the question and on the reveal', () => {
+    const cell = withReveal(single);
+    const round = boardRound('g1', [{ title: 'A', cells: [cell] }], { check: 'manual' });
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан')));
+    let s = must(pickCell(must(next(intro, 0)), null, cell.id, 0, rng));
+    s = must(submitAnswer(s, 'p1', { type: 'single', optionId: 'a' }, 5000));
+    s = must(override(s, 'p1', 'correct', 9000));
+    expect(s.plays.at(-1)?.answers.p1).toMatchObject({ points: 825, accepted: true, grade: 'correct' });
+    s = must(override(s, 'p1', 'correct', 20_000));
     expect(s.plays.at(-1)?.answers.p1).toMatchObject({ points: 825, accepted: true, grade: 'correct' });
   });
 });

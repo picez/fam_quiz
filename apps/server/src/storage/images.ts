@@ -54,9 +54,12 @@ export function sniffImage(bytes: Uint8Array): ImageType | null {
   return null;
 }
 
+/** Основні марки контейнера MP4, з якими приходять аудіофайли m4a; HEIC, AVIF, QuickTime тощо не приймаються. */
+const M4A_BRANDS = ['M4A ', 'M4B ', 'mp42', 'mp41', 'isom', 'iso2', 'dash'];
+
 /**
  * Формат аудіо за вмістом або null: «ID3» чи кадр MPEG (11 бітів синхронізації, версія й шар не зарезервовані),
- * «OggS», «ftyp» з 4-го байта. Заявленому клієнтом типу довіри немає.
+ * «OggS», «ftyp» з 4-го байта зі «звуковою» основною маркою (M4A_BRANDS). Заявленому клієнтом типу довіри немає.
  */
 export function sniffAudio(bytes: Uint8Array): AudioType | null {
   if (startsWith(bytes, ascii('ID3'))) return 'audio/mpeg';
@@ -64,7 +67,7 @@ export function sniffAudio(bytes: Uint8Array): AudioType | null {
     return 'audio/mpeg';
   }
   if (startsWith(bytes, ascii('OggS'))) return 'audio/ogg';
-  if (startsWith(bytes, ascii('ftyp'), 4)) return 'audio/mp4';
+  if (startsWith(bytes, ascii('ftyp'), 4) && M4A_BRANDS.some((brand) => startsWith(bytes, ascii(brand), 8))) return 'audio/mp4';
   return null;
 }
 

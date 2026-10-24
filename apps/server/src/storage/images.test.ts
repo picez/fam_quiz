@@ -33,6 +33,16 @@ describe('sniffAudio', () => {
     expect(sniffAudio(text('\x00\x00\x00\x20ftypM4A '))).toBe('audio/mp4');
   });
 
+  it('accepts an ftyp box only with an audio-ish major brand', () => {
+    for (const brand of ['M4A ', 'M4B ', 'mp42', 'mp41', 'isom', 'iso2', 'dash']) {
+      expect(sniffAudio(text(`\x00\x00\x00\x20ftyp${brand}`))).toBe('audio/mp4');
+    }
+    for (const brand of ['heic', 'avif', 'qt  ', '3gp4', 'crx ', 'M4V ']) {
+      expect(sniffAudio(text(`\x00\x00\x00\x20ftyp${brand}`))).toBeNull();
+    }
+    expect(sniffAudio(text('\x00\x00\x00\x20ftyp'))).toBeNull();
+  });
+
   it('rejects everything else, whatever it claims to be', () => {
     expect(sniffAudio(PNG)).toBeNull();
     expect(sniffAudio(text('<html><script>alert(1)</script></html>'))).toBeNull();

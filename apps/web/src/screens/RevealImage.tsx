@@ -13,9 +13,8 @@ interface Props {
   alt?: string;
 }
 
-/** Пікселі: картинка стискається в невидимий canvas із pixelColumns стовпців і розтягується без згладжування. */
-function PixelCanvas({ url, stage, alt, onFail }: { url: string; stage: number; alt: string; onFail: () => void }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
+/** Завантажена картинка для canvas; null, поки вантажиться. */
+function useLoadedImage(url: string, onFail: () => void): HTMLImageElement | null {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   // Стабільне посилання: інакше нова стрілка щоразу перезавантажувала б картинку.
   const fail = useRef(onFail);
@@ -31,15 +30,25 @@ function PixelCanvas({ url, stage, alt, onFail }: { url: string; stage: number; 
       img.onerror = null;
     };
   }, [url]);
+  return image;
+}
+
+/** Розмір canvas: як у картинки, але не більше MAX_SIDE по довгій стороні (великий canvas на телефоні — зайва пам'ять). */
+function canvasSize(image: HTMLImageElement, fallback: number): { width: number; height: number } {
+  const shrink = Math.min(1, MAX_SIDE / Math.max(image.naturalWidth, image.naturalHeight, 1));
+  return { width: Math.round((image.naturalWidth || fallback) * shrink), height: Math.round((image.naturalHeight || fallback) * shrink) };
+}
+
+/** Пікселі: картинка стискається в невидимий canvas із pixelColumns стовпців і розтягується без згладжування. */
+function PixelCanvas({ url, stage, alt, onFail }: { url: string; stage: number; alt: string; onFail: () => void }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const image = useLoadedImage(url, onFail);
 
   useEffect(() => {
     const target = canvas.current;
     const columns = pixelColumns(stage);
     if (target === null || image === null || columns === null) return;
-    // Не більше MAX_SIDE по довгій стороні: великий canvas на телефоні — зайва пам'ять.
-    const shrink = Math.min(1, MAX_SIDE / Math.max(image.naturalWidth, image.naturalHeight, 1));
-    const width = Math.round((image.naturalWidth || columns) * shrink);
-    const height = Math.round((image.naturalHeight || columns) * shrink);
+    const { width, height } = canvasSize(image, columns);
     const rows = Math.max(1, Math.round((columns * height) / width));
     const small = document.createElement('canvas');
     small.width = columns;
@@ -56,6 +65,50 @@ function PixelCanvas({ url, stage, alt, onFail }: { url: string; stage: number; 
   return <canvas ref={canvas} className="question-image reveal-canvas" data-stage={stage} role="img" aria-label={alt} />;
 }
 
+/**
+ * Розмиття малюється на canvas (ctx.filter): у сторінці немає чіткого <img>, який можна зберегти довгим дотиком.
+ * Без ctx.filter (старий Safari) canvas малюється чітким, а розмиває його CSS — як запасний шлях.
+ */
+function BlurCanvas({ url, stage, alt, onFail }: { url: string; stage: number; alt: string; onFail: () => void }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const image = useLoadedImage(url, onFail);
+  const [cssBlur, setCssBlur] = useState<number | null>(null);
+
+  useEffect(() => {
+    const target = canvas.current;
+    if (target === null || image === null) return;
+    const { width, height } = canvasSize(image, 1);
+    target.width = width;
+    target.height = height;
+    const ctx = target.getContext('2d');
+    if (ctx === null) return;
+    // Радіус задано в пікселях екрана; canvas показується в масштабі object-fit: contain.
+    const shown = Math.min(target.clientWidth / width, target.clientHeight / height);
+    const radius = blurRadius(stage) / (Number.isFinite(shown) && shown > 0 ? shown : 1);
+    const supported = typeof ctx.filter === 'string';
+    if (supported) ctx.filter = `blur(${radius}px)`;
+    // Картинка трохи ширша за canvas: краї розмиття не прозорі.
+    const pad = supported ? radius * 2 : 0;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(image, -pad, -pad, width + pad * 2, height + pad * 2);
+    if (supported) ctx.filter = 'none';
+    setCssBlur(supported ? null : blurRadius(stage));
+  }, [image, stage]);
+
+  return (
+    <div className="reveal-frame">
+      <canvas
+        ref={canvas}
+        className="question-image reveal-blur"
+        data-stage={stage}
+        role="img"
+        aria-label={alt}
+        style={cssBlur === null ? undefined : { filter: `blur(${cssBlur}px)` }}
+      />
+    </div>
+  );
+}
+
 /** Картинка запитання з режимом проявлення; mode null — звичайна QuestionImage. */
 export function RevealImage({ url, mode, stage, alt = '' }: Props) {
   const [failed, setFailed] = useState<string | null>(null);
@@ -63,16 +116,5 @@ export function RevealImage({ url, mode, stage, alt = '' }: Props) {
   if (mode === null) return <QuestionImage url={url} alt={alt} />;
   if (stage >= REVEAL_STAGES) return <img className="question-image" src={url} alt={alt} data-stage={stage} onError={() => setFailed(url)} />;
   if (mode === 'pixels') return <PixelCanvas url={url} stage={stage} alt={alt} onFail={() => setFailed(url)} />;
-  return (
-    <div className="reveal-frame">
-      <img
-        className="question-image"
-        src={url}
-        alt={alt}
-        data-stage={stage}
-        style={{ filter: `blur(${blurRadius(stage)}px)` }}
-        onError={() => setFailed(url)}
-      />
-    </div>
-  );
+  return <BlurCanvas url={url} stage={stage} alt={alt} onFail={() => setFailed(url)} />;
 }

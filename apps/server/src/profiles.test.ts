@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, slider, text, withId, withReveal } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
@@ -293,19 +293,28 @@ describe('profile facts', () => {
       step('next');
       ctx.manager.answer(room, playerId, { type: 'slider', value: sliderValue });
       advance();
-      ctx.manager.answer(room, playerId, { type: 'text', value: 'Одеса' });
-      advance();
-      for (const option of ['b', 'b', 'b']) {
-        ctx.manager.answer(room, playerId, { type: 'single', optionId: option });
+      // Картинка, що проявляється: відповідь на 18-й секунді з 20 дає лише 37 % ціни, але лишається правильною.
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 18_000 });
+      try {
+        expect(ctx.manager.answer(room, playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+        const late = room.state.plays.at(-1)?.answers[playerId];
+        expect(late).toMatchObject({ accepted: true, grade: 'correct', points: 370 });
         advance();
+        for (const option of ['b', 'b', 'b']) {
+          ctx.manager.answer(room, playerId, { type: 'single', optionId: option });
+          advance();
+        }
+        await ctx.recorder.idle();
+      } finally {
+        vi.useRealTimers();
       }
-      await ctx.recorder.idle();
       return profileFacts(db, await idOf(player.email));
     };
 
-    const exact = await play('Точна', 57);
-    expect(exact.stats.accuracy).toBe(100);
-    expect(earned(exact.achievements)).toContain('perfect_game');
+    // 57 при правильних 50 (допуск 2, межа нуля 12) — рівно половина ціни: це ще «правильно».
+    const half = await play('Половинна', 57);
+    expect(half.stats.accuracy).toBe(100);
+    expect(earned(half.achievements)).toContain('perfect_game');
 
     // 58 лишає 40 % ціни: це не «правильно», тож точність нижча, а гра не бездоганна.
     const near = await play('Близька', 58);

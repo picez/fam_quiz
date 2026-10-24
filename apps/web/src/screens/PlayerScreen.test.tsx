@@ -1809,7 +1809,7 @@ describe('PlayerScreen: table and menu', () => {
   it('a revealing picture is not full while answering, also after the answer, and full once locked', () => {
     const revealing = { ...publicQuestion, imageUrl: '/a.png', reveal: 'blur' as const };
     show(onQuestion({ question: revealing, limitMs: 20_000, endsAt: Date.now() + 15_000 }));
-    expect(Number(document.querySelector('img.question-image')!.getAttribute('data-stage'))).toBeLessThan(10);
+    expect(Number(document.querySelector('.question-image[data-stage]')!.getAttribute('data-stage'))).toBeLessThan(10);
     expect(screen.getByText(/Картинка проявляється: що раніше відповіси, то більше балів\./)).toBeTruthy();
     cleanup();
     show(
@@ -1821,10 +1821,10 @@ describe('PlayerScreen: table and menu', () => {
       }),
     );
     expect(screen.getByText('Відповідь прийнято')).toBeTruthy();
-    expect(Number(document.querySelector('img.question-image')!.getAttribute('data-stage'))).toBeLessThan(10);
+    expect(Number(document.querySelector('.question-image[data-stage]')!.getAttribute('data-stage'))).toBeLessThan(10);
     cleanup();
     show(view({ phase: 'locked', questionIndex: 0, question: revealing, limitMs: 20_000 }));
-    expect(document.querySelector('img.question-image')!.getAttribute('data-stage')).toBe('10');
+    expect(document.querySelector('img.question-image[data-stage]')!.getAttribute('data-stage')).toBe('10');
   });
 
   it('the slider reveal shows my answer against the correct one', () => {

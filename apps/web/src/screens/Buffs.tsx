@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { LIMITS } from '@quiz/shared';
 import type { Answer, BuffBlock, BuffKind, BuffSlot, BuffTag, HintRequest, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion, Question, VotePrompt, VoteTally } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
-import { choiceLabel, signed } from '../format';
+import { choiceLabel, signed, sliderValueText } from '../format';
 import { errorText, hasText, t, type TextKey } from '../i18n';
 import { useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
@@ -358,7 +358,13 @@ function voteOptions(question: PublicQuestion): { id: string; text: string }[] {
 function VoteResults({ votes, question, offsetMs }: { votes: VoteTally; question: PublicQuestion; offsetMs: number }) {
   const left = useLeftMs(votes, offsetMs);
   const over = votes.closed || left <= 0;
-  const typed = question.type === 'text' || question.type === 'numeric';
+  // Повзунок — як введені відповіді: здогадки залу, а не відсотки за варіантами.
+  const typed = question.type === 'text' || question.type === 'numeric' || question.type === 'slider';
+  const slider = question.type === 'slider' ? question.slider : null;
+  const guessText = (text: string) => {
+    const value = Number(text);
+    return slider === null || !Number.isFinite(value) ? text : sliderValueText(value, slider);
+  };
   return (
     <>
       <p className="vote-head">
@@ -368,7 +374,7 @@ function VoteResults({ votes, question, offsetMs }: { votes: VoteTally; question
       {votes.cast > 0 &&
         (typed ? (
           <p className="vote-guesses">
-            {t('votesGuesses', { list: votes.guesses.map((guess) => `${guess.text} ×${guess.count}`).join(', ') })}
+            {t('votesGuesses', { list: votes.guesses.map((guess) => `${guessText(guess.text)} ×${guess.count}`).join(', ') })}
           </p>
         ) : (
           <ul className="vote-rows">

@@ -6553,6 +6553,15 @@ label.powers-price {
   object-fit: contain;
 }
 
+/* Проявлення не обійти довгим дотиком чи виділенням: canvas не ловить дотиків. */
+.reveal-canvas,
+.reveal-blur {
+  pointer-events: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .reveal-hint {
   text-align: center;
 }

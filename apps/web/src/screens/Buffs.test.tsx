@@ -365,6 +365,17 @@ describe('BuffPanel', () => {
     expect(guesses.container.textContent).toContain('Здогадки залу: Львів ×2, Київ ×1');
     cleanup();
 
+    const slider = render(
+      <BuffPanel
+        active={audience(tally({ cast: 3, guesses: [{ text: '2.5', count: 2 }, { text: '3', count: 1 }] }))}
+        question={{ ...question, type: 'slider', slider: { min: 0, max: 10, step: 0.5, unit: 'км' } }}
+        offsetMs={0}
+      />,
+    );
+    expect(slider.container.textContent).toContain('Здогадки залу: 2,5 км ×2, 3,0 км ×1');
+    expect(slider.container.querySelector('.vote-rows')).toBeNull();
+    cleanup();
+
     const closed = render(<BuffPanel active={audience(tally({ cast: 1, counts: { a: 1 }, closed: true }))} question={single} offsetMs={0} />);
     expect(closed.container.textContent).toContain('Голосування закінчено');
     cleanup();

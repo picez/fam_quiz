@@ -7538,20 +7538,35 @@ async function sliderAudioRevealGame() {
   await olya.getByRole('button', { name: /Queen/ }).click();
   await click(host, 'Закрити запитання');
   await click(host, 'Показати відповідь');
+  // Запитання з проявленням відкривається не раніше цієї миті й не пізніше, ніж зникне заставка:
+  // очікувана стадія виводиться з виміряного часу, а не з припущень про швидкість машини.
+  const revealOpenedAfter = Date.now();
   await toNextQuestion(host);
   await afterSplash(host, olya, petro, stage);
+  const revealOpenedBy = Date.now();
+  const REVEAL_WINDOW_MS = 12_000;
+  const stageAt = (ms: number) => Math.floor((Math.max(0, ms) / REVEAL_WINDOW_MS) * 10);
+  /** Стадія на сторінці в межах того, що дозволяє виміряний час (± 1 на округлення й годинники). */
+  const expectRevealStage = async (page: Page) => {
+    const at = Date.now();
+    const shown = await revealStageOf(page);
+    const after = Date.now();
+    expect(shown).toBeGreaterThanOrEqual(Math.max(0, stageAt(at - revealOpenedBy) - 1));
+    expect(shown).toBeLessThanOrEqual(Math.min(9, stageAt(after - revealOpenedAfter) + 1));
+    return shown;
+  };
 
   // 5. Картинка, що проявляється.
-  expect(await revealStageOf(stage)).toBeLessThanOrEqual(2);
+  await expectRevealStage(stage);
   await shot(stage, 'p10b-reveal-stage-early');
   await petro.getByText('Картинка проявляється: що раніше відповіси, то більше балів.').waitFor();
   await olya.waitForTimeout(1000);
   await field(olya, 'Ваша відповідь').fill('Коло');
   await click(olya, 'Відповісти');
+  const olyaAnsweredBy = Date.now();
   await olya.waitForTimeout(6000);
-  const mid = await revealStageOf(olya);
-  expect(mid).toBeGreaterThanOrEqual(4);
-  expect(mid).toBeLessThan(10);
+  // Хто вже відповів, бачить стадію за часом, а не повну картинку.
+  await expectRevealStage(olya);
   await shot(olya, 'p10b-reveal-phone-mid');
   await field(petro, 'Ваша відповідь').fill('Квадрат');
   await click(petro, 'Відповісти');
@@ -7562,8 +7577,10 @@ async function sliderAudioRevealGame() {
   await shot(stage, 'p10b-reveal-stage-full');
   await click(host, 'Показати відповідь');
   const gained = await scoreOf(host, 'Оля');
-  expect(gained).toBeGreaterThanOrEqual(850);
-  expect(gained).toBeLessThanOrEqual(1000);
+  // Ціна спадає зі 100 до 30 % за 12 с; Оля відповіла не пізніше olyaAnsweredBy.
+  const latest = Math.min(1, (olyaAnsweredBy - revealOpenedAfter) / REVEAL_WINDOW_MS);
+  expect(gained).toBeGreaterThanOrEqual(Math.floor(1000 * (1 - 0.7 * latest)) - 1);
+  expect(gained).toBeLessThan(1000);
   expect(await scoreOf(host, 'Петро')).toBe(0);
 
   expect(problems).toEqual([]);

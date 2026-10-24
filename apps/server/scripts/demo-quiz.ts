@@ -175,7 +175,7 @@ export const demoQuiz: Quiz = {
       rules: rules({ streak: { length: 2, bonus: { kind: 'fixed', value: 300 } }, multiplier: 3 }),
       questions: [
         numeric('У якому році Україна проголосила незалежність?', 1991, 0, 1000, 20),
-        slider('У якому році Україна проголосила незалежність?', { min: 1900, max: 2025 }, 1991, { zeroBeyond: 10, unit: 'рік' }),
+        slider('Скільки відсотків поверхні Землі вкриває вода?', { min: 0, max: 100 }, 71, { tolerance: 2, zeroBeyond: 15, unit: '%' }),
         withAudio(single('Назвіть гурт', ['Queen', 'ABBA', 'The Beatles', 'Pink Floyd'], 0), { source: 'youtube', id: 'fJ9rUzIMcZQ', start: 0, duration: 15 }),
         single('Яка хімічна формула води?', ['CO2', 'H2O', 'O2', 'NaCl'], 1, 1000, 15),
         textQ('Як називається столиця Японії?', ['Токіо', 'Tokyo'], 1000, 20),

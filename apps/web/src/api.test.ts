@@ -101,6 +101,20 @@ describe('uploadAudio', () => {
     expect(new Headers(init.headers).get('content-type')).toBe('audio/mpeg');
   });
 
+  it('an unknown or missing browser type is replaced by the type from the file name', async () => {
+    for (const [name, type, sent] of [
+      ['song.m4a', 'audio/x-m4a-weird', 'audio/mp4'],
+      ['song.ogg', '', 'audio/ogg'],
+      ['song.mp3', 'application/octet-stream', 'audio/mpeg'],
+      ['song.m4a', 'audio/x-m4a', 'audio/x-m4a'],
+    ] as const) {
+      const fetchMock = respond(201, { url: '/uploads/0123456789abcdef.mp3' });
+      await uploadAudio(new File([new Uint8Array(4)], name, { type }));
+      const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(new Headers(init.headers).get('content-type')).toBe(sent);
+    }
+  });
+
   it('passes the refusal code through', async () => {
     respond(400, { error: 'bad_audio' });
     expect(await uploadAudio(new File([new Uint8Array(4)], 'a.mp3', { type: 'audio/mpeg' }))).toEqual({ ok: false, error: 'bad_audio' });
