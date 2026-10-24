@@ -915,7 +915,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {bluff !== null && (
         <section className="panel host-bluff">
-          <h2>{t('hostBluffTitle')}</h2>
+          <h2>
+            {t('hostBluffTitle')}
+            <HelpButton id="question.bluff" />
+          </h2>
           <HostBluff info={bluff} act={step} busy={stepping} paused={view.paused} />
         </section>
       )}

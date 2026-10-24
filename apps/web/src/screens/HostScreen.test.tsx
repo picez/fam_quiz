@@ -2036,6 +2036,13 @@ describe('HostScreen: bluff (10f)', () => {
   const five = [opt('b1', 'Рим'), opt('b2', 'Мілан', { kind: 'spare', authors: [] }), opt('b3', 'Париж'), opt('b4', 'Барселона', { kind: 'truth', authors: [] }), opt('b5', 'Лісабон', { kind: 'spare', authors: [] })];
   const bluffView = (phase: HostView['phase'], info: BluffInfo, over: Partial<HostView> = {}) => during(phase, bluffQ, { bluff: info, ...over });
 
+  it('the bluff panel has its own help button that sends nothing', () => {
+    const send = show(bluffView('question', bluff()));
+    const panel = document.querySelector('.host-bluff') as HTMLElement;
+    fireEvent.click(within(panel).getByRole('button', { name: 'Довідка: Блеф' }));
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('lies phase: live lies with authors, the main button goes to the choice', () => {
     const send = show(bluffView('question', bluff()));
     expect(screen.getByText('Олена: Рим')).toBeTruthy();
