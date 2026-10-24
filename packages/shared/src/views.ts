@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
-import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, Round, Video, WagerMode } from './quiz';
+import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, QuestionAudio, RevealMode, Round, Video, WagerMode } from './quiz';
 import type { GuidePage } from './guide';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
@@ -10,6 +10,28 @@ export interface Choice {
   text: string;
   /** Лише варіанти single/multi. */
   imageUrl?: string;
+}
+
+/** Повзунок без правильного значення, допуску й межі нуля. */
+export interface PublicSlider {
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+}
+
+/** Аудіо запитання: тривалість — усім (табло «Слухайте»); джерело — лише сцені й пульту. */
+export interface PublicAudio {
+  duration: number;
+  clip: QuestionAudio | null;
+}
+
+/** Позначка гравця на шкалі повзунка. */
+export interface SliderMark {
+  playerId: string;
+  nickname: string;
+  value: number;
+  points: number;
 }
 
 /** Запитання без правильної відповіді; choices у порядку показу. */
@@ -30,6 +52,12 @@ export interface PublicQuestion {
   chain: PublicChain | null;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
+  /** null для інших типів. */
+  slider: PublicSlider | null;
+  /** null — без аудіо. */
+  audio: PublicAudio | null;
+  /** null — звичайна картинка. */
+  reveal: RevealMode | null;
 }
 
 export interface PublicChain {
@@ -580,6 +608,8 @@ export interface StageView extends BaseView {
   /** Гравці з дебафом, що чекає або діє; лише імена, без виду. */
   debuffs: BlitzPlayer[];
   standings: Standing[] | null;
+  /** Позначки на шкалі: лише етап reveal запитання-повзунка поза фіналом; за відстанню до правильного, далі за нікнеймом. Інакше null. */
+  sliderMarks: SliderMark[] | null;
 }
 
 export interface PlayerResult {
@@ -676,6 +706,8 @@ export interface HostView extends BaseView {
   /** Запити підказки без відповіді на поточному запитанні (етап question), у порядку гравців. */
   hints: HintRequest[];
   standings: Standing[];
+  /** Як у сцени, але з етапу question (ведучий і так бачить відповіді). */
+  sliderMarks: SliderMark[] | null;
 }
 
 export type GameView = StageView | PlayerView | HostView;

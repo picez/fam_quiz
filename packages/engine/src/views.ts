@@ -51,6 +51,8 @@ import {
   type PlayerView,
   type RoundInfo,
   type PublicQuestion,
+  type QuestionAudio,
+  type SliderMark,
   type Question,
   type RevealStats,
   type Spotlight,
@@ -174,13 +176,49 @@ function publicQuestion(question: Question, presented: string[]): PublicQuestion
             lockSeconds: question.lockSeconds,
           }
         : null,
+    slider: question.type === 'slider' ? { min: question.min, max: question.max, step: question.step, unit: question.unit ?? '' } : null,
+    // Збережені кімнати — сирий JSON: відсутнє поле читаємо як «немає».
+    audio: question.audio ? { duration: question.audio.duration, clip: question.audio } : null,
+    reveal: question.reveal ?? null,
   };
+}
+
+/** Публічне запитання для телефона: джерело аудіо видало б, наприклад, назву пісні. */
+function withoutClip(question: PublicQuestion): PublicQuestion {
+  return question.audio === null ? question : { ...question, audio: { ...question.audio, clip: null } };
 }
 
 /** Публічне запитання, яке бачать усі; null поза запитанням. */
 function shownPublic(state: GameState): PublicQuestion | null {
   const shown = shownQuestion(state);
   return shown === null ? null : publicQuestion(shown.question, shown.presented);
+}
+
+/**
+ * Аудіо поточного запитання на етапах question, locked, reveal; інакше null. Для сервера (кнопки пульта).
+ * На полі із заміною — аудіо того запитання, яке бачать усі.
+ */
+export function audioOf(state: GameState): QuestionAudio | null {
+  if (state.phase !== 'question' && state.phase !== 'locked' && state.phase !== 'reveal') return null;
+  return shownQuestion(state)?.question.audio ?? null;
+}
+
+/**
+ * Позначки гравців на шкалі повзунка: за відстанню до правильного, далі за нікнеймом. null поза запитанням-повзунком і у фіналі.
+ * Сцена — лише на reveal (раніше вони видали б правильність), ведучий — з етапу question.
+ */
+function sliderMarks(state: GameState, forHost: boolean): SliderMark[] | null {
+  const phases: Phase[] = forHost ? ['question', 'locked', 'reveal'] : ['reveal'];
+  const shown = shownQuestion(state);
+  if (shown === null || shown.question.type !== 'slider' || !phases.includes(state.phase) || inFinalRound(state)) return null;
+  const { correct } = shown.question;
+  const board = state.plays[state.questionIndex]?.board !== undefined;
+  const marks = state.players.flatMap((player): SliderMark[] => {
+    const record = currentAnswers(state)[player.id];
+    if (record === undefined || record.answer?.type !== 'slider' || (!board && record.spare !== undefined)) return [];
+    return [{ playerId: player.id, nickname: player.nickname, value: record.answer.value, points: record.points }];
+  });
+  return marks.sort((a, b) => Math.abs(a.value - correct) - Math.abs(b.value - correct) || a.nickname.localeCompare(b.nickname, 'uk'));
 }
 
 /** Найменший і найбільший час запитань раунду з таймером; null — таймера немає в жодного. */
@@ -1012,6 +1050,7 @@ export function stageView(state: GameState): StageView {
     standings: publicStandings(state),
     // Лише імена: вид дебафу сцена не бачить.
     debuffs: state.players.filter((p) => shownDebuff(state, p.id) !== null).map((p) => blitzPlayer(state, p.id)),
+    sliderMarks: sliderMarks(state, false),
   };
 }
 
@@ -1043,10 +1082,11 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   const visible = finalVisiblePoints(state, playerId);
   return {
     ...shared,
+    question: shared.question === null ? null : withoutClip(shared.question),
     ...(spare === null
       ? {}
       : {
-          question: publicQuestion(spare.question, spare.presented),
+          question: withoutClip(publicQuestion(spare.question, spare.presented)),
           limitMs: state.phase === 'question' && play !== undefined ? answerLimitMs(play, playerId) : shared.limitMs,
         }),
     // Слова клітинки сортування — для глядачів; той, хто сортує, бачить лише власну поточну картку.
@@ -1184,5 +1224,6 @@ export function hostView(state: GameState): HostView {
     allowed: { debuffs: allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
     hints: hintRequests(state),
     standings: rankPlayers(state.players),
+    sliderMarks: sliderMarks(state, true),
   };
 }

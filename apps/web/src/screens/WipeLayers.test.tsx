@@ -39,7 +39,7 @@ const single: PublicQuestion = {
     { id: 'c', text: 'c' },
   ],
   right: [],
-  orderLabels: null,
+  orderLabels: null, slider: null, audio: null, reveal: null,
   chain: null,
   sort: null,
 };

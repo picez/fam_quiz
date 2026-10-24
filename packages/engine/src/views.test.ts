@@ -61,6 +61,9 @@ describe('while a question is open', () => {
       ],
       right: [],
       orderLabels: null,
+      slider: null,
+      audio: null,
+      reveal: null,
       chain: null,
       sort: null,
     });
