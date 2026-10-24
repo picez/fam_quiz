@@ -28,7 +28,9 @@ import {
   boardSpareSource,
   cellAnswerMode,
   QUESTION_TYPES,
+  answerKey,
   cloudKey,
+  roundQuestions,
   REVEAL_TYPES,
   type QuestionType,
 } from '@quiz/shared';
@@ -53,6 +55,21 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
     return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && !unscored(type));
   }
   return QUESTION_TYPES;
+}
+
+/**
+ * «Хмари слів», що стоять раніше за запитання (roundIndex, questionIndex) у класиці: у попередніх раундах і в цьому ж раунді вище.
+ * Номер — місце хмари серед усіх хмар вікторини (від 1). Поза класикою джерел немає.
+ */
+export function cloudSources(quiz: Pick<Quiz, 'rounds'>, roundIndex: number, questionIndex: number): { n: number; id: string; text: string }[] {
+  const round = quiz.rounds[roundIndex];
+  if (round === undefined || round.type !== 'classic') return [];
+  const all = quiz.rounds.flatMap((r, ri) =>
+    roundQuestions(r).flatMap((question, qi) =>
+      question.type === 'wordcloud' ? [{ id: question.id, text: question.text, before: ri < roundIndex || (ri === roundIndex && qi < questionIndex) }] : [],
+    ),
+  );
+  return all.flatMap(({ id, text, before }, index) => (before ? [{ n: index + 1, id, text }] : []));
 }
 
 type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint' | 'audio' | 'reveal'>;
@@ -402,6 +419,13 @@ export function newDuels(): Duels {
 /** Порожній варіант: без тексту й без картинки. */
 const isBlankOption = (option: { text: string; imageUrl?: string }) => option.text === '' && option.imageUrl === undefined;
 
+/** Рядок дошки «100 до 1» без тексту, написань і популярності (0 — чернетка). */
+const isBlankSurveyRow = (row: { text: string; popularity: number; accepted: string[] }) =>
+  row.text === '' && row.accepted.length === 0 && !(row.popularity > 0);
+
+/** Заповнений рядок дошки: текст і популярність від 1 (верхню межу стереже сума). */
+const isFilledSurveyRow = (row: { text: string; popularity: number }) => row.text !== '' && Number.isInteger(row.popularity) && row.popularity >= 1;
+
 /** Вікторина в тому вигляді, у якому вона піде на сервер. */
 export function cleaned(quiz: Quiz): Quiz {
   const trimAll = <T extends { text: string }>(items: T[]) => items.map((item) => ({ ...item, text: item.text.trim() }));
@@ -428,6 +452,13 @@ export function cleaned(quiz: Quiz): Quiz {
         return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions) };
       case 'wall':
         return { ...question, text, groups: question.groups.map((group) => ({ ...group, name: group.name.trim(), tiles: trimAll(group.tiles) })) };
+      case 'survey': {
+        // Порожні рядки не зберігаються, якщо без них рядків досить; з хмарою без жодного заповненого рядка запасних немає.
+        const rows = question.rows.map((row) => ({ ...row, text: row.text.trim(), accepted: row.accepted.map((s) => s.trim()).filter((s) => s !== '') }));
+        const kept = rows.filter((row) => !isBlankSurveyRow(row));
+        const spareOff = question.cloudId !== undefined && kept.length === 0;
+        return { ...question, text, rows: kept.length >= LIMITS.minSurveyRows ? kept : spareOff ? [] : rows };
+      }
       case 'multi': {
         const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
         const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
@@ -551,18 +582,25 @@ interface Place {
   wall: boolean;
   /** Опитування й хмара: лише класика. */
   vote: boolean;
+  /** «100 до 1»: класика й звичайна клітинка з телефона. */
+  survey: boolean;
+  /** Id «хмар слів» вище в класиці, з яких можна збирати дошку; null — на полі й поза класикою джерела з хмари немає. */
+  clouds: readonly string[] | null;
   /** Усна клітинка: інтервал підказок схований, тож порада «зменште інтервал» недоречна. */
   voice: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, voice: false };
-/** Бліц і фінал: нічого з нового. Класика — усе. */
-const roundPlace = (round: Round): Place => (round.type === 'classic' ? ANYWHERE : { reveal: false, clues: false, pin: false, wall: false, vote: false, voice: false });
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, survey: true, clouds: [], voice: false };
+/** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
+const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
+  quiz.rounds[roundIndex].type === 'classic'
+    ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, survey: false, clouds: null, voice: false };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, voice: normal && !phone };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, survey: phone, clouds: null, voice: normal && !phone };
 };
 
 /** Чи вистачає часу останній підказці: (n − 1) × інтервал + хвіст ≤ час. */
@@ -671,6 +709,15 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       }
       break;
     }
+    case 'survey': {
+      const { rows, answers } = question;
+      const spareOnly = question.cloudId !== undefined && rows.length === 0;
+      if (!spareOnly && (rows.length < LIMITS.minSurveyRows || !rows.every(isFilledSurveyRow))) return 'problemSurveyRows';
+      if (surveyTotal(question) > LIMITS.surveyTotal) return 'problemSurveyTotal';
+      if (duplicateSpelling(question) !== '') return 'problemSurveyDuplicate';
+      if (!Number.isInteger(answers) || answers < 1 || answers > LIMITS.maxSurveyAnswers) return 'problemSurveyAnswers';
+      break;
+    }
     case 'poll':
       if (question.options.some(isBlankOption)) return 'problemEmptyOption';
       break;
@@ -697,6 +744,10 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
   if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
   if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';
+  if (question.type === 'survey') {
+    if (!place.survey) return 'problemSurveyPlace';
+    if (question.cloudId !== undefined && !place.clouds?.includes(question.cloudId)) return 'problemSurveyCloud';
+  }
   return questionSchema.safeParse(question).success ? null : 'problemGeneric';
 }
 
@@ -725,7 +776,7 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
       }
       continue;
     }
-    const question = current.questions.findIndex((q) => problemKey(q, roundPlace(current)) !== null);
+    const question = current.questions.findIndex((q, index) => problemKey(q, roundPlace(quiz, round, index)) !== null);
     if (question !== -1) return { round, question, cell: null };
   }
   return null;
@@ -737,6 +788,23 @@ function duplicateTile(question: Extract<Question, { type: 'wall' }>): string {
   for (const group of question.groups) {
     for (const tile of group.tiles) {
       const key = cloudKey(tile.text);
+      if (seen.has(key)) return key;
+      seen.add(key);
+    }
+  }
+  return '';
+}
+
+/** Сума популярності рядків дошки; порожні й зіпсовані поля рахуються нулем. */
+function surveyTotal(question: Extract<Question, { type: 'survey' }>): number {
+  return question.rows.reduce((sum, row) => sum + (Number.isFinite(row.popularity) ? row.popularity : 0), 0);
+}
+
+/** Перше написання, що веде у два рядки дошки (тим самим ключем, що й схема); повтор у межах одного рядка не заважає. */
+function duplicateSpelling(question: Extract<Question, { type: 'survey' }>): string {
+  const seen = new Set<string>();
+  for (const row of question.rows) {
+    for (const key of new Set([row.text, ...row.accepted].map(answerKey))) {
       if (seen.has(key)) return key;
       seen.add(key);
     }
@@ -758,6 +826,10 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     wallMax: LIMITS.maxWallMistakes,
     cloudMax: LIMITS.maxCloudWords,
     tile: question?.type === 'wall' ? duplicateTile(question) : '',
+    total: question?.type === 'survey' ? surveyTotal(question) : 0,
+    text: question?.type === 'survey' ? duplicateSpelling(question) : '',
+    surveyMin: LIMITS.minSurveyRows,
+    surveyMax: LIMITS.maxSurveyAnswers,
     ...(question?.type === 'clues' ? { count: question.clues.length, at: lastClueAt(question), need: lastClueAt(question) + LIMITS.clueTailSeconds } : {}),
   });
 
@@ -837,7 +909,7 @@ export function problemsOf(quiz: Quiz): string[] {
       return;
     }
     round.questions.forEach((question, index) => {
-      const key = problemKey(question, roundPlace(round));
+      const key = problemKey(question, roundPlace(draft, roundIndex, index));
       if (key !== null) problems.push(where(problemText(key, index + 1, question)));
     });
   });

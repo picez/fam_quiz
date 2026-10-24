@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Quiz } from '@quiz/shared';
+import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
 import { newBoardRound, newClassicRound, newQuestion, newQuiz } from './draft';
 import { QuizEditor } from './QuizEditor';
@@ -2022,5 +2022,107 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
     screen.getByRole('button', { name: 'стіна' });
     expect(screen.queryByRole('button', { name: 'опитування' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'хмара' })).toBeNull();
+  });
+});
+
+describe('QuizEditor: «100 до 1» (10e)', () => {
+  const rowCard = (n: number) => screen.getByRole('group', { name: `Рядок ${n}` });
+  const fillRows = (count: number) => {
+    for (let n = 1; n <= count; n += 1) {
+      fireEvent.change(within(rowCard(n)).getByLabelText(`Відповідь ${n}`), { target: { value: `Відповідь ${n}` } });
+      fireEvent.change(within(rowCard(n)).getByLabelText('Людей зі 100'), { target: { value: String(10 * n) } });
+    }
+  };
+
+  it('the chip shows five blank rows and three answers; four filled rows save the survey', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Назвіть фрукт');
+    click('100 до 1');
+    expect(screen.getAllByRole('group', { name: /^Рядок \d$/ })).toHaveLength(5);
+    expect((screen.getByLabelText('Відповідей від гравця') as HTMLInputElement).value).toBe('3');
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemSurveyRows', { index: 1, surveyMin: 4 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+    fillRows(4);
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'survey', answers: 3, timeLimit: 45, points: 1000 });
+    if (question.type !== 'survey') throw new Error('unexpected');
+    expect(question.rows).toHaveLength(4);
+    expect(question.rows.map((row) => [row.text, row.popularity])).toEqual([
+      ['Відповідь 1', 10],
+      ['Відповідь 2', 20],
+      ['Відповідь 3', 30],
+      ['Відповідь 4', 40],
+    ]);
+    expect('cloudId' in question).toBe(false);
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('a total over 100 blocks saving with the total named', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Назвіть фрукт');
+    click('100 до 1');
+    fillRows(5);
+    screen.getByText(/^Разом: 150 зі 100/);
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemSurveyTotal', { index: 1, total: 150 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('a classic round with a cloud above offers answers from the cloud; the saved survey has the cloudId and no rows', async () => {
+    const cloud = { ...newQuestion('wordcloud'), id: 'cloud-1', text: 'Фрукти' } as Question;
+    const quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [cloud, { ...newQuestion('survey'), text: 'Назвіть фрукт' } as Question] }] };
+    const { onSave } = open(quiz);
+    fireEvent.click(screen.getByRole('button', { name: /Назвіть фрукт/ }));
+    const source = screen.getByRole('button', { name: 'Відповіді з хмари' });
+    expect((source as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(source);
+    expect((screen.getByLabelText('Хмара слів для дошки') as HTMLSelectElement).value).toBe('cloud-1');
+    screen.getByRole('option', { name: 'Хмара №1: «Фрукти»' });
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const question = roundQuestions(saved(onSave).rounds[0])[1];
+    expect(question).toMatchObject({ type: 'survey', cloudId: 'cloud-1', rows: [] });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('a cloud that moved below the survey blocks saving with a message', async () => {
+    const cloud = { ...newQuestion('wordcloud'), id: 'cloud-1', text: 'Фрукти' } as Question;
+    const survey = { ...newQuestion('survey'), text: 'Назвіть фрукт', cloudId: 'cloud-1', rows: [] } as Question;
+    const quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [survey, cloud] }] };
+    const { onSave } = open(quiz);
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemSurveyCloud', { index: 1 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('the first survey in a round without clouds has the cloud source disabled with the explanation', () => {
+    open();
+    fill('Текст запитання', 'Назвіть фрукт');
+    click('100 до 1');
+    expect((screen.getByRole('button', { name: 'Відповіді з хмари' }) as HTMLButtonElement).disabled).toBe(true);
+    screen.getByText(t('surveyNoClouds'));
+  });
+
+  it('a blitz round and the final have no «100 до 1» chip', () => {
+    open();
+    addRound('Бліц');
+    expect(screen.queryByRole('button', { name: '100 до 1' })).toBeNull();
+    addRound('Фінал');
+    expect(screen.queryByRole('button', { name: '100 до 1' })).toBeNull();
+  });
+
+  it('switching the type away from a cloud survey drops the cloud and the rows', () => {
+    const cloud = { ...newQuestion('wordcloud'), id: 'cloud-1', text: 'Фрукти' } as Question;
+    const survey = { ...newQuestion('survey'), text: 'Назвіть фрукт', cloudId: 'cloud-1', rows: [] } as Question;
+    open({ ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [cloud, survey] }] });
+    fireEvent.click(screen.getByRole('button', { name: /Назвіть фрукт/ }));
+    click('текст');
+    expect(screen.queryByLabelText('Хмара слів для дошки')).toBeNull();
+    expect(screen.queryByRole('group', { name: /^Рядок \d$/ })).toBeNull();
   });
 });

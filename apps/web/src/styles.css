@@ -7867,3 +7867,35 @@ button.wall-tile:disabled {
   margin: 0;
   flex: 0 0 auto;
 }
+
+/* Редактор «100 до 1»: картка рядка — відповідь на всю ширину, нижче «Людей зі 100» і «Прибрати» в ряд, далі написання. */
+.survey-row-edit {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.survey-row-meta {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.survey-row-meta .field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.survey-row-meta .btn {
+  flex: none;
+  min-height: 3.25rem;
+}
+
+.survey-total.is-over {
+  color: var(--signal);
+  font-weight: 700;
+}

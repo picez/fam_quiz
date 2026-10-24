@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import type { BoardRound } from '@quiz/shared';
+import type { BoardRound, Question } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
 import { BoardEditor } from './BoardEditor';
-import { newBoardRound, newSpare } from './draft';
+import { newBoardRound, newQuestion, newSpare } from './draft';
 
 afterEach(cleanup);
 
@@ -200,5 +200,39 @@ describe('BoardEditor wall cells (10d)', () => {
     expect(screen.getByText(t('wallCellNote'))).toBeTruthy();
     expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
     expect(screen.queryByLabelText(t('boardCellMode'))).toBeNull();
+  });
+});
+
+describe('BoardEditor «100 до 1» cells (10e)', () => {
+  it('a survey on a voice or blitz cell turns it into a normal phone cell, shows the note and offers no cloud', () => {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first.cells;
+    const odd = { ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, answerMode: 'voice' as const, penalty: 'all' as const }, ...cells] }, ...rest] };
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={odd} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: '100 до 1' }));
+    const next = onChange.mock.calls[0][0] as BoardRound;
+    expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
+    expect(next.categories[0].cells[0].question.type).toBe('survey');
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.getByText(t('surveyCellNote'))).toBeTruthy();
+    expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
+    expect(screen.queryByLabelText(t('boardCellMode'))).toBeNull();
+    expect((screen.getByRole('button', { name: t('surveySourceCloud') }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('a cloud id left on a board survey is removed on the next change', () => {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first.cells;
+    const survey = { ...newQuestion('survey'), text: 'Q', cloudId: 'c1', rows: [] } as Question;
+    const withSurvey = { ...round, categories: [{ ...first, cells: [{ ...cell, question: survey }, ...cells] }, ...rest] };
+    const onChange = vi.fn();
+    render(<BoardEditor round={withSurvey} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: t('surveySourceHost') }));
+    const changed = (onChange.mock.calls.at(-1)?.[0] as BoardRound).categories[0].cells[0].question;
+    expect('cloudId' in changed).toBe(false);
+    expect(changed.type === 'survey' && changed.rows.length).toBe(5);
   });
 });

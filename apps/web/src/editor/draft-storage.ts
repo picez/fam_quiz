@@ -66,6 +66,30 @@ function reviveWall(base: Extract<Question, { type: 'wall' }>): Question {
   return { ...base, video: null, groups, mistakes: typeof base.mistakes === 'number' ? base.mistakes : base.mistakes === undefined ? LIMITS.defaultWallMistakes : Number.NaN };
 }
 
+/**
+ * «100 до 1» з чернетки: рядки — об'єкти з рядками (популярність — число, інакше 0; написання — рядки) або п'ять порожніх;
+ * кількість відповідей — звичайне число (типово 3), cloudId — лише рядок. Після хмари без запасних рядків лишається [].
+ */
+function reviveSurvey(base: Extract<Question, { type: 'survey' }>): Question {
+  const { cloudId, ...rest } = base;
+  const text = (value: unknown) => (typeof value === 'string' ? value : '');
+  const cloud = typeof cloudId === 'string' && cloudId !== '' ? { cloudId } : {};
+  const raw = Array.isArray(base.rows) ? (base.rows as unknown[]).filter(isRecord) : null;
+  const rows = (raw ?? []).map((row) => ({
+    id: typeof row.id === 'string' ? row.id : newId(),
+    text: text(row.text),
+    popularity: typeof row.popularity === 'number' ? row.popularity : 0,
+    accepted: Array.isArray(row.accepted) ? (row.accepted as unknown[]).map(text) : [],
+  }));
+  const blank = () => ({ id: newId(), text: '', popularity: 0, accepted: [] as string[] });
+  return {
+    ...rest,
+    ...cloud,
+    rows: raw === null ? (cloud.cloudId === undefined ? Array.from({ length: 5 }, blank) : []) : rows,
+    answers: typeof base.answers === 'number' ? base.answers : base.answers === undefined ? LIMITS.defaultSurveyAnswers : Number.NaN,
+  };
+}
+
 function revive(stored: Question): Question {
   // Підказка — лише рядок: зіпсоване значення зникає, а не ламає редактор.
   const { hint, audio, reveal, ...question } = stored;
@@ -119,6 +143,7 @@ function revive(stored: Question): Question {
   }
   if (base.type === 'sort') return { ...base, lockSeconds: numberOr(base.lockSeconds) };
   if (base.type === 'wall') return reviveWall(base);
+  if (base.type === 'survey') return reviveSurvey(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({

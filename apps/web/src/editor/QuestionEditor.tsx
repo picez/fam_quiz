@@ -8,6 +8,7 @@ import { ImageField } from './ImageField';
 import { OptionImage } from './OptionImage';
 import { PinEditor } from './PinEditor';
 import { VideoField } from './VideoField';
+import { SurveyEditor } from './SurveyEditor';
 import { WallEditor } from './WallEditor';
 import { changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
@@ -31,6 +32,10 @@ interface Props {
   cluesByHost?: boolean;
   /** Типи запитань, доступні в цьому раунді. */
   types: readonly QuestionType[];
+  /** «Хмари слів» раніше в класиці — джерела дошки «100 до 1»; на полі й в інших місцях немає. */
+  clouds?: { n: number; id: string; text: string }[];
+  /** Чи можна збирати дошку «100 до 1» з хмари (лише класика). */
+  allowCloud?: boolean;
 }
 
 interface Row {
@@ -324,7 +329,7 @@ function raisedTime(timeLimit: number, count: number, interval: number): number 
   return Math.max(timeLimit, need);
 }
 
-function Body({ question, onChange, showPoints, cluesByHost }: Pick<Props, 'question' | 'onChange'> & { showPoints: boolean; cluesByHost: boolean }) {
+function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud }: Pick<Props, 'question' | 'onChange'> & { showPoints: boolean; cluesByHost: boolean; clouds: { n: number; id: string; text: string }[]; allowCloud: boolean }) {
   switch (question.type) {
     case 'single':
       return (
@@ -717,7 +722,7 @@ function Body({ question, onChange, showPoints, cluesByHost }: Pick<Props, 'ques
         </>
       );
     case 'survey':
-      return null; // задача 9
+      return <SurveyEditor question={question} onChange={onChange} clouds={clouds} allowCloud={allowCloud} />;
     case 'wordcloud':
       return (
         <>
@@ -740,7 +745,7 @@ function setReveal(question: Question, onChange: (next: Question) => void, mode:
 }
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false }: Props) {
+export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false, clouds = [], allowCloud = false }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
@@ -861,7 +866,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             />
           </label>
         )}
-        <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} />
+        <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} clouds={clouds} allowCloud={allowCloud} />
       </div>
 
       {(showTime || (showPoints && question.type !== 'sort' && !isVote)) && (

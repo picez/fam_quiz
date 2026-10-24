@@ -1,8 +1,9 @@
-import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty } from '@quiz/shared';
+import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty, type Question } from '@quiz/shared';
 import { HelpButton } from '../help/HelpButton';
 import { useEffect, useId, useState } from 'react';
 import { t } from '../i18n';
 import { fitCell, moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
+import { newId } from './new-id';
 import { QuestionEditor } from './QuestionEditor';
 import { SparesEditor } from './SparesEditor';
 
@@ -23,6 +24,12 @@ interface Props {
 
 const markText = (mark: CellMark) => (mark === 'x2' ? t('boardMarkX2') : mark === 'x3' ? t('boardMarkX3') : '');
 const pick = <T extends string>(values: readonly T[], value: string, fallback: T): T => values.find((v) => v === value) ?? fallback;
+/** На полі дошки з хмари немає: джерело лишається лише «мої відповіді». */
+const withoutCloud = (question: Extract<Question, { type: 'survey' }>): Question => {
+  const { cloudId, ...rest } = question;
+  if (cloudId === undefined) return question;
+  return { ...rest, rows: rest.rows.length > 0 ? rest.rows : Array.from({ length: 5 }, () => ({ id: newId(), text: '', popularity: 0, accepted: [] })) };
+};
 const toMark = (value: string): CellMark => (value === 'x2' ? 'x2' : value === 'x3' ? 'x3' : 'none');
 
 /**
@@ -189,6 +196,8 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           <p className="meta">{t('pinCellNote')}</p>
         ) : current.question.type === 'wall' ? (
           <p className="meta">{t('wallCellNote')}</p>
+        ) : current.question.type === 'survey' ? (
+          <p className="meta">{t('surveyCellNote')}</p>
         ) : (
           <>
             {current.question.type === 'clues' ? (
@@ -242,9 +251,11 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
             setCell(
               question.type === 'sort' || question.type === 'pin' || question.type === 'wall'
                 ? { question, kind: 'normal', answerMode: 'phone', penalty: 'none' }
-                : question.type === 'clues'
-                  ? { question, kind: 'normal', penalty: 'none' }
-                  : { question },
+                : question.type === 'survey'
+                  ? { question: withoutCloud(question), kind: 'normal', answerMode: 'phone', penalty: 'none' }
+                  : question.type === 'clues'
+                    ? { question, kind: 'normal', penalty: 'none' }
+                    : { question },
             )
           }
         />
