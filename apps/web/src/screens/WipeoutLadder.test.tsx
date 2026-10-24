@@ -23,6 +23,8 @@ describe('WipeoutLadder', () => {
     render(<WipeoutLadder info={wipeoutInfo()} size="stage" />);
     const steps = screen.getAllByRole('listitem').filter((el) => el.classList.contains('wipeout-step'));
     expect(steps).toHaveLength(5);
+    expect(steps[0].textContent).toContain('сходинка 5 з 5');
+    expect(steps[0].hasAttribute('aria-label')).toBe(false);
     const current = steps.filter((el) => el.getAttribute('aria-current') === 'step');
     expect(current).toHaveLength(1);
     expect(current[0].textContent).toContain('300');
@@ -46,7 +48,12 @@ describe('WipeoutLadder', () => {
     render(<WipeoutPlayers info={info} size="stage" />);
     expect(screen.getByText('✓ вирішив')).toBeTruthy();
     expect(screen.getByText('Вирішили 1 з 2')).toBeTruthy();
-    expect(screen.queryByText('Забрати')).toBeNull();
+    expect(screen.queryByText('забирає')).toBeNull();
+    expect(screen.queryByText('іде далі')).toBeNull();
+    cleanup();
+    render(<WipeoutPlayers info={info} size="phone" />);
+    expect(screen.queryByText('забирає')).toBeNull();
+    expect(screen.queryByText('іде далі')).toBeNull();
   });
 
   it('shows the live choice for the host', () => {

@@ -2339,6 +2339,21 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(screen.queryByText(/\+300/)).toBeNull();
     });
 
+    it('a player who left earlier sees no verdict on a later reveal', () => {
+      const gone = ladder({ decide: null, rows: [{ playerId: 'p1', nickname: 'Олена', status: 'took', bank: 300, step: 0, decision: null }] });
+      show(view({ phase: 'reveal', questionIndex: 1, question: publicQuestion, round: wipeoutRound, wipeout: gone, me: own({ status: 'took', canDecide: false }) }));
+      expect(screen.getByText('Ти дивишся')).toBeTruthy();
+      expect(screen.queryByText('Неправильно')).toBeNull();
+      expect(screen.queryByText('Банк: 300')).toBeNull();
+    });
+
+    it('a player burned on this very step still sees the burn', () => {
+      const burnt = ladder({ decide: null, rows: [{ playerId: 'p1', nickname: 'Олена', status: 'burned', bank: 0, step: 2, decision: null }] });
+      show(view({ phase: 'reveal', questionIndex: 2, question: publicQuestion, round: wipeoutRound, wipeout: burnt, me: own({ status: 'burned', bank: 0, canDecide: false }) }));
+      expect(screen.getByText('Банк згорів')).toBeTruthy();
+      expect(screen.queryByText('Ти дивишся')).toBeNull();
+    });
+
     it('the round end sums the round up', () => {
       show(view({ phase: 'round_end', round: wipeoutRound, wipeout: ladder({ decide: null }), me: own({ status: 'took', bank: 300, canDecide: false }), standings }));
       expect(screen.getByText('Забрано 300')).toBeTruthy();

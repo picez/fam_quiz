@@ -49,6 +49,12 @@ describe('WipeoutDecision', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('keeps disabled buttons when the window is open but the player cannot decide', () => {
+    render(<WipeoutDecision view={decisionView({ canDecide: false })} offsetMs={0} onDecide={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Далі' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Забрати 300' }).hasAttribute('disabled')).toBe(true);
+  });
+
   it('disables the buttons on pause', () => {
     render(<WipeoutDecision view={decisionView({}, { paused: true })} offsetMs={0} onDecide={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Далі' }).hasAttribute('disabled')).toBe(true);

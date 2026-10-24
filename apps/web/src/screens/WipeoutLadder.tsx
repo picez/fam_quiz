@@ -64,9 +64,9 @@ export function WipeoutLadder({ info, size, highlightId }: { info: WipeoutInfo; 
               key={index}
               className={`wipeout-step${done ? ' is-done' : ''}${current ? ' is-current' : ''}`}
               aria-current={current ? 'step' : undefined}
-              aria-label={t('wipeoutStep', { index: index + 1, total: info.ladder.length })}
             >
               <span className="wipeout-price">{num(price)}</span>
+              <span className="sr-only">{t('wipeoutStepOf', { index: index + 1, total: info.ladder.length })}</span>
             </li>
           );
         })}

@@ -450,6 +450,8 @@ const uk = {
   wipeoutTook: 'Забрано {bank}',
   wipeoutSurvived: 'Донесено до кінця: {bank}',
   wipeoutStayed: 'Ти йдеш далі. Чекаємо інших…',
+  wipeoutStepOf: 'сходинка {index} з {total}',
+  wipeoutWatching: 'Ти дивишся',
   wipeoutOut: 'Ти вже не граєш у цьому раунді — дивись.',
   wipeoutLadderTitle: 'Драбина',
   wipeoutStep: 'Сходинка {index} з {total}',

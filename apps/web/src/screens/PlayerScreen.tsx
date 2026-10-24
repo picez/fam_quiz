@@ -219,6 +219,17 @@ function BluffResult({ view }: { view: PlayerView }) {
 function Result({ view }: { view: PlayerView }) {
   if (view.question !== null && isUnscored(view.question)) return <VoteResult view={view} />;
   const { result } = view.me;
+  // «Ва-банк»: хто вибув раніше, цього запитання не грав — вердикту йому не показуємо.
+  const wipeout = view.wipeout;
+  const mineRow = wipeout?.rows.find((row) => row.playerId === view.me.id);
+  const watching = view.me.wipeout !== null && view.me.wipeout.status !== 'in' && mineRow?.step !== wipeout?.current;
+  if (watching) {
+    return (
+      <section className="result">
+        <h2>{t('wipeoutWatching')}</h2>
+      </section>
+    );
+  }
   const title =
     result === null
       ? t('resultNone')
