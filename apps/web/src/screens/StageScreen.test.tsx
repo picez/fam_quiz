@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView } from '@quiz/shared';
+import { emptyBrief, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
 
@@ -1652,6 +1652,83 @@ describe('StageScreen: bluff (10f)', () => {
       show(view({ phase: 'question', round: wRound, questionIndex: 1, question, wipeout: wInfo({ decide: null }) }));
       expect(screen.getByText('Сходинка 2 з 5 · 200')).toBeTruthy();
       expect(document.querySelector('.wipeout-ladder')).toBeNull();
+    });
+  });
+
+  describe('survival', () => {
+    const sRow = (id: string, nickname: string, over: Partial<SurvivalRow> = {}): SurvivalRow => ({ playerId: id, nickname, status: 'alive', outAfter: null, ghost: null, answer: null, trial: null, door: null, ...over });
+    const tQuestion = { ...question, text: 'Скільки ніг у павука?', points: 0 };
+    const trialOf = (over: Partial<SurvivalTrialInfo> = {}): SurvivalTrialInfo => ({ kind: 'question', fellBack: false, stage: 'open', endsAt: Date.now() + 15_000, remainingMs: null, limitMs: 15_000, done: 1, total: 2, question: tQuestion, reveal: null, ...over });
+    const sInfo = (over: Partial<SurvivalInfo> = {}): SurvivalInfo => {
+      const rows = over.rows ?? [sRow('a', 'Оля', { status: 'edge', trial: 'done' }), sRow('b', 'Петро', { status: 'edge', trial: 'pending' }), sRow('c', 'Іра')];
+      return { current: 1, total: 5, target: 1, bonus: 500, trialKind: 'question', trialsLeft: 1, rows, aliveCount: rows.filter((r) => r.status !== 'ghost').length, ghostCount: rows.filter((r) => r.status === 'ghost').length, ghosts: { answered: 0, right: null }, verdict: 'trial', trial: trialOf(), ending: false, ...over };
+    };
+    const sRound: RoundInfo = { index: 0, total: 1, title: '', type: 'survival', partial: false, description: '', brief: emptyBrief('survival'), times: null };
+
+    it('intro: the board and «Лишиться 1 · бонус 500» under the briefing', () => {
+      show(view({ phase: 'intro', round: sRound, survival: sInfo({ current: -1, trial: null, verdict: null }) }));
+      expect(document.querySelector('.survival-board.is-stage')).not.toBeNull();
+      expect(screen.getByText('Лишиться 1 · бонус 500')).toBeTruthy();
+    });
+
+    it('question: a narrow strip, «Відповіли 1 з 3» counts the alive', () => {
+      show(view({ phase: 'question', round: sRound, questionIndex: 1, question, answeredCount: 1, playerCount: 4, survival: sInfo({ trial: null, verdict: null, rows: [sRow('a', 'Оля'), sRow('b', 'Петро'), sRow('c', 'Іра'), sRow('d', 'Марко', { status: 'ghost', outAfter: 1 })] }) }));
+      expect(screen.getByText('Запитання 2 з 5 · живих 3 · привидів 1')).toBeTruthy();
+      expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+      expect(document.querySelector('.survival-board')).toBeNull();
+    });
+
+    it('reveal: the edge players and the ghost hits under the answer', () => {
+      show(view({ phase: 'reveal', round: sRound, questionIndex: 1, question, reveal: full, survival: sInfo({ trial: null, verdict: 'trial', rows: [sRow('a', 'Оля', { status: 'edge' }), sRow('d', 'Марко', { status: 'ghost', outAfter: 1 })], ghosts: { answered: 2, right: 1 } }) }));
+      expect(screen.getByText('Привиди: 1 з 2 відгадали')).toBeTruthy();
+      expect(document.querySelector('.survival-edge-line')?.textContent).toContain('Оля');
+    });
+
+    it('leaderboard with a question: the question, «Відповіли 1 з 2», a timer and no standings', () => {
+      show(view({ phase: 'leaderboard', round: sRound, survival: sInfo(), standings: null }));
+      expect(screen.getByText('Скільки ніг у павука?')).toBeTruthy();
+      expect(screen.getByText('Відповіли 1 з 2')).toBeTruthy();
+      expect(screen.getByRole('timer')).toBeTruthy();
+      expect(document.querySelector('.standings')).toBeNull();
+      expect(document.querySelector('.survival-board.is-stage')).not.toBeNull();
+    });
+
+    it('leaderboard after the close: the right answer and safe / out for each', () => {
+      const rows = [sRow('a', 'Оля', { status: 'alive', trial: 'safe' }), sRow('b', 'Петро', { status: 'ghost', outAfter: 2, trial: 'out' })];
+      show(view({ phase: 'leaderboard', round: sRound, survival: sInfo({ rows, trial: trialOf({ stage: 'closed', endsAt: null, reveal: full }) }) }));
+      expect(screen.getByText('Правильна відповідь: B. Київ')).toBeTruthy();
+      expect(screen.getByText('вижив(-ла)')).toBeTruthy();
+      expect(screen.getByText('вибуває')).toBeTruthy();
+      expect(screen.queryByRole('timer')).toBeNull();
+    });
+
+    it('luck: three doors for every player on the edge, then the trap after the close', () => {
+      const luck = trialOf({ kind: 'luck', question: null });
+      show(view({ phase: 'leaderboard', round: sRound, survival: sInfo({ trial: luck }) }));
+      expect(document.querySelectorAll('.survival-edge-rows .survival-doors')).toHaveLength(2);
+      expect(document.querySelectorAll('.survival-edge-rows .survival-door')).toHaveLength(6);
+      expect(screen.getByText('вибрав(-ла)')).toBeTruthy();
+      expect(screen.getByText('думає…')).toBeTruthy();
+      expect(screen.queryByText('Пастка!')).toBeNull();
+      cleanup();
+      const rows = [sRow('a', 'Оля', { status: 'alive', trial: 'safe', door: { picked: 0, auto: false, trap: 2 } }), sRow('b', 'Петро', { status: 'ghost', outAfter: 2, trial: 'out', door: { picked: 1, auto: true, trap: 1 } })];
+      show(view({ phase: 'leaderboard', round: sRound, survival: sInfo({ rows, trial: { ...luck, stage: 'closed', endsAt: null } }) }));
+      expect(screen.getAllByText('Пастка!')).toHaveLength(2);
+      expect(screen.getByText('вибрано самі')).toBeTruthy();
+    });
+
+    it('all wrong: the big verdict, no trial', () => {
+      show(view({ phase: 'leaderboard', round: sRound, survival: sInfo({ trial: null, verdict: 'all_wrong', rows: [sRow('a', 'Оля', { status: 'edge' })] }) }));
+      expect(screen.getByRole('heading', { name: 'Помилилися всі — ніхто не вибуває.' })).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'leaderboard', round: sRound, survival: sInfo({ trial: null, verdict: 'all_right' }) }));
+      expect(screen.getByRole('heading', { name: 'Усі вціліли.' })).toBeTruthy();
+    });
+
+    it('round end: the usual table', () => {
+      show(view({ phase: 'round_end', round: sRound, survival: sInfo({ trial: null, verdict: null }), standings: [{ playerId: 'a', nickname: 'Оля', score: 500, rank: 1 }] as unknown as StageView['standings'] }));
+      expect(document.querySelector('.standings')).not.toBeNull();
+      expect(document.querySelector('.survival-board')).toBeNull();
     });
   });
 });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOptionView, type HostDuel, type HostView, Question, RoundInfo, type WipeoutInfo, type WipeoutRow } from '@quiz/shared';
+import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOptionView, type HostDuel, type HostView, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -2169,6 +2169,58 @@ describe('HostScreen: bluff (10f)', () => {
       show(during('reveal', textQuestion, { round: wRound, wipeout: wInfo({ decide: null }), allowed: noDebuffs, responses: [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Одеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null, clue: null }] }));
       expect(screen.queryByRole('button', { name: /Частково/ })).toBeNull();
       expect(screen.getByRole('button', { name: t('accept') })).toBeTruthy();
+    });
+  });
+
+  describe('survival', () => {
+    const sRow = (id: string, nickname: string, over: Partial<SurvivalRow> = {}): SurvivalRow => ({ playerId: id, nickname, status: 'alive', outAfter: null, ghost: null, answer: null, trial: null, door: null, ...over });
+    const sInfo = (over: Partial<SurvivalInfo> = {}): SurvivalInfo => ({
+      current: 1,
+      total: 5,
+      target: 1,
+      bonus: 500,
+      trialKind: 'luck',
+      trialsLeft: 0,
+      rows: [sRow('p1', 'Олена', { status: 'edge', trial: 'pending' }), sRow('p2', 'Тарас', { status: 'ghost', outAfter: 1 })],
+      aliveCount: 1,
+      ghostCount: 1,
+      ghosts: { answered: 0, right: null },
+      verdict: 'trial',
+      trial: { kind: 'luck', fellBack: false, stage: 'open', endsAt: Date.now() + 10_000, remainingMs: null, limitMs: 10_000, done: 0, total: 1, question: null, reveal: null },
+      ending: false,
+      ...over,
+    });
+    const sRound: RoundInfo = { index: 0, total: 1, title: '', type: 'survival', partial: false, description: '', brief: emptyBrief('survival'), times: null };
+    const closedTrial = { kind: 'luck' as const, fellBack: false, stage: 'closed' as const, endsAt: null, remainingMs: null, limitMs: 10_000, done: 1, total: 1, question: null, reveal: null };
+
+    it('the main button closes an open trial', () => {
+      const send = show(view({ phase: 'leaderboard', round: sRound, survival: sInfo() }));
+      fireEvent.click(button('Закрити випробування'));
+      expect(send).toHaveBeenCalledWith('host:next', undefined);
+    });
+
+    it('after the trial: «Наступне запитання»; when the round ends «Підсумки раунду» (plain «Далі» in the last round)', () => {
+      const closed = sInfo({ trial: closedTrial });
+      show(view({ phase: 'leaderboard', round: { ...sRound, total: 2 }, survival: closed }));
+      expect(button('Наступне запитання')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'leaderboard', round: { ...sRound, total: 2 }, survival: { ...closed, ending: true } }));
+      expect(button('Підсумки раунду')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'leaderboard', round: sRound, survival: { ...closed, ending: true } }));
+      expect(screen.queryByRole('button', { name: 'Підсумки раунду' })).toBeNull();
+      expect(button('Далі')).toBeTruthy();
+    });
+
+    it('«Відповіли N з M» counts the alive', () => {
+      show(during('question', single, { round: sRound, answeredCount: 1, playerCount: 2, survival: sInfo({ trial: null, verdict: null, aliveCount: 3 }) }));
+      expect(screen.getByText(/Відповіли 1 з 3/)).toBeTruthy();
+    });
+
+    it('a ghost gets no debuff button, a living player does', () => {
+      show(view({ phase: 'leaderboard', round: sRound, survival: sInfo() }));
+      expect(screen.getAllByRole('button', { name: t('debuff') })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: t('points') })).toHaveLength(2);
     });
   });
 });

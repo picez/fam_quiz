@@ -111,6 +111,18 @@ function SplashContent({ view, kind }: { view: GameView; kind: SplashView['kind'
           </p>
         </div>
       );
+    case 'trial': {
+      const info = view.survival;
+      const edge = info === null ? [] : info.rows.filter((row) => row.status === 'edge').map((row) => row.nickname);
+      return (
+        <div className="splash-card">
+          <p className="splash-title">{t('splashTrial')}</p>
+          {info?.trial != null && <p className="splash-sub">{t(info.trial.kind === 'question' ? 'survivalTrialQuestion' : 'survivalTrialLuck')}</p>}
+          {info?.trial?.fellBack === true && <p className="splash-note">{t('survivalFellBack')}</p>}
+          {edge.length > 0 && <p className="splash-edge">{edge.join(' · ')}</p>}
+        </div>
+      );
+    }
     case 'podium':
       return (
         <div className="splash-card">

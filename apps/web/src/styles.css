@@ -8544,3 +8544,191 @@ button.wall-tile:disabled {
 .survival-mark.is-pending {
   color: var(--dim);
 }
+
+/* Сцена «Вибування»: заголовок зверху, під ним випробування зліва й живі / привиди справа; усе на екран без прокрутки. */
+.survival-strip {
+  text-align: center;
+}
+
+.app.stage:has(.stage-survival) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.stage-board.stage-survival {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 1.5vh;
+  min-height: 0;
+  width: min(100%, 80rem);
+}
+
+.stage-survival .question {
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.stage-survival .survival-verdict {
+  font-size: clamp(2rem, 5vw, 4rem);
+  text-align: center;
+}
+
+.stage-survival .stage-clock .flap {
+  font-size: clamp(1.25rem, 4.5vh, 2.5rem);
+}
+
+.survival-head {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.survival-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 2vw;
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: start;
+}
+
+.survival-body:not(:has(.survival-trial-area)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.survival-trial-area {
+  display: grid;
+  gap: 1.5vh;
+  min-height: 0;
+  min-width: 0;
+}
+
+.survival-trial-area .choices {
+  font-size: clamp(0.875rem, 2.6vh, 1.5rem);
+}
+
+.survival-edge-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.5rem 1vw;
+  font-size: clamp(0.8125rem, 2.6vh, 1.375rem);
+}
+
+.survival-edge-rows li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--amber);
+  border-radius: 0.5rem;
+}
+
+.survival-edge-rows li.is-out {
+  border-color: var(--signal);
+}
+
+.survival-edge-rows li.is-safe {
+  border-color: var(--correct);
+}
+
+.survival-edge-rows .name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.survival-edge-rows li.is-out .survival-mark {
+  color: var(--signal);
+}
+
+/* Двері на сцені: у кожного «на межі» свій ряд невисоких дверей. */
+.survival-edge-rows.is-luck li > .survival-doors {
+  flex: 1 0 100%;
+}
+
+.survival-edge-rows .survival-doors.is-stage .survival-door {
+  min-height: clamp(2.5rem, 7vh, 4rem);
+  padding: 0.25rem;
+}
+
+.survival-edge-rows .survival-door-n {
+  font-size: clamp(1rem, 3vh, 1.5rem);
+}
+
+.survival-edge-rows .survival-door-note {
+  font-size: clamp(0.625rem, 1.8vh, 0.8125rem);
+}
+
+.survival-board.is-stage {
+  gap: 0.25rem;
+  min-height: 0;
+  overflow: hidden;
+  font-size: clamp(0.75rem, 2.3vh, 1.25rem);
+}
+
+.survival-board.is-stage .survival-group ul {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  column-gap: 1vw;
+}
+
+.survival-board.is-stage .survival-group li {
+  padding: 0.125rem 0.5rem;
+}
+
+.stage-survival.is-intro .survival-board.is-stage {
+  flex: 1 1 0;
+}
+
+.survival-reveal {
+  display: grid;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+/* Заставка «Випробування!»: червоний відтінок і нікнейми тих, хто на межі. */
+.splash.is-trial {
+  --splash-accent: var(--signal);
+  background:
+    radial-gradient(circle at 50% 48%, rgb(255 80 60 / 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse 65% 55% at 50% 45%, var(--spot) 0%, transparent 72%),
+    var(--splash-bg);
+}
+
+.splash.is-trial .splash-title {
+  color: var(--signal);
+}
+
+.splash-note,
+.splash-edge {
+  max-width: min(100%, 60rem);
+  margin: 0.75rem auto 0;
+  overflow-wrap: anywhere;
+  color: var(--dim);
+  font-size: clamp(1rem, 2.2vw, 2rem);
+}
+
+.splash-edge {
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.splash.is-phone .splash-edge,
+.splash.is-phone .splash-note {
+  font-size: 1rem;
+}
+
+.host-survival .survival-host-rows li {
+  flex-wrap: wrap;
+}
+
+.host-survival .survival-host-rows li.is-out .survival-mark {
+  color: var(--signal);
+}
+
+.host-survival .given {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
