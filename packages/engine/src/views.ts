@@ -40,6 +40,8 @@ import {
   type SurveyRowView,
   type SortRow,
   type Choice,
+  type WipeoutInfo,
+  type WipeoutRow,
   type FinalEntry,
   type FinalInfo,
   type FinalSplit,
@@ -84,7 +86,8 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
-import { activeDebuff, lastPurchase, shopBlock, shownDebuff } from './debuffs';
+import { activeDebuff, debuffsOff, lastPurchase, shopBlock, shownDebuff } from './debuffs';
+import { decisionOpen, wipeoutPlayOf, wipeoutTable } from './wipeout';
 import {
   answerLimitMs,
   buffBlock,
@@ -1148,6 +1151,71 @@ function playerDuel(state: GameState, playerId: string): PlayerDuel | null {
   };
 }
 
+const WIPEOUT_PHASES: Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard', 'round_end', 'finished'];
+
+/** Драбини раунду: real — як є; hidden — без рішень «Забрати» поточного вікна (те, що бачать сцена й телефони). */
+function wipeoutTables(state: GameState) {
+  const open = state.phase === 'question' || state.phase === 'locked';
+  // Поточне запитання з вердиктом до розкриття не показуємо.
+  const upTo = open ? state.questionIndex : undefined;
+  const real = wipeoutTable(state, state.roundIndex, upTo);
+  const play = wipeoutPlayOf(state);
+  if (play === null || !decisionOpen(state) || play.wipeout.took.length === 0) return { real, hidden: real };
+  const plays = state.plays.map((p) => (p === state.plays[state.questionIndex] ? { ...p, wipeout: { ...play.wipeout, took: [] } } : p));
+  return { real, hidden: wipeoutTable({ ...state, plays }, state.roundIndex, upTo) };
+}
+
+/** «Ва-банк»: драбина з банками й станами; null поза раундом. forHost — рішення наживо. */
+function wipeoutInfo(state: GameState, forHost: boolean): WipeoutInfo | null {
+  const round = currentRound(state);
+  if (round?.type !== 'wipeout' || !WIPEOUT_PHASES.includes(state.phase)) return null;
+  const open = state.phase === 'question' || state.phase === 'locked';
+  const { real, hidden } = wipeoutTables(state);
+  const current = state.plays.slice(0, state.questionIndex + 1).filter((p) => p.roundIndex === state.roundIndex).length - 1;
+  const play = wipeoutPlayOf(state);
+  const windowOpen = play !== null && decisionOpen(state);
+  const rows = state.players.map((p): WipeoutRow => {
+    const standing = (forHost ? real : hidden)[p.id];
+    const wasIn = hidden[p.id]?.status === 'in';
+    const decision =
+      !windowOpen || !wasIn
+        ? null
+        : play.wipeout.took.includes(p.id)
+          ? forHost
+            ? 'take'
+            : 'decided'
+          : play.wipeout.stay.includes(p.id)
+            ? forHost
+              ? 'stay'
+              : 'decided'
+            : 'pending';
+    return { ...blitzPlayer(state, p.id), status: standing.status, bank: standing.bank, step: standing.step, decision };
+  });
+  const total = state.players.filter((p) => hidden[p.id]?.status === 'in').length;
+  return {
+    ladder: round.questions.map((q) => q.points),
+    current,
+    done: open ? Math.max(current, 0) : current + 1,
+    rows,
+    inCount: rows.filter((row) => row.status === 'in').length,
+    decide: windowOpen
+      ? { endsAt: state.endsAt, remainingMs: state.remainingMs, decided: rows.filter((r) => r.decision !== null && r.decision !== 'pending').length, total }
+      : null,
+  };
+}
+
+/** Власний стан гравця в «Ва-банк»; null поза раундом. */
+function playerWipeout(state: GameState, playerId: string): PlayerView['me']['wipeout'] {
+  if (wipeoutInfo(state, false) === null) return null;
+  const { real, hidden } = wipeoutTables(state);
+  const own = real[playerId];
+  const play = wipeoutPlayOf(state);
+  const windowOpen = play !== null && decisionOpen(state);
+  const wasIn = hidden[playerId]?.status === 'in';
+  const decision = windowOpen && wasIn ? (play.wipeout.took.includes(playerId) ? 'take' : play.wipeout.stay.includes(playerId) ? 'stay' : null) : null;
+  return { status: own.status, bank: own.bank, decision, canDecide: windowOpen && wasIn && decision === null && !state.paused };
+}
+
 /** Чи гравці в поточному фіналі: сцена й телефони не бачать чужого прогресу. */
 function inFinalRound(state: GameState): boolean {
   return currentRound(state)?.type === 'final';
@@ -1184,6 +1252,7 @@ function base(state: GameState, forHost: boolean) {
     board: boardInfo(state, forHost),
     spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
+    wipeout: wipeoutInfo(state, forHost),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
@@ -1350,6 +1419,8 @@ function isRevealed(state: GameState): boolean {
 }
 
 function publicStandings(state: GameState): Standing[] | null {
+  // У «Ва-банк» між запитаннями замість таблиці драбина.
+  if (state.phase === 'leaderboard' && currentRound(state)?.type === 'wipeout') return null;
   return WITH_STANDINGS.includes(state.phase) ? rankPlayers(state.players) : null;
 }
 
@@ -1465,6 +1536,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
           : null,
       blitz: playerBlitz(state, playerId),
       final: playerFinal(state, playerId),
+      wipeout: playerWipeout(state, playerId),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),
@@ -1495,10 +1567,17 @@ function hiddenPoints(state: GameState, playerId: string): number {
   return state.phase === 'reveal' ? record.points - finalVisiblePoints(state, playerId) : 0;
 }
 
+/** Банк, який гравець забрав у відкритому вікні «Ва-банк»: решті поки не видно, лише «вирішив». */
+function windowCash(state: GameState, playerId: string): number {
+  const play = wipeoutPlayOf(state);
+  if (play === null || !decisionOpen(state) || !play.wipeout.took.includes(playerId)) return 0;
+  return recordOf(state, state.questionIndex, playerId)?.points ?? 0;
+}
+
 /** Таблиця для кнопки «Таблиця»: з leaderboard 'end' поза підсумками — лише власний рядок зі справжнім місцем. */
 function liveTable(state: GameState, playerId: string): PlayerTable | null {
   if (state.phase === 'lobby') return null;
-  const rows = rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hiddenPoints(state, p.id) })));
+  const rows = rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hiddenPoints(state, p.id) - (p.id === playerId ? 0 : windowCash(state, p.id)) })));
   const full = state.quiz.settings.leaderboard === 'each' || WITH_STANDINGS.includes(state.phase);
   return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
 }
@@ -1588,7 +1667,7 @@ export function hostView(state: GameState): HostView {
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),
-    allowed: { debuffs: allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
+    allowed: { debuffs: debuffsOff(state) ? [] : allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
     hints: hintRequests(state),
     standings: rankPlayers(state.players),
     sliderMarks: sliderMarks(state, true),
