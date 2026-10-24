@@ -1588,7 +1588,7 @@ describe('QuizEditor hints and spares', () => {
     const names = within(section.getByRole('group', { name: t('questionType') }))
       .getAllByRole('button')
       .map((b) => b.textContent);
-    expect(names).toHaveLength(5);
+    expect(names).toHaveLength(6);
     for (const gone of ['порядок', 'пари', 'ланцюжок', 'сортування']) expect(names.some((n) => n?.toLowerCase().includes(gone))).toBe(false);
     expect(section.queryByLabelText(t('timeLimit'))).toBeNull();
     expect(section.queryByLabelText(t('pointsLabel'))).toBeNull();

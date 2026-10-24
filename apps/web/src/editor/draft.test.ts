@@ -74,6 +74,16 @@ describe('changeType', () => {
     }
   });
 
+  it('keeps the audio always and the revealing picture only where it works', () => {
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } as const;
+    const source = { ...newQuestion('single'), imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png', audio, reveal: 'pixels' } as Question;
+    const text = changeType(source, 'text');
+    expect([text.audio, text.reveal]).toEqual([audio, 'pixels']);
+    const multi = changeType(source, 'multi');
+    expect([multi.audio, multi.reveal]).toEqual([audio, undefined]);
+    expect('reveal' in multi).toBe(false);
+  });
+
   it('keeps the options and the correct one between single and multi choice', () => {
     const single = filled(newQuestion('single'));
     if (single.type !== 'single') throw new Error('unexpected type');

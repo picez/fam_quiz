@@ -30,6 +30,13 @@ import {
   duelPickSchema,
   duelsSchema,
   LIMITS,
+  REVEAL_MIN_SHARE,
+  SIMPLE_TYPES,
+  answerWindowMs,
+  audioLeadMs,
+  builtInPartial,
+  revealShare,
+  sliderShare,
   allSpares,
   boardSpareSource,
   categorySparesOf,
@@ -40,6 +47,7 @@ import {
   roundSchema,
   rulesOf,
   type BoardRound,
+  type Question,
   type Quiz,
 } from './index';
 
@@ -320,6 +328,11 @@ describe('answerSchema', () => {
     expect(valid(answerSchema, { type: 'text', value: 'Одеса' })).toBe(true);
     expect(valid(answerSchema, { type: 'numeric', value: 2061 })).toBe(true);
     expect(valid(answerSchema, { type: 'order', itemIds: ['u', 'l', 'k'] })).toBe(true);
+  });
+
+  it('accepts a slider answer and rejects a non-finite one', () => {
+    expect(valid(answerSchema, { type: 'slider', value: 1.5 })).toBe(true);
+    expect(valid(answerSchema, { type: 'slider', value: Number.POSITIVE_INFINITY })).toBe(false);
   });
 
   it('rejects a numeric answer that is not a finite number', () => {
@@ -1071,6 +1084,128 @@ describe('buffs and debuffs in the settings', () => {
     expect(valid(hintSchema, { playerId: PLAYER_UUID, text: null })).toBe(true);
     expect(valid(hintSchema, { playerId: PLAYER_UUID, text: '  ' })).toBe(false);
     expect(valid(hintSchema, { playerId: PLAYER_UUID, text: 'я'.repeat(LIMITS.hintText + 1) })).toBe(false);
+  });
+});
+
+describe('slider (10b)', () => {
+  const slider = { id: 's1', type: 'slider', text: 'Скільки?', imageUrl: null, video: null, timeLimit: 20, points: 1000,
+    min: 0, max: 100, step: 1, correct: 50, tolerance: 2, zeroBeyond: 12, unit: '%' } as const;
+  const issues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const parsed = (value: unknown) => questionSchema.parse(value) as Extract<Question, { type: 'slider' }>;
+
+  it('a slider is a question type and a simple type', () => {
+    expect(QUESTION_TYPES).toContain('slider');
+    expect(SIMPLE_TYPES).toContain('slider');
+    expect(valid(questionSchema, slider)).toBe(true);
+    expect(valid(questionSchema, { ...slider, zeroBeyond: undefined, unit: undefined })).toBe(true);
+  });
+
+  it('checks range, step, correct value and the zero distance', () => {
+    expect(issues({ ...slider, min: 100 })).toContain('slider_range');
+    expect(issues({ ...slider, step: 0.7 })).toContain('slider_range');
+    expect(issues({ ...slider, max: 100_001 })).toContain('slider_range');
+    expect(issues({ ...slider, correct: 101 })).toContain('slider_correct');
+    expect(issues({ ...slider, zeroBeyond: 2 })).toContain('slider_zero');
+    expect(valid(questionSchema, { ...slider, step: 0 })).toBe(false);
+    expect(valid(questionSchema, { ...slider, unit: 'x'.repeat(LIMITS.sliderUnit + 1) })).toBe(false);
+    expect(valid(questionSchema, { ...slider, min: 0, max: 1, step: 0.1, correct: 0.5 })).toBe(true);
+  });
+
+  it('sliderShare: full inside the tolerance, linear to zero, nothing outside the range', () => {
+    const q = parsed(slider);
+    expect(sliderShare(q, 52)).toBe(1);
+    expect(sliderShare(q, 57)).toBeCloseTo(0.5);
+    expect(sliderShare(q, 58)).toBeCloseTo(0.4);
+    expect(sliderShare(q, 62)).toBe(0);
+    expect(sliderShare(q, 101)).toBe(0);
+    expect(sliderShare(q, Number.NaN)).toBe(0);
+    const strict = parsed({ ...slider, zeroBeyond: undefined });
+    expect(sliderShare(strict, 52)).toBe(1);
+    expect(sliderShare(strict, 53)).toBe(0);
+  });
+});
+
+describe('audio and revealing picture (10b)', () => {
+  const file = { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5, duration: 30 } as const;
+  const img = `/uploads/${'b'.repeat(32)}.png`;
+  const multiQ = { ...single, id: 'qm', type: 'multi', correctIds: ['b'], correctId: undefined };
+  const issues = (schema: { safeParse: (v: unknown) => { success: boolean; error?: { issues: { message: string }[] } } }, value: unknown) => {
+    const result = schema.safeParse(value);
+    return result.success ? [] : (result.error?.issues.map((i) => i.message) ?? []);
+  };
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const revealing = (id: string) => ({ ...single, id, imageUrl: img, reveal: 'pixels' });
+
+  it('audio is optional, from our storage or YouTube, never together with a video', () => {
+    expect(valid(questionSchema, { ...single, audio: file })).toBe(true);
+    expect(valid(questionSchema, { ...single, audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } })).toBe(true);
+    expect(valid(questionSchema, { ...single, audio: { ...file, url: 'https://evil.example/a.mp3' } })).toBe(false);
+    expect(valid(questionSchema, { ...single, audio: { ...file, duration: LIMITS.maxAudioSeconds + 1 } })).toBe(false);
+    expect(issues(questionSchema, { ...single, audio: file, video: { id: 'dQw4w9WgXcQ', start: 0 } })).toContain('audio_video');
+  });
+
+  it('the audio lead and the answer window', () => {
+    expect(audioLeadMs({ timeLimit: 20, audio: file })).toBe(30_000);
+    expect(audioLeadMs({ timeLimit: 20, audio: { ...file, duration: 20 } })).toBe(0);
+    expect(audioLeadMs({ timeLimit: 20 })).toBe(0);
+    expect(answerWindowMs({ timeLimit: 20, audio: file })).toBe(50_000);
+    expect(answerWindowMs({ timeLimit: 20 })).toBe(20_000);
+  });
+
+  it('revealing picture: needs a picture, no video, single/text/numeric only', () => {
+    expect(valid(questionSchema, { ...single, imageUrl: img, reveal: 'pixels' })).toBe(true);
+    expect(issues(questionSchema, { ...single, reveal: 'blur' })).toContain('reveal_image');
+    expect(issues(questionSchema, { ...single, imageUrl: img, reveal: 'blur', video: { id: 'dQw4w9WgXcQ', start: 0 } })).toContain('reveal_video');
+    expect(issues(questionSchema, { ...multiQ, imageUrl: img, reveal: 'blur' })).toContain('reveal_type');
+  });
+
+  it('revealShare: 100 % at once, 30 % at full reveal, linear between', () => {
+    expect(revealShare(0, 20_000)).toBe(1);
+    expect(revealShare(10_000, 20_000)).toBeCloseTo(0.65);
+    expect(revealShare(20_000, 20_000)).toBeCloseTo(REVEAL_MIN_SHARE);
+    expect(revealShare(30_000, 20_000)).toBeCloseTo(REVEAL_MIN_SHARE);
+    expect(revealShare(5, 0)).toBe(REVEAL_MIN_SHARE);
+  });
+
+  it('reveal only in classic and on a normal phone cell', () => {
+    const blitz = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: DEFAULT_ANSWER_WINDOW, attempts: 1,
+      check: 'auto', rules: { ...DEFAULT_RULES, partial: null }, questions: [revealing('q1')] };
+    const finalR = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [revealing('q1')] };
+    const board = (patch: object = {}) => ({
+      id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? revealing('qr') : { ...single, id: `q${n}${m}` } })) })),
+    });
+    expect(issues(quizSchema, quizOf([round('r', [revealing('q1')])]))).toEqual([]);
+    expect(issues(quizSchema, quizOf([blitz]))).toContain('reveal_place');
+    expect(issues(quizSchema, quizOf([finalR]))).toContain('reveal_place');
+    expect(issues(quizSchema, quizOf([board()]))).toEqual([]);
+    const withCell = (cellPatch: object) => {
+      const b = board();
+      Object.assign(b.categories[0]!.cells[0]!, cellPatch);
+      return quizOf([b]);
+    };
+    expect(issues(quizSchema, withCell({ kind: 'blitz' }))).toContain('reveal_place');
+    expect(issues(quizSchema, withCell({ answerMode: 'voice' }))).toContain('reveal_place');
+    expect(issues(quizSchema, quizOf([board({ answerMode: 'voice' })]))).toContain('reveal_place');
+  });
+
+  it('spares take no audio or reveal', () => {
+    const base = quizOf([round('r', [single])]);
+    expect(valid(quizSchema, { ...base, spares: [spareSingle] })).toBe(true);
+    expect(issues(quizSchema, { ...base, spares: [{ ...spareSingle, audio: file }] })).toContain('spare_video');
+    expect(issues(quizSchema, { ...base, spares: [{ ...spareSingle, imageUrl: img, reveal: 'blur' }] })).toContain('spare_video');
+  });
+
+  it('builtInPartial: slider and revealing picture only', () => {
+    const slider = questionSchema.parse({ id: 's', type: 'slider', text: 'С', imageUrl: null, timeLimit: 20, points: 100,
+      min: 0, max: 10, step: 1, correct: 5, tolerance: 0 });
+    expect(builtInPartial(slider)).toBe(true);
+    expect(builtInPartial(questionSchema.parse(revealing('q')))).toBe(true);
+    expect(builtInPartial(questionSchema.parse(single))).toBe(false);
   });
 });
 

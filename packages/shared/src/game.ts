@@ -29,7 +29,9 @@ export type BuffBlock =
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
-  | 'no_category_spares';
+  | 'no_category_spares'
+  /** Картинка, що проявляється: відповідь одна (10b). */
+  | 'unfit_reveal';
 
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';

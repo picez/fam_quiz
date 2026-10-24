@@ -25,6 +25,7 @@ import {
   categorySparesOf,
   boardSpareSource,
   QUESTION_TYPES,
+  REVEAL_TYPES,
   type QuestionType,
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
@@ -37,7 +38,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
   return roundType === 'blitz' || roundType === 'board' ? QUESTION_TYPES.filter((type) => type !== 'chain') : QUESTION_TYPES;
 }
 
-type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint'>;
+type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint' | 'audio' | 'reveal'>;
 
 const blank = () => ({ id: newId(), text: '' });
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -58,6 +59,8 @@ function build(common: Common, type: QuestionType): Question {
       return { ...common, type, accepted: [''] };
     case 'numeric':
       return { ...common, type, correct: 0, tolerance: 0 };
+    case 'slider':
+      return { ...common, type, min: 0, max: 100, step: 1, correct: 50, tolerance: 0 };
     case 'order':
       return { ...common, type, items: blanks(LIMITS.minOrderItems) };
     case 'match':
@@ -105,8 +108,19 @@ export function newSpare(type: QuestionType = 'single'): Question {
 /** Змінює тип, зберігаючи текст, підказку, час і бали; між single і multi зберігаються й варіанти. */
 export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === type) return question;
-  const { id, text, imageUrl, video, timeLimit, points, hint } = question;
-  const common: Common = { id, text, imageUrl, video, timeLimit, points, ...(hint === undefined ? {} : { hint }) };
+  const { id, text, imageUrl, video, timeLimit, points, hint, audio, reveal } = question;
+  const keepsReveal = reveal !== undefined && (REVEAL_TYPES as readonly string[]).includes(type);
+  const common: Common = {
+    id,
+    text,
+    imageUrl,
+    video,
+    timeLimit,
+    points,
+    ...(hint === undefined ? {} : { hint }),
+    ...(audio === undefined ? {} : { audio }),
+    ...(keepsReveal ? { reveal } : {}),
+  };
 
   if (question.type === 'single' && type === 'multi') {
     return { ...common, type, options: question.options, correctIds: [question.correctId] };

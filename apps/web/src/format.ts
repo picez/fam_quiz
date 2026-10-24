@@ -11,6 +11,19 @@ export const roundLabel = (title: string, index: number, type?: Round['type']): 
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
+/** Знаків після коми у кроці: 0.5 → 1, 0.25 → 2, 1 → 0. */
+function stepDecimals(step: number): number {
+  const [mantissa = '', exponent] = String(step).split('e-');
+  const fraction = (mantissa.split('.')[1] ?? '').length;
+  return fraction + (exponent === undefined ? 0 : Number(exponent));
+}
+
+/** Число повзунка за правилами uk-UA, знаків після коми — як у кроці. */
+export function sliderNumber(value: number, step: number): string {
+  const digits = Math.min(stepDecimals(step), 20);
+  return value.toLocaleString('uk-UA', { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+}
+
 const yesNo = (value: boolean) => t(value ? 'yes' : 'no');
 
 export interface PairText {
@@ -86,6 +99,11 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.accepted[0];
     case 'numeric':
       return question.tolerance > 0 ? `${question.correct} (± ${question.tolerance})` : String(question.correct);
+    case 'slider': {
+      const unit = question.unit === undefined ? '' : ` ${question.unit}`;
+      const tolerance = question.tolerance > 0 ? ` (± ${sliderNumber(question.tolerance, question.step)})` : '';
+      return `${sliderNumber(question.correct, question.step)}${unit}${tolerance}`;
+    }
     case 'order': {
       const labels = orderLabelsText({ top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' });
       return question.items.map((item) => item.text).join(' → ') + (labels === '' ? '' : ` (${labels})`);
@@ -128,6 +146,10 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return answer.value;
     case 'numeric':
       return String(answer.value);
+    case 'slider':
+      return question?.type === 'slider'
+        ? `${sliderNumber(answer.value, question.step)}${question.unit === undefined ? '' : ` ${question.unit}`}`
+        : String(answer.value);
     case 'order':
       return answer.itemIds.map(name).join(' → ');
     case 'match':

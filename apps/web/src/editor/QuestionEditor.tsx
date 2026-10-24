@@ -533,6 +533,8 @@ function Body({ question, onChange, showPoints }: Pick<Props, 'question' | 'onCh
       );
     case 'sort':
       return <SortBody question={question} onChange={onChange} showPoints={showPoints} />;
+    case 'slider':
+      return null; // задача 8
   }
 }
 

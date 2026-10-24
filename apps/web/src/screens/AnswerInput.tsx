@@ -195,5 +195,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
       return <OrderInput question={question} onSubmit={onSubmit} />;
     case 'match':
       return <MatchInput question={question} onSubmit={onSubmit} />;
+    case 'slider':
+      return null; // задача 6
   }
 }
