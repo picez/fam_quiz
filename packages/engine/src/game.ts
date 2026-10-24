@@ -50,6 +50,7 @@ import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
 import { scoreSurvey, stepSurvey, surveyBoard, surveyPlayOf } from './survey';
+import { bluffAuto, bluffPlayOf, startChoice } from './bluff';
 import { cluesByHost, cluesOpen, openDueClues } from './clues';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -143,6 +144,48 @@ export interface Play {
   cloudHidden?: string[];
   /** «100 до 1»: звідки дошка й скільки рядків відкрито на розкритті; збудована дошка — у question.rows (10e). */
   survey?: SurveyPlay;
+  /** Блеф: фаза, зерно, вигадки, варіанти, вибори й скільки варіантів відкрито на розкритті (10f). */
+  bluff?: BluffPlay;
+}
+
+/** Блеф у грі. */
+export interface BluffPlay {
+  /** lies — гравці пишуть вигадки; choice — вибирають варіант (після закриття лишається choice). */
+  stage: 'lies' | 'choice';
+  /** Зерно для вибору запасних і порядку варіантів (тягне openQuestion з rng). */
+  seed: number;
+  /** Вигадки за id гравця. */
+  lies: Record<string, BluffLie>;
+  /** Варіанти в порядку показу; [] у фазі вигадок. */
+  options: BluffOption[];
+  /** Вибори за id гравця. */
+  picks: Record<string, BluffPick>;
+  /** Скільки варіантів відкрито на розкритті (за bluffOrder). */
+  shown: number;
+}
+
+/** Вигадка гравця: текст після чистки й мить надсилання. */
+export interface BluffLie {
+  text: string;
+  at: number;
+}
+
+/** Вибір гравця: варіант і час від старту фази вибору, мс. */
+export interface BluffPick {
+  optionId: string;
+  timeMs: number;
+}
+
+/** Варіант фази вибору. */
+export interface BluffOption {
+  /** b1…bN у порядку показу. */
+  id: string;
+  text: string;
+  kind: 'truth' | 'lie' | 'spare';
+  /** Автори вигадки гравців у порядку гравців; [] — правда чи запасна. */
+  authors: string[];
+  /** Прибрано ведучим. */
+  removed: boolean;
 }
 
 /** Дошка «100 до 1» у грі. */
@@ -473,6 +516,12 @@ export function removePlayer(state: GameState, playerId: string): Result {
       const { [playerId]: _progress, ...wall } = play.wall;
       kept.wall = wall;
     }
+    if (play.bluff !== undefined) {
+      const { [playerId]: _lie, ...lies } = play.bluff.lies;
+      const { [playerId]: _pick, ...picks } = play.bluff.picks;
+      const options = play.bluff.options.map((o) => ({ ...o, authors: o.authors.filter((id) => id !== playerId) }));
+      kept.bluff = { ...play.bluff, lies, picks, options };
+    }
     if (play.buffs !== undefined) {
       const { [playerId]: _buff, ...buffs } = play.buffs;
       // Голос вилученого більше не рахується.
@@ -646,6 +695,10 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       : {}),
     ...(question.type === 'clues' ? { clues: 1 } : {}),
     ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
+    // Блеф: зерно для запасних вигадок і порядку варіантів; tick, що перемикає фазу, rng не має. Інші типи rng тут не тягнуть.
+    ...(question.type === 'bluff'
+      ? { bluff: { stage: 'lies' as const, seed: Math.floor(rng() * 2 ** 32), lies: {}, options: [], picks: {}, shown: 0 } }
+      : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
@@ -972,6 +1025,8 @@ export function revealNow(state: GameState): GameState {
 export function autoLock(state: GameState, now: number | null = null): GameState {
   if (state.phase !== 'question' || state.paused) return state;
   if (state.plays[state.questionIndex]?.blitz !== undefined) return blitzDone(state, null) ? lockNow(state) : state;
+  // Блеф: у фазі вигадок час чи «усі написали» перемикають на вибір, у фазі вибору — закривають.
+  if (state.plays[state.questionIndex]?.question.type === 'bluff') return bluffAuto(state, now);
   // Час сплив для всіх, хто ще не відповів (зокрема щойно відповів останній з додатковим часом).
   // Строго «>», як у timeOver: рівно на кінці відповісти ще можна.
   const closes = closesAt(state);
@@ -1023,6 +1078,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
   // Стіна — лише вибір за вибором через guessWall.
   if (answer.type === 'wall' || play.question.type === 'wall') return fail('type_mismatch');
+  // Блеф — лише writeLie і pickBluff.
+  if (answer.type === 'bluff' || play.question.type === 'bluff') return fail('type_mismatch');
   // «100 до 1»: рушій чистить відповідь і додає збіги до будь-якої гілки — і клітинка поля чекає вже перевірену.
   const asked0 = questionFor(state, play, playerId);
   if (asked0.type === 'survey') {
@@ -1251,8 +1308,10 @@ export function judge(state: GameState, playerId: string, correct: boolean, now:
   return closeIfDone(applyVerdict(state, playerId, correct, now), now);
 }
 
-export function lock(state: GameState): Result {
+/** «Закрити»; у фазі вигадок блефу — «До вибору» з now (без now — wrong_phase: таймер вибору не стартує в минулому). */
+export function lock(state: GameState, now?: number): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
+  if (bluffPlayOf(state)?.bluff.stage === 'lies') return now === undefined ? fail('wrong_phase') : ok(startChoice(state, now));
   return ok(lockNow(state));
 }
 
@@ -1266,6 +1325,11 @@ export function tick(state: GameState, now: number): GameState {
   if (running.heldAt !== null) return running;
   // «Хто я?»: підказки, чий час настав; без змін — той самий об'єкт.
   const opened = openDueClues(running, now);
+  // Блеф: фаза вигадок, що сплила, перемикається на вибір зі своїм таймером від now; вибір закриває гілка нижче.
+  if (bluffPlayOf(opened)?.bluff.stage === 'lies') {
+    const due = closesAt(opened);
+    return due !== null && now >= due ? startChoice(opened, now) : opened;
+  }
   // Ланцюжок закривається, коли кожен пройшов або вичерпав свій час зі штрафом.
   if (opened.plays[opened.questionIndex]?.question.type === 'chain' && chainDone(opened, now)) return lockNow(opened);
   // Звичайна клітинка без таймера закривається, коли гравець, чий хід, відсутній 30 секунд.
