@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
+import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, slider, text, withId, withReveal } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
@@ -270,5 +270,46 @@ describe('profile facts', () => {
     const right = await play('Впевнена', (id) => [id]);
     expect(right.stats.accuracy).toBe(100);
     expect(earned(right.achievements)).toEqual(expect.arrayContaining(['perfect_game', 'streak_5']));
+  });
+  it('profile accuracy and the perfect game count a half-price slider and a late revealing answer as correct (10b)', async () => {
+    const quiz = makeQuiz([slider, withReveal(text), ...['s1', 's2', 's3'].map((id) => withId(single, id))], { speedBonus: false });
+    const host = await signUp(ctx.app, 'Ведуча');
+    const play = async (name: string, sliderValue: number) => {
+      const player = await signUp(ctx.app, name);
+      const { game: created } = await startGame(ctx.app, quiz, host.cookie);
+      const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: name }, player.cookie)).json() as { playerId: string };
+      const room = ctx.manager.get(created.code);
+      if (room === undefined) throw new Error('room missing');
+      ctx.manager.connect(room, { role: 'player', playerId });
+      const step = (type: 'start' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+      /** Листає «Далі», доки не відкриється наступне запитання або гра не скінчиться. */
+      const advance = () => {
+        for (let i = 0; i < 8 && room.state.phase !== 'finished'; i += 1) {
+          step('next');
+          if (room.state.phase === 'question') break;
+        }
+      };
+      step('start');
+      step('next');
+      ctx.manager.answer(room, playerId, { type: 'slider', value: sliderValue });
+      advance();
+      ctx.manager.answer(room, playerId, { type: 'text', value: 'Одеса' });
+      advance();
+      for (const option of ['b', 'b', 'b']) {
+        ctx.manager.answer(room, playerId, { type: 'single', optionId: option });
+        advance();
+      }
+      await ctx.recorder.idle();
+      return profileFacts(db, await idOf(player.email));
+    };
+
+    const exact = await play('Точна', 57);
+    expect(exact.stats.accuracy).toBe(100);
+    expect(earned(exact.achievements)).toContain('perfect_game');
+
+    // 58 лишає 40 % ціни: це не «правильно», тож точність нижча, а гра не бездоганна.
+    const near = await play('Близька', 58);
+    expect(near.stats.accuracy).toBe(80);
+    expect(earned(near.achievements)).not.toContain('perfect_game');
   });
 });

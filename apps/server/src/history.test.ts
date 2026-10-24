@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
-import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, slider, sortQ, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame } from './history';
@@ -1041,5 +1041,64 @@ describe('history: spare questions', () => {
     });
     const detail = await hostGame(db, account.id, gameId);
     expect(detail?.questions[0]).toMatchObject({ answered: 1, accepted: 0 });
+  });
+});
+
+describe('history: slider and revealing picture (10b)', () => {
+  it('history shows slider answers and counts half price as correct', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const quiz = makeQuiz([slider, withReveal(text)], { speedBonus: false });
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const enter = async (nickname: string) => {
+      const playerId = ((await send(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId });
+      return playerId;
+    };
+    const olena = await enter('Олена');
+    const petro = await enter('Петро');
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+
+    step('start');
+    step('next');
+    local.manager.answer(room, olena, { type: 'slider', value: 57 });
+    local.manager.answer(room, petro, { type: 'slider', value: 58 });
+    step('next');
+    step('next');
+    step('next');
+    scheduler.advance(15_000);
+    local.manager.answer(room, olena, { type: 'text', value: 'Одеса' });
+    local.manager.answer(room, petro, { type: 'text', value: 'Київ' });
+    step('next');
+    step('next');
+    await local.recorder.idle();
+
+    const detail = (
+      await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
+    ).json() as {
+      questions: { responses: { nickname: string; answer: unknown; accepted: boolean }[] }[];
+      standings: { nickname: string; correct: number }[];
+    };
+    expect(detail.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'slider', value: 57 }, accepted: true },
+      { nickname: 'Петро', answer: { type: 'slider', value: 58 }, accepted: false },
+    ]);
+    // Правильний текст на картинці, що проявляється, завжди правильний, навіть за 475 балів.
+    expect(detail.questions[1].responses.map((r) => [r.nickname, r.accepted])).toEqual([
+      ['Олена', true],
+      ['Петро', false],
+    ]);
+    expect(detail.standings.map((s) => [s.nickname, s.correct])).toEqual([
+      ['Олена', 2],
+      ['Петро', 0],
+    ]);
+    await local.app.close();
   });
 });
