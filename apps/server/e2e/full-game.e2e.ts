@@ -8141,3 +8141,328 @@ async function wallPollCloudGame() {
 
   expect(problems).toEqual([]);
 }
+
+/** Заповнює поля «Відповідь N» значеннями (не чіпаючи решти). */
+async function fillSurvey(page: Page, values: string[]): Promise<void> {
+  for (const [i, value] of values.entries()) await field(page, `Відповідь ${i + 1}`).fill(value);
+}
+
+/** Заповнює поля «Відповідь N» значеннями й натискає «Відповісти». */
+async function answerSurvey(page: Page, values: string[]): Promise<void> {
+  await fillSurvey(page, values);
+  await click(page, 'Відповісти');
+}
+
+/** Тексти відкритих рядків табло на сторінці (зверху вниз). */
+const openRows = async (page: Page) => page.locator('.survey-row:not(.is-closed) .survey-text').allTextContents();
+
+/** Кадри сокета від `from` до першого кадру з phase "reveal" після нього (для перевірки витоку). */
+const framesUntilReveal = (frames: string[], from: number) => {
+  const tail = frames.slice(from);
+  const at = tail.findIndex((f) => f.includes('"phase":"reveal"'));
+  return at < 0 ? tail : tail.slice(0, at);
+};
+
+/** Відкритий рядок табло з текстом. */
+const surveyRow = (scope: Page | ReturnType<Page['locator']>, text: string) => scope.locator('.survey-row:not(.is-closed)', { hasText: text });
+
+it('part 10e: «100 до 1» — the editor builds a host board and a cloud board (375 px too), rows never leak before the reveal, the stage opens rows bottom-up with names, popularity scoring with the cap, a cloud board without hidden words, a skipped survey warns the host', async () => {
+  try {
+    await surveyGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function surveyGame() {
+  const host = await open('host10e', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10e@example.com');
+
+  const common = { imageUrl: null, video: null };
+  const fruit = (id: string, text: string, popularity: number, accepted: string[] = []) => ({ id, text, popularity, accepted });
+  const k1 = { ...common, id: 'k1', type: 'wordcloud' as const, text: 'Назвіть фрукт', points: 0, timeLimit: 30, words: 3 };
+  const s1 = {
+    ...common,
+    id: 's1',
+    type: 'survey' as const,
+    text: 'Назвіть фрукт, який люблять діти',
+    points: 1000,
+    timeLimit: 45,
+    answers: 3,
+    rows: [
+      fruit('row-apple', 'Яблуко', 32, ['яблучко']),
+      fruit('row-banana', 'Банан', 25),
+      fruit('row-straw', 'Полуниця', 15),
+      fruit('row-melon', 'Кавун', 10),
+      fruit('row-pear', 'Груша', 8),
+    ],
+  };
+  const s2 = { ...common, id: 's2', type: 'survey' as const, text: 'Фрукти залу: назвіть два', points: 1000, timeLimit: 45, answers: 2, cloudId: 'k1', rows: [] };
+  const k2 = { ...common, id: 'k2', type: 'wordcloud' as const, text: 'Назвіть овоч', points: 0, timeLimit: 20, words: 1 };
+  const s3 = { ...common, id: 's3', type: 'survey' as const, text: 'Овочі залу', points: 1000, timeLimit: 45, answers: 2, cloudId: 'k2', rows: [] };
+  const q1 = {
+    ...common,
+    id: 'q1',
+    type: 'single' as const,
+    text: 'Кінець?',
+    points: 100,
+    timeLimit: 20,
+    options: [
+      { id: 'q1-yes', text: 'Так' },
+      { id: 'q1-no', text: 'Ні' },
+    ],
+    correctId: 'q1-yes',
+  };
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [k1, s1, s2, k2, s3, q1] as never, { title: 'Сто до одного', speedBonus: false, rules: DEFAULT_RULES, shuffleOptions: false })], { leaderboard: 'end' }),
+    title: 'Сто до одного 10e',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const quizId = ((await saved.json()) as { id: string }).id;
+
+  // 1. Редактор.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Сто до одного 10e' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+
+  await host.getByRole('button', { name: /^Запитання 2 / }).click();
+  expect(await host.locator('.survey-row-edit').count()).toBe(5);
+  await host.getByText('Разом: 90 зі 100', exact).waitFor();
+  expect(await field(host, 'Відповідей від гравця').inputValue()).toBe('3');
+  await field(host, 'Людей зі 100').first().fill('50');
+  await host.getByText('Разом: 108 зі 100', { exact: false }).waitFor();
+  await host.getByText('Понад 100', { exact: false }).waitFor();
+  await field(host, 'Людей зі 100').first().fill('32');
+  await host.getByText('Разом: 90 зі 100', exact).waitFor();
+  await shot(host, 'p10e-editor-survey');
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.locator('.survey-row-edit').first().scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10e-editor-survey-375');
+  await host.locator('.survey-row-edit').last().scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10e-editor-survey-375-end');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await host.getByRole('button', { name: /^Запитання 3 / }).click();
+  expect(await host.getByRole('button', { name: 'Відповіді з хмари', ...exact }).getAttribute('aria-pressed')).toBe('true');
+  expect(await host.getByLabel('Хмара слів для дошки').inputValue()).toBe('k1');
+  expect(await host.locator('select option:checked').filter({ hasText: 'Хмара №1: «Назвіть фрукт»' }).count()).toBeGreaterThan(0);
+  await host.getByText('Якщо хмара не дасть жодного слова, запитання пропуститься.', exact).waitFor();
+  await shot(host, 'p10e-editor-survey-cloud');
+
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as {
+    rounds: { questions?: { id: string; cloudId?: string; rows?: unknown[] }[] }[];
+  };
+  const storedS2 = stored.rounds[0]!.questions!.find((q) => q.id === 's2')!;
+  expect(storedS2.cloudId).toBe('k1');
+  expect(storedS2.rows).toEqual([]);
+
+  // 2. Гра.
+  await host.locator('.quiz-list li', { hasText: 'Сто до одного 10e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10e', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya10e', 375, 812);
+  const petro = await open('petro10e', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await click(host, 'Почати гру');
+  await afterSplash(host, olya, petro, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, olya, petro, stage);
+
+  // 3. Хмара k1.
+  await stage.getByText('Пишіть до 3 слів на телефоні', exact).waitFor();
+  const cloudWords = async (page: Page, words: string[]) => {
+    await field(page, 'Слово 1').fill(words[0]!);
+    for (const [i, word] of words.slice(1).entries()) {
+      await click(page, '＋ Ще слово');
+      await field(page, `Слово ${i + 2}`).fill(word);
+    }
+    await click(page, 'Відповісти');
+  };
+  await cloudWords(olya, ['Яблуко', 'Банан', 'Вишня']);
+  await cloudWords(petro, ['яблуко', 'Слива']);
+  await host.getByText('Запитання закрите').waitFor();
+  const hostWord = (name: string) => host.locator('.host-cloud').getByRole('button', { name, ...exact });
+  await hostWord('Слива').click();
+  await expect.poll(() => hostWord('Слива').getAttribute('aria-pressed')).toBe('true');
+  await click(host, 'Показати результати');
+  await stage.locator('.word-cloud').waitFor();
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+
+  // 4. Дошка ведучого s1.
+  const from = { stage: stageFrames.length, olya: olyaFrames.length, petro: petroFrames.length };
+  await stage.locator('.survey-row.is-closed').first().waitFor();
+  expect(await stage.locator('.survey-row.is-closed').count()).toBe(5);
+  expect(await stage.locator('.survey-row:not(.is-closed)').count()).toBe(0);
+  await stage.getByText('Пишіть до 3 відповідей на телефоні', exact).waitFor();
+  await shot(stage, 'p10e-stage-survey-question');
+
+  await field(olya, 'Відповідь 3').waitFor();
+  await fillSurvey(olya, ['яблучко', 'Банан']);
+  await expectNoSideScroll(olya, 'p10e-phone-survey');
+  const inputBox = (await field(olya, 'Відповідь 1').boundingBox())!;
+  expect(inputBox.height, 'survey field is a tap target').toBeGreaterThanOrEqual(44);
+  await answerSurvey(olya, ['яблучко', 'Банан', 'ананас']);
+  await olya.getByText('Відповіді надіслано', exact).waitFor();
+
+  await field(petro, 'Відповідь 2').waitFor();
+  await fillSurvey(petro, ['Яблуко', ' яблуко ']);
+  await petro.getByText('Ця відповідь уже є', exact).first().waitFor();
+  await answerSurvey(petro, ['Яблуко', ' яблуко ', 'Кавун']);
+  await petro.getByText('Відповіді надіслано', exact).waitFor();
+  await host.getByText('Запитання закрите').waitFor();
+
+  const hostBoard = host.locator('.host-survey');
+  await hostBoard.waitFor();
+  expect(await hostBoard.locator('.survey-row').count()).toBe(5);
+  const apple = await surveyRow(hostBoard, 'Яблуко').textContent();
+  expect(apple).toContain('Оля');
+  expect(apple).toContain('Петро');
+  const melon = await surveyRow(hostBoard, 'Кавун').textContent();
+  expect(melon).toContain('Петро');
+  expect(melon).not.toContain('Оля');
+  expect(await host.getByRole('button', { name: /^(Правильно|Частково|Не зараховувати)/ }).count(), 'no grading buttons').toBe(0);
+  await hostBoard.scrollIntoViewIfNeeded();
+  await shot(host, 'p10e-host-survey');
+
+  // До розкриття на телефони й сцену не потрапляє жоден рядок дошки.
+  await click(host, 'Показати відповідь');
+  await stage.locator('.survey-row.is-closed').first().waitFor();
+  for (const [who, frames, start] of [['olya', olyaFrames, from.olya], ['petro', petroFrames, from.petro], ['stage', stageFrames, from.stage]] as const) {
+    const early = framesUntilReveal(frames, start);
+    expect(early.length, `${who}: no frames before the reveal`).toBeGreaterThan(0);
+    const text = early.join('\n');
+    for (const secret of ['Полуниця', 'Груша', 'row-straw', 'row-pear', '"popularity":3']) {
+      const at = text.indexOf(secret);
+      expect(at < 0, `${who} got «${secret}» before the reveal: ${text.slice(Math.max(0, at - 150), at + 150)}`).toBe(true);
+    }
+  }
+
+  // Розкриття знизу вгору: рядок за рядком.
+  const nextRow = host.getByRole('button', { name: /^Відкрити рядок / });
+  await host.getByRole('button', { name: 'Відкрити рядок 1 з 5', ...exact }).waitFor();
+  expect((await nextRow.boundingBox())!.height, 'next row button is a tap target').toBeGreaterThanOrEqual(44);
+  await nextRow.click();
+  await expect.poll(() => openRows(stage)).toHaveLength(1);
+  await host.getByRole('button', { name: 'Відкрити рядок 2 з 5', ...exact }).click();
+  await expect.poll(async () => (await openRows(stage)).map((text) => (text.startsWith('Кавун') ? 'Кавун' : text.startsWith('Груша') ? 'Груша' : text))).toEqual(['Кавун', 'Груша']);
+  expect(await surveyRow(stage, 'Груша').textContent()).toContain('Ніхто не назвав');
+  const stageMelon = await surveyRow(stage, 'Кавун').textContent();
+  expect(stageMelon).toContain('Петро');
+  expect(stageMelon).not.toContain('Оля');
+  expect(await bodyText(stage)).not.toContain('Яблуко');
+  expect(await stage.locator('.survey-row.is-closed').count()).toBe(3);
+  // Телефон до повного розкриття: власні рядки без результату.
+  await olya.getByText('ананас', { exact: false }).first().waitFor();
+  expect(await bodyText(olya)).not.toContain('місце');
+  await expect.poll(() => stage.locator('.survey-row.is-flipping').count()).toBe(0);
+  await shot(stage, 'p10e-stage-survey-half');
+
+  await click(host, 'Відкрити всі');
+  await expect.poll(() => openRows(stage)).toHaveLength(5);
+  const apples = await surveyRow(stage, 'Яблуко').textContent();
+  expect(apples).toContain('Оля');
+  expect(apples).toContain('Петро');
+  expect((await openRows(stage))[0]).toContain('Яблуко');
+  await expect.poll(() => stage.locator('.survey-row.is-flipping').count()).toBe(0);
+  await expectStageFits(stage, 'p10e-stage-survey-full');
+  await shot(stage, 'p10e-stage-survey-full');
+
+  await olya.getByText('яблучко — місце 1, 32', exact).waitFor();
+  await olya.getByText('Банан — місце 2, 25', exact).waitFor();
+  await olya.getByText('ананас — немає на табло', exact).waitFor();
+  expect(await bodyText(olya)).toContain('570');
+  await expectNoSideScroll(olya, 'p10e-phone-survey-result');
+  expect(await scoreOf(host, 'Оля')).toBe(570);
+  expect(await scoreOf(host, 'Петро')).toBe(420);
+  expect(await totalOf(host, 'Оля')).toBe(570);
+  expect(await totalOf(host, 'Петро')).toBe(420);
+  expect(await host.getByRole('button', { name: /^Відкрити/ }).count(), 'no row buttons once everything is open').toBe(0);
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+
+  // 5. Дошка з хмари s2.
+  await stage.locator('.survey-row.is-closed').first().waitFor();
+  expect(await stage.locator('.survey-row.is-closed').count()).toBe(3);
+  await stage.getByText('Дошка з ваших відповідей у хмарі слів', exact).waitFor();
+  const cloudBoard = host.locator('.host-survey');
+  await cloudBoard.waitFor();
+  expect(await cloudBoard.locator('.survey-row').count()).toBe(3);
+  expect(await surveyRow(cloudBoard, 'Яблуко').locator('.survey-pop').textContent()).toContain('100');
+  expect(await surveyRow(cloudBoard, 'Банан').locator('.survey-pop').textContent()).toContain('50');
+  expect(await surveyRow(cloudBoard, 'Вишня').locator('.survey-pop').textContent()).toContain('50');
+  expect(await cloudBoard.innerText()).not.toContain('Слива');
+  await answerSurvey(olya, ['яблуко', 'банан']);
+  await answerSurvey(petro, ['Слива', 'Вишня']);
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Відкрити всі');
+  await expect.poll(() => openRows(stage)).toHaveLength(3);
+  await expect.poll(() => stage.locator('.survey-row.is-flipping').count()).toBe(0);
+  expect(await stage.locator('.stage-survey').innerText()).not.toContain('Слива');
+  await expectStageFits(stage, 'p10e-stage-survey-cloud');
+  await shot(stage, 'p10e-stage-survey-cloud');
+  expect(await scoreOf(host, 'Оля')).toBe(1000);
+  expect(await scoreOf(host, 'Петро')).toBe(500);
+  expect(await totalOf(host, 'Оля')).toBe(1570);
+  expect(await totalOf(host, 'Петро')).toBe(920);
+  for (const [who, frames] of [['stage', stageFrames], ['olya', olyaFrames], ['petro', petroFrames]] as const) {
+    expect(frames.join('\n').includes('"text":"Слива"'), `${who} got the hidden word as a board row`).toBe(false);
+  }
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+
+  // 6. Пропуск s3: хмара k2 порожня.
+  await stage.getByText('Пишіть до 1 слів на телефоні', { exact: false }).waitFor();
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати результати');
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+  await stage.getByText('Кінець?', exact).waitFor();
+  expect(await bodyText(stage)).not.toContain('Овочі залу');
+  const warning = host.locator('.host-warning');
+  await warning.getByText('Запитання «Овочі залу» пропущено: хмара не дала слів', { exact: false }).waitFor();
+  expect(await host.locator('main').innerText()).toMatch(/Запитання \d+ з 5\b/);
+  await shot(host, 'p10e-host-skip');
+  await olya.getByRole('button', { name: /Так/ }).click();
+  await petro.getByRole('button', { name: /Ні/ }).click();
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+
+  // 7. Історія.
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Сто до одного 10e/ }).click();
+  const items = host.locator('.rows.stacked > li');
+  await items.first().waitFor();
+  expect(await host.locator('main').innerText()).not.toContain('Овочі залу');
+  const first = items.filter({ hasText: 'Назвіть фрукт, який люблять діти' });
+  const history1 = await first.locator('.history-survey').innerText();
+  expect(history1).toContain('Яблуко');
+  expect(history1).toContain('Оля');
+  expect(history1).toContain('Петро');
+  expect(history1).not.toContain('Дошка з хмари слів');
+  await first.getByText('Відповіді (2)').click();
+  await first.locator('.responses li', { hasText: 'Оля' }).getByText('яблучко ✓, Банан ✓, ананас ✗', { exact: false }).waitFor();
+  const second = items.filter({ hasText: 'Фрукти залу' });
+  const history2 = await second.locator('.history-survey').innerText();
+  expect(history2).toContain('Дошка з хмари слів');
+  for (const word of ['Яблуко', 'Банан', 'Вишня']) expect(history2).toContain(word);
+  expect(history2).not.toContain('Слива');
+  await shot(host, 'p10e-history');
+
+  expect(problems).toEqual([]);
+}
