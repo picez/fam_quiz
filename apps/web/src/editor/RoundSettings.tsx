@@ -184,7 +184,13 @@ export function RoundSettings({ round, index, onChange }: Props) {
           )}
         </>
       )}
-      {round.type !== 'final' && (
+      {round.type === 'wipeout' && (
+        <p className="meta with-help">
+          <span>{t('wipeoutSettingsNote')}</span>
+          <HelpButton id="round.wipeout" />
+        </p>
+      )}
+      {round.type !== 'final' && round.type !== 'wipeout' && (
         <>
       <div className="with-help">
         <label className="check">

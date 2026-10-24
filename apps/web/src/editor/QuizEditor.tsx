@@ -10,6 +10,7 @@ import {
   newBlitzRound,
   newBoardRound,
   newFinalRound,
+  newWipeoutQuestion,
   newWipeoutRound,
   newClassicRound,
   newQuestion,
@@ -88,7 +89,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
   const total = questionsOf(quiz).length;
   const gaps = swapGaps(quiz);
-  const roomForMore = questions.length < LIMITS.maxQuestions && total < LIMITS.maxQuizQuestions;
+  const roomForMore =
+    questions.length < (round.type === 'wipeout' ? LIMITS.maxWipeoutQuestions : LIMITS.maxQuestions) && total < LIMITS.maxQuizQuestions;
   const setNewcomers = (on: boolean) => {
     const { newcomers: _off, ...rest } = settings;
     update({ ...quiz, settings: on ? { ...rest, newcomers: true } : rest });
@@ -117,7 +119,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
 
   const add = () => {
-    setQuestions([...questions, newQuestion('single')]);
+    setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : newQuestion('single')]);
     select(questions.length);
   };
 
@@ -364,6 +366,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                         </span>
                         <span className="letter">{index + 1}</span>
                         <span className="question-item-text">{text}</span>
+                        {round.type === 'wipeout' && <span className="question-item-price">{question.points}</span>}
                         <span className="question-item-type">{t(`typeShort_${question.type}`)}</span>
                       </button>
                     </li>
@@ -430,7 +433,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 type="button"
                 className="btn btn-small btn-danger"
                 aria-label={t('removeQuestion', { index: selected + 1 })}
-                disabled={questions.length === 1}
+                disabled={questions.length === 1 || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions)}
+                title={round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions }) : undefined}
                 onClick={remove}
               >
                 {t('remove')}

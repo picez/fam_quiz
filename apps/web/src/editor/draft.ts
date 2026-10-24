@@ -358,6 +358,11 @@ export function newFinalRound(): FinalRound {
   return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', questions: [newQuestion('single')] };
 }
 
+/** Нове запитання драбини «Ва-банк»: «один варіант», ціна на сотню вища за попереднє (не більше максимуму); перше — 100. */
+export function newWipeoutQuestion(after: Question | undefined): Question {
+  return newBoardQuestion(after);
+}
+
 /** Нова клітинка поля: порожнє запитання, ціна на сотню вища за попередню (не більше максимуму). */
 export function newBoardQuestion(after: Question | undefined): Question {
   const points = after === undefined ? 100 : Math.min(LIMITS.maxPoints, after.points + 100);
@@ -994,6 +999,12 @@ export function problemsOf(quiz: Quiz): string[] {
       }
       return;
     }
+    if (round.type === 'wipeout') {
+      if (round.questions.length < LIMITS.minWipeoutQuestions) problems.push(where(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions })));
+      if (round.questions.length > LIMITS.maxWipeoutQuestions) problems.push(where(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions })));
+      const allowed: readonly string[] = WIPEOUT_TYPES;
+      if (round.questions.some((question) => !allowed.includes(question.type))) problems.push(where(t('problemWipeoutType')));
+    }
     round.questions.forEach((question, index) => {
       const key = problemKey(question, roundPlace(draft, roundIndex, index));
       if (key !== null) problems.push(where(problemText(key, index + 1, question)));
@@ -1016,6 +1027,7 @@ export function problemsOf(quiz: Quiz): string[] {
       const messages = parsed.error.issues.map((issue) => issue.message);
       if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
       if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
+      if (messages.includes('wipeout_type')) problems.push(t('problemWipeoutType'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));
