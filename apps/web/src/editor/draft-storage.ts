@@ -103,8 +103,8 @@ function reviveBluff(base: Extract<Question, { type: 'bluff' }>): Question {
   return {
     ...base,
     video: null,
-    accepted: accepted === null || accepted.length === 0 ? [''] : accepted,
-    lies: lies === null || lies.length === 0 ? ['', ''] : lies,
+    accepted: accepted === null || accepted.length === 0 ? [''] : accepted.slice(0, LIMITS.maxAccepted),
+    lies: lies === null || lies.length === 0 ? ['', ''] : lies.slice(0, LIMITS.maxBluffSpares),
     choiceTime: typeof choice === 'number' ? choice : choice === null ? Number.NaN : LIMITS.defaultChoiceTime,
   };
 }

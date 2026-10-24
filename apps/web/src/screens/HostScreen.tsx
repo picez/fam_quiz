@@ -609,7 +609,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {timeShown && (
         <div className="panel-actions host-time">
-          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={view.question === null ? 0 : publicLeadMs(view.question)} />
+          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={view.question === null || view.bluff?.stage === 'choice' ? 0 : publicLeadMs(view.question)} />
           {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
           <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
             {t('timeMinus')}
@@ -915,11 +915,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {bluff !== null && (
         <section className="panel host-bluff">
-          <h2>
-            {t('hostBluffTitle')}
-            <HelpButton id="question.bluff" />
-          </h2>
-          <HostBluff info={bluff} act={step} busy={stepping} paused={view.paused} />
+          {/* Заголовок «Блеф ⓘ» уже в рядку контексту запитання, тут його не повторюємо. */}
+          <HostBluff info={bluff} act={step} busy={stepping} paused={view.paused} canRemove={phase === 'question'} />
         </section>
       )}
 

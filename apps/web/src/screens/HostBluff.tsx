@@ -7,9 +7,9 @@ type Act = (event: 'host:bluff-remove' | 'host:bluff-all', payload?: { optionId:
 /**
  * Пульт блефу: вигадки наживо (фаза вигадок), «Прибрати» біля вигадок гравців (фаза вибору), «Відкрити всі» (розкриття).
  * Крок гри веде HostScreen: busy — його спільний замок, тож «Прибрати», «Відкрити всі» і головна кнопка не йдуть одночасно.
- * На паузі «Відкрити всі» не показується (рушій відмовив би).
+ * «Прибрати» лише поки триває вибір (canRemove: фаза question; після закриття рушій відмовляє). На паузі «Відкрити всі» не показується (рушій відмовив би).
  */
-export function HostBluff({ info, act, busy = false, paused = false }: { info: BluffInfo; act: Act; busy?: boolean; paused?: boolean }) {
+export function HostBluff({ info, act, busy = false, paused = false, canRemove = true }: { info: BluffInfo; act: Act; busy?: boolean; paused?: boolean; canRemove?: boolean }) {
   if (info.stage === 'lies') {
     const lies = info.lies ?? [];
     return (
@@ -23,7 +23,7 @@ export function HostBluff({ info, act, busy = false, paused = false }: { info: B
       </div>
     );
   }
-  const removable = info.stage === 'choice' ? info.options.filter((option) => option.kind === 'lie' && !option.removed) : [];
+  const removable = info.stage === 'choice' && canRemove ? info.options.filter((option) => option.kind === 'lie' && !option.removed) : [];
   return (
     <div className="bluff-host">
       <BluffBoard info={info} host />

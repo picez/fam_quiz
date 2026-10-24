@@ -12,7 +12,7 @@ export function BluffChoice({ options, own, send }: { options: BluffOptionView[]
     if (pending) return;
     setPending(true);
     void send('player:bluff', { optionId })
-      .then((result) => setError(result.ok ? null : errorText(result.error)))
+      .then((result) => setError(result.ok ? null : result.error === 'not_found' ? t('bluffGone') : errorText(result.error)))
       .catch(() => setError(errorText('network')))
       .finally(() => setPending(false));
   };

@@ -1758,6 +1758,15 @@ describe('survey: checks, clouds and drafts (10e)', () => {
 });
 
 describe('bluff (10f)', () => {
+  it('a stored draft with too many spares or spellings is clamped to the limits', () => {
+    const blank = newQuestion('bluff');
+    if (blank.type !== 'bluff') throw new Error('bluff expected');
+    const big = { ...blank, accepted: Array.from({ length: 15 }, (_, i) => `П${i}`), lies: Array.from({ length: 9 }, (_, i) => `В${i}`) };
+    saveDraft('bluff-big', quizWith(big));
+    const back = roundQuestions(loadDraft('bluff-big')!.rounds[0])[0];
+    expect(back.type === 'bluff' && [back.accepted.length, back.lies.length]).toEqual([LIMITS.maxAccepted, LIMITS.maxBluffSpares]);
+  });
+
   it('a new bluff has 60 s of lies, 30 s of choice, an empty truth and two empty spares; it passes the schema once filled', () => {
     const blank = newQuestion('bluff');
     expect(blank.type === 'bluff' && [blank.timeLimit, blank.choiceTime, blank.accepted, blank.lies]).toEqual([60, 30, [''], ['', '']]);

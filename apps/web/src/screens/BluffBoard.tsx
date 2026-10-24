@@ -60,7 +60,9 @@ export function BluffBoard({ info, big = false, host = false }: { info: BluffInf
   const options = host ? info.options : info.options.filter((option) => !option.removed);
   const latest = info.options.find((option) => option.id === info.lastOpenedId && option.open) ?? null;
   const dense = big && options.length >= 7;
-  const classes = ['bluff-board', big ? 'is-big' : '', dense ? 'is-dense' : ''].filter((c) => c !== '');
+  // Понад 12 варіантів на сцені — три стовпці, щоб рядки лишалися читабельними.
+  const wide = dense && options.length > 12;
+  const classes = ['bluff-board', big ? 'is-big' : '', dense ? 'is-dense' : '', wide ? 'is-wide' : ''].filter((c) => c !== '');
   return (
     <>
       {big && (

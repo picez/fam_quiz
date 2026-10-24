@@ -2036,11 +2036,24 @@ describe('HostScreen: bluff (10f)', () => {
   const five = [opt('b1', 'Рим'), opt('b2', 'Мілан', { kind: 'spare', authors: [] }), opt('b3', 'Париж'), opt('b4', 'Барселона', { kind: 'truth', authors: [] }), opt('b5', 'Лісабон', { kind: 'spare', authors: [] })];
   const bluffView = (phase: HostView['phase'], info: BluffInfo, over: Partial<HostView> = {}) => during(phase, bluffQ, { bluff: info, ...over });
 
-  it('the bluff panel has its own help button that sends nothing', () => {
-    const send = show(bluffView('question', bluff()));
-    const panel = document.querySelector('.host-bluff') as HTMLElement;
-    fireEvent.click(within(panel).getByRole('button', { name: 'Довідка: Блеф' }));
+  it('the bluff help button sits once, in the context line, and sends nothing', () => {
+    const send = show(bluffView('question', bluff(), { round: { index: 0, total: 1, title: '', type: 'classic' } as unknown as HostView['round'] }));
+    const helps = screen.getAllByRole('button', { name: 'Довідка: Блеф' });
+    expect(helps).toHaveLength(1);
+    fireEvent.click(helps[0]);
     expect(send).not.toHaveBeenCalled();
+    expect(document.querySelector('.host-bluff h2')).toBeNull();
+  });
+
+  it('locked: no «Прибрати» (the engine refuses outside the question)', () => {
+    show(bluffView('locked', bluff({ stage: 'choice', options: five, total: 5, lies: null })));
+    expect(screen.queryByRole('button', { name: /^Прибрати/ })).toBeNull();
+  });
+
+  it('the choice timer ignores the audio lead of a long clip: no «Слухайте»', () => {
+    const q = { ...publicOf(bluffQ), audio: { duration: 100, clip: { source: 'file', url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 100 } } };
+    show(bluffView('question', bluff({ stage: 'choice', options: five, total: 5, lies: null }), { question: q as unknown as HostView['question'], limitMs: 30_000, remainingMs: 28_000, endsAt: null }));
+    expect(screen.queryByText('🎵 Слухайте')).toBeNull();
   });
 
   it('lies phase: live lies with authors, the main button goes to the choice', () => {

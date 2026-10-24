@@ -109,7 +109,7 @@ describe('bluff: the lies', () => {
 
   it('no lies at all: truth and every spare', () => {
     const open = openClassic([bluff, single]);
-    const s = tick(open, open.endsAt!);
+    const s = tick(open, open.endsAt! + 1);
     const options = s.plays[0].bluff!.options;
     expect(s.plays[0].bluff?.stage).toBe('choice');
     expect(options).toHaveLength(4);
@@ -135,6 +135,7 @@ describe('bluff: the lies', () => {
     const endsAt = s.endsAt!;
     expect(endsAt).toBe(at(s, 60_000));
     expect(tick(s, endsAt - 1).plays[0].bluff?.stage).toBe('lies');
+    expect(tick(s, endsAt).plays[0].bluff?.stage).toBe('lies');
     s = tick(s, endsAt + 1);
     expect(s.phase).toBe('question');
     expect(s.plays[0].bluff?.stage).toBe('choice');
@@ -223,7 +224,7 @@ describe('bluff: the lies', () => {
     s = must(writeLie(s, 'p2', 'Мілан', at(s, 2000)));
     s = must(removePlayer(s, 'p3'));
     expect(s.plays[0].bluff?.stage).toBe('lies');
-    expect(tick(s, s.endsAt!).plays[0].bluff?.stage).toBe('choice');
+    expect(tick(s, s.endsAt! + 1).plays[0].bluff?.stage).toBe('choice');
   });
 
   it('submitAnswer refuses a bluff', () => {

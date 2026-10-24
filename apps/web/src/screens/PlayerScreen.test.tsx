@@ -2182,6 +2182,46 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(screen.getByText('Що з цього правда?')).toBeTruthy();
     });
 
+    it('the host removing the pick shows a one-line notice, and picking again clears it', () => {
+      const send: Send = vi.fn(async () => ({ ok: true as const }));
+      const node = (v: PlayerView) => <PlayerScreen view={v} hostOnline offsetMs={0} send={send} />;
+      const { rerender } = render(node(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options, picked: 1 }), me: mine({ pick: 'b3' }) })));
+      expect(screen.queryByText('Ведучий прибрав цей варіант — вибери інший')).toBeNull();
+      rerender(node(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options: options.filter((o) => o.id !== 'b3') }), me: mine({ pick: null }) })));
+      expect(screen.getByText('Ведучий прибрав цей варіант — вибери інший')).toBeTruthy();
+      rerender(node(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options: options.filter((o) => o.id !== 'b3'), picked: 1 }), me: mine({ pick: 'b1' }) })));
+      expect(screen.queryByText('Ведучий прибрав цей варіант — вибери інший')).toBeNull();
+    });
+
+    it('tapping an option the host just removed says so instead of a generic error', async () => {
+      const send: Send = vi.fn(async () => ({ ok: false as const, error: 'not_found' as const }));
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options }), me: mine() }), { send });
+      fireEvent.click(screen.getByRole('button', { name: 'Париж' }));
+      expect(await screen.findByText('Цей варіант щойно прибрали — вибери інший')).toBeTruthy();
+    });
+
+    it('a player who wrote a lie but never picked gets «Ти не вибирав варіант», with the fooled count', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: bluffPublic,
+          reveal: bluffFull,
+          bluff: info({ stage: 'reveal', options, shown: 3, total: 3, lastOpenedId: 'b1' }),
+          me: { ...mine({ lie: 'Рим', pick: null, truth: false, fooled: 2 }), result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: 1000 } },
+        }),
+      );
+      expect(screen.getByText('Ти не вибирав варіант')).toBeTruthy();
+      expect(screen.queryByText('Не вгадав')).toBeNull();
+      expect(screen.getByText('На твою вигадку купилися: 2')).toBeTruthy();
+    });
+
+    it('the choice timer ignores the audio lead of a long clip: no «Слухайте»', () => {
+      const audio = { duration: 100, clip: { source: 'file', url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 100 } };
+      show(onQuestion({ question: { ...bluffPublic, audio } as never, bluff: info({ stage: 'choice', options }), me: mine(), limitMs: 30_000, remainingMs: 28_000, endsAt: null }));
+      expect(screen.queryByText('🎵 Слухайте')).toBeNull();
+    });
+
     it('the input is disabled during the pause', () => {
       show(onQuestion({ question: bluffPublic, bluff: info(), me: mine(), paused: true }));
       expect((screen.getByLabelText('Твоя вигадка') as HTMLInputElement).closest('fieldset')!.disabled).toBe(true);

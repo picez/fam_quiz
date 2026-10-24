@@ -144,6 +144,16 @@ function VoteResult({ view }: { view: PlayerView }) {
 function BluffPlay({ view, paused, send }: { view: PlayerView; paused: boolean; send: Send }) {
   const { bluff } = view;
   const mine = view.me.bluff;
+  // Вибір, що раптом зник посеред фази, означає: ведучий прибрав цей варіант.
+  const pickNow = mine?.pick ?? null;
+  const stageNow = bluff?.stage ?? null;
+  const lastPick = useRef<string | null>(null);
+  const [lost, setLost] = useState(false);
+  useEffect(() => {
+    if (pickNow !== null) setLost(false);
+    else if (lastPick.current !== null && stageNow === 'choice') setLost(true);
+    lastPick.current = pickNow;
+  }, [pickNow, stageNow]);
   if (bluff === null || mine === null) return null;
   if (bluff.stage === 'lies') {
     return (
@@ -164,6 +174,7 @@ function BluffPlay({ view, paused, send }: { view: PlayerView; paused: boolean; 
   return (
     <section className="bluff-play">
       <p className="bluff-stage">{t('bluffStageChoice')}</p>
+      {picked === null && lost && <p className="meta bluff-lost" role="status">{t('bluffPickRemoved')}</p>}
       {picked === null ? (
         <fieldset className="inputs" disabled={paused}>
           <BluffChoice options={bluff.options} own={mine.own} send={send} />
@@ -190,7 +201,7 @@ function BluffResult({ view }: { view: PlayerView }) {
       <BluffBoard info={bluff} />
       {open ? (
         <>
-          <h2>{took ? t(me.bluff.truth ? 'bluffTruthYes' : 'bluffTruthNo') : t('bluffSilent')}</h2>
+          <h2>{took ? t(me.bluff.truth ? 'bluffTruthYes' : me.bluff.pick === null ? 'bluffNoChoice' : 'bluffTruthNo') : t('bluffSilent')}</h2>
           {me.bluff.fooled !== null && me.bluff.fooled > 0 && <p>{t('bluffFooledYou', { n: me.bluff.fooled })}</p>}
           {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
           {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
@@ -641,7 +652,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </p>
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
-            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
+            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">

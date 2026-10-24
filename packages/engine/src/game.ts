@@ -1326,10 +1326,10 @@ export function tick(state: GameState, now: number): GameState {
   if (running.heldAt !== null) return running;
   // «Хто я?»: підказки, чий час настав; без змін — той самий об'єкт.
   const opened = openDueClues(running, now);
-  // Блеф: фаза вигадок, що сплила, перемикається на вибір зі своїм таймером від now; вибір закриває гілка нижче.
+  // Блеф (строго «>», як у timeOver і bluffAuto): фаза вигадок, що сплила, перемикається на вибір зі своїм таймером від now; вибір закриває гілка нижче.
   if (bluffPlayOf(opened)?.bluff.stage === 'lies') {
     const due = closesAt(opened);
-    return due !== null && now >= due ? startChoice(opened, now) : opened;
+    return due !== null && now > due ? startChoice(opened, now) : opened;
   }
   // Ланцюжок закривається, коли кожен пройшов або вичерпав свій час зі штрафом.
   if (opened.plays[opened.questionIndex]?.question.type === 'chain' && chainDone(opened, now)) return lockNow(opened);

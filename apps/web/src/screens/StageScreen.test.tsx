@@ -1588,6 +1588,23 @@ describe('StageScreen: bluff (10f)', () => {
     expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
   });
 
+  it('more than twelve options switch the stage board to three columns', () => {
+    const make = (n: number) => Array.from({ length: n }, (_, at) => ({ id: `b${at + 1}`, text: `Вигадка ${at + 1}`, open: false, kind: null, authors: null, pickedBy: null, removed: false }));
+    show(view({ phase: 'question', questionIndex: 0, question: bluffQuestion, endsAt: Date.now() + 30_000, bluff: { ...info('choice'), options: make(13), total: 13 }, playerCount: 13 }));
+    expect(document.querySelector('.bluff-board.is-dense.is-wide')).not.toBeNull();
+    cleanup();
+    show(view({ phase: 'question', questionIndex: 0, question: bluffQuestion, endsAt: Date.now() + 30_000, bluff: { ...info('choice'), options: make(12), total: 12 }, playerCount: 12 }));
+    expect(document.querySelector('.bluff-board.is-dense')).not.toBeNull();
+    expect(document.querySelector('.is-wide')).toBeNull();
+  });
+
+  it('the choice timer ignores the audio lead of a long clip: no «Слухайте»', () => {
+    const audio = { duration: 100, clip: { source: 'file', url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 100 } };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...bluffQuestion, audio } as never, endsAt: Date.now() + 28_000, limitMs: 30_000, bluff: info('choice'), playerCount: 3 }));
+    expect(document.querySelector('.timer-status')).toBeNull();
+    expect(document.querySelector('.timer-total')).not.toBeNull();
+  });
+
   it('eight options: dense board, whole option text kept, buyers clamped with «+N»', () => {
     const many = Array.from({ length: 8 }, (_, at) => ({ id: `b${at + 1}`, text: `Дуже довга вигадка номер ${at + 1} про те, де саме поставили вежу`, open: true, kind: 'lie' as const, authors: ['Олена'], pickedBy: ['Аня', 'Богдан', 'Віка', 'Гліб', 'Дана', 'Єва'], removed: false }));
     show(view({ phase: 'reveal', questionIndex: 0, question: bluffQuestion, reveal: bluffFull, bluff: { ...info('reveal', 8), options: many, total: 8, shown: 8 } }));

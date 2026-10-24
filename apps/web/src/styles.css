@@ -8088,6 +8088,16 @@ button.wall-tile:disabled {
   gap: 0.375rem 0.75rem;
 }
 
+.stage-bluff .bluff-board.is-dense.is-wide {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.25rem 0.5rem;
+}
+
+.stage-bluff .bluff-board.is-dense.is-wide .bluff-row {
+  padding: 0.125rem 0.625rem;
+  font-size: 1.0625rem;
+}
+
 .stage-bluff .bluff-board.is-dense .bluff-row {
   max-height: none;
   font-size: 1.25rem;

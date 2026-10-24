@@ -230,7 +230,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
         {view.phase === 'question' && (
           // «Чекаємо …» висить під табло поза потоком: його поява на спільному кінці нічого не зсуває.
           <div className="stage-clock">
-            <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={publicLeadMs(question)} />
+            <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={view.bluff?.stage === 'choice' ? 0 : publicLeadMs(question)} />
             {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
           </div>
         )}
