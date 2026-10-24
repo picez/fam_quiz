@@ -1,4 +1,4 @@
-import type { Answer, Question } from '@quiz/shared';
+import { answerWindowMs, proximityPartial, revealShare, sliderShare, type Answer, type Grade, type Question } from '@quiz/shared';
 import { normalizeText } from './normalize';
 
 export interface CheckResult {
@@ -9,6 +9,9 @@ export interface CheckResult {
 const REJECTED: CheckResult = { accepted: false, accuracy: 0 };
 const FULL: CheckResult = { accepted: true, accuracy: 1 };
 const EPSILON = 1e-9;
+
+/** Частка ціни, з якої відповідь на тип із балами за близькість вважається правильною (14a). */
+export const PROXIMITY_CORRECT_SHARE = 0.5;
 
 const full = (correct: boolean): CheckResult => (correct ? FULL : REJECTED);
 
@@ -46,6 +49,13 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
     return { accepted: true, accuracy: 1 - 0.5 * Math.min(distance / question.tolerance, 1) };
   }
 
+  if (question.type === 'slider' && answer.type === 'slider') {
+    const share = sliderShare(question, answer.value);
+    if (share <= 0) return REJECTED;
+    // (zeroBeyond − d) / (zeroBeyond − tolerance) у двійковому може вийти 0.4999…
+    return { accepted: share >= PROXIMITY_CORRECT_SHARE - EPSILON, accuracy: share };
+  }
+
   if (question.type === 'order' && answer.type === 'order') {
     const ids = question.items.map((item) => item.id);
     const given = answer.itemIds;
@@ -70,4 +80,36 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
   }
 
   return REJECTED;
+}
+
+export interface Verdict {
+  accepted: boolean;
+  accuracy: number;
+  grade: Grade;
+}
+
+/** Оцінка за точністю перевірки: ≥ 1 — правильно, ≤ 0 — неправильно, інакше частково. */
+export function gradeOf(accuracy: number): Grade {
+  return accuracy >= 1 ? 'correct' : accuracy <= 0 ? 'wrong' : 'partial';
+}
+
+/** Множник ціни за час на картинці, що проявляється (revealShare від повного вікна); інакше 1. */
+export function revealFactor(question: Question, timeMs: number): number {
+  // Старі запитання (сирий JSON) поля reveal не мають.
+  return question.reveal == null ? 1 : revealShare(timeMs, answerWindowMs(question));
+}
+
+/**
+ * Перевірка з урахуванням часу.
+ * Типи з балами за близькість (proximityPartial, повзунок): accepted — частка ≥ 0,5; grade 'correct' | 'partial' | 'wrong' за цим правилом (14a).
+ * Решта: accepted і grade — з самої відповіді (checkAnswer, gradeOf); на картинці, що проявляється, точність × revealFactor —
+ * це плата за час, як бонус швидкості, а не часткова правильність.
+ */
+export function verdictOf(question: Question, answer: Answer, timeMs: number): Verdict {
+  const checked = checkAnswer(question, answer);
+  if (proximityPartial(question)) {
+    const grade = checked.accepted ? 'correct' : checked.accuracy > 0 ? 'partial' : 'wrong';
+    return { accepted: checked.accepted, accuracy: checked.accuracy, grade };
+  }
+  return { accepted: checked.accepted, accuracy: checked.accuracy * revealFactor(question, timeMs), grade: gradeOf(checked.accuracy) };
 }

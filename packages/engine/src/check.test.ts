@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { checkAnswer, textMatches } from './check';
-import { bool, match, multi, numeric, order, single, text } from './testing/fixtures';
+import { checkAnswer, textMatches, verdictOf } from './check';
+import type { Question } from '@quiz/shared';
+import { bool, match, multi, numeric, order, single, slider, text, withReveal } from './testing/fixtures';
 
 const REJECTED = { accepted: false, accuracy: 0 };
 const FULL = { accepted: true, accuracy: 1 };
@@ -106,5 +107,76 @@ describe('checkAnswer', () => {
     expect(textMatches(['Залізо'], 'Мідь')).toBe(false);
     expect(textMatches(['Залізо'], '')).toBe(false);
     expect(textMatches(['Залізо'], '   ')).toBe(false);
+  });
+});
+
+describe('checkAnswer: slider', () => {
+  const at = (value: number) => checkAnswer(slider, { type: 'slider', value });
+
+  it('full inside the tolerance, linear to the zero distance, half the price is accepted', () => {
+    expect(at(52)).toEqual(FULL);
+    expect(at(48)).toEqual(FULL);
+    expect(at(57).accepted).toBe(true);
+    expect(at(57).accuracy).toBeCloseTo(0.5);
+    expect(at(58).accepted).toBe(false);
+    expect(at(58).accuracy).toBeCloseTo(0.4);
+    expect(at(62)).toEqual(REJECTED);
+  });
+
+  it('rejects an answer of a different type and a value off the scale', () => {
+    expect(checkAnswer(slider, { type: 'numeric', value: 50 })).toEqual(REJECTED);
+    expect(at(101)).toEqual(REJECTED);
+    expect(at(-1)).toEqual(REJECTED);
+  });
+
+  it('values at the ends of the scale are on it', () => {
+    const edge: Question = { ...slider, correct: 0 };
+    expect(checkAnswer(edge, { type: 'slider', value: 0 })).toEqual(FULL);
+    expect(checkAnswer({ ...slider, correct: 100 }, { type: 'slider', value: 100 })).toEqual(FULL);
+  });
+
+  it('a fractional step and a zero tolerance: exactly half counts despite rounding', () => {
+    const fine: Question = { ...slider, min: 0, max: 1, step: 0.05, correct: 0.7, tolerance: 0.1, zeroBeyond: 0.2 };
+    expect(checkAnswer(fine, { type: 'slider', value: 0.8 })).toEqual(FULL);
+    // 0.85 − 0.7 у двійковому трохи більше за 0.15: частка виходить 0.4999…
+    const half = checkAnswer(fine, { type: 'slider', value: 0.85 });
+    expect(half.accepted).toBe(true);
+    expect(half.accuracy).toBeCloseTo(0.5);
+    expect(checkAnswer(fine, { type: 'slider', value: 0.9 })).toEqual(REJECTED);
+    const halves: Question = { ...slider, min: 0, max: 5, step: 0.5, correct: 2.5, tolerance: 0, zeroBeyond: 1 };
+    expect(checkAnswer(halves, { type: 'slider', value: 3 }).accepted).toBe(true);
+    expect(checkAnswer(halves, { type: 'slider', value: 3.5 })).toEqual(REJECTED);
+  });
+});
+
+describe('verdictOf', () => {
+  const right = { type: 'text', value: 'Одеса' } as const;
+  const revealing = withReveal(text);
+
+  it('a revealing picture multiplies the accuracy by the reveal share; correctness is the answer itself', () => {
+    const early = verdictOf(revealing, right, 10_000);
+    expect(early.accuracy).toBeCloseTo(0.65);
+    expect(early).toMatchObject({ accepted: true, grade: 'correct' });
+    const late = verdictOf(revealing, right, 15_000);
+    expect(late.accuracy).toBeCloseTo(0.475);
+    expect(late).toMatchObject({ accepted: true, grade: 'correct' });
+    expect(verdictOf(revealing, { type: 'text', value: 'Київ' }, 0)).toEqual({ accepted: false, accuracy: 0, grade: 'wrong' });
+  });
+
+  it('a revealing number keeps its own partial grade', () => {
+    const v = verdictOf(withReveal(numeric), { type: 'numeric', value: 2111 }, 10_000);
+    expect(v.accuracy).toBeCloseTo(0.75 * 0.65);
+    expect(v).toMatchObject({ accepted: true, grade: 'partial' });
+  });
+
+  it('a slider: half the price is correct, less is partial, zero is wrong', () => {
+    expect(verdictOf(slider, { type: 'slider', value: 57 }, 0)).toMatchObject({ accepted: true, grade: 'correct' });
+    expect(verdictOf(slider, { type: 'slider', value: 58 }, 0)).toMatchObject({ accepted: false, grade: 'partial' });
+    expect(verdictOf(slider, { type: 'slider', value: 70 }, 0)).toEqual({ accepted: false, accuracy: 0, grade: 'wrong' });
+  });
+
+  it('old types keep their verdict', () => {
+    expect(verdictOf(numeric, { type: 'numeric', value: 2111 }, 0)).toEqual({ accepted: true, accuracy: 0.75, grade: 'partial' });
+    expect(verdictOf(single, { type: 'single', optionId: 'b' }, 19_000)).toEqual({ accepted: true, accuracy: 1, grade: 'correct' });
   });
 });

@@ -348,9 +348,12 @@ export function revealShare(timeMs: number, windowMs: number): number {
   return 1 - (1 - REVEAL_MIN_SHARE) * t;
 }
 
-/** Частковість вбудована (повзунок або картинка, що проявляється): правильна — частка ≥ 0,5 (14a). */
-export function builtInPartial(question: Question): boolean {
-  return question.type === 'slider' || question.reveal !== undefined;
+/**
+ * Бали за близькість відповіді (лише такі типи; зараз — повзунок): частка вбудована, не залежить від правила «частково»,
+ * правильна — частка ≥ 0,5 (14a). Картинка, що проявляється, сюди не входить: її спадання — плата за час, не правильність.
+ */
+export function proximityPartial(question: Question): boolean {
+  return question.type === 'slider';
 }
 
 /** Ціна запитання: для сортування — найбільша сума (слова × бали за слово), інакше points. */

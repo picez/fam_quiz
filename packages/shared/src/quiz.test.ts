@@ -34,7 +34,7 @@ import {
   SIMPLE_TYPES,
   answerWindowMs,
   audioLeadMs,
-  builtInPartial,
+  proximityPartial,
   revealShare,
   sliderShare,
   allSpares,
@@ -1200,12 +1200,12 @@ describe('audio and revealing picture (10b)', () => {
     expect(issues(quizSchema, { ...base, spares: [{ ...spareSingle, imageUrl: img, reveal: 'blur' }] })).toContain('spare_video');
   });
 
-  it('builtInPartial: slider and revealing picture only', () => {
+  it('proximityPartial: proximity types only (slider), not a revealing picture', () => {
     const slider = questionSchema.parse({ id: 's', type: 'slider', text: 'С', imageUrl: null, timeLimit: 20, points: 100,
       min: 0, max: 10, step: 1, correct: 5, tolerance: 0 });
-    expect(builtInPartial(slider)).toBe(true);
-    expect(builtInPartial(questionSchema.parse(revealing('q')))).toBe(true);
-    expect(builtInPartial(questionSchema.parse(single))).toBe(false);
+    expect(proximityPartial(slider)).toBe(true);
+    expect(proximityPartial(questionSchema.parse(revealing('q')))).toBe(false);
+    expect(proximityPartial(questionSchema.parse(single))).toBe(false);
   });
 });
 

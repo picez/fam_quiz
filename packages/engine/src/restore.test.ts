@@ -39,7 +39,7 @@ import { GAME_STATE_VERSION, suspend } from './restore';
 import type { Splash } from './splash';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
-import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, slider, text, withAudio, withId, withReveal } from './testing/fixtures';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -298,7 +298,11 @@ function representative(): GameState[] {
   final = must(placeWager(final, 'p1', 0, T0 + 1000, () => 0));
   final = must(placeWager(final, 'p2', 0, T0 + 2000, () => 0));
   const buzzed = sendBlitz(openAt(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single])]), 'Оля', 'Петро'), T0), 'p1', kyiv, T0 + 1000);
+  // 10b: повзунок з аудіо й картинка, що проявляється, — нові поля запитання й відповіді, ключі стану ті самі.
+  const media = makeRoundsQuiz([classicRound('r1', [withAudio(slider), withReveal(text)])]);
+  const slid = must(submitAnswer(openAt(lobbyWith(media, 'Оля', 'Петро'), T0), 'p1', { type: 'slider', value: 57 }, T0 + 1000));
   return [
+    slid,
     must(submitAnswer(toBuffQuestion(), 'p2', kyiv, T0 + 3000)),
     must(takeBuff(toBuffCell(), 'p1', 'fifty', T0 + 1000, () => 0)),
     must(takeBuff(must(submitAnswer(toOthersQuestion(), 'p2', kyiv, T0 + 1000)), 'p1', 'audience', T0 + 5000, () => 0)),

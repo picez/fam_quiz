@@ -20,6 +20,8 @@ import {
   guidePages,
   newcomersOn,
   rulesOf,
+  answerWindowMs,
+  proximityPartial,
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
@@ -43,7 +45,7 @@ import { chainDone, scoreChain } from './chain';
 import { scoreSort, shiftSortLocks } from './sort';
 import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
-import { checkAnswer } from './check';
+import { checkAnswer, gradeOf, revealFactor, verdictOf } from './check';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
@@ -402,11 +404,6 @@ export function roundQuestionNumber(state: GameState): number {
   return upToCurrent.filter((play) => play.roundIndex === state.roundIndex).length - 1;
 }
 
-/** Оцінка відповіді за точністю автоматичної перевірки. */
-function gradeOf(accuracy: number): Grade {
-  return accuracy >= 1 ? 'correct' : accuracy <= 0 ? 'wrong' : 'partial';
-}
-
 /**
  * Записує відповідь гравця в поточне запитання; баф гравця на ньому застосовується тут, рівно раз.
  * Внутрішня функція рушія: експортовано для buffs.ts, не для сервера.
@@ -616,7 +613,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       plays: [...state.plays, play],
       presented: present(question, round.shuffleOptions, rng),
       startedAt: at,
-      endsAt: isTimed(question) ? at + question.timeLimit * 1000 : null,
+      endsAt: isTimed(question) ? at + answerWindowMs(question) : null,
       remainingMs: null,
       heldAt: null,
     },
@@ -820,7 +817,7 @@ export function streakCounts(state: GameState, upTo: number): Record<string, num
       // На полі серію рахують лише власні ходи гравця.
       const board = state.plays[i].board;
       if (board !== undefined && board.chooserId !== player.id) continue;
-      if (record === undefined || record.accuracy < 1) break;
+      if (record === undefined || record.grade !== 'correct') break;
       count += 1;
     }
     counts[player.id] = count;
@@ -987,9 +984,10 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   // Швидкість на запасному — від миті, коли його отримано.
   const spare = buffOf(play, playerId)?.spare;
   const timeMs = Math.max(0, now - (spare?.startedAt ?? state.startedAt));
-  const { accepted, accuracy } = checkAnswer(asked, answer);
+  const { accepted, accuracy, grade } = verdictOf(asked, answer, timeMs);
   const limit = answerLimitMs(play, playerId);
-  const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
+  // Картинка, що проявляється, вже платить за час часткою ціни: бонусу швидкості поверх немає.
+  const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && asked.reveal == null);
   const points = answerPoints({
     points: question.points,
     accuracy,
@@ -1002,7 +1000,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     timeMs,
     accepted,
     accuracy,
-    grade: gradeOf(accuracy),
+    grade,
     basePoints: points,
     streakBonus: 0,
     points,
@@ -1070,16 +1068,29 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
   }
   if (round.type !== 'board' || play.board === undefined || round.check === 'manual') return fail('wrong_phase');
 
-  const checked = checkAnswer(questionFor(state, play, pending.playerId), pending.answer);
-  // Часткові бали лише за увімкненого правила; інакше неповна відповідь неправильна.
-  const accuracy = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && rulesOf(round).partial !== null ? checked.accuracy : 0;
+  const asked = questionFor(state, play, pending.playerId);
+  // Годинник стоїть, поки ведучий приймає: на картинці, що проявляється, рахується час до надсилання.
+  const timeMs = Math.max(0, clockOf(state, now) - (state.startedAt ?? now));
+  const verdict = verdictOf(asked, pending.answer, timeMs);
+  let accuracy = verdict.accuracy;
+  let accepted = verdict.accepted;
+  let grade = verdict.grade;
+  // Бали за близькість (повзунок) вбудовані й не залежать від правила «частково» (14a).
+  if (!proximityPartial(asked)) {
+    const checked = checkAnswer(asked, pending.answer);
+    // Часткові бали лише за увімкненого правила; інакше неповна відповідь неправильна.
+    const ruled = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && rulesOf(round).partial !== null ? checked.accuracy : 0;
+    accuracy = ruled * revealFactor(asked, timeMs);
+    accepted = ruled >= 1;
+    grade = gradeOf(ruled);
+  }
   const points = boardPoints(round, play.board, accuracy);
   const record: AnswerRecord = {
     answer: pending.answer,
-    timeMs: Math.max(0, clockOf(state, now) - (state.startedAt ?? now)),
-    accepted: accuracy >= 1,
+    timeMs,
+    accepted,
     accuracy,
-    grade: gradeOf(accuracy),
+    grade,
     basePoints: points,
     streakBonus: 0,
     points,
@@ -1442,7 +1453,8 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   if (grade === 'partial' && rulesOf(round).partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
   const limit = answerLimitMs(play, playerId);
-  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null);
+  // Картинка, що проявляється, бонусу швидкості не має: «правильно» від ведучого — повна ціна.
+  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && question.reveal == null);
   const points = answerPoints({
     points: question.points,
     accuracy,
