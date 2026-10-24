@@ -638,6 +638,20 @@ describe('StageBuffs', () => {
     expect(whyOf(blockedOf('swap', 'spares_out'), 'Заміна запитання')).toBe('Запасні запитання закінчилися.');
   });
 
+  it('swap on a cell of a category without spares explains why', () => {
+    const { unmount } = row({ slots: [{ kind: 'swap', state: 'blocked', block: 'no_category_spares' }], active: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Заміна запитання' }));
+    expect(document.querySelector('.buff-why')?.textContent).toBe('У цій категорії немає запасних запитань.');
+    unmount();
+  });
+
+  it('the swap help names the category', () => {
+    row({ slots: [{ kind: 'swap', state: 'ready', block: null }], active: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Що роблять бафи' }));
+    const sheet = screen.getByRole('dialog', { name: 'Бафи' });
+    expect(within(sheet).getByText('Де: класика й поле у свій хід. На полі — запасне з тієї ж категорії.')).toBeTruthy();
+  });
+
   it('buff notices never cover controls: top on the host, a reserved strip on the phone, full width to wrap', () => {
     const host = rule('.host .live-notices');
     expect(host).toMatch(/top:/);
