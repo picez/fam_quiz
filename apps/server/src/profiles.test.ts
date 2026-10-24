@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, slider, text, withId, withReveal } from '@quiz/engine/testing';
+import { blitzRound, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, text, withId, withReveal } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
@@ -320,5 +320,52 @@ describe('profile facts', () => {
     const near = await play('Близька', 58);
     expect(near.stats.accuracy).toBe(80);
     expect(earned(near.achievements)).not.toContain('perfect_game');
+  });
+  it('profile accuracy and the perfect game count a correct clue answer at any clue and a half-price pin as correct (10c)', async () => {
+    const quiz = makeQuiz([clues, pin, ...['s1', 's2', 's3'].map((id) => withId(single, id))], { speedBonus: false });
+    const host = await signUp(ctx.app, 'Ведуча');
+    const play = async (name: string, answer: string, x: number) => {
+      const player = await signUp(ctx.app, name);
+      const { game: created } = await startGame(ctx.app, quiz, host.cookie);
+      const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: name }, player.cookie)).json() as { playerId: string };
+      const room = ctx.manager.get(created.code);
+      if (room === undefined) throw new Error('room missing');
+      ctx.manager.connect(room, { role: 'player', playerId });
+      const step = (type: 'start' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+      const advance = () => {
+        for (let i = 0; i < 8 && room.state.phase !== 'finished'; i += 1) {
+          step('next');
+          if (room.state.phase === 'question') break;
+        }
+      };
+      step('start');
+      step('next');
+      // Остання підказка (21 с з інтервалом 5 с): лише 20 % ціни, але відповідь правильна.
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 21_000 });
+      try {
+        expect(ctx.manager.answer(room, playerId, { type: 'clues', value: answer })).toEqual({ ok: true });
+        expect(room.state.plays.at(-1)?.answers[playerId]).toMatchObject({ accepted: answer === 'Шевченко', grade: answer === 'Шевченко' ? 'correct' : 'wrong' });
+      } finally {
+        vi.useRealTimers();
+      }
+      advance();
+      ctx.manager.answer(room, playerId, { type: 'pin', x, y: 0.5 });
+      advance();
+      for (const option of ['b', 'b', 'b']) {
+        ctx.manager.answer(room, playerId, { type: 'single', optionId: option });
+        advance();
+      }
+      await ctx.recorder.idle();
+      return profileFacts(db, await idOf(player.email));
+    };
+
+    // Точка рівно за половину ціни (9 % при радіусах 3 і 15) — ще «правильно».
+    const right = await play('Знавчиня', 'Шевченко', 0.59);
+    expect(right.stats.accuracy).toBe(100);
+    expect(earned(right.achievements)).toContain('perfect_game');
+
+    const wrong = await play('Помилилась', 'Франко', 0.5);
+    expect(wrong.stats.accuracy).toBe(80);
+    expect(earned(wrong.achievements)).not.toContain('perfect_game');
   });
 });
