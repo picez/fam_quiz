@@ -1,0 +1,25 @@
+import type { HostCloudWord } from '@quiz/shared';
+import { t } from '../i18n';
+
+/** Хмара для пульта: кожне слово — кнопка «Сховати» / «Повернути» (aria-pressed = hidden), поруч кількість і автори в title. */
+export function HostCloud({ words, onHide }: { words: HostCloudWord[]; onHide: (key: string, hidden: boolean) => void }) {
+  return (
+    <ul className="host-cloud">
+      {words.map((word) => (
+        <li key={word.key}>
+          <button
+            type="button"
+            className={word.hidden ? 'host-cloud-word is-hidden' : 'host-cloud-word'}
+            aria-pressed={word.hidden}
+            aria-label={t(word.hidden ? 'cloudShow' : 'cloudHide', { word: word.text })}
+            title={word.by.join(', ')}
+            onClick={() => onHide(word.key, !word.hidden)}
+          >
+            <span className="host-cloud-text">{word.text}</span>
+            <span className="host-cloud-count">{word.count}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}

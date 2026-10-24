@@ -567,3 +567,51 @@ describe('GameHistory pin (10c)', () => {
     expect(document.querySelector('.history-pin .pin-mark.is-best .pin-label')?.textContent).toBe('Олена');
   });
 });
+
+describe('GameHistory wall, poll and word cloud (10d)', () => {
+  it('shows the wall groups, the poll bars, the cloud words with counts and votes without a correct count', async () => {
+    const wallQ: Question = {
+      ...base,
+      id: 'w1',
+      type: 'wall',
+      text: 'Знайдіть групи',
+      mistakes: 3,
+      groups: ['Річки', 'Міста', 'Гори'].map((name, g) => ({ id: `g${g}`, name, tiles: [0, 1, 2].map((n) => ({ id: `t${g}${n}`, text: `${name}${n}` })) })),
+    };
+    const options = [
+      { id: 'a', text: 'Весна' },
+      { id: 'b', text: 'Літо' },
+    ];
+    const pollQ: Question = { ...base, id: 'p1', type: 'poll', text: 'Яка пора?', points: 0, options };
+    const cloudQ: Question = { ...base, id: 'c1', type: 'wordcloud', text: 'Київ — це?', points: 0, words: 3 };
+    const vote = (nickname: string, answer: unknown) => ({ nickname, answer, accepted: false, buff: null, spare: null });
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        questions: [
+          { index: 0, roundIndex: 0, text: wallQ.text, type: 'wall', answered: 1, accepted: 1, cell: null, question: wallQ, responses: [], final: null },
+          {
+            index: 1, roundIndex: 0, text: pollQ.text, type: 'poll', answered: 2, accepted: 0, cell: null, question: pollQ,
+            responses: [vote('Олена', { type: 'poll', optionId: 'b' }), vote('Тарас', { type: 'poll', optionId: 'b' })],
+            final: null,
+          },
+          {
+            index: 2, roundIndex: 0, text: cloudQ.text, type: 'wordcloud', answered: 2, accepted: 0, cell: null, question: cloudQ,
+            responses: [vote('Олена', { type: 'wordcloud', words: ['Каштани', 'Дніпро'] }), vote('Тарас', { type: 'wordcloud', words: ['каштани'] })],
+            final: null,
+          },
+        ],
+      },
+    } as never);
+    open('/history/g1');
+    expect(await screen.findByText('Річки')).toBeTruthy();
+    expect(screen.getByText('Гори')).toBeTruthy();
+    expect(screen.getAllByText('Проголосували: 2')).toHaveLength(2);
+    expect(screen.getByText('100 % · 2')).toBeTruthy();
+    expect(screen.getByText('0 % · 0')).toBeTruthy();
+    expect(screen.getByText('Каштани · 2')).toBeTruthy();
+    expect(screen.getByText('Дніпро · 1')).toBeTruthy();
+    expect(screen.getAllByText(/правильно/)).toHaveLength(1);
+  });
+});

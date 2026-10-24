@@ -1392,3 +1392,111 @@ describe('StageScreen clues and pin (10c)', () => {
     expect(document.querySelector('.lead.answer')).not.toBeNull();
   });
 });
+
+describe('StageScreen: wall, poll and word cloud (10d)', () => {
+  const names = ['Річки', 'Міста', 'Гори', 'Озера'];
+  const wallFull: Question = {
+    id: 'w1',
+    type: 'wall',
+    text: 'Знайдіть групи',
+    imageUrl: null,
+    video: null,
+    timeLimit: 90,
+    points: 1000,
+    mistakes: 3,
+    groups: names.map((name, g) => ({ id: `g${g}`, name, tiles: [0, 1, 2, 3].map((n) => ({ id: `t${g}${n}`, text: `${name}${n}` })) })),
+  };
+  const wallQuestion = {
+    ...question,
+    type: 'wall' as const,
+    text: 'Знайдіть групи',
+    timeLimit: 90,
+    choices: [],
+    wall: { tiles: Array.from({ length: 16 }, (_, n) => `Плитка ${n}`), size: 4, groupCount: 4, maxMistakes: 3 },
+  };
+  const pollOptions = [
+    { id: 'a', text: 'Весна' },
+    { id: 'b', text: 'Літо' },
+    { id: 'c', text: 'Осінь' },
+  ];
+  const pollQuestion = { ...question, type: 'poll' as const, text: 'Яка пора найкраща?', points: 0, choices: pollOptions };
+  const pollFull: Question = { id: 'p1', type: 'poll', text: pollQuestion.text, imageUrl: null, video: null, timeLimit: 20, points: 0, options: pollOptions };
+  const cloudQuestion = { ...question, type: 'wordcloud' as const, text: 'З чим асоціюється Київ?', points: 0, choices: [], cloud: { words: 3 } };
+  const cloudFull: Question = { id: 'c1', type: 'wordcloud', text: cloudQuestion.text, imageUrl: null, video: null, timeLimit: 30, points: 0, words: 3 };
+
+  it('the wall during the question is 16 plain tiles with no group colours and a hint to use the phone', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: wallQuestion, endsAt: Date.now() + 90_000, playerCount: 5, answeredCount: 2 }));
+    expect(document.querySelectorAll('.wall-tile')).toHaveLength(16);
+    expect(document.querySelector('[class*="wall-color-"]')).toBeNull();
+    expect(screen.getByText('Шукайте групи на телефоні')).toBeTruthy();
+    expect(screen.getByText('Закінчили стіну: 2 з 5')).toBeTruthy();
+    expect(document.querySelector('.lead.answer')).toBeNull();
+  });
+
+  it('the wall on the reveal shows the groups with names and the table, without the correct-answer line', () => {
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: wallQuestion,
+        reveal: wallFull,
+        wall: { groupCount: 4, rows: [{ playerId: 'p1', nickname: 'Олена', found: 4, mistakes: 1, locked: false, solved: true, points: 750, tiles: null }] },
+      }),
+    );
+    for (const name of names) expect(screen.getByText(name)).toBeTruthy();
+    expect(screen.getByText('Олена')).toBeTruthy();
+    expect(screen.getByText('4 / 4')).toBeTruthy();
+    expect(document.querySelector('.lead.answer')).toBeNull();
+  });
+
+  it('the poll shows plain options during the question and bars with percent on the reveal', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: pollQuestion, endsAt: Date.now() + 20_000, playerCount: 4, answeredCount: 3 }));
+    expect(screen.getByText('Проголосували 3 з 4')).toBeTruthy();
+    expect(document.querySelector('.poll-bars')).toBeNull();
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question: pollQuestion, reveal: pollFull, playerCount: 4, stats: { answered: 4, accepted: null, counts: { a: 1, b: 3 } } }));
+    expect(screen.getByText('75 % · 3')).toBeTruthy();
+    expect(screen.getByText('25 % · 1')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(document.querySelector('.lead.answer')).toBeNull();
+  });
+
+  it('the cloud shows no words during the question, only the words from the view on the reveal', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: cloudQuestion, endsAt: Date.now() + 30_000, playerCount: 4, answeredCount: 1 }));
+    expect(screen.getByText('Пишіть до 3 слів на телефоні')).toBeTruthy();
+    expect(screen.getByText('Написали 1 з 4')).toBeTruthy();
+    expect(document.querySelector('.word-cloud')).toBeNull();
+    cleanup();
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: cloudQuestion,
+        reveal: cloudFull,
+        cloud: [
+          { key: 'каштани', text: 'каштани', count: 3 },
+          { key: 'дніпро', text: 'Дніпро', count: 1 },
+        ],
+        cloudVoters: 4,
+      }),
+    );
+    expect(screen.getByText('каштани')).toBeTruthy();
+    expect(screen.getByText('Дніпро')).toBeTruthy();
+    expect(screen.getByText('Написали 4')).toBeTruthy();
+    expect(document.querySelector('.lead.answer')).toBeNull();
+  });
+
+  it('an empty cloud says nobody wrote anything', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: cloudQuestion, reveal: cloudFull, cloud: [], cloudVoters: 0 }));
+    expect(screen.getByText('Ніхто нічого не написав')).toBeTruthy();
+  });
+
+  it('on a board cell the stage shows the chooser wall with the found groups coloured', () => {
+    const found = {
+      groupCount: 4,
+      rows: [{ playerId: 'p1', nickname: 'Олена', found: 1, mistakes: 0, locked: false, solved: false, points: null, tiles: [[0, 1, 2, 3]] }],
+    };
+    show(view({ phase: 'question', questionIndex: 0, question: wallQuestion, endsAt: Date.now() + 90_000, wall: found }));
+    expect(document.querySelectorAll('.wall-tile.is-found.wall-color-0')).toHaveLength(4);
+  });
+});

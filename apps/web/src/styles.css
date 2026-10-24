@@ -7232,15 +7232,6 @@ button.wall-tile:disabled {
   text-align: center;
 }
 
-.wall-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  margin: 0.75rem 0;
-  padding: 0;
-  list-style: none;
-}
-
 .wall-group {
   display: flex;
   flex-direction: column;
@@ -7292,4 +7283,299 @@ button.wall-tile:disabled {
       translate: 0.25rem 0;
     }
   }
+}
+
+/* Сцена й пульт: розкриття стіни, стовпчики опитування, хмара слів (10d). */
+.wall-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0.75rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wall-reveal .wall-group {
+  min-width: 0;
+}
+
+.wall-reveal.is-big {
+  flex: 1 1 0;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.wall-reveal.is-big .wall-group {
+  flex: 1 1 0;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  font-size: 1.375rem;
+}
+
+.wall-reveal.is-big .wall-group strong {
+  font-size: 1.625rem;
+}
+
+.wall-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1rem;
+}
+
+.wall-table th,
+.wall-table td {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font-weight: 400;
+}
+
+.wall-table thead th {
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.wall-table .name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.wall-table .tag {
+  margin-inline-start: 0.375rem;
+}
+
+.wall-table .score {
+  text-align: right;
+}
+
+.poll-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.poll-bar {
+  display: grid;
+  grid-template-columns: minmax(6rem, 14rem) 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.poll-label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.poll-track {
+  display: block;
+  height: 1.25rem;
+  border-radius: 0.625rem;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.poll-fill {
+  display: block;
+  height: 100%;
+  border-radius: 0.625rem;
+  background: var(--line);
+}
+
+.poll-bar.is-top .poll-fill {
+  background: var(--amber);
+}
+
+.poll-bar.is-top .poll-value {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+.poll-value {
+  min-width: 5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.poll-bars.is-big {
+  gap: 1rem;
+}
+
+.poll-bars.is-big .poll-bar {
+  grid-template-columns: minmax(8rem, 20rem) 1fr auto;
+  font-size: 1.5rem;
+}
+
+.poll-bars.is-big .poll-track {
+  height: 2rem;
+  border-radius: 1rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .poll-fill {
+    transition: width 0.6s ease-out;
+  }
+}
+
+.word-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  align-content: center;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  line-height: 1.1;
+  overflow: hidden;
+}
+
+.word-cloud .word {
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.word-cloud.is-dense {
+  gap: 0.125rem 0.875rem;
+}
+
+.word-color-0 {
+  color: #ffd166;
+}
+
+.word-color-1 {
+  color: #7ee0ff;
+}
+
+.word-color-2 {
+  color: #b8ff5c;
+}
+
+.word-color-3 {
+  color: #ff9db0;
+}
+
+.word-color-4 {
+  color: #d9b8ff;
+}
+
+.history-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.host-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.host-cloud-word {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.875rem;
+  border: 2px solid var(--line);
+  border-radius: 1.375rem;
+  background: var(--panel);
+  color: var(--paper);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.host-cloud-word.is-hidden {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.host-cloud-count {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+.host-wall {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Сцена рівно на екран: стіна, стовпчики й хмара беруть усю решту висоти, як мапа з точкою (10c). */
+.app.stage:has(.stage-fit) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.stage-question:has(.stage-fit) {
+  min-height: 0;
+  gap: 1.5vh;
+}
+
+.stage-question:has(.stage-fit) .stage-main {
+  flex: 0 0 auto;
+}
+
+.stage-question:has(.stage-fit) .question {
+  font-size: clamp(1.5rem, 3.2vw, 3.25rem);
+}
+
+.stage-fit {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stage-wall .wall-grid.is-big {
+  flex: 1 1 0;
+  min-height: 0;
+  grid-auto-rows: 1fr;
+}
+
+.stage-wall .wall-grid.is-big .wall-tile {
+  min-height: 0;
+}
+
+/* Розкриття: групи ліворуч, таблиця праворуч. */
+.stage-wall.is-reveal {
+  flex-direction: row;
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.stage-wall.is-reveal .wall-table {
+  flex: 0 0 34%;
+  align-self: flex-start;
+}
+
+.stage-poll {
+  justify-content: center;
+}
+
+.stage-cloud {
+  align-items: center;
+  justify-content: center;
+}
+
+.stage-cloud .word-cloud {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
 }

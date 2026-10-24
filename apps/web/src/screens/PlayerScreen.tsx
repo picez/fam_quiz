@@ -26,6 +26,7 @@ import { Standings } from './Standings';
 import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
+import { WallReveal } from './WallReveal';
 import { WallInput } from './WallInput';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
@@ -76,20 +77,6 @@ function RevealDetail({ view, answer, player }: { view: PlayerView; answer: Answ
 /** Знайдені групи глядача на полі: позиції з рядка того, хто вибрав. */
 const foundOf = (rows: number[][] | null | undefined) => (rows ?? []).map((tiles, color) => ({ tiles, color }));
 
-/** Правильні групи стіни з назвами (розкриття). */
-function WallGroups({ reveal }: { reveal: Extract<Question, { type: 'wall' }> }) {
-  return (
-    <ul className="wall-groups">
-      {reveal.groups.map((group, index) => (
-        <li key={group.id} className={`wall-group wall-color-${index % 4}`}>
-          <strong>{group.name}</strong>
-          <span>{group.tiles.map((tile) => tile.text).join(', ')}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /** Власний підсумок стіни: сітка зі знайденими групами, правильні групи й рядок «Груп: N з M · бали». */
 function WallOutcome({ view }: { view: PlayerView }) {
   const { question, reveal, me } = view;
@@ -98,7 +85,7 @@ function WallOutcome({ view }: { view: PlayerView }) {
   return (
     <>
       <WallGrid wall={question.wall} found={me.wall?.found ?? []} />
-      <WallGroups reveal={reveal} />
+      <WallReveal question={reveal} />
       <p>{t('wallResult', { found, groups: reveal.groups.length, points: num(me.result?.points ?? 0) })}</p>
     </>
   );
@@ -760,7 +747,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} />
               )}
               {isWall && question?.wall != null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />}
-              {view.reveal?.type === 'wall' && <WallGroups reveal={view.reveal} />}
+              {view.reveal?.type === 'wall' && <WallReveal question={view.reveal} />}
               <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
               {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}

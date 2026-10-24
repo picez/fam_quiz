@@ -29,6 +29,11 @@ import { Standings } from './Standings';
 import { MenuLinks } from './MenuLinks';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
 import { SortBoard, SortReveal, SortWords } from './SortView';
+import { WallGrid } from './WallGrid';
+import { WallReveal } from './WallReveal';
+import { WallTable } from './WallTable';
+import { PollBars } from './PollBars';
+import { WordCloud } from './WordCloud';
 
 interface Props {
   view: StageView;
@@ -153,7 +158,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
         : reveal.type === 'multi'
           ? reveal.correctIds
           : [];
-  const showChoices = question.type === 'single' || question.type === 'multi';
+  const showChoices = question.type === 'single' || question.type === 'multi' || question.type === 'poll';
   const voice = view.board?.cell?.answerMode === 'voice';
   // Поле й бліц показують відповідь одного гравця кольором; на усній клітинці — позначку ведучого.
   // Миттєвий бліц показує варіанти як класичне запитання: чужого вибору до розкриття на сцені немає.
@@ -171,7 +176,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
   const sliderHint = question.slider === null ? '' : t('sliderOnPhone', { min: sliderNumber(question.slider.min, question.slider.step), max: sliderValueText(question.slider.max, question.slider) });
   const scale = reveal !== null && reveal.type === 'slider' && question.slider !== null && view.sliderMarks !== null ? { correct: reveal, slider: question.slider, marks: view.sliderMarks } : null;
-  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'clues' ? t('cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'clues' ? t('cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question" aria-busy={busy || undefined}>
@@ -181,6 +186,12 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           <span>
             {question.type === 'chain'
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
+              : question.type === 'wall'
+              ? t('wallFinishedOf', { finished: view.answeredCount, total: view.playerCount })
+              : question.type === 'poll'
+              ? t('votedOf', { voted: view.answeredCount, total: view.playerCount })
+              : question.type === 'wordcloud'
+              ? t('cloudWrittenOf', { n: view.answeredCount, total: view.playerCount })
               : question.type === 'sort' && view.sort !== null
               ? // Записи з'являються й у тих, хто не встиг, на locked: рахуємо лише тих, хто відсортував усе.
                 t('sortFinishedOf', { finished: view.sort.rows.filter((row) => row.timeMs !== null).length, total: view.playerCount })
@@ -252,6 +263,26 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           {/* Поле: до розкриття під категоріями — усі слова за абеткою. */}
           {view.board !== null && reveal === null && view.sort?.words && <SortWords words={view.sort.words} />}
         </>
+      ) : question.wall !== null ? (
+        <div className={reveal?.type === 'wall' ? 'stage-fit stage-wall is-reveal' : 'stage-fit stage-wall'}>
+          {reveal?.type === 'wall' ? (
+            <>
+              <WallReveal question={reveal} big />
+              {view.wall !== null && <WallTable info={view.wall} />}
+            </>
+          ) : (
+            <WallGrid wall={question.wall} found={(view.wall?.rows[0]?.tiles ?? []).map((tiles, color) => ({ tiles, color }))} big />
+          )}
+        </div>
+      ) : question.type === 'poll' && reveal?.type === 'poll' && stats !== null ? (
+        <div className="stage-fit stage-poll">
+          <PollBars choices={question.choices} counts={stats.counts} total={stats.answered} big />
+        </div>
+      ) : question.type === 'wordcloud' && reveal !== null ? (
+        <div className="stage-fit stage-cloud">
+          {view.cloud === null || view.cloud.length === 0 ? <p className="lead">{t('cloudEmpty')}</p> : <WordCloud words={view.cloud} />}
+          {view.cloudVoters !== null && view.cloudVoters > 0 && <p className="meta">{t('cloudCaption', { voters: view.cloudVoters })}</p>}
+        </div>
       ) : spotlit ? (
         <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} removed={view.removed} />
       ) : question.type === 'match' ? (
@@ -327,7 +358,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           )}
         </div>
       )}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }
