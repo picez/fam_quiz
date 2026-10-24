@@ -265,6 +265,7 @@ export function pickedText(answer: Answer, choices: Choice[], slider: PublicSlid
   const name = (id: string) => named.find((choice) => choice.id === id)?.text ?? id;
   switch (answer.type) {
     case 'single':
+    case 'poll':
       return name(answer.optionId);
     case 'multi':
       return answer.optionIds.map(name).join(', ');

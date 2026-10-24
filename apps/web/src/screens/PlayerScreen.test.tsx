@@ -1943,4 +1943,104 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
     expect(document.querySelector('.clue.is-hidden')).toBeNull();
     expect(screen.getByText('Правильна відповідь: Шевченко')).toBeTruthy();
   });
+
+  describe('wall, poll and word cloud (10d)', () => {
+    const TILES = Array.from({ length: 16 }, (_, i) => `Плитка ${i}`);
+    const wallPublic = { ...publicQuestion, type: 'wall' as const, choices: [], points: 1000, wall: { tiles: TILES, size: 4, groupCount: 4, maxMistakes: 3 } };
+    const group = (n: number, name: string) => ({ id: `g${n}`, name, tiles: [0, 1, 2, 3].map((k) => ({ id: `t${n}${k}`, text: TILES[n * 4 + k] })) });
+    const wallFull: Question = {
+      id: 'w1', type: 'wall', text: 'Стіна', imageUrl: null, video: null, round: null, points: 1000, timeLimit: 90, mistakes: 3,
+      groups: [group(0, 'Річки'), group(1, 'Міста'), group(2, 'Фрукти'), group(3, 'Кольори')],
+    } as unknown as Question;
+    const playerWall = { found: [], mistakes: 0, maxMistakes: 3, locked: false, solved: false, canGuess: true };
+
+    it('wall on the question: sixteen tiles and the check button', () => {
+      show(onQuestion({ question: wallPublic, me: { ...me, wall: playerWall } }));
+      expect(document.querySelectorAll('.wall-tile')).toHaveLength(16);
+      expect(screen.getByRole('button', { name: 'Перевірити' })).toBeTruthy();
+    });
+
+    it('wall reveal: own grid, groups with names and the result line', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: wallPublic,
+          reveal: wallFull,
+          me: {
+            ...me,
+            wall: { ...playerWall, found: [{ tiles: [0, 1, 2, 3], color: 0 }, { tiles: [4, 5, 6, 7], color: 1 }], canGuess: false },
+            answer: { type: 'wall', found: 2, groups: 4, mistakes: 1, timeMs: null },
+            result: { accepted: true, accuracy: 0.5, grade: 'correct', streakBonus: 0, points: 500 },
+          },
+        }),
+      );
+      for (const name of ['Річки', 'Міста', 'Фрукти', 'Кольори']) expect(screen.getByText(name)).toBeTruthy();
+      expect(screen.getByText('Груп: 2 з 4 · 500')).toBeTruthy();
+      expect(document.querySelectorAll('.wall-tile.is-found')).toHaveLength(8);
+    });
+
+    it('a spectator on a board cell sees the chooser wall without buttons', () => {
+      const chooser = { playerId: 'p2', nickname: 'Тарас', found: 1, mistakes: 0, locked: false, solved: false, points: null, tiles: [[0, 1, 2, 3]] };
+      show(
+        onQuestion({
+          question: wallPublic,
+          wall: { groupCount: 4, rows: [chooser] },
+          board: { turn: { playerId: 'p2', nickname: 'Тарас' }, cell: null } as never,
+          me: { ...me, wall: null },
+        }),
+      );
+      expect(document.querySelectorAll('.wall-tile')).toHaveLength(16);
+      expect(screen.queryByRole('button', { name: 'Перевірити' })).toBeNull();
+      expect(document.querySelectorAll('button.wall-tile')).toHaveLength(0);
+      expect(document.querySelectorAll('.wall-tile.is-found')).toHaveLength(4);
+    });
+
+    const pollPublic = {
+      ...publicQuestion,
+      type: 'poll' as const,
+      points: 0,
+      choices: [
+        { id: 'a', text: 'Зима' },
+        { id: 'b', text: 'Літо' },
+      ],
+    };
+    const pollFull = { ...fullQuestion, type: 'poll', points: 0, options: pollPublic.choices } as unknown as Question;
+
+    it('a poll after the vote: accepted, no points and no verdict', () => {
+      show(onQuestion({ question: pollPublic, me: { ...me, answer: { type: 'poll', optionId: 'b' } } }));
+      expect(screen.getByText('Голос прийнято')).toBeTruthy();
+      expect(screen.getByText('Літо')).toBeTruthy();
+      expect(document.querySelector('main')!.textContent).not.toMatch(/бал/);
+      expect(document.querySelector('[class*="verdict"]')).toBeNull();
+    });
+
+    it('a poll on the reveal: results are on the stage, own pick kept', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: pollPublic,
+          reveal: pollFull,
+          me: { ...me, answer: { type: 'poll', optionId: 'b' }, result: null },
+        }),
+      );
+      expect(screen.getByText('Результати — на екрані.')).toBeTruthy();
+      expect(screen.getByText('Літо')).toBeTruthy();
+      expect(screen.queryByText('Неправильно')).toBeNull();
+      expect(screen.queryByText('Правильно!')).toBeNull();
+    });
+
+    it('a word cloud: the input before, the words after the vote', () => {
+      const cloud = { ...publicQuestion, type: 'wordcloud' as const, points: 0, choices: [], cloud: { words: 3 } };
+      const { unmount } = render(
+        <PlayerScreen view={onQuestion({ question: cloud })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />,
+      );
+      expect(screen.getByLabelText('Слово 1')).toBeTruthy();
+      unmount();
+      show(onQuestion({ question: cloud, me: { ...me, answer: { type: 'wordcloud', words: ['Каштани', 'Дніпро'] } } }));
+      expect(screen.getByText('Голос прийнято')).toBeTruthy();
+      expect(screen.getByText('Каштани, Дніпро')).toBeTruthy();
+    });
+  });
 });

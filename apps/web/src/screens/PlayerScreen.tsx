@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerView, type PublicClues, type PublicQuestion, type Spotlight } from '@quiz/shared';
+import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerView, type PublicClues, type PublicQuestion, type Question, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
@@ -25,6 +25,8 @@ import { BlitzQueue } from './BlitzQueue';
 import { Standings } from './Standings';
 import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
+import { WallGrid } from './WallGrid';
+import { WallInput } from './WallInput';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { MenuLinks } from './MenuLinks';
@@ -71,7 +73,50 @@ function RevealDetail({ view, answer, player }: { view: PlayerView; answer: Answ
   return null;
 }
 
+/** Знайдені групи глядача на полі: позиції з рядка того, хто вибрав. */
+const foundOf = (rows: number[][] | null | undefined) => (rows ?? []).map((tiles, color) => ({ tiles, color }));
+
+/** Правильні групи стіни з назвами (розкриття). */
+function WallGroups({ reveal }: { reveal: Extract<Question, { type: 'wall' }> }) {
+  return (
+    <ul className="wall-groups">
+      {reveal.groups.map((group, index) => (
+        <li key={group.id} className={`wall-group wall-color-${index % 4}`}>
+          <strong>{group.name}</strong>
+          <span>{group.tiles.map((tile) => tile.text).join(', ')}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Власний підсумок стіни: сітка зі знайденими групами, правильні групи й рядок «Груп: N з M · бали». */
+function WallOutcome({ view }: { view: PlayerView }) {
+  const { question, reveal, me } = view;
+  if (question?.wall == null || reveal?.type !== 'wall') return null;
+  const found = me.answer?.type === 'wall' ? me.answer.found : (me.wall?.found.length ?? 0);
+  return (
+    <>
+      <WallGrid wall={question.wall} found={me.wall?.found ?? []} />
+      <WallGroups reveal={reveal} />
+      <p>{t('wallResult', { found, groups: reveal.groups.length, points: num(me.result?.points ?? 0) })}</p>
+    </>
+  );
+}
+
+/** Опитування й «хмара»: без балів і вердикту, лише власний вибір. */
+function VoteResult({ view }: { view: PlayerView }) {
+  const { me, question } = view;
+  return (
+    <section className="result vote-result">
+      <h2>{t('voteResultsOnStage')}</h2>
+      {me.answer !== null && question !== null && <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>}
+    </section>
+  );
+}
+
 function Result({ view }: { view: PlayerView }) {
+  if (view.question !== null && isUnscored(view.question)) return <VoteResult view={view} />;
   const { result } = view.me;
   const title =
     result === null
@@ -91,9 +136,10 @@ function Result({ view }: { view: PlayerView }) {
         <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
       )}
       {view.me.sort !== null && <SortOutcome view={view} />}
+      <WallOutcome view={view} />
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {view.reveal !== null &&
-        (view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -419,6 +465,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 
   const chainMine = question?.type === 'chain' && me.chain !== null;
   const isSort = question?.type === 'sort';
+  const isWall = question?.type === 'wall';
+  const unscored = question !== null && isUnscored(question);
 
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
 
@@ -546,6 +594,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <SortPlay question={shown ?? question} sort={me.sort} paused={locked} offsetMs={offsetMs} send={send} />
             ) : isSort ? (
               view.sort !== null && <SortWatch question={question} info={view.sort} />
+            ) : isWall && me.wall !== null && question.wall !== null ? (
+              <WallInput key={view.questionIndex} question={{ ...question, wall: question.wall }} wall={me.wall} paused={locked} send={send} />
+            ) : isWall ? (
+              // Глядач на полі бачить стіну того, хто вибрав, без дотиків.
+              question.wall !== null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />
             ) : chainMine && me.chain !== null ? (
               <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} />
             ) : instant && me.blitz !== null ? (
@@ -611,7 +664,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </>
             ) : me.answer !== null ? (
               <section className="sent">
-                <h2>{t('answerSent')}</h2>
+                <h2>{t(unscored ? 'voteSent' : 'answerSent')}</h2>
                 {me.answer.type === 'pin' && question.pin !== null ? (
                   <PinBoard
                     pin={question.pin}
@@ -655,6 +708,17 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <SortWinner view={view} />
               <p className="lead">{t('sortWaitResults')}</p>
             </section>
+          ) : isWall && question?.wall != null ? (
+            <section className="sent">
+              <WallGrid wall={question.wall} found={me.wall !== null ? me.wall.found : foundOf(view.wall?.rows[0]?.tiles)} />
+              <p className="lead">{t('waitReveal')}</p>
+            </section>
+          ) : unscored && me.answer !== null && question !== null ? (
+            <section className="sent">
+              <h2>{t('voteSent')}</h2>
+              <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>
+              <p className="lead">{t('waitReveal')}</p>
+            </section>
           ) : me.chain !== null && question !== null && question.chain !== null ? (
             <section className="sent">
               <ChainWords first={question.chain.first} masks={me.chain.masks} />
@@ -690,14 +754,16 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <FinalResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
-              {question !== null && !isSort && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {question !== null && !isSort && !isWall && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
               {isSort && question?.sort != null && (
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} />
               )}
+              {isWall && question?.wall != null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />}
+              {view.reveal?.type === 'wall' && <WallGroups reveal={view.reveal} />}
               <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
-              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
             <>
