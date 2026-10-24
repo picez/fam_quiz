@@ -118,6 +118,10 @@ function HostClues({ view, clues, offsetMs, idle, onOpen }: { view: HostView; cl
   };
   return (
     <div className="host-clues">
+      <p className="meta">
+        {t('type_clues')}
+        <HelpButton id="question.clues" />
+      </p>
       <ol>
         {clues.map((text, index) => (
           <li key={index} className={index < opened ? undefined : 'is-closed'}>
@@ -526,6 +530,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           {correct?.type === 'clues' && view.question.clues !== null && <HostClues view={view} clues={correct.clues} offsetMs={offsetMs} idle={view.paused || view.held || underSplash} onOpen={() => void act('host:clue')} />}
           {correct?.type === 'pin' && view.question.pin !== null && (
             <div className="host-pin">
+              <p className="meta">
+                {t('type_pin')}
+                <HelpButton id="question.pin" />
+              </p>
               <PinBoard
                 pin={view.question.pin}
                 imageUrl={view.question.imageUrl}

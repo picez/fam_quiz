@@ -1769,4 +1769,15 @@ describe('HostScreen clues and pin (10c)', () => {
     expect(document.querySelector('.host-pin .pin-target')).not.toBeNull();
     expect(document.querySelectorAll('.host-pin svg.pin-layer circle')).toHaveLength(2);
   });
+
+  it('has a help button on the clue panel and on the pin map that sends nothing', () => {
+    const send = show(during('question', cluesFull, { question: cluesOf(2, { nextAt: Date.now() + 5000 }) }));
+    fireEvent.click(within(document.querySelector('.host-clues') as HTMLElement).getByRole('button', { name: 'Довідка: Хто я?' }));
+    expect(send).not.toHaveBeenCalled();
+    cleanup();
+    const pinFull: Question = { id: 'q5', type: 'pin', text: 'Де?', imageUrl: null, video: null, timeLimit: 20, points: 1000, map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+    const sendPin = show(during('question', pinFull, { question: { ...publicOf(pinFull), pin: { map: 'world' as const, aspect: 2 } }, pinMarks: [] }));
+    fireEvent.click(within(document.querySelector('.host-pin') as HTMLElement).getByRole('button', { name: 'Довідка: Точка на мапі' }));
+    expect(sendPin).not.toHaveBeenCalled();
+  });
 });
