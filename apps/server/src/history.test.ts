@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer, Question } from '@quiz/shared';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame, playerGames } from './history';
@@ -1368,5 +1368,79 @@ describe('history: survey (10e)', () => {
     const [olenaGame] = await playerGames(played.localDb, await played.userId(played.olenaAccount.email), null);
     expect(olenaGame.played).toMatchObject({ questionsPlayed: 1, correct: 1, answered: 1 });
     await played.local.app.close();
+  });
+});
+
+describe('history: bluff (10f)', () => {
+  it('history shows the options in the order of the reveal with authors and picks; the answer rows carry the truth', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const quizId = ((await send('/api/quizzes', makeQuiz([bluff, single], { speedBonus: false }), host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const accounts: Record<string, Awaited<ReturnType<typeof signUp>>> = {};
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро', 'Віра']) {
+      accounts[name] = await signUp(local.app, name);
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name }, accounts[name].cookie)).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    const step = (type: 'start' | 'lock' | 'next' | 'bluff-all') => local.manager.host(room, { type });
+    step('start');
+    step('next');
+    expect(local.manager.lie(room, ids['Оля'], 'Рим')).toEqual({ ok: true });
+    expect(local.manager.lie(room, ids['Петро'], 'РИМ')).toEqual({ ok: true });
+    expect(local.manager.lie(room, ids['Віра'], 'Мілан')).toEqual({ ok: true });
+    const options = room.state.plays[0].bluff?.options ?? [];
+    const idOf = (text: string) => options.find((o) => o.text === text)?.id ?? '';
+    expect(options).toHaveLength(5);
+    expect(local.manager.bluff(room, ids['Оля'], idOf('Мілан'))).toEqual({ ok: true });
+    expect(local.manager.bluff(room, ids['Петро'], idOf('Барселона'))).toEqual({ ok: true });
+    expect(local.manager.bluff(room, ids['Віра'], idOf('Рим'))).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+    step('next');
+    step('bluff-all');
+    for (let i = 0; i < 6 && room.state.phase !== 'question'; i += 1) step('next');
+    step('lock');
+    for (let i = 0; i < 6 && room.state.phase !== 'finished'; i += 1) step('next');
+    await local.recorder.idle();
+
+    const detail = (
+      await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
+    ).json() as {
+      questions: {
+        type: string;
+        bluff?: { options: { text: string; kind: string; authors: string[]; pickedBy: string[]; removed: boolean }[] };
+        responses: { nickname: string; answer: { type: string; truth?: boolean; fooled?: number } | null; accepted: boolean }[];
+      }[];
+    };
+    const question = detail.questions[0];
+    expect(question.type).toBe('bluff');
+    const shown = question.bluff?.options ?? [];
+    expect(shown).toHaveLength(5);
+    expect(shown.at(-1)).toMatchObject({ text: 'Барселона', kind: 'truth', authors: [], pickedBy: ['Петро'] });
+    expect(shown.find((o) => o.text === 'Рим')).toMatchObject({ kind: 'lie', authors: ['Оля', 'Петро'], pickedBy: ['Віра'] });
+    expect(shown.find((o) => o.text === 'Мілан')).toMatchObject({ kind: 'lie', authors: ['Віра'], pickedBy: ['Оля'] });
+    // Найменше вибраних — першими: запасні (0 виборів) перед вигадками (по 1), правда остання.
+    expect(shown.slice(0, 2).map((o) => o.kind)).toEqual(['spare', 'spare']);
+    expect(detail.questions[1].bluff).toBeUndefined();
+    // Відповіді за турнірною таблицею: Петро 1500, Оля й Віра по 500.
+    expect(question.responses.map((r) => [r.nickname, r.answer?.truth, r.answer?.fooled, r.accepted]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))).toEqual([
+      ['Віра', false, 1, false],
+      ['Оля', false, 1, false],
+      ['Петро', true, 1, true],
+    ]);
+    expect(question.responses[0].nickname).toBe('Петро');
+
+    const correctOf = async (name: string) => (await playerGames(localDb, (await localDb.select({ id: user.id }).from(user).where(eq(user.email, accounts[name].email)))[0].id, null))[0].played.correct;
+    expect(await correctOf('Петро')).toBe(1);
+    expect(await correctOf('Оля')).toBe(0);
+    expect(await correctOf('Віра')).toBe(0);
+    await local.app.close();
   });
 });

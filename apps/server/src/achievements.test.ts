@@ -247,3 +247,11 @@ describe('survey (10e)', () => {
     expect(bestStreak(broken)).toBe(2);
   });
 });
+
+describe('bluff (10f)', () => {
+  it('a bluff truth continues the best streak; a lie breaks it', () => {
+    // «Правильно» для блефу — вибір правди: рушій ставить accepted, а серія читає лише його.
+    expect(bestStreak([m(0, true), m(1, true), m(2, true), m(3, true)])).toBe(4);
+    expect(bestStreak([m(0, true), m(1, true), m(2, false), m(3, true), m(4, true)])).toBe(2);
+  });
+});

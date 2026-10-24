@@ -218,9 +218,14 @@ export function scoreBluff(state: GameState): GameState {
  */
 export function bluffOrder(play: Play): BluffOption[] {
   if (play.bluff === undefined) return [];
+  return orderBluffOptions(play.bluff.options, Object.values(play.bluff.picks).map((pick) => pick.optionId));
+}
+
+/** Той самий порядок за варіантами й id вибраних варіантів (історія має лише їх). */
+export function orderBluffOptions<T extends { id: string; kind: BluffOption['kind']; removed: boolean }>(options: T[], picked: string[]): T[] {
   const counts = new Map<string, number>();
-  for (const pick of Object.values(play.bluff.picks)) counts.set(pick.optionId, (counts.get(pick.optionId) ?? 0) + 1);
-  const live = play.bluff.options.filter((o) => !o.removed);
+  for (const optionId of picked) counts.set(optionId, (counts.get(optionId) ?? 0) + 1);
+  const live = options.filter((o) => !o.removed);
   // sort стабільний: за рівності лишається порядок показу.
   const fakes = live.filter((o) => o.kind !== 'truth').sort((a, b) => (counts.get(a.id) ?? 0) - (counts.get(b.id) ?? 0));
   return [...fakes, ...live.filter((o) => o.kind === 'truth')];

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal } from '@quiz/engine/testing';
+import { bluff, blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
@@ -438,5 +438,23 @@ describe('profile facts', () => {
     expect(olena.stats.accuracy).toBe(100);
     const petro = await play('Промах', ['каштани'], 'Лавра', ['Кавун']);
     expect(petro.stats.accuracy).toBe(0);
+  });
+
+  it('bluff accuracy: choosing the truth is correct, choosing a lie is not (10f)', async () => {
+    const quiz = makeQuiz([bluff], { speedBonus: false });
+    const play = (name: string, wantTruth: boolean) =>
+      playFor(name, quiz, (room, playerId) => {
+        ctx.manager.lie(room, playerId, 'Рим');
+        const options = room.state.plays[0].bluff?.options ?? [];
+        const own = options.filter((o) => o.authors.includes(playerId)).map((o) => o.id);
+        const pick = options.find((o) => (wantTruth ? o.kind === 'truth' : o.kind === 'spare' && !own.includes(o.id)));
+        ctx.manager.bluff(room, playerId, pick?.id ?? '');
+        ctx.manager.host(room, { type: 'next' });
+        ctx.manager.host(room, { type: 'bluff-all' });
+      });
+    const petro = await play('Петро', true);
+    expect(petro.stats.accuracy).toBe(100);
+    const olena = await play('Олена', false);
+    expect(olena.stats.accuracy).toBe(0);
   });
 });

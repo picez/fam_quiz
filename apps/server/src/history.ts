@@ -22,6 +22,7 @@ import {
   type Quiz,
   type Round,
 } from '@quiz/shared';
+import { orderBluffOptions } from '@quiz/engine';
 import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
@@ -80,6 +81,23 @@ function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) 
     question: roundQuestionsAt(quiz, ref.roundIndex).find((q) => q.id === ref.questionId),
     ref,
   }));
+}
+
+/** Блеф для історії: варіанти в порядку розкриття (правда остання), прибрані в кінці; id авторів і виборів — нікнейми. */
+function bluffResult(ref: PlayRef | undefined, nicknames: Map<string, string>): GameQuestionResult['bluff'] {
+  if (ref?.bluff === undefined) return undefined;
+  const { options, picks } = ref.bluff;
+  const named = (ids: string[]) => ids.flatMap((id) => nicknames.get(id) ?? []);
+  const ordered = [...orderBluffOptions(options, Object.values(picks)), ...options.filter((o) => o.removed)];
+  return {
+    options: ordered.map((o) => ({
+      text: o.text,
+      kind: o.kind,
+      authors: named(o.authors),
+      pickedBy: named(Object.entries(picks).flatMap(([playerId, optionId]) => (optionId === o.id ? [playerId] : []))),
+      removed: o.removed,
+    })),
+  };
 }
 
 /** Клітинка запитання для історії: категорія, ціна й множник зі знімка, вибравший і його бали. */
@@ -259,6 +277,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question: cloudRows === undefined ? question : { ...question, rows: cloudRows },
         ...(cloudRows === undefined ? {} : { surveyFromCloud: true as const }),
+        ...(ref?.bluff === undefined ? {} : { bluff: bluffResult(ref, nicknames) }),
         ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
         responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,

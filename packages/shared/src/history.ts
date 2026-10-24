@@ -66,6 +66,8 @@ export interface GameQuestionResult {
   cloudHidden?: string[];
   /** «100 до 1»: дошку збудовано з хмари слів (question.rows — збудовані рядки). */
   surveyFromCloud?: true;
+  /** Блеф: варіанти в порядку розкриття (правда остання) з нікнеймами авторів і тих, хто вибрав; прибрані — в кінці з removed. */
+  bluff?: { options: { text: string; kind: 'truth' | 'lie' | 'spare'; authors: string[]; pickedBy: string[]; removed: boolean }[] };
   /** Відповіді в порядку: учасник за турнірною таблицею, потім номер спроби. */
   responses: GameResponse[];
   /** Запитання фіналу: ставки й результати учасників за турнірною таблицею; null поза фіналом. */
