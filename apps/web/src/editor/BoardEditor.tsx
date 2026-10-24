@@ -189,18 +189,24 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
         </div>
         {current.question.type === 'sort' ? (
           <p className="meta">{t('sortCellNote')}</p>
+        ) : current.question.type === 'pin' ? (
+          <p className="meta">{t('pinCellNote')}</p>
         ) : (
           <>
-            <div className="with-help">
-              <label className="field">
-                <span>{t('boardKind')}</span>
-                <select value={current.kind} onChange={(event) => setCell({ kind: pick<CellKind>(CELL_KINDS, event.target.value, 'normal') })}>
-                  <option value="normal">{t('boardKindNormal')}</option>
-                  <option value="blitz">{t('boardKindBlitz')}</option>
-                </select>
-              </label>
-              <HelpButton id={`cell.${current.kind}`} />
-            </div>
+            {current.question.type === 'clues' ? (
+              <p className="meta">{t('cluesCellNote')}</p>
+            ) : (
+              <div className="with-help">
+                <label className="field">
+                  <span>{t('boardKind')}</span>
+                  <select value={current.kind} onChange={(event) => setCell({ kind: pick<CellKind>(CELL_KINDS, event.target.value, 'normal') })}>
+                    <option value="normal">{t('boardKindNormal')}</option>
+                    <option value="blitz">{t('boardKindBlitz')}</option>
+                  </select>
+                </label>
+                <HelpButton id={`cell.${current.kind}`} />
+              </div>
+            )}
             <div className="with-help">
               <label className="field">
                 <span>{t('boardCellMode')}</span>
@@ -233,8 +239,15 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           question={current.question}
           types={questionTypesFor('board')}
           showReveal={current.kind === 'normal' && cellAnswerMode(round, current) === 'phone'}
+          cluesByHost={cellAnswerMode(round, current) === 'voice'}
           onChange={(question) =>
-            setCell(question.type === 'sort' ? { question, kind: 'normal', answerMode: 'phone', penalty: 'none' } : { question })
+            setCell(
+              question.type === 'sort' || question.type === 'pin'
+                ? { question, kind: 'normal', answerMode: 'phone', penalty: 'none' }
+                : question.type === 'clues'
+                  ? { question, kind: 'normal', penalty: 'none' }
+                  : { question },
+            )
           }
         />
         <div className="toolbar">

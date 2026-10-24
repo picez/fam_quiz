@@ -1859,3 +1859,72 @@ describe('QuizEditor: reveal, video and audio together (10b)', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
+
+describe('QuizEditor: «Who am I?» and pins (10c)', () => {
+  it('the clues chip shows three clues, the interval and the time hint; adding clues raises the time to fit', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Хто я?');
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    for (const n of [1, 2, 3]) fill(`Підказка ${n}`, `Ключ ${n}`);
+    screen.getByLabelText('Нова підказка кожні, с');
+    screen.getByText('Остання підказка відкриється на 16-й секунді з 30.');
+    fill('Написання 1', 'Шевченко');
+    for (let i = 0; i < 3; i += 1) click('Додати підказку');
+    expect((screen.getByLabelText('Час, с') as HTMLInputElement).value).toBe('45');
+    screen.getByText('Остання підказка відкриється на 40-й секунді з 45.');
+    for (const n of [4, 5, 6]) fill(`Підказка ${n}`, `Ключ ${n}`);
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({
+      type: 'clues',
+      clues: ['Ключ 1', 'Ключ 2', 'Ключ 3', 'Ключ 4', 'Ключ 5', 'Ключ 6'],
+      accepted: ['Шевченко'],
+      interval: 8,
+      timeLimit: 45,
+    });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('a longer interval raises the time; a clue can move up and down', () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    fill('Підказка 1', 'А');
+    fill('Підказка 2', 'Б');
+    fireEvent.click(screen.getByRole('button', { name: 'Перемістити елемент 2 вище' }));
+    expect((screen.getByLabelText('Підказка 1') as HTMLInputElement).value).toBe('Б');
+    fill('Нова підказка кожні, с', '20');
+    expect((screen.getByLabelText('Час, с') as HTMLInputElement).value).toBe('45');
+  });
+
+  it('clues take no video but take audio', () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    screen.getByText('Аудіо до запитання');
+  });
+
+  it('the pin chip has the four bases, no general picture and no video; it saves a pin', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Де?');
+    fireEvent.click(screen.getByRole('button', { name: 'точка' }));
+    expect(screen.queryByRole('button', { name: 'Додати зображення' })).toBeNull();
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    for (const name of ['Світ', 'Європа', 'Україна', 'Своя картинка']) screen.getByRole('button', { name });
+    fireEvent.click(screen.getByRole('button', { name: 'Україна' }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'pin', map: 'ukraine', imageUrl: null });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('a blitz round offers neither clues nor pin', () => {
+    open();
+    addRound('Бліц');
+    expect(screen.queryByRole('button', { name: 'хто я?' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'точка' })).toBeNull();
+  });
+});

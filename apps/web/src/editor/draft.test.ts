@@ -1239,3 +1239,107 @@ describe('slider, audio and revealing picture drafts (10b)', () => {
     expect(sliderBack).toMatchObject({ unit: 'км', zeroBeyond: 5 });
   });
 });
+
+describe('clues and pin drafts (10c)', () => {
+  const clues = (patch: Record<string, unknown> = {}) => ({ ...filled(newQuestion('clues')), ...patch }) as Question;
+  const pin = (patch: Record<string, unknown> = {}) => ({ ...filled(newQuestion('pin')), ...patch }) as Question;
+  const boardWith = (question: Question, cell: Record<string, unknown> = {}) => {
+    const round = newBoardRound();
+    const categories = round.categories.map((category, i) => ({
+      ...category,
+      title: `К${i}`,
+      cells: category.cells.map((c, j) => (i === 0 && j === 0 ? { ...c, ...cell, question } : { ...c, question: filled(c.question) })),
+    }));
+    return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories }] } as Quiz;
+  };
+
+  it('clues: an empty clue, the time for the last clue, the interval', () => {
+    expect(problemsOf(quizWith(clues()))).toEqual([]);
+    expect(problemsOf(quizWith(clues({ clues: ['Раз', '', 'Три'] })))).toEqual(['Запитання 1: заповніть кожну підказку.']);
+    const six = clues({ clues: ['1', '2', '3', '4', '5', '6'], interval: 8, timeLimit: 30 });
+    expect(problemsOf(quizWith(six))).toEqual([
+      'Запитання 1: остання підказка відкривається на 40-й секунді — дайте щонайменше 45 с часу або зменште інтервал.',
+    ]);
+    expect(problemsOf(quizWith({ ...six, timeLimit: 45 } as Question))).toEqual([]);
+    expect(problemsOf(quizWith(clues({ interval: 2 })))).toEqual(['Запитання 1: інтервал між підказками — від 3 до 30 с.']);
+    expect(problemsOf(quizWith(clues({ interval: Number.NaN })))).toHaveLength(1);
+    expect(problemsOf(quizWith(clues({ accepted: [] })))).toEqual(['Запитання 1: впишіть правильну відповідь.']);
+  });
+
+  it('pin: an own base without a picture, the radii', () => {
+    expect(problemsOf(quizWith(pin()))).toEqual([]);
+    expect(problemsOf(quizWith(pin({ map: null, imageUrl: null })))).toEqual(['Запитання 1: завантажте картинку для точки або виберіть мапу.']);
+    expect(problemsOf(quizWith(pin({ map: null, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', aspect: 1.5 })))).toEqual([]);
+    const radius = 'Запитання 1: радіус нуля має бути більшим за радіус повних балів (до 100 %).';
+    expect(problemsOf(quizWith(pin({ zeroRadius: 2, fullRadius: 3 })))).toEqual([radius]);
+    expect(problemsOf(quizWith(pin({ zeroRadius: Number.NaN })))).toEqual([radius]);
+    expect(problemsOf(quizWith(pin({ zeroRadius: 101 })))).toEqual([radius]);
+  });
+
+  it('every schema code of clues and pin is a problem the editor explains', () => {
+    // Те, що редактор не дає створити, усе одно не проходить мовчки: перевірка чернетки каже, що не так.
+    expect(problemsOf(quizWith(clues({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toHaveLength(1);
+    expect(problemsOf(quizWith(pin({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toHaveLength(1);
+    expect(problemsOf(quizWith(pin({ aspect: 3 })))).toHaveLength(1);
+  });
+
+  it('places: clues and pins by round and cell', () => {
+    const blitz = { ...newBlitzRound(), questions: [clues()] };
+    const two = quizWith(filled(newQuestion('boolean')));
+    expect(problemsOf({ ...two, rounds: [two.rounds[0], blitz] } as Quiz)).toEqual([
+      'Раунд 2: Запитання 1: «Хто я?» діє лише в класиці й на звичайній клітинці поля.',
+    ]);
+    const final = { ...newFinalRound(), questions: [pin()] };
+    expect(problemsOf({ ...two, rounds: [two.rounds[0], final] } as Quiz)).toEqual([
+      'Раунд 2: Запитання 1: точка на мапі діє лише в класиці й на звичайній клітинці поля з телефона.',
+    ]);
+    expect(problemsOf(boardWith(clues(), { kind: 'blitz' }))).toEqual([
+      'Категорія 1, запитання 1: «Хто я?» діє лише в класиці й на звичайній клітинці поля.',
+    ]);
+    expect(problemsOf(boardWith(clues(), { answerMode: 'voice' }))).toEqual([]);
+    expect(problemsOf(boardWith(pin(), { answerMode: 'voice' }))).toEqual([
+      'Категорія 1, запитання 1: точка на мапі діє лише в класиці й на звичайній клітинці поля з телефона.',
+    ]);
+    expect(problemsOf(boardWith(pin(), { kind: 'blitz' }))).toHaveLength(1);
+    expect(problemsOf(boardWith(pin(), { answerMode: 'phone' }))).toEqual([]);
+    expect(firstProblem(boardWith(pin(), { answerMode: 'voice' }))).toMatchObject({ cell: { category: 0, index: 0 } });
+  });
+
+  it('cleaned trims the clues and the spellings', () => {
+    const [question] = roundQuestions(cleaned(quizWith(clues({ clues: [' Раз ', 'Два', ' Три'], accepted: [' Шевченко ', '  '] }))).rounds[0]);
+    expect(question).toMatchObject({ clues: ['Раз', 'Два', 'Три'], accepted: ['Шевченко'] });
+  });
+
+  it('draft storage revives clues and pins', () => {
+    const asJson = (question: Question) => JSON.parse(JSON.stringify(question)) as Record<string, unknown>;
+    const quiz = {
+      ...quizWith(filled(newQuestion('boolean'))),
+      rounds: [
+        {
+          ...newClassicRound(),
+          questions: [
+            { ...asJson(pin()), zeroRadius: Number.NaN },
+            { ...asJson(pin()), map: 'mars', aspect: 7 },
+            { ...asJson(clues()), clues: null, accepted: null, interval: Number.NaN },
+          ],
+        },
+      ],
+    };
+    sessionStorage.setItem('quiz:draft:p10c', JSON.stringify(quiz));
+    const revived = loadDraft('p10c')!;
+    const [broken, mars, empty] = roundQuestions(revived.rounds[0]);
+    expect(broken.type === 'pin' && Number.isNaN(broken.zeroRadius)).toBe(true);
+    expect(problemsOf({ ...revived, rounds: [{ ...revived.rounds[0], questions: [broken] } as ClassicRound] })).toEqual([
+      'Запитання 1: радіус нуля має бути більшим за радіус повних балів (до 100 %).',
+    ]);
+    expect(mars).toMatchObject({ type: 'pin', map: 'world', aspect: 2, imageUrl: null });
+    expect(empty).toMatchObject({ type: 'clues', clues: ['', '', ''], accepted: [''] });
+    expect(empty.type === 'clues' && Number.isNaN(empty.interval)).toBe(true);
+  });
+
+  it('draft storage keeps an own picture and the target', () => {
+    const own = pin({ map: null, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', aspect: 1.5, target: { x: 0.2, y: 0.7 } });
+    saveDraft('own-pin', quizWith(own));
+    expect(roundQuestions(loadDraft('own-pin')!.rounds[0])[0]).toMatchObject({ map: null, aspect: 1.5, target: { x: 0.2, y: 0.7 } });
+  });
+});

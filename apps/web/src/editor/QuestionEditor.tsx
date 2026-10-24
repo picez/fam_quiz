@@ -6,6 +6,7 @@ import { countText, t, type TextKey } from '../i18n';
 import { AudioField } from './AudioField';
 import { ImageField } from './ImageField';
 import { OptionImage } from './OptionImage';
+import { PinEditor } from './PinEditor';
 import { VideoField } from './VideoField';
 import { changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
@@ -25,6 +26,8 @@ interface Props {
   showAudio?: boolean;
   /** Вибір режиму картинки, що проявляється (типово немає); лише класика й звичайна клітинка поля з телефона. */
   showReveal?: boolean;
+  /** «Хто я?» на усній клітинці: підказки відкриває ведучий, тож інтервалу немає. */
+  cluesByHost?: boolean;
   /** Типи запитань, доступні в цьому раунді. */
   types: readonly QuestionType[];
 }
@@ -312,7 +315,14 @@ function SortBody({
   );
 }
 
-function Body({ question, onChange, showPoints }: Pick<Props, 'question' | 'onChange'> & { showPoints: boolean }) {
+/** Час, якого досить, щоб остання підказка відкрилася за LIMITS.clueTailSeconds до кінця; не вище максимуму. */
+function raisedTime(timeLimit: number, count: number, interval: number): number {
+  if (!Number.isFinite(timeLimit) || !Number.isFinite(interval)) return timeLimit;
+  const need = Math.min(LIMITS.maxTime, (count - 1) * interval + LIMITS.clueTailSeconds);
+  return Math.max(timeLimit, need);
+}
+
+function Body({ question, onChange, showPoints, cluesByHost }: Pick<Props, 'question' | 'onChange'> & { showPoints: boolean; cluesByHost: boolean }) {
   switch (question.type) {
     case 'single':
       return (
@@ -600,9 +610,80 @@ function Body({ question, onChange, showPoints }: Pick<Props, 'question' | 'onCh
         </>
       );
     }
-    case 'clues':
+    case 'clues': {
+      // Підказки й написання не мають власних id, тому ключем рядка є його позиція.
+      const rows = question.clues.map((text, index) => ({ id: String(index), text }));
+      const spellings = question.accepted.map((text, index) => ({ id: String(index), text }));
+      const { interval } = question;
+      const setClues = (clues: string[]) => onChange({ ...question, clues, timeLimit: raisedTime(question.timeLimit, clues.length, interval) });
+      const showAt = Number.isFinite(interval) && Number.isFinite(question.timeLimit);
+      return (
+        <>
+          <p className="meta">{t('cluesOrderHint')}</p>
+          <Rows
+            rows={rows}
+            min={LIMITS.minClues}
+            max={LIMITS.maxClues}
+            maxLength={LIMITS.clueText}
+            label="clueRowN"
+            removeLabel="removeClue"
+            addLabel="addClue"
+            lead={(_row, index) => <span className="letter">{index + 1}</span>}
+            tail={(_row, index) => (
+              <>
+                <button
+                  type="button"
+                  className="row-button"
+                  aria-label={t('moveItemUp', { index: index + 1 })}
+                  disabled={index === 0}
+                  onClick={() => setClues(moveItem(question.clues, index, index - 1))}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="row-button"
+                  aria-label={t('moveItemDown', { index: index + 1 })}
+                  disabled={index === question.clues.length - 1}
+                  onClick={() => setClues(moveItem(question.clues, index, index + 1))}
+                >
+                  ↓
+                </button>
+              </>
+            )}
+            makeRow={() => ({ id: String(rows.length), text: '' })}
+            onChange={(next) => setClues(next.map((row) => row.text))}
+          />
+          <Rows
+            rows={spellings}
+            min={1}
+            max={LIMITS.maxAccepted}
+            maxLength={LIMITS.answerText}
+            label="spellingN"
+            removeLabel="removeSpelling"
+            addLabel="addSpelling"
+            rowClass={() => 'is-correct'}
+            makeRow={() => ({ id: String(spellings.length), text: '' })}
+            onChange={(next) => onChange({ ...question, accepted: next.map((row) => row.text) })}
+          />
+          <p className="meta">{t('spellingHint')}</p>
+          {cluesByHost ? (
+            <p className="meta">{t('cluesVoiceHint')}</p>
+          ) : (
+            <>
+              <NumberField
+                label={t('cluesInterval')}
+                value={interval}
+                onChange={(value) => onChange({ ...question, interval: value, timeLimit: raisedTime(question.timeLimit, question.clues.length, value) })}
+              />
+              {showAt && <p className="meta">{t('cluesTimeHint', { at: (question.clues.length - 1) * interval, time: question.timeLimit })}</p>}
+            </>
+          )}
+        </>
+      );
+    }
     case 'pin':
-      return null; // задача 9
+      return <PinEditor question={question} onChange={onChange} />;
   }
 }
 
@@ -618,7 +699,7 @@ function setReveal(question: Question, onChange: (next: Question) => void, mode:
 }
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false }: Props) {
+export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
@@ -643,14 +724,17 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
       </div>
 
       <div className="stage-card">
-        <ImageField
-          url={question.imageUrl}
-          onChange={(imageUrl) => {
-            // Режим проявлення живе лише разом із картинкою.
-            const { reveal: _reveal, ...rest } = latest.current.question;
-            latest.current.onChange((imageUrl === null ? { ...rest, imageUrl } : { ...latest.current.question, imageUrl }) as Question);
-          }}
-        />
+        {/* Основою точки керує PinEditor: мапа чи власна картинка. */}
+        {question.type !== 'pin' && (
+          <ImageField
+            url={question.imageUrl}
+            onChange={(imageUrl) => {
+              // Режим проявлення живе лише разом із картинкою.
+              const { reveal: _reveal, ...rest } = latest.current.question;
+              latest.current.onChange((imageUrl === null ? { ...rest, imageUrl } : { ...latest.current.question, imageUrl }) as Question);
+            }}
+          />
+        )}
         {showReveal && question.imageUrl !== null && question.video === null && (REVEAL_TYPES as readonly string[]).includes(question.type) && (
           <div className="with-help">
             <div className="reveal-modes" role="group" aria-label={t('revealLabel')}>
@@ -669,7 +753,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -702,8 +786,8 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             }}
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
-              // У ланцюжку й сортуванні відео немає: звук просто зникає.
-              const noVideo = rest.type === 'chain' || rest.type === 'sort';
+              // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
+              const noVideo = rest.type === 'chain' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />
@@ -734,7 +818,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             />
           </label>
         )}
-        <Body question={question} onChange={onChange} showPoints={showPoints} />
+        <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} />
       </div>
 
       {(showTime || (showPoints && question.type !== 'sort')) && (

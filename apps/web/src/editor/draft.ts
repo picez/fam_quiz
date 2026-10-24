@@ -393,6 +393,13 @@ export function cleaned(quiz: Quiz): Quiz {
       }
       case 'text':
         return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
+      case 'clues':
+        return {
+          ...question,
+          text,
+          clues: question.clues.map((clue) => clue.trim()),
+          accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== ''),
+        };
       case 'slider': {
         // Порожня одиниця й порожня межа нуля не зберігаються: ключів немає, як у старих запитань.
         const { unit, zeroBeyond, ...rest } = question;
@@ -461,8 +468,27 @@ export function cleaned(quiz: Quiz): Quiz {
   };
 }
 
-/** `revealOk` — чи діє в цьому місці картинка, що проявляється (класика й звичайна клітинка поля з телефона). */
-function problemKey(question: Question, revealOk = true): TextKey | null {
+/** Що дозволяє місце запитання: картинка, що проявляється, «Хто я?», точка. */
+interface Place {
+  reveal: boolean;
+  clues: boolean;
+  pin: boolean;
+}
+
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true };
+/** Бліц і фінал: нічого з нового. Класика — усе. */
+const roundPlace = (round: Round): Place => (round.type === 'classic' ? ANYWHERE : { reveal: false, clues: false, pin: false });
+/** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
+const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
+  const normal = cell.kind === 'normal';
+  const phone = normal && cellAnswerMode(round, cell) === 'phone';
+  return { reveal: phone, clues: normal, pin: phone };
+};
+
+/** Чи вистачає часу останній підказці: (n − 1) × інтервал + хвіст ≤ час. */
+const lastClueAt = (question: Extract<Question, { type: 'clues' }>) => (question.clues.length - 1) * question.interval;
+
+function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
   if (question.text === '') return 'problemNoText';
   const { timeLimit, points } = question;
   const inLimits =
@@ -536,6 +562,29 @@ function problemKey(question: Question, revealOk = true): TextKey | null {
       }
       break;
     }
+    case 'clues': {
+      if (question.clues.some((clue) => clue === '')) return 'problemClueEmpty';
+      if (question.accepted.length === 0) return 'problemNoAccepted';
+      const { interval } = question;
+      if (!Number.isInteger(interval) || interval < LIMITS.minClueSeconds || interval > LIMITS.maxClueSeconds) return 'problemCluesInterval';
+      if (lastClueAt(question) + LIMITS.clueTailSeconds > timeLimit) return 'problemCluesTime';
+      break;
+    }
+    case 'pin': {
+      if (question.map === null && question.imageUrl === null) return 'problemPinImage';
+      const { fullRadius, zeroRadius } = question;
+      if (
+        !Number.isFinite(fullRadius) ||
+        !Number.isFinite(zeroRadius) ||
+        fullRadius < 0 ||
+        fullRadius > LIMITS.pinMaxFullRadius ||
+        zeroRadius > LIMITS.pinMaxZeroRadius ||
+        zeroRadius <= fullRadius
+      ) {
+        return 'problemPinRadius';
+      }
+      break;
+    }
     case 'boolean':
       break;
   }
@@ -551,12 +600,11 @@ function problemKey(question: Question, revealOk = true): TextKey | null {
   ) {
     return 'problemAudio';
   }
-  if (question.reveal !== undefined && !revealOk) return 'problemRevealPlace';
+  if (question.reveal !== undefined && !place.reveal) return 'problemRevealPlace';
+  if (question.type === 'clues' && !place.clues) return 'problemCluesPlace';
+  if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
   return questionSchema.safeParse(question).success ? null : 'problemGeneric';
 }
-
-/** Чи діє картинка, що проявляється, у клітинці поля: лише звичайна, з відповіддю з телефона. */
-const cellRevealOk = (round: BoardRound, cell: BoardCell) => cell.kind === 'normal' && cellAnswerMode(round, cell) === 'phone';
 
 export interface ProblemPlace {
   round: number;
@@ -577,24 +625,33 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
         const { title, cells } = current.categories[category];
         if (title === '') return { round, question, cell: { category, index: 0 } };
         for (let index = 0; index < cells.length; index += 1) {
-          if (problemKey(cells[index].question, cellRevealOk(current, cells[index])) !== null) return { round, question: question + index, cell: { category, index } };
+          if (problemKey(cells[index].question, cellPlace(current, cells[index])) !== null) return { round, question: question + index, cell: { category, index } };
         }
         question += cells.length;
       }
       continue;
     }
-    const question = current.questions.findIndex((q) => problemKey(q, current.type === 'classic') !== null);
+    const question = current.questions.findIndex((q) => problemKey(q, roundPlace(current)) !== null);
     if (question !== -1) return { round, question, cell: null };
   }
   return null;
 }
 
-/** Текст проблеми запитання; числа меж аудіо підставляються з LIMITS. */
-const problemText = (key: TextKey, index: number) => t(key, { index, min: LIMITS.minAudioSeconds, max: LIMITS.maxAudioSeconds });
+/** Текст проблеми запитання; числа меж підставляються з LIMITS, а для підказок ще й з самого запитання. */
+const problemText = (key: TextKey, index: number, question?: Question) =>
+  t(key, {
+    index,
+    min: LIMITS.minAudioSeconds,
+    max: LIMITS.maxAudioSeconds,
+    clueMin: LIMITS.minClueSeconds,
+    clueMax: LIMITS.maxClueSeconds,
+    pinMax: LIMITS.pinMaxZeroRadius,
+    ...(question?.type === 'clues' ? { at: lastClueAt(question), need: lastClueAt(question) + LIMITS.clueTailSeconds } : {}),
+  });
 
 /** Повідомлення про проблему клітинки: те саме, що для запитання, але з категорією. */
-function cellProblem(category: number, index: number, key: TextKey): string {
-  const text = problemText(key, index);
+function cellProblem(category: number, index: number, key: TextKey, question: Question): string {
+  const text = problemText(key, index, question);
   return t('problemCell', { category, problem: text.charAt(0).toLowerCase() + text.slice(1) });
 }
 
@@ -631,7 +688,7 @@ function spareProblems(spares: Question[]): string[] {
     const key = problemKey(spare);
     if (key === null) return;
     // «Запитання N: текст» → «Запасне N: текст».
-    const problem = problemText(key, index + 1).replace(/^[^:]*:\s*/, '');
+    const problem = problemText(key, index + 1, spare).replace(/^[^:]*:\s*/, '');
     problems.push(t('problemSpare', { index: index + 1, problem }));
   });
   return problems;
@@ -654,12 +711,12 @@ export function problemsOf(quiz: Quiz): string[] {
         (category.spares ?? []).forEach((spare, index) => {
           const key = problemKey(spare);
           if (key === null) return;
-          const problem = problemText(key, index + 1).replace(/^[^:]*:\s*/, '');
+          const problem = problemText(key, index + 1, spare).replace(/^[^:]*:\s*/, '');
           problems.push(where(t('problemCategorySpare', { category: name, index: index + 1, problem })));
         });
         category.cells.forEach((cell, index) => {
-          const key = problemKey(cell.question, cellRevealOk(round, cell));
-          if (key !== null) problems.push(where(cellProblem(categoryIndex + 1, index + 1, key)));
+          const key = problemKey(cell.question, cellPlace(round, cell));
+          if (key !== null) problems.push(where(cellProblem(categoryIndex + 1, index + 1, key, cell.question)));
         });
       });
       for (const issue of boardRoundIssues(round)) {
@@ -668,8 +725,8 @@ export function problemsOf(quiz: Quiz): string[] {
       return;
     }
     round.questions.forEach((question, index) => {
-      const key = problemKey(question, round.type === 'classic');
-      if (key !== null) problems.push(where(problemText(key, index + 1)));
+      const key = problemKey(question, roundPlace(round));
+      if (key !== null) problems.push(where(problemText(key, index + 1, question)));
     });
   });
   if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));

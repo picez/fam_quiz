@@ -7,6 +7,8 @@ import {
   CELL_PENALTIES,
   DEBUFF_KINDS,
   LIMITS,
+  PIN_MAPS,
+  PIN_MAP_ASPECT,
   REVEAL_MODES,
   upgradeQuiz,
   videoSchema,
@@ -15,6 +17,7 @@ import {
   type DuelCategory,
   type DuelQuestion,
   type Duels,
+  type PinMap,
   type Question,
   type QuestionAudio,
   type Quiz,
@@ -64,6 +67,27 @@ function revive(stored: Question): Question {
       // Сміття в полі межі нуля (NaN) у JSON стає null і не відновлюється: поле покаже порожнім.
       ...(typeof zeroBeyond === 'number' ? { zeroBeyond } : {}),
       ...(typeof unit === 'string' ? { unit } : {}),
+    };
+  }
+  if (base.type === 'clues') {
+    const { clues, accepted } = base as { clues: unknown; accepted: unknown };
+    const strings = (value: unknown) => (Array.isArray(value) ? value.map((item) => (typeof item === 'string' ? item : '')) : null);
+    return { ...base, clues: strings(clues) ?? ['', '', ''], accepted: strings(accepted) ?? [''], interval: numberOr(base.interval) };
+  }
+  if (base.type === 'pin') {
+    const known = (PIN_MAPS as readonly unknown[]).includes(base.map);
+    const target: { x?: unknown; y?: unknown } = isRecord(base.target) ? base.target : {};
+    // Невідома мапа (чернетка з майбутнього чи зіпсована) стає світом: основа без картинки не буває порожньою.
+    const map: PinMap | null = known ? (base.map as PinMap) : base.map === null && typeof base.imageUrl === 'string' ? null : 'world';
+    return {
+      ...base,
+      map,
+      aspect: map === null ? numberOr(base.aspect) : PIN_MAP_ASPECT[map],
+      // Точка без координат — у центр: порожньою вона не буває.
+      target: { x: typeof target.x === 'number' ? target.x : 0.5, y: typeof target.y === 'number' ? target.y : 0.5 },
+      fullRadius: numberOr(base.fullRadius),
+      zeroRadius: numberOr(base.zeroRadius),
+      imageUrl: map === null ? base.imageUrl : null,
     };
   }
   if (base.type === 'sort') return { ...base, lockSeconds: numberOr(base.lockSeconds) };
