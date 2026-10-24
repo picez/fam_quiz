@@ -60,7 +60,18 @@ import { splitBank, type BankOutcome } from './bank';
 import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
 import { presentPlayers } from './present';
 import { closeDecision, decisionOpen, dropUnstarted, markWipeoutEnd, openDecision, settleDecision, submitWipeoutAnswer, wipeoutIn, withWipeoutPoints } from './wipeout';
-import { awardSurvivalBonus, isGhost, openTrialOrBoard, submitGhostAnswer, survivalAlive, survivalOver } from './survival';
+import {
+  awardSurvivalBonus,
+  closeTrial,
+  isGhost,
+  openTrialOrBoard,
+  overrideTrial,
+  settleTrial,
+  submitGhostAnswer,
+  survivalAlive,
+  survivalOver,
+  trialOpen,
+} from './survival';
 import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
@@ -658,8 +669,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
     awaiting: state.awaiting.filter((id) => id !== playerId),
   });
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
-  // «Ва-банк»: якщо вилучений був останнім, хто не вирішив, вікно закривається.
-  return ok(settleDecision(autoLock(kicked.paused ? kicked : settleQueue(kicked, null))));
+  // «Ва-банк»: якщо вилучений був останнім, хто не вирішив, вікно закривається; «Вибування» — так само випробування.
+  return ok(settleTrial(settleDecision(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)))));
 }
 
 /** Гравець зникає з меж, ставок, ва-банку й порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */
@@ -686,8 +697,8 @@ export function setConnected(state: GameState, playerId: string, connected: bool
   if (watched && state.board !== null && (connected || state.heldAt === null)) {
     return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }, now));
   }
-  // «Ва-банк»: відсутній гравець вікна рішення не тримає.
-  return ok(settleDecision(autoLock(changed, now)));
+  // «Ва-банк»: відсутній гравець вікна рішення не тримає; «Вибування» — випробування.
+  return ok(settleTrial(settleDecision(autoLock(changed, now))));
 }
 
 /** Гравець, чия відсутність закриває запитання: той, хто вибрав звичайну клітинку без таймера; інакше null. */
@@ -1431,7 +1442,12 @@ export function lock(state: GameState, now?: number): Result {
 export function tick(state: GameState, now: number): GameState {
   // «Ва-банк»: вікно «Далі / Забрати», що сплило, закривається, невирішені забирають банк. Як кінець запитання нижче — з endsAt
   // включно: nextDeadline дає саме endsAt, і сервер тікає рівно в цю мить.
-  if (state.phase === 'leaderboard') return state.paused || !decisionOpen(state) || state.endsAt === null || now < state.endsAt ? state : closeDecision(state);
+  // «Вибування»: випробування, що сплило, закривається так само (мовчуни питання вибувають, двері вибираються самі).
+  if (state.phase === 'leaderboard') {
+    if (state.paused || state.endsAt === null || now < state.endsAt) return state;
+    if (decisionOpen(state)) return closeDecision(state);
+    return trialOpen(state) ? closeTrial(state) : state;
+  }
   if (state.phase === 'duel') return state.paused ? state : tickDuel(state, now);
   if (state.phase === 'board' && state.board !== null) return state.paused ? state : tickBoard(state, state.board, now);
   if (state.phase !== 'question' || state.paused) return state;
@@ -1557,7 +1573,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
       // «Ва-банк»: поки гравці вирішують, далі не можна; без тих, хто в грі, advance завершує раунд.
       if (decisionOpen(state)) return fail('deciding');
-      // «Вибування»: відкрите випробування «Далі» закриває (задача 3); інакше — наступне запитання або кінець раунду з бонусом.
+      // «Вибування»: відкрите випробування «Далі» закриває; інакше — наступне запитання або кінець раунду з бонусом.
+      if (trialOpen(state)) return ok(closeTrial(state));
       return ok(advance(state, now, rng));
     case 'round_end':
       // Нова серія в новому раунді починається з нуля.
@@ -1574,7 +1591,9 @@ export function endRound(state: GameState, now: number): Result {
   if (!IN_ROUND.includes(state.phase)) return fail('wrong_phase');
   // Поточна дуель скасовується (оголошена, ще не почата, лишається й стартує з round_end).
   // «Ва-банк»: відкрите вікно рішення закривається, невирішені забирають банк; запитання, чия заставка ще грає, незігране.
-  const current = state.phase === 'duel' ? dropDuel(state) : decisionOpen(state) ? closeDecision(state) : dropUnstarted(state, now);
+  // «Вибування»: відкрите випробування закривається, як після кінця часу.
+  const current =
+    state.phase === 'duel' ? dropDuel(state) : decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now);
   // Відкрите запитання спершу закривається й оцінюється, як при lock.
   const closed = current.phase === 'question' ? lockNow(current) : current;
   // Після відкриття запитання фіналу мовчання оцінюється, а всіх вважають розкритими.
@@ -1587,7 +1606,8 @@ export function pause(state: GameState, now: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   // Під час утримання годинник уже стоїть: пауза його не чіпає.
   if (state.phase === 'question' && state.heldAt !== null) return ok({ ...state, paused: true, pausedAt: now });
-  if ((state.phase === 'question' || state.phase === 'duel' || (state.phase === 'leaderboard' && decisionOpen(state))) && state.endsAt !== null) {
+  const leaderboardClock = state.phase === 'leaderboard' && (decisionOpen(state) || trialOpen(state));
+  if ((state.phase === 'question' || state.phase === 'duel' || leaderboardClock) && state.endsAt !== null) {
     // Лише таймер запитання (не більше за ліміт): залишок заставки до старту resume бере із самої заставки.
     const remainingMs = Math.max(0, state.endsAt - Math.max(now, state.startedAt ?? now));
     // Витрачений додатковий час продовження не повертає.
@@ -1602,8 +1622,8 @@ export function resume(state: GameState, now: number): Result {
   if (!result.ok) return result;
   // Заставка, що не скінчилася до паузи, стоїть разом із годинником і дограє після неї.
   const pausedAt = state.pausedAt ?? now;
-  // «Ва-банк»: якщо на паузі вирішили (чи вилучили) останніх, вікно закривається.
-  return ok(settleDecision(shiftSplash(result.state, pausedAt, now - pausedAt)));
+  // «Ва-банк»: якщо на паузі вирішили (чи вилучили) останніх, вікно закривається; «Вибування» — так само випробування.
+  return ok(settleTrial(settleDecision(shiftSplash(result.state, pausedAt, now - pausedAt))));
 }
 
 function resumeClock(state: GameState, now: number): Result {
@@ -1615,9 +1635,11 @@ function resumeClock(state: GameState, now: number): Result {
   }
   // Заставка, що не скінчилася до паузи, дограє першою, і лише потім рушає таймер.
   const lead = splashLead(state, state.pausedAt ?? now);
-  // Вікно рішення «Ва-банк» продовжується з того самого залишку.
+  // Вікно рішення «Ва-банк» і випробування «Вибування» продовжуються з того самого залишку; заставка випробування дограє першою
+  // («Ва-банк» заставки не має — lead 0).
   if (state.phase === 'leaderboard' && state.remainingMs !== null) {
-    return ok({ ...state, paused: false, pausedAt: null, remainingMs: null, startedAt: now, endsAt: now + state.remainingMs });
+    const startedAt = now + lead;
+    return ok({ ...state, paused: false, pausedAt: null, remainingMs: null, startedAt, endsAt: startedAt + state.remainingMs });
   }
   if (state.phase === 'duel' && state.remainingMs !== null) {
     const endsAt = now + lead + state.remainingMs;
@@ -1727,6 +1749,8 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
   if (current?.type === 'final') return overrideFinal(state, playerId, grade);
+  // «Вибування»: на сторінці після розкриття — оцінка відповіді на питання на виживання (після закриття випробування).
+  if (current?.type === 'survival' && state.phase === 'leaderboard') return overrideTrial(state, playerId, grade);
   if (state.phase !== 'reveal') return fail('wrong_phase');
   const play = state.plays[state.questionIndex];
   const { question, roundIndex } = play;
@@ -1778,7 +1802,8 @@ export function end(state: GameState, now?: number): Result {
   // «Ва-банк»: банки тих, хто в грі, переносяться в бали; хто не відповів на відкрите запитання, згорає.
   // Відкрите вікно рішення спершу закривається: невирішені забирають банк.
   // Запитання, чия заставка ще грає, незігране: хто в грі, доносить банк, а не згорає.
-  const decided = decisionOpen(state) ? closeDecision(state) : dropUnstarted(state, now);
+  // «Вибування»: відкрите випробування закривається, як після кінця часу.
+  const decided = decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now);
   const stopped: GameState = {
     ...dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(markWipeoutEnd(decided)))))),
     phase: 'finished',

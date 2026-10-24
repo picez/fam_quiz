@@ -14,7 +14,7 @@ import {
   type GameState,
   type SurvivalTrial,
 } from './game';
-import { awardSurvivalBonus, edgeNow, survivalAlive, survivalPlayOf, survivalVerdict } from './survival';
+import { answerTrial, awardSurvivalBonus, edgeNow, survivalAlive, survivalPlayOf, survivalVerdict } from './survival';
 import { classicRound, makeRoundsQuiz, single, survivalQuestions, survivalRound, survivalTrials } from './testing/fixtures';
 import { lobbyWith, lobbyWithSplash, must, startRound } from './testing/helpers';
 
@@ -59,7 +59,7 @@ function pass(s: GameState, at: number): GameState {
   return must(next(must(next(revealed, at + 2000, rng)), at + 3000, rng));
 }
 
-/** Вписує закрите випробування після поточного запитання: ids вибули (до задачі 3 — замість справжнього випробування). */
+/** Вписує закрите випробування після поточного запитання замість справжнього: ids вибули. */
 function knockOut(s: GameState, ...ids: string[]): GameState {
   const current = survivalPlayOf(s);
   if (current === null) throw new Error('no survival play');
@@ -108,7 +108,10 @@ describe('survival: alive players and the edge', () => {
     expect(recordOf(s, 0, 'p2')?.points).toBe(-200);
     expect(recordOf(s, 0, 'p3')).toBeUndefined();
     // s2 одразу: 200 і серія 2 — +50
-    s = must(next(must(next(must(next(s, 6000, rng)), 7000, rng)), 10_000, rng));
+    // випробування t1 обоє на межі проходять
+    s = must(next(must(next(s, 6000, rng)), 7000, rng));
+    s = must(answerTrial(must(answerTrial(s, 'p2', { type: 'boolean', value: true }, 8000)), 'p3', { type: 'boolean', value: true }, 8000));
+    s = must(next(s, 10_000, rng));
     expect(s.plays[1].question.id).toBe('s2');
     s = must(lock(must(submitAnswer(s, 'p1', RIGHT[1], 10_000))));
     expect(recordOf(s, 1, 'p1')?.points).toBe(250);
@@ -277,7 +280,8 @@ describe('survival: the end and the bonus', () => {
 
   it('ending the round mid-question is like classic', () => {
     let s = must(next(play(startRound(lobby(), 0, rng), { p1: 'right', p2: 'right', p3: 'wrong' }, 1000), 2000, rng));
-    s = must(next(s, 3000, rng));
+    // Віра проходить випробування
+    s = must(next(must(answerTrial(s, 'p3', { type: 'boolean', value: true }, 2500)), 3000, rng));
     s = must(submitAnswer(s, 'p1', RIGHT[1], 4000));
     const ended = must(endRound(s, 5000));
     expect(ended.phase).toBe('round_end');

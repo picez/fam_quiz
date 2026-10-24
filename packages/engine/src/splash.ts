@@ -42,12 +42,12 @@ export function shiftSplash(state: GameState, pausedAt: number, shift: number): 
 }
 
 /**
- * Скільки заставки перед запитанням (question, cell, duel) лишалося на мить паузи pausedAt; інакше 0.
- * Таймер запитання стартує на її кінці, тож resume додає цей залишок перед залишком таймера.
+ * Скільки заставки перед запитанням (question, cell, duel) чи випробуванням (trial) лишалося на мить паузи pausedAt; інакше 0.
+ * Таймер стартує на її кінці, тож resume додає цей залишок перед залишком таймера.
  */
 export function splashLead(state: GameState, pausedAt: number): number {
   const splash = state.splash;
-  if (splash === null || (splash.kind !== 'question' && splash.kind !== 'cell' && splash.kind !== 'duel')) return 0;
+  if (splash === null || (splash.kind !== 'question' && splash.kind !== 'cell' && splash.kind !== 'duel' && splash.kind !== 'trial')) return 0;
   return Math.max(0, splash.until - pausedAt);
 }
 
