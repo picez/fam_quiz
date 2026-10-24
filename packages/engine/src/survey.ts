@@ -34,7 +34,7 @@ function lastPlayOf(state: GameState, id: string): { play: Play; index: number }
 }
 
 /**
- * Дошка для відкриття: з хмари cloudId (без схованих слів, до LIMITS.maxSurveyRows, популярність max(1, round(100 × count / voters)),
+ * Дошка для відкриття: з хмари cloudId (без схованих слів і повторів за normalizeText, до LIMITS.maxSurveyRows, популярність max(1, round(100 × count / voters)),
  * id 'cloud-1'…); хмари немає в журналі чи вона порожня — рядки ведучого, якщо їх ≥ minSurveyRows; інакше null (запитання пропускається).
  * Без cloudId — рядки ведучого. Для інших типів — null.
  */
@@ -44,7 +44,20 @@ export function surveyBoard(state: GameState, question: Question): { rows: Surve
   if (question.cloudId === undefined) return host;
   const cloud = lastPlayOf(state, question.cloudId)?.play;
   // Гравці — з state.players: вилучені не рахуються ні в словах, ні серед тих, хто писав.
-  const entries = cloud === undefined ? [] : cloudTally(cloud, state.players).filter((e) => !e.hidden).slice(0, LIMITS.maxSurveyRows);
+  // Відповіді рушій звіряє за normalizeText (answerKey): слова, що збігаються за ним (напр. «…» і “…”), — один рядок, перше з них.
+  const keys = new Set<string>();
+  const entries =
+    cloud === undefined
+      ? []
+      : cloudTally(cloud, state.players)
+          .filter((e) => !e.hidden)
+          .filter((e) => {
+            const key = normalizeText(e.text);
+            if (keys.has(key)) return false;
+            keys.add(key);
+            return true;
+          })
+          .slice(0, LIMITS.maxSurveyRows);
   if (cloud === undefined || entries.length === 0) return question.rows.length >= LIMITS.minSurveyRows ? host : null;
   const voters = cloudVoters(cloud, state.players);
   const rows = entries.map((entry, index) => ({

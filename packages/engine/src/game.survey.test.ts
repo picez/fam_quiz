@@ -266,6 +266,20 @@ describe('«100 to 1» survey board from an earlier word cloud', () => {
     expect(recordOf(s, 1, 'p1')?.points).toBe(1000); // 167 % → не більше ціни
   });
 
+  it('cloud words that differ only by quotes make one row (the engine checks answers by answerKey)', () => {
+    let s = openThree([cloud, surveyCloud]);
+    s = answerAll(s, {
+      p1: words('«Кобзар»', 'Дніпро'),
+      p2: words('«Кобзар»'),
+      p3: words('“Кобзар”'),
+    });
+    s = toNext(s);
+    expect(rowsOf(s)?.map((r) => [r.id, r.text, r.popularity])).toEqual([
+      ['cloud-1', '«Кобзар»', 67],
+      ['cloud-2', 'Дніпро', 33],
+    ]);
+  });
+
   it('at most 8 rows: the most common words first', () => {
     let s = openThree([cloud, surveyCloud], ['Галя']);
     s = answerAll(s, {

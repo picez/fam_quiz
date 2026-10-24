@@ -2114,6 +2114,27 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(screen.getByText('ананас — немає на табло')).toBeTruthy();
     });
 
+    it('the board reveal shows the survey board, not a spotlight line, to the spectator and the chooser', () => {
+      const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: sent, grade: 'partial' as const };
+      for (const chooser of ['p2', 'p1']) {
+        show(
+          view({
+            phase: 'reveal',
+            questionIndex: 0,
+            question: surveyPublic,
+            reveal: surveyFull,
+            spotlight: { ...spotlight, playerId: chooser },
+            survey: { source: 'host', total: 5, shown: 5, rows: [1, 2, 3, 4, 5].map(closedRow) },
+            board: { turn: { playerId: chooser, nickname: 'Тарас' }, cell: null } as never,
+          }),
+        );
+        // Глядач бачить табло; вибравший — власні рядки в результаті.
+        if (chooser === 'p2') expect(document.querySelectorAll('.survey-row')).toHaveLength(5);
+        expect(document.querySelector('.spotlight-answer')).toBeNull();
+        cleanup();
+      }
+    });
+
     it('a spectator on a board cell sees the survey board', () => {
       show(
         onQuestion({

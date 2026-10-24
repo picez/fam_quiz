@@ -811,6 +811,40 @@ describe('HostScreen: blitz', () => {
       expect(send).toHaveBeenCalledWith('host:repick', { playerId: 'p1' });
     });
 
+    it('a survey answer on a manual board is accepted, not graded by hand; a swapped chooser keeps the manual buttons', async () => {
+      const surveyQ = { id: 's1', type: 'survey', text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 45, points: 1000, answers: 3, rows: [] } as unknown as Question;
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const answer = { type: 'survey' as const, values: ['Яблуко'], rows: ['sa'] } as Answer;
+      const spotlight = { playerId: 'p1', nickname: 'Олена', answer, grade: null };
+      const send = show(during('question', surveyQ, { round: boardRound, players: three, spotlight, board: boardOf({ manual: true, cell, answer }) }));
+      expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Неправильно' })).toBeNull();
+      fireEvent.click(button('Прийняти'));
+      await waitFor(() => expect(send).toHaveBeenCalledWith('host:accept', { playerId: 'p1' }));
+      cleanup();
+      // Після «Заміни запитання» гравець відповідав на запасне текстове: оцінка вручну.
+      const swapped = { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Одеса' }, grade: null };
+      show(during('question', surveyQ, { round: boardRound, players: three, spotlight: swapped, board: boardOf({ manual: true, cell, answer: swapped.answer }) }));
+      expect(button('Правильно')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Прийняти' })).toBeNull();
+    });
+
+    it('a survey cell has no hand grading after it closes', () => {
+      const surveyQ = { id: 's1', type: 'survey', text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 45, points: 1000, answers: 3, rows: [] } as unknown as Question;
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const answer = { type: 'survey' as const, values: ['Яблуко'], rows: ['sa'] } as Answer;
+      for (const phase of ['locked', 'reveal'] as const) {
+        const spotlight = { playerId: 'p1', nickname: 'Олена', answer, grade: phase === 'reveal' ? ('partial' as const) : null };
+        show(during(phase, surveyQ, { round: boardRound, players: three, spotlight, board: boardOf({ manual: true, cell, answer }) }));
+        expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Не зараховувати' })).toBeNull();
+        cleanup();
+      }
+      // Звичайна клітинка на reveal оцінюється.
+      show(during('reveal', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }) }));
+      expect(button('Зарахувати')).toBeTruthy();
+    });
+
     it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
       const unmarked = boardOf().categories[0].cells.map((cell) => ({ ...cell, mark: 'none' as const }));
       show(onBoard({}, boardOf({ categories: [{ id: 'k1', title: 'Міста', cells: unmarked }], marks: [] })));

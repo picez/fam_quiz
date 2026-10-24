@@ -116,11 +116,17 @@ describe('survey views', () => {
     // Бали й рахунок не випереджають табло.
     expect(phone.me.result).toBeNull();
     expect(phone.me.score).toBe(0);
+    // Власна відповідь без збігів: рядки, що влучили, видно лише з відкриттям усієї дошки.
+    expect(phone.me.answer).toEqual({ type: 'survey', values: ['Яблуко', 'ананас'] });
+    expect(JSON.stringify(phone)).not.toMatch(HITS);
+    expect(stageView(s).stats?.accepted).toBeNull();
     expect(playerView(s, 'p2')!.me.survey).toBeNull();
     expect(playerView(s, 'p1')!.table?.rows.every((r) => r.score === 0)).toBe(true);
     expect(stageView(s).players.every((p) => p.streak === 0)).toBe(true);
     s = must(revealSurveyAll(s));
     expect(playerView(s, 'p1')!.me.result?.points).toBe(320);
+    expect(playerView(s, 'p1')!.me.answer).toMatchObject({ rows: ['sa', null] });
+    expect(stageView(s).stats?.accepted).toEqual(expect.any(Number));
     expect(playerView(s, 'p1')!.me.score).toBe(320);
     expect(playerView(s, 'p1')!.me.survey).toEqual({
       lines: [
@@ -176,6 +182,22 @@ describe('survey views', () => {
       expect(json).not.toMatch(HITS);
       expect(json).not.toContain('Полуниця');
     }
+  });
+
+  it('the board verdict reaches the stage and phones only once the whole board is open', () => {
+    const s = must(submitAnswer(onSurveyCell('manual'), 'p1', answer('Яблуко', 'ананас'), 1000));
+    let accepted = must(acceptAnswer(s, 'p1', 2000));
+    expect(accepted.phase).toBe('reveal');
+    for (const view of [stageView(accepted), playerView(accepted, 'p1')!, playerView(accepted, 'p2')!]) {
+      expect(view.spotlight?.playerId).toBe('p1');
+      expect(view.spotlight?.grade).toBeNull();
+    }
+    expect(hostView(accepted).spotlight?.grade).not.toBeNull();
+    accepted = must(next(accepted, 3000, rng));
+    expect(stageView(accepted).spotlight?.grade).toBeNull();
+    accepted = must(revealSurveyAll(accepted));
+    expect(stageView(accepted).spotlight?.grade).toBe('partial');
+    expect(playerView(accepted, 'p2')!.spotlight?.grade).toBe('partial');
   });
 
   it('the host sees skipped surveys and the round total excludes them', () => {

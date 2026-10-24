@@ -712,6 +712,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
     case 'survey': {
       const { rows, answers } = question;
       const spareOnly = question.cloudId !== undefined && rows.length === 0;
+      // Дробова популярність — не «незаповнений рядок»: окреме пояснення.
+      if (rows.some((row) => Number.isFinite(row.popularity) && row.popularity > 0 && !Number.isInteger(row.popularity))) return 'problemSurveyPopularity';
       if (!spareOnly && (rows.length < LIMITS.minSurveyRows || !rows.every(isFilledSurveyRow))) return 'problemSurveyRows';
       if (surveyTotal(question) > LIMITS.surveyTotal) return 'problemSurveyTotal';
       if (duplicateSpelling(question) !== '') return 'problemSurveyDuplicate';
@@ -800,14 +802,21 @@ function surveyTotal(question: Extract<Question, { type: 'survey' }>): number {
   return question.rows.reduce((sum, row) => sum + (Number.isFinite(row.popularity) ? row.popularity : 0), 0);
 }
 
-/** Перше написання, що веде у два рядки дошки (тим самим ключем, що й схема); повтор у межах одного рядка не заважає. */
+/**
+ * Перше написання, що веде у два рядки дошки (тим самим ключем, що й схема), — так, як його ввів ведучий (обрізане);
+ * повтор у межах одного рядка не заважає.
+ */
 function duplicateSpelling(question: Extract<Question, { type: 'survey' }>): string {
   const seen = new Set<string>();
   for (const row of question.rows) {
-    for (const key of new Set([row.text, ...row.accepted].map(answerKey))) {
-      if (seen.has(key)) return key;
-      seen.add(key);
+    const mine = new Set<string>();
+    for (const spelling of [row.text, ...row.accepted]) {
+      const key = answerKey(spelling);
+      if (mine.has(key)) continue;
+      if (seen.has(key)) return spelling.trim();
+      mine.add(key);
     }
+    for (const key of mine) seen.add(key);
   }
   return '';
 }

@@ -542,7 +542,9 @@ function hostBoard(state: GameState): HostBoard | null {
 function spotlightOf(state: GameState, forHost: boolean): Spotlight | null {
   const spot = rawSpotlight(state, forHost);
   // Збіги «100 до 1» сцені й телефонам не потрібні: табло показує лише відкриті рядки.
-  return spot === null || forHost ? spot : { ...spot, answer: publicAnswer(spot.answer, false) };
+  // Вердикт дошки теж чекає, поки ведучий не відкриє всі рядки.
+  if (spot === null || forHost) return spot;
+  return { ...spot, answer: publicAnswer(spot.answer, false), grade: surveyClosing(state) ? null : spot.grade };
 }
 
 function rawSpotlight(state: GameState, forHost: boolean): Spotlight | null {
@@ -1285,8 +1287,9 @@ function revealStats(state: GameState, question: Question): RevealStats {
       if (known.has(key)) counts[key] = (counts[key] ?? 0) + 1;
     }
   }
-  // Голоси без балів не бувають «прийнятими»: лише answered і counts.
-  return { answered: records.length, accepted: isUnscored(question) ? null : records.filter((r) => r.accepted).length, counts };
+  // Голоси без балів не бувають «прийнятими»: лише answered і counts. «100 до 1» ховає прийняті, поки дошка не відкрита.
+  const hidden = isUnscored(question) || surveyClosing(state);
+  return { answered: records.length, accepted: hidden ? null : records.filter((r) => r.accepted).length, counts };
 }
 
 export function stageView(state: GameState): StageView {
@@ -1354,7 +1357,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
       // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули;
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
-      answer: publicAnswer(queued === undefined ? (record?.answer ?? pending) : queued, revealed),
+      answer: publicAnswer(queued === undefined ? (record?.answer ?? pending) : queued, revealed && !surveyClosing(state)),
       result:
         revealed && record !== undefined && finalShown(state, playerId) && !surveyClosing(state) && !(seen !== null && isUnscored(seen.question))
           ? {

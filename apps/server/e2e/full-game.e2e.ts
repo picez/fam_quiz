@@ -178,7 +178,16 @@ let restarting = false;
 async function restart(between?: () => Promise<void>) {
   restarting = true;
   await ctx.shutdown();
-  await between?.();
+  // Сервер піднімається знову за будь-якого результату between: інакше впалий сценарій лишив би решту без сервера.
+  try {
+    await between?.();
+  } finally {
+    await relisten();
+  }
+}
+
+/** Нова версія сервера на тій самій базі й порті. */
+async function relisten() {
   ctx = await buildApp({
     db,
     auth: { ...TEST_AUTH, baseURL: base },
@@ -190,10 +199,25 @@ async function restart(between?: () => Promise<void>) {
   await ctx.app.listen({ port, host: '127.0.0.1' });
 }
 
-beforeEach(() => {
+/** Сервер відповідає на /health за 2 с. */
+async function healthy(): Promise<boolean> {
+  try {
+    const response = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+beforeEach(async () => {
   problems.length = 0;
   rigged.length = 0;
   restarting = false;
+  // Попередній сценарій міг упасти посеред перезапуску: піднімаємо сервер, щоб решта не падала слідом.
+  if (!(await healthy())) {
+    await ctx.app.close().catch(() => undefined);
+    await relisten();
+  }
 });
 
 afterEach(async () => {
@@ -6331,7 +6355,8 @@ it('part 9b: the server restarts in the middle of a question — the phones, the
     await snapshot();
     throw error;
   }
-});
+  // Два перезапуски й ціла гра: довше за типові 180 с на повільній машині.
+}, 300_000);
 
 const RESTARTING_TEXT = 'Сервер перезапускається… Гра продовжиться сама.';
 

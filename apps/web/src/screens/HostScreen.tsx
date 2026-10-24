@@ -233,21 +233,26 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // «100 до 1» на розкритті: головна кнопка спершу відкриває рядки по одному.
   const surveyStep = phase === 'reveal' && view.question?.type === 'survey' && view.survey !== null && view.survey.shown < view.survey.total;
   const chooserId = board?.turn?.playerId ?? null;
+  // Тип запитання, на яке відповідав гравець: після «Заміни запитання» це запасне, і відповідь його видає.
+  const answeredType = view.spotlight?.answer?.type ?? view.question?.type ?? null;
   // У полі оцінка йде одразу після відповіді вибравшого: у запитанні лише коли ведучий оцінює вручну.
-  // Сортування й стіна рахують бали самі: ручної оцінки в них немає (сервер її відхиляє).
+  // Сортування, стіна й «100 до 1» рахують бали самі: ручної оцінки в них немає (сервер її відхиляє).
   const canGradeBoard =
     board !== null &&
     blitz === null &&
     view.question !== null &&
     view.question.type !== 'sort' &&
     view.question.type !== 'wall' &&
+    answeredType !== 'survey' &&
     chooserId !== null &&
     ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
   const voiceCell = blitz === null && board?.cell?.answerMode === 'voice';
   // Відповідь з телефона, що чекає на рішення ведучого (помаранчева).
   // На усній клітинці помаранчева лише позначка ведучого: приймати чи перевибирати там нічого.
   const pending = phase === 'question' && !voiceCell && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
-  const manualPending = pending !== null && ((board !== null && board.manual) || (blitz !== null && blitz.manual));
+  // «100 до 1» ведучий приймає і за ручної перевірки: дошка однозначна.
+  const manualPending =
+    pending !== null && ((board !== null && board.manual && pending.answer?.type !== 'survey') || (blitz !== null && blitz.manual));
   // На бліц-клітинці відповідає голова черги, а не вибравший.
   const instant = blitz?.instant === true;
   const answering = blitz !== null ? (instant ? null : (blitz.queue[0] ?? null)) : (board?.turn ?? null);

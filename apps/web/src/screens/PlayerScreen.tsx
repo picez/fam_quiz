@@ -788,7 +788,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <FinalResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
-              {question !== null && !isSort && !isWall && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {/* «100 до 1»: підсумок — на табло (SurveyBoard), рядок відповіді з вердиктом зайвий. */}
+              {question !== null && !isSort && !isWall && !isSurvey && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
               {isSort && question?.sort != null && (
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} />
@@ -806,7 +807,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {instant
                 ? question !== null && <SpotlightChoices removed={view.removed} question={question} spotlight={own} reveal={view.reveal} blink={blink} voice={false} />
                 : spotlight !== null &&
-                  question !== null && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
+                  question !== null &&
+                  !isSurvey && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
               {queue}
               <Result view={view} />
             </>

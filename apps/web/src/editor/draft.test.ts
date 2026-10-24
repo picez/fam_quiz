@@ -1651,12 +1651,21 @@ describe('survey: checks, clouds and drafts (10e)', () => {
 
   it('the same spelling in two rows is named; the same spelling inside one row is fine', () => {
     const twins = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: 'Яблуко' } : i === 1 ? { ...row, text: 'яблуко' } : row)));
+    // Назва — так, як ведучий її ввів, а не ключ порівняння.
     expect(problemsOf(quizWith(twins))).toEqual([t('problemSurveyDuplicate', { index: 1, text: 'яблуко' })]);
+    const typed = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: 'Яблуко' } : i === 1 ? { ...row, text: '«ЯБЛУКО»', accepted: ['  ЯБЛУКО '] } : row)));
+    expect(problemsOf(quizWith(typed))).toEqual([t('problemSurveyDuplicate', { index: 1, text: 'ЯБЛУКО' })]);
     const viaAccepted = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: 'Яблуко' } : i === 2 ? { ...row, accepted: ['  ЯБЛУКО '] } : row)));
     expect(problemsOf(quizWith(viaAccepted))).toHaveLength(1);
     expect(problemsOf(quizWith(viaAccepted))[0]).toContain('веде у два рядки');
     const inside = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: 'Яблуко', accepted: ['яблуко'] } : row)));
     expect(problemsOf(quizWith(inside))).toEqual([]);
+  });
+
+  it('a popularity that is not a whole number gets its own message', () => {
+    const fraction = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, popularity: 12.5 } : row)));
+    expect(problemsOf(quizWith(fraction))).toEqual([t('problemSurveyPopularity', { index: 1 })]);
+    expect(problemsOf(quizWith(fraction))[0]).toContain('ціле число');
   });
 
   it('the answers per player are checked with a message', () => {
@@ -1710,6 +1719,14 @@ describe('survey: checks, clouds and drafts (10e)', () => {
     expect(problemsOf(quiz)).toEqual([]);
     expect((roundQuestions(cleaned(quiz).rounds[0])[1] as Survey).rows).toEqual([]);
     expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+  });
+
+  it('a survey draft with no rows and no cloud comes back with five blank rows', () => {
+    const empty: Survey = { ...surveyQ(), rows: [] };
+    saveDraft('survey-empty', quizWith(empty));
+    const rows = (roundQuestions(loadDraft('survey-empty')!.rounds[0])[0] as Survey).rows;
+    expect(rows).toHaveLength(5);
+    expect(rows.every((row) => row.text === '' && row.popularity === 0 && row.accepted.length === 0)).toBe(true);
   });
 
   it('a survey draft keeps rows, spellings, answers and the cloud', () => {

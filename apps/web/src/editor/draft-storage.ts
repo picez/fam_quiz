@@ -68,7 +68,7 @@ function reviveWall(base: Extract<Question, { type: 'wall' }>): Question {
 
 /**
  * «100 до 1» з чернетки: рядки — об'єкти з рядками (популярність — число, інакше 0; написання — рядки) або п'ять порожніх;
- * кількість відповідей — звичайне число (типово 3), cloudId — лише рядок. Після хмари без запасних рядків лишається [].
+ * кількість відповідей — звичайне число (типово 3), cloudId — лише рядок. Після хмари без запасних рядків лишається [], без хмари — п'ять порожніх.
  */
 function reviveSurvey(base: Extract<Question, { type: 'survey' }>): Question {
   const { cloudId, ...rest } = base;
@@ -85,7 +85,8 @@ function reviveSurvey(base: Extract<Question, { type: 'survey' }>): Question {
   return {
     ...rest,
     ...cloud,
-    rows: raw === null ? (cloud.cloudId === undefined ? Array.from({ length: 5 }, blank) : []) : rows,
+    // Без хмари дошка без рядків нічим не допоможе: повертаються п'ять порожніх, як у новому запитанні.
+    rows: rows.length === 0 && cloud.cloudId === undefined ? Array.from({ length: 5 }, blank) : rows,
     answers: typeof base.answers === 'number' ? base.answers : base.answers === undefined ? LIMITS.defaultSurveyAnswers : Number.NaN,
   };
 }

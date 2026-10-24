@@ -1075,6 +1075,7 @@ const uk = {
   surveyCellNote: '"100 до 1" грають лише з телефона на звичайній клітинці.',
   problemSurveyRows: 'Запитання {index}: потрібно щонайменше {surveyMin} відповіді з популярністю.',
   problemSurveyTotal: 'Запитання {index}: разом популярність {total} — більше за 100.',
+  problemSurveyPopularity: 'Запитання {index}: популярність рядка — ціле число від 1 до 100.',
   problemSurveyDuplicate: 'Запитання {index}: «{text}» веде у два рядки.',
   problemSurveyCloud: 'Запитання {index}: хмари для дошки вже немає раніше в класиці — виберіть іншу або введіть свої відповіді.',
   problemSurveyPlace: 'Запитання {index}: "100 до 1" діє лише в класиці й на звичайній клітинці поля з телефона.',
