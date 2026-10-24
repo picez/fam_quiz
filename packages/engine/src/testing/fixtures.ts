@@ -8,8 +8,10 @@ import {
   type Duels,
   type FinalRound,
   type Question,
+  type QuestionAudio,
   type Quiz,
   type QuizSettings,
+  type RevealMode,
   type Round,
   type Video,
 } from '@quiz/shared';
@@ -128,6 +130,37 @@ export const sortQ = {
     { id: 'w4', text: 'Груша', categoryId: 'c2' },
   ],
 } satisfies Question;
+
+/** Повзунок 0…100 %, крок 1, правильне 50, допуск ±2, нуль далі ніж ±12; до типового списку makeQuiz не входить. */
+export const slider = {
+  ...base,
+  id: 'q10',
+  type: 'slider',
+  text: 'Скільки відсотків поверхні Землі вкриває вода?',
+  min: 0,
+  max: 100,
+  step: 1,
+  correct: 50,
+  tolerance: 2,
+  zeroBeyond: 12,
+  unit: '%',
+} satisfies Question;
+
+/** Адреса картинки для запитань, що проявляються. */
+export const IMG = `/uploads/${'b'.repeat(32)}.png`;
+
+/** Копія запитання з картинкою, що проявляється. */
+export const withReveal = (question: Question, reveal: RevealMode = 'pixels'): Question => ({
+  ...question,
+  imageUrl: question.imageUrl ?? IMG,
+  reveal,
+});
+
+/** Копія запитання з аудіофайлом: типово з 0 с, 30 с. */
+export const withAudio = (question: Question, audio: Partial<QuestionAudio> = {}): Question => ({
+  ...question,
+  audio: { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 0, duration: 30, ...audio } as QuestionAudio,
+});
 
 export type RoundOptions = Partial<Pick<ClassicRound, 'title' | 'speedBonus' | 'shuffleOptions' | 'rules'>>;
 

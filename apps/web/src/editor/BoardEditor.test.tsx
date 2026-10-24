@@ -80,3 +80,33 @@ describe('BoardEditor help (10a)', () => {
     expect(onChange.mock.calls.length).toBe(calls);
   });
 });
+
+describe('BoardEditor revealing picture (10b)', () => {
+  const withPicture = (): BoardRound => {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first.cells;
+    const question = { ...cell.question, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', reveal: 'pixels' as const };
+    return { ...round, categories: [{ ...first, cells: [{ ...cell, question }, ...cells] }, ...rest] };
+  };
+
+  it('a normal phone cell with a picture offers the mode; switching it to blitz drops the mode and hides the choice', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={withPicture()} onChange={onChange} />);
+    expect(screen.getByRole('button', { name: 'З пікселів' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.change(screen.getByLabelText('Тип клітинки'), { target: { value: 'blitz' } });
+    const next = onChange.mock.calls[0][0] as BoardRound;
+    expect(next.categories[0].cells[0].kind).toBe('blitz');
+    expect('reveal' in next.categories[0].cells[0].question).toBe(false);
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
+  });
+
+  it('switching the cell to a spoken answer drops the mode too', () => {
+    const onChange = vi.fn();
+    render(<BoardEditor round={withPicture()} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText(t('boardCellMode')), { target: { value: 'voice' } });
+    const next = onChange.mock.calls[0][0] as BoardRound;
+    expect('reveal' in next.categories[0].cells[0].question).toBe(false);
+  });
+});

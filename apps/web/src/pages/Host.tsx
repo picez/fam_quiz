@@ -102,6 +102,8 @@ export function Host() {
         joinUrl={`${origin}/play/${code}`}
         send={game.send}
         offsetMs={game.offsetMs}
+        stageOnline={game.stageOnline}
+        audioCommand={game.audioCommand}
       />
     </>
   );

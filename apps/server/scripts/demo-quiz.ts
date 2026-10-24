@@ -1,4 +1,4 @@
-import { DEFAULT_RULES, type DuelCategory, type DuelQuestion, type Question, type Quiz, type RoundRules } from '@quiz/shared';
+import { DEFAULT_RULES, type DuelCategory, type DuelQuestion, type Question, type QuestionAudio, type Quiz, type RevealMode, type RoundRules } from '@quiz/shared';
 
 /**
  * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match, chain, sort),
@@ -78,8 +78,34 @@ export const sort = (text: string, categories: string[], words: [string, number]
   };
 };
 
+/** Повзунок: діапазон з кроком (типово 1), правильне значення, допуск, межа нуля й одиниця. */
+export const slider = (
+  text: string,
+  range: { min: number; max: number; step?: number },
+  correct: number,
+  options: { tolerance?: number; zeroBeyond?: number; unit?: string } = {},
+  points = 1000,
+  time?: number,
+): Question => ({
+  ...q(text, points, time),
+  type: 'slider',
+  min: range.min,
+  max: range.max,
+  step: range.step ?? 1,
+  correct,
+  tolerance: options.tolerance ?? 0,
+  ...(options.zeroBeyond === undefined ? {} : { zeroBeyond: options.zeroBeyond }),
+  ...(options.unit === undefined ? {} : { unit: options.unit }),
+});
+
 /** Додає до запитання відео з YouTube: id і секунда початку. */
 export const video = (question: Question, id: string, start = 0): Question => ({ ...question, video: { id, start } });
+
+/** Додає до запитання аудіо (замість відео). */
+export const withAudio = (question: Question, audio: QuestionAudio): Question => ({ ...question, video: null, audio });
+
+/** Картинка запитання проявляється з пікселів або з розмиття; саму картинку потрібно задати окремо. */
+export const revealing = (question: Question, mode: RevealMode = 'pixels'): Question => ({ ...question, reveal: mode });
 
 /** Запитання дуелі: текст і прийнятні написання. */
 export const duelQ = (text: string, accepted: string[]): DuelQuestion => ({ id: id('d'), text, accepted });
@@ -149,6 +175,8 @@ export const demoQuiz: Quiz = {
       rules: rules({ streak: { length: 2, bonus: { kind: 'fixed', value: 300 } }, multiplier: 3 }),
       questions: [
         numeric('У якому році Україна проголосила незалежність?', 1991, 0, 1000, 20),
+        slider('Скільки відсотків поверхні Землі вкриває вода?', { min: 0, max: 100 }, 71, { tolerance: 2, zeroBeyond: 15, unit: '%' }),
+        withAudio(single('Назвіть гурт', ['Queen', 'ABBA', 'The Beatles', 'Pink Floyd'], 0), { source: 'youtube', id: 'fJ9rUzIMcZQ', start: 0, duration: 15 }),
         single('Яка хімічна формула води?', ['CO2', 'H2O', 'O2', 'NaCl'], 1, 1000, 15),
         textQ('Як називається столиця Японії?', ['Токіо', 'Tokyo'], 1000, 20),
       ],

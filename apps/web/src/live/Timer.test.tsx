@@ -62,4 +62,22 @@ describe('Timer', () => {
     expect(timerStatus({ paused: false, held: true })).toBe('held');
     expect(timerStatus({ paused: false, held: false })).toBeNull();
   });
+
+  it('a long clip keeps the board on the full question time with «Слухайте»', () => {
+    const { container } = render(<Timer view={{ endsAt: null, remainingMs: 40_000 }} offsetMs={0} total={50_000} leadMs={30_000} />);
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('20');
+    expect(screen.getByText('🎵 Слухайте')).toBeTruthy();
+    expect((container.querySelector('.timer-bar > span') as HTMLElement).style.width).toBe('100%');
+    cleanup();
+    render(<Timer view={{ endsAt: null, remainingMs: 15_000 }} offsetMs={0} total={50_000} leadMs={30_000} />);
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('15');
+    expect(screen.getByText('/ 20 с')).toBeTruthy();
+    expect(screen.queryByText('🎵 Слухайте')).toBeNull();
+  });
+
+  it('a pause during the clip wins over «Слухайте»', () => {
+    render(<Timer view={{ endsAt: null, remainingMs: 40_000 }} offsetMs={0} total={50_000} leadMs={30_000} status="paused" />);
+    expect(screen.getByText('Пауза')).toBeTruthy();
+    expect(screen.queryByText('🎵 Слухайте')).toBeNull();
+  });
 });

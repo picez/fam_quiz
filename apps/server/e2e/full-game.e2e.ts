@@ -7334,3 +7334,254 @@ async function hostHelpGame() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 10b: slider, audio and revealing picture — the editor builds them, the host plays a clip without a stage, the stage plays and obeys replay/stop, the timer waits for a long clip, the slider scale on the reveal, the picture sharpens with time and pays less later', async () => {
+  try {
+    await sliderAudioRevealGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Секунда тиші MP3 (кадри MPEG-1 Layer III з нульовими даними): Chromium її декодує. */
+function silentMp3(frames = 38): Buffer {
+  return Buffer.concat(Array.from({ length: frames }, () => Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x64]), Buffer.alloc(413)])));
+}
+
+/** Стадія проявлення картинки на сторінці (data-stage). */
+const revealStageOf = async (page: Page) => Number(await page.locator('[data-stage]').first().getAttribute('data-stage'));
+
+/** Бали гравця за запитання з рядка відповідей пульта. */
+async function scoreOf(host: Page, nickname: string): Promise<number> {
+  const text = await host.locator('li', { hasText: nickname }).locator('.score').first().textContent();
+  return Number(text!.replace(/[^\d-]/g, ''));
+}
+
+/** «Далі» з розкриття до наступного запитання (через проміжні кроки, якщо вони є). */
+async function toNextQuestion(host: Page) {
+  await click(host, 'Далі');
+  const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+  await next.waitFor({ timeout: 3000 }).then(() => next.click(), () => undefined);
+}
+
+async function sliderAudioRevealGame() {
+  const host = await open('host10b', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10b@example.com');
+  const img = ((await (await host.request.post(`${base}/api/uploads`, { data: avatarPng(), headers: { 'content-type': 'image/png' } })).json()) as { url: string }).url;
+
+  const common = { imageUrl: null, video: null, points: 1000 };
+  const options = (id: string, right: string, wrong: string) => [
+    { id: `${id}o0`, text: right },
+    { id: `${id}o1`, text: wrong },
+  ];
+  const questions = [
+    { ...common, id: 'a1', type: 'single' as const, text: 'Що це за звук?', options: options('a1', 'Тиша', 'Дзвін'), correctId: 'a1o0', timeLimit: 20 },
+    {
+      ...common,
+      id: 's1',
+      type: 'slider' as const,
+      text: 'Скільки відсотків поверхні Землі вкриває вода?',
+      min: 0,
+      max: 100,
+      step: 1,
+      correct: 71,
+      tolerance: 2,
+      zeroBeyond: 12,
+      unit: '%',
+      timeLimit: 30,
+    },
+    {
+      ...common,
+      id: 'y1',
+      type: 'single' as const,
+      text: 'Назвіть гурт',
+      options: options('y1', 'Queen', 'ABBA'),
+      correctId: 'y1o0',
+      timeLimit: 5,
+      audio: { source: 'youtube' as const, id: 'fJ9rUzIMcZQ', start: 0, duration: 8 },
+    },
+    { ...common, id: 'p1', type: 'text' as const, text: 'Що на картинці?', accepted: ['Коло', 'Жовте коло'], imageUrl: img, reveal: 'pixels' as const, timeLimit: 12 },
+  ];
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', questions as never, { title: 'Звуки й картинки', speedBonus: true })]),
+    title: 'Звуки й картинки 10b',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const quizId = ((await saved.json()) as { id: string }).id;
+
+  // 1. Редактор.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Звуки й картинки 10b' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+
+  await host.getByRole('button', { name: /^Запитання 1 / }).click();
+  await host.locator('.audio-field input[type=file]').setInputFiles({ name: 'silence.mp3', mimeType: 'audio/mpeg', buffer: silentMp3() });
+  await host.getByText('Аудіофайл', exact).first().waitFor();
+  await field(host, 'Початок, с').waitFor();
+  const duration = field(host, 'Тривалість, с');
+  await duration.waitFor();
+  expect(Number(await duration.inputValue())).toBeLessThanOrEqual(15);
+  await duration.fill('2');
+  await host.getByText('Таймер іде разом зі звуком.', exact).waitFor();
+  await shot(host, 'p10b-editor-audio');
+
+  await host.getByRole('button', { name: /^Запитання 2 / }).click();
+  await field(host, 'Мінімум').waitFor();
+  expect(await field(host, 'Мінімум').inputValue()).toBe('0');
+  expect(await field(host, 'Максимум').inputValue()).toBe('100');
+  expect(await field(host, 'Правильне значення').inputValue()).toBe('71');
+  expect(await field(host, 'Нуль балів далі ніж ±').inputValue()).toBe('12');
+  await shot(host, 'p10b-editor-slider');
+  await field(host, 'Мінімум').fill('100');
+  await click(host, 'Зберегти');
+  await host.locator('ul.problems').getByText('повзунок — перевірте мінімум, максимум і крок', { exact: false }).waitFor();
+  await field(host, 'Мінімум').fill('0');
+
+  await host.getByRole('button', { name: /^Запитання 4 / }).click();
+  const pixels = host.getByRole('button', { name: 'З пікселів', ...exact });
+  await pixels.waitFor();
+  expect(await pixels.getAttribute('aria-pressed')).toBe('true');
+  await shot(host, 'p10b-editor-reveal');
+
+  await host.getByRole('button', { name: /^Запитання 3 / }).click();
+  await host.getByText('YouTube — лише звук', { exact: false }).first().waitFor();
+  await host.getByText('Фрагмент 8 с довший за час 5 с: таймер стартує після фрагмента (разом 13 с).', exact).waitFor();
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'p10b-editor-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: { questions: { id: string; audio?: { source: string; url?: string; duration: number } }[] }[] };
+  const audio = stored.rounds[0]!.questions.find((question) => question.id === 'a1')!.audio!;
+  expect(audio.source).toBe('file');
+  expect(audio.url).toMatch(/^\/uploads\/[0-9a-f]+\.mp3$/);
+  expect(audio.duration).toBe(2);
+
+  // 2. Гра без сцени.
+  await host.locator('.quiz-list li', { hasText: 'Звуки й картинки 10b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const olya = await open('olya10b', 375, 812);
+  const petro = await open('petro10b', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await click(host, 'Почати гру');
+  await afterSplash(host, olya, petro);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, olya, petro);
+
+  await host.getByText('🎵 Сцена не відкрита — звук грає тут', exact).waitFor();
+  const unlock = host.getByRole('button', { name: '🔊 Увімкнути звук', ...exact });
+  if (await unlock.isVisible()) await unlock.click();
+  await expect.poll(() => host.locator('[data-plays]').getAttribute('data-plays'), POLL).toBe('1');
+  await shot(host, 'p10b-audio-host-local');
+  await click(host, 'Програти ще раз');
+  await expect.poll(() => host.locator('[data-plays]').getAttribute('data-plays'), POLL).toBe('2');
+  for (const phone of [olya, petro]) expect(await phone.locator('audio, .audio-card, .audio-only-frame, iframe').count()).toBe(0);
+  await olya.getByRole('button', { name: /Тиша/ }).click();
+  await petro.getByRole('button', { name: /Дзвін/ }).click();
+  await click(host, 'Показати відповідь');
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro);
+
+  // 3. Сцена й повзунок.
+  const stage = await open('stage10b', 1280, 720);
+  await stage.goto(stageUrl);
+  await stage.getByText('Тягніть повзунок на телефоні: від 0 до 100 %', exact).waitFor();
+  await expect.poll(() => olya.locator('.slider-value').textContent(), POLL).toMatch(/^50\s*%$/);
+  for (let i = 0; i < 3; i++) await olya.getByRole('button', { name: 'Більше на 1', ...exact }).click();
+  await expect.poll(() => olya.locator('.slider-value').textContent(), POLL).toMatch(/^53\s*%$/);
+  await olya.getByRole('slider', { name: 'Повзунок', ...exact }).fill('70');
+  await expect.poll(() => olya.locator('.slider-value').textContent(), POLL).toMatch(/^70\s*%$/);
+  await shot(olya, 'p10b-phone-slider');
+  await expectNoSideScroll(olya, 'p10b-phone-slider');
+  await click(olya, 'Відповісти');
+  await petro.getByRole('slider', { name: 'Повзунок', ...exact }).fill('80');
+  await click(petro, 'Відповісти');
+  await click(host, 'Показати відповідь');
+  const scale = stage.locator('.slider-scale');
+  await scale.waitFor();
+  await scale.getByRole('img', { name: 'Оля: 70 %', ...exact }).first().waitFor({ state: 'attached' });
+  await scale.getByRole('img', { name: 'Петро: 80 %', ...exact }).first().waitFor({ state: 'attached' });
+  await scale.getByText('71 %', exact).first().waitFor();
+  await shot(stage, 'p10b-stage-scale');
+  await olya.getByText(/Твоя відповідь: 70\s*% · правильна: 71\s*% \(± 2\)/).first().waitFor();
+  const olyaScore = await scoreOf(host, 'Оля');
+  const petroScore = await scoreOf(host, 'Петро');
+  expect(olyaScore).toBeGreaterThan(0);
+  expect(petroScore).toBeGreaterThan(0);
+  expect(petroScore).toBeLessThan(olyaScore);
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+
+  // 4. Аудіо з YouTube, довгий фрагмент.
+  const stageUnlock = stage.getByRole('button', { name: '🔊 Увімкнути звук', ...exact });
+  if (await stageUnlock.isVisible()) await stageUnlock.click();
+  await expect.poll(() => stage.locator('[data-plays]').getAttribute('data-plays'), POLL).toBe('1');
+  expect(await stage.locator('.audio-only-frame').getAttribute('aria-hidden')).toBe('true');
+  await stage.getByText('🎵 Слухайте', exact).first().waitFor();
+  await shot(stage, 'p10b-audio-stage-listening');
+  await host.getByText('🎵 Звук грає на сцені', exact).waitFor();
+  expect(await host.locator('[data-plays]').count()).toBe(0);
+  await click(host, 'Програти ще раз');
+  await expect.poll(() => stage.locator('[data-plays]').getAttribute('data-plays'), POLL).toBe('2');
+  await click(host, 'Стоп');
+  await expect.poll(() => stage.locator('[data-plays]').getAttribute('data-state'), POLL).toBe('stopped');
+  await shot(host, 'p10b-audio-host-controls');
+  await stage.waitForTimeout(1000);
+  expect(await seconds(stage)).toBe(5);
+  await olya.getByRole('button', { name: /Queen/ }).click();
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  // Запитання з проявленням відкривається не раніше цієї миті й не пізніше, ніж зникне заставка:
+  // очікувана стадія виводиться з виміряного часу, а не з припущень про швидкість машини.
+  const revealOpenedAfter = Date.now();
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+  const revealOpenedBy = Date.now();
+  const REVEAL_WINDOW_MS = 12_000;
+  const stageAt = (ms: number) => Math.floor((Math.max(0, ms) / REVEAL_WINDOW_MS) * 10);
+  /** Стадія на сторінці в межах того, що дозволяє виміряний час (± 1 на округлення й годинники). */
+  const expectRevealStage = async (page: Page) => {
+    const at = Date.now();
+    const shown = await revealStageOf(page);
+    const after = Date.now();
+    expect(shown).toBeGreaterThanOrEqual(Math.max(0, stageAt(at - revealOpenedBy) - 1));
+    expect(shown).toBeLessThanOrEqual(Math.min(9, stageAt(after - revealOpenedAfter) + 1));
+    return shown;
+  };
+
+  // 5. Картинка, що проявляється.
+  await expectRevealStage(stage);
+  await shot(stage, 'p10b-reveal-stage-early');
+  await petro.getByText('Картинка проявляється: що раніше відповіси, то більше балів.').waitFor();
+  await olya.waitForTimeout(1000);
+  await field(olya, 'Ваша відповідь').fill('Коло');
+  await click(olya, 'Відповісти');
+  const olyaAnsweredBy = Date.now();
+  await olya.waitForTimeout(6000);
+  // Хто вже відповів, бачить стадію за часом, а не повну картинку.
+  await expectRevealStage(olya);
+  await shot(olya, 'p10b-reveal-phone-mid');
+  await field(petro, 'Ваша відповідь').fill('Квадрат');
+  await click(petro, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  await expect
+    .poll(async () => (await stage.locator('canvas[data-stage]').count()) === 0 || (await revealStageOf(stage)) === 10, POLL)
+    .toBe(true);
+  await shot(stage, 'p10b-reveal-stage-full');
+  await click(host, 'Показати відповідь');
+  const gained = await scoreOf(host, 'Оля');
+  // Ціна спадає зі 100 до 30 % за 12 с; Оля відповіла не пізніше olyaAnsweredBy.
+  const latest = Math.min(1, (olyaAnsweredBy - revealOpenedAfter) / REVEAL_WINDOW_MS);
+  expect(gained).toBeGreaterThanOrEqual(Math.floor(1000 * (1 - 0.7 * latest)) - 1);
+  expect(gained).toBeLessThan(1000);
+  expect(await scoreOf(host, 'Петро')).toBe(0);
+
+  expect(problems).toEqual([]);
+}

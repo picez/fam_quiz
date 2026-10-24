@@ -27,6 +27,8 @@ export const kickSchema = z.object({ playerId });
 export const judgeSchema = z.object({ playerId, correct: z.boolean() });
 /** «Прийняти» й «Перевибрати» називають гравця, чия відповідь чекає: інакше подвійний дотик зачепить наступну. */
 export const pendingSchema = z.object({ playerId });
+/** Команда звуку від пульта; назва не audioSchema, щоб не плутати зі схемою аудіо запитання. */
+export const audioCommandSchema = z.object({ action: z.enum(['replay', 'stop']) });
 export const timeSchema = z.object({ seconds: z.union([z.literal(-15), z.literal(15)]) });
 export const pickSchema = z.object({ cellId: z.string().min(1).max(64) });
 /** allIn — «Ва-банк»: ставиться вся межа, amount тоді ігнорується. */
@@ -134,17 +136,23 @@ export interface ClientToServerEvents {
   'host:duel-cancel': (ack: Ack) => void;
   /** «До гри»: пропустити решту «Як грати». */
   'host:guide-skip': (ack: Ack) => void;
+  /** Звук поточного запитання: програти ще раз або зупинити (сцена, а без сцени — пульт). Годинник не змінюється. */
+  'host:audio': (payload: z.infer<typeof audioCommandSchema>, ack: Ack) => void;
 }
 
 export interface StateMeta {
   /** Час сервера на момент надсилання, для поправки годинника клієнта. */
   serverNow: number;
   hostOnline: boolean;
+  /** Чи відкрита сцена (є з'єднання ролі stage): без сцени звук грає пульт. */
+  stageOnline: boolean;
 }
 
 export interface ServerToClientEvents {
   /** Повний зріз стану для ролі цього з'єднання. */
   state: (view: GameView, meta: StateMeta) => void;
+  /** Команда звуку від ведучого; seq зростає в межах кімнати. Отримують лише сцена й пульт. */
+  audio: (command: { action: 'replay' | 'stop'; seq: number }) => void;
   closed: (reason: CloseReason) => void;
   /** Сервер зупиняється (нова версія) або кімнату веде інший процес: перепідключитися з тим самим токеном. */
   restarting: () => void;

@@ -4,6 +4,9 @@ import type { ClientToServerEvents, CloseReason, GameView, ServerToClientEvents,
 import { freshSplash } from '../clock';
 import type { Send, SendResult } from './types';
 
+/** Остання команда звуку від ведучого; seq зростає, тож кожна нова — окрема. */
+export type AudioCommand = { action: 'replay' | 'stop'; seq: number };
+
 export type Status = 'connecting' | 'live' | 'offline' | 'restarting' | 'unauthorized';
 
 /** Пауза перед ручним перепідключенням, коли socket.io не робить цього сам. */
@@ -20,6 +23,8 @@ export function useGame(auth: SocketAuth | null) {
   const [view, setView] = useState<GameView | null>(null);
   const [status, setStatus] = useState<Status>('connecting');
   const [hostOnline, setHostOnline] = useState(true);
+  const [stageOnline, setStageOnline] = useState(true);
+  const [audioCommand, setAudioCommand] = useState<AudioCommand | null>(null);
   const [offsetMs, setOffsetMs] = useState(0);
   const [closed, setClosed] = useState<CloseReason | null>(null);
   const socketRef = useRef<GameSocket | null>(null);
@@ -34,6 +39,7 @@ export function useGame(auth: SocketAuth | null) {
     setView(null);
     setStatus('connecting');
     setClosed(null);
+    setAudioCommand(null);
     if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
@@ -55,9 +61,11 @@ export function useGame(auth: SocketAuth | null) {
       restarting = false;
       setView(freshSplash(next, meta.serverNow));
       setHostOnline(meta.hostOnline);
+      setStageOnline(meta.stageOnline ?? true);
       setOffsetMs(meta.serverNow - Date.now());
       setStatus('live');
     });
+    socket.on('audio', (command) => setAudioCommand(command));
     socket.on('closed', (reason) => {
       gone = true;
       setClosed(reason);
@@ -108,5 +116,5 @@ export function useGame(auth: SocketAuth | null) {
     });
   }, []);
 
-  return { view, status, hostOnline, offsetMs, closed, send };
+  return { view, status, hostOnline, stageOnline, audioCommand, offsetMs, closed, send };
 }

@@ -247,6 +247,32 @@ a {
   gap: 0.5rem;
 }
 
+.audio-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.reveal-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.slider-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.slider-preview input[type='range'] {
+  width: 100%;
+}
+
+.slider-preview output {
+  font-weight: 700;
+}
+
 .image-field .question-image {
   height: min(28vh, 13rem);
 }
@@ -6433,4 +6459,319 @@ label.powers-price {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem;
+}
+
+/* ---------- Повзунок і картинка, що проявляється (телефон) ---------- */
+
+.slider-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.slider-value {
+  display: block;
+  text-align: center;
+  font-family: var(--display);
+  font-size: clamp(2.5rem, 16vw, 4rem);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--amber);
+  overflow-wrap: anywhere;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slider-step {
+  min-height: 3rem;
+  font-size: 1.5rem;
+}
+
+.slider-input input[type='range'] {
+  width: 100%;
+  min-width: 0;
+  height: 3rem;
+  margin: 0;
+  background: transparent;
+  accent-color: var(--amber);
+  touch-action: pan-y;
+  cursor: pointer;
+}
+
+.slider-input input[type='range']::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.slider-input input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-top: -1.125rem;
+  border: 3px solid var(--paper);
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.slider-input input[type='range']::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.slider-input input[type='range']::-moz-range-thumb {
+  width: 2.75rem;
+  height: 2.75rem;
+  box-sizing: border-box;
+  border: 3px solid var(--paper);
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.slider-bounds {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 3.5rem;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.reveal-frame {
+  overflow: hidden;
+  border-radius: 0.75rem;
+}
+
+.reveal-canvas {
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
+/* Проявлення не обійти довгим дотиком чи виділенням: canvas не ловить дотиків. */
+.reveal-canvas,
+.reveal-blur {
+  pointer-events: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.reveal-hint {
+  text-align: center;
+}
+
+/* Звук запитання (10b): картка «Слухайте»; рамка YouTube «лише звук» невидима й не ловить дотиків. */
+.audio-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: rgb(0 0 0 / 0.2);
+}
+
+.audio-card.is-playing .audio-listen {
+  animation: audio-pulse 1.2s ease-in-out infinite;
+}
+
+.audio-listen,
+.audio-failed {
+  font-weight: 600;
+}
+
+.audio-failed {
+  color: var(--dim);
+}
+
+@keyframes audio-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-card.is-playing .audio-listen {
+    animation: none;
+  }
+}
+
+.audio-card.is-quiet {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.audio-only-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200px;
+  height: 200px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.host-audio .panel-actions {
+  margin-top: 0.5rem;
+}
+
+.reveal-tag {
+  text-align: center;
+}
+
+/* Шкала повзунка на розкритті. */
+.slider-scale {
+  --mark-rows: 1;
+  --row-h: 1.9rem;
+  width: 100%;
+  max-width: 56rem;
+  margin: 1rem auto 0;
+  padding: 0 1.5rem;
+  box-sizing: border-box;
+  overflow-x: clip;
+  container-type: inline-size;
+}
+
+/* Узька шкала (телефон): імена коротші. */
+@container (max-width: 40rem) {
+  .scale-name {
+    max-width: 6rem;
+  }
+}
+
+.scale-axis {
+  position: relative;
+  height: 1rem;
+  margin-top: 2.5rem;
+  border-radius: 0.5rem;
+  background: var(--line);
+}
+
+.scale-zero,
+.scale-tolerance {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 0.5rem;
+}
+
+.scale-zero {
+  background: rgb(60 180 100 / 0.3);
+}
+
+.scale-tolerance {
+  background: rgb(60 180 100 / 0.9);
+}
+
+.scale-correct {
+  position: absolute;
+  top: -0.35rem;
+  width: 0.35rem;
+  height: 1.7rem;
+  margin-left: -0.175rem;
+  border-radius: 0.2rem;
+  background: #fff;
+}
+
+.scale-correct-label {
+  position: absolute;
+  bottom: 100%;
+  left: 0.175rem;
+  margin-bottom: 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.scale-dot {
+  position: absolute;
+  top: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin: -0.2rem 0 0 -0.2rem;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
+.scale-limits {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.scale-more {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.scale-marks {
+  position: relative;
+  height: calc(var(--mark-rows) * var(--row-h) + 0.5rem);
+  margin-top: 0.25rem;
+}
+
+/* Позначка стоїть рівно на значенні; ім'я зсувається так, щоб крайні не виходили за шкалу. */
+.scale-mark {
+  position: absolute;
+  width: 0;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.scale-pin {
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: -0.25rem;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
+.scale-dot.is-near {
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(60 180 100 / 0.8);
+}
+
+.scale-name {
+  position: absolute;
+  top: 0.6rem;
+  left: 0;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scale-mark.is-near .scale-pin {
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(60 180 100 / 0.8);
+}
+
+.scale-mark.is-near .scale-name {
+  font-weight: 700;
+}
+
+.stage .slider-scale {
+  --row-h: 2.4rem;
+  font-size: 1.25rem;
+}
+
+.stage .scale-mark {
+  font-size: 1.25rem;
 }

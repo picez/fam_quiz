@@ -1,3 +1,4 @@
+import { AUDIO_LIMITS } from '@quiz/shared';
 import type { GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
@@ -109,6 +110,21 @@ export const joinGame = (code: string, nickname: string) =>
 /** Надсилає зображення до запитання; тілом запиту є сам файл. */
 export async function uploadImage(file: File): Promise<ApiResult<{ url: string }>> {
   const result = await send('/api/uploads', { method: 'POST', headers: { 'content-type': file.type }, body: file });
+  return result.ok ? { ok: true, ...(result.data as { url: string }) } : result;
+}
+
+/** Тип за розширенням для файлів, яким браузер не дав типу або дав невідомий маршрутові. */
+function audioTypeByName(name: string): string {
+  const ext = name.toLowerCase().split('.').pop();
+  return ext === 'ogg' ? 'audio/ogg' : ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg';
+}
+
+/** Надсилає аудіофайл до запитання; тілом запиту є сам файл. */
+export async function uploadAudio(file: File): Promise<ApiResult<{ url: string }>> {
+  // Невідомий маршрутові тип (напр. application/octet-stream) замінюється типом за розширенням.
+  const known = (AUDIO_LIMITS.types as readonly string[]).includes(file.type);
+  const contentType = known ? file.type : audioTypeByName(file.name);
+  const result = await send('/api/uploads/audio', { method: 'POST', headers: { 'content-type': contentType }, body: file });
   return result.ok ? { ok: true, ...(result.data as { url: string }) } : result;
 }
 

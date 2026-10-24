@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyBrief, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices } from './format';
+import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, sliderNumber } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -52,6 +52,28 @@ describe('order labels', () => {
     expect(orderLabelsText({ top: '', bottom: '' })).toBe('');
     expect(correctText({ ...order, topLabel: 'Захід', bottomLabel: 'Схід' })).toBe('Львів → Київ → Одеса (зверху — Захід, знизу — Схід)');
     expect(correctText(order)).toBe('Львів → Київ → Одеса');
+  });
+});
+
+describe('slider texts (10b)', () => {
+  const slider: Question = { ...base, type: 'slider', min: 1900, max: 2100, step: 1, correct: 1991, tolerance: 2, unit: 'рік' };
+
+  it('correctText: unit after a space, tolerance only when positive', () => {
+    expect(correctText(slider)).toBe('1991 рік (± 2)');
+    expect(correctText({ ...slider, tolerance: 0 })).toBe('1991 рік');
+    expect(correctText({ ...slider, tolerance: 0, unit: undefined })).toBe('1991');
+  });
+
+  it('answerText: the value with the unit, decimals as in the step', () => {
+    expect(answerText({ type: 'slider', value: 1990 }, slider)).toBe('1990 рік');
+    const km: Question = { ...base, type: 'slider', min: 0, max: 10, step: 0.5, correct: 2, tolerance: 0, unit: 'км' };
+    expect(answerText({ type: 'slider', value: 2.5 }, km)).toBe('2,5 км');
+  });
+
+  it('sliderNumber: uk-UA, as many decimals as the step has', () => {
+    expect(sliderNumber(1990, 1)).toBe('1990');
+    expect(sliderNumber(0.25, 0.25)).toBe('0,25');
+    expect(sliderNumber(2, 0.5)).toBe('2,0');
   });
 });
 

@@ -6,7 +6,7 @@ import { SpotlightChoices } from './SpotlightChoices';
 
 afterEach(cleanup);
 
-const base = { imageUrl: null, video: null, timeLimit: 20, points: 100, right: [], chain: null, sort: null, orderLabels: null };
+const base = { imageUrl: null, video: null, timeLimit: 20, points: 100, right: [], chain: null, sort: null, orderLabels: null, slider: null, audio: null, reveal: null };
 const textQ: PublicQuestion = { ...base, type: 'text', text: 'Перлина?', choices: [] };
 const orderQ: PublicQuestion = {
   ...base,
@@ -208,5 +208,14 @@ describe('SpotlightChoices', () => {
     expect(done.container.querySelectorAll('li.match-row.is-wrong').length).toBe(2);
     expect(done.container.querySelector('li.match-row.is-correct')?.textContent).toContain('Київ — Дніпро');
     expect(screen.getByText('Правильні пари')).toBeTruthy();
+  });
+
+  it('a slider cell shows the value of the chooser or waits for a number', () => {
+    const sliderQ: PublicQuestion = { ...base, type: 'slider', text: 'Скільки?', choices: [], slider: { min: 0, max: 100, step: 1, unit: '%' } };
+    const { container } = render(<SpotlightChoices question={sliderQ} spotlight={{ ...spot({ type: 'slider', value: 57 }, null), nickname: 'Оля' }} reveal={null} />);
+    expect(container.textContent).toBe('Оля: 57 %');
+    cleanup();
+    render(<SpotlightChoices question={sliderQ} spotlight={null} reveal={null} />);
+    expect(screen.getByText('Відповідь числом з’явиться тут')).toBeTruthy();
   });
 });

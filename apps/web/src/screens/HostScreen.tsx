@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Answer, ClientToServerEvents, Grade, HostBoard, HostView } from '@quiz/shared';
+import { revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { ChainBoard } from './ChainView';
 import { SortBoard } from './SortView';
@@ -11,6 +11,10 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
+import { QuestionAudio } from './QuestionAudio';
+import { SliderScale } from './SliderScale';
+import { publicLeadMs, questionElapsedMs, useRevealProgress } from '../reveal';
+import type { AudioCommand } from '../live/useGame';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
@@ -22,7 +26,7 @@ import { MenuLinks } from './MenuLinks';
 import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
 import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
 import { BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
-import { SplashChip } from '../live/Splash';
+import { SplashChip, useSplash } from '../live/Splash';
 import { GuidePageView } from '../live/Guide';
 import { HostDuelPanel } from './DuelView';
 import { HelpButton } from '../help/HelpButton';
@@ -36,6 +40,10 @@ interface Props {
   send: Send;
   /** Різниця «час сервера мінус час пристрою» для відліку до пропуску ходу. */
   offsetMs?: number;
+  /** Чи відкрита сцена; без неї звук грає цей пульт. */
+  stageOnline?: boolean;
+  /** Остання команда звуку від ведучого (її бачить і цей пульт). */
+  audioCommand?: AudioCommand | null;
 }
 
 type HostEvent = keyof ClientToServerEvents;
@@ -56,16 +64,30 @@ const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: Ho
 const IN_ROUND: HostView['phase'][] = ['duel', 'intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
 /** Рядок контексту: поточний раунд і (за потреби) тип запитання, кожне з «ⓘ». */
-function HostContext({ round, questionType }: { round: NonNullable<HostView['round']>; questionType?: NonNullable<HostView['question']>['type'] }) {
+function HostContext({ round, question }: { round: NonNullable<HostView['round']>; question?: NonNullable<HostView['question']> }) {
   return (
     <p className="meta host-context">
       <span>{roundLabel(round.title, round.index, round.type)}</span>
       <HelpButton id={`round.${round.type}`} />
-      {questionType !== undefined && (
+      {question !== undefined && (
         <>
           <span aria-hidden="true"> · </span>
-          <span>{t(`type_${questionType}`)}</span>
-          <HelpButton id={`question.${questionType}`} />
+          <span>{t(`type_${question.type}`)}</span>
+          <HelpButton id={`question.${question.type}`} />
+          {question.audio != null && (
+            <>
+              <span aria-hidden="true"> · </span>
+              <span aria-hidden="true">🎵</span>
+              <HelpButton id="setting.audio" />
+            </>
+          )}
+          {question.reveal != null && (
+            <>
+              <span aria-hidden="true"> · </span>
+              <span>{t(question.reveal === 'pixels' ? 'revealTag_pixels' : 'revealTag_blur')}</span>
+              <HelpButton id="setting.reveal" />
+            </>
+          )}
         </>
       )}
     </p>
@@ -93,7 +115,24 @@ function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView;
   return view.paused && view.phase === 'board' ? <p className="banner is-away">{t('chooserAwayPaused', { name })}</p> : null;
 }
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }: Props) {
+/** Сцена, якої нема вже STAGE_GONE_MS: короткий розрив (перепідключення, оновлення сцени) не вмикає звук на пульті. */
+export const STAGE_GONE_MS = 3000;
+
+function useStageGone(stageOnline: boolean): boolean {
+  // Якщо сцени немає вже при відкритті пульту, чекати нічого.
+  const [gone, setGone] = useState(!stageOnline);
+  useEffect(() => {
+    if (stageOnline) {
+      setGone(false);
+      return;
+    }
+    const id = setTimeout(() => setGone(true), STAGE_GONE_MS);
+    return () => clearTimeout(id);
+  }, [stageOnline]);
+  return gone && !stageOnline;
+}
+
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const inRound = round !== null && IN_ROUND.includes(phase);
@@ -153,9 +192,16 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
   const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
   // Спільний час сплив, а розкриття чекає на гравця з додатковим часом: головна кнопка — «Не чекати» (та сама host:lock).
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
+  // Звук без сцени грає тут: починається після заставки запитання, як на сцені.
+  const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  const stageGone = useStageGone(stageOnline);
+  const underSplash = phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell');
+  // Поступ проявлення потрібен лише запитанню з проявленням: решта не перемальовується щоразу.
+  const revealP = useRevealProgress(view, view.question?.reveal ? view.question : null, offsetMs);
   const noWait = phase === 'question' && view.overtime.length > 0 && sharedOver;
   const debuffKinds = view.allowed.debuffs;
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
+  const clip = view.question?.audio?.clip ?? null;
   const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz' && !isFinal;
 
   const act = async (event: HostEvent, payload?: unknown) => {
@@ -388,7 +434,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
-          {round !== null && <HostContext round={round} questionType={view.question.type} />}
+          {round !== null && <HostContext round={round} question={view.question} />}
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
@@ -402,6 +448,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
           {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
           <QuestionImage url={view.question.imageUrl} />
+          {view.question.reveal !== null && view.question.imageUrl !== null && (
+            <p className="meta reveal-tag">
+              {t(view.question.reveal === 'pixels' ? 'revealTag_pixels' : 'revealTag_blur')}
+              {phase === 'question' && ` · ${t('revealNow', { percent: Math.round(revealShare(revealP, 1) * 100) })}`}
+            </p>
+          )}
           <YouTubePlayer video={view.question.video} masked={phase !== 'reveal'} />
           {(blitz !== null || board !== null) && (
             <>
@@ -417,14 +469,43 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0 }
               />
             </>
           )}
+          {view.sliderMarks !== null && view.question.slider !== null && correct?.type === 'slider' && (
+            <SliderScale slider={view.question.slider} correct={correct.correct} tolerance={correct.tolerance} zeroBeyond={correct.zeroBeyond} marks={view.sliderMarks} highlight={view.sliderMarks[0]?.playerId} />
+          )}
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
 
+      {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
+        <section className="panel host-audio">
+          <p className="meta">{stageGone ? t('audioHere') : t('audioOnStage')}</p>
+          <div className="panel-actions">
+            <button type="button" className="btn btn-small" onClick={() => void act('host:audio', { action: 'replay' })}>
+              {t('audioReplay')}
+            </button>
+            <button type="button" className="btn btn-small" onClick={() => void act('host:audio', { action: 'stop' })}>
+              {t('audioStop')}
+            </button>
+          </div>
+          {stageGone && (
+            <QuestionAudio
+              key={`${view.round?.index ?? 0}:${view.questionIndex}`}
+              clip={clip}
+              questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
+              ready={phase === 'question' && !underSplash && !view.paused}
+              paused={view.paused}
+              command={audioCommand}
+              elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
+              splash={underSplash}
+            />
+          )}
+        </section>
+      )}
+
       {timeShown && (
         <div className="panel-actions host-time">
-          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />
+          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={view.question === null ? 0 : publicLeadMs(view.question)} />
           {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
           <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
             {t('timeMinus')}

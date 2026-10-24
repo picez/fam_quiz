@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES } from '@quiz/shared';
+import { AUDIO_LIMITS, REVEAL_MIN_SHARE, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { debuffName } from '../debuff-meta';
 import { ROUND_NAMES } from '../guide-text';
@@ -98,6 +98,24 @@ describe('host help', () => {
     expect(text('setting.duels')).toContain('Бафів і дебафів у дуелі немає');
   });
 
+  it('10b entries tell the engine numbers', () => {
+    expect(helpEntry('setting.reveal').points.join(' ')).toContain('100 %');
+    expect(helpEntry('setting.reveal').points.join(' ')).toContain(`${REVEAL_MIN_SHARE * 100} %`);
+    expect(helpEntry('setting.reveal').points.join(' ')).toContain('завжди лишається правильною');
+    expect((helpEntry('setting.audio').limits ?? []).join(' ')).toContain(`${AUDIO_LIMITS.maxBytes / 1024 / 1024} МБ`);
+    expect((helpEntry('setting.audio').limits ?? []).join(' ')).toContain(`${LIMITS.maxAudioSeconds} с`);
+    expect(helpEntry('question.slider').points.join(' ')).toContain('половин');
+    expect(text('buff.retry')).toContain('Не діє на картинці, що проявляється');
+    expect(text('setting.speedBonus')).toContain('Не нараховується на картинці, що проявляється');
+    expect(text('question.numeric')).toContain('«Повзунок»');
+  });
+
+  it('titles of the 10b entries match the editor labels', () => {
+    expect(helpEntry('setting.audio').title).toBe(t('audioLabel'));
+    expect(helpEntry('setting.reveal').title).toBe(t('revealLabel'));
+    expect(helpEntry('question.slider').title).toBe(t('type_slider'));
+  });
+
   it('search finds buffs and debuffs by name', () => {
     expect(searchHelp('щит')).toEqual(['buff.shield']);
     expect(searchHelp('50')).toEqual(['buff.fifty']);
@@ -117,6 +135,6 @@ describe('host help', () => {
     expect(text('setting.debuffShop')).toContain('підключений до гри');
     expect(text('setting.streak')).toContain('У бліці без натискання серія не обривається');
     expect(text('round.board')).toContain(`до ${LIMITS.maxCategories * LIMITS.maxCategoryQuestions} клітинок`);
-    expect(text('round.classic')).toContain('Запитання з відео бонусу за швидкість не мають');
+    expect(text('round.classic')).toContain('Запитання з відео й картинкою, що проявляється, бонусу за швидкість не мають');
   });
 });

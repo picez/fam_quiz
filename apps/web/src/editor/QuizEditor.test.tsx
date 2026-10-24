@@ -1588,7 +1588,7 @@ describe('QuizEditor hints and spares', () => {
     const names = within(section.getByRole('group', { name: t('questionType') }))
       .getAllByRole('button')
       .map((b) => b.textContent);
-    expect(names).toHaveLength(5);
+    expect(names).toHaveLength(6);
     for (const gone of ['порядок', 'пари', 'ланцюжок', 'сортування']) expect(names.some((n) => n?.toLowerCase().includes(gone))).toBe(false);
     expect(section.queryByLabelText(t('timeLimit'))).toBeNull();
     expect(section.queryByLabelText(t('pointsLabel'))).toBeNull();
@@ -1702,5 +1702,160 @@ describe('QuizEditor: explanations for newcomers', () => {
     click('число');
     fireEvent.click(screen.getByRole('button', { name: 'Довідка: Число' }));
     screen.getByRole('dialog', { name: 'Число' });
+  });
+});
+
+describe('QuizEditor: slider, audio, revealing picture (10b)', () => {
+  const IMAGE = '/uploads/0123456789abcdef0123456789abcdef.png';
+  const withQuestion = (extra: Record<string, unknown>) => {
+    const quiz = newQuiz();
+    const [round] = quiz.rounds;
+    if (round.type === 'board') throw new Error('unexpected');
+    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...round.questions[0], text: 'Так?', type: 'boolean', correct: true, ...extra }] }] } as Quiz;
+  };
+
+  it('the slider chip shows its fields and saves them with the unit and the zero line', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'У якому році?');
+    fireEvent.click(screen.getByRole('button', { name: 'повзунок' }));
+    fill('Мінімум', '1900');
+    fill('Максимум', '2025');
+    fill('Крок', '1');
+    fill('Одиниця', 'рік');
+    fill('Правильне значення', '1991');
+    fill('Допуск ±', '0');
+    fill('Нуль балів далі ніж ±', '10');
+    expect(screen.getByRole('slider', { name: 'Повзунок' })).toBeTruthy();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'slider', min: 1900, max: 2025, step: 1, correct: 1991, tolerance: 0, zeroBeyond: 10, unit: 'рік' });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('an empty zero line and an empty unit are not saved', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Скільки?');
+    fireEvent.click(screen.getByRole('button', { name: 'повзунок' }));
+    fill('Нуль балів далі ніж ±', '10');
+    fill('Нуль балів далі ніж ±', '');
+    fill('Одиниця', 'км');
+    fill('Одиниця', '');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect('zeroBeyond' in question).toBe(false);
+    expect('unit' in question).toBe(false);
+  });
+
+  it('a classic round with a picture offers the pixel mode', async () => {
+    const { onSave } = open(withQuestion({ imageUrl: IMAGE, type: 'numeric', correct: 5, tolerance: 0 }));
+    fireEvent.click(screen.getByRole('button', { name: 'З пікселів' }));
+    expect(screen.getByRole('button', { name: 'З пікселів' }).getAttribute('aria-pressed')).toBe('true');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ reveal: 'pixels' });
+  });
+
+  it('the picture mode is for single, text and numeric only, and goes with the picture', async () => {
+    const { onSave } = open(withQuestion({ imageUrl: IMAGE, reveal: 'blur' }));
+    expect(screen.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'число' }));
+    expect(screen.getByRole('button', { name: 'З розмиття' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Звичайна' }));
+    expect(screen.getByRole('button', { name: 'Звичайна' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'З пікселів' }));
+    click('Прибрати зображення');
+    expect(screen.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect('reveal' in roundQuestions(saved(onSave).rounds[0])[0]).toBe(false);
+  });
+
+  it('ⓘ next to the audio and the picture mode open help; the quiz does not become changed', () => {
+    open(withQuestion({ imageUrl: IMAGE }));
+    fireEvent.click(screen.getByRole('button', { name: 'число' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Аудіо до запитання' }));
+    screen.getByRole('dialog', { name: 'Аудіо до запитання' });
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Картинка, що проявляється' }));
+    screen.getByRole('dialog', { name: 'Картинка, що проявляється' });
+    expect(screen.queryByText('Зберегти зміни?')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Картинка, що проявляється' })).toBeTruthy();
+  });
+
+  it('a final round has no picture mode', () => {
+    open(withQuestion({ imageUrl: IMAGE }));
+    addRound('Фінал');
+    expect(screen.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
+  });
+
+  it('«Лише звук» moves the video link into YouTube audio', async () => {
+    const { onSave } = open(withQuestion({ video: { id: 'dQw4w9WgXcQ', start: 0 } }));
+    expect(screen.queryByRole('button', { name: 'Додати аудіо' })).toBeNull();
+    fireEvent.click(screen.getByLabelText('Лише звук (картинку сховано)'));
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    expect(screen.getByText(/YouTube — лише звук/)).toBeTruthy();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question.video).toBeNull();
+    expect(question.audio).toEqual({ source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('spare questions have no audio and no picture mode', () => {
+    open();
+    fireEvent.click(screen.getByText(t('sparesTitle'), { selector: 'summary' }));
+    const section = within(screen.getByText(t('sparesTitle'), { selector: 'summary' }).closest('details')!);
+    fireEvent.click(section.getByRole('button', { name: t('addSpare') }));
+    expect(section.queryByRole('button', { name: 'Додати аудіо' })).toBeNull();
+    expect(section.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
+  });
+});
+
+describe('QuizEditor: reveal, video and audio together (10b)', () => {
+  const IMAGE = '/uploads/0123456789abcdef0123456789abcdef.png';
+  const startWith = (extra: Record<string, unknown>) => {
+    const quiz = newQuiz();
+    const [round] = quiz.rounds;
+    if (round.type === 'board') throw new Error('unexpected');
+    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...round.questions[0], text: 'Число?', type: 'numeric', correct: 1, tolerance: 0, ...extra }] }] } as Quiz;
+  };
+
+  it('adding a video link drops the reveal mode, and the quiz still saves', async () => {
+    const { onSave } = open(startWith({ imageUrl: IMAGE, reveal: 'pixels' }));
+    fill('Відео з YouTube', 'https://youtu.be/dQw4w9WgXcQ');
+    expect(screen.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question.video).not.toBeNull();
+    expect('reveal' in question).toBe(false);
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('an audio upload refused by the server shows its message and changes nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'audio_too_large' }), { status: 413 })));
+    const probe = { preload: '', duration: 10, onloadedmetadata: null as null | (() => void), onerror: null, removeAttribute() {}, set src(_v: string) { queueMicrotask(() => this.onloadedmetadata?.()); } };
+    vi.stubGlobal('Audio', function () { return probe; });
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    open(startWith({}));
+    fireEvent.change(screen.getByLabelText('Додати аудіо'), { target: { files: [new File([new Uint8Array(4)], 'a.mp3', { type: 'audio/mpeg' })] } });
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Аудіо завелике: дозволено до 5 МБ.'));
+    expect(screen.getByLabelText('Додати аудіо')).toBeTruthy();
+  });
+
+  it('junk in the zero line is flagged and blocks saving', () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Скільки?');
+    fireEvent.click(screen.getByRole('button', { name: 'повзунок' }));
+    fill('Нуль балів далі ніж ±', 'abc');
+    expect(screen.getByText('Впишіть число або залиште поле порожнім.')).toBeTruthy();
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

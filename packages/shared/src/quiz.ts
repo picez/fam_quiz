@@ -76,6 +76,14 @@ export const LIMITS = {
   maxSpares: 20,
   /** Запасних в одній категорії поля (9d). */
   maxCategorySpares: 5,
+  /** Одиниця повзунка («км», «рік»), символів. */
+  sliderUnit: 12,
+  /** Найбільше кроків повзунка: (max − min) / step. */
+  maxSliderSteps: 10_000,
+  /** Тривалість фрагмента аудіо, секунди. */
+  minAudioSeconds: 1,
+  maxAudioSeconds: 120,
+  defaultAudioSeconds: 15,
 } as const;
 
 /** Обмеження для зображень у запитаннях. */
@@ -87,6 +95,16 @@ export const IMAGE_LIMITS = {
 /** Адреса завантаженого зображення: лише власне сховище цього сайту. */
 export const IMAGE_URL = /^\/uploads\/[a-z0-9]{16,64}\.(jpg|png|webp)$/;
 
+/** Обмеження аудіофайлів (10b). */
+export const AUDIO_LIMITS = {
+  maxBytes: 5 * 1024 * 1024,
+  /** Типи, які приймає маршрут (браузери називають m4a по-різному). */
+  types: ['audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/mp4', 'audio/x-m4a'],
+} as const;
+
+/** Адреса завантаженого аудіо: лише власне сховище. */
+export const AUDIO_URL = /^\/uploads\/[a-z0-9]{16,64}\.(mp3|ogg|m4a)$/;
+
 /** Ідентифікатор відео YouTube. */
 export const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
 
@@ -97,6 +115,27 @@ export const videoSchema = z.object({
 });
 
 export type Video = z.infer<typeof videoSchema>;
+
+const audioStart = z.number().int().min(0).max(LIMITS.maxVideoStart);
+const audioDuration = z.number().int().min(LIMITS.minAudioSeconds).max(LIMITS.maxAudioSeconds);
+
+/** Аудіо до запитання (10b): файл зі сховища або YouTube «лише звук»; фрагмент — початок і тривалість, секунди. */
+export const audioSchema = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('file'), url: z.string().regex(AUDIO_URL), start: audioStart, duration: audioDuration }),
+  z.object({ source: z.literal('youtube'), id: z.string().regex(YOUTUBE_ID), start: audioStart, duration: audioDuration }),
+]);
+
+export type QuestionAudio = z.infer<typeof audioSchema>;
+
+/** Режими картинки, що проявляється (10b); немає режиму — звичайна. */
+export const REVEAL_MODES = ['pixels', 'blur'] as const;
+export type RevealMode = (typeof REVEAL_MODES)[number];
+
+/** Частка ціни в мить повного проявлення. */
+export const REVEAL_MIN_SHARE = 0.3;
+
+/** Частка ціни, з якої відповідь на тип із балами за близькість (повзунок) вважається правильною (14a). */
+export const PROXIMITY_CORRECT_SHARE = 0.5;
 
 const choice = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
@@ -113,6 +152,10 @@ const base = {
   points: z.number().int().min(0).max(LIMITS.maxPoints),
   /** Підказка для бафу «Підказка ведучого»; немає — ведучий підкаже сам. Старі запитання без неї. */
   hint: z.string().trim().min(1).max(LIMITS.hintText).refine(isStorable, UNSTORABLE).optional(),
+  /** Аудіо до запитання (10b); старі запитання без поля. Разом із відео не буває. */
+  audio: audioSchema.optional(),
+  /** Режим картинки (10b): немає — звичайна. */
+  reveal: z.enum(REVEAL_MODES).optional(),
 };
 
 /** Слово ланцюжка: літери, між ними по одному пробілу, дефісу чи апострофу. */
@@ -133,7 +176,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 export const questionSchema = z
@@ -208,6 +251,19 @@ export const questionSchema = z
       /** Секунди «підвисання» після помилки. */
       lockSeconds: z.number().int().min(LIMITS.minLockSeconds).max(LIMITS.maxLockSeconds),
     }),
+    z.object({
+      ...base,
+      type: z.literal('slider'),
+      min: z.number().finite(),
+      max: z.number().finite(),
+      step: z.number().finite().positive(),
+      correct: z.number().finite(),
+      tolerance: z.number().finite().min(0),
+      /** Далі ніж ±zeroBeyond від правильного — 0 балів; немає — лише повні або 0. */
+      zeroBeyond: z.number().finite().positive().optional(),
+      /** Одиниця («км», «рік»); порожня не зберігається. */
+      unit: z.string().trim().min(1).max(LIMITS.sliderUnit).refine(isStorable, UNSTORABLE).optional(),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
@@ -234,6 +290,20 @@ export const questionSchema = z
       }
       if (q.points * q.words.length > LIMITS.maxPoints) ctx.addIssue({ code: 'custom', message: 'sort_points' });
     }
+    if (q.type === 'slider') {
+      const steps = (q.max - q.min) / q.step;
+      if (q.min >= q.max || steps > LIMITS.maxSliderSteps || Math.abs(steps - Math.round(steps)) > 1e-9) {
+        ctx.addIssue({ code: 'custom', message: 'slider_range' });
+      }
+      if (q.correct < q.min || q.correct > q.max) ctx.addIssue({ code: 'custom', message: 'slider_correct' });
+      if (q.zeroBeyond !== undefined && q.zeroBeyond <= q.tolerance) ctx.addIssue({ code: 'custom', message: 'slider_zero' });
+    }
+    if (q.audio !== undefined && q.video !== null) ctx.addIssue({ code: 'custom', message: 'audio_video' });
+    if (q.reveal !== undefined) {
+      if (q.imageUrl === null) ctx.addIssue({ code: 'custom', message: 'reveal_image' });
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'reveal_video' });
+      if (!(REVEAL_TYPES as readonly string[]).includes(q.type)) ctx.addIssue({ code: 'custom', message: 'reveal_type' });
+    }
     if (q.type === 'single' && !ids.includes(q.correctId)) {
       ctx.addIssue({ code: 'custom', message: 'unknown_correct_id' });
     }
@@ -245,7 +315,49 @@ export const questionSchema = z
 export type Question = z.infer<typeof questionSchema>;
 
 /** Типи з автоматичною перевіркою й простою відповіддю: друга спроба, голосування залу, запасні запитання. */
-export const SIMPLE_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric'] as const satisfies readonly Question['type'][];
+export const SIMPLE_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'slider'] as const satisfies readonly Question['type'][];
+
+/** Типи, де діє картинка, що проявляється (10b). */
+export const REVEAL_TYPES = ['single', 'text', 'numeric'] as const satisfies readonly Question['type'][];
+
+/** Частка ціни за значення повзунка: допуск — 1, до межі нуля — лінійно, далі й поза шкалою — 0. */
+export function sliderShare(question: Extract<Question, { type: 'slider' }>, value: number): number {
+  const EPS = 1e-9;
+  if (!Number.isFinite(value) || value < question.min - EPS || value > question.max + EPS) return 0;
+  const d = Math.abs(value - question.correct);
+  if (d <= question.tolerance + EPS) return 1;
+  const zero = question.zeroBeyond;
+  if (zero !== undefined && d < zero - EPS) return (zero - d) / (zero - question.tolerance);
+  return 0;
+}
+
+type Timed = Pick<Question, 'timeLimit'> & { audio?: QuestionAudio };
+
+/** На скільки довший фрагмент відкладає таймер, мс: duration, якщо він довший за timeLimit; інакше 0. */
+export function audioLeadMs(question: Timed): number {
+  const duration = question.audio?.duration;
+  return duration !== undefined && duration > question.timeLimit ? duration * 1000 : 0;
+}
+
+/** Повний час відповіді, мс: timeLimit × 1000 + audioLeadMs. */
+export function answerWindowMs(question: Timed): number {
+  return question.timeLimit * 1000 + audioLeadMs(question);
+}
+
+/** Частка ціни за час відповіді на картинці, що проявляється: від 1 до REVEAL_MIN_SHARE. */
+export function revealShare(timeMs: number, windowMs: number): number {
+  if (windowMs <= 0) return REVEAL_MIN_SHARE;
+  const t = Math.min(1, Math.max(0, timeMs / windowMs));
+  return 1 - (1 - REVEAL_MIN_SHARE) * t;
+}
+
+/**
+ * Бали за близькість відповіді (лише такі типи; зараз — повзунок): частка вбудована, не залежить від правила «частково»,
+ * правильна — частка ≥ 0,5 (14a). Картинка, що проявляється, сюди не входить: її спадання — плата за час, не правильність.
+ */
+export function proximityPartial(question: Question): boolean {
+  return question.type === 'slider';
+}
 
 /** Ціна запитання: для сортування — найбільша сума (слова × бали за слово), інакше points. */
 export function questionPrice(question: Question): number {
@@ -487,6 +599,14 @@ export const quizSchema = z
         );
         if (sortCell) ctx.addIssue({ code: 'custom', message: 'sort_cell' });
       }
+      // Картинка, що проявляється: лише класика й звичайна клітинка поля з телефона.
+      const revealPlace =
+        round.type === 'board'
+          ? boardCells(round).some(
+              ({ cell }) => cell.question.reveal !== undefined && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'),
+            )
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.reveal !== undefined);
+      if (revealPlace) ctx.addIssue({ code: 'custom', message: 'reveal_place' });
     }
     const { debuffs, buffs } = quiz.settings;
     if ((debuffs && hasDuplicates(debuffs)) || (buffs && hasDuplicates(buffs))) {
@@ -497,7 +617,7 @@ export const quizSchema = z
     if (pools.length > 0) {
       const types: readonly string[] = SIMPLE_TYPES;
       if (pools.some((s) => !types.includes(s.type))) ctx.addIssue({ code: 'custom', message: 'spare_type' });
-      if (pools.some((s) => s.video !== null)) ctx.addIssue({ code: 'custom', message: 'spare_video' });
+      if (pools.some((s) => s.video !== null || s.audio !== undefined || s.reveal !== undefined)) ctx.addIssue({ code: 'custom', message: 'spare_video' });
       if (hasDuplicates([...questions.map((x) => x.id), ...pools.map((s) => s.id)].filter(Boolean))) {
         ctx.addIssue({ code: 'custom', message: 'duplicate_spare_ids' });
       }

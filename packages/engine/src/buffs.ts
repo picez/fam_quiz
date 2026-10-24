@@ -167,6 +167,8 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
     case 'retry':
       // Усну відповідь оцінює ведучий одразу: другої спроби не буває.
       if (play.board?.answerMode === 'voice') return 'unfit_voice';
+      // На картинці, що проявляється, відповідь одна.
+      if (question.reveal != null) return 'unfit_reveal';
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
       return round.type === 'board' && round.check === 'manual' ? 'unfit_manual' : null;
     case 'time':
@@ -364,7 +366,7 @@ export function voteOpen(state: GameState, askerId: string, now: number): boolea
   return at <= vote.endsAt && !hasAnswered(state, play, askerId);
 }
 
-/** Підсумок голосування: counts — за id варіанта (boolean — "true"/"false"); guesses — для text і numeric, не більше шести рядків. */
+/** Підсумок голосування: counts — за id варіанта (boolean — "true"/"false"); guesses — для text, numeric і slider, не більше шести рядків. */
 export function voteTally(
   question: Question,
   ballots: Record<string, Answer>,
@@ -387,6 +389,7 @@ export function voteTally(
     else if (ballot.type === 'boolean') bump(String(ballot.value));
     else if (ballot.type === 'text') guess(normalizeText(ballot.value), ballot.value.trim());
     else if (ballot.type === 'numeric') guess(String(ballot.value), String(ballot.value));
+    else if (ballot.type === 'slider') guess(String(ballot.value), String(ballot.value));
   }
   // Map зберігає порядок першого голосу, а сортування стабільне: рівні йдуть за першим голосом.
   const guesses = [...groups.values()].sort((a, b) => b.count - a.count).slice(0, MAX_GUESSES);

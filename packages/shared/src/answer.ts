@@ -10,6 +10,7 @@ export const answerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('boolean'), value: z.boolean() }),
   z.object({ type: z.literal('text'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('numeric'), value: z.number().finite() }),
+  z.object({ type: z.literal('slider'), value: z.number().finite() }),
   z.object({ type: z.literal('order'), itemIds: z.array(id).max(LIMITS.maxOrderItems) }),
   z.object({
     type: z.literal('match'),

@@ -17,7 +17,7 @@ const options = [
 ];
 const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
 const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
-const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null });
+const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null, slider: null, audio: null, reveal: null });
 
 const players = [
   { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0, debuff: null },
@@ -60,6 +60,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   allowed: { debuffs: [...DEBUFF_KINDS], buffs: [] },
   hints: [],
   standings: [],
+  sliderMarks: null,
   ...over,
 });
 
@@ -1627,5 +1628,83 @@ describe('host help', () => {
     const link = screen.getByRole('link', { name: 'Довідка ведучого' });
     expect(link.getAttribute('href')).toBe('/help');
     expect(link.getAttribute('target')).toBe('_blank');
+  });
+});
+
+describe('HostScreen media (10b)', () => {
+  const clip = { source: 'file' as const, url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 10 };
+  const withAudio = { ...publicOf(single), audio: { duration: 10, clip } };
+
+  it('with a stage open, says where the sound plays and sends replay and stop', async () => {
+    const send = show(during('question', single, { question: withAudio }));
+    expect(screen.getByText('🎵 Звук грає на сцені')).toBeTruthy();
+    expect(document.querySelector('.audio-card')).toBeNull();
+    fireEvent.click(button('Програти ще раз'));
+    fireEvent.click(button('Стоп'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:audio', { action: 'stop' }));
+    expect(send).toHaveBeenCalledWith('host:audio', { action: 'replay' });
+  });
+
+  it('without a stage, plays the clip itself', () => {
+    render(
+      <HostScreen view={during('question', single, { question: withAudio })} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />,
+    );
+    expect(screen.getByText('🎵 Сцена не відкрита — звук грає тут')).toBeTruthy();
+    expect(document.querySelector('.audio-card')).not.toBeNull();
+  });
+
+  it('a short stage drop does not start local sound; a lasting one does', () => {
+    vi.useFakeTimers();
+    try {
+      const props = { code: '123456', stageUrl: 'x', joinUrl: 'y', send: vi.fn(async () => ({ ok: true as const })) };
+      const quick = during('question', single, { question: withAudio });
+      const { rerender } = render(<HostScreen view={quick} {...props} stageOnline />);
+      rerender(<HostScreen view={quick} {...props} stageOnline={false} />);
+      expect(screen.getByText('🎵 Звук грає на сцені')).toBeTruthy();
+      expect(document.querySelector('.audio-card')).toBeNull();
+      act(() => void vi.advanceTimersByTime(1000));
+      rerender(<HostScreen view={quick} {...props} stageOnline />);
+      act(() => void vi.advanceTimersByTime(5000));
+      rerender(<HostScreen view={quick} {...props} stageOnline={false} />);
+      act(() => void vi.advanceTimersByTime(3100));
+      expect(screen.getByText('🎵 Сцена не відкрита — звук грає тут')).toBeTruthy();
+      expect(document.querySelector('.audio-card')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('without a stage and past the clip, offers replay but does not start the sound', () => {
+    const late = during('question', single, { question: withAudio, limitMs: 20_000, endsAt: Date.now() + 5000 });
+    render(<HostScreen view={late} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />);
+    expect(document.querySelector('.audio-card')?.getAttribute('data-state')).toBe('stopped');
+    expect(button('Програти ще раз')).toBeTruthy();
+  });
+
+  it('shows a revealing picture whole, with a tag', () => {
+    const revealing = { ...publicOf(single), imageUrl: '/uploads/a.png', reveal: 'pixels' as const };
+    show(during('question', single, { question: revealing }));
+    expect(document.querySelector('img.question-image')).not.toBeNull();
+    expect(document.querySelector('canvas')).toBeNull();
+    expect(document.querySelector('.reveal-tag')?.textContent).toContain('Проявляється з пікселів');
+  });
+
+  it('the context line has ⓘ for the audio and the revealing picture; pressing them sends nothing', () => {
+    const both = { ...publicOf(single), imageUrl: '/uploads/a.png', reveal: 'blur' as const, audio: { duration: 10, clip } };
+    const send = show(during('question', single, { question: both, round: { index: 0, total: 1, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null } }));
+    const context = document.querySelector('.host-context') as HTMLElement;
+    fireEvent.click(within(context).getByRole('button', { name: 'Довідка: Аудіо до запитання' }));
+    screen.getByRole('dialog', { name: 'Аудіо до запитання' });
+    fireEvent.click(within(context).getByRole('button', { name: 'Довідка: Картинка, що проявляється' }));
+    screen.getByRole('dialog', { name: 'Картинка, що проявляється' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('shows the slider scale during the question', () => {
+    const sliderFull: Question = { id: 'q3', type: 'slider', text: 'Скільки?', imageUrl: null, video: null, timeLimit: 20, points: 1000, min: 0, max: 100, step: 1, correct: 50, tolerance: 2, unit: '%' };
+    const question = { ...publicOf(sliderFull), slider: { min: 0, max: 100, step: 1, unit: '%' } };
+    show(during('question', sliderFull, { question, sliderMarks: [{ playerId: 'p1', nickname: 'Олена', value: 40, points: 0 }] }));
+    expect(document.querySelector('.slider-scale')).not.toBeNull();
+    expect(screen.getByLabelText('Олена: 40 %')).toBeTruthy();
   });
 });

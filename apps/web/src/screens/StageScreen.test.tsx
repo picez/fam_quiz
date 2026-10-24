@@ -11,7 +11,7 @@ const choices = [
   { id: 'a', text: 'Львів' },
   { id: 'b', text: 'Київ' },
 ];
-const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [], chain: null, sort: null, orderLabels: null };
+const question = { type: 'single' as const, text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, choices, right: [], chain: null, sort: null, orderLabels: null, slider: null, audio: null, reveal: null };
 const full: Question = { id: 'q1', type: 'single', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, options: choices, correctId: 'b' };
 
 const view = (over: Partial<StageView> = {}): StageView => ({
@@ -49,6 +49,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   reveal: null,
   stats: null,
   standings: null,
+  sliderMarks: null,
   ...over,
 });
 
@@ -539,7 +540,7 @@ describe('StageScreen: match', () => {
     ],
     chain: null,
     sort: null,
-    orderLabels: null,
+    orderLabels: null, slider: null, audio: null, reveal: null,
   };
   const matchFull: Question = {
     id: 'q',
@@ -1282,5 +1283,44 @@ describe('StageScreen: menu', () => {
     cleanup();
     show(view({ phase: 'lobby' }));
     expect(document.querySelector('a.stage-menu')).toBeNull();
+  });
+});
+
+describe('StageScreen media (10b)', () => {
+  const sliderQuestion = { ...question, type: 'slider' as const, choices: [], slider: { min: 0, max: 100, step: 1, unit: '%' } };
+  const sliderFull: Question = { id: 'q3', type: 'slider', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, min: 0, max: 100, step: 1, correct: 50, tolerance: 2, unit: '%' };
+
+  it('plays the clip on a card when the question has an audio source', () => {
+    const clip = { source: 'file' as const, url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 10 };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...question, audio: { duration: 10, clip } }, endsAt: Date.now() + 20_000, limitMs: 20_000 }));
+    expect(document.querySelector('.audio-card')).not.toBeNull();
+    expect(document.querySelector('audio')?.getAttribute('src')).toBe(clip.url);
+  });
+
+  it('has no audio card without a source', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: { ...question, audio: { duration: 10, clip: null } } }));
+    expect(document.querySelector('.audio-card')).toBeNull();
+  });
+
+  it('hints at the slider on the phones', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: sliderQuestion }));
+    expect(screen.getByText('Тягніть повзунок на телефоні: від 0 до 100 %')).toBeTruthy();
+  });
+
+  it('shows the scale with every mark at the reveal instead of the answer line', () => {
+    const sliderMarks = [
+      { playerId: 'p1', nickname: 'Оля', value: 51, points: 1000 },
+      { playerId: 'p2', nickname: 'Тарас', value: 80, points: 0 },
+    ];
+    show(view({ phase: 'reveal', questionIndex: 0, question: sliderQuestion, reveal: sliderFull, sliderMarks }));
+    expect(document.querySelector('.slider-scale')).not.toBeNull();
+    expect(screen.getByLabelText('Оля: 51 %').className).toContain('is-near');
+    expect(screen.getByLabelText('Тарас: 80 %')).toBeTruthy();
+    expect(document.querySelector('.lead.answer')).toBeNull();
+  });
+
+  it('draws a revealing picture on a canvas stage', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: { ...question, imageUrl: '/uploads/a.png', reveal: 'pixels' as const }, endsAt: Date.now() + 20_000, limitMs: 20_000 }));
+    expect(document.querySelector('canvas[data-stage]')).not.toBeNull();
   });
 });

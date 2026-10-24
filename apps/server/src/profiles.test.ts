@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, slider, text, withId, withReveal } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
@@ -270,5 +270,55 @@ describe('profile facts', () => {
     const right = await play('Впевнена', (id) => [id]);
     expect(right.stats.accuracy).toBe(100);
     expect(earned(right.achievements)).toEqual(expect.arrayContaining(['perfect_game', 'streak_5']));
+  });
+  it('profile accuracy and the perfect game count a half-price slider and a late revealing answer as correct (10b)', async () => {
+    const quiz = makeQuiz([slider, withReveal(text), ...['s1', 's2', 's3'].map((id) => withId(single, id))], { speedBonus: false });
+    const host = await signUp(ctx.app, 'Ведуча');
+    const play = async (name: string, sliderValue: number) => {
+      const player = await signUp(ctx.app, name);
+      const { game: created } = await startGame(ctx.app, quiz, host.cookie);
+      const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: name }, player.cookie)).json() as { playerId: string };
+      const room = ctx.manager.get(created.code);
+      if (room === undefined) throw new Error('room missing');
+      ctx.manager.connect(room, { role: 'player', playerId });
+      const step = (type: 'start' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+      /** Листає «Далі», доки не відкриється наступне запитання або гра не скінчиться. */
+      const advance = () => {
+        for (let i = 0; i < 8 && room.state.phase !== 'finished'; i += 1) {
+          step('next');
+          if (room.state.phase === 'question') break;
+        }
+      };
+      step('start');
+      step('next');
+      ctx.manager.answer(room, playerId, { type: 'slider', value: sliderValue });
+      advance();
+      // Картинка, що проявляється: відповідь на 18-й секунді з 20 дає лише 37 % ціни, але лишається правильною.
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 18_000 });
+      try {
+        expect(ctx.manager.answer(room, playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+        const late = room.state.plays.at(-1)?.answers[playerId];
+        expect(late).toMatchObject({ accepted: true, grade: 'correct', points: 370 });
+        advance();
+        for (const option of ['b', 'b', 'b']) {
+          ctx.manager.answer(room, playerId, { type: 'single', optionId: option });
+          advance();
+        }
+        await ctx.recorder.idle();
+      } finally {
+        vi.useRealTimers();
+      }
+      return profileFacts(db, await idOf(player.email));
+    };
+
+    // 57 при правильних 50 (допуск 2, межа нуля 12) — рівно половина ціни: це ще «правильно».
+    const half = await play('Половинна', 57);
+    expect(half.stats.accuracy).toBe(100);
+    expect(earned(half.achievements)).toContain('perfect_game');
+
+    // 58 лишає 40 % ціни: це не «правильно», тож точність нижча, а гра не бездоганна.
+    const near = await play('Близька', 58);
+    expect(near.stats.accuracy).toBe(80);
+    expect(earned(near.achievements)).not.toContain('perfect_game');
   });
 });

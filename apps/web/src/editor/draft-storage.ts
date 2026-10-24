@@ -1,18 +1,22 @@
 import {
   ANSWER_MODES,
+  AUDIO_URL,
   BUFF_KINDS,
   CELL_KINDS,
   CELL_MARKS,
   CELL_PENALTIES,
   DEBUFF_KINDS,
   LIMITS,
+  REVEAL_MODES,
   upgradeQuiz,
   videoSchema,
+  YOUTUBE_ID,
   type BoardCategory,
   type DuelCategory,
   type DuelQuestion,
   type Duels,
   type Question,
+  type QuestionAudio,
   type Quiz,
   type Round,
 } from '@quiz/shared';
@@ -23,18 +27,45 @@ const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
 /** JSON не вміє зберігати NaN (порожнє числове поле) і перетворює його на null. */
 const numberOr = (value: unknown) => (typeof value === 'number' ? value : Number.NaN);
 
+/** Аудіо з чернетки: лишається, якщо джерело правильне; початок і тривалість можуть бути порожніми числами (NaN). */
+function reviveAudio(value: unknown): QuestionAudio | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { source, url, id, start, duration } = value as Record<string, unknown>;
+  const times = { start: numberOr(start), duration: numberOr(duration) };
+  if (source === 'file' && typeof url === 'string' && AUDIO_URL.test(url)) return { source, url, ...times };
+  if (source === 'youtube' && typeof id === 'string' && YOUTUBE_ID.test(id)) return { source, id, ...times };
+  return null;
+}
+
 function revive(stored: Question): Question {
   // Підказка — лише рядок: зіпсоване значення зникає, а не ламає редактор.
-  const { hint, ...question } = stored;
+  const { hint, audio, reveal, ...question } = stored;
   const video = videoSchema.safeParse(question.video).success ? question.video : null;
+  const revivedAudio = reviveAudio(audio);
   const base = {
     ...question,
     ...(typeof hint === 'string' ? { hint } : {}),
+    ...(revivedAudio === null || video !== null ? {} : { audio: revivedAudio }),
+    ...((REVEAL_MODES as readonly string[]).includes(reveal as string) ? { reveal } : {}),
     video,
     timeLimit: numberOr(question.timeLimit),
     points: numberOr(question.points),
   } as Question;
   if (base.type === 'numeric') return { ...base, correct: numberOr(base.correct), tolerance: numberOr(base.tolerance) };
+  if (base.type === 'slider') {
+    const { unit, zeroBeyond, ...rest } = base;
+    return {
+      ...rest,
+      min: numberOr(base.min),
+      max: numberOr(base.max),
+      step: numberOr(base.step),
+      correct: numberOr(base.correct),
+      tolerance: numberOr(base.tolerance),
+      // Сміття в полі межі нуля (NaN) у JSON стає null і не відновлюється: поле покаже порожнім.
+      ...(typeof zeroBeyond === 'number' ? { zeroBeyond } : {}),
+      ...(typeof unit === 'string' ? { unit } : {}),
+    };
+  }
   if (base.type === 'sort') return { ...base, lockSeconds: numberOr(base.lockSeconds) };
   return base;
 }

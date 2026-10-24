@@ -1,5 +1,5 @@
 import { AwsClient } from 'aws4fetch';
-import { isImageName, type ImageStorage } from './images';
+import { isMediaName, type ImageStorage } from './images';
 
 export interface R2Settings {
   accountId: string;
@@ -24,7 +24,7 @@ export function r2Storage(settings: R2Settings): ImageStorage {
 
   return {
     async put(name, bytes, contentType) {
-      if (!isImageName(name)) throw new Error('invalid image name');
+      if (!isMediaName(name)) throw new Error('invalid media name');
       const request = await client.sign(urlOf(name), {
         method: 'PUT',
         headers: { 'content-type': contentType },
@@ -34,7 +34,7 @@ export function r2Storage(settings: R2Settings): ImageStorage {
       if (!response.ok) throw new Error(`image storage answered ${response.status}`);
     },
     async get(name) {
-      if (!isImageName(name)) return null;
+      if (!isMediaName(name)) return null;
       const response = await send(await client.sign(urlOf(name), { method: 'GET' }));
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(`image storage answered ${response.status}`);

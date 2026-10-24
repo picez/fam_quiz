@@ -395,6 +395,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               key={current.id}
               question={current}
               showPoints={round.type !== 'final'}
+              showReveal={round.type === 'classic'}
               types={questionTypesFor(round.type)}
               onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
             />

@@ -2,7 +2,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { diskStorage, memoryStorage, sniffImage } from './images';
+import { diskStorage, isMediaName, memoryStorage, sniffAudio, sniffImage } from './images';
 import { r2Storage } from './r2';
 import { JPEG, PNG, WEBP } from '../testing/images';
 
@@ -20,6 +20,45 @@ describe('sniffImage', () => {
     expect(sniffImage(text('GIF89a........'))).toBeNull();
     expect(sniffImage(new Uint8Array())).toBeNull();
     expect(sniffImage(text('RIFF....WAVEfmt '))).toBeNull();
+  });
+});
+
+describe('sniffAudio', () => {
+  const text = (value: string) => new TextEncoder().encode(value);
+
+  it('recognises mp3, ogg and m4a by their content', () => {
+    expect(sniffAudio(text('ID3\x04\x00\x00\x00\x00\x00\x00'))).toBe('audio/mpeg');
+    expect(sniffAudio(new Uint8Array([0xff, 0xfb, 0x90, 0x64, 0x00]))).toBe('audio/mpeg');
+    expect(sniffAudio(text('OggS\x00\x02'))).toBe('audio/ogg');
+    expect(sniffAudio(text('\x00\x00\x00\x20ftypM4A '))).toBe('audio/mp4');
+  });
+
+  it('accepts an ftyp box only with an audio-ish major brand', () => {
+    for (const brand of ['M4A ', 'M4B ', 'mp42', 'mp41', 'isom', 'iso2', 'dash']) {
+      expect(sniffAudio(text(`\x00\x00\x00\x20ftyp${brand}`))).toBe('audio/mp4');
+    }
+    for (const brand of ['heic', 'avif', 'qt  ', '3gp4', 'crx ', 'M4V ']) {
+      expect(sniffAudio(text(`\x00\x00\x00\x20ftyp${brand}`))).toBeNull();
+    }
+    expect(sniffAudio(text('\x00\x00\x00\x20ftyp'))).toBeNull();
+  });
+
+  it('rejects everything else, whatever it claims to be', () => {
+    expect(sniffAudio(PNG)).toBeNull();
+    expect(sniffAudio(text('<html><script>alert(1)</script></html>'))).toBeNull();
+    expect(sniffAudio(new Uint8Array())).toBeNull();
+    expect(sniffAudio(new Uint8Array([0xff]))).toBeNull();
+    // Кадр без бітів синхронізації не є MPEG-аудіо.
+    expect(sniffAudio(new Uint8Array([0xff, 0x10, 0x00, 0x00]))).toBeNull();
+  });
+});
+
+describe('isMediaName', () => {
+  it('accepts image and audio names and nothing that can leave the store', async () => {
+    for (const extension of ['mp3', 'ogg', 'm4a', 'png']) expect(isMediaName(`${'a'.repeat(32)}.${extension}`)).toBe(true);
+    expect(isMediaName('../x.mp3')).toBe(false);
+    expect(isMediaName(`${'a'.repeat(32)}.svg`)).toBe(false);
+    await expect(memoryStorage().put(`${'a'.repeat(32)}.ogg`, new Uint8Array([1]), 'audio/ogg')).resolves.toBeUndefined();
   });
 });
 

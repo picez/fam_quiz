@@ -4,6 +4,7 @@ import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchInput } from './MatchView';
+import { SliderInput } from './SliderInput';
 
 interface Props {
   question: PublicQuestion;
@@ -195,5 +196,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
       return <OrderInput question={question} onSubmit={onSubmit} />;
     case 'match':
       return <MatchInput question={question} onSubmit={onSubmit} />;
+    case 'slider':
+      return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} />;
   }
 }

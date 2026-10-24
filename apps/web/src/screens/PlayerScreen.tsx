@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { Answer, DiceInfo, PlayerBlitz, PlayerView, PublicQuestion, Spotlight } from '@quiz/shared';
-import { correctText, markText, pickedText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
+import { revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerView, type PublicQuestion, type Spotlight } from '@quiz/shared';
+import { correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -9,11 +9,13 @@ import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
+import { publicWindowMs, revealStage, useRevealProgress } from '../reveal';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
-import { QuestionImage } from './QuestionImage';
+import { RevealImage } from './RevealImage';
+import { SliderScale } from './SliderScale';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
@@ -55,7 +57,27 @@ function Result({ view }: { view: PlayerView }) {
         <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
       )}
       {view.me.sort !== null && <SortOutcome view={view} />}
-      {view.reveal !== null && <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>}
+      {view.reveal !== null &&
+        (view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
+          <>
+            <p>
+              {t('sliderYours', {
+                value: sliderValueText(view.me.answer.value, view.question.slider),
+                correct: correctText(view.reveal, view.question.choices),
+              })}
+            </p>
+            <SliderScale
+              slider={view.question.slider}
+              correct={view.reveal.correct}
+              tolerance={view.reveal.tolerance}
+              zeroBeyond={view.reveal.zeroBeyond}
+              marks={[{ playerId: view.me.id, nickname: view.me.nickname, value: view.me.answer.value }]}
+              highlight={view.me.id}
+            />
+          </>
+        ) : (
+          <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>
+        ))}
       {view.blitz !== null && (
         <p className="winner">
           {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}
@@ -293,6 +315,9 @@ function usePersonalTotal(
 export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
+  // Поступ проявлення картинки: лише за часом; від locked — 1 (повна).
+  const revealP = useRevealProgress(view, question, offsetMs);
+  const revealStageNow = revealStage(revealP);
   // Хук на рівні екрана: під «Дзеркалом» варіанти зсуваються по колу; інакше те саме запитання.
   const shown = useDebuffQuestion(question, me.debuff);
 
@@ -440,7 +465,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </p>
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
-            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} />}
+            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">
@@ -463,7 +488,12 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           )}
           <DebuffZone debuff={me.debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)}>{question.text}</h1>
-            <QuestionImage url={question.imageUrl} />
+            <RevealImage url={question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />
+            {question.reveal && me.answer === null && (
+              <p className="meta reveal-hint">
+                {t('revealHint')} {t('revealNow', { percent: Math.round(revealShare(revealP, 1) * 100) })}
+              </p>
+            )}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
             {me.buffs !== null && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} send={send} onError={setError} />}
@@ -537,7 +567,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             ) : me.answer !== null ? (
               <section className="sent">
                 <h2>{t('answerSent')}</h2>
-                <p>{pickedText(me.answer, shownChoices(question))}</p>
+                <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>
               </section>
             ) : activeBuff !== null && retryStage === 'choice' ? (
               // Часткова перша відповідь: вибір замість поля відповіді.
@@ -556,6 +586,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'locked' && (
         <>
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
+          {/* Відповіді закрито: картинка, що проявлялася, вже повна. */}
+          {question?.reveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStageNow} />}
           {/* У ланцюжку немає однієї правильної відповіді: гравець бачить свій результат і чекає на рейтинг. */}
           {isSort ? (
             // Сортування: власний підсумок і очікування розкриття; глядач на полі бачить прогрес того, хто сортував.
@@ -698,7 +730,7 @@ function BlitzTurn({
       return (
         <section className="sent">
           <h2>{t('blitzSent', { position: blitz.position })}</h2>
-          <p>{pickedText(me.answer, shownChoices(question))}</p>
+          <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>
         </section>
       );
     }

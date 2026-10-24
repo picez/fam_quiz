@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { READY_BUFFS, allowedBuffs, boardSpareSource, questionsOf, quizSchema } from '@quiz/shared';
+import { READY_BUFFS, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
-import { demoQuiz } from './demo-quiz';
+import { demoQuiz, revealing, single, slider, withAudio } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
@@ -48,6 +48,21 @@ describe('the seeded demo quiz', () => {
     expect(questionsOf(demoQuiz).filter((q) => q.video !== null).length).toBeGreaterThanOrEqual(2);
     expect(questionsOf(partyQuiz()).filter((q) => q.video !== null).length).toBeGreaterThanOrEqual(1);
     expect(quizSchema.safeParse(partyQuiz()).success).toBe(true);
+  });
+
+  it('demo has a slider and a YouTube audio-only question', () => {
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+    const questions = questionsOf(demoQuiz);
+    expect(questions.some((q) => q.type === 'slider' && q.zeroBeyond !== undefined)).toBe(true);
+    expect(questions.some((q) => q.audio?.source === 'youtube' && q.video === null)).toBe(true);
+  });
+
+  it('the helpers build valid questions', () => {
+    const picture = { ...revealing(single('Що на картинці?', ['А', 'Б'], 0), 'blur'), imageUrl: `/uploads/${'b'.repeat(32)}.png` };
+    expect(questionSchema.safeParse(picture).success).toBe(true);
+    expect(questionSchema.safeParse(slider('Скільки?', { min: 0, max: 10 }, 5, { tolerance: 1, zeroBeyond: 4, unit: 'шт' })).success).toBe(true);
+    const audio = withAudio(single('Назвіть гурт', ['Queen', 'ABBA'], 0), { source: 'youtube', id: 'fJ9rUzIMcZQ', start: 0, duration: 15 });
+    expect(questionSchema.safeParse(audio).success).toBe(true);
   });
 
   it('ends with a final round', () => {
