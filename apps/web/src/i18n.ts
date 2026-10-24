@@ -343,6 +343,7 @@ const uk = {
   buffWhy_unfit_voice: 'Друга спроба не діє, коли відповідаєте вголос.',
   buffWhy_no_voters: 'Поки ніхто не може проголосувати.',
   buffWhy_spares_out: 'Запасні запитання закінчилися.',
+  buffWhy_no_category_spares: 'У цій категорії немає запасних запитань.',
   buffWhy_not_started: 'Запитання ще не почалося.',
   choiceRemoved: '{choice} — прибрано',
   removedTag: 'прибрано',

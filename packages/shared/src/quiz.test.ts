@@ -28,6 +28,9 @@ import {
   duelPickSchema,
   duelsSchema,
   LIMITS,
+  allSpares,
+  boardSpareSource,
+  categorySparesOf,
   quizSchema,
   boardRoundIssues,
   cellAnswerMode,
@@ -70,6 +73,33 @@ const many = (prefix: string, count: number) =>
 
 const valid = (schema: { safeParse: (v: unknown) => { success: boolean } }, value: unknown) =>
   schema.safeParse(value).success;
+
+const spareSingle = {
+  id: 's1',
+  type: 'single',
+  text: 'Яка річка тече через Київ?',
+  imageUrl: null,
+  timeLimit: LIMITS.defaultTime,
+  points: LIMITS.defaultPoints,
+  options: [
+    { id: 'a', text: 'Дніпро' },
+    { id: 'b', text: 'Дунай' },
+  ],
+  correctId: 'a',
+};
+const orderSpare = {
+  id: 's2',
+  type: 'order',
+  text: 'Розставте за зростанням',
+  imageUrl: null,
+  timeLimit: LIMITS.defaultTime,
+  points: LIMITS.defaultPoints,
+  items: [
+    { id: 'i1', text: 'Один' },
+    { id: 'i2', text: 'Два' },
+    { id: 'i3', text: 'Три' },
+  ],
+};
 
 describe('round description', () => {
   it('a round may carry a description and old rounds without one still parse', () => {
@@ -526,6 +556,56 @@ describe('board round', () => {
     const big = { ...parsed, categories: [...parsed.categories, ...parsed.categories.map((c, i) => ({ ...c, id: `d${i}` }))] };
     expect(boardRoundIssues(big)).toContain('too_many_questions');
   });
+  describe('category spares (9d)', () => {
+    const spare = (id: string, patch: object = {}) => ({ ...spareSingle, id, ...patch });
+    const withSpares = (spares: object[] | undefined) =>
+      boardQuiz([board([category('c1', 3, spares === undefined ? {} : { spares }), category('c2', 3), category('c3', 3)])]) as object & { settings: object };
+    const swapOn = (quiz: object & { settings: object }) => ({ ...quiz, settings: { ...quiz.settings, buffs: ['swap'] } });
+    const issues = (value: unknown) => {
+      const result = quizSchema.safeParse(value);
+      return result.success ? [] : result.error.issues.map((i) => i.message);
+    };
+
+    it('an old category has no spares; a category may hold 1…5 simple spares', () => {
+      const old = quizSchema.parse(withSpares(undefined));
+      expect(old.rounds[0].type === 'board' && old.rounds[0].categories[0].spares).toBeUndefined();
+      expect(valid(quizSchema, withSpares([spare('cs1')]))).toBe(true);
+      expect(valid(quizSchema, withSpares(Array.from({ length: LIMITS.maxCategorySpares }, (_, i) => spare(`cs${i}`))))).toBe(true);
+      expect(valid(quizSchema, withSpares(Array.from({ length: LIMITS.maxCategorySpares + 1 }, (_, i) => spare(`cs${i}`))))).toBe(false);
+      expect(valid(quizSchema, withSpares([]))).toBe(false);
+    });
+
+    it('category spares follow the pool rules: simple types, no video, unique ids everywhere', () => {
+      expect(issues(withSpares([{ ...orderSpare, id: 'cs1' }]))).toContain('spare_type');
+      expect(issues(withSpares([spare('cs1', { video: { id: 'dQw4w9WgXcQ', start: 0 } })]))).toContain('spare_video');
+      expect(issues(withSpares([spare('cs1'), spare('cs1')]))).toContain('duplicate_spare_ids');
+      expect(issues(withSpares([spare('q-c2-0')]))).toContain('duplicate_spare_ids');
+      expect(issues({ ...withSpares([spare('cs1')]), spares: [spare('cs1')] })).toContain('duplicate_spare_ids');
+    });
+
+    it('swap is valid with spares only in categories; spares_empty only when there are none at all', () => {
+      expect(issues(swapOn(withSpares(undefined)))).toContain('spares_empty');
+      expect(valid(quizSchema, swapOn(withSpares([spare('cs1')])))).toBe(true);
+      expect(valid(quizSchema, { ...swapOn(withSpares(undefined)), spares: [spare('s1')] })).toBe(true);
+    });
+
+    it('category spares are not questions of the quiz', () => {
+      const parsed = quizSchema.parse(withSpares([spare('cs1')]));
+      expect(questionsOf(parsed).map((q) => q.id)).not.toContain('cs1');
+      expect(questionsOf(parsed)).toHaveLength(9);
+    });
+
+    it('allSpares, categorySparesOf and boardSpareSource', () => {
+      const legacy = quizSchema.parse({ ...withSpares(undefined), spares: [spare('s1')] });
+      expect(boardSpareSource(legacy)).toBe('quiz');
+      expect(categorySparesOf(legacy)).toEqual([]);
+      expect(allSpares(legacy).map((q) => q.id)).toEqual(['s1']);
+      const mixed = quizSchema.parse({ ...withSpares([spare('cs1'), spare('cs2')]), spares: [spare('s1')] });
+      expect(boardSpareSource(mixed)).toBe('category');
+      expect(categorySparesOf(mixed).map((q) => q.id)).toEqual(['cs1', 'cs2']);
+      expect(allSpares(mixed).map((q) => q.id)).toEqual(['s1', 'cs1', 'cs2']);
+    });
+  });
 });
 
 describe('match question', () => {
@@ -955,32 +1035,6 @@ describe('buffs and debuffs in the settings', () => {
     expect(READY_BUFFS).toEqual([...BUFF_KINDS]);
   });
 
-  const spareSingle = {
-    id: 's1',
-    type: 'single',
-    text: 'Яка річка тече через Київ?',
-    imageUrl: null,
-    timeLimit: LIMITS.defaultTime,
-    points: LIMITS.defaultPoints,
-    options: [
-      { id: 'a', text: 'Дніпро' },
-      { id: 'b', text: 'Дунай' },
-    ],
-    correctId: 'a',
-  };
-  const orderSpare = {
-    id: 's2',
-    type: 'order',
-    text: 'Розставте за зростанням',
-    imageUrl: null,
-    timeLimit: LIMITS.defaultTime,
-    points: LIMITS.defaultPoints,
-    items: [
-      { id: 'i1', text: 'Один' },
-      { id: 'i2', text: 'Два' },
-      { id: 'i3', text: 'Три' },
-    ],
-  };
   const PLAYER_UUID = 'p1';
 
   it('a question may carry a short hint; old questions have none', () => {

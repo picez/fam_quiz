@@ -27,7 +27,9 @@ export type BuffBlock =
   | 'used' | 'taken' | 'answered' | 'time' | 'paused' | 'elsewhere' | 'not_chooser'
   | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_chain' | 'off_sort'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
-  | 'no_voters' | 'spares_out' | 'not_started';
+  | 'no_voters' | 'spares_out' | 'not_started'
+  /** На полі: у категорії клітинки немає власних запасних (9d). */
+  | 'no_category_spares';
 
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium';

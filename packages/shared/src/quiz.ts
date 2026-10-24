@@ -74,6 +74,8 @@ export const LIMITS = {
   hintText: 200,
   /** Запасних запитань для бафу «Заміна запитання». */
   maxSpares: 20,
+  /** Запасних в одній категорії поля (9d). */
+  maxCategorySpares: 5,
 } as const;
 
 /** Обмеження для зображень у запитаннях. */
@@ -328,6 +330,8 @@ export const boardCategorySchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   title: z.string().trim().min(1).max(LIMITS.categoryTitle).refine(isStorable, UNSTORABLE),
   cells: z.array(boardCellSchema).min(LIMITS.minCategoryQuestions).max(LIMITS.maxCategoryQuestions),
+  /** Запасні цієї категорії для «Заміни запитання» (9d); старі категорії без поля. */
+  spares: z.array(questionSchema).min(1).max(LIMITS.maxCategorySpares).optional(),
 });
 
 /** Ігрове поле: категорії клітинок-запитань, гравці по черзі вибирають клітинку. */
@@ -476,15 +480,16 @@ export const quizSchema = z
       ctx.addIssue({ code: 'custom', message: 'duplicate_powers' });
     }
     if (buffs?.some((kind) => !READY_BUFFS.includes(kind))) ctx.addIssue({ code: 'custom', message: 'buff_unavailable' });
-    if (quiz.spares) {
+    const pools = [...(quiz.spares ?? []), ...categorySparesOf(quiz)];
+    if (pools.length > 0) {
       const types: readonly string[] = SIMPLE_TYPES;
-      if (quiz.spares.some((s) => !types.includes(s.type))) ctx.addIssue({ code: 'custom', message: 'spare_type' });
-      if (quiz.spares.some((s) => s.video !== null)) ctx.addIssue({ code: 'custom', message: 'spare_video' });
-      if (hasDuplicates([...questions.map((x) => x.id), ...quiz.spares.map((s) => s.id)].filter(Boolean)) ) {
+      if (pools.some((s) => !types.includes(s.type))) ctx.addIssue({ code: 'custom', message: 'spare_type' });
+      if (pools.some((s) => s.video !== null)) ctx.addIssue({ code: 'custom', message: 'spare_video' });
+      if (hasDuplicates([...questions.map((x) => x.id), ...pools.map((s) => s.id)].filter(Boolean))) {
         ctx.addIssue({ code: 'custom', message: 'duplicate_spare_ids' });
       }
     }
-    if (buffs?.includes('swap') && !quiz.spares) ctx.addIssue({ code: 'custom', message: 'spares_empty' });
+    if (buffs?.includes('swap') && pools.length === 0) ctx.addIssue({ code: 'custom', message: 'spares_empty' });
     if (quiz.duels) {
       const { categories, questionsPerDuel } = quiz.duels;
       if (categories.some((c) => c.questions.length < questionsPerDuel)) {
@@ -565,6 +570,24 @@ export function boardCells(round: BoardRound): CellRef[] {
 /** Клітинка за id; id клітинки — це id її запитання. */
 export function findCell(round: BoardRound, cellId: string): CellRef | undefined {
   return boardCells(round).find(({ cell }) => cell.question.id === cellId);
+}
+
+/** Запасні всіх категорій усіх полів у порядку раундів і категорій. */
+export function categorySparesOf(quiz: Pick<Quiz, 'rounds'>): Question[] {
+  return quiz.rounds.flatMap((r) => (r.type === 'board' ? r.categories.flatMap((c) => c.spares ?? []) : []));
+}
+
+/** Усі запасні вікторини (загальні, потім категорій) — для пошуку запасного за id у грі й історії. */
+export function allSpares(quiz: Pick<Quiz, 'rounds' | 'spares'>): Question[] {
+  return [...(quiz.spares ?? []), ...categorySparesOf(quiz)];
+}
+
+/**
+ * Звідки заміна на полі бере запасне: 'category' — хоч одна категорія має власні запасні (9d),
+ * тоді кожна клітинка бере лише зі своєї категорії; 'quiz' — жодна не має (вікторини до 9d), загальний пул.
+ */
+export function boardSpareSource(quiz: Pick<Quiz, 'rounds'>): 'category' | 'quiz' {
+  return categorySparesOf(quiz).length > 0 ? 'category' : 'quiz';
 }
 
 /** Перевірки поля, які схема форми не бачить. */
