@@ -250,6 +250,19 @@ export const survey = {
   rows: [row('sa', 'Яблуко', 32, ['яблучко']), row('sb', 'Банан', 25), row('sc', 'Полуниця', 15), row('sd', 'Кавун', 10), row('se', 'Груша', 8)],
 } satisfies Question;
 
+/** «100 до 1» з хмари cloud (q16), без запасних рядків; до 2 відповідей, 1000 балів, 45 с. */
+export const surveyCloud = {
+  ...base,
+  id: 'q18',
+  type: 'survey',
+  text: 'Що ви назвали про Київ?',
+  timeLimit: 45,
+  points: 1000,
+  answers: 2,
+  rows: [],
+  cloudId: cloud.id,
+} satisfies Question;
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 
