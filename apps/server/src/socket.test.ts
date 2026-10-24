@@ -585,7 +585,7 @@ describe('host presence', () => {
     expect(await send(host, 'host:bluff-all')).toEqual({ ok: true });
     const all = await until(stage, (v) => v.role === 'stage' && v.bluff?.shown === 5);
     if (all.role !== 'stage') throw new Error('not the stage');
-    expect(all.bluff?.options.at(-1)?.kind).toBe('truth');
+    expect(all.bluff?.options.filter((o) => o.kind === 'truth')).toHaveLength(1);
   });
 
   it('no socket frame to a phone or the stage carries the truth or spares before the choice, or kind and authors before the reveal', async () => {

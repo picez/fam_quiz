@@ -106,13 +106,21 @@ describe('bluff views', () => {
     s = must(next(s, at(s, 9500), rng));
     const view = stageView(s);
     const options = view.bluff!.options;
-    expect(options.map((o) => o.open)).toEqual([true, true, false, false, false]);
-    for (const o of options.slice(0, 2)) {
+    const reveal = bluffOrder(s.plays[0]);
+    // порядок показу, як у виборі: черга розкриття й місце правди не видні
+    expect(options.map((o) => o.id)).toEqual(s.plays[0].bluff!.options.map((o) => o.id));
+    const openIds = reveal.slice(0, 2).map((o) => o.id);
+    expect(options.filter((o) => o.open).map((o) => o.id).sort()).toEqual([...openIds].sort());
+    expect(view.bluff!.lastOpenedId).toBe(openIds[1]);
+    for (const o of options.filter((x) => x.open)) {
       expect(o.kind).not.toBeNull();
       expect(o.authors).not.toBeNull();
       expect(o.pickedBy).not.toBeNull();
     }
-    for (const o of options.slice(2)) expect(o).toMatchObject({ kind: null, authors: null, pickedBy: null });
+    for (const o of options.filter((x) => !x.open)) expect(o).toMatchObject({ kind: null, authors: null, pickedBy: null });
+    // правда не в кінці й закрита
+    expect(options.at(-1)?.text).not.toBe('Барселона');
+    expect(hostView(s).bluff!.options.map((o) => o.id)).toEqual(reveal.map((o) => o.id));
     expect(JSON.stringify(view)).not.toContain('"kind":"truth"');
     expect(view.reveal).toMatchObject({ accepted: [], lies: [] });
     expect(bluffOrder(s.plays[0]).at(-1)?.kind).toBe('truth');

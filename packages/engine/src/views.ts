@@ -554,7 +554,7 @@ function spotlightOf(state: GameState, forHost: boolean): Spotlight | null {
   // Збіги «100 до 1» сцені й телефонам не потрібні: табло показує лише відкриті рядки.
   // Вердикт дошки теж чекає, поки ведучий не відкриє всі рядки.
   if (spot === null || forHost) return spot;
-  return { ...spot, answer: publicAnswer(spot.answer, false), grade: spoilerHeld(state) ? null : spot.grade };
+  return { ...spot, answer: publicAnswer(spot.answer, spot.answer?.type === 'bluff' && !spoilerHeld(state)), grade: spoilerHeld(state) ? null : spot.grade };
 }
 
 function rawSpotlight(state: GameState, forHost: boolean): Spotlight | null {
@@ -982,7 +982,7 @@ function bluffInfo(state: GameState, forHost: boolean): BluffInfo | null {
   const lies = forHost
     ? state.players.flatMap((p) => (Object.hasOwn(bluff.lies, p.id) ? [{ nickname: p.nickname, text: bluff.lies[p.id].text }] : []))
     : null;
-  if (stage === 'lies') return { stage, written, picked, options: [], shown: 0, total: 0, lies };
+  if (stage === 'lies') return { stage, written, picked, options: [], shown: 0, total: 0, lastOpenedId: null, lies };
   const full = (o: (typeof bluff.options)[number], isOpen: boolean): BluffOptionView => ({
     id: o.id,
     text: o.text,
@@ -995,14 +995,21 @@ function bluffInfo(state: GameState, forHost: boolean): BluffInfo | null {
   const closed = (o: (typeof bluff.options)[number]): BluffOptionView => ({ id: o.id, text: o.text, open: false, kind: null, authors: null, pickedBy: null, removed: false });
   if (stage === 'choice') {
     const options = forHost ? bluff.options.map((o) => full(o, false)) : bluff.options.filter((o) => !o.removed).map(closed);
-    return { stage, written, picked, options, shown: 0, total: 0, lies };
+    return { stage, written, picked, options, shown: 0, total: 0, lastOpenedId: null, lies };
   }
   const order = bluffOrder(play);
   const shown = bluffShown(state, play);
-  const options = order.map((o, index) => (index < shown || forHost ? full(o, index < shown) : closed(o)));
-  // Пульт бачить і прибрані (в порядок розкриття вони не входять): наприкінці.
-  const removed = forHost ? bluff.options.filter((o) => o.removed).map((o) => full(o, false)) : [];
-  return { stage, written, picked, options: [...options, ...removed], shown, total: order.length, lies };
+  const lastOpenedId = shown > 0 ? order[shown - 1].id : null;
+  if (forHost) {
+    // Пульт: порядок розкриття, прибрані наприкінці.
+    const options = order.map((o, index) => full(o, index < shown));
+    const removed = bluff.options.filter((o) => o.removed).map((o) => full(o, false));
+    return { stage, written, picked, options: [...options, ...removed], shown, total: order.length, lastOpenedId, lies };
+  }
+  // Сцена й телефони: порядок показу, як у виборі, щоб ні місце, ні черга не видали правду; відкриті несуть kind і імена.
+  const opened = new Set(order.slice(0, shown).map((o) => o.id));
+  const options = bluff.options.filter((o) => !o.removed).map((o) => (opened.has(o.id) ? full(o, true) : closed(o)));
+  return { stage, written, picked, options, shown, total: order.length, lastOpenedId, lies };
 }
 
 /** Власний блеф гравця; truth і fooled — лише коли правду відкрито. */
