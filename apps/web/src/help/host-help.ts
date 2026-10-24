@@ -1,7 +1,9 @@
-import { ROUND_TYPES, QUESTION_TYPES, type AnswerMode, type CellKind, type CellMark } from '@quiz/shared';
+import { BUFF_KINDS, DEBUFF_KINDS, ROUND_TYPES, QUESTION_TYPES, type AnswerMode, type CellKind, type CellMark } from '@quiz/shared';
 import { CELL_HELP, CELL_HELP_KEYS } from './cells';
+import { BUFF_HELP, DEBUFF_HELP } from './powers';
 import { QUESTION_HELP } from './questions';
 import { ROUND_HELP } from './rounds';
+import { SETTING_HELP, SETTING_HELP_KEYS } from './settings';
 import type { HelpEntry } from './types';
 
 /** Теми довідника в порядку сторінки; teams — з частини 10j. */
@@ -21,9 +23,9 @@ const TOPICS = {
   rounds: topic('round', ROUND_TYPES, ROUND_HELP),
   questions: topic('question', QUESTION_TYPES, QUESTION_HELP),
   cells: topic('cell', CELL_HELP_KEYS, CELL_HELP),
-  buffs: none('buff'), // задача 2
-  debuffs: none('debuff'), // задача 2
-  settings: none('setting'), // задача 2
+  buffs: topic('buff', BUFF_KINDS, BUFF_HELP),
+  debuffs: topic('debuff', DEBUFF_KINDS, DEBUFF_HELP),
+  settings: topic('setting', SETTING_HELP_KEYS, SETTING_HELP),
   teams: none('team'), // частина 10j
 } satisfies Record<HelpTopic, Topic<string, string>>;
 
