@@ -187,6 +187,8 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           <p className="meta">{t('sortCellNote')}</p>
         ) : current.question.type === 'pin' ? (
           <p className="meta">{t('pinCellNote')}</p>
+        ) : current.question.type === 'wall' ? (
+          <p className="meta">{t('wallCellNote')}</p>
         ) : (
           <>
             {current.question.type === 'clues' ? (
@@ -238,7 +240,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           cluesByHost={cellAnswerMode(round, current) === 'voice'}
           onChange={(question) =>
             setCell(
-              question.type === 'sort' || question.type === 'pin'
+              question.type === 'sort' || question.type === 'pin' || question.type === 'wall'
                 ? { question, kind: 'normal', answerMode: 'phone', penalty: 'none' }
                 : question.type === 'clues'
                   ? { question, kind: 'normal', penalty: 'none' }

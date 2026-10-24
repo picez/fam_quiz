@@ -182,3 +182,23 @@ describe('BoardEditor clues and pin cells (10c)', () => {
     expect((onChange.mock.calls[0][0] as BoardRound).categories[0].cells[0]).toMatchObject({ kind: 'normal', penalty: 'none' });
   });
 });
+
+describe('BoardEditor wall cells (10d)', () => {
+  it('a wall on a voice or blitz cell turns it into a normal phone cell and shows the note', () => {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first.cells;
+    const odd = { ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, answerMode: 'voice' as const, penalty: 'all' as const }, ...cells] }, ...rest] };
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={odd} onChange={onChange} />);
+    expect(screen.queryByRole('button', { name: 'опитування' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'стіна' }));
+    const next = onChange.mock.calls[0][0] as BoardRound;
+    expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
+    expect(next.categories[0].cells[0].question.type).toBe('wall');
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.getByText(t('wallCellNote'))).toBeTruthy();
+    expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
+    expect(screen.queryByLabelText(t('boardCellMode'))).toBeNull();
+  });
+});

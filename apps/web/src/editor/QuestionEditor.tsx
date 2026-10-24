@@ -8,6 +8,7 @@ import { ImageField } from './ImageField';
 import { OptionImage } from './OptionImage';
 import { PinEditor } from './PinEditor';
 import { VideoField } from './VideoField';
+import { WallEditor } from './WallEditor';
 import { changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 
@@ -690,9 +691,38 @@ function Body({ question, onChange, showPoints, cluesByHost }: Pick<Props, 'ques
     case 'pin':
       return <PinEditor question={question} onChange={onChange} />;
     case 'wall':
+      return <WallEditor question={question} onChange={onChange} />;
     case 'poll':
+      return (
+        <>
+          <Rows
+            rows={question.options}
+            min={LIMITS.minOptions}
+            max={LIMITS.maxOptions}
+            maxLength={LIMITS.optionText}
+            label="optionN"
+            removeLabel="removeOption"
+            addLabel="addOption"
+            lead={letter}
+            tail={(row, index) => (
+              <OptionImage
+                url={row.imageUrl}
+                index={index + 1}
+                onChange={(url) => onChange({ ...question, options: withImage(question.options, row.id, url) })}
+              />
+            )}
+            onChange={(options) => onChange({ ...question, options })}
+          />
+          <p className="meta">{t('pollHint')}</p>
+        </>
+      );
     case 'wordcloud':
-      return null; // задача 9
+      return (
+        <>
+          <NumberField label={t('cloudWordsField')} value={question.words} onChange={(words) => onChange({ ...question, words })} />
+          <p className="meta">{t('cloudHint')}</p>
+        </>
+      );
   }
 }
 
@@ -712,6 +742,8 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
+  // Опитування й хмара без балів: поля ціни немає, замість нього — пояснення.
+  const isVote = question.type === 'poll' || question.type === 'wordcloud';
   return (
     <div className="question-edit">
       <div className="with-help">
@@ -762,7 +794,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -796,7 +828,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'chain' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin';
+              const noVideo = rest.type === 'chain' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />
@@ -830,16 +862,17 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
         <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} />
       </div>
 
-      {(showTime || (showPoints && question.type !== 'sort')) && (
+      {(showTime || (showPoints && question.type !== 'sort' && !isVote)) && (
         <div className="pair">
           {!showTime ? null : question.video === null || !timeInLimits(question.timeLimit) ? (
             <NumberField label={t('timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
           ) : (
             <p className="meta">{t('noTimerHint')}</p>
           )}
-          {showPoints && question.type !== 'sort' && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
+          {showPoints && question.type !== 'sort' && !isVote && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
         </div>
       )}
+      {isVote && <p className="meta">{t('noPointsNote')}</p>}
     </div>
   );
 }

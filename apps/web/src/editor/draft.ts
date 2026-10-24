@@ -405,6 +405,10 @@ export function cleaned(quiz: Quiz): Quiz {
     switch (question.type) {
       case 'single':
         return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions, [question.correctId]) };
+      case 'poll':
+        return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions) };
+      case 'wall':
+        return { ...question, text, groups: question.groups.map((group) => ({ ...group, name: group.name.trim(), tiles: trimAll(group.tiles) })) };
       case 'multi': {
         const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
         const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
@@ -524,18 +528,22 @@ interface Place {
   reveal: boolean;
   clues: boolean;
   pin: boolean;
+  /** Стіна зв'язків: класика й звичайна клітинка з телефона. */
+  wall: boolean;
+  /** Опитування й хмара: лише класика. */
+  vote: boolean;
   /** Усна клітинка: інтервал підказок схований, тож порада «зменште інтервал» недоречна. */
   voice: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, voice: false };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, voice: false };
 /** Бліц і фінал: нічого з нового. Класика — усе. */
-const roundPlace = (round: Round): Place => (round.type === 'classic' ? ANYWHERE : { reveal: false, clues: false, pin: false, voice: false });
+const roundPlace = (round: Round): Place => (round.type === 'classic' ? ANYWHERE : { reveal: false, clues: false, pin: false, wall: false, vote: false, voice: false });
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, voice: normal && !phone };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, voice: normal && !phone };
 };
 
 /** Чи вистачає часу останній підказці: (n − 1) × інтервал + хвіст ≤ час. */
@@ -636,6 +644,20 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       }
       break;
     }
+    case 'wall': {
+      if (question.groups.some((group) => group.name === '' || group.tiles.some((tile) => tile.text === ''))) return 'problemWallEmpty';
+      if (duplicateTile(question) !== '') return 'problemWallDuplicate';
+      if (!Number.isInteger(question.mistakes) || question.mistakes < LIMITS.minWallMistakes || question.mistakes > LIMITS.maxWallMistakes) {
+        return 'problemWallMistakes';
+      }
+      break;
+    }
+    case 'poll':
+      if (question.options.some(isBlankOption)) return 'problemEmptyOption';
+      break;
+    case 'wordcloud':
+      if (!Number.isInteger(question.words) || question.words < 1 || question.words > LIMITS.maxCloudWords) return 'problemCloudWords';
+      break;
     case 'boolean':
       break;
   }
@@ -654,6 +676,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.reveal !== undefined && !place.reveal) return 'problemRevealPlace';
   if (question.type === 'clues' && !place.clues) return 'problemCluesPlace';
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
+  if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
+  if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';
   return questionSchema.safeParse(question).success ? null : 'problemGeneric';
 }
 
@@ -688,6 +712,19 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
   return null;
 }
 
+/** Перша плитка стіни, що повторюється (без урахування регістру й пробілів), у вигляді, у якому її порівнює схема. */
+function duplicateTile(question: Extract<Question, { type: 'wall' }>): string {
+  const seen = new Set<string>();
+  for (const group of question.groups) {
+    for (const tile of group.tiles) {
+      const key = tile.text.trim().toLocaleLowerCase('uk');
+      if (seen.has(key)) return key;
+      seen.add(key);
+    }
+  }
+  return '';
+}
+
 /** Текст проблеми запитання; числа меж підставляються з LIMITS, а для підказок ще й з самого запитання. */
 const problemText = (key: TextKey, index: number, question?: Question) =>
   t(key, {
@@ -698,6 +735,10 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     clueMax: LIMITS.maxClueSeconds,
     pinMax: LIMITS.pinMaxZeroRadius,
     pinFullMax: LIMITS.pinMaxFullRadius,
+    wallMin: LIMITS.minWallMistakes,
+    wallMax: LIMITS.maxWallMistakes,
+    cloudMax: LIMITS.maxCloudWords,
+    tile: question?.type === 'wall' ? duplicateTile(question) : '',
     ...(question?.type === 'clues' ? { count: question.clues.length, at: lastClueAt(question), need: lastClueAt(question) + LIMITS.clueTailSeconds } : {}),
   });
 

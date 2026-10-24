@@ -1928,3 +1928,99 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
     expect(screen.queryByRole('button', { name: 'точка' })).toBeNull();
   });
 });
+
+describe('QuizEditor: wall, poll and word cloud (10d)', () => {
+  it('the wall chip shows four group cards and the mistake limit, no video; it saves a wall', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Знайдіть зв’язки');
+    click('стіна');
+    expect(screen.getAllByRole('group', { name: /^Група \d$/ })).toHaveLength(4);
+    screen.getByLabelText('Помилок до замикання');
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemWallEmpty', { index: 1 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+    for (let g = 1; g <= 4; g += 1) {
+      fill(`Назва групи ${g}`, `Зв’язок ${g}`);
+      const card = screen.getByRole('group', { name: `Група ${g}` });
+      for (let k = 1; k <= 4; k += 1) fireEvent.change(within(card).getByLabelText(`Плитка ${k}`), { target: { value: `Т${g}${k}` } });
+    }
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'wall', mistakes: 3, timeLimit: 90, video: null, points: 1000 });
+    if (question.type !== 'wall') throw new Error('unexpected');
+    expect(question.groups).toHaveLength(4);
+    expect(question.groups.every((group) => group.tiles.length === 4)).toBe(true);
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('a repeated tile blocks saving with a named message', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Знайдіть зв’язки');
+    click('стіна');
+    for (let g = 1; g <= 4; g += 1) {
+      fill(`Назва групи ${g}`, `З${g}`);
+      const card = screen.getByRole('group', { name: `Група ${g}` });
+      for (let k = 1; k <= 4; k += 1) fireEvent.change(within(card).getByLabelText(`Плитка ${k}`), { target: { value: g === 2 && k === 1 ? ' т11 ' : `Т${g}${k}` } });
+    }
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemWallDuplicate', { index: 1, tile: 'т11' })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('the poll chip has no price, says so, and saves points 0', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Яка пора найкраща?');
+    click('опитування');
+    expect(screen.queryByLabelText('Бали')).toBeNull();
+    expect(screen.queryByLabelText('Правильний: варіант 1')).toBeNull();
+    screen.getByText(t('noPointsNote'));
+    screen.getByText(t('pollHint'));
+    fill('Варіант 1', 'Літо');
+    fill('Варіант 2', 'Зима');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'poll', points: 0 });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('the cloud chip asks for the words per player (3), has no price and saves', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'З чим асоціюється Київ?');
+    click('хмара');
+    expect((screen.getByLabelText('Слів від гравця') as HTMLInputElement).value).toBe('3');
+    expect(screen.queryByLabelText('Бали')).toBeNull();
+    screen.getByText(t('cloudHint'));
+    screen.getByText(t('noPointsNote'));
+    fill('Слів від гравця', '2');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ type: 'wordcloud', words: 2, points: 0 });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('switching a poll back to a question brings the price back', () => {
+    open();
+    click('опитування');
+    expect(screen.queryByLabelText('Бали')).toBeNull();
+    click('один варіант');
+    expect((screen.getByLabelText('Бали') as HTMLInputElement).value).toBe('1000');
+  });
+
+  it('a blitz round has no wall, poll or cloud chips; the board has the wall but no poll or cloud', () => {
+    open();
+    addRound('Бліц');
+    for (const name of ['стіна', 'опитування', 'хмара']) expect(screen.queryByRole('button', { name })).toBeNull();
+    click('+ Раунд');
+    click('Ігрове поле');
+    screen.getByRole('button', { name: 'стіна' });
+    expect(screen.queryByRole('button', { name: 'опитування' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'хмара' })).toBeNull();
+  });
+});

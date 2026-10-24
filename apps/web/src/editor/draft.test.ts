@@ -153,6 +153,127 @@ describe('wall, poll and word cloud in the editor (10d)', () => {
   });
 });
 
+describe('wall, poll and word cloud: checks and drafts (10d)', () => {
+  type Wall = Extract<Question, { type: 'wall' }>;
+  const wallQ = (): Wall => filled(newQuestion('wall')) as Wall;
+  const withTile = (wall: Wall, text: string, group = 0, tile = 0): Wall => ({
+    ...wall,
+    groups: wall.groups.map((g, i) => (i === group ? { ...g, tiles: g.tiles.map((x, k) => (k === tile ? { ...x, text } : x)) } : g)),
+  });
+  const ofBlitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
+  /** Поле, у якого перша клітинка першої категорії — це запитання з такими властивостями; решта клітинок заповнені. */
+  const onCell = (question: Question, cell: Partial<BoardRound['categories'][number]['cells'][number]>): Quiz => {
+    const round = newBoardRound();
+    const categories = round.categories.map((category, i) => ({
+      ...category,
+      title: `К${i + 1}`,
+      cells: category.cells.map((c) => ({ ...c, question: filled(c.question) })),
+    }));
+    const [first, ...rest] = categories;
+    const [head, ...cells] = first.cells;
+    return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories: [{ ...first, cells: [{ ...head, ...cell, question }, ...cells] }, ...rest] }] };
+  };
+
+  it('a filled wall has no problems; an empty tile or group name does', () => {
+    expect(problemsOf(quizWith(wallQ()))).toEqual([]);
+    const empty = withTile(wallQ(), '  ', 1, 2);
+    expect(problemsOf(quizWith(empty))).toEqual([t('problemWallEmpty', { index: 1 })]);
+    const noName = { ...wallQ(), groups: wallQ().groups.map((g, i) => (i === 0 ? { ...g, name: '' } : g)) };
+    expect(problemsOf(quizWith(noName))).toEqual([t('problemWallEmpty', { index: 1 })]);
+  });
+
+  it('a repeated tile is named, compared trimmed and without case', () => {
+    const wall = withTile(withTile(wallQ(), 'Дніпро', 0, 0), ' дніпро ', 2, 1);
+    expect(problemsOf(quizWith(wall))).toEqual([t('problemWallDuplicate', { index: 1, tile: 'дніпро' })]);
+    expect(problemsOf(quizWith(withTile(withTile(wallQ(), 'Дніпро', 0, 0), 'ДНІПРО', 1, 0)))[0]).toContain('«дніпро»');
+  });
+
+  it('the mistake limit and the word count are checked with their own messages', () => {
+    expect(problemsOf(quizWith({ ...wallQ(), mistakes: 9 }))).toEqual([t('problemWallMistakes', { index: 1, wallMin: 1, wallMax: 5 })]);
+    expect(problemsOf(quizWith({ ...wallQ(), mistakes: Number.NaN }))[0]).toContain('помилок до замикання');
+    const cloud = { ...newQuestion('wordcloud'), text: 'Слова?' } as Question;
+    expect(problemsOf(quizWith(cloud))).toEqual([]);
+    expect(problemsOf(quizWith({ ...cloud, words: 4 } as Question))).toEqual([t('problemCloudWords', { index: 1, cloudMax: 3 })]);
+  });
+
+  it('a poll with an empty option is the usual option problem', () => {
+    const poll = { ...newQuestion('poll'), text: 'Що?' } as Question;
+    expect(problemsOf(quizWith(poll))).toEqual([t('problemEmptyOption', { index: 1 })]);
+    expect(problemsOf(quizWith(filled(poll)))).toEqual([]);
+  });
+
+  it('a wall is only for classic and a normal phone cell', () => {
+    const wall = wallQ();
+    const place = t('problemWallPlace', { index: 1 });
+    expect(problemsOf(ofBlitz(wall))).toEqual([place]);
+    expect(problemsOf({ ...quizWith(wall), rounds: [{ ...newFinalRound(), questions: [wall] }] })).toEqual([place]);
+    expect(problemsOf(onCell(wall, { kind: 'normal', answerMode: 'phone' }))).toEqual([]);
+    expect(problemsOf(onCell(wall, { kind: 'normal', answerMode: 'voice' }))).toEqual([t('problemCell', { category: 1, problem: place.charAt(0).toLowerCase() + place.slice(1) })]);
+    expect(problemsOf(onCell(wall, { kind: 'blitz', answerMode: 'phone' }))).toHaveLength(1);
+  });
+
+  it('a poll and a cloud are only for classic', () => {
+    const poll = filled(newQuestion('poll'));
+    const cloud = { ...newQuestion('wordcloud'), text: 'Слова?' } as Question;
+    for (const question of [poll, cloud]) {
+      expect(problemsOf(quizWith(question))).toEqual([]);
+      expect(problemsOf(ofBlitz(question))).toEqual([t('problemVotePlace', { index: 1 })]);
+      expect(problemsOf(onCell(question, {})), question.type).toHaveLength(1);
+    }
+  });
+
+  it('cleaning trims group names and tiles', () => {
+    const wall = withTile(wallQ(), '  Київ  ', 0, 0);
+    const clean = cleaned(quizWith({ ...wall, groups: wall.groups.map((g) => ({ ...g, name: ` ${g.name} ` })) })).rounds[0];
+    const question = roundQuestions(clean)[0] as Wall;
+    expect(question.groups[0].tiles[0].text).toBe('Київ');
+    expect(question.groups[0].name).toBe("Зв'язок 1");
+  });
+
+  it('a wall draft keeps its groups; a wrong size is aligned to 3×3 or 4×4', () => {
+    const wall = withTile(wallQ(), 'Київ', 0, 0);
+    saveDraft('wall-draft', quizWith(wall));
+    expect(roundQuestions(loadDraft('wall-draft')!.rounds[0])[0]).toEqual(wall);
+
+    saveDraft('wall-three', quizWith({ ...wall, groups: wall.groups.slice(0, 3) }));
+    const back = roundQuestions(loadDraft('wall-three')!.rounds[0])[0] as Wall;
+    expect(back.groups).toHaveLength(3);
+    expect(back.groups.map((g) => g.tiles.length)).toEqual([3, 3, 3]);
+    expect(back.groups[0].tiles[0].text).toBe('Київ');
+
+    saveDraft('wall-two', quizWith({ ...wall, groups: wall.groups.slice(0, 2) }));
+    const two = roundQuestions(loadDraft('wall-two')!.rounds[0])[0] as Wall;
+    expect([two.groups.length, two.groups[0].tiles.length]).toEqual([4, 4]);
+    expect(two.groups[3]).toMatchObject({ name: '', tiles: [{ text: '' }, { text: '' }, { text: '' }, { text: '' }] });
+  });
+
+  it('wall mistakes revive as a number, a missing value as the default; a blank field stays blank', () => {
+    const revived = (mistakes: unknown) => {
+      sessionStorage.setItem('quiz:draft:wm', JSON.stringify(quizWith({ ...wallQ(), mistakes } as unknown as Question)));
+      return (roundQuestions(loadDraft('wm')!.rounds[0])[0] as Wall).mistakes;
+    };
+    expect(revived(5)).toBe(5);
+    expect(revived(undefined)).toBe(LIMITS.defaultWallMistakes);
+    expect(Number.isNaN(revived(Number.NaN))).toBe(true);
+  });
+
+  it('a wall draft drops a stored video', () => {
+    sessionStorage.setItem('quiz:draft:wv', JSON.stringify(quizWith({ ...wallQ(), video: { id: 'dQw4w9WgXcQ', start: 0 } } as Question)));
+    expect((roundQuestions(loadDraft('wv')!.rounds[0])[0] as Wall).video).toBeNull();
+  });
+
+  it('a poll and a cloud draft keep options and words and are worth nothing; a bad word count becomes 3', () => {
+    const poll = { ...filled(newQuestion('poll')), points: 500 } as Question;
+    sessionStorage.setItem('quiz:draft:pl', JSON.stringify(quizWith(poll)));
+    const revivedPoll = roundQuestions(loadDraft('pl')!.rounds[0])[0];
+    expect(revivedPoll).toMatchObject({ type: 'poll', points: 0, options: (poll as { options: unknown }).options });
+    for (const [stored, expected] of [[2, 2], ['x', 3], [undefined, 3]] as const) {
+      sessionStorage.setItem('quiz:draft:wc', JSON.stringify(quizWith({ ...newQuestion('wordcloud'), text: 'a', words: stored } as unknown as Question)));
+      expect(roundQuestions(loadDraft('wc')!.rounds[0])[0]).toMatchObject({ type: 'wordcloud', points: 0, words: expected });
+    }
+  });
+});
+
 describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
