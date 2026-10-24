@@ -5024,6 +5024,7 @@ label.powers-price {
 .help-pop ul {
   margin: 0;
   padding-inline-start: 1.1rem;
+  list-style: disc;
 }
 
 .help-pop-actions {
@@ -5034,13 +5035,14 @@ label.powers-price {
 }
 
 @media (max-width: 600px) {
+  /* Аркуш висить угорі: липка нижня панель «Далі» лишається доступною. */
   .help-pop {
-    inset: auto 0 0 0;
+    inset: 0 0 auto 0;
     width: auto;
-    border-radius: 1rem 1rem 0 0;
-    border-width: 1px 0 0;
-    max-height: 75vh;
-    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    border-radius: 0 0 1rem 1rem;
+    border-width: 0 0 1px;
+    max-height: 50vh;
+    padding-top: max(1rem, env(safe-area-inset-top));
   }
 }
 

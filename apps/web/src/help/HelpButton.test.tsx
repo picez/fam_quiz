@@ -68,6 +68,49 @@ describe('HelpButton', () => {
     screen.getByRole('dialog', { name: 'Заміна запитання' });
   });
 
+  it('aria-expanded follows the window; the first button collapses when another opens', () => {
+    render(
+      <>
+        <HelpButton id="round.final" />
+        <HelpButton id="buff.swap" />
+      </>,
+    );
+    const [first, second] = screen.getAllByRole('button', { name: /^Довідка:/ });
+    expect(first.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(first);
+    expect(first.getAttribute('aria-expanded')).toBe('true');
+    expect(first.getAttribute('aria-controls')).toBe(screen.getByRole('dialog').id);
+    fireEvent.click(second);
+    expect(first.getAttribute('aria-expanded')).toBe('false');
+    expect(second.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(second);
+    expect(second.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('a tap inside the dialog or on its own ⓘ does not close it', () => {
+    render(<HelpButton id="round.board" />);
+    const button = screen.getByRole('button', { name: 'Довідка: Ігрове поле' });
+    fireEvent.click(button);
+    fireEvent.pointerDown(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Що це' }));
+    screen.getByRole('dialog');
+    fireEvent.pointerDown(button);
+    screen.getByRole('dialog');
+  });
+
+  it('Escape already handled elsewhere does not close it; listeners go away on unmount', () => {
+    const { unmount } = render(<HelpButton id="round.board" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Ігрове поле' }));
+    const handled = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    handled.preventDefault();
+    document.dispatchEvent(handled);
+    screen.getByRole('dialog');
+    const removed = vi.spyOn(document, 'removeEventListener');
+    unmount();
+    expect(removed.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining(['keydown', 'pointerdown']));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('inside a label it does not toggle the checkbox', () => {
     render(
       <label>

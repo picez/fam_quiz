@@ -23,8 +23,8 @@ export function HelpBody({ entry, level = 3 }: { entry: HelpEntry; level?: 3 | 4
         <section key={key}>
           <Heading>{t(key)}</Heading>
           <ul>
-            {items.map((item) => (
-              <li key={item}>{item}</li>
+            {items.map((item, index) => (
+              <li key={index}>{item}</li>
             ))}
           </ul>
         </section>
@@ -42,6 +42,7 @@ export function HelpButton({ id, className }: { id: HelpId; className?: string }
   const [open, setOpen] = useState(false);
   const token = useId();
   const headingId = useId();
+  const dialogId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
@@ -53,7 +54,7 @@ export function HelpButton({ id, className }: { id: HelpId; className?: string }
   useEffect(() => {
     if (!open) return;
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
       setOpen(false);
       buttonRef.current?.focus();
     };
@@ -96,6 +97,7 @@ export function HelpButton({ id, className }: { id: HelpId; className?: string }
         className={className === undefined ? 'help-button' : `help-button ${className}`}
         aria-label={t('helpOpen', { title: entry.title })}
         aria-haspopup="dialog"
+        aria-controls={open ? dialogId : undefined}
         aria-expanded={open}
         onClick={(event) => {
           event.preventDefault();
@@ -107,7 +109,7 @@ export function HelpButton({ id, className }: { id: HelpId; className?: string }
       </button>
       {open &&
         createPortal(
-          <div ref={popRef} className="help-pop" role="dialog" aria-modal="false" aria-labelledby={headingId}>
+          <div ref={popRef} id={dialogId} className="help-pop" role="dialog" aria-modal="false" aria-labelledby={headingId}>
             <h2 id={headingId} ref={headingRef} tabIndex={-1}>
               {entry.title}
             </h2>
