@@ -1587,4 +1587,12 @@ describe('StageScreen: bluff (10f)', () => {
     expect(document.querySelectorAll('.bluff-row.is-closed')).toHaveLength(3);
     expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
   });
+
+  it('eight options: dense board, whole option text kept, buyers clamped with «+N»', () => {
+    const many = Array.from({ length: 8 }, (_, at) => ({ id: `b${at + 1}`, text: `Дуже довга вигадка номер ${at + 1} про те, де саме поставили вежу`, open: true, kind: 'lie' as const, authors: ['Олена'], pickedBy: ['Аня', 'Богдан', 'Віка', 'Гліб', 'Дана', 'Єва'], removed: false }));
+    show(view({ phase: 'reveal', questionIndex: 0, question: bluffQuestion, reveal: bluffFull, bluff: { ...info('reveal', 8), options: many, total: 8, shown: 8 } }));
+    expect(document.querySelector('.bluff-board.is-dense')).not.toBeNull();
+    expect(screen.getByText('Дуже довга вигадка номер 3 про те, де саме поставили вежу')).toBeTruthy();
+    expect(screen.getAllByText('Купилися: Аня, Богдан, Віка +3')).toHaveLength(8);
+  });
 });

@@ -38,7 +38,7 @@ describe('BluffBoard', () => {
     expect(rows).toHaveLength(3);
     expect(rows[0].classList.contains('is-closed')).toBe(true);
     expect(rows[0].querySelector('.bluff-meta')).toBeNull();
-    expect(rows[0].textContent).toBe('Рим');
+    expect(rows[0].textContent).toBe('Римзакрито');
   });
 
   it('the opened truth is marked', () => {
@@ -80,5 +80,10 @@ describe('BluffBoard', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('closed options on the reveal have an accessible «закрито» state', () => {
+    render(<BluffBoard info={info([closed('b1', 'Рим'), { id: 'b2', text: 'Правда', open: true, kind: 'truth', authors: [], pickedBy: [], removed: false }])} />);
+    expect(screen.getAllByText('закрито')).toHaveLength(1);
   });
 });

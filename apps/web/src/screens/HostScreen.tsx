@@ -304,7 +304,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // Кроки гри йдуть по одному: подвійний дотик не має перескочити етап.
   const [stepping, setStepping] = useState(false);
   const steppingRef = useRef(false);
-  const step = (event: HostEvent) => {
+  const step = (event: HostEvent, payload?: unknown) => {
     if (steppingRef.current) return;
     const release = () => {
       steppingRef.current = false;
@@ -314,7 +314,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
     setStepping(true);
     // Якщо підтвердження загубилося, кнопка не має лишитися заблокованою назавжди.
     const fallback = setTimeout(release, 3000);
-    void act(event).finally(() => {
+    void act(event, payload).finally(() => {
       clearTimeout(fallback);
       release();
     });
@@ -916,7 +916,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {bluff !== null && (
         <section className="panel host-bluff">
           <h2>{t('hostBluffTitle')}</h2>
-          <HostBluff info={bluff} act={act} />
+          <HostBluff info={bluff} act={step} busy={stepping} paused={view.paused} />
         </section>
       )}
 

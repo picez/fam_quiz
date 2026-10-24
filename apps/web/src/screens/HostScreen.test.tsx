@@ -2048,9 +2048,9 @@ describe('HostScreen: bluff (10f)', () => {
   it('choice phase: «Закрити вибір», and «Прибрати» only next to players lies, after confirming', () => {
     const send = show(bluffView('question', bluff({ stage: 'choice', options: five, total: 5, lies: null })));
     expect(button('Закрити вибір')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Прибрати' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^Прибрати/ })).toHaveLength(2);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Прибрати' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Прибрати/ })[0]);
     expect(confirm).toHaveBeenCalledWith('Прибрати «Рим»? Автори нічого за неї не отримають.');
     expect(send).toHaveBeenCalledWith('host:bluff-remove', { optionId: 'b1' });
     confirm.mockRestore();
@@ -2070,5 +2070,32 @@ describe('HostScreen: bluff (10f)', () => {
     expect(button('Далі')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+  });
+
+  it('one guard for every bluff action: a second tap is ignored, and the main button is blocked while a remove is in flight', async () => {
+    let release: () => void = () => undefined;
+    const send = vi.fn(() => new Promise<{ ok: true }>((resolve) => (release = () => resolve({ ok: true }))));
+    show(bluffView('question', bluff({ stage: 'choice', options: five, total: 5, lies: null })), send);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Прибрати/ })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Прибрати/ })[1]);
+    fireEvent.click(button('Закрити вибір'));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(button('Закрити вибір').disabled).toBe(true);
+    release();
+    await waitFor(() => expect(button('Закрити вибір').disabled).toBe(false));
+    confirm.mockRestore();
+  });
+
+  it('«Відкрити всі» is not sent twice by a double tap, and is absent while paused', () => {
+    const open = five.map((o, at) => ({ ...o, open: at < 1 }));
+    const info = bluff({ stage: 'reveal', options: open, shown: 1, total: 5, lies: null });
+    const send = show(bluffView('reveal', info), vi.fn(() => new Promise<{ ok: true }>(() => undefined)));
+    fireEvent.click(button('Відкрити всі'));
+    fireEvent.click(button('Відкрити всі'));
+    expect(send).toHaveBeenCalledTimes(1);
+    cleanup();
+    show(bluffView('reveal', info, { paused: true }));
+    expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
   });
 });

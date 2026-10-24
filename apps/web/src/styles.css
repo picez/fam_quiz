@@ -8027,9 +8027,15 @@ button.wall-tile:disabled {
   }
 }
 
-/* Сцена блефу: п'ять варіантів з авторами й виборами вміщуються в 1280 × 720 без прокрутки (рядок ≈ 90 px). */
+/* Сцена блефу: п'ять варіантів з авторами й виборами вміщуються в 1280 × 720 без прокрутки; від 7 — у дві колонки. */
 .stage-bluff {
   align-items: center;
+}
+
+.bluff-metas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 .stage-bluff .bluff-board {
@@ -8045,22 +8051,51 @@ button.wall-tile:disabled {
   max-height: 5.625rem;
   justify-content: center;
   overflow: hidden;
+  padding: 0.25rem 1rem;
+  font-size: 1.375rem;
 }
 
-.stage-bluff .bluff-board .bluff-row > span {
-  white-space: nowrap;
+/* Текст варіанта — до двох рядків без обрізання крапками; автори й покупці — один рядок, не менше 1rem. */
+.stage-bluff .bluff-board .bluff-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
   line-height: 1.15;
 }
 
+.stage-bluff .bluff-board .bluff-metas {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 1.25rem;
+}
+
 .stage-bluff .bluff-board .bluff-meta {
-  font-size: 0.75rem;
-  line-height: 1.1;
+  font-size: 1rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .stage-bluff .bluff-board.is-dense {
-  gap: 0.1875rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 1fr;
+  max-width: 100%;
+  gap: 0.375rem 0.75rem;
+}
+
+.stage-bluff .bluff-board.is-dense .bluff-row {
+  max-height: none;
+  font-size: 1.25rem;
+}
+
+.stage-bluff .bluff-board.is-dense .bluff-metas {
+  flex-direction: column;
+  gap: 0;
 }
 
 .host-bluff .bluff-board {

@@ -34,7 +34,7 @@ describe('HostBluff', () => {
     const act = vi.fn();
     const options = [opt('b1', 'Рим'), opt('b2', 'Мілан', { kind: 'spare', authors: [] }), opt('b3', 'Правда', { kind: 'truth', authors: [] }), opt('b4', 'Дурня', { removed: true })];
     render(<HostBluff info={info({ stage: 'choice', options, total: 4, lies: null })} act={act} />);
-    const buttons = screen.getAllByRole('button', { name: 'Прибрати' });
+    const buttons = screen.getAllByRole('button', { name: 'Прибрати «Рим»' });
     expect(buttons).toHaveLength(1);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     fireEvent.click(buttons[0]);
@@ -46,12 +46,25 @@ describe('HostBluff', () => {
     confirm.mockRestore();
   });
 
+  it('while busy the buttons are disabled, and on pause «Відкрити всі» is gone while «Прибрати» stays', () => {
+    const options = [opt('b1', 'Рим'), opt('b2', 'Правда', { kind: 'truth', authors: [] })];
+    render(<HostBluff info={info({ stage: 'choice', options, total: 2, lies: null })} act={vi.fn()} busy />);
+    expect((screen.getByRole('button', { name: 'Прибрати «Рим»' }) as HTMLButtonElement).disabled).toBe(true);
+    cleanup();
+    const closed = [opt('b1', 'Рим', { open: true }), opt('b2', 'Правда', { kind: 'truth', authors: [] })];
+    render(<HostBluff info={info({ stage: 'reveal', options: closed, shown: 1, total: 2, lies: null })} act={vi.fn()} paused />);
+    expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
+    cleanup();
+    render(<HostBluff info={info({ stage: 'choice', options, total: 2, lies: null })} act={vi.fn()} paused />);
+    expect(screen.getByRole('button', { name: 'Прибрати «Рим»' })).toBeTruthy();
+  });
+
   it('reveal: «Відкрити всі» while closed options remain', () => {
     const act = vi.fn();
     const options = [opt('b1', 'Рим', { open: true }), opt('b2', 'Правда', { kind: 'truth', authors: [] })];
     render(<HostBluff info={info({ stage: 'reveal', options, shown: 1, total: 2, lies: null })} act={act} />);
     fireEvent.click(screen.getByRole('button', { name: 'Відкрити всі' }));
-    expect(act).toHaveBeenCalledWith('host:bluff-all', undefined);
+    expect(act).toHaveBeenCalledWith('host:bluff-all');
     cleanup();
     render(<HostBluff info={info({ stage: 'reveal', options: options.map((o) => ({ ...o, open: true })), shown: 2, total: 2, lies: null })} act={act} />);
     expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();

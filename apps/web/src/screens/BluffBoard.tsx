@@ -4,20 +4,26 @@ import { t } from '../i18n';
 
 const FLIP_MS = 700;
 
-function metaOf(option: BluffOptionView) {
+/** На сцені багато покупців не вміщуються в рядок: перші кілька й «+N». */
+const MAX_NAMES = 3;
+function namesOf(names: string[], clamp: boolean): string {
+  return clamp && names.length > MAX_NAMES ? `${names.slice(0, MAX_NAMES).join(', ')} ${t('bluffMore', { n: names.length - MAX_NAMES })}` : names.join(', ');
+}
+
+function metaOf(option: BluffOptionView, clamp: boolean) {
   if (option.kind === null) return null;
   const label =
     option.kind === 'truth'
       ? t('bluffTruth')
       : option.kind === 'spare'
         ? t('bluffSpare')
-        : t('bluffLieBy', { names: (option.authors ?? []).join(', ') });
+        : t('bluffLieBy', { names: namesOf(option.authors ?? [], clamp) });
   const by = option.pickedBy ?? [];
   return (
-    <>
+    <span className="bluff-metas">
       <span className="bluff-meta">{label}</span>
-      <span className="bluff-meta">{by.length > 0 ? t('bluffPickedBy', { names: by.join(', ') }) : t('bluffNobody')}</span>
-    </>
+      <span className="bluff-meta">{by.length > 0 ? t('bluffPickedBy', { names: namesOf(by, clamp) }) : t('bluffNobody')}</span>
+    </span>
   );
 }
 
@@ -74,8 +80,9 @@ export function BluffBoard({ info, big = false, host = false }: { info: BluffInf
           ].filter((c) => c !== '');
           return (
             <li key={option.id} className={rowClasses.join(' ')}>
-              <span>{option.text}</span>
-              {host && option.removed ? <span className="bluff-meta">{t('bluffRemoved')}</span> : open && metaOf(option)}
+              <span className="bluff-text">{option.text}</span>
+              {!open && info.stage === 'reveal' && <span className="sr-only">{t('bluffClosed')}</span>}
+              {host && option.removed ? <span className="bluff-meta">{t('bluffRemoved')}</span> : open && metaOf(option, big)}
             </li>
           );
         })}

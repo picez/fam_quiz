@@ -1,33 +1,15 @@
-import { useRef, useState } from 'react';
 import type { BluffInfo } from '@quiz/shared';
 import { t } from '../i18n';
 import { BluffBoard } from './BluffBoard';
 
-type Act = (event: 'host:bluff-remove' | 'host:bluff-all', payload?: { optionId: string }) => void | Promise<void>;
+type Act = (event: 'host:bluff-remove' | 'host:bluff-all', payload?: { optionId: string }) => void;
 
 /**
  * Пульт блефу: вигадки наживо (фаза вигадок), «Прибрати» біля вигадок гравців (фаза вибору), «Відкрити всі» (розкриття).
- * Дії йдуть по одній: подвійний дотик не надсилає подію двічі.
+ * Крок гри веде HostScreen: busy — його спільний замок, тож «Прибрати», «Відкрити всі» і головна кнопка не йдуть одночасно.
+ * На паузі «Відкрити всі» не показується (рушій відмовив би).
  */
-export function HostBluff({ info, act }: { info: BluffInfo; act: Act }) {
-  const busyRef = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const run = (event: 'host:bluff-remove' | 'host:bluff-all', payload?: { optionId: string }) => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(true);
-    const release = () => {
-      busyRef.current = false;
-      setBusy(false);
-    };
-    // Якщо підтвердження загубилося, кнопки не мають лишитися заблокованими назавжди.
-    const fallback = setTimeout(release, 3000);
-    void Promise.resolve(act(event, payload)).finally(() => {
-      clearTimeout(fallback);
-      release();
-    });
-  };
-
+export function HostBluff({ info, act, busy = false, paused = false }: { info: BluffInfo; act: Act; busy?: boolean; paused?: boolean }) {
   if (info.stage === 'lies') {
     const lies = info.lies ?? [];
     return (
@@ -53,9 +35,10 @@ export function HostBluff({ info, act }: { info: BluffInfo; act: Act }) {
               <button
                 type="button"
                 className="btn btn-small"
+                aria-label={t('bluffRemoveLabel', { text: option.text })}
                 disabled={busy}
                 onClick={() => {
-                  if (window.confirm(t('bluffRemoveConfirm', { text: option.text }))) run('host:bluff-remove', { optionId: option.id });
+                  if (window.confirm(t('bluffRemoveConfirm', { text: option.text }))) act('host:bluff-remove', { optionId: option.id });
                 }}
               >
                 {t('bluffRemove')}
@@ -64,8 +47,8 @@ export function HostBluff({ info, act }: { info: BluffInfo; act: Act }) {
           ))}
         </ul>
       )}
-      {info.stage === 'reveal' && info.shown < info.total && (
-        <button type="button" className="btn" disabled={busy} onClick={() => run('host:bluff-all')}>
+      {info.stage === 'reveal' && info.shown < info.total && !paused && (
+        <button type="button" className="btn" disabled={busy} onClick={() => act('host:bluff-all')}>
           {t('bluffAllRows')}
         </button>
       )}
