@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { quizSchema } from '@quiz/shared';
 import { sql } from 'drizzle-orm';
-import { bool, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
+import { bool, boardRound, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { answer, game, user } from './db/schema';
 import { createQuiz as saveQuiz, getQuiz, listQuizzes } from './quizzes';
@@ -271,5 +271,21 @@ describe('getQuiz with an old saved board quiz', () => {
     const got = await getQuiz(db, 'u1', id);
     const first = got?.rounds[0].type === 'board' ? got.rounds[0].categories[0].cells[0] : null;
     expect(first).toMatchObject({ kind: 'normal', penalty: 'none' });
+  });
+});
+
+describe('spares of board categories', () => {
+  it('keeps the spares of board categories', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const cells = (p: string) => [1, 2, 3].map((j) => withId(single, `${p}${j}`));
+    const spare = { ...text, id: 'cs1', text: 'Запасне зі Спорту?' };
+    const board = (spares?: typeof spare[]) =>
+      boardRound('g1', [{ title: 'Спорт', cells: cells('s'), ...(spares === undefined ? {} : { spares }) }, { title: 'Міста', cells: cells('m') }, { title: 'Річки', cells: cells('r') }]);
+    const withSpares = await saveQuiz(db, 'u1', makeRoundsQuiz([board([spare])]));
+    const plain = await saveQuiz(db, 'u1', makeRoundsQuiz([board()]));
+    const first = (quiz: Awaited<ReturnType<typeof getQuiz>>) => (quiz?.rounds[0].type === 'board' ? quiz.rounds[0].categories : []);
+    expect(first(await getQuiz(db, 'u1', withSpares))[0].spares).toEqual([spare]);
+    for (const category of first(await getQuiz(db, 'u1', plain))) expect('spares' in category).toBe(false);
   });
 });

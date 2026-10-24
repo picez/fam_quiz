@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { READY_BUFFS, allowedBuffs, questionsOf, quizSchema } from '@quiz/shared';
+import { READY_BUFFS, allowedBuffs, boardSpareSource, questionsOf, quizSchema } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
@@ -179,7 +179,18 @@ describe('the school quiz', () => {
     const id = await createQuiz(db, 'school-owner', quizSchema.parse(schoolQuiz));
     const loaded = await getQuiz(db, 'school-owner', id);
     expect([loaded?.duels, loaded?.spares]).toEqual([schoolQuiz.duels, schoolQuiz.spares]);
+    expect(loaded?.rounds).toEqual(quizSchema.parse(schoolQuiz).rounds);
     expect(loaded?.settings.newcomers).toBe(true);
+  });
+
+  it('every board category has two spares of simple types, each answerable', () => {
+    const categories = boards.flatMap((b) => (b.type === 'board' ? b.categories : []));
+    expect(categories).toHaveLength(11);
+    for (const category of categories) {
+      expect(category.spares?.length, category.title).toBe(2);
+      for (const spare of category.spares ?? []) expect(['single', 'multi', 'boolean', 'text', 'numeric']).toContain(spare.type);
+    }
+    expect(boardSpareSource(schoolQuiz)).toBe('category');
   });
 
   it('only the school quiz turns explanations on', () => {

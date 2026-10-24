@@ -22,6 +22,8 @@ import {
   type Quiz,
   type RoundRules,
   rulesOf,
+  categorySparesOf,
+  boardSpareSource,
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
@@ -394,10 +396,11 @@ export function cleaned(quiz: Quiz): Quiz {
       return {
         ...round,
         title,
-        categories: round.categories.map((category) => ({
+        categories: round.categories.map(({ spares: categorySpares, ...category }) => ({
           ...category,
           title: category.title.trim(),
           cells: category.cells.map((cell) => ({ ...cell, question: cleanQuestion(cell.question) })),
+          ...(categorySpares === undefined || categorySpares.length === 0 ? {} : { spares: categorySpares.map(cleanQuestion) }),
         })),
       };
     }),
@@ -565,6 +568,13 @@ export function problemsOf(quiz: Quiz): string[] {
     if (round.type === 'board') {
       round.categories.forEach((category, categoryIndex) => {
         if (category.title === '') problems.push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })));
+        const name = category.title === '' ? t('boardCategoryPlaceholder', { index: categoryIndex + 1 }) : category.title;
+        (category.spares ?? []).forEach((spare, index) => {
+          const key = problemKey(spare);
+          if (key === null) return;
+          const problem = t(key, { index: index + 1 }).replace(/^[^:]*:\s*/, '');
+          problems.push(where(t('problemCategorySpare', { category: name, index: index + 1, problem })));
+        });
         category.cells.forEach((cell, index) => {
           const key = problemKey(cell.question);
           if (key !== null) problems.push(where(cellProblem(categoryIndex + 1, index + 1, key)));
@@ -582,7 +592,7 @@ export function problemsOf(quiz: Quiz): string[] {
   });
   if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));
   if (draft.spares !== undefined) problems.push(...spareProblems(draft.spares));
-  if (draft.settings.buffs?.includes('swap') && draft.spares === undefined) problems.push(t('problemSparesEmpty'));
+  if (draft.settings.buffs?.includes('swap') && draft.spares === undefined && categorySparesOf(draft).length === 0) problems.push(t('problemSparesEmpty'));
   const prices = Object.values(draft.settings.debuffPrices ?? {});
   if (prices.some((price) => !Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice)) {
     problems.push(t('problemDebuffPrice', { min: LIMITS.minDebuffPrice, max: LIMITS.maxDebuffPrice }));
@@ -606,4 +616,43 @@ export function problemsOf(quiz: Quiz): string[] {
     }
   }
   return problems;
+}
+
+export interface SwapGaps {
+  /** Хоч одна категорія має власні запасні. */
+  anyCategory: boolean;
+  /** Категорії без власних запасних, коли поле в режимі категорій: «Поле · Річки» (назва раунду порожня — «Раунд N», категорії — «Категорія N»). */
+  emptyCategories: string[];
+  /** Є класичний раунд, а загального пулу немає. */
+  classicWithoutPool: boolean;
+  /** Є поле, жодна категорія не має запасних, а загальні є: поле бере загальні. */
+  legacyBoard: boolean;
+}
+
+/** Де «Заміна запитання» не матиме запасного; не блокує збереження. */
+export function swapGaps(quiz: Quiz): SwapGaps {
+  const anyCategory = boardSpareSource(quiz) === 'category';
+  const hasPool = (quiz.spares?.length ?? 0) > 0;
+  const emptyCategories: string[] = [];
+  let hasBoard = false;
+  if (anyCategory) {
+    quiz.rounds.forEach((round, roundIndex) => {
+      if (round.type !== 'board') return;
+      const roundName = round.title.trim() === '' ? t('roundN', { index: roundIndex + 1 }) : round.title.trim();
+      round.categories.forEach((category, categoryIndex) => {
+        if ((category.spares?.length ?? 0) > 0) return;
+        const name = category.title.trim() === '' ? t('boardCategoryPlaceholder', { index: categoryIndex + 1 }) : category.title.trim();
+        emptyCategories.push(`${roundName} · ${name}`);
+      });
+    });
+  }
+  quiz.rounds.forEach((round) => {
+    if (round.type === 'board') hasBoard = true;
+  });
+  return {
+    anyCategory,
+    emptyCategories,
+    classicWithoutPool: !hasPool && quiz.rounds.some((round) => round.type === 'classic'),
+    legacyBoard: hasBoard && !anyCategory && hasPool,
+  };
 }

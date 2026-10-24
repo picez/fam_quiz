@@ -13,6 +13,7 @@ import {
   newQuestion,
   problemsOf,
   questionTypesFor,
+  swapGaps,
 } from './draft';
 import { BoardEditor } from './BoardEditor';
 import { DuelsEditor } from './DuelsEditor';
@@ -83,6 +84,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
   const total = questionsOf(quiz).length;
+  const gaps = swapGaps(quiz);
   const roomForMore = questions.length < LIMITS.maxQuestions && total < LIMITS.maxQuizQuestions;
   const setNewcomers = (on: boolean) => {
     const { newcomers: _off, ...rest } = settings;
@@ -234,7 +236,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
         <details className="rules powers">
           <summary>{t('powersTitle')}</summary>
-          <PowersEditor settings={settings} spares={quiz.spares} onChange={(powers) => setSettings(powers)} />
+          <PowersEditor settings={settings} spares={quiz.spares} gaps={gaps} onChange={(powers) => setSettings(powers)} />
         </details>
 
         <details className="rules spares" open={sparesOpen} onToggle={(event) => setSparesOpen(event.currentTarget.open)}>
@@ -363,6 +365,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               focus={boardFocus}
               roomForMore={total < LIMITS.maxQuizQuestions}
               roomForCategory={total + LIMITS.minCategoryQuestions <= LIMITS.maxQuizQuestions}
+              swapOn={settings.buffs?.includes('swap') ?? false}
+              legacySpares={gaps.legacyBoard}
               onChange={setRound}
             />
           </section>

@@ -1,4 +1,5 @@
 import {
+  allSpares,
   allowedBuffs,
   allowedDebuffs,
   debuffPrice,
@@ -1138,7 +1139,7 @@ function playerShop(state: GameState, playerId: string): PlayerShop | null {
 
 /** Запасне запитання за id із запису (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. */
 function spareOf(state: GameState, id: string | undefined): Question | null {
-  return id === undefined ? null : ((state.quiz.spares ?? []).find((q) => q.id === id) ?? null);
+  return id === undefined ? null : (allSpares(state.quiz).find((q) => q.id === id) ?? null);
 }
 
 export function hostView(state: GameState): HostView {

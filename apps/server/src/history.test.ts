@@ -984,6 +984,26 @@ describe('history: buffs', () => {
 });
 
 describe('history: spare questions', () => {
+  it('responses carry a spare of a board category', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const spare = { ...text, id: 'cs1', text: 'Запасне зі Спорту?' };
+    const cells = (p: string) => [1, 2, 3].map((j) => withId(single, `${p}${j}`));
+    const round = boardRound('g1', [
+      { title: 'Спорт', cells: cells('s'), spares: [spare] },
+      { title: 'Міста', cells: cells('m') },
+      { title: 'Річки', cells: cells('r') },
+    ]);
+    const { gameId } = await seedGame(db, {
+      hostId: account.id,
+      startedAt: new Date(2026, 1, 1),
+      snapshot: makeRoundsQuiz([round], { buffs: ['swap'] }),
+      players: [{ userId: null, nickname: 'Олена', score: 100, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 100, buff: 'swap', spareId: 'cs1' }] }],
+    });
+    const detail = await hostGame(db, account.id, gameId);
+    expect(detail?.questions[0].responses[0].spare?.text).toBe('Запасне зі Спорту?');
+  });
+
   it('responses carry the spare question', async () => {
     const host = await signUp(ctx.app, 'Ведуча');
     const [account] = await db.select().from(user).where(eq(user.email, host.email));

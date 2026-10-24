@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare } from './draft';
+import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -1033,5 +1033,66 @@ describe('spare drafts in storage', () => {
     expect('spares' in loadDraft('brokenspares')!).toBe(false);
     sessionStorage.setItem('quiz:draft:emptyspares', JSON.stringify({ ...quiz, spares: [null, 5] }));
     expect('spares' in loadDraft('emptyspares')!).toBe(false);
+  });
+});
+
+describe('category spares in the draft (9d)', () => {
+  const boardQuiz = (spareIn: Record<string, Question[]> = {}, extra: Partial<Quiz> = {}): Quiz => {
+    const board = newBoardRound();
+    const names = ['Спорт', 'Міста', 'Річки'];
+    const round: BoardRound = {
+      ...board,
+      title: 'Поле',
+      categories: board.categories.map((category, i) => ({
+        ...category,
+        title: names[i],
+        cells: category.cells.map((cell) => ({ ...cell, question: filled(cell.question) })),
+        ...(spareIn[names[i]] === undefined ? {} : { spares: spareIn[names[i]] }),
+      })),
+    };
+    return { ...newQuiz(), title: 'Гра', rounds: [round], ...extra };
+  };
+  const swapOn = (quiz: Quiz): Quiz => ({ ...quiz, settings: { ...quiz.settings, buffs: ['swap'] } });
+
+  it('cleaned drops an empty category pool and trims category spares', () => {
+    const quiz = boardQuiz({ Спорт: [], Міста: [{ ...filled(newSpare('boolean')), text: '  Так?  ' }] });
+    const [round] = cleaned(quiz).rounds as BoardRound[];
+    expect('spares' in round.categories[0]).toBe(false);
+    expect(round.categories[1].spares?.[0].text).toBe('Так?');
+  });
+
+  it('a quiz with spares only in categories saves; problems of a category spare name the category', () => {
+    const good = swapOn(boardQuiz({ Спорт: [filled(newSpare('boolean'))] }));
+    expect(problemsOf(good)).toEqual([]);
+    const bad = swapOn(boardQuiz({ Спорт: [newSpare('boolean')] }));
+    expect(problemsOf(bad).join('\n')).toContain('Категорія «Спорт», запасне 1:');
+    expect(problemsOf(swapOn(boardQuiz()))).toContain(t('problemSparesEmpty'));
+  });
+
+  it('swapGaps lists categories without spares, a classic round without the pool and the legacy board', () => {
+    const some = boardQuiz({ Спорт: [filled(newSpare('boolean'))] });
+    expect(swapGaps(some)).toEqual({ anyCategory: true, emptyCategories: ['Поле · Міста', 'Поле · Річки'], classicWithoutPool: false, legacyBoard: false });
+    const withClassic: Quiz = { ...some, rounds: [...some.rounds, newClassicRound()] };
+    expect(swapGaps(withClassic).classicWithoutPool).toBe(true);
+    const legacy = boardQuiz({}, { spares: [filled(newSpare('boolean'))] });
+    expect(swapGaps(legacy)).toMatchObject({ anyCategory: false, emptyCategories: [], legacyBoard: true });
+    expect(swapGaps(boardQuiz()).emptyCategories).toEqual([]);
+    expect(swapGaps(boardQuiz()).classicWithoutPool).toBe(false);
+    const [round] = some.rounds as BoardRound[];
+    const blank: Quiz = { ...some, rounds: [{ ...round, title: '', categories: round.categories.map((c, i) => (i === 1 ? { ...c, title: '' } : c)) }] };
+    expect(swapGaps(blank).emptyCategories).toEqual(['Раунд 1 · Категорія 2', 'Раунд 1 · Річки']);
+  });
+
+  it('a draft revives category spares: null time limit becomes NaN, a non-array disappears', () => {
+    const spare = filled(newSpare('boolean'));
+    const quiz = boardQuiz({ Спорт: [spare] });
+    const raw = JSON.parse(JSON.stringify(quiz));
+    raw.rounds[0].categories[0].spares[0].timeLimit = null;
+    raw.rounds[0].categories[1].spares = 'x';
+    sessionStorage.setItem('quiz:draft:catspares', JSON.stringify(raw));
+    const [round] = loadDraft('catspares')!.rounds as BoardRound[];
+    expect(round.categories[0].spares?.[0].timeLimit).toBeNaN();
+    expect(round.categories[0].spares?.[0].text).toBe(spare.text);
+    expect('spares' in round.categories[1]).toBe(false);
   });
 });

@@ -3,6 +3,7 @@ import { allowedBuffs, allowedDebuffs, BUFF_KINDS, DEBUFF_KINDS, LIMITS, READY_B
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
+import type { SwapGaps } from './draft';
 
 type Prices = Partial<Record<DebuffKind, number>>;
 
@@ -18,6 +19,8 @@ interface Props {
   settings: QuizSettings;
   /** Пул запасних: «Заміна запитання» без нього не збережеться. */
   spares: Question[] | undefined;
+  /** Де заміна не матиме запасного (попередження, не блокують). */
+  gaps?: SwapGaps;
   onChange: (powers: Powers) => void;
 }
 
@@ -31,7 +34,7 @@ const pricesFor = (prices: Prices | undefined, allowed: DebuffKind[]): Prices | 
 };
 
 /** Розділ «Бафи й дебафи»: прапорці, ціни дебафів і «Усі / Жодного»; onChange завжди дає всі поля у порядку списків. */
-export function PowersEditor({ settings, spares, onChange }: Props) {
+export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
   const debuffs = allowedDebuffs({ settings });
   const buffs = allowedBuffs({ settings });
   const prices = settings.debuffPrices;
@@ -154,8 +157,17 @@ export function PowersEditor({ settings, spares, onChange }: Props) {
             {`${BUFF_ICONS[kind]} ${buffName(kind)} — ${t(`buffTip_${kind}` as TextKey)}`}
           </p>
         ))}
-        {buffs.includes('swap') && (spares === undefined || spares.length === 0) && (
+        {buffs.includes('swap') && (spares === undefined || spares.length === 0) && !gaps?.anyCategory && (
           <p className="meta powers-warn">{t('powersSwapNeedsSpares')}</p>
+        )}
+        {buffs.includes('swap') && gaps !== undefined && (
+          <>
+            {gaps.emptyCategories.length > 0 && (
+              <p className="meta powers-warn">{t('powersSwapCategoriesEmpty', { list: gaps.emptyCategories.join(', ') })}</p>
+            )}
+            {gaps.classicWithoutPool && <p className="meta powers-warn">{t('powersSwapClassicEmpty')}</p>}
+            {gaps.legacyBoard && <p className="meta">{t('powersSwapLegacyBoard')}</p>}
+          </>
         )}
       </fieldset>
     </>

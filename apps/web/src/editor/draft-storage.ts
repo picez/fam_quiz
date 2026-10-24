@@ -59,8 +59,9 @@ const looksLikeCategory = (category: unknown) => {
 };
 
 function reviveCategory(category: BoardCategory): BoardCategory {
+  const { spares, ...rest } = category;
   return {
-    ...category,
+    ...rest,
     cells: category.cells.map((cell) => ({
       // Невідома позначка не повинна ламати поле.
       mark: (CELL_MARKS as readonly string[]).includes(cell.mark) ? cell.mark : 'none',
@@ -70,6 +71,7 @@ function reviveCategory(category: BoardCategory): BoardCategory {
       penalty: (CELL_PENALTIES as readonly string[]).includes(cell.penalty) ? cell.penalty : 'none',
       question: revive(cell.question),
     })),
+    ...reviveSpares(spares),
   };
 }
 
