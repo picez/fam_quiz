@@ -35,6 +35,10 @@ import {
   answerWindowMs,
   audioLeadMs,
   proximityPartial,
+  cluesAt,
+  clueShare,
+  pinDistance,
+  pinShare,
   revealShare,
   sliderShare,
   allSpares,
@@ -1206,6 +1210,158 @@ describe('audio and revealing picture (10b)', () => {
     expect(proximityPartial(slider)).toBe(true);
     expect(proximityPartial(questionSchema.parse(revealing('q')))).toBe(false);
     expect(proximityPartial(questionSchema.parse(single))).toBe(false);
+  });
+});
+
+describe('clues (10c)', () => {
+  const cluesQ = { id: 'c1', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 30, points: 1000,
+    clues: ['Я народився 1814 року.', 'Я був кріпаком.', 'Я художник.', 'Я написав «Кобзар».', 'Я на купюрі 100 гривень.'],
+    accepted: ['Шевченко', 'Тарас Шевченко'], interval: 5 } as const;
+  const issues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  it('is a question type but not a simple or reveal type', () => {
+    expect(QUESTION_TYPES).toContain('clues');
+    expect(SIMPLE_TYPES).not.toContain('clues');
+    expect(valid(questionSchema, cluesQ)).toBe(true);
+  });
+  it('checks the clue count, length, interval and that the last clue opens 5 s before the end', () => {
+    expect(valid(questionSchema, { ...cluesQ, clues: cluesQ.clues.slice(0, 2) })).toBe(false);
+    expect(valid(questionSchema, { ...cluesQ, clues: [...cluesQ.clues, 'a', 'b'] })).toBe(false); // 7 > 6
+    expect(valid(questionSchema, { ...cluesQ, clues: ['x'.repeat(LIMITS.clueText + 1), 'b', 'c'] })).toBe(false);
+    expect(valid(questionSchema, { ...cluesQ, interval: 2 })).toBe(false);
+    expect(issues({ ...cluesQ, timeLimit: 24 })).toContain('clues_time'); // 4 × 5 + 5 = 25 > 24
+    expect(issues({ ...cluesQ, timeLimit: 25 })).not.toContain('clues_time');
+    expect(issues({ ...cluesQ, video: { id: 'dQw4w9WgXcQ', start: 0 } })).toContain('clues_video');
+  });
+  it('cluesAt and clueShare', () => {
+    expect(cluesAt(cluesQ, 0)).toBe(1);
+    expect(cluesAt(cluesQ, 4999)).toBe(1);
+    expect(cluesAt(cluesQ, 5000)).toBe(2);
+    expect(cluesAt(cluesQ, 60_000)).toBe(5);
+    expect(cluesAt(cluesQ, -100)).toBe(1);
+    expect(cluesAt(cluesQ, Number.POSITIVE_INFINITY)).toBe(5);
+    expect(cluesAt(cluesQ, Number.NaN)).toBe(1);
+    expect([1, 2, 3, 4, 5].map((k) => clueShare(5, k))).toEqual([1, 0.8, 0.6, 0.4, 0.2]);
+    expect(clueShare(5, 9)).toBe(0.2);
+    expect(clueShare(5, 0)).toBe(1);
+    expect(clueShare(5, Number.NaN)).toBe(1);
+  });
+  it('a revealing picture is not allowed (reveal_type); audio is allowed', () => {
+    const img = `/uploads/${'b'.repeat(32)}.png`;
+    expect(issues({ ...cluesQ, imageUrl: img, reveal: 'blur' })).toContain('reveal_type');
+    expect(valid(questionSchema, { ...cluesQ, imageUrl: img })).toBe(true);
+    expect(valid(questionSchema, { ...cluesQ, audio: { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 0, duration: 20 } })).toBe(true);
+  });
+  it('the answer is a string', () => {
+    expect(valid(answerSchema, { type: 'clues', value: 'Шевченко' })).toBe(true);
+    expect(valid(answerSchema, { type: 'clues', value: 5 })).toBe(false);
+  });
+});
+
+describe('pin (10c)', () => {
+  const pinQ = { id: 'p1', type: 'pin', text: 'Де Київ?', imageUrl: null, video: null, timeLimit: 30, points: 1000,
+    map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 } as const;
+  const img = `/uploads/${'b'.repeat(32)}.png`;
+  const issues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  it('a pin is a question type, not simple; a map or an own picture as the base', () => {
+    expect(QUESTION_TYPES).toContain('pin');
+    expect(SIMPLE_TYPES).not.toContain('pin');
+    expect(valid(questionSchema, pinQ)).toBe(true);
+    expect(valid(questionSchema, { ...pinQ, map: null, imageUrl: img, aspect: 0.75 })).toBe(true);
+    expect(issues({ ...pinQ, map: null })).toContain('pin_base');
+    expect(issues({ ...pinQ, imageUrl: img })).toContain('pin_base');
+    expect(issues({ ...pinQ, aspect: 1.5 })).toContain('pin_aspect');
+    expect(issues({ ...pinQ, zeroRadius: 3 })).toContain('pin_radius');
+    expect(issues({ ...pinQ, video: { id: 'dQw4w9WgXcQ', start: 0 } })).toContain('pin_video');
+    expect(valid(questionSchema, { ...pinQ, target: { x: 1.2, y: 0.5 } })).toBe(false);
+    expect(valid(questionSchema, { ...pinQ, map: null, imageUrl: img, aspect: 5 })).toBe(false);
+  });
+  it('pinDistance measures in % of the longer side and respects the aspect', () => {
+    expect(pinDistance(pinQ, 0.52, 0.5)).toBeCloseTo(2);
+    expect(pinDistance(pinQ, 0.5, 0.68)).toBeCloseTo(9); // висота — половина ширини
+    expect(pinDistance({ ...pinQ, aspect: 0.5 }, 0.68, 0.5)).toBeCloseTo(9); // тепер довша — висота
+  });
+  it('pinShare: full inside the inner circle, linear to the outer, nothing outside', () => {
+    expect(pinShare(pinQ, 0.52, 0.5)).toBe(1);
+    expect(pinShare(pinQ, 0.59, 0.5)).toBeCloseTo(0.5);
+    expect(pinShare(pinQ, 0.62, 0.5)).toBeCloseTo(0.25);
+    expect(pinShare(pinQ, 0.66, 0.5)).toBe(0);
+    expect(pinShare(pinQ, Number.NaN, 0.5)).toBe(0);
+    expect(pinShare(pinQ, 1.2, 0.5)).toBe(0);
+  });
+  it('pinShare exactly on the circles: full radius pays all, zero radius pays nothing', () => {
+    expect(pinShare(pinQ, 0.53, 0.5)).toBe(1); // рівно 3 %
+    expect(pinShare(pinQ, 0.65, 0.5)).toBe(0); // рівно 15 %
+    expect(pinShare(pinQ, 0.5, 0.56)).toBe(1); // висота — половина ширини: 0,06 × 0,5 = 3 %
+  });
+  it('a revealing own picture is not allowed (reveal_type); audio is allowed', () => {
+    expect(issues({ ...pinQ, map: null, imageUrl: img, reveal: 'pixels' })).toContain('reveal_type');
+    expect(valid(questionSchema, { ...pinQ, audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } })).toBe(true);
+  });
+  it('proximityPartial: slider and pin only', () => {
+    expect(proximityPartial(pinQ as unknown as Question)).toBe(true);
+    expect(proximityPartial(single as unknown as Question)).toBe(false);
+    expect(proximityPartial({ type: 'clues' } as unknown as Question)).toBe(false);
+    expect(proximityPartial({ type: 'text' } as unknown as Question)).toBe(false);
+  });
+  it('the answer is a point inside the picture', () => {
+    expect(valid(answerSchema, { type: 'pin', x: 0.3, y: 1 })).toBe(true);
+    expect(valid(answerSchema, { type: 'pin', x: -0.1, y: 0.5 })).toBe(false);
+    expect(valid(answerSchema, { type: 'pin', x: 0.5, y: Number.POSITIVE_INFINITY })).toBe(false);
+  });
+});
+
+describe('where clues and pins live (10c)', () => {
+  const cluesQ = { id: 'c1', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 30, points: 1000,
+    clues: ['а', 'б', 'в'], accepted: ['Х'], interval: 5 };
+  const pinQ = { id: 'p1', type: 'pin', text: 'Де?', imageUrl: null, video: null, timeLimit: 30, points: 1000,
+    map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const blitz = (q: object) => ({ id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: DEFAULT_ANSWER_WINDOW, attempts: 1,
+    check: 'auto', rules: { ...DEFAULT_RULES, partial: null }, questions: [q] });
+  const finalR = (q: object) => ({ id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [q] });
+  const board = (q: object, patch: object = {}) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+  const withCell = (q: object, cellPatch: object) => {
+    const b = board(q);
+    Object.assign(b.categories[0]!.cells[0]!, cellPatch);
+    return quizOf([b]);
+  };
+
+  it('clues: classic, a normal phone cell and a voice cell; not blitz, final or a blitz cell', () => {
+    expect(issues(quizOf([round('r', [cluesQ])]))).toEqual([]);
+    expect(issues(quizOf([board(cluesQ)]))).toEqual([]);
+    expect(issues(quizOf([board(cluesQ, { answerMode: 'voice' })]))).toEqual([]);
+    expect(issues(withCell(cluesQ, { answerMode: 'voice' }))).toEqual([]);
+    expect(issues(quizOf([blitz(cluesQ)]))).toContain('clues_place');
+    expect(issues(quizOf([finalR(cluesQ)]))).toContain('clues_place');
+    expect(issues(withCell(cluesQ, { kind: 'blitz' }))).toContain('clues_place');
+  });
+  it('pin: classic and a normal phone cell; not blitz, final, a blitz cell or a voice cell', () => {
+    expect(issues(quizOf([round('r', [pinQ])]))).toEqual([]);
+    expect(issues(quizOf([board(pinQ)]))).toEqual([]);
+    expect(issues(quizOf([blitz(pinQ)]))).toContain('pin_place');
+    expect(issues(quizOf([finalR(pinQ)]))).toContain('pin_place');
+    expect(issues(withCell(pinQ, { kind: 'blitz' }))).toContain('pin_place');
+    expect(issues(withCell(pinQ, { answerMode: 'voice' }))).toContain('pin_place');
+    expect(issues(quizOf([board(pinQ, { answerMode: 'voice' })]))).toContain('pin_place');
+  });
+  it('spares cannot be clues or pins', () => {
+    const base = quizOf([round('r', [single])]);
+    expect(issues({ ...base, spares: [{ ...cluesQ, id: 's1' }] })).toContain('spare_type');
+    expect(issues({ ...base, spares: [{ ...pinQ, id: 's1' }] })).toContain('spare_type');
   });
 });
 

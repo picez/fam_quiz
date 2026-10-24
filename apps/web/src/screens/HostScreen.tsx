@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView } from '@quiz/shared';
+import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { ChainBoard } from './ChainView';
 import { SortBoard } from './SortView';
@@ -13,6 +13,7 @@ import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
 import { QuestionAudio } from './QuestionAudio';
 import { SliderScale } from './SliderScale';
+import { PinBoard } from './PinBoard';
 import { publicLeadMs, questionElapsedMs, useRevealProgress } from '../reveal';
 import type { AudioCommand } from '../live/useGame';
 import { YouTubePlayer } from './YouTubePlayer';
@@ -91,6 +92,60 @@ function HostContext({ round, question }: { round: NonNullable<HostView['round']
         </>
       )}
     </p>
+  );
+}
+
+/** «Хто я?» на пульті: усі підказки з позначками, поточна частка ціни й (усна клітинка) кнопка наступної. */
+function HostClues({ view, clues, offsetMs, idle, onOpen }: { view: HostView; clues: string[]; offsetMs: number; idle: boolean; onOpen: () => void }) {
+  const pub = view.question?.clues;
+  const [, setTick] = useState(0);
+  const ticking = pub != null && pub.nextAt !== null;
+  useEffect(() => {
+    if (!ticking) return;
+    const id = setInterval(() => setTick((tick) => tick + 1), 500);
+    return () => clearInterval(id);
+  }, [ticking]);
+  if (pub == null) return null;
+  const opened = pub.shown.length;
+  const k = Math.max(1, opened);
+  const now = Date.now() + offsetMs;
+  const state = (index: number) => {
+    if (index < opened) return t('clueOpened');
+    if (pub.byHost) return t('clueClosed');
+    // Пауза чи утримання: наступної миті немає, але підказки не закриті — час просто стоїть.
+    if (pub.nextAt === null) return view.phase === 'question' ? t('cluePaused') : t('clueClosed');
+    return t('clueIn', { seconds: Math.max(0, Math.ceil((pub.nextAt + (index - opened) * pub.intervalSeconds * 1000 - now) / 1000)) });
+  };
+  return (
+    <div className="host-clues">
+      <p className="meta">
+        {t('type_clues')}
+        <HelpButton id="question.clues" />
+      </p>
+      <ol>
+        {clues.map((text, index) => (
+          <li key={index} className={index < opened ? undefined : 'is-closed'}>
+            <span className="clue-n">{index + 1}</span>
+            <span>{text}</span>
+            <span className="clue-state">{state(index)}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="meta">{t('cluesHostNow', { k, n: pub.total, percent: Math.round(clueShare(pub.total, k) * 100) })}</p>
+      {pub.byHost && view.phase === 'question' && (
+        <div className="panel-actions">
+          {opened < pub.total ? (
+            <button type="button" className="btn" disabled={idle} onClick={onOpen}>
+              {t('clueOpen', { n: opened + 1 })}
+            </button>
+          ) : (
+            <button type="button" className="btn" disabled>
+              {t('cluesAllOpen')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -447,7 +502,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           {answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
-          <QuestionImage url={view.question.imageUrl} />
+          {view.question.pin === null && <QuestionImage url={view.question.imageUrl} />}
           {view.question.reveal !== null && view.question.imageUrl !== null && (
             <p className="meta reveal-tag">
               {t(view.question.reveal === 'pixels' ? 'revealTag_pixels' : 'revealTag_blur')}
@@ -471,6 +526,23 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           )}
           {view.sliderMarks !== null && view.question.slider !== null && correct?.type === 'slider' && (
             <SliderScale slider={view.question.slider} correct={correct.correct} tolerance={correct.tolerance} zeroBeyond={correct.zeroBeyond} marks={view.sliderMarks} highlight={view.sliderMarks[0]?.playerId} />
+          )}
+          {correct?.type === 'clues' && view.question.clues !== null && <HostClues view={view} clues={correct.clues} offsetMs={offsetMs} idle={view.paused || view.held || underSplash} onOpen={() => void act('host:clue')} />}
+          {correct?.type === 'pin' && view.question.pin !== null && (
+            <div className="host-pin">
+              <p className="meta">
+                {t('type_pin')}
+                <HelpButton id="question.pin" />
+              </p>
+              <PinBoard
+                pin={view.question.pin}
+                imageUrl={view.question.imageUrl}
+                marks={view.pinMarks ?? []}
+                target={correct.target}
+                radii={{ full: correct.fullRadius, zero: correct.zeroRadius }}
+                highlight={phase === 'reveal' ? view.pinMarks?.[0]?.playerId : undefined}
+              />
+            </div>
           )}
           {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
@@ -808,6 +880,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   <span className="given">
                     {response.spare !== null ? answerText(response.answer, response.spare) : answerText(response.answer, correct, view.question?.choices)}
                   </span>
+                  {response.clue !== null && <span className="meta">{t('clueAt', { n: response.clue })}</span>}
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
                   {!isFinal && (
                     <>

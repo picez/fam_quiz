@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUDIO_LIMITS, REVEAL_MIN_SHARE, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES } from '@quiz/shared';
+import { AUDIO_LIMITS, REVEAL_MIN_SHARE, clueShare, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { debuffName } from '../debuff-meta';
 import { ROUND_NAMES } from '../guide-text';
@@ -108,6 +108,25 @@ describe('host help', () => {
     expect(text('buff.retry')).toContain('Не діє на картинці, що проявляється');
     expect(text('setting.speedBonus')).toContain('Не нараховується на картинці, що проявляється');
     expect(text('question.numeric')).toContain('«Повзунок»');
+  });
+
+  it('10c entries tell the engine numbers', () => {
+    const percents = [1, 2, 3, 4, 5].map((k) => Math.round(clueShare(5, k) * 100));
+    expect(percents).toEqual([100, 80, 60, 40, 20]);
+    expect(helpEntry('question.clues').points.join(' ')).toContain('100, 80, 60, 40 і 20');
+    expect(helpEntry('question.clues').how.join(' ')).toContain(`${LIMITS.minClues}–${LIMITS.maxClues}`);
+    expect((helpEntry('question.clues').limits ?? []).join(' ')).toContain(`${LIMITS.clueTailSeconds} с`);
+    expect(helpEntry('question.pin').points.join(' ')).toContain('половин');
+    expect((helpEntry('question.pin').limits ?? []).join(' ')).toContain('50/50');
+    expect(helpEntry('question.pin').tip.join(' ')).toContain('Natural Earth');
+  });
+
+  it('related entries mention the new limits', () => {
+    for (const kind of ['fifty', 'retry', 'audience'] as const) expect(text(`buff.${kind}`), kind).toContain('Хто я?');
+    expect(text('cell.voice')).toContain('Відкрити підказку');
+    expect(text('setting.speedBonus')).toContain('Хто я?');
+    expect(text('round.blitz')).toContain('точка на мапі');
+    expect(text('round.final')).toContain('точка на мапі');
   });
 
   it('titles of the 10b entries match the editor labels', () => {

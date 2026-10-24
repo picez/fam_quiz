@@ -42,6 +42,7 @@ import {
   sortWord,
   takeBuff,
   chooseRetry,
+  nextClue,
   skipGuide,
   startDice,
   stageView,
@@ -51,6 +52,7 @@ import {
   takeHint,
   tick,
   GAME_STATE_VERSION,
+  READABLE_STATE_VERSIONS,
   type GameState,
   type Result,
 } from '@quiz/engine';
@@ -102,7 +104,7 @@ export type RoomEvent =
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' }
+  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' | 'clue' }
   | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
@@ -145,12 +147,13 @@ export interface SavedRoom {
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
-/** Перевірка рядка з бази: та сама версія знімка й стану, на місці поля, без яких кімнату не підняти. */
+/** Перевірка рядка з бази: та сама версія знімка, версія стану, що читається як поточна, на місці поля, без яких кімнату не підняти. */
 export function isSavedRoom(raw: unknown): raw is SavedRoom {
   if (!isObject(raw)) return false;
   return (
     raw.v === SAVED_ROOM_VERSION &&
-    raw.stateVersion === GAME_STATE_VERSION &&
+    typeof raw.stateVersion === 'number' &&
+    READABLE_STATE_VERSIONS.includes(raw.stateVersion) &&
     ['id', 'code', 'hostToken', 'stageToken'].every((key) => typeof raw[key] === 'string') &&
     Array.isArray(raw.playerUsers) &&
     Array.isArray(raw.playerTokens) &&
@@ -514,6 +517,8 @@ export class RoomManager {
         return this.apply(room, cancelDuel(state));
       case 'guide-skip':
         return this.apply(room, skipGuide(state, this.now()));
+      case 'clue':
+        return this.apply(room, nextClue(state, this.now()));
       case 'order':
         return this.apply(room, setOrder(state, action.playerIds));
       case 'kick':

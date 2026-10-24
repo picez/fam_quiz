@@ -14,7 +14,7 @@ const question = (slider: Partial<PublicSlider> = {}): PublicQuestion & { slider
   timeLimit: 20,
   points: 1000,
   choices: [],
-  right: [], chain: null, sort: null, orderLabels: null, audio: null, reveal: null,
+  right: [], chain: null, sort: null, orderLabels: null, clues: null, pin: null, audio: null, reveal: null,
   slider: { min: 0, max: 100, step: 1, unit: '%', ...slider },
 });
 

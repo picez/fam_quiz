@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
-import { blitzRound, boardRound, bool, chain, classicRound, finalRound, makeQuiz, makeRoundsQuiz, match, single, slider, sortQ, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame } from './history';
@@ -1098,6 +1098,65 @@ describe('history: slider and revealing picture (10b)', () => {
     expect(detail.standings.map((s) => [s.nickname, s.correct])).toEqual([
       ['Олена', 2],
       ['Петро', 0],
+    ]);
+    await local.app.close();
+  });
+});
+
+describe('history: clues and pin (10c)', () => {
+  it('history shows clue and pin answers; a correct clue answer is correct, a pin is correct from half the price', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const quiz = makeQuiz([clues, pin], { speedBonus: false });
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const enter = async (nickname: string) => {
+      const playerId = ((await send(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId });
+      return playerId;
+    };
+    const olena = await enter('Олена');
+    const petro = await enter('Петро');
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+
+    step('start');
+    step('next');
+    // Третя підказка з п'яти (12 с при інтервалі 5 с): 3/5 ціни, але відповідь правильна.
+    scheduler.advance(12_000);
+    local.manager.answer(room, olena, { type: 'clues', value: 'Шевченко' });
+    local.manager.answer(room, petro, { type: 'clues', value: 'Франко' });
+    for (let i = 0; i < 4 && room.state.phase !== 'finished'; i += 1) {
+      if (room.state.phase === 'question' && room.state.plays.length === 2) break;
+      step('next');
+    }
+    local.manager.answer(room, olena, { type: 'pin', x: 0.59, y: 0.5 });
+    local.manager.answer(room, petro, { type: 'pin', x: 0.62, y: 0.5 });
+    for (let i = 0; i < 4 && room.state.phase !== 'finished'; i += 1) step('next');
+    await local.recorder.idle();
+
+    const detail = (
+      await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
+    ).json() as {
+      questions: { responses: { nickname: string; answer: unknown; accepted: boolean }[] }[];
+      standings: { nickname: string; score: number; correct: number }[];
+    };
+    expect(detail.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'clues', value: 'Шевченко' }, accepted: true },
+      { nickname: 'Петро', answer: { type: 'clues', value: 'Франко' }, accepted: false },
+    ]);
+    expect(detail.questions[1].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'pin', x: 0.59, y: 0.5 }, accepted: true },
+      { nickname: 'Петро', answer: { type: 'pin', x: 0.62, y: 0.5 }, accepted: false },
+    ]);
+    expect(detail.standings.map((p) => [p.nickname, p.score, p.correct])).toEqual([
+      ['Олена', 1100, 2],
+      ['Петро', 250, 0],
     ]);
     await local.app.close();
   });

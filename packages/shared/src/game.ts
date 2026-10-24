@@ -54,6 +54,8 @@ export type ErrorCode =
   | 'nickname_invalid'
   | 'nickname_taken'
   | 'already_answered'
+  /** Усі підказки «Хто я?» уже відкрито (10c). */
+  | 'clues_done'
   | 'time_over'
   | 'type_mismatch'
   | 'partial_disabled'

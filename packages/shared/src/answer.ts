@@ -11,6 +11,8 @@ export const answerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('numeric'), value: z.number().finite() }),
   z.object({ type: z.literal('slider'), value: z.number().finite() }),
+  z.object({ type: z.literal('clues'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
+  z.object({ type: z.literal('pin'), x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1) }),
   z.object({ type: z.literal('order'), itemIds: z.array(id).max(LIMITS.maxOrderItems) }),
   z.object({
     type: z.literal('match'),

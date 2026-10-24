@@ -4,6 +4,7 @@ import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchInput } from './MatchView';
+import { PinInput } from './PinInput';
 import { SliderInput } from './SliderInput';
 
 interface Props {
@@ -92,7 +93,8 @@ function TypedInput({ question, onSubmit, submitLabel, autoFocus = true }: Props
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (numeric && number !== null) onSubmit({ type: 'numeric', value: number });
-    else if (!numeric && text !== '') onSubmit({ type: 'text', value: text });
+    // «Хто я?» відповідає словами, як «текст», але з власним типом відповіді.
+    else if (!numeric && text !== '') onSubmit({ type: question.type === 'clues' ? 'clues' : 'text', value: text });
   };
 
   return (
@@ -191,11 +193,14 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
       return <MultiInput question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} />;
     case 'text':
     case 'numeric':
+    case 'clues':
       return <TypedInput question={question} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} />;
     case 'order':
       return <OrderInput question={question} onSubmit={onSubmit} />;
     case 'match':
       return <MatchInput question={question} onSubmit={onSubmit} />;
+    case 'pin':
+      return question.pin === null ? null : <PinInput question={{ ...question, pin: question.pin }} onSubmit={onSubmit} submitLabel={submitLabel} />;
     case 'slider':
       return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} />;
   }

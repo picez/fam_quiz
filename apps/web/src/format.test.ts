@@ -27,6 +27,22 @@ describe('correctText', () => {
   });
 });
 
+describe('clues and pin texts (10c)', () => {
+  const clues: Question = { ...base, type: 'clues', clues: ['а', 'б', 'в'], accepted: ['Шевченко'], interval: 8 };
+  const pin: Question = { ...base, type: 'pin', map: 'ukraine', aspect: 16 / 11, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+  it('correctText', () => {
+    expect(correctText(clues)).toBe('Шевченко');
+    expect(correctText(pin)).toBe('Точка на мапі «Україна»');
+    expect(correctText({ ...pin, map: null, imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png' } as Question)).toBe('Точка на картинці');
+  });
+  it('answerText', () => {
+    const wide: Question = { ...pin, map: 'world', aspect: 2 } as Question;
+    expect(answerText({ type: 'pin', x: 0.52, y: 0.5 }, wide)).toBe('Точка за 2,0 % від правильної');
+    expect(answerText({ type: 'pin', x: 0.52, y: 0.5 }, null)).toBe('Точка на мапі');
+    expect(answerText({ type: 'clues', value: 'Шевченко' }, clues)).toBe('Шевченко');
+  });
+});
+
 describe('picture options', () => {
   it('labels a picture-only option by its letter wherever text is needed', () => {
     const pics = {

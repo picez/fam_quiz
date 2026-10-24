@@ -17,7 +17,7 @@ const options = [
 ];
 const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
 const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
-const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null, slider: null, audio: null, reveal: null });
+const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, audio: null, reveal: null });
 
 const players = [
   { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0, debuff: null },
@@ -61,6 +61,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   hints: [],
   standings: [],
   sliderMarks: null,
+  pinMarks: null,
   ...over,
 });
 
@@ -164,7 +165,7 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -183,7 +184,7 @@ describe('HostScreen', () => {
       during('reveal', pictured, {
         question: { ...publicOf(pictured), choices: shown },
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -218,8 +219,8 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: 'shield', spare: null },
-          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: 'shield', spare: null, clue: null },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -261,8 +262,8 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean', value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: 'swap', spare },
-          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean', value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: 'swap', spare, clue: null },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -297,8 +298,8 @@ describe('HostScreen', () => {
 
   it('lets the host accept or reject text answers on reveal', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null },
-      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Одеса' }, timeMs: 5000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 875, overridden: false, buff: null, spare: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null, clue: null },
+      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Одеса' }, timeMs: 5000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 875, overridden: false, buff: null, spare: null, clue: null },
     ];
     const send = show(during('reveal', textQuestion, { responses }));
     fireEvent.click(button('Зарахувати'));
@@ -309,7 +310,7 @@ describe('HostScreen', () => {
 
   it('does not offer manual grading for choice questions or before reveal', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null, clue: null },
     ];
     show(during('reveal', single, { responses }));
     expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
@@ -438,7 +439,7 @@ describe('HostScreen: rounds', () => {
 
   it('offers «partially» only when the round allows it', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, points: 0, overridden: false, buff: null, spare: null, clue: null },
     ];
     show(during('reveal', textQuestion, { responses, round: round() }));
     expect(screen.queryByRole('button', { name: 'Частково' })).toBeNull();
@@ -526,7 +527,7 @@ describe('HostScreen: blitz', () => {
         round,
         blitz: blitz({ queue: [] }),
         responses: [
-          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Київ' }, timeMs: 1, accepted: false, grade: 'wrong', streakBonus: 0, points: -1000, overridden: false, buff: null, spare: null },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Київ' }, timeMs: 1, accepted: false, grade: 'wrong', streakBonus: 0, points: -1000, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -823,7 +824,7 @@ describe('HostScreen: blitz', () => {
       const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
       const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
       const responses = [
-        { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean' as const, value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 100, overridden: false, buff: 'swap' as const, spare },
+        { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean' as const, value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 100, overridden: false, buff: 'swap' as const, spare, clue: null },
       ];
       show(during('reveal', single, { round: boardRound, players: three, board: boardOf({ cell }), responses }));
       const mark = screen.getByText('запасне');
@@ -1061,7 +1062,7 @@ describe('HostScreen final', () => {
         players: three,
         final: hostFinal(),
         responses: [
-          { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, grade: 'correct', accepted: true, points: 0, streakBonus: 0, overridden: false, buff: null, spare: null, timeMs: 1000 },
+          { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, grade: 'correct', accepted: true, points: 0, streakBonus: 0, overridden: false, buff: null, spare: null, clue: null, timeMs: 1000 },
         ],
       }),
     );
@@ -1090,7 +1091,7 @@ describe('HostScreen final', () => {
         round: finalRound,
         players: three,
         responses: [
-          { playerId: 'p2', nickname: 'Богдан', answer: { type: 'single', optionId: 'a' }, grade: 'wrong', accepted: false, points: -200, streakBonus: 0, overridden: false, buff: null, spare: null, timeMs: 1000 },
+          { playerId: 'p2', nickname: 'Богдан', answer: { type: 'single', optionId: 'a' }, grade: 'wrong', accepted: false, points: -200, streakBonus: 0, overridden: false, buff: null, spare: null, clue: null, timeMs: 1000 },
         ],
         final: hostFinal({
           left: 1,
@@ -1706,5 +1707,85 @@ describe('HostScreen media (10b)', () => {
     show(during('question', sliderFull, { question, sliderMarks: [{ playerId: 'p1', nickname: 'Олена', value: 40, points: 0 }] }));
     expect(document.querySelector('.slider-scale')).not.toBeNull();
     expect(screen.getByLabelText('Олена: 40 %')).toBeTruthy();
+  });
+});
+
+describe('HostScreen clues and pin (10c)', () => {
+  const cluesFull: Question = { id: 'q4', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 60, points: 1000, clues: ['Перша', 'Друга', 'Третя', 'Четверта', 'П’ята'], accepted: ['Шевченко'], interval: 8 };
+  const cluesOf = (shown: number, over: { byHost?: boolean; nextAt?: number | null } = {}) => ({
+    ...publicOf(cluesFull),
+    clues: { total: 5, shown: cluesFull.clues.slice(0, shown), nextAt: over.nextAt ?? null, byHost: over.byHost ?? false, intervalSeconds: 8 },
+  });
+
+  it('lists every clue with the opened ones marked and no open button in a classic round', () => {
+    show(during('question', cluesFull, { question: cluesOf(2, { nextAt: Date.now() + 5000 }) }));
+    const panel = document.querySelector('.host-clues') as HTMLElement;
+    expect(panel.querySelectorAll('li')).toHaveLength(5);
+    expect(within(panel).getByText('Четверта')).toBeTruthy();
+    expect(within(panel).getAllByText('відкрито')).toHaveLength(2);
+    expect(within(panel).getAllByText(/^за \d+ с$/).length).toBeGreaterThan(0);
+    expect(within(panel).getByText('Відкрито 2 з 5: правильна відповідь зараз — 80 % ціни')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Відкрити підказку/ })).toBeNull();
+  });
+
+  it('shows the unopened clues as paused, not closed, while the clock is stopped, and disables the voice-cell button', () => {
+    show(during('question', cluesFull, { paused: true, question: cluesOf(2) }));
+    const panel = document.querySelector('.host-clues') as HTMLElement;
+    expect(within(panel).getAllByText('пауза')).toHaveLength(3);
+    expect(within(panel).queryByText('закрито')).toBeNull();
+    cleanup();
+    show(during('reveal', cluesFull, { question: cluesOf(2) }));
+    expect(within(document.querySelector('.host-clues') as HTMLElement).getAllByText('закрито')).toHaveLength(3);
+    cleanup();
+    show(during('question', cluesFull, { paused: true, question: cluesOf(2, { byHost: true }) }));
+    expect(button('Відкрити підказку 3').disabled).toBe(true);
+  });
+
+  it('names the clue each answer was given on', () => {
+    show(
+      during('reveal', cluesFull, {
+        question: cluesOf(5),
+        responses: [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'clues', value: 'Шевченко' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 800, overridden: false, buff: null, spare: null, clue: 2 }],
+      }),
+    );
+    expect(screen.getByText('на підказці 2')).toBeTruthy();
+  });
+
+  it('opens the next clue on a voice cell and disables the button after the last one', () => {
+    const send = show(during('question', cluesFull, { question: cluesOf(2, { byHost: true }) }));
+    fireEvent.click(button('Відкрити підказку 3'));
+    expect(send).toHaveBeenCalledWith('host:clue', undefined);
+    cleanup();
+    show(during('question', cluesFull, { question: cluesOf(5, { byHost: true }) }));
+    expect(screen.queryByRole('button', { name: /Відкрити підказку/ })).toBeNull();
+    expect((button('Усі підказки відкрито')).disabled).toBe(true);
+  });
+
+  it('shows live pins and the target with the circles during the question', () => {
+    const pinFull: Question = { id: 'q5', type: 'pin', text: 'Де?', imageUrl: null, video: null, timeLimit: 20, points: 1000, map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+    const question = { ...publicOf(pinFull), pin: { map: 'world' as const, aspect: 2 } };
+    show(during('question', pinFull, { question, pinMarks: [{ playerId: 'p1', nickname: 'Олена', x: 0.4, y: 0.4, points: 0 }] }));
+    expect(document.querySelectorAll('.host-pin .pin-mark')).toHaveLength(1);
+    expect(document.querySelector('.host-pin .pin-target')).not.toBeNull();
+    expect(document.querySelectorAll('.host-pin svg.pin-layer circle')).toHaveLength(2);
+  });
+
+  it('an own picture of a pin is drawn once, by the pin board, not as a question image', () => {
+    const img = `/uploads/${'b'.repeat(32)}.png`;
+    const pinOwn: Question = { id: 'q6', type: 'pin', text: 'Де?', imageUrl: img, video: null, timeLimit: 20, points: 1000, map: null, aspect: 1.5, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+    show(during('question', pinOwn, { question: { ...publicOf(pinOwn), imageUrl: img, pin: { map: null, aspect: 1.5 } }, pinMarks: [] }));
+    expect(document.querySelector('img.question-image')).toBeNull();
+    expect(document.querySelectorAll(`.host-pin img[src="${img}"]`)).toHaveLength(1);
+  });
+
+  it('has a help button on the clue panel and on the pin map that sends nothing', () => {
+    const send = show(during('question', cluesFull, { question: cluesOf(2, { nextAt: Date.now() + 5000 }) }));
+    fireEvent.click(within(document.querySelector('.host-clues') as HTMLElement).getByRole('button', { name: 'Довідка: Хто я?' }));
+    expect(send).not.toHaveBeenCalled();
+    cleanup();
+    const pinFull: Question = { id: 'q5', type: 'pin', text: 'Де?', imageUrl: null, video: null, timeLimit: 20, points: 1000, map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+    const sendPin = show(during('question', pinFull, { question: { ...publicOf(pinFull), pin: { map: 'world' as const, aspect: 2 } }, pinMarks: [] }));
+    fireEvent.click(within(document.querySelector('.host-pin') as HTMLElement).getByRole('button', { name: 'Довідка: Точка на мапі' }));
+    expect(sendPin).not.toHaveBeenCalled();
   });
 });

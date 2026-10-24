@@ -84,7 +84,31 @@ export const LIMITS = {
   minAudioSeconds: 1,
   maxAudioSeconds: 120,
   defaultAudioSeconds: 15,
+  /** «Хто я?»: підказок, символів у підказці, інтервал між підказками (с). */
+  minClues: 3,
+  maxClues: 6,
+  clueText: 150,
+  minClueSeconds: 3,
+  maxClueSeconds: 30,
+  defaultClueSeconds: 8,
+  /** Остання підказка відкривається щонайменше за стільки секунд до кінця часу. */
+  clueTailSeconds: 5,
+  /** Точка: радіуси у відсотках довшої сторони основи; пропорція основи (ширина / висота). */
+  pinMaxFullRadius: 50,
+  pinMaxZeroRadius: 100,
+  defaultPinFull: 3,
+  defaultPinZero: 15,
+  pinMinAspect: 0.25,
+  pinMaxAspect: 4,
 } as const;
+
+/** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
+export const PIN_MAPS = ['world', 'europe', 'ukraine'] as const;
+export type PinMap = (typeof PIN_MAPS)[number];
+/** Пропорції вбудованих мап = viewBox їхніх SVG (2000×1000, 1600×1200, 1600×1100). */
+export const PIN_MAP_ASPECT: Record<PinMap, number> = { world: 2, europe: 4 / 3, ukraine: 16 / 11 };
+
+const share01 = z.number().finite().min(0).max(1);
 
 /** Обмеження для зображень у запитаннях. */
 export const IMAGE_LIMITS = {
@@ -176,8 +200,14 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
+
+/** Прийнятні написання відповіді («текст», «Хто я?»). */
+const spellings = z
+  .array(z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE))
+  .min(1)
+  .max(LIMITS.maxAccepted);
 
 export const questionSchema = z
   .discriminatedUnion('type', [
@@ -187,10 +217,7 @@ export const questionSchema = z
     z.object({
       ...base,
       type: z.literal('text'),
-      accepted: z
-        .array(z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE))
-        .min(1)
-        .max(LIMITS.maxAccepted),
+      accepted: spellings,
     }),
     z.object({
       ...base,
@@ -264,6 +291,31 @@ export const questionSchema = z
       /** Одиниця («км», «рік»); порожня не зберігається. */
       unit: z.string().trim().min(1).max(LIMITS.sliderUnit).refine(isStorable, UNSTORABLE).optional(),
     }),
+    z.object({
+      ...base,
+      type: z.literal('clues'),
+      /** Від найважчої до найлегшої; відкриваються по одній. */
+      clues: z
+        .array(z.string().trim().min(1).max(LIMITS.clueText).refine(isStorable, UNSTORABLE))
+        .min(LIMITS.minClues)
+        .max(LIMITS.maxClues),
+      accepted: spellings,
+      /** Секунд між підказками (класика й клітинка з телефона; на усній клітинці відкриває ведучий). */
+      interval: z.number().int().min(LIMITS.minClueSeconds).max(LIMITS.maxClueSeconds),
+    }),
+    z.object({
+      ...base,
+      type: z.literal('pin'),
+      /** Вбудована мапа; null — основа є власна картинка imageUrl. */
+      map: z.enum(PIN_MAPS).nullable(),
+      /** Ширина / висота основи. */
+      aspect: z.number().finite().min(LIMITS.pinMinAspect).max(LIMITS.pinMaxAspect),
+      /** Правильна точка: частки ширини й висоти основи. */
+      target: z.object({ x: share01, y: share01 }),
+      /** Радіус повних балів і радіус нуля, % довшої сторони. */
+      fullRadius: z.number().finite().min(0).max(LIMITS.pinMaxFullRadius),
+      zeroRadius: z.number().finite().positive().max(LIMITS.pinMaxZeroRadius),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
@@ -298,6 +350,16 @@ export const questionSchema = z
       if (q.correct < q.min || q.correct > q.max) ctx.addIssue({ code: 'custom', message: 'slider_correct' });
       if (q.zeroBeyond !== undefined && q.zeroBeyond <= q.tolerance) ctx.addIssue({ code: 'custom', message: 'slider_zero' });
     }
+    if (q.type === 'clues') {
+      if ((q.clues.length - 1) * q.interval + LIMITS.clueTailSeconds > q.timeLimit) ctx.addIssue({ code: 'custom', message: 'clues_time' });
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'clues_video' });
+    }
+    if (q.type === 'pin') {
+      if ((q.map === null) === (q.imageUrl === null)) ctx.addIssue({ code: 'custom', message: 'pin_base' });
+      if (q.map !== null && Math.abs(q.aspect - PIN_MAP_ASPECT[q.map]) > 1e-6) ctx.addIssue({ code: 'custom', message: 'pin_aspect' });
+      if (q.zeroRadius <= q.fullRadius) ctx.addIssue({ code: 'custom', message: 'pin_radius' });
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'pin_video' });
+    }
     if (q.audio !== undefined && q.video !== null) ctx.addIssue({ code: 'custom', message: 'audio_video' });
     if (q.reveal !== undefined) {
       if (q.imageUrl === null) ctx.addIssue({ code: 'custom', message: 'reveal_image' });
@@ -319,6 +381,37 @@ export const SIMPLE_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 's
 
 /** Типи, де діє картинка, що проявляється (10b). */
 export const REVEAL_TYPES = ['single', 'text', 'numeric'] as const satisfies readonly Question['type'][];
+
+/** Скільки підказок відкрито через elapsedMs від старту таймера: 1 + ⌊elapsed / interval⌋, не більше n (від’ємне — 1). */
+export function cluesAt(question: { clues: readonly string[]; interval: number }, elapsedMs: number): number {
+  const total = question.clues.length;
+  if (Number.isNaN(elapsedMs) || elapsedMs <= 0) return 1;
+  if (!Number.isFinite(elapsedMs)) return total;
+  return Math.min(total, 1 + Math.floor(elapsedMs / (question.interval * 1000)));
+}
+
+/** Частка ціни за відповідь після opened-ї з total підказок: (total − opened + 1) / total; opened притискається до 1…total, NaN — як 1. */
+export function clueShare(total: number, opened: number): number {
+  const k = Number.isNaN(opened) ? 1 : Math.min(total, Math.max(1, opened));
+  return (total - k + 1) / total;
+}
+
+/** Відстань від правильної точки у % довшої сторони основи (пропорція враховується). */
+export function pinDistance(question: { aspect: number; target: { x: number; y: number } }, x: number, y: number): number {
+  const w = question.aspect >= 1 ? 1 : question.aspect;
+  const h = question.aspect >= 1 ? 1 / question.aspect : 1;
+  return 100 * Math.hypot((x - question.target.x) * w, (y - question.target.y) * h);
+}
+
+/** Частка ціни за точку: коло повних — 1, до кола нуля — лінійно, далі й поза 0…1 — 0. */
+export function pinShare(question: Extract<Question, { type: 'pin' }>, x: number, y: number): number {
+  const EPS = 1e-9;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) return 0;
+  const d = pinDistance(question, x, y);
+  if (d <= question.fullRadius + EPS) return 1;
+  if (d < question.zeroRadius - EPS) return (question.zeroRadius - d) / (question.zeroRadius - question.fullRadius);
+  return 0;
+}
 
 /** Частка ціни за значення повзунка: допуск — 1, до межі нуля — лінійно, далі й поза шкалою — 0. */
 export function sliderShare(question: Extract<Question, { type: 'slider' }>, value: number): number {
@@ -352,11 +445,11 @@ export function revealShare(timeMs: number, windowMs: number): number {
 }
 
 /**
- * Бали за близькість відповіді (лише такі типи; зараз — повзунок): частка вбудована, не залежить від правила «частково»,
+ * Бали за близькість відповіді (лише такі типи: повзунок і точка): частка вбудована, не залежить від правила «частково»,
  * правильна — частка ≥ 0,5 (14a). Картинка, що проявляється, сюди не входить: її спадання — плата за час, не правильність.
  */
 export function proximityPartial(question: Question): boolean {
-  return question.type === 'slider';
+  return question.type === 'slider' || question.type === 'pin';
 }
 
 /** Ціна запитання: для сортування — найбільша сума (слова × бали за слово), інакше points. */
@@ -607,6 +700,18 @@ export const quizSchema = z
             )
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.reveal !== undefined);
       if (revealPlace) ctx.addIssue({ code: 'custom', message: 'reveal_place' });
+      // «Хто я?»: класика й звичайна чи усна клітинка поля; не в бліці, фіналі й на бліц-клітинці.
+      const cluesPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'clues' && cell.kind !== 'normal')
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'clues');
+      if (cluesPlace) ctx.addIssue({ code: 'custom', message: 'clues_place' });
+      // Точка: класика й звичайна клітинка з телефона.
+      const pinPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'pin' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'pin');
+      if (pinPlace) ctx.addIssue({ code: 'custom', message: 'pin_place' });
     }
     const { debuffs, buffs } = quiz.settings;
     if ((debuffs && hasDuplicates(debuffs)) || (buffs && hasDuplicates(buffs))) {

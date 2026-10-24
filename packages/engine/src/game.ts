@@ -45,7 +45,8 @@ import { chainDone, scoreChain } from './chain';
 import { scoreSort, shiftSortLocks } from './sort';
 import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
-import { checkAnswer, gradeOf, revealFactor, verdictOf } from './check';
+import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
+import { cluesByHost, cluesOpen, openDueClues } from './clues';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
@@ -130,6 +131,8 @@ export interface Play {
   buffs?: Record<string, BuffPlay>;
   /** Особистий додатковий час понад спільний endsAt, мс (додатковий час; у 8b — заміна запитання). */
   overtime?: Record<string, number>;
+  /** «Хто я?»: скільки підказок відкрито (від 1); лише в такому запитанні (10c). */
+  clues?: number;
 }
 
 /** Поступ гравця в сортуванні. */
@@ -597,6 +600,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...((round.type === 'blitz' && question.type !== 'sort') || board?.kind === 'blitz'
       ? { blitz: { queue: [], attempts: [], buzzed: [], dropped: [] } }
       : {}),
+    ...(question.type === 'clues' ? { clues: 1 } : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
@@ -986,8 +990,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   const timeMs = Math.max(0, now - (spare?.startedAt ?? state.startedAt));
   const { accepted, accuracy, grade } = verdictOf(asked, answer, timeMs);
   const limit = answerLimitMs(play, playerId);
-  // Картинка, що проявляється, вже платить за час часткою ціни: бонусу швидкості поверх немає.
-  const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && asked.reveal == null);
+  // Картинка, що проявляється, і «Хто я?» вже платять за час часткою ціни: бонусу швидкості поверх немає.
+  const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && !paysForTime(asked));
   const points = answerPoints({
     points: question.points,
     accuracy,
@@ -1069,18 +1073,18 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
   if (round.type !== 'board' || play.board === undefined || round.check === 'manual') return fail('wrong_phase');
 
   const asked = questionFor(state, play, pending.playerId);
-  // Годинник стоїть, поки ведучий приймає: на картинці, що проявляється, рахується час до надсилання.
+  // Годинник стоїть, поки ведучий приймає: на картинці, що проявляється, і в «Хто я?» рахується час до надсилання.
   const timeMs = Math.max(0, clockOf(state, now) - (state.startedAt ?? now));
   const verdict = verdictOf(asked, pending.answer, timeMs);
   let accuracy = verdict.accuracy;
   let accepted = verdict.accepted;
   let grade = verdict.grade;
-  // Бали за близькість (повзунок) вбудовані й не залежать від правила «частково» (14a).
+  // Бали за близькість (повзунок, точка) вбудовані й не залежать від правила «частково» (14a).
   if (!proximityPartial(asked)) {
     const checked = checkAnswer(asked, pending.answer);
     // Часткові бали лише за увімкненого правила; інакше неповна відповідь неправильна.
     const ruled = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && rulesOf(round).partial !== null ? checked.accuracy : 0;
-    accuracy = ruled * revealFactor(asked, timeMs);
+    accuracy = ruled * paceFactor(asked, timeMs);
     accepted = ruled >= 1;
     grade = gradeOf(ruled);
   }
@@ -1191,19 +1195,21 @@ export function tick(state: GameState, now: number): GameState {
   const running = watchAway(releaseStaleHold(state, now), now);
   // Поки відповідь чекає на ведучого, годинник стоїть (і відлік відсутності теж).
   if (running.heldAt !== null) return running;
+  // «Хто я?»: підказки, чий час настав; без змін — той самий об'єкт.
+  const opened = openDueClues(running, now);
   // Ланцюжок закривається, коли кожен пройшов або вичерпав свій час зі штрафом.
-  if (running.plays[running.questionIndex]?.question.type === 'chain' && chainDone(running, now)) return lockNow(running);
+  if (opened.plays[opened.questionIndex]?.question.type === 'chain' && chainDone(opened, now)) return lockNow(opened);
   // Звичайна клітинка без таймера закривається, коли гравець, чий хід, відсутній 30 секунд.
-  const since = running.board?.awaySince ?? null;
-  if (since !== null && awayWatched(running) !== null && now >= since + BOARD_AWAY_MS) return lockNow(running);
-  if (running.plays[running.questionIndex]?.blitz !== undefined) {
-    const settled = settleQueue(running, now);
+  const since = opened.board?.awaySince ?? null;
+  if (since !== null && awayWatched(opened) !== null && now >= since + BOARD_AWAY_MS) return lockNow(opened);
+  if (opened.plays[opened.questionIndex]?.blitz !== undefined) {
+    const settled = settleQueue(opened, now);
     return blitzDone(settled, now) ? lockNow(settled) : settled;
   }
   // Запитання чекає на особистий кінець того, хто ще не відповів.
-  const closes = closesAt(running);
+  const closes = closesAt(opened);
   const expired = closes !== null && now >= closes;
-  return expired ? lockNow(running) : running;
+  return expired ? lockNow(opened) : opened;
 }
 
 /** Етап вибору клітинки: стартує відлік для відключеного гравця й пропускає хід, коли 30 секунд сплило. */
@@ -1393,7 +1399,8 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
     phase === 'question' && now !== undefined && state.startedAt !== null ? Math.max(0, clockOf(state, now) - state.startedAt) : limitMs;
   const timeMs = existing?.timeMs ?? spentMs;
   // Картинка, що проявляється: оцінка ведучого — правильність, час до надсилання знижує ціну, як в acceptAnswer.
-  const paid = accuracy * revealFactor(questionFor(state, play, playerId), timeMs);
+  // «Хто я?» на усній клітинці — за підказкою, відкритою ведучим (після оцінки запитання закрите, число не змінюється).
+  const paid = accuracy * paceFactor(questionFor(state, play, playerId), timeMs, cluesByHost(play) ? cluesOpen(play) : undefined);
   const points = boardPoints(round, board, paid);
   const record: AnswerRecord = {
     answer: existing?.answer ?? board.answer,
@@ -1460,8 +1467,8 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   // «правильно» — це правильність, ціна все одно спадає зі 100 до 30 % за часом відповіді.
   // Після заміни гравець відповідав на запасне: проявлення — з його запитання, як у submitAnswer.
   const asked = questionFor(state, play, playerId);
-  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && asked.reveal == null);
-  const paid = accuracy * revealFactor(asked, record.timeMs);
+  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && !paysForTime(asked));
+  const paid = accuracy * paceFactor(asked, record.timeMs);
   const points = answerPoints({
     points: question.points,
     accuracy: paid,

@@ -105,7 +105,8 @@ export async function buildApp(options: AppOptions) {
     return reply.code(201).send({ token: joined.token, playerId: joined.playerId });
   });
 
-  if (options.webRoot !== undefined) await app.register(fastifyStatic, { root: options.webRoot });
+  // preCompressed: якщо поруч лежить .br / .gz (збірка кладе їх для мап), віддається він за Accept-Encoding.
+  if (options.webRoot !== undefined) await app.register(fastifyStatic, { root: options.webRoot, preCompressed: true });
 
   app.setNotFoundHandler((request, reply) => {
     const isPage =

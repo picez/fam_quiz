@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
 import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
@@ -25,6 +25,8 @@ function filled(question: Question): Question {
       };
     case 'text':
       return { ...question, text, accepted: ['Відповідь'] };
+    case 'clues':
+      return { ...question, text, clues: ['Раз', 'Два', 'Три'], accepted: ['Відповідь'] };
     case 'chain':
       return { ...question, text, words: ['Форель', 'Риба', 'Океан'] };
     case 'sort':
@@ -60,6 +62,39 @@ describe('newQuestion', () => {
     expect(first.points).toBe(1000);
     expect(first.id).not.toBe(second.id);
     if (first.type === 'single') expect(new Set(first.options.map((o) => o.id)).size).toBe(first.options.length);
+  });
+});
+
+describe('clues and pin in the editor (10c)', () => {
+  it('questionTypesFor: blitz has neither, the board has both, the final has neither', () => {
+    expect(questionTypesFor('blitz')).not.toContain('clues');
+    expect(questionTypesFor('blitz')).not.toContain('pin');
+    expect(questionTypesFor('board')).toContain('clues');
+    expect(questionTypesFor('board')).toContain('pin');
+    expect(questionTypesFor('classic')).toContain('clues');
+    expect(questionTypesFor('classic')).toContain('pin');
+    expect(questionTypesFor('final')).not.toContain('clues');
+    expect(questionTypesFor('final')).not.toContain('pin');
+  });
+
+  it('a single with a picture becomes a pin on the world map without the picture', () => {
+    const source = { ...newQuestion('single'), imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png' } as Question;
+    const pin = changeType(source, 'pin');
+    expect(pin.type === 'pin' && pin.map).toBe('world');
+    expect(pin.imageUrl).toBeNull();
+  });
+
+  it('a duplicated clues or pin question shares no arrays or points', () => {
+    const clues = newQuestion('clues');
+    const copy = duplicateQuestion(clues);
+    if (clues.type === 'clues' && copy.type === 'clues') {
+      expect(copy.id).not.toBe(clues.id);
+      expect(copy.clues).not.toBe(clues.clues);
+      expect(copy.accepted).not.toBe(clues.accepted);
+    }
+    const pin = newQuestion('pin');
+    const pinCopy = duplicateQuestion(pin);
+    if (pin.type === 'pin' && pinCopy.type === 'pin') expect(pinCopy.target).not.toBe(pin.target);
   });
 });
 
@@ -668,6 +703,21 @@ describe('board cell kinds and modes', () => {
     expect(next.categories[0].cells[1].answerMode).toBe('voice');
   });
 
+  it('switching the round mode leaves no hidden clue interval on voice cells', () => {
+    const round = newBoardRound();
+    const [a, b, c] = round.categories[0].cells;
+    const clue = { ...newQuestion('clues'), interval: 8 } as Question;
+    const { answerMode: _drop, ...legacy } = c;
+    round.categories[0].cells = [{ ...a, answerMode: 'voice', question: clue }, { ...b, answerMode: 'phone', question: clue }, { ...legacy, question: clue }];
+    const toVoice = { ...round, answerMode: 'voice' as const };
+    const next = withDefaultMode(toVoice, 'voice');
+    const interval = (i: number) => (next.categories[0].cells[i].question as Extract<Question, { type: 'clues' }>).interval;
+    expect(interval(0)).toBe(LIMITS.minClueSeconds);
+    expect(interval(1)).toBe(8);
+    expect(interval(2)).toBe(LIMITS.minClueSeconds);
+    expect(withDefaultMode(round, 'phone').categories[0].cells[1].question).toBe(clue);
+  });
+
   it('a stored draft keeps cell kinds, modes and penalties', () => {
     const round = newBoardRound();
     const [a, b, c] = round.categories[0].cells;
@@ -1202,5 +1252,123 @@ describe('slider, audio and revealing picture drafts (10b)', () => {
     expect(single).toMatchObject({ reveal: 'pixels', audio: { source: 'file', duration: 20 } });
     expect(single.audio?.start).toBeNaN();
     expect(sliderBack).toMatchObject({ unit: 'км', zeroBeyond: 5 });
+  });
+});
+
+describe('clues and pin drafts (10c)', () => {
+  const clues = (patch: Record<string, unknown> = {}) => ({ ...filled(newQuestion('clues')), ...patch }) as Question;
+  const pin = (patch: Record<string, unknown> = {}) => ({ ...filled(newQuestion('pin')), ...patch }) as Question;
+  const boardWith = (question: Question, cell: Record<string, unknown> = {}) => {
+    const round = newBoardRound();
+    const categories = round.categories.map((category, i) => ({
+      ...category,
+      title: `К${i}`,
+      cells: category.cells.map((c, j) => (i === 0 && j === 0 ? { ...c, ...cell, question } : { ...c, question: filled(c.question) })),
+    }));
+    return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories }] } as Quiz;
+  };
+
+  it('clues: an empty clue, the time for the last clue, the interval', () => {
+    expect(problemsOf(quizWith(clues()))).toEqual([]);
+    expect(problemsOf(quizWith(clues({ clues: ['Раз', '', 'Три'] })))).toEqual(['Запитання 1: заповніть кожну підказку.']);
+    const six = clues({ clues: ['1', '2', '3', '4', '5', '6'], interval: 8, timeLimit: 30 });
+    expect(problemsOf(quizWith(six))).toEqual([
+      'Запитання 1: остання підказка відкривається на 40-й секунді — дайте щонайменше 45 с часу або зменште інтервал.',
+    ]);
+    expect(problemsOf(quizWith({ ...six, timeLimit: 45 } as Question))).toEqual([]);
+    expect(problemsOf(quizWith(clues({ interval: 2 })))).toEqual(['Запитання 1: інтервал між підказками — від 3 до 30 с.']);
+    expect(problemsOf(quizWith(clues({ interval: Number.NaN })))).toHaveLength(1);
+    expect(problemsOf(quizWith(clues({ accepted: [] })))).toEqual(['Запитання 1: впишіть правильну відповідь.']);
+  });
+
+  it('pin: an own base without a picture, the radii', () => {
+    expect(problemsOf(quizWith(pin()))).toEqual([]);
+    expect(problemsOf(quizWith(pin({ map: null, imageUrl: null })))).toEqual(['Запитання 1: завантажте картинку для точки або виберіть мапу.']);
+    expect(problemsOf(quizWith(pin({ map: null, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', aspect: 1.5 })))).toEqual([]);
+    const radius = 'Запитання 1: радіус нуля має бути більшим за радіус повних балів (до 100 %).';
+    expect(problemsOf(quizWith(pin({ zeroRadius: 2, fullRadius: 3 })))).toEqual([radius]);
+    expect(problemsOf(quizWith(pin({ zeroRadius: Number.NaN })))).toEqual([radius]);
+    expect(problemsOf(quizWith(pin({ zeroRadius: 101 })))).toEqual([radius]);
+    expect(problemsOf(quizWith(pin({ fullRadius: 60, zeroRadius: 90 })))).toEqual(['Запитання 1: радіус повних балів — від 0 до 50 %.']);
+    expect(problemsOf(quizWith(pin({ fullRadius: -1 })))).toEqual(['Запитання 1: радіус повних балів — від 0 до 50 %.']);
+  });
+
+  it('every schema code of clues and pin is a problem the editor explains', () => {
+    // Те, що редактор не дає створити, усе одно не проходить мовчки: перевірка чернетки каже, що не так.
+    const generic = ['Запитання 1: перевірте заповнення.'];
+    expect(problemsOf(quizWith(clues({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toEqual(generic);
+    expect(problemsOf(quizWith(pin({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toEqual(generic);
+    expect(problemsOf(quizWith(pin({ aspect: 3 })))).toEqual(generic);
+  });
+
+  it('places: clues and pins by round and cell', () => {
+    const blitz = { ...newBlitzRound(), questions: [clues()] };
+    const two = quizWith(filled(newQuestion('boolean')));
+    expect(problemsOf({ ...two, rounds: [two.rounds[0], blitz] } as Quiz)).toEqual([
+      'Раунд 2: Запитання 1: «Хто я?» діє лише в класиці й на звичайній клітинці поля.',
+    ]);
+    const final = { ...newFinalRound(), questions: [pin()] };
+    expect(problemsOf({ ...two, rounds: [two.rounds[0], final] } as Quiz)).toEqual([
+      'Раунд 2: Запитання 1: точка на мапі діє лише в класиці й на звичайній клітинці поля з телефона.',
+    ]);
+    expect(problemsOf(boardWith(clues(), { kind: 'blitz' }))).toEqual([
+      'Категорія 1, запитання 1: «Хто я?» діє лише в класиці й на звичайній клітинці поля.',
+    ]);
+    expect(problemsOf(boardWith(clues(), { answerMode: 'voice' }))).toEqual([]);
+    expect(problemsOf(boardWith(pin(), { answerMode: 'voice' }))).toEqual([
+      'Категорія 1, запитання 1: точка на мапі діє лише в класиці й на звичайній клітинці поля з телефона.',
+    ]);
+    expect(problemsOf(boardWith(pin(), { kind: 'blitz' }))).toHaveLength(1);
+    expect(problemsOf(boardWith(pin(), { answerMode: 'phone' }))).toEqual([]);
+    expect(firstProblem(boardWith(pin(), { answerMode: 'voice' }))).toMatchObject({ cell: { category: 0, index: 0 } });
+  });
+
+  it('a voice clues cell does not tell the host to reduce a hidden interval', () => {
+    const six = clues({ clues: ['1', '2', '3', '4', '5', '6'], interval: 8, timeLimit: 30 });
+    expect(problemsOf(boardWith(six, { answerMode: 'voice' }))).toEqual(['Категорія 1, запитання 1: для 6 підказок дайте щонайменше 45 с часу.']);
+    expect(problemsOf(boardWith(six, { answerMode: 'phone' }))[0]).toContain('зменште інтервал');
+  });
+
+  it('cleaned trims the clues and the spellings', () => {
+    const [question] = roundQuestions(cleaned(quizWith(clues({ clues: [' Раз ', 'Два', ' Три'], accepted: [' Шевченко ', '  '] }))).rounds[0]);
+    expect(question).toMatchObject({ clues: ['Раз', 'Два', 'Три'], accepted: ['Шевченко'] });
+  });
+
+  it('draft storage revives clues and pins', () => {
+    const asJson = (question: Question) => JSON.parse(JSON.stringify(question)) as Record<string, unknown>;
+    const quiz = {
+      ...quizWith(filled(newQuestion('boolean'))),
+      rounds: [
+        {
+          ...newClassicRound(),
+          questions: [
+            { ...asJson(pin()), zeroRadius: Number.NaN },
+            { ...asJson(pin()), map: 'mars', aspect: 7 },
+            { ...asJson(clues()), clues: null, accepted: null, interval: Number.NaN },
+          ],
+        },
+      ],
+    };
+    sessionStorage.setItem('quiz:draft:p10c', JSON.stringify(quiz));
+    const revived = loadDraft('p10c')!;
+    const [broken, mars, empty] = roundQuestions(revived.rounds[0]);
+    expect(broken.type === 'pin' && Number.isNaN(broken.zeroRadius)).toBe(true);
+    expect(problemsOf({ ...revived, rounds: [{ ...revived.rounds[0], questions: [broken] } as ClassicRound] })).toEqual([
+      'Запитання 1: радіус нуля має бути більшим за радіус повних балів (до 100 %).',
+    ]);
+    expect(mars).toMatchObject({ type: 'pin', map: 'world', aspect: 2, imageUrl: null });
+    expect(empty).toMatchObject({ type: 'clues', clues: ['', '', ''], accepted: [''] });
+    expect(empty.type === 'clues' && Number.isNaN(empty.interval)).toBe(true);
+  });
+
+  it('draft storage clamps the target into the picture', () => {
+    saveDraft('far-pin', quizWith(pin({ target: { x: 1.7, y: -3 } })));
+    expect(roundQuestions(loadDraft('far-pin')!.rounds[0])[0]).toMatchObject({ target: { x: 1, y: 0 } });
+  });
+
+  it('draft storage keeps an own picture and the target', () => {
+    const own = pin({ map: null, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', aspect: 1.5, target: { x: 0.2, y: 0.7 } });
+    saveDraft('own-pin', quizWith(own));
+    expect(roundQuestions(loadDraft('own-pin')!.rounds[0])[0]).toMatchObject({ map: null, aspect: 1.5, target: { x: 0.2, y: 0.7 } });
   });
 });

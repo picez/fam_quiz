@@ -110,3 +110,75 @@ describe('BoardEditor revealing picture (10b)', () => {
     expect('reveal' in next.categories[0].cells[0].question).toBe(false);
   });
 });
+
+describe('BoardEditor clues and pin cells (10c)', () => {
+  const voiceCell = (): BoardRound => {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first.cells;
+    return { ...round, categories: [{ ...first, cells: [{ ...cell, answerMode: 'voice' as const }, ...cells] }, ...rest] };
+  };
+
+  it('a pin on a voice cell switches it to a normal phone cell and shows the note', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'точка' }));
+    const next = onChange.mock.calls[0][0] as BoardRound;
+    expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
+    expect(next.categories[0].cells[0].question.type).toBe('pin');
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.getByText(t('pinCellNote'))).toBeTruthy();
+    expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
+    expect(screen.queryByLabelText(t('boardCellMode'))).toBeNull();
+  });
+
+  it('«Who am I?» on a voice cell stays voice, tells the host opens the clues and has no interval', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    const next = onChange.mock.calls[0][0] as BoardRound;
+    expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'voice' });
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.getByText(t('cluesVoiceHint'))).toBeTruthy();
+    expect(screen.queryByLabelText(t('cluesInterval'))).toBeNull();
+    expect(screen.getByText(t('cluesCellNote'))).toBeTruthy();
+    expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
+    expect(screen.getByLabelText(t('boardCellMode'))).toBeTruthy();
+  });
+
+  it('«Who am I?» hides the kind select', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);
+    expect(screen.getByLabelText('Тип клітинки')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    rerender(<BoardEditor round={onChange.mock.calls[0][0] as BoardRound} onChange={onChange} />);
+    expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
+  });
+
+  it('a voice clues cell keeps the hidden interval at the minimum', () => {
+    const onChange = vi.fn();
+    render(<BoardEditor round={voiceCell()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    expect((onChange.mock.calls[0][0] as BoardRound).categories[0].cells[0].question).toMatchObject({ type: 'clues', interval: 3 });
+  });
+
+  it('a pin on a blitz cell turns it into a normal phone cell', () => {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first.cells;
+    const onChange = vi.fn();
+    render(<BoardEditor round={{ ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, penalty: 'all' as const }, ...cells] }, ...rest] }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'точка' }));
+    expect((onChange.mock.calls[0][0] as BoardRound).categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
+  });
+
+  it('«Who am I?» on a blitz cell turns it into a normal cell', () => {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first.cells;
+    const onChange = vi.fn();
+    render(<BoardEditor round={{ ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, penalty: 'all' as const }, ...cells] }, ...rest] }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    expect((onChange.mock.calls[0][0] as BoardRound).categories[0].cells[0]).toMatchObject({ kind: 'normal', penalty: 'none' });
+  });
+});

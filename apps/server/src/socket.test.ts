@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withAudio, withId } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withAudio, withId } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -591,6 +591,43 @@ describe('«Як грати» over sockets', () => {
     expect(await send(olena, 'host:guide-skip')).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(host, 'host:guide-skip')).toEqual({ ok: true });
     await until(stage, inPhase('intro'));
+  });
+});
+
+describe('clues over sockets', () => {
+  const filler = (prefix: string) => [1, 2, 3].map((n) => ({ ...withId(single, `${prefix}${n}`), points: 100 * n }));
+  const voiceBoard = () =>
+    makeRoundsQuiz([
+      boardRound('g1', [{ title: 'Люди', cells: [clues, ...filler('a').slice(0, 2)] }, { title: 'Міста', cells: filler('b') }, { title: 'Річки', cells: filler('c') }], { answerMode: 'voice' }),
+    ]);
+  const shown = (view: GameView) => (view.role === 'player' && view.question?.clues?.shown.length) || 0;
+
+  it('host:clue opens the next clue on a voice cell and every phone sees it', async () => {
+    const { host, olena } = await lobby((await startGame(ctx.app, voiceBoard())).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    expect(await send(host, 'host:pick', { cellId: clues.id })).toEqual({ ok: true });
+    expect((await until(olena, (view) => shown(view) === 1)).phase).toBe('question');
+    expect(await send(host, 'host:clue')).toEqual({ ok: true });
+    await until(olena, (view) => shown(view) === 2);
+  });
+
+  it('host:clue: a player cannot send it; in a classic question it is wrong_phase; after the last clue — clues_done', async () => {
+    const { host, olena } = await lobby((await startGame(ctx.app, voiceBoard())).game);
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    await send(host, 'host:pick', { cellId: clues.id });
+    await until(olena, (view) => shown(view) === 1);
+    expect(await send(olena, 'host:clue')).toEqual({ ok: false, error: 'forbidden' });
+    for (let k = 2; k <= clues.clues.length; k += 1) expect(await send(host, 'host:clue')).toEqual({ ok: true });
+    expect(await send(host, 'host:clue')).toEqual({ ok: false, error: 'clues_done' });
+
+    const classic = (await startGame(ctx.app, makeRoundsQuiz([classicRound('r1', [clues])]))).game;
+    const second = await lobby(classic);
+    await send(second.host, 'host:start');
+    await send(second.host, 'host:next');
+    await until(second.olena, inPhase('question'));
+    expect(await send(second.host, 'host:clue')).toEqual({ ok: false, error: 'wrong_phase' });
   });
 });
 

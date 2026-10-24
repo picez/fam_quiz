@@ -1,5 +1,6 @@
 export * from './normalize';
 export * from './check';
+export * from './clues';
 export * from './score';
 export * from './bank';
 export * from './ranking';

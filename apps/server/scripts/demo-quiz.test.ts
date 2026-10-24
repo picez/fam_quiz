@@ -3,7 +3,7 @@ import { READY_BUFFS, allowedBuffs, boardSpareSource, questionSchema, questionsO
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
-import { demoQuiz, revealing, single, slider, withAudio } from './demo-quiz';
+import { clues, demoQuiz, pin, revealing, single, slider, withAudio } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
@@ -63,6 +63,42 @@ describe('the seeded demo quiz', () => {
     expect(questionSchema.safeParse(slider('Скільки?', { min: 0, max: 10 }, 5, { tolerance: 1, zeroBeyond: 4, unit: 'шт' })).success).toBe(true);
     const audio = withAudio(single('Назвіть гурт', ['Queen', 'ABBA'], 0), { source: 'youtube', id: 'fJ9rUzIMcZQ', start: 0, duration: 15 });
     expect(questionSchema.safeParse(audio).success).toBe(true);
+  });
+
+  it('demo has «Who am I?» in classic and on a voice cell, and a pin on the Ukraine map in classic and on a phone cell', () => {
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+    const where = (type: 'clues' | 'pin') =>
+      demoQuiz.rounds.flatMap((round) => {
+        if (round.type === 'classic') return round.questions.filter((question) => question.type === type).map((question) => ({ round, cell: null, question }));
+        if (round.type === 'board') {
+          return round.categories.flatMap((category) => category.cells.filter((c) => c.question.type === type).map((c) => ({ round, cell: c, question: c.question })));
+        }
+        return [];
+      });
+    const cluesAt = where('clues');
+    expect(cluesAt.map((w) => w.round.type)).toEqual(['classic', 'board']);
+    const voice = cluesAt[1];
+    expect(voice.round.type === 'board' && voice.round.answerMode).toBe('voice');
+    expect(voice.cell).toMatchObject({ kind: 'normal' });
+    const pins = where('pin');
+    expect(pins.map((w) => w.round.type)).toEqual(['classic', 'board']);
+    for (const found of pins) expect(found.question.type === 'pin' && found.question.map).toBe('ukraine');
+    const phone = pins[1];
+    expect(phone.round.type === 'board' && phone.round.answerMode).toBe('phone');
+    expect(phone.cell).toMatchObject({ kind: 'normal' });
+    expect(phone.cell?.answerMode).toBeUndefined();
+    expect(demoQuiz.description).toContain('Хто я?');
+    expect(demoQuiz.description).toContain('точк');
+  });
+
+  it('the clues and pin helpers build valid questions', () => {
+    const own = pin('Де це?', { imageUrl: `/uploads/${'a'.repeat(32)}.png`, aspect: 1.5 }, { x: 0.3, y: 0.6 });
+    expect(questionSchema.safeParse({ ...own, imageUrl: `/uploads/${'a'.repeat(32)}.png` }).success).toBe(true);
+    expect(own).toMatchObject({ type: 'pin', map: null, aspect: 1.5, fullRadius: 3, zeroRadius: 15 });
+    const six = clues('Хто я?', ['а', 'б', 'в', 'г', 'д', 'е'], ['Х'], 8);
+    expect(six.timeLimit).toBe(45);
+    expect(questionSchema.safeParse(six).success).toBe(true);
+    expect(clues('Хто я?', ['а', 'б', 'в'], ['Х'], 6).timeLimit).toBe(40);
   });
 
   it('ends with a final round', () => {

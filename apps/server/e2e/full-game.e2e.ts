@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, text as textQ, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { DEFAULT_RULES } from '@quiz/shared';
+import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
@@ -7582,6 +7583,270 @@ async function sliderAudioRevealGame() {
   expect(gained).toBeGreaterThanOrEqual(Math.floor(1000 * (1 - 0.7 * latest)) - 1);
   expect(gained).toBeLessThan(1000);
   expect(await scoreOf(host, 'Петро')).toBe(0);
+
+  expect(problems).toEqual([]);
+}
+
+/** Дотик у частку (x, y) мапи: рахує піксель з рамки .pin-frame (без наближення). */
+async function tapMap(page: Page, point: { x: number; y: number }): Promise<void> {
+  const frame = page.locator('.pin-frame').first();
+  await frame.scrollIntoViewIfNeeded();
+  const box = (await frame.boundingBox())!;
+  await page.mouse.click(box.x + point.x * box.width, box.y + point.y * box.height);
+}
+
+/** Тексти відкритих підказок на сторінці (з номерами: `.clue-n` + `.clue-text`). */
+const shownClues = async (page: Page) => page.locator('.clue:not(.is-hidden)').allTextContents();
+/** Лише тексти відкритих підказок, без номерів. */
+const clueTexts = async (page: Page) => page.locator('.clue:not(.is-hidden) .clue-text').allTextContents();
+
+it('part 10c: «Who am I?» and pins — the editor builds both (375 px too), clues open one by one and never leak, the pin moves until submit and zooms, the stage reveals every pin with circles, the host opens clues on a voice cell', async () => {
+  try {
+    await cluesPinGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function cluesPinGame() {
+  const host = await open('host10c', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10c@example.com');
+  // Збірка кладе поруч із мапами стиснені копії, сервер віддає їх за Accept-Encoding.
+  for (const encoding of ['br', 'gzip']) {
+    const map = await host.request.get(`${base}/maps/world.svg`, { headers: { 'accept-encoding': encoding } });
+    expect(map.ok()).toBe(true);
+    expect(map.headers()['content-encoding'], `/maps/world.svg with ${encoding}`).toBe(encoding);
+  }
+
+  const common = { imageUrl: null, video: null, points: 1000 };
+  const FIVE = 'Я написав «Кобзар».';
+  const c1 = {
+    ...common,
+    id: 'c1',
+    type: 'clues' as const,
+    text: 'Хто я?',
+    clues: ['Я народився в Моринцях.', 'Я був кріпаком.', 'Я художник і поет.', 'Мій портрет — на 100 гривнях.'],
+    accepted: ['Шевченко', 'Тарас Шевченко'],
+    // 3 × 8 + 5 = 29 ≤ 30; між підказками досить часу, щоб гравці встигли відповісти саме на потрібній.
+    interval: 8,
+    timeLimit: 30,
+  };
+  const p1 = {
+    ...common,
+    id: 'p1',
+    type: 'pin' as const,
+    text: 'Де на мапі Львів?',
+    map: 'world' as const,
+    aspect: 2,
+    target: { x: 0.5, y: 0.5 },
+    fullRadius: 3,
+    zeroRadius: 15,
+    timeLimit: 30,
+  };
+  const voiceClues = {
+    ...common,
+    id: 'v1',
+    type: 'clues' as const,
+    text: 'Хто я?',
+    clues: ['Я народилася в Новограді-Волинському.', 'Я писала «Лісову пісню».', 'Мій псевдонім — Леся.'],
+    accepted: ['Леся Українка'],
+    interval: 8,
+    timeLimit: 30,
+    points: 300,
+  };
+  const filler = (category: string, row: number) => ({ ...withPoints(withId(textQ, `f-${category}-${row}`), (row + 3) * 100), text: `${category} ${row + 1}?` });
+  const categories = ['Міста', 'Річки', 'Гори'].map((title, column) => ({
+    title,
+    cells: [0, 1, 2].map((row) => (column === 0 && row === 0 ? voiceClues : filler(title, row))),
+  }));
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('r1', [c1, p1] as never, { title: 'Хто я й де це', speedBonus: false, rules: DEFAULT_RULES }),
+        boardRound('r2', categories as never, { title: 'Поле', answerMode: 'voice', check: 'manual' }),
+      ],
+      { leaderboard: 'end' },
+    ),
+    title: 'Хто я й де це 10c',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const quizId = ((await saved.json()) as { id: string }).id;
+
+  // 1. Редактор.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Хто я й де це 10c' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+
+  await host.getByRole('button', { name: /^Запитання 1 / }).click();
+  for (const n of [1, 2, 3, 4]) await field(host, `Підказка ${n}`).waitFor();
+  await host.getByText('Остання підказка відкриється на 24-й секунді з 30.', exact).waitFor();
+  await click(host, 'Додати підказку');
+  await field(host, 'Підказка 5').fill(FIVE);
+  // П'ята підказка піднімає час до 4 × 8 + 5 = 37 с.
+  await host.getByText('Остання підказка відкриється на 32-й секунді з 37.', exact).waitFor();
+  await shot(host, 'p10c-editor-clues');
+
+  await host.getByRole('button', { name: /^Запитання 2 / }).click();
+  const baseChips = host.getByRole('group', { name: 'Основа точки', ...exact });
+  await baseChips.getByRole('button', { name: 'Україна', ...exact }).click();
+  expect(await baseChips.getByRole('button', { name: 'Україна', ...exact }).getAttribute('aria-pressed')).toBe('true');
+  await tapMap(host, PIN_PLACES.ukraine.lviv);
+  await host.locator('.pin-frame .pin-target').waitFor();
+  await host.locator('.pin-frame .pin-circle-full').waitFor({ state: 'attached' });
+  await host.locator('.pin-frame .pin-circle-zero').waitFor({ state: 'attached' });
+  await shot(host, 'p10c-editor-pin');
+
+  await field(host, 'Нуль балів далі ніж, %').fill('2');
+  await click(host, 'Зберегти');
+  await host.locator('ul.problems').getByText('радіус нуля має бути більшим', { exact: false }).waitFor();
+  await field(host, 'Нуль балів далі ніж, %').fill('15');
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await click(host, 'Попереднє запитання');
+  await field(host, 'Підказка 5').waitFor();
+  await expectNoSideScroll(host, 'p10c-editor-clues-375');
+  await click(host, 'Наступне запитання');
+  await host.locator('.pin-frame').waitFor();
+  await expectNoSideScroll(host, 'p10c-editor-pin-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as {
+    rounds: { questions?: { id: string; clues?: string[]; map?: string; aspect?: number; target?: { x: number; y: number } }[] }[];
+  };
+  const [storedClues, storedPin] = [stored.rounds[0]!.questions![0]!, stored.rounds[0]!.questions![1]!];
+  expect(storedClues.clues).toHaveLength(5);
+  expect(storedClues.clues![4]).toBe(FIVE);
+  expect(storedPin.map).toBe('ukraine');
+  expect(storedPin.aspect).toBeCloseTo(16 / 11, 5);
+  expect(Math.abs(storedPin.target!.x - PIN_PLACES.ukraine.lviv.x)).toBeLessThanOrEqual(0.01);
+  expect(Math.abs(storedPin.target!.y - PIN_PLACES.ukraine.lviv.y)).toBeLessThanOrEqual(0.01);
+
+  // 2. Гра.
+  await host.locator('.quiz-list li', { hasText: 'Хто я й де це 10c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10c', 1280, 720);
+  await stage.goto(stageUrl);
+  const olya = await open('olya10c', 375, 812);
+  const petro = await open('petro10c', 375, 812);
+  const frames = socketFrames(olya);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await click(host, 'Почати гру');
+  await afterSplash(host, olya, petro, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, olya, petro, stage);
+
+  // 3. «Хто я?» (класика).
+  await olya.locator('.clues-list').waitFor();
+  expect(await clueTexts(olya)).toEqual([c1.clues[0]]);
+  expect(await clueTexts(stage)).toEqual([c1.clues[0]]);
+  expect((await shownClues(olya)).length).toBe(1);
+  await olya.locator('.clue.is-hidden').first().getByText(/^Підказка 2 — за \d+ с$/).waitFor();
+  await expect.poll(async () => (await clueTexts(olya)).length, { timeout: 15000 }).toBe(2);
+  await olya.getByText(/Підказка 2 з 5: правильна відповідь зараз — 80\s*%\s*ціни/).waitFor();
+  await shot(olya, 'p10c-phone-clues');
+  await expectNoSideScroll(olya, 'p10c-phone-clues');
+  const early = frames.join('\n');
+  for (const secret of ['Я художник і поет.', 'Мій портрет — на 100 гривнях.', FIVE, 'Шевченко']) {
+    expect(early.includes(secret), `a clue or spelling leaked to the phone: ${secret}`).toBe(false);
+  }
+  await field(olya, 'Ваша відповідь').fill('Шевченко');
+  await click(olya, 'Відповісти');
+  await expect.poll(async () => (await clueTexts(petro)).length, { timeout: 15000 }).toBe(3);
+  await field(petro, 'Ваша відповідь').fill('Франко');
+  await click(petro, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await expect.poll(async () => (await clueTexts(stage)).length).toBe(5);
+  await host.locator('li', { hasText: 'Оля' }).getByText('на підказці 2', exact).waitFor();
+  expect(await scoreOf(host, 'Оля')).toBe(800);
+  expect(await scoreOf(host, 'Петро')).toBe(0);
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+
+  // 4. Точка (класика).
+  await stage.locator('img.pin-base[src*="/maps/ukraine.svg"]').waitFor();
+  await stage.getByText('Ставте точку на телефоні', exact).waitFor();
+  expect(await stage.locator('.pin-target').count()).toBe(0);
+  const submit = olya.getByRole('button', { name: 'Відповісти', ...exact });
+  await olya.locator('.pin-frame').waitFor();
+  expect(await submit.isDisabled()).toBe(true);
+  await tapMap(olya, PIN_PLACES.ukraine.kharkiv);
+  await tapMap(olya, PIN_PLACES.ukraine.lviv);
+  expect(await olya.locator('.pin-mark.is-mine').count()).toBe(1);
+  expect(await submit.isDisabled()).toBe(false);
+  await click(olya, 'Наблизити');
+  expect(await olya.locator('.pin-zoom-layer').getAttribute('style')).toMatch(/scale\(1\.5\)/);
+  await shot(olya, 'p10c-phone-pin');
+  await expectNoSideScroll(olya, 'p10c-phone-pin');
+  await click(olya, 'Уся мапа');
+  expect(await olya.locator('.pin-zoom-layer').getAttribute('style')).toMatch(/scale\(1\)/);
+  await submit.click();
+  await tapMap(petro, PIN_PLACES.ukraine.kharkiv);
+  await click(petro, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  const beforeReveal = frames.join('\n');
+  for (const key of ['"target"', '"fullRadius"', '"zeroRadius"']) {
+    expect(beforeReveal.includes(key), `the pin answer leaked to the phone before the reveal: ${key}`).toBe(false);
+  }
+  await expect.poll(() => host.locator('.host-pin .pin-mark').count()).toBe(2);
+  await host.locator('.host-pin .pin-target').waitFor();
+  await shot(host, 'p10c-host-pins');
+  await click(host, 'Показати відповідь');
+  await stage.locator('.pin-mark.is-best[aria-label="Оля"]').waitFor();
+  await stage.locator('.pin-mark[aria-label="Петро"]').waitFor();
+  await stage.locator('.pin-target').waitFor();
+  await stage.locator('.pin-circle-full').waitFor({ state: 'attached' });
+  await stage.locator('.pin-circle-zero').waitFor({ state: 'attached' });
+  await stage.getByText(/Найближче: Оля/).waitFor();
+  await shot(stage, 'p10c-stage-pins');
+  // Сцена 1280 × 720 вміщає все разом із «Найближче», а мапа бере решту висоти.
+  const pageHeight = (await stage.evaluate('document.documentElement.scrollHeight')) as number;
+  const best = (await stage.locator('.pin-best').boundingBox())!;
+  const board = (await stage.locator('.stage-pin .pin-board').boundingBox())!;
+  expect(pageHeight, 'the stage pin reveal scrolls').toBeLessThanOrEqual(720);
+  expect(best.y + best.height).toBeLessThanOrEqual(720);
+  expect(board.height, 'the stage map is too small').toBeGreaterThanOrEqual(400);
+  // Рядок пульта показує бали за запитання: коло повних балів, без бонусу за швидкість.
+  expect(await scoreOf(host, 'Оля')).toBe(1000);
+  expect(await scoreOf(host, 'Петро')).toBe(0);
+  await olya.locator('.pin-mark').first().waitFor();
+  await olya.locator('.pin-target').waitFor();
+  await olya.locator('.pin-circle-full').waitFor({ state: 'attached' });
+  await olya.locator('.pin-circle-zero').waitFor({ state: 'attached' });
+  await shot(olya, 'p10c-phone-pin-reveal');
+
+  // 5. «Хто я?» на усній клітинці.
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await afterSplash(host, olya, petro, stage);
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await olya.getByRole('button', { name: 'Міста, 300', ...exact }).click();
+  await afterSplash(host, olya, petro, stage);
+  const panel = host.locator('.host-clues');
+  await panel.waitFor();
+  expect(await panel.locator('.clue-state', { hasText: 'відкрито' }).count()).toBe(1);
+  await click(host, 'Відкрити підказку 2');
+  await expect.poll(async () => (await clueTexts(stage)).length).toBe(2);
+  await expect.poll(async () => (await clueTexts(petro)).length).toBe(2);
+  await host.getByText(/Відкрито 2 з 3: правильна відповідь зараз — 67\s*%\s*ціни/).waitFor();
+  await shot(host, 'p10c-host-clues');
+  await stage.waitForTimeout(10_000);
+  expect((await clueTexts(stage)).length, 'a voice cell opens no clue by itself').toBe(2);
+  expect(await panel.locator('.clue-state', { hasText: 'відкрито' }).count()).toBe(2);
+  await click(host, 'Зарахувати');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await click(host, 'Показати відповідь');
+  // 300 × 2 / 3: відкрито дві підказки з трьох.
+  expect(await scoreOf(host, 'Оля')).toBe(200);
 
   expect(problems).toEqual([]);
 }

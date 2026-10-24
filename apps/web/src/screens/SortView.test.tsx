@@ -43,7 +43,7 @@ const sortQuestion = (count: number): PublicQuestion => ({
   points: 100,
   choices: [],
   right: [],
-  orderLabels: null, slider: null, audio: null, reveal: null,
+  orderLabels: null, slider: null, clues: null, pin: null, audio: null, reveal: null,
   chain: null,
   sort: { categories: CATEGORIES.slice(0, count), total: 4, lockSeconds: 3 },
 });

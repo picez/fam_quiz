@@ -15,7 +15,7 @@ const publicQuestion = {
   video: null,
   timeLimit: 20,
   points: 1000,
-  right: [], chain: null, sort: null, orderLabels: null, slider: null, audio: null, reveal: null,
+  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, audio: null, reveal: null,
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },
@@ -1839,5 +1839,107 @@ describe('PlayerScreen: table and menu', () => {
       }),
     );
     expect(screen.getByText('Твоя відповідь: 57 % · правильна: 50 % (± 2)')).toBeTruthy();
+  });
+});
+
+describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
+  const CLUES = ['Народився 1814 року', 'Був художником', 'Засланий у солдати', 'Автор «Заповіту»', 'Автор «Кобзаря»'];
+  const cluesQuestion = {
+    ...publicQuestion,
+    type: 'clues' as const,
+    text: 'Хто я?',
+    choices: [],
+    clues: { total: 5, shown: CLUES.slice(0, 2), nextAt: Date.now() + 5000, byHost: false, intervalSeconds: 8 },
+  };
+  const cluesFull: Question = { id: 'q3', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 45, points: 1000, clues: CLUES, accepted: ['Шевченко'], interval: 8 };
+  const pinQuestion = { ...publicQuestion, type: 'pin' as const, text: 'Де Львів?', choices: [], pin: { map: 'ukraine' as const, aspect: 16 / 11 } };
+  const pinFull: Question = {
+    id: 'q4',
+    type: 'pin',
+    text: 'Де Львів?',
+    imageUrl: null,
+    video: null,
+    timeLimit: 30,
+    points: 1000,
+    map: 'ukraine',
+    aspect: 16 / 11,
+    target: { x: 0.1, y: 0.3 },
+    fullRadius: 3,
+    zeroRadius: 15,
+  };
+
+  it('clues: the opened clues, the current share and the answer field; the list stays after the answer', async () => {
+    const send = show(onQuestion({ question: cluesQuestion }));
+    expect(screen.getByText('Народився 1814 року')).toBeTruthy();
+    expect(screen.getByText('Був художником')).toBeTruthy();
+    expect(screen.queryByText('Засланий у солдати')).toBeNull();
+    expect(screen.getByText('Підказка 2 з 5: правильна відповідь зараз — 80 % ціни')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Ваша відповідь'), { target: { value: 'Шевченко' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:answer', { type: 'clues', value: 'Шевченко' }));
+    cleanup();
+    show(onQuestion({ question: cluesQuestion, me: { ...me, answer: { type: 'clues', value: 'Шевченко' } } }));
+    expect(screen.getByText('Відповідь прийнято')).toBeTruthy();
+    expect(screen.getByText('Був художником')).toBeTruthy();
+    expect(document.querySelectorAll('.clue.is-hidden')).toHaveLength(3);
+  });
+
+  it('pin: the map frame with zoom buttons, a tap and «Відповісти» send the pin', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 300, height: 150, right: 300, bottom: 150, x: 0, y: 0, toJSON: () => ({}) });
+    try {
+      const send = show(onQuestion({ question: pinQuestion }));
+      expect(screen.getByRole('button', { name: 'Наблизити' })).toBeTruthy();
+      // Основа точки — лише в рамці, без окремої картинки запитання.
+      expect(document.querySelectorAll('img')).toHaveLength(1);
+      const frame = screen.getByRole('group', { name: 'Мапа: торкнися, щоб поставити точку' });
+      fireEvent.pointerDown(frame, { pointerId: 1, clientX: 150, clientY: 30 });
+      fireEvent.pointerUp(frame, { pointerId: 1, clientX: 150, clientY: 30 });
+      fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+      await waitFor(() => expect(send).toHaveBeenCalledWith('player:answer', { type: 'pin', x: 0.5, y: 0.2 }));
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('pin under the question splash: the map ignores taps', () => {
+    const now = Date.now();
+    show(onQuestion({ question: pinQuestion, splash: { kind: 'question', at: now - 100, until: now + 3000 } }));
+    const frame = screen.getByRole('group', { name: 'Мапа: торкнися, щоб поставити точку' });
+    fireEvent.pointerDown(frame, { pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerUp(frame, { pointerId: 1, clientX: 0, clientY: 0 });
+    expect(document.querySelector('.pin-mark.is-mine')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Наблизити' }).matches(':disabled')).toBe(true);
+  });
+
+  it('pin reveal: my pin, the correct point and both circles', () => {
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: pinQuestion,
+        reveal: pinFull,
+        me: { ...me, answer: { type: 'pin', x: 0.12, y: 0.3 }, result: { grade: 'correct', points: 1000, streakBonus: 0 } as never },
+      }),
+    );
+    expect(screen.getByRole('img', { name: 'Олена' }).classList.contains('is-best')).toBe(true);
+    expect(document.querySelector('.pin-target')).not.toBeNull();
+    expect(document.querySelector('.pin-circle-full')).not.toBeNull();
+    expect(document.querySelector('.pin-circle-zero')).not.toBeNull();
+    expect(screen.getByText(/^Точка за .* % від правильної$/)).toBeTruthy();
+  });
+
+  it('clues reveal: all clues without placeholders and the correct answer', () => {
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: { ...cluesQuestion, clues: { ...cluesQuestion.clues, nextAt: null } },
+        reveal: cluesFull,
+        me: { ...me, answer: { type: 'clues', value: 'Шевченко' }, result: { grade: 'correct', points: 800, streakBonus: 0 } as never },
+      }),
+    );
+    for (const clue of CLUES) expect(screen.getByText(clue)).toBeTruthy();
+    expect(document.querySelector('.clue.is-hidden')).toBeNull();
+    expect(screen.getByText('Правильна відповідь: Шевченко')).toBeTruthy();
   });
 });

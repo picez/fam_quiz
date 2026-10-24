@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerView, type PublicQuestion, type Spotlight } from '@quiz/shared';
-import { correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
+import { clueShare, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerView, type PublicClues, type PublicQuestion, type Spotlight } from '@quiz/shared';
+import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -15,6 +15,8 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
 import { RevealImage } from './RevealImage';
+import { CluesList } from './CluesList';
+import { PinBoard } from './PinBoard';
 import { SliderScale } from './SliderScale';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
@@ -37,6 +39,38 @@ interface Props {
   send: Send;
 }
 
+/** «Хто я?» на телефоні: відкриті підказки з відліком до наступної і частка ціни за правильну відповідь зараз. */
+function CluesNow({ clues, offsetMs }: { clues: PublicClues; offsetMs: number }) {
+  const k = Math.max(1, clues.shown.length);
+  return (
+    <>
+      <CluesList clues={clues} offsetMs={offsetMs} />
+      <p className="meta clues-now">{t('cluesNow', { k, n: clues.total, percent: Math.round(clueShare(clues.total, k) * 100) })}</p>
+    </>
+  );
+}
+
+/** Розкриття «Хто я?» і точки: усі підказки або мапа з точкою гравця, правильною точкою й колами. */
+function RevealDetail({ view, answer, player }: { view: PlayerView; answer: Answer | null; player: { id: string; nickname: string } }) {
+  const { reveal, question } = view;
+  if (reveal === null || question === null) return null;
+  if (reveal.type === 'clues' && question.clues !== null) return <CluesList clues={question.clues} offsetMs={0} all={reveal.clues} />;
+  if (reveal.type === 'pin' && question.pin !== null) {
+    const marks = answer?.type === 'pin' ? [{ playerId: player.id, nickname: player.nickname, x: answer.x, y: answer.y }] : [];
+    return (
+      <PinBoard
+        pin={question.pin}
+        imageUrl={question.imageUrl}
+        marks={marks}
+        target={reveal.target}
+        radii={{ full: reveal.fullRadius, zero: reveal.zeroRadius }}
+        highlight={player.id}
+      />
+    );
+  }
+  return null;
+}
+
 function Result({ view }: { view: PlayerView }) {
   const { result } = view.me;
   const title =
@@ -57,8 +91,12 @@ function Result({ view }: { view: PlayerView }) {
         <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
       )}
       {view.me.sort !== null && <SortOutcome view={view} />}
+      <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {view.reveal !== null &&
-        (view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
+        (view.reveal.type === 'pin' ? (
+          // Точка: мапа вище; словами — лише відстань власної точки.
+          view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
+        ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
           <>
             <p>
               {t('sliderYours', {
@@ -488,12 +526,15 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           )}
           <DebuffZone debuff={me.debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)}>{question.text}</h1>
-            <RevealImage url={question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />
+            {/* Власна картинка точки — це основа мапи, вона вже в рамці. */}
+            <RevealImage url={question.pin !== null ? null : question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />
             {question.reveal && me.answer === null && (
               <p className="meta reveal-hint">
                 {t('revealHint')} {t('revealNow', { percent: Math.round(revealShare(revealP, 1) * 100) })}
               </p>
             )}
+            {/* Підказки й частка — і після відповіді, і глядачам на полі: підказки далі відкриваються. */}
+            {question.clues !== null && <CluesNow clues={question.clues} offsetMs={offsetMs} />}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
             {me.buffs !== null && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} send={send} onError={setError} />}
@@ -557,7 +598,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                 />
               </>
             ) : board !== null && !chooserIsMe ? (
-              <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+              <>
+                {/* Глядач бачить мапу, але не точку вибравшого — лише що її поставлено. */}
+                {question.pin !== null && <PinBoard pin={question.pin} imageUrl={question.imageUrl} />}
+                <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
+              </>
             ) : board !== null && voice && me.answer === null ? (
               <>
                 {/* Вибрав сам: досить «Відповідайте вголос», без «Гравець відповідає вголос» над ним. */}
@@ -567,7 +612,16 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             ) : me.answer !== null ? (
               <section className="sent">
                 <h2>{t('answerSent')}</h2>
-                <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>
+                {me.answer.type === 'pin' && question.pin !== null ? (
+                  <PinBoard
+                    pin={question.pin}
+                    imageUrl={question.imageUrl}
+                    marks={[{ playerId: me.id, nickname: me.nickname, x: me.answer.x, y: me.answer.y }]}
+                    highlight={me.id}
+                  />
+                ) : (
+                  <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>
+                )}
               </section>
             ) : activeBuff !== null && retryStage === 'choice' ? (
               // Часткова перша відповідь: вибір замість поля відповіді.
@@ -588,6 +642,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
           {/* Відповіді закрито: картинка, що проявлялася, вже повна. */}
           {question?.reveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStageNow} />}
+          {question?.clues != null && <CluesList clues={question.clues} offsetMs={offsetMs} />}
           {/* У ланцюжку немає однієї правильної відповіді: гравець бачить свій результат і чекає на рейтинг. */}
           {isSort ? (
             // Сортування: власний підсумок і очікування розкриття; глядач на полі бачить прогрес того, хто сортував.
@@ -640,8 +695,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {isSort && question?.sort != null && (
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} />
               )}
+              <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
-              {view.reveal !== null && !isSort && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
             <>

@@ -1,12 +1,38 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
-import type { GameAdjustment } from '@quiz/shared';
+import { pinDistance, type GameAdjustment, type GameQuestionResult } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t } from '../i18n';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
+import { PinBoard, type PinBoardMark } from '../screens/PinBoard';
 import { usePrivateData } from '../usePrivateData';
+
+/** Точки гравців на мініатюрі запитання-точки (відповіді на основне) і найближча з них; для інших типів — порожньо. */
+export function historyPinMarks(question: GameQuestionResult): { marks: PinBoardMark[]; nearest: string | undefined } {
+  const q = question.question;
+  if (q.type !== 'pin') return { marks: [], nearest: undefined };
+  const marks: PinBoardMark[] = [];
+  question.responses.forEach((response, at) => {
+    if (response.spare !== null || response.answer?.type !== 'pin') return;
+    marks.push({ playerId: `r${at}`, nickname: response.nickname, x: response.answer.x, y: response.answer.y });
+  });
+  const best = marks.reduce<PinBoardMark | undefined>((acc, mark) => (acc === undefined || pinDistance(q, mark.x, mark.y) < pinDistance(q, acc.x, acc.y) ? mark : acc), undefined);
+  return { marks, nearest: best?.playerId };
+}
+
+/** Мініатюра запитання-точки: основа, правильна точка, кола й точки гравців (найближча підсвічена). */
+function HistoryPin({ question }: { question: GameQuestionResult }) {
+  const q = question.question;
+  if (q.type !== 'pin') return null;
+  const { marks, nearest } = historyPinMarks(question);
+  return (
+    <div className="history-pin">
+      <PinBoard pin={{ map: q.map, aspect: q.aspect }} imageUrl={q.imageUrl} target={q.target} radii={{ full: q.fullRadius, zero: q.zeroRadius }} marks={marks} highlight={nearest} />
+    </div>
+  );
+}
 
 /** Рядки дуелей: пари 'duel' з сусідніми seq (+N і −N) — один рядок; непарне — окремо. */
 export function duelLines(adjustments: GameAdjustment[]): string[] {
@@ -147,6 +173,7 @@ export function GameHistory() {
                         {question.question.type === 'sort' && (
                           <p className="meta">{t('correctAnswer', { answer: correctText(question.question) })}</p>
                         )}
+                        {question.question.type === 'pin' && <HistoryPin question={question} />}
                         {question.responses.length > 0 && (
                           <details className="responses">
                             <summary>{t('responsesTitle', { count: question.responses.length })}</summary>

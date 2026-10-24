@@ -6775,3 +6775,351 @@ label.powers-price {
 .stage .scale-mark {
   font-size: 1.25rem;
 }
+
+/* «Хто я?» (10c): відкриті підказки з номерами, далі заглушки з відліком. Рядків завжди total — поява підказки нічого не зсуває. */
+.clues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clue {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  min-width: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--panel);
+  overflow-wrap: anywhere;
+}
+
+.clue-n {
+  flex: none;
+  min-width: 1.2em;
+  color: var(--amber);
+  font-weight: 800;
+}
+
+.clue.is-new {
+  border-color: var(--amber);
+  background: rgb(255 179 0 / 0.12);
+}
+
+.clue.is-hidden {
+  border-style: dashed;
+  background: transparent;
+  color: var(--dim);
+  font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .clue.is-new {
+    animation: clue-in 0.4s ease-out;
+  }
+}
+
+@keyframes clue-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.4rem);
+  }
+}
+
+.clues-list.is-big .clue {
+  padding: 0.9rem 1.3rem;
+  font-size: 1.6rem;
+}
+
+.clues-now {
+  margin: 0;
+}
+
+/* Точка на мапі (10c): рамка з наближенням, основа й шар позначок. */
+.pin-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.pin-hint {
+  margin: 0;
+}
+
+/* Висока картинка не виходить за екран: ширина обмежена 62vh × пропорцію. */
+.pin-frame,
+.pin-board {
+  width: min(100%, calc(62vh * var(--pin-aspect, 1)));
+  margin-inline: auto;
+}
+
+.pin-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: rgb(0 0 0 / 0.25);
+  /* Два пальці наближають мапу, а не всю сторінку. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: crosshair;
+}
+
+.inputs:disabled .pin-frame {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pin-zoom-layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+.pin-frame .pin-board {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.pin-board {
+  position: relative;
+  /* Кола й підписи біля краю не виходять за основу: на 375 px жодної прокрутки вбік. */
+  overflow: clip;
+  border-radius: 0.75rem;
+  background: rgb(0 0 0 / 0.25);
+}
+
+.pin-base {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.pin-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pin-circle-zero {
+  fill: rgb(60 180 100 / 0.18);
+  stroke: rgb(60 180 100 / 0.6);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.pin-circle-full {
+  fill: rgb(60 180 100 / 0.55);
+  stroke: rgb(60 180 100);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Позначки й зірка — сталого розміру на екрані, центр рівно на точці. */
+.pin-mark,
+.pin-target {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.pin-mark {
+  width: 0.9rem;
+  height: 0.9rem;
+  box-sizing: border-box;
+  border: 2px solid var(--stage);
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.pin-mark.is-mine {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-color: #fff;
+  background: var(--pending);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.45);
+}
+
+.pin-mark.is-best {
+  z-index: 1;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(60 180 100 / 0.9);
+}
+
+.pin-label {
+  position: absolute;
+  top: calc(100% + 0.15rem + var(--label-row, 0) * 1.1rem);
+  left: 50%;
+  max-width: 7rem;
+  overflow: hidden;
+  transform: translateX(-50%);
+  color: var(--paper);
+  font-size: 0.75rem;
+  line-height: 1.1rem;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 3px #000, 0 0 2px #000;
+  white-space: nowrap;
+}
+
+.pin-mark.is-best .pin-label {
+  font-weight: 700;
+}
+
+/* Біля краю мапи підпис притиснутий до нього й не виходить за основу. */
+.pin-label.is-left {
+  left: 0;
+  transform: none;
+}
+
+.pin-label.is-right {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.pin-label.is-up {
+  top: auto;
+  bottom: calc(100% + 0.15rem + var(--label-row, 0) * 1.1rem);
+}
+
+.pin-target {
+  z-index: 2;
+  color: #fff;
+  font-size: 1.6rem;
+  line-height: 1;
+  text-shadow: 0 0 3px #000, 0 0 6px rgb(60 180 100);
+}
+
+.pin-zoom {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.pin-zoom .btn-icon {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+/* Сцена (10c): підказки великим без прокрутки (до 6 по 150 символів на 1280 × 720), мапа вписується у висоту. */
+.stage .clues-list.is-big {
+  gap: 0.4rem;
+}
+
+.stage .clues-list.is-big .clue {
+  padding: 0.5rem 1rem;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+.stage .clues-list.is-big:has(.clue:nth-child(5)) .clue {
+  padding: 0.35rem 0.9rem;
+  font-size: 1.2rem;
+}
+
+/* Сцена з точкою — рівно на екран: мапа бере всю решту висоти, а не штовхає «Найближче» за край. */
+.app.stage:has(.stage-pin) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.stage-question:has(.stage-pin) {
+  min-height: 0;
+  gap: 1.5vh;
+}
+
+/* Без порожнечі над мапою: рядок запитання займає лише свою висоту. */
+.stage-question:has(.stage-pin) .stage-main {
+  flex: 0 0 auto;
+}
+
+.stage-question:has(.stage-pin) .question {
+  font-size: clamp(1.5rem, 3.2vw, 3.25rem);
+}
+
+.stage-pin {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 0;
+}
+
+.stage-pin-fit {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  align-self: stretch;
+  justify-content: center;
+  min-height: 0;
+  container-type: size;
+}
+
+/* Найбільша дошка, що вміщається в обгортку: ширина — менша з ширини й висоти × пропорцію (--pin-aspect задає PinBoard). */
+.stage-pin-fit .pin-board {
+  flex: none;
+  width: min(100cqw, calc(100cqh * var(--pin-aspect, 1)));
+}
+
+.pin-best {
+  margin: 0;
+}
+
+/* Пульт (10c): усі підказки й живі точки. */
+.host-clues {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.host-clues ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.host-clues li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+.host-clues li.is-closed {
+  color: var(--dim);
+}
+
+.host-clues .clue-state {
+  flex: none;
+  margin-left: auto;
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+.host-pin {
+  max-width: 480px;
+}
+
+.history-pin {
+  width: 100%;
+  max-width: 320px;
+  margin-block: 0.5rem;
+}

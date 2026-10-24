@@ -1,4 +1,5 @@
-import { DEFAULT_RULES, type DuelCategory, type DuelQuestion, type Question, type QuestionAudio, type Quiz, type RevealMode, type RoundRules } from '@quiz/shared';
+import { DEFAULT_RULES, LIMITS, PIN_MAP_ASPECT, type DuelCategory, type DuelQuestion, type PinMap, type Question, type QuestionAudio, type Quiz, type RevealMode, type RoundRules } from '@quiz/shared';
+import { PIN_PLACES } from './pin-places';
 
 /**
  * Демо-вікторина з усіма типами запитань (single, multi, boolean, text, numeric, order, match, chain, sort),
@@ -98,6 +99,41 @@ export const slider = (
   ...(options.unit === undefined ? {} : { unit: options.unit }),
 });
 
+/** «Хто я?»: підказки від найважчої, прийнятні написання, інтервал між підказками; час піднімається, щоб остання підказка встигла відкритися. */
+export const clues = (
+  text: string,
+  hints: string[],
+  accepted: string[],
+  interval = LIMITS.defaultClueSeconds,
+  points?: number,
+  time = 40,
+): Question => ({
+  ...q(text, points, Math.max(time, (hints.length - 1) * interval + LIMITS.clueTailSeconds)),
+  type: 'clues',
+  clues: hints,
+  accepted,
+  interval,
+});
+
+/** Точка на мапі: вбудована мапа або власна картинка з пропорцією (imageUrl задається в запитанні); radii — [повні, нуль], %. */
+export const pin = (
+  text: string,
+  base: PinMap | { imageUrl: string; aspect: number },
+  target: { x: number; y: number },
+  radii: [number, number] = [LIMITS.defaultPinFull, LIMITS.defaultPinZero],
+  points?: number,
+  time?: number,
+): Question => ({
+  ...q(text, points, time),
+  ...(typeof base === 'string' ? {} : { imageUrl: base.imageUrl }),
+  type: 'pin',
+  map: typeof base === 'string' ? base : null,
+  aspect: typeof base === 'string' ? PIN_MAP_ASPECT[base] : base.aspect,
+  target,
+  fullRadius: radii[0],
+  zeroRadius: radii[1],
+});
+
 /** Додає до запитання відео з YouTube: id і секунда початку. */
 export const video = (question: Question, id: string, start = 0): Question => ({ ...question, video: { id, start } });
 
@@ -128,7 +164,7 @@ export const cell = (
 export const demoQuiz: Quiz = {
   title: 'Демо: усі можливості',
   description:
-    'Усі типи запитань (один варіант, кілька, так/ні, текст, число, порядок, пари, ланцюжок слів), класичні раунди з різними правилами, бліц (авто й ручна перевірка) та ігрове поле (телефони й голос, ×2/×3).',
+    'Усі типи запитань (один варіант, кілька, так/ні, текст, число, порядок, пари, ланцюжок слів, «Хто я?», точка на мапі), класичні раунди з різними правилами, бліц (авто й ручна перевірка) та ігрове поле (телефони й голос, ×2/×3).',
   settings: { leaderboard: 'each' },
   rounds: [
     {
@@ -179,6 +215,13 @@ export const demoQuiz: Quiz = {
         withAudio(single('Назвіть гурт', ['Queen', 'ABBA', 'The Beatles', 'Pink Floyd'], 0), { source: 'youtube', id: 'fJ9rUzIMcZQ', start: 0, duration: 15 }),
         single('Яка хімічна формула води?', ['CO2', 'H2O', 'O2', 'NaCl'], 1, 1000, 15),
         textQ('Як називається столиця Японії?', ['Токіо', 'Tokyo'], 1000, 20),
+        clues(
+          'Хто я?',
+          ['Я народився в Моринцях 1814 року.', 'Мене викупили з кріпацтва 1838 року.', 'Я був і художником, і поетом.', 'Мій «Кобзар» вийшов 1840 року.', 'Мій портрет — на купюрі 100 гривень.'],
+          ['Тарас Шевченко', 'Шевченко'],
+          6,
+        ),
+        pin('Де на мапі Львів?', 'ukraine', PIN_PLACES.ukraine.lviv),
       ],
     },
     {
@@ -231,6 +274,7 @@ export const demoQuiz: Quiz = {
             cell(bool('Австралія — це материк і країна водночас.', true, 200), 'x2'),
             cell(textQ('Столиця Канади?', ['Оттава', 'Ottawa'], 300, 30), 'none', { answerMode: 'voice' }),
             cell(numeric('Скільки материків на Землі?', 6, 1, 400)),
+            cell(pin('Де на мапі Одеса?', 'ukraine', PIN_PLACES.ukraine.odesa, [3, 15], 500, 30)),
           ],
         },
         {
@@ -280,6 +324,15 @@ export const demoQuiz: Quiz = {
             cell(textQ('Скільки літер в українській абетці?', ['33'], 100)),
             cell(textQ('Синонім до слова «гарний»', ['Красивий', 'Вродливий', 'Гожий'], 200)),
             cell(textQ('Що означає «файний»?', ['Гарний', 'Хороший'], 300)),
+            cell(
+              clues(
+                'Хто я?',
+                ['Я народилася в Новограді-Волинському.', 'Мій дядько — Михайло Драгоманов.', 'Я написала «Лісову пісню».', 'Мій псевдонім пов’язаний з назвою країни.'],
+                ['Леся Українка', 'Лариса Косач'],
+                8,
+                400,
+              ),
+            ),
           ],
         },
         {

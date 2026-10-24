@@ -50,6 +50,8 @@ import {
   type Phase,
   type PlayerView,
   type RoundInfo,
+  type PublicClues,
+  type PinMark,
   type PublicQuestion,
   type QuestionAudio,
   type SliderMark,
@@ -61,6 +63,7 @@ import {
   type SplashView,
   type StageView,
   guidePages,
+  pinDistance,
   newcomersOn,
   roundBrief,
   rulesOf,
@@ -88,6 +91,7 @@ import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain
 import { sortOf, sortsHere } from './sort';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
+import { cluesAnswered, cluesByHost, cluesOpen, nextClueAt } from './clues';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
@@ -136,7 +140,7 @@ function withoutHint(question: Question): Question {
 }
 
 /** Запитання без правильної відповіді й підказки; choices у порядку presented. */
-function publicQuestion(question: Question, presented: string[]): PublicQuestion {
+function publicQuestion(question: Question, presented: string[], clues: PublicClues | null = null): PublicQuestion {
   const source: Choice[] =
     question.type === 'order'
       ? question.items
@@ -177,6 +181,8 @@ function publicQuestion(question: Question, presented: string[]): PublicQuestion
           }
         : null,
     slider: question.type === 'slider' ? { min: question.min, max: question.max, step: question.step, unit: question.unit ?? '' } : null,
+    clues: question.type === 'clues' ? clues : null,
+    pin: question.type === 'pin' ? { map: question.map, aspect: question.aspect } : null,
     // Збережені кімнати — сирий JSON: відсутнє поле читаємо як «немає».
     audio: question.audio ? { duration: question.audio.duration, clip: question.audio } : null,
     reveal: question.reveal ?? null,
@@ -191,7 +197,22 @@ function withoutClip(question: PublicQuestion): PublicQuestion {
 /** Публічне запитання, яке бачать усі; null поза запитанням. */
 function shownPublic(state: GameState): PublicQuestion | null {
   const shown = shownQuestion(state);
-  return shown === null ? null : publicQuestion(shown.question, shown.presented);
+  return shown === null ? null : publicQuestion(shown.question, shown.presented, publicClues(state));
+}
+
+/** Відкриті підказки показаного запитання «Хто я?» (на полі із заміною — запасного, а це простий тип, тож null); інакше null. */
+function publicClues(state: GameState): PublicClues | null {
+  const shown = shownQuestion(state);
+  const play = state.plays[state.questionIndex];
+  if (shown === null || play === undefined || shown.question.type !== 'clues' || shown.question !== play.question) return null;
+  const { question } = shown;
+  return {
+    total: question.clues.length,
+    shown: question.clues.slice(0, cluesOpen(play)),
+    nextAt: nextClueAt(state),
+    byHost: cluesByHost(play),
+    intervalSeconds: question.interval,
+  };
 }
 
 /**
@@ -219,6 +240,25 @@ function sliderMarks(state: GameState, forHost: boolean): SliderMark[] | null {
     return [{ playerId: player.id, nickname: player.nickname, value: record.answer.value, points: record.points }];
   });
   return marks.sort((a, b) => Math.abs(a.value - correct) - Math.abs(b.value - correct) || a.nickname.localeCompare(b.nickname, 'uk'));
+}
+
+/**
+ * Точки гравців на мапі: за відстанню до правильної, далі за нікнеймом. null поза запитанням-точкою і у фіналі.
+ * Сцена — лише на reveal, ведучий — з етапу question.
+ */
+function pinMarks(state: GameState, forHost: boolean): PinMark[] | null {
+  const phases: Phase[] = forHost ? ['question', 'locked', 'reveal'] : ['reveal'];
+  const shown = shownQuestion(state);
+  if (shown === null || shown.question.type !== 'pin' || !phases.includes(state.phase) || inFinalRound(state)) return null;
+  const question = shown.question;
+  const board = state.plays[state.questionIndex]?.board !== undefined;
+  const distance = (mark: PinMark) => pinDistance(question, mark.x, mark.y);
+  const marks = state.players.flatMap((player): PinMark[] => {
+    const record = currentAnswers(state)[player.id];
+    if (record === undefined || record.answer?.type !== 'pin' || (!board && record.spare !== undefined)) return [];
+    return [{ playerId: player.id, nickname: player.nickname, x: record.answer.x, y: record.answer.y, points: record.points }];
+  });
+  return marks.sort((a, b) => distance(a) - distance(b) || a.nickname.localeCompare(b.nickname, 'uk'));
 }
 
 /** Найменший і найбільший час запитань раунду з таймером; null — таймера немає в жодного. */
@@ -1051,6 +1091,7 @@ export function stageView(state: GameState): StageView {
     // Лише імена: вид дебафу сцена не бачить.
     debuffs: state.players.filter((p) => shownDebuff(state, p.id) !== null).map((p) => blitzPlayer(state, p.id)),
     sliderMarks: sliderMarks(state, false),
+    pinMarks: pinMarks(state, false),
   };
 }
 
@@ -1182,6 +1223,13 @@ function spareOf(state: GameState, id: string | undefined): Question | null {
   return id === undefined ? null : (allSpares(state.quiz).find((q) => q.id === id) ?? null);
 }
 
+/** Номер підказки, на якій дано відповідь; null — не «Хто я?», бліц і фінал. */
+function responseClue(state: GameState, playerId: string, timeMs: number): number | null {
+  const play = state.plays[state.questionIndex];
+  if (play === undefined || play.blitz !== undefined || inFinalRound(state)) return null;
+  return cluesAnswered(play, questionFor(state, play, playerId), timeMs);
+}
+
 export function hostView(state: GameState): HostView {
   const responses = state.players.flatMap((player): HostResponse[] => {
     const record = currentRecord(state, player.id);
@@ -1199,6 +1247,7 @@ export function hostView(state: GameState): HostView {
         overridden: record.overridden,
         buff: record.buff ?? null,
         spare: spareOf(state, record.spare),
+        clue: responseClue(state, player.id, record.timeMs),
       },
     ];
   });
@@ -1225,5 +1274,6 @@ export function hostView(state: GameState): HostView {
     hints: hintRequests(state),
     standings: rankPlayers(state.players),
     sliderMarks: sliderMarks(state, true),
+    pinMarks: pinMarks(state, true),
   };
 }

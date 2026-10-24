@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { checkAnswer, textMatches, verdictOf } from './check';
+import { checkAnswer, paceFactor, paysForTime, textMatches, verdictOf } from './check';
 import type { Question } from '@quiz/shared';
-import { bool, match, multi, numeric, order, single, slider, text, withReveal } from './testing/fixtures';
+import { bool, clues, match, multi, numeric, order, pin, single, slider, text, withReveal } from './testing/fixtures';
 
 const REJECTED = { accepted: false, accuracy: 0 };
 const FULL = { accepted: true, accuracy: 1 };
@@ -178,5 +178,53 @@ describe('verdictOf', () => {
   it('old types keep their verdict', () => {
     expect(verdictOf(numeric, { type: 'numeric', value: 2111 }, 0)).toEqual({ accepted: true, accuracy: 0.75, grade: 'partial' });
     expect(verdictOf(single, { type: 'single', optionId: 'b' }, 19_000)).toEqual({ accepted: true, accuracy: 1, grade: 'correct' });
+  });
+});
+
+describe('«Who am I?» and pin (10c)', () => {
+  const right = { type: 'clues', value: ' тарас шевченко ' } as const;
+  const at = (x: number, y = 0.5) => ({ type: 'pin', x, y }) as const;
+
+  it('checkAnswer: «Who am I?» matches the spellings like a text', () => {
+    expect(checkAnswer(clues, right)).toEqual(FULL);
+    expect(checkAnswer(clues, { type: 'clues', value: 'Франко' })).toEqual(REJECTED);
+    expect(checkAnswer(clues, { type: 'text', value: 'Шевченко' })).toEqual(REJECTED);
+  });
+
+  it('checkAnswer: a pin scores by distance, half is accepted', () => {
+    const half = checkAnswer(pin, at(0.59));
+    expect(half.accepted).toBe(true);
+    expect(half.accuracy).toBeCloseTo(0.5);
+    const quarter = checkAnswer(pin, at(0.62));
+    expect(quarter.accepted).toBe(false);
+    expect(quarter.accuracy).toBeCloseTo(0.25);
+    expect(checkAnswer(pin, at(0.66))).toEqual(REJECTED);
+    expect(checkAnswer(pin, { type: 'slider', value: 50 })).toEqual(REJECTED);
+  });
+
+  it('verdictOf: «Who am I?» pays by the clue and stays correct', () => {
+    expect(verdictOf(clues, right, 5000)).toEqual({ accepted: true, accuracy: 0.8, grade: 'correct' });
+    expect(verdictOf(clues, right, 0, 4)).toMatchObject({ accepted: true, accuracy: 0.4, grade: 'correct' });
+    expect(verdictOf(clues, { type: 'clues', value: 'Франко' }, 5000)).toEqual({ accepted: false, accuracy: 0, grade: 'wrong' });
+  });
+
+  it('verdictOf: a pin below half is partial', () => {
+    expect(verdictOf(pin, at(0.62), 0)).toMatchObject({ accepted: false, grade: 'partial' });
+    expect(verdictOf(pin, at(0.59), 0)).toMatchObject({ accepted: true, grade: 'correct' });
+  });
+
+  it('paysForTime: a revealing picture and «Who am I?»', () => {
+    expect(paysForTime(clues)).toBe(true);
+    expect(paysForTime(withReveal(text))).toBe(true);
+    expect(paysForTime(pin)).toBe(false);
+    expect(paysForTime(slider)).toBe(false);
+    expect(paysForTime(text)).toBe(false);
+  });
+
+  it('paceFactor: the clue share, the reveal share, otherwise 1', () => {
+    expect(paceFactor(clues, 12_000)).toBeCloseTo(0.6);
+    expect(paceFactor(clues, 12_000, 1)).toBe(1);
+    expect(paceFactor(withReveal(text), 20_000)).toBeCloseTo(0.3);
+    expect(paceFactor(pin, 20_000)).toBe(1);
   });
 });
