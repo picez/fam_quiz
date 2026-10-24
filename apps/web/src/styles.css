@@ -8128,3 +8128,21 @@ button.wall-tile:disabled {
 .history-bluff {
   margin-top: 0.5rem;
 }
+
+.bluff-spares {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.bluff-spare {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.bluff-spare .field {
+  flex: 1 1 0;
+  min-width: 0;
+}

@@ -1779,3 +1779,84 @@ describe('bluff (10f)', () => {
     expect(back.type === 'text' && back.accepted).toEqual(['Барселона']);
   });
 });
+
+describe('bluff: checks and drafts (10f)', () => {
+  type Bluff = Extract<Question, { type: 'bluff' }>;
+  const bluffQ = (patch: Partial<Bluff> = {}): Bluff => ({ ...(filled(newQuestion('bluff')) as Bluff), accepted: ['Барселона'], lies: ['Мадрид', 'Лондон'], ...patch });
+
+  it('a filled bluff has no problems', () => {
+    expect(problemsOf(quizWith(bluffQ()))).toEqual([]);
+  });
+
+  it('an empty truth is named, also when only extra spellings are filled', () => {
+    expect(problemsOf(quizWith(bluffQ({ accepted: [''] })))).toEqual([t('problemBluffTruth', { index: 1 })]);
+    expect(problemsOf(quizWith(bluffQ({ accepted: ['', 'Барса'] })))).toEqual([t('problemBluffTruth', { index: 1 })]);
+  });
+
+  it('a truth longer than 60 characters is named with the limit', () => {
+    const long = 'Б'.repeat(61);
+    expect(problemsOf(quizWith(bluffQ({ accepted: [long] })))).toEqual([t('problemBluffTruthLong', { index: 1, max: 60 })]);
+    expect(problemsOf(quizWith(bluffQ({ accepted: [long] })))[0]).toContain('60');
+    expect(problemsOf(quizWith(bluffQ({ accepted: ['Б'.repeat(60)] })))).toEqual([]);
+  });
+
+  it('fewer than two filled spares are named; blank spares beyond two are not saved', () => {
+    expect(problemsOf(quizWith(bluffQ({ lies: ['Мадрид', ''] })))).toEqual([t('problemBluffSpares', { index: 1, min: 2 })]);
+    expect(problemsOf(quizWith(bluffQ({ lies: ['Мадрид', 'Лондон', ' '] })))).toEqual([]);
+    expect((roundQuestions(cleaned(quizWith(bluffQ({ lies: ['Мадрид', 'Лондон', ' '] }))).rounds[0])[0] as Bluff).lies).toEqual(['Мадрид', 'Лондон']);
+  });
+
+  it('a spare that is the truth (by the schema key, any spelling) is named as typed', () => {
+    const twin = bluffQ({ accepted: ['Барселона', 'Барса'], lies: ['Мадрид', 'БАРСЕЛОНА'] });
+    expect(problemsOf(quizWith(twin))).toEqual([t('problemBluffSpareTruth', { index: 1, text: 'БАРСЕЛОНА' })]);
+    const other = bluffQ({ accepted: ['Барселона', 'Барселоні'], lies: ['Барселоні', 'Мадрид'] });
+    expect(problemsOf(quizWith(other))).toEqual([t('problemBluffSpareTruth', { index: 1, text: 'Барселоні' })]);
+  });
+
+  it('a repeated spare is named', () => {
+    const twins = bluffQ({ lies: ['Мадрид', 'мадрид', 'Лондон'] });
+    expect(problemsOf(quizWith(twins))).toEqual([t('problemBluffSpareDuplicate', { index: 1, text: 'мадрид' })]);
+  });
+
+  it('the choice time is checked with a message', () => {
+    expect(problemsOf(quizWith(bluffQ({ choiceTime: 2 })))).toEqual([t('problemBluffChoiceTime', { index: 1, min: LIMITS.minTime, max: LIMITS.maxTime })]);
+    expect(problemsOf(quizWith(bluffQ({ choiceTime: Number.NaN })))).toHaveLength(1);
+  });
+
+  it('a bluff outside classic is named: blitz, final and the board', () => {
+    const place = t('problemBluffPlace', { index: 1 });
+    const bluff = bluffQ();
+    expect(problemsOf({ ...quizWith(bluff), rounds: [{ ...newBlitzRound(), questions: [bluff] }] })).toEqual([place]);
+    expect(problemsOf({ ...quizWith(bluff), rounds: [{ ...newFinalRound(), questions: [bluff] }] })).toEqual([place]);
+    const round = newBoardRound();
+    const [first, ...rest] = round.categories.map((category, i) => ({ ...category, title: `К${i + 1}`, cells: category.cells.map((c) => ({ ...c, question: filled(c.question) })) }));
+    const [head, ...cells] = first.cells;
+    const onBoard: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories: [{ ...first, cells: [{ ...head, question: bluff }, ...cells] }, ...rest] }] };
+    expect(problemsOf(onBoard)).toHaveLength(1);
+    expect(problemsOf(onBoard)[0]).toContain('блеф діє лише в класичному раунді');
+  });
+
+  it('switching to another type strips the bluff fields; the video stays off', () => {
+    const single = changeType(bluffQ(), 'single');
+    expect('lies' in single || 'choiceTime' in single || 'accepted' in single).toBe(false);
+    const fromSingle = changeType(filled(newQuestion('single')), 'bluff');
+    expect(fromSingle.type === 'bluff' && [fromSingle.video, fromSingle.accepted, fromSingle.lies, fromSingle.choiceTime]).toEqual([null, [''], ['', ''], 30]);
+  });
+
+  it('a bluff draft keeps its truth, spellings and spares; junk revives to the defaults', () => {
+    const bluff = bluffQ({ accepted: ['Барселона', 'Барса'], lies: ['Мадрид', 'Лондон', 'Рим'], choiceTime: 25 });
+    saveDraft('bluff-draft', quizWith(bluff));
+    expect(roundQuestions(loadDraft('bluff-draft')!.rounds[0])[0]).toEqual(bluff);
+    const revived = (patch: Record<string, unknown>) => {
+      sessionStorage.setItem('quiz:draft:bl', JSON.stringify(quizWith({ ...bluff, ...patch } as unknown as Question)));
+      return roundQuestions(loadDraft('bl')!.rounds[0])[0] as Bluff;
+    };
+    expect(revived({ choiceTime: 'x' }).choiceTime).toBe(30);
+    expect(revived({ choiceTime: undefined }).choiceTime).toBe(30);
+    expect(Number.isNaN(revived({ choiceTime: Number.NaN }).choiceTime)).toBe(true);
+    expect(revived({ lies: 'нема' }).lies).toEqual(['', '']);
+    expect(revived({ accepted: 5 }).accepted).toEqual(['']);
+    expect(revived({ lies: ['а', 7, 'б'] }).lies).toEqual(['а', '', 'б']);
+    expect(revived({ video: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0 } }).video).toBeNull();
+  });
+});
