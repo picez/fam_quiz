@@ -1,4 +1,4 @@
-import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, Question, QuizSettings, Round } from '@quiz/shared';
+import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, Question, QuizSettings, Round, SurveyRow } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -89,6 +89,8 @@ export interface PlayRef {
   cell?: { cellId: string; chooserId: string };
   /** Ключі слів «хмари», які ведучий сховав; лише для хмари й лише якщо щось сховано. */
   cloudHidden?: string[];
+  /** «100 до 1» з дошкою з хмари: збудовані рядки (знімок вікторини їх не має). */
+  surveyRows?: SurveyRow[];
 }
 
 /** Зіграна або поточна гра. id збігається з id кімнати. */

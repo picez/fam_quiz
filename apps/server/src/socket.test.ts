@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, wall, withAudio, withId } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, text, wall, withAudio, withId } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -785,5 +785,68 @@ describe('audio over sockets', () => {
     const closed = stageOnline(false);
     stage.socket.close();
     await closed;
+  });
+});
+
+describe('survey over real sockets (10e)', () => {
+  /** Класика зі «100 до 1»: Олена влучає в Яблуко й Полуницю, Тарас мовчить; дійшли до reveal. */
+  async function toReveal() {
+    const created = (await startGame(ctx.app, makeQuiz([survey, single]))).game;
+    const lobbied = await lobby(created);
+    const { host, stage, olena } = lobbied;
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', { type: 'survey', values: ['яблучко', 'Полуниця'] })).toEqual({ ok: true });
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(stage, inPhase('reveal'));
+    return lobbied;
+  }
+
+  it('host:survey-all opens every row on the stage', async () => {
+    const { host, stage, olena } = await toReveal();
+    const closed = await until(stage, (view) => view.phase === 'reveal' && view.survey !== null);
+    expect(closed.survey?.rows.every((row) => !row.open)).toBe(true);
+    expect(await send(olena, 'host:survey-all')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'host:survey-all')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:survey-all')).toEqual({ ok: true });
+    const opened = await until(stage, (view) => view.survey?.rows.every((row) => row.open) === true);
+    expect(opened.survey?.rows).toHaveLength(5);
+    expect(opened.survey?.rows.map((row) => row.text)).toContain('Полуниця');
+  });
+
+  it('no socket frame to a phone or the stage carries survey rows before the reveal', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([survey, single]))).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    const frames: string[] = [];
+    for (const tracked of [stage, olena, taras]) tracked.socket.on('state', (view) => frames.push(JSON.stringify(view)));
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', { type: 'survey', values: ['Яблуко', 'ананас'] })).toEqual({ ok: true });
+    await until(stage, (view) => view.phase === 'question');
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    await until(stage, inPhase('locked'));
+    await until(olena, inPhase('locked'));
+    expect(frames.length).toBeGreaterThan(0);
+    const all = frames.join('\n');
+    expect(all).not.toContain('Полуниця');
+    expect(all).not.toContain('Кавун');
+    expect(all).not.toContain('Банан');
+    expect(all).not.toContain('Груша');
+    expect(all).not.toMatch(/"popularity":\d/);
+  });
+
+  it('host:next steps survey rows before moving on', async () => {
+    const { host, stage } = await toReveal();
+    for (let i = 1; i <= 5; i += 1) {
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+      const view = await until(stage, (v) => v.survey?.rows.filter((row) => row.open).length === i);
+      expect(view.phase).toBe('reveal');
+    }
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const after = await until(stage, (view) => view.phase !== 'reveal');
+    expect(after.phase).not.toBe('reveal');
   });
 });

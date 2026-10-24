@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, text, withId, withReveal } from '@quiz/engine/testing';
+import { blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
@@ -419,5 +419,24 @@ describe('profile facts', () => {
     });
     expect(facts.stats.accuracy).toBe(100);
     expect(earned(facts.achievements)).toEqual(expect.arrayContaining(['perfect_game', 'streak_5']));
+  });
+
+  it('survey accuracy: half the price is correct, less is not, and a cloud survey counts like any answer (10e)', async () => {
+    const quiz = makeQuiz([cloud, surveyCloud, survey], { speedBonus: false });
+    const play = (name: string, cloudWords: string[], cloudPick: string, hostPick: string[]) =>
+      playFor(name, quiz, (room, playerId, index) => {
+        if (index === 0) ctx.manager.answer(room, playerId, { type: 'wordcloud', words: cloudWords });
+        if (index === 1) ctx.manager.answer(room, playerId, { type: 'survey', values: [cloudPick] });
+        if (index === 2) ctx.manager.answer(room, playerId, { type: 'survey', values: hostPick });
+        if (index > 0) {
+          if (room.state.phase === 'question') ctx.manager.host(room, { type: 'lock' });
+          ctx.manager.host(room, { type: 'next' });
+          ctx.manager.host(room, { type: 'survey-all' });
+        }
+      });
+    const olena = await play('Знавчиня', ['каштани', 'Дніпро'], 'каштани', ['Яблуко', 'Банан']);
+    expect(olena.stats.accuracy).toBe(100);
+    const petro = await play('Промах', ['каштани'], 'Лавра', ['Кавун']);
+    expect(petro.stats.accuracy).toBe(0);
   });
 });

@@ -129,6 +129,8 @@ export interface ClientToServerEvents {
   'host:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   'host:order': (payload: z.infer<typeof orderSchema>, ack: Ack) => void;
   'host:cloud-hide': (payload: z.infer<typeof cloudHideSchema>, ack: Ack) => void;
+  /** «100 до 1»: відкрити всі рядки табло одразу. */
+  'host:survey-all': (ack: Ack) => void;
   /** Почати кидки кубиків: кожен гравець кидає сам. */
   'host:dice': (ack: Ack) => void;
   /** Кинути за тих, хто в поточному турі ще не кинув. */

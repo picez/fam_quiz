@@ -114,6 +114,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       questionId: play.question.id,
       ...(play.board === undefined ? {} : { cell: { cellId: play.board.cellId, chooserId: play.board.chooserId } }),
       ...(play.cloudHidden === undefined || play.cloudHidden.length === 0 ? {} : { cloudHidden: play.cloudHidden }),
+      ...(play.survey?.source === 'cloud' && play.question.type === 'survey' ? { surveyRows: play.question.rows } : {}),
     })),
     finishedAt: finished ? new Date() : null,
   };
