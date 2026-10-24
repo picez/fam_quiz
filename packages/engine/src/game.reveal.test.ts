@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
 import { buffBlock, takeBuff } from './buffs';
 import { acceptAnswer, lock, next, override, recordOf, start, submitAnswer, type GameState } from './game';
-import { boardRound, classicRound, makeRoundsQuiz, numeric, single, text, withReveal } from './testing/fixtures';
+import { bool, boardRound, classicRound, makeRoundsQuiz, numeric, single, text, withId, withReveal } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 
 const odesa: Answer = { type: 'text', value: 'Одеса' };
@@ -55,6 +55,19 @@ describe('a revealing picture in the classic round', () => {
   it('a host override still gives the full price', () => {
     const s = must(next(must(lock(must(submitAnswer(openClassic(), 'p1', kyiv, 12_000)))), 13_000, rng));
     expect(recordOf(must(override(s, 'p1', 'correct')), 0, 'p1')).toMatchObject({ points: 1000, grade: 'correct' });
+  });
+});
+
+describe('a revealing picture swapped for a spare', () => {
+  it('the override reads the spare: its speed bonus applies', () => {
+    const round = classicRound('r1', [withReveal(text)], { speedBonus: true });
+    const quiz = { ...makeRoundsQuiz([round], { buffs: ['swap'] }), spares: [withId(bool, 's1')] };
+    let s = startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0, rng);
+    s = must(takeBuff(s, 'p1', 'swap', 10_000, rng));
+    s = must(submitAnswer(s, 'p1', { type: 'boolean', value: false }, 15_000));
+    s = must(next(must(lock(s)), 16_000, rng));
+    // Запасне надійшло о 10 000 з 20 с, відповідь за 5 с: швидкість 0,875, як і без проявлення.
+    expect(recordOf(must(override(s, 'p1', 'correct')), 0, 'p1')).toMatchObject({ points: 875, spare: 's1', grade: 'correct' });
   });
 });
 

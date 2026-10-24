@@ -1454,7 +1454,9 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
   const limit = answerLimitMs(play, playerId);
   // Картинка, що проявляється, бонусу швидкості не має: «правильно» від ведучого — повна ціна.
-  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && question.reveal == null);
+  // Після заміни гравець відповідав на запасне: проявлення — з його запитання, як у submitAnswer.
+  const asked = questionFor(state, play, playerId);
+  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && asked.reveal == null);
   const points = answerPoints({
     points: question.points,
     accuracy,

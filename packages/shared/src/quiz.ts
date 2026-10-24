@@ -134,6 +134,9 @@ export type RevealMode = (typeof REVEAL_MODES)[number];
 /** Частка ціни в мить повного проявлення. */
 export const REVEAL_MIN_SHARE = 0.3;
 
+/** Частка ціни, з якої відповідь на тип із балами за близькість (повзунок) вважається правильною (14a). */
+export const PROXIMITY_CORRECT_SHARE = 0.5;
+
 const choice = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
   text: z.string().trim().min(1).max(LIMITS.optionText).refine(isStorable, UNSTORABLE),

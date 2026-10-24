@@ -1,4 +1,4 @@
-import { answerWindowMs, proximityPartial, revealShare, sliderShare, type Answer, type Grade, type Question } from '@quiz/shared';
+import { answerWindowMs, PROXIMITY_CORRECT_SHARE, proximityPartial, revealShare, sliderShare, type Answer, type Grade, type Question } from '@quiz/shared';
 import { normalizeText } from './normalize';
 
 export interface CheckResult {
@@ -9,9 +9,6 @@ export interface CheckResult {
 const REJECTED: CheckResult = { accepted: false, accuracy: 0 };
 const FULL: CheckResult = { accepted: true, accuracy: 1 };
 const EPSILON = 1e-9;
-
-/** Частка ціни, з якої відповідь на тип із балами за близькість вважається правильною (14a). */
-export const PROXIMITY_CORRECT_SHARE = 0.5;
 
 const full = (correct: boolean): CheckResult => (correct ? FULL : REJECTED);
 
