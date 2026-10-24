@@ -43,8 +43,13 @@ describe('WallGrid', () => {
     expect(onToggle).toHaveBeenCalledWith(5);
   });
 
-  it('marks long texts', () => {
-    render(<WallGrid wall={{ ...wall, tiles: ['Коротко', 'Дуже довгий текст плитки', ...wall.tiles.slice(2)] }} found={[]} />);
-    expect(document.querySelectorAll('.wall-tile.is-long')).toHaveLength(1);
+  it('picks the font step by the longest word', () => {
+    render(<WallGrid wall={{ ...wall, tiles: ['Коротко', 'Дуже довгий текст плитки', 'Фортепіано', "Дев'ятнадцять", 'Джарилгач', ...wall.tiles.slice(5)] }} found={[]} />);
+    const cls = (text: string) => screen.getByLabelText(text).className;
+    expect(cls('Коротко')).not.toMatch(/is-(semi|mid|long)/);
+    expect(cls('Дуже довгий текст плитки')).not.toMatch(/is-(semi|mid|long)/);
+    expect(cls('Джарилгач')).toMatch(/is-semi/);
+    expect(cls('Фортепіано')).toMatch(/is-mid/);
+    expect(cls("Дев'ятнадцять")).toMatch(/is-long/);
   });
 });

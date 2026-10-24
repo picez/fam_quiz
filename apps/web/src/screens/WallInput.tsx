@@ -24,8 +24,8 @@ export function WallInput({
   const [shake, setShake] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
+  const sentRef = useRef<number[]>([]);
+  const shakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prev = useRef({ mistakes: wall.mistakes, found: wall.found.length });
 
   // Нова помилка трусить вибране й знімає вибір; знайдена група теж знімає. Перезавантаження з наявним станом — ні.
@@ -33,19 +33,30 @@ export function WallInput({
     const before = prev.current;
     prev.current = { mistakes: wall.mistakes, found: wall.found.length };
     if (wall.mistakes > before.mistakes) {
-      const hit = selectedRef.current;
+      // Трусимо останній надісланий набір: поточного вибору гравець міг уже торкнутися.
+      const hit = sentRef.current;
       setSelected([]);
       setError(null);
       if (reducedMotion() || hit.length === 0) return;
       setShake(hit);
-      const id = setTimeout(() => setShake([]), SHAKE_MS);
-      return () => clearTimeout(id);
+      if (shakeTimer.current !== null) clearTimeout(shakeTimer.current);
+      shakeTimer.current = setTimeout(() => {
+        shakeTimer.current = null;
+        setShake([]);
+      }, SHAKE_MS);
     }
     if (wall.found.length > before.found) {
       setSelected([]);
       setError(null);
     }
   }, [wall.mistakes, wall.found.length]);
+
+  useEffect(
+    () => () => {
+      if (shakeTimer.current !== null) clearTimeout(shakeTimer.current);
+    },
+    [],
+  );
 
   const ended = wall.locked || wall.solved;
   const off = paused || !wall.canGuess || ended;
@@ -59,8 +70,10 @@ export function WallInput({
   const check = () => {
     if (off || pending || selected.length !== size) return;
     setPending(true);
+    sentRef.current = selected;
     void send('player:wall', { tiles: selected })
       .then((result) => setError(result.ok ? null : errorText(result.error)))
+      .catch(() => setError(errorText('network')))
       .finally(() => setPending(false));
   };
 

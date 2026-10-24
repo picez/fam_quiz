@@ -82,10 +82,15 @@ function WallOutcome({ view }: { view: PlayerView }) {
   const { question, reveal, me } = view;
   if (question?.wall == null || reveal?.type !== 'wall') return null;
   const found = me.answer?.type === 'wall' ? me.answer.found : (me.wall?.found.length ?? 0);
+  // Група отримує колір, яким гравець її знайшов (за текстом першої плитки); решта — нейтральні.
+  const colors = reveal.groups.map((group) => {
+    const own = me.wall?.found.find((f) => group.tiles.some((tile) => tile.text === question.wall?.tiles[f.tiles[0]]));
+    return own === undefined ? null : own.color;
+  });
   return (
     <>
       <WallGrid wall={question.wall} found={me.wall?.found ?? []} />
-      <WallReveal question={reveal} />
+      <WallReveal question={reveal} colors={colors} />
       <p>{t('wallResult', { found, groups: reveal.groups.length, points: num(me.result?.points ?? 0) })}</p>
     </>
   );
@@ -747,7 +752,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} />
               )}
               {isWall && question?.wall != null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />}
-              {view.reveal?.type === 'wall' && <WallReveal question={view.reveal} />}
+              {view.reveal?.type === 'wall' && <WallReveal question={view.reveal} colors={view.reveal.groups.map(() => null)} />}
               <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
               {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}

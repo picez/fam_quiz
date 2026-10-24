@@ -61,6 +61,7 @@ describe('WallInput', () => {
     const props = { question, paused: false, send: okSend() };
     const { rerender } = render(<WallInput {...props} wall={playerWall()} />);
     pick(0, 1, 2, 3);
+    fireEvent.click(check()!);
     rerender(<WallInput {...props} wall={playerWall({ mistakes: 1 })} />);
     expect(document.querySelectorAll('.wall-tile.wall-shake')).toHaveLength(4);
     expect(document.querySelectorAll('.wall-tile.is-selected')).toHaveLength(0);
@@ -104,5 +105,61 @@ describe('WallInput', () => {
     render(<WallInput question={question} wall={playerWall()} paused send={okSend()} />);
     expect((tile(0) as HTMLButtonElement).disabled).toBe(true);
     expect(check()!.disabled).toBe(true);
+  });
+
+  it.each([
+    ['wall_pick', 'Вибери плитки ще раз.'],
+    ['time_over', 'Час на відповідь вийшов.'],
+    ['already_answered', 'Ви вже відповіли на це запитання.'],
+    ['paused', 'Гра на паузі.'],
+  ])('server error %s is shown', async (error, text) => {
+    const send = vi.fn<Send>().mockResolvedValue({ ok: false, error });
+    render(<WallInput question={question} wall={playerWall()} paused={false} send={send} />);
+    pick(0, 1, 2, 3);
+    await act(async () => {
+      fireEvent.click(check()!);
+    });
+    expect(screen.getByText(text)).toBeTruthy();
+  });
+
+  it('a rejected send shows a message instead of hanging', async () => {
+    const send = vi.fn<Send>().mockRejectedValue(new Error('offline'));
+    render(<WallInput question={question} wall={playerWall()} paused={false} send={send} />);
+    pick(0, 1, 2, 3);
+    await act(async () => {
+      fireEvent.click(check()!);
+    });
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(check()!.disabled).toBe(false);
+  });
+
+  it('the tiles are disabled when the wall is locked or the player cannot guess', () => {
+    const { unmount } = render(<WallInput question={question} wall={playerWall({ canGuess: false })} paused={false} send={okSend()} />);
+    expect((tile(0) as HTMLButtonElement).disabled).toBe(true);
+    expect(check()!.disabled).toBe(true);
+    unmount();
+    render(<WallInput question={question} wall={playerWall({ locked: true, mistakes: 3 })} paused={false} send={okSend()} />);
+    expect((tile(0) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the shake clears after its time and hits the last sent pick', () => {
+    vi.useFakeTimers();
+    try {
+      const send = okSend();
+      const props = { question, paused: false, send };
+      const { rerender } = render(<WallInput {...props} wall={playerWall()} />);
+      pick(0, 1, 2, 3);
+      fireEvent.click(check()!);
+      pick(7);
+      rerender(<WallInput {...props} wall={playerWall({ mistakes: 1 })} />);
+      const shaken = [...document.querySelectorAll('.wall-tile.wall-shake')].map((el) => el.textContent);
+      expect(shaken).toEqual(['Т0', 'Т1', 'Т2', 'Т3']);
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(document.querySelectorAll('.wall-tile.wall-shake')).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

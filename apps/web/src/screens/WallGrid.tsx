@@ -1,5 +1,11 @@
 import type { PublicWall } from '@quiz/shared';
 
+/** Клас розміру шрифту за найдовшим словом: слово не має ламатися посеред літер у вузькій плитці. */
+function sizeClass(text: string): string | false {
+  const longest = Math.max(0, ...text.split(/\s+/u).map((word) => [...word].length));
+  return longest >= 13 ? 'is-long' : longest >= 10 ? 'is-mid' : longest >= 8 ? 'is-semi' : false;
+}
+
 /**
  * Сітка стіни: спершу знайдені групи рядами (кольори .wall-color-0…3), далі решта плиток у порядку показу.
  * selected — позиції, вибрані гравцем; onToggle — дотик (немає — лише перегляд); shake — позиції для трусіння.
@@ -37,7 +43,7 @@ export function WallGrid({
         const isFound = color !== undefined;
         const tileClass = [
           'wall-tile',
-          text.length > 12 && 'is-long',
+          sizeClass(text),
           isFound && `is-found wall-color-${color % 4}`,
           !isFound && selected.includes(position) && 'is-selected',
           shake.includes(position) && 'wall-shake',
