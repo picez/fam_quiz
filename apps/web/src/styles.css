@@ -6403,3 +6403,12 @@ label.powers-price {
   outline: 2px solid var(--amber);
   outline-offset: 2px;
 }
+
+.with-help > .type-chips {
+  flex: 1;
+}
+
+.help-link {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+}

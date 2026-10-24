@@ -1,6 +1,7 @@
 import { LIMITS, type Question } from '@quiz/shared';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { LETTERS } from '../format';
+import { HelpButton } from '../help/HelpButton';
 import { countText, t, type TextKey } from '../i18n';
 import { ImageField } from './ImageField';
 import { OptionImage } from './OptionImage';
@@ -547,19 +548,22 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
   latest.current = { question, onChange };
   return (
     <div className="question-edit">
-      <div className="type-chips" role="group" aria-label={t('questionType')}>
-        {types.map((type: QuestionType) => (
-          <button
-            type="button"
-            key={type}
-            className={question.type === type ? 'chip is-on' : 'chip'}
-            aria-pressed={question.type === type}
-            title={t(`type_${type}`)}
-            onClick={() => onChange(changeType(question, type))}
-          >
-            {t(`typeShort_${type}`)}
-          </button>
-        ))}
+      <div className="with-help">
+        <div className="type-chips" role="group" aria-label={t('questionType')}>
+          {types.map((type: QuestionType) => (
+            <button
+              type="button"
+              key={type}
+              className={question.type === type ? 'chip is-on' : 'chip'}
+              aria-pressed={question.type === type}
+              title={t(`type_${type}`)}
+              onClick={() => onChange(changeType(question, type))}
+            >
+              {t(`typeShort_${type}`)}
+            </button>
+          ))}
+        </div>
+        <HelpButton id={`question.${question.type}`} />
       </div>
 
       <div className="stage-card">

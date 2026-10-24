@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { LIMITS, boardCells, cellAnswerMode, roundBrief, rulesOf, type Round, type RoundRules } from '@quiz/shared';
+import { ROUND_NAMES } from '../guide-text';
+import { HelpButton } from '../help/HelpButton';
 import { t } from '../i18n';
 import { RoundBriefing } from '../screens/RoundBriefing';
 import { applyRoundTime, withDefaultMode } from './draft';
@@ -42,6 +44,10 @@ export function RoundSettings({ round, index, onChange }: Props) {
   return (
     <details className="rules round-settings">
       <summary>{t('roundSettings')}</summary>
+      <p className="meta with-help">
+        <span>{t(ROUND_NAMES[round.type])}</span>
+        <HelpButton id={`round.${round.type}`} />
+      </p>
       <label className="field">
         <span>{t(round.type === 'final' ? 'finalTheme' : 'roundTitleLabel')}</span>
         <input
@@ -81,10 +87,13 @@ export function RoundSettings({ round, index, onChange }: Props) {
       </div>
       )}
       {round.type === 'classic' && (
-        <label className="check">
-          <input type="checkbox" checked={round.speedBonus} onChange={(event) => onChange({ ...round, speedBonus: event.target.checked })} />
-          <span>{t('speedBonus')}</span>
-        </label>
+        <div className="with-help">
+          <label className="check">
+            <input type="checkbox" checked={round.speedBonus} onChange={(event) => onChange({ ...round, speedBonus: event.target.checked })} />
+            <span>{t('speedBonus')}</span>
+          </label>
+          <HelpButton id="setting.speedBonus" />
+        </div>
       )}
       <label className="check">
         <input
@@ -177,25 +186,31 @@ export function RoundSettings({ round, index, onChange }: Props) {
       )}
       {round.type !== 'final' && (
         <>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={rules.penalty === 'minus'}
-          onChange={(event) => setRules({ penalty: event.target.checked ? 'minus' : 'none' })}
-        />
-        <span>{t('ruleMinus')}</span>
-      </label>
-
-      {round.type !== 'blitz' && (
-        <>
+      <div className="with-help">
         <label className="check">
           <input
             type="checkbox"
-            checked={rules.partial !== null}
-            onChange={(event) => setPartial(event.target.checked ? 50 : null)}
+            checked={rules.penalty === 'minus'}
+            onChange={(event) => setRules({ penalty: event.target.checked ? 'minus' : 'none' })}
           />
-          <span>{t('rulePartial')}</span>
+          <span>{t('ruleMinus')}</span>
         </label>
+        <HelpButton id="setting.penalty" />
+      </div>
+
+      {round.type !== 'blitz' && (
+        <>
+        <div className="with-help">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={rules.partial !== null}
+              onChange={(event) => setPartial(event.target.checked ? 50 : null)}
+            />
+            <span>{t('rulePartial')}</span>
+          </label>
+          <HelpButton id="setting.partial" />
+        </div>
         {rules.partial !== null && (
           <label className="field">
             <span>{t('rulePartialShare')}</span>
@@ -211,16 +226,19 @@ export function RoundSettings({ round, index, onChange }: Props) {
         </>
       )}
 
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={streak !== null}
-          onChange={(event) =>
-            setRules({ streak: event.target.checked ? { length: 3, bonus: { kind: 'percent', value: 20 } } : null })
-          }
-        />
-        <span>{t('ruleStreak')}</span>
-      </label>
+      <div className="with-help">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={streak !== null}
+            onChange={(event) =>
+              setRules({ streak: event.target.checked ? { length: 3, bonus: { kind: 'percent', value: 20 } } : null })
+            }
+          />
+          <span>{t('ruleStreak')}</span>
+        </label>
+        <HelpButton id="setting.streak" />
+      </div>
       {streak !== null && (
         <div className="round-streak">
           <label className="field">
@@ -266,16 +284,19 @@ export function RoundSettings({ round, index, onChange }: Props) {
         </div>
       )}
 
-      <label className="field">
-        <span>{t('ruleMultiplier')}</span>
-        <select value={rules.multiplier} onChange={(event) => setRules({ multiplier: toMultiplier(event.target.value) })}>
-          {[1, 2, 3].map((value) => (
-            <option key={value} value={value}>
-              {`×${value}`}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="with-help">
+        <label className="field">
+          <span>{t('ruleMultiplier')}</span>
+          <select value={rules.multiplier} onChange={(event) => setRules({ multiplier: toMultiplier(event.target.value) })}>
+            {[1, 2, 3].map((value) => (
+              <option key={value} value={value}>
+                {`×${value}`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <HelpButton id="setting.multiplier" />
+      </div>
         </>
       )}
       <div className="round-brief-preview">

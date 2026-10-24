@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BUFF_KINDS, DEBUFF_KINDS } from '@quiz/shared';
+import { buffName } from '../buff-meta';
+import { debuffName } from '../debuff-meta';
 import { t } from '../i18n';
 import { PowersEditor } from './PowersEditor';
 
@@ -88,5 +91,17 @@ describe('PowersEditor swap gaps (9d)', () => {
     expect(screen.getByText(t('powersSwapCategoriesEmpty', { list: 'Поле · Річки' }))).toBeTruthy();
     expect(screen.getByText(t('powersSwapClassicEmpty'))).toBeTruthy();
     expect(screen.queryByText(t('powersSwapNeedsSpares'))).toBeNull();
+  });
+});
+
+describe('PowersEditor help (10a)', () => {
+  it('every buff and debuff row and the shop have ⓘ', () => {
+    const onChange = vi.fn();
+    render(<PowersEditor settings={{ leaderboard: 'each' }} spares={undefined} onChange={onChange} />);
+    for (const kind of BUFF_KINDS) screen.getByRole('button', { name: `Довідка: ${buffName(kind)}` });
+    for (const kind of DEBUFF_KINDS) screen.getByRole('button', { name: `Довідка: ${debuffName(kind)}` });
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Крамниця дебафів' }));
+    fireEvent.click(screen.getByRole('button', { name: `Довідка: ${buffName(BUFF_KINDS[0])}` }));
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

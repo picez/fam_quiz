@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { LIMITS, type Round } from '@quiz/shared';
+import { LIMITS, ROUND_TYPES, type Round } from '@quiz/shared';
 import { roundLabel } from '../format';
+import { HelpButton } from '../help/HelpButton';
+import { ROUND_NAMES } from '../guide-text';
 import { t } from '../i18n';
 
 interface Props {
@@ -49,18 +51,14 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
         </button>
         {choosing && rounds.length < LIMITS.maxRounds && (
           <>
-            <button type="button" className="btn btn-small" onClick={() => add('classic')}>
-              {t('roundTypeClassic')}
-            </button>
-            <button type="button" className="btn btn-small" onClick={() => add('blitz')}>
-              {t('roundTypeBlitz')}
-            </button>
-            <button type="button" className="btn btn-small" onClick={() => add('board')}>
-              {t('roundTypeBoard')}
-            </button>
-            <button type="button" className="btn btn-small" onClick={() => add('final')}>
-              {t('roundTypeFinal')}
-            </button>
+            {ROUND_TYPES.map((type) => (
+              <span className="with-help" key={type}>
+                <button type="button" className="btn btn-small" onClick={() => add(type)}>
+                  {t(ROUND_NAMES[type])}
+                </button>
+                <HelpButton id={`round.${type}`} />
+              </span>
+            ))}
           </>
         )}
         {several && (

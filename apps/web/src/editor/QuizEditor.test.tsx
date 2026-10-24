@@ -205,7 +205,7 @@ describe('QuizEditor', () => {
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
     fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
-    fireEvent.click(screen.getByLabelText(/Бали за швидкість/));
+    fireEvent.click(screen.getByLabelText(/^Бали за швидкість/));
     fireEvent.click(screen.getByLabelText('Перемішувати варіанти відповідей'));
     fireEvent.change(screen.getByLabelText('Показувати рейтинг'), { target: { value: 'end' } });
     fill('Час, с', '45');
@@ -228,7 +228,7 @@ describe('QuizEditor', () => {
     expect(buffs.getAllByRole('checkbox')).toHaveLength(8);
     buffs.getAllByRole('checkbox').forEach((box) => expect((box as HTMLInputElement).checked).toBe(false));
     for (const name of ['Запитання в залі', 'Підказка ведучого', 'Заміна запитання']) {
-      expect((buffs.getByLabelText(new RegExp(name)) as HTMLInputElement).disabled).toBe(false);
+      expect((buffs.getByLabelText(new RegExp('(?<!Довідка: )' + name)) as HTMLInputElement).disabled).toBe(false);
     }
     expect(buffs.queryAllByText(/скоро/)).toHaveLength(0);
 
@@ -247,11 +247,11 @@ describe('QuizEditor', () => {
     fireEvent.click(buffs().getByRole('button', { name: t('powersAll') }));
     expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(8);
     // Заміна без запасних не збережеться (пул — у редакторі запасних), тож її знімаємо.
-    fireEvent.click(buffs().getByLabelText(/Заміна запитання/));
+    fireEvent.click(buffs().getByLabelText(/(?<!Довідка: )Заміна запитання/));
     fireEvent.click(debuffs().getByRole('button', { name: t('powersNone') }));
     expect(debuffs().getAllByRole('checkbox').some((box) => (box as HTMLInputElement).checked)).toBe(false);
-    fireEvent.click(buffs().getByLabelText(/Щит/));
-    fireEvent.click(debuffs().getByLabelText(/Туман/));
+    fireEvent.click(buffs().getByLabelText(/(?<!Довідка: )Щит/));
+    fireEvent.click(debuffs().getByLabelText(/(?<!Довідка: )Туман/));
 
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
@@ -1468,7 +1468,7 @@ describe('QuizEditor duels', () => {
   };
   const duelsToggle = () => screen.getByLabelText('Дуелі між гравцями');
   const fillPool = () => {
-    const section = within(screen.getByText('Дуелі').closest('details')!);
+    const section = within(screen.getByText('Дуелі', { selector: 'summary' }).closest('details')!);
     const set = (label: string, value: string) => fireEvent.change(section.getByLabelText(label), { target: { value } });
     set('Назва категорії', 'Столиці');
     for (let i = 1; i <= 3; i += 1) set(`Запитання ${i}`, `Столиця ${i}?`);
@@ -1477,7 +1477,7 @@ describe('QuizEditor duels', () => {
 
   it('the author turns on duels and fills the pool', async () => {
     const { onSave } = open(filledQuiz());
-    const details = screen.getByText('Дуелі').closest('details')!;
+    const details = screen.getByText('Дуелі', { selector: 'summary' }).closest('details')!;
     expect(details.open).toBe(false);
     fireEvent.click(duelsToggle());
     expect((screen.getByLabelText('Запитань за дуель') as HTMLInputElement).value).toBe('3');
@@ -1507,7 +1507,7 @@ describe('QuizEditor duels', () => {
     click('Зберегти');
     await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
     expect(document.querySelector('.problems')!.textContent).toContain('Дуелі, «Столиці»: замало запитань — потрібно щонайменше 4.');
-    expect((screen.getByText('Дуелі').closest('details') as HTMLDetailsElement).open).toBe(true);
+    expect((screen.getByText('Дуелі', { selector: 'summary' }).closest('details') as HTMLDetailsElement).open).toBe(true);
     expect(onSave).not.toHaveBeenCalled();
   });
 
@@ -1519,7 +1519,7 @@ describe('QuizEditor duels', () => {
     click('Зберегти');
     await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
     expect(document.querySelector('.problems')!.textContent).toContain(t('problemDuelUnreachable', { needed: 1 }));
-    expect((screen.getByText('Дуелі').closest('details') as HTMLDetailsElement).open).toBe(true);
+    expect((screen.getByText('Дуелі', { selector: 'summary' }).closest('details') as HTMLDetailsElement).open).toBe(true);
     expect(onSave).not.toHaveBeenCalled();
   });
 
@@ -1549,7 +1549,7 @@ describe('QuizEditor duels', () => {
     const toggle = duelsToggle();
     expect(toggle.closest('label.check')).not.toBeNull();
     fireEvent.click(toggle);
-    const section = screen.getByText('Дуелі').closest('details')!;
+    const section = screen.getByText('Дуелі', { selector: 'summary' }).closest('details')!;
     const fields = [...section.querySelectorAll('input, textarea')].filter((el) => el !== toggle && !el.closest('.answer-row'));
     expect(fields.length).toBeGreaterThan(5);
     for (const el of fields) expect(el.closest('label.field')).not.toBeNull();
@@ -1562,7 +1562,7 @@ describe('QuizEditor hints and spares', () => {
     return { ...quiz, title: 'Гра', rounds: [{ ...newClassicRound(), questions: [{ ...newQuestion('boolean'), text: 'Так?' }] }] };
   };
   const buffs = () => within(screen.getByRole('group', { name: t('powersBuffs') }));
-  const sparesSection = () => within(screen.getByText(t('sparesTitle')).closest('details')!);
+  const sparesSection = () => within(screen.getByText(t('sparesTitle'), { selector: 'summary' }).closest('details')!);
 
   it('all eight buffs can be chosen; «Усі» turns on all eight', async () => {
     const { onSave } = open(base());
@@ -1575,13 +1575,13 @@ describe('QuizEditor hints and spares', () => {
     await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
     expect(onSave).not.toHaveBeenCalled();
     expect(document.querySelector('.problems')!.textContent).toContain(t('problemSparesEmpty'));
-    expect((screen.getByText(t('sparesTitle')).closest('details') as HTMLDetailsElement).open).toBe(true);
+    expect((screen.getByText(t('sparesTitle'), { selector: 'summary' }).closest('details') as HTMLDetailsElement).open).toBe(true);
   });
 
   it('the spare pool: add, edit, remove; saving sends the pool', async () => {
     const quiz = base();
     const { onSave } = open({ ...quiz, settings: { ...quiz.settings, buffs: ['swap'] } });
-    fireEvent.click(screen.getByText(t('sparesTitle')));
+    fireEvent.click(screen.getByText(t('sparesTitle'), { selector: 'summary' }));
     const section = sparesSection();
     fireEvent.click(section.getByRole('button', { name: t('addSpare') }));
     expect(section.getByRole('button', { name: /^Запасне 1 · / })).toBeTruthy();
@@ -1607,7 +1607,7 @@ describe('QuizEditor hints and spares', () => {
     expect(sent.spares?.[0]).toMatchObject({ type: 'single', text: 'Запасне?' });
     expect('hint' in sent.spares![0]).toBe(false);
 
-    fireEvent.click(buffs().getByLabelText(/Заміна запитання/));
+    fireEvent.click(buffs().getByLabelText(/(?<!Довідка: )Заміна запитання/));
     fireEvent.click(sparesSection().getByRole('button', { name: t('removeSpare') }));
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
@@ -1671,5 +1671,36 @@ describe('QuizEditor: explanations for newcomers', () => {
     cleanup();
     open(quiz);
     expect((screen.getByLabelText('Пояснення для новачків') as HTMLInputElement).checked).toBe(true);
+  });
+  it('ⓘ next to the settings, spares, duels and the reference link — reading help does not change the quiz', () => {
+    open();
+    const link = screen.getByRole('link', { name: 'Довідка ведучого' });
+    expect(link.getAttribute('href')).toBe('/help');
+    expect(link.getAttribute('target')).toBe('_blank');
+    for (const name of ['Показувати рейтинг', 'Пояснення для новачків', 'Запасні запитання', 'Дуелі', 'Крамниця дебафів', 'Щит', 'Туман']) {
+      fireEvent.click(screen.getByRole('button', { name: `Довідка: ${name}` }));
+      screen.getByRole('dialog', { name });
+    }
+    expect(screen.queryByText('Зберегти зміни?')).toBeNull();
+    expect((screen.getByLabelText('Пояснення для новачків') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('round types: ⓘ for each kind in «+ Раунд» and for the current round in its settings', () => {
+    open();
+    click('+ Раунд');
+    for (const name of ['Класичний', 'Бліц', 'Ігрове поле', 'Фінал']) screen.getAllByRole('button', { name: `Довідка: ${name}` });
+    const settings = document.querySelector('details.round-settings') as HTMLElement;
+    within(settings).getByRole('button', { name: 'Довідка: Класичний' });
+    for (const name of ['Бали за швидкість', 'Штраф «мінус»', 'Кнопка «частково»', 'Серії', 'Множник балів']) {
+      within(settings).getByRole('button', { name: `Довідка: ${name}` });
+    }
+  });
+
+  it('the question ⓘ follows the chosen type', () => {
+    open();
+    screen.getByRole('button', { name: 'Довідка: Один правильний варіант' });
+    click('число');
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Число' }));
+    screen.getByRole('dialog', { name: 'Число' });
   });
 });
