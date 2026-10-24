@@ -8117,6 +8117,10 @@ button.wall-tile:disabled {
   gap: 0.375rem;
 }
 
+.bluff-live .btn-small {
+  min-height: 44px;
+}
+
 .bluff-live li {
   display: flex;
   align-items: center;
