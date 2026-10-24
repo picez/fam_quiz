@@ -29,6 +29,18 @@ function filled(question: Question): Question {
       return { ...question, text, clues: ['Раз', 'Два', 'Три'], accepted: ['Відповідь'] };
     case 'chain':
       return { ...question, text, words: ['Форель', 'Риба', 'Океан'] };
+    case 'poll':
+      return { ...question, text, options: question.options.map((o, i) => ({ ...o, text: `Варіант ${i + 1}` })) };
+    case 'wall':
+      return {
+        ...question,
+        text,
+        groups: question.groups.map((group, g) => ({
+          ...group,
+          name: `Зв'язок ${g + 1}`,
+          tiles: group.tiles.map((tile, n) => ({ ...tile, text: `Плитка ${g + 1}.${n + 1}` })),
+        })),
+      };
     case 'sort':
       return {
         ...question,
@@ -98,11 +110,54 @@ describe('clues and pin in the editor (10c)', () => {
   });
 });
 
+describe('wall, poll and word cloud in the editor (10d)', () => {
+  it('questionTypesFor: the wall is in classic and on the board; polls and clouds are classic only', () => {
+    expect(questionTypesFor('classic')).toEqual(QUESTION_TYPES);
+    expect(questionTypesFor('board')).toContain('wall');
+    expect(questionTypesFor('board')).not.toContain('poll');
+    expect(questionTypesFor('board')).not.toContain('wordcloud');
+    for (const round of ['blitz', 'final'] as const) {
+      for (const type of ['wall', 'poll', 'wordcloud'] as const) expect(questionTypesFor(round)).not.toContain(type);
+    }
+  });
+
+  it('a new wall is 4×4 with 90 seconds and three mistakes; poll and cloud are worth nothing', () => {
+    const wall = filled(newQuestion('wall'));
+    expect(wall.type === 'wall' && [wall.timeLimit, wall.mistakes, wall.groups.length, wall.groups[0].tiles.length]).toEqual([LIMITS.defaultWallTime, 3, 4, 4]);
+    expect(quizSchema.safeParse(cleaned(quizWith(wall))).success).toBe(true);
+    expect(newQuestion('poll').points).toBe(0);
+    expect(newQuestion('wordcloud').points).toBe(0);
+    expect(newQuestion('wordcloud').type === 'wordcloud' && (newQuestion('wordcloud') as { words: number }).words).toBe(LIMITS.maxCloudWords);
+  });
+
+  it('a single with options becomes a poll with the same options and no price, and back with 1000', () => {
+    const single = filled(newQuestion('single'));
+    const poll = changeType(single, 'poll');
+    expect(poll.points).toBe(0);
+    if (single.type !== 'single' || poll.type !== 'poll') throw new Error('unexpected type');
+    expect(poll.options).toEqual(single.options);
+    const back = changeType(poll, 'single');
+    expect(back.points).toBe(LIMITS.defaultPoints);
+    expect(back.type === 'single' && back.correctId).toBe(poll.options[0].id);
+    expect(changeType(poll, 'text').points).toBe(LIMITS.defaultPoints);
+  });
+
+  it('a wall loses the video; a duplicated wall shares no ids', () => {
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    expect(changeType({ ...newQuestion('single'), video }, 'wall').video).toBeNull();
+    const wall = newQuestion('wall');
+    const copy = duplicateQuestion(wall);
+    if (wall.type !== 'wall' || copy.type !== 'wall') throw new Error('unexpected type');
+    expect(copy.groups[0].id).not.toBe(wall.groups[0].id);
+    expect(copy.groups[0].tiles[0].id).not.toBe(wall.groups[0].tiles[0].id);
+  });
+});
+
 describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
-    // Сортування має власні час і бали за слово: його перевіряє окремий тест нижче.
-    for (const type of QUESTION_TYPES.filter((candidate) => candidate !== 'sort')) {
+    // Сортування, стіна, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -210,13 +265,14 @@ describe('duplicateQuestion', () => {
       const source = filled(newQuestion(type));
       const copy = duplicateQuestion(source);
       expect(copy.id, type).not.toBe(source.id);
-      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, words: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
+      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, groups: undefined, words: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
         ...source,
         id: '',
         options: undefined,
         items: undefined,
         pairs: undefined,
         categories: undefined,
+        groups: undefined,
         words: undefined,
         correctId: undefined,
         correctIds: undefined,

@@ -36,6 +36,11 @@ import {
   audioLeadMs,
   proximityPartial,
   cluesAt,
+  cloudKey,
+  cloudWords,
+  isUnscored,
+  wallScored,
+  wallShare,
   clueShare,
   pinDistance,
   pinShare,
@@ -1362,6 +1367,134 @@ describe('where clues and pins live (10c)', () => {
     const base = quizOf([round('r', [single])]);
     expect(issues({ ...base, spares: [{ ...cluesQ, id: 's1' }] })).toContain('spare_type');
     expect(issues({ ...base, spares: [{ ...pinQ, id: 's1' }] })).toContain('spare_type');
+  });
+});
+
+describe('wall (10d)', () => {
+  const qIssues = (value: unknown) => {
+    const result = questionSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const tiles = (prefix: string, ...texts: string[]) => texts.map((text, i) => ({ id: `${prefix}${i + 1}`, text }));
+  const wallQ = { id: 'w1', type: 'wall', text: "Знайдіть зв'язки", imageUrl: null, video: null, timeLimit: 90, points: 1000, mistakes: 3,
+    groups: [
+      { id: 'gr', name: 'Річки', tiles: tiles('r', 'Дніпро', 'Десна', 'Рось', 'Псел') },
+      { id: 'gm', name: 'Гори', tiles: tiles('m', 'Говерла', 'Петрос', 'Піп Іван', 'Бребенескул') },
+      { id: 'gl', name: 'Озера', tiles: tiles('l', 'Світязь', 'Синевир', 'Ялпуг', 'Кагул') },
+      { id: 'gi', name: 'Острови', tiles: tiles('i', 'Хортиця', 'Джарилгач', 'Зміїний', 'Бірючий') },
+    ] };
+  it('a wall is a question type, not simple; 4×4 and 3×3 only', () => {
+    expect(QUESTION_TYPES).toContain('wall');
+    expect(SIMPLE_TYPES).not.toContain('wall');
+    expect(valid(questionSchema, wallQ)).toBe(true);
+    const small = { ...wallQ, groups: wallQ.groups.slice(0, 3).map((g) => ({ ...g, tiles: g.tiles.slice(0, 3) })) };
+    expect(valid(questionSchema, small)).toBe(true);
+    expect(qIssues({ ...wallQ, groups: [...wallQ.groups.slice(0, 3), { ...wallQ.groups[3], tiles: wallQ.groups[3]!.tiles.slice(0, 3) }] })).toContain('wall_shape');
+    expect(qIssues({ ...small, groups: [...small.groups.slice(0, 2), wallQ.groups[3]] })).toContain('wall_shape');
+  });
+  it('checks tiles, names, mistakes, duplicates and video', () => {
+    const dupe = { ...wallQ, groups: [{ ...wallQ.groups[0], tiles: tiles('r', 'Дніпро', ' дніпро ', 'Рось', 'Псел') }, ...wallQ.groups.slice(1)] };
+    expect(qIssues(dupe)).toContain('wall_duplicate_tiles');
+    expect(valid(questionSchema, { ...wallQ, mistakes: 0 })).toBe(false);
+    expect(valid(questionSchema, { ...wallQ, mistakes: 6 })).toBe(false);
+    expect(valid(questionSchema, { ...wallQ, groups: [{ ...wallQ.groups[0], name: '' }, ...wallQ.groups.slice(1)] })).toBe(false);
+    expect(valid(questionSchema, { ...wallQ, groups: [{ ...wallQ.groups[0], tiles: tiles('r', 'x'.repeat(LIMITS.wallTile + 1), 'Десна', 'Рось', 'Псел') }, ...wallQ.groups.slice(1)] })).toBe(false);
+    expect(qIssues({ ...wallQ, video: { id: 'dQw4w9WgXcQ', start: 0 } })).toContain('wall_video');
+    expect(qIssues({ ...wallQ, groups: [{ ...wallQ.groups[0], id: 'gm' }, ...wallQ.groups.slice(1)] })).toContain('duplicate_ids');
+  });
+  it('wallScored: the last group gives nothing; wallShare', () => {
+    expect([0, 1, 2, 4].map((f) => wallScored(f, 4))).toEqual([0, 1, 2, 3]);
+    expect(wallShare(2, 4)).toBe(0.5);
+    expect(wallShare(3, 3)).toBeCloseTo(2 / 3);
+    expect(proximityPartial(wallQ as unknown as Question)).toBe(true);
+  });
+});
+
+describe('poll and word cloud (10d)', () => {
+  const qIssues = (value: unknown) => {
+    const result = questionSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const pollQ = { id: 'p1', type: 'poll', text: 'Найкраща пора року?', imageUrl: null, video: null, timeLimit: 20, points: 0,
+    options: [{ id: 'a', text: 'Весна' }, { id: 'b', text: 'Літо' }, { id: 'c', text: 'Осінь' }] };
+  const cloudQ = { id: 'k1', type: 'wordcloud', text: 'З чим асоціюється Київ?', imageUrl: null, video: null, timeLimit: 30, points: 0, words: 3 };
+  it('both are unscored types with zero points', () => {
+    expect(isUnscored(pollQ as { type: 'poll' })).toBe(true);
+    expect(isUnscored(cloudQ as { type: 'wordcloud' })).toBe(true);
+    expect(isUnscored({ type: 'single' })).toBe(false);
+    expect(valid(questionSchema, pollQ)).toBe(true);
+    expect(valid(questionSchema, cloudQ)).toBe(true);
+    expect(qIssues({ ...pollQ, points: 100 })).toContain('vote_points');
+    expect(qIssues({ ...cloudQ, points: 100 })).toContain('vote_points');
+    expect(valid(questionSchema, { ...cloudQ, words: 4 })).toBe(false);
+    expect(qIssues({ ...pollQ, options: [{ id: 'a', text: 'x' }, { id: 'a', text: 'y' }] })).toContain('duplicate_ids');
+    expect(questionPrice(pollQ as unknown as Question)).toBe(0);
+  });
+  it('cloudKey ignores case, spaces and apostrophe variants; cloudWords dedupes and caps', () => {
+    expect(cloudKey('  КИЇВ ')).toBe('київ');
+    expect(cloudKey('Нью   Йорк')).toBe('нью йорк');
+    expect(cloudKey('м’ята')).toBe(cloudKey("М'ята"));
+    expect(cloudWords([' Каштани ', 'каштани', '', 'Дніпро', 'Лавра'], 3)).toEqual(['Каштани', 'Дніпро', 'Лавра']);
+    expect(cloudWords(['a', 'b', 'c', 'd'], 2)).toEqual(['a', 'b']);
+    expect(cloudWords(['Нью   Йорк'], 3)).toEqual(['Нью Йорк']);
+  });
+  it('the answers: a poll option and one to three short words', () => {
+    expect(valid(answerSchema, { type: 'poll', optionId: 'a' })).toBe(true);
+    expect(valid(answerSchema, { type: 'wordcloud', words: ['каштани'] })).toBe(true);
+    expect(valid(answerSchema, { type: 'wordcloud', words: [] })).toBe(false);
+    expect(valid(answerSchema, { type: 'wordcloud', words: ['а', 'б', 'в', 'г'] })).toBe(false);
+    expect(valid(answerSchema, { type: 'wordcloud', words: ['x'.repeat(LIMITS.cloudWord + 1)] })).toBe(false);
+    expect(valid(answerSchema, { type: 'wordcloud', words: ['  '] })).toBe(false);
+  });
+});
+
+describe('where walls, polls and clouds live (10d)', () => {
+  const tiles = (prefix: string, ...texts: string[]) => texts.map((text, i) => ({ id: `${prefix}${i + 1}`, text }));
+  const wallQ = { id: 'w1', type: 'wall', text: 'Стіна', imageUrl: null, video: null, timeLimit: 90, points: 1000, mistakes: 3,
+    groups: ['a', 'b', 'c', 'd'].map((g) => ({ id: `g${g}`, name: `Група ${g}`, tiles: tiles(g, `${g}1`, `${g}2`, `${g}3`, `${g}4`) })) };
+  const pollQ = { id: 'p1', type: 'poll', text: 'Опитування', imageUrl: null, video: null, timeLimit: 20, points: 0,
+    options: [{ id: 'a', text: 'Так' }, { id: 'b', text: 'Ні' }] };
+  const cloudQ = { id: 'k1', type: 'wordcloud', text: 'Хмара', imageUrl: null, video: null, timeLimit: 30, points: 0, words: 3 };
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const blitz = (q: object) => ({ id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: DEFAULT_ANSWER_WINDOW, attempts: 1,
+    check: 'auto', rules: { ...DEFAULT_RULES, partial: null }, questions: [q] });
+  const finalR = (q: object) => ({ id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [q] });
+  const board = (q: object, patch: object = {}) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+  const withCell = (q: object, cellPatch: object) => {
+    const b = board(q);
+    Object.assign(b.categories[0]!.cells[0]!, cellPatch);
+    return quizOf([b]);
+  };
+
+  it('wall: classic and a normal phone cell; not blitz, final, a blitz cell or a voice cell', () => {
+    expect(issues(quizOf([round('r', [wallQ])]))).toEqual([]);
+    expect(issues(quizOf([board(wallQ)]))).toEqual([]);
+    expect(issues(quizOf([blitz(wallQ)]))).toContain('wall_place');
+    expect(issues(quizOf([finalR(wallQ)]))).toContain('wall_place');
+    expect(issues(withCell(wallQ, { kind: 'blitz' }))).toContain('wall_place');
+    expect(issues(withCell(wallQ, { answerMode: 'voice' }))).toContain('wall_place');
+    expect(issues(quizOf([board(wallQ, { answerMode: 'voice' })]))).toContain('wall_place');
+  });
+  it('poll and word cloud: classic only', () => {
+    for (const q of [pollQ, cloudQ]) {
+      expect(issues(quizOf([round('r', [q])]))).toEqual([]);
+      expect(issues(quizOf([blitz(q)]))).toContain('vote_place');
+      expect(issues(quizOf([finalR(q)]))).toContain('vote_place');
+      expect(issues(quizOf([board(q)]))).toContain('vote_place');
+      expect(issues(withCell(q, { answerMode: 'voice' }))).toContain('vote_place');
+    }
+  });
+  it('spares cannot be walls, polls or clouds', () => {
+    const base = quizOf([round('r', [single])]);
+    for (const q of [wallQ, pollQ, cloudQ]) expect(issues({ ...base, spares: [{ ...q, id: 's1' }] })).toContain('spare_type');
   });
 });
 

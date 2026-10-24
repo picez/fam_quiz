@@ -36,11 +36,20 @@ import { newId } from './new-id';
 
 export { QUESTION_TYPES, type QuestionType };
 
-/** Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?» і точки; поле — без ланцюжка; фінал — без «Хто я?» і точки; сортування — скрізь. */
+/**
+ * Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?», точки, стіни, опитування й хмари;
+ * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, опитування й хмари;
+ * сортування — скрізь; класика — усі.
+ */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
-  if (roundType === 'blitz') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin');
-  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain');
-  if (roundType === 'final') return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin');
+  const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
+  if (roundType === 'blitz') {
+    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin' && type !== 'wall' && !unscored(type));
+  }
+  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && !unscored(type));
+  if (roundType === 'final') {
+    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && !unscored(type));
+  }
   return QUESTION_TYPES;
 }
 
@@ -81,6 +90,19 @@ function build(common: Common, type: QuestionType): Question {
         fullRadius: LIMITS.defaultPinFull,
         zeroRadius: LIMITS.defaultPinZero,
       };
+    case 'wall':
+      return {
+        ...common,
+        video: null,
+        type,
+        timeLimit: LIMITS.defaultWallTime,
+        mistakes: LIMITS.defaultWallMistakes,
+        groups: Array.from({ length: 4 }, () => ({ id: newId(), name: '', tiles: blanks(4) })),
+      };
+    case 'poll':
+      return { ...common, type, points: 0, options: blanks(LIMITS.minOptions) };
+    case 'wordcloud':
+      return { ...common, type, points: 0, words: LIMITS.maxCloudWords };
     case 'order':
       return { ...common, type, items: blanks(LIMITS.minOrderItems) };
     case 'match':
@@ -130,13 +152,15 @@ export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === type) return question;
   const { id, text, imageUrl, video, timeLimit, points, hint, audio, reveal } = question;
   const keepsReveal = reveal !== undefined && (REVEAL_TYPES as readonly string[]).includes(type);
+  const unscored = (value: QuestionType) => value === 'poll' || value === 'wordcloud';
+  // Опитування й хмара без балів; з них в інший тип повертається типова ціна.
   const common: Common = {
     id,
     text,
     imageUrl,
     video,
     timeLimit,
-    points,
+    points: unscored(type) ? 0 : unscored(question.type) ? LIMITS.defaultPoints : points,
     ...(hint === undefined ? {} : { hint }),
     ...(audio === undefined ? {} : { audio }),
     ...(keepsReveal ? { reveal } : {}),
@@ -149,6 +173,10 @@ export function changeType(question: Question, type: QuestionType): Question {
     const firstCorrect = question.options.find((option) => question.correctIds.includes(option.id));
     return { ...common, type, options: question.options, correctId: (firstCorrect ?? question.options[0]).id };
   }
+  if (question.type === 'single' && type === 'poll') return { ...common, type, options: question.options };
+  if (question.type === 'multi' && type === 'poll') return { ...common, type, options: question.options };
+  if (question.type === 'poll' && type === 'single') return { ...common, type, options: question.options, correctId: question.options[0].id };
+  if (question.type === 'poll' && type === 'multi') return { ...common, type, options: question.options, correctIds: [question.options[0].id] };
   return build(common, type);
 }
 
@@ -196,6 +224,14 @@ export function duplicateQuestion(question: Question): Question {
       return { ...question, id, clues: [...question.clues], accepted: [...question.accepted] };
     case 'pin':
       return { ...question, id, target: { ...question.target } };
+    case 'wall':
+      return {
+        ...question,
+        id,
+        groups: question.groups.map((group) => ({ ...group, id: newId(), tiles: group.tiles.map((tile) => ({ ...tile, id: newId() })) })),
+      };
+    case 'poll':
+      return { ...question, id, options: question.options.map((option) => ({ ...option, id: newId() })) };
     case 'chain':
       return { ...question, id, words: [...question.words] };
     case 'sort': {

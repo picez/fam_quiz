@@ -201,6 +201,10 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
       return <MatchInput question={question} onSubmit={onSubmit} />;
     case 'pin':
       return question.pin === null ? null : <PinInput question={{ ...question, pin: question.pin }} onSubmit={onSubmit} submitLabel={submitLabel} />;
+    case 'wall':
+    case 'poll':
+    case 'wordcloud':
+      return null; // задача 7
     case 'slider':
       return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} />;
   }

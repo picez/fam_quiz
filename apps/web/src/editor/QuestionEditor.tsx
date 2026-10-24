@@ -689,6 +689,10 @@ function Body({ question, onChange, showPoints, cluesByHost }: Pick<Props, 'ques
     }
     case 'pin':
       return <PinEditor question={question} onChange={onChange} />;
+    case 'wall':
+    case 'poll':
+    case 'wordcloud':
+      return null; // задача 9
   }
 }
 

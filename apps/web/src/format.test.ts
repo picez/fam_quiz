@@ -43,6 +43,29 @@ describe('clues and pin texts (10c)', () => {
   });
 });
 
+describe('wall, poll and word cloud texts (10d)', () => {
+  const tile = (id: string, text: string) => ({ id, text });
+  const names = ['Річки', 'Гори', 'Озера', 'Острови'];
+  const wall = {
+    ...base,
+    type: 'wall',
+    mistakes: 3,
+    groups: names.map((name, g) => ({ id: `g${g}`, name, tiles: [0, 1, 2, 3].map((n) => tile(`t${g}${n}`, `${name}${n}`)) })),
+  } as Question;
+  const poll: Question = { ...base, type: 'poll', points: 0, options: [{ id: 'a', text: 'Весна' }, { id: 'b', text: 'Літо' }] };
+  it('correctText', () => {
+    expect(correctText(wall)).toBe('Групи: Річки; Гори; Озера; Острови');
+    expect(correctText(poll)).toBe('Без правильної відповіді');
+    expect(correctText({ ...base, type: 'wordcloud', points: 0, words: 3 })).toBe('Без правильної відповіді');
+  });
+  it('answerText', () => {
+    expect(answerText({ type: 'wall', found: 2, groups: 4, mistakes: 1, timeMs: null }, wall)).toBe('2 з 4 груп, помилок: 1');
+    expect(answerText({ type: 'wall', found: 4, groups: 4, mistakes: 1, timeMs: 5000 }, wall)).toBe('Стіну складено, помилок: 1');
+    expect(answerText({ type: 'poll', optionId: 'b' }, poll)).toBe('Літо');
+    expect(answerText({ type: 'wordcloud', words: ['каштани', 'Дніпро'] }, null)).toBe('каштани, Дніпро');
+  });
+});
+
 describe('picture options', () => {
   it('labels a picture-only option by its letter wherever text is needed', () => {
     const pics = {
