@@ -8160,3 +8160,125 @@ button.wall-tile:disabled {
   flex: 1 1 0;
   min-width: 0;
 }
+
+/* ---------- Ва-банк ---------- */
+
+.wipeout-decision {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: stretch;
+}
+
+.wipeout-decision .timer {
+  justify-self: center;
+}
+
+.wipeout-decision .btn {
+  width: 100%;
+  min-height: 3.5rem;
+  font-size: 1.375rem;
+}
+
+.wipeout-decision .meta {
+  text-align: center;
+}
+
+.wipeout-state {
+  text-align: center;
+}
+
+.wipeout-state.is-burned {
+  color: var(--signal);
+}
+
+.wipeout-bank {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--bank);
+}
+
+.wipeout-ladder {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.wipeout-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.wipeout-step {
+  display: flex;
+  justify-content: center;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--dim);
+  font-weight: 700;
+}
+
+.wipeout-step.is-done {
+  color: var(--paper);
+  background: var(--panel);
+}
+
+.wipeout-step.is-current {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: var(--stage);
+}
+
+/* Телефон: сходинки в один ряд, щоб драбина не витісняла кнопки. */
+.wipeout-ladder.is-phone .wipeout-steps {
+  flex-direction: row-reverse;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.wipeout-players {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.wipeout-group ul {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.wipeout-group li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.wipeout-group li.is-me {
+  background: rgb(255 179 0 / 0.14);
+  border-radius: 0.5rem;
+}
+
+.wipeout-group .name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.wipeout-group.is-burned .name {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+.wipeout-mark {
+  color: var(--correct);
+  font-size: 0.875rem;
+}
+
+.wipeout-mark.is-pending {
+  color: var(--dim);
+}

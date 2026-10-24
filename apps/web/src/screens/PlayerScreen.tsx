@@ -37,6 +37,9 @@ import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { MenuLinks } from './MenuLinks';
 import { DebuffShop } from './DebuffShop';
 import { TableButton } from './TableSheet';
+import { useGuardedSend } from '../live/useGuardedSend';
+import { WipeoutDecision } from './WipeoutDecision';
+import { WipeoutLadder } from './WipeoutLadder';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 
 interface Props {
@@ -228,8 +231,15 @@ function Result({ view }: { view: PlayerView }) {
   return (
     <section className={`result ${tone}`}>
       <h2>{title}</h2>
-      {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
-      {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
+      {view.me.wipeout !== null ? (
+        // «Ва-банк»: результат запитання — це банк, а не бали за нього.
+        <p className="wipeout-bank">{view.me.wipeout.status === 'burned' ? t('wipeoutBurned') : t('wipeoutBank', { bank: num(view.me.wipeout.bank) })}</p>
+      ) : (
+        <>
+          {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
+          {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
+        </>
+      )}
       {view.me.chain !== null && (
         <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
       )}
@@ -498,6 +508,9 @@ function usePersonalTotal(
 export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
+  const decideGuard = useGuardedSend(send, setError);
+  // «Ва-банк»: гравець, що вже не в грі, дивиться — поля відповіді в нього немає.
+  const wipeoutWatching = me.wipeout !== null && me.wipeout.status !== 'in';
   // Поступ проявлення картинки: лише за часом; від locked — 1 (повна).
   const revealP = useRevealProgress(view, question, offsetMs);
   const revealStageNow = revealStage(revealP);
@@ -691,7 +704,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
-            {isBluff ? (
+            {wipeoutWatching ? (
+              <p className="lead wipeout-state">{t('wipeoutOut')}</p>
+            ) : isBluff ? (
               <BluffPlay view={view} paused={locked} send={send} />
             ) : isSort && me.sort !== null ? (
               <SortPlay question={shown ?? question} sort={me.sort} paused={locked} offsetMs={offsetMs} send={send} />
@@ -902,7 +917,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         </>
       )}
 
-      {phase === 'leaderboard' && view.standings !== null && (
+      {phase === 'leaderboard' && view.wipeout !== null && (
+        <>
+          <WipeoutDecision view={view} offsetMs={offsetMs} onDecide={(take) => void decideGuard.run('player:wipeout', { take })} />
+          <WipeoutLadder info={view.wipeout} size="phone" highlightId={me.id} />
+        </>
+      )}
+
+      {phase === 'leaderboard' && view.wipeout === null && view.standings !== null && (
         <>
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
@@ -912,6 +934,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'round_end' && view.standings !== null && (
         <>
           <h1 className="question">{t('roundResults', { index: (view.round?.index ?? 0) + 1 })}</h1>
+          {me.wipeout !== null && <WipeoutDecision view={view} offsetMs={offsetMs} onDecide={() => undefined} />}
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
         </>
