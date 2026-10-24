@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOptionView, type HostDuel, type HostView, Question, RoundInfo } from '@quiz/shared';
+import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOptionView, type HostDuel, type HostView, Question, RoundInfo, type WipeoutInfo, type WipeoutRow } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -2118,5 +2118,51 @@ describe('HostScreen: bluff (10f)', () => {
     cleanup();
     show(bluffView('reveal', info, { paused: true }));
     expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
+  });
+
+  describe('wipeout', () => {
+    const wRow = (id: string, nickname: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname, status: 'in', bank: 300, step: null, decision: null, ...over });
+    const wInfo = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
+      ladder: [100, 200, 300, 400, 500],
+      current: 2,
+      done: 3,
+      rows: [wRow('p1', 'Олена', { decision: 'take' }), wRow('p2', 'Тарас', { decision: 'pending' })],
+      inCount: 2,
+      decide: { endsAt: Date.now() + 10_000, remainingMs: null, decided: 1, total: 2 },
+      ...over,
+    });
+    const wRound: RoundInfo = { index: 0, total: 1, title: '', type: 'wipeout', partial: false, description: '', brief: emptyBrief('wipeout'), times: null };
+    const noDebuffs = { debuffs: [], buffs: [] };
+
+    it('the main button is disabled with a reason while players decide', () => {
+      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo(), allowed: noDebuffs }));
+      expect(button(/Гравці вирішують… \d+ с/).disabled).toBe(true);
+    });
+
+    it('after the window closes the main button is «Наступне запитання»', () => {
+      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo({ decide: null }), allowed: noDebuffs }));
+      expect(button('Наступне запитання').disabled).toBe(false);
+    });
+
+    it('nobody left in the game: «Підсумки раунду»', () => {
+      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo({ decide: null, inCount: 0, rows: [wRow('p1', 'Олена', { status: 'burned', bank: 0 })] }), allowed: noDebuffs }));
+      expect(button('Підсумки раунду').disabled).toBe(false);
+    });
+
+    it('«Відповіли N з M» counts only the players still in the game', () => {
+      show(during('question', single, { round: wRound, answeredCount: 1, wipeout: wInfo({ decide: null, inCount: 1, current: 0, done: 0 }), allowed: noDebuffs }));
+      expect(screen.getByText(/Відповіли 1 з 1/)).toBeTruthy();
+    });
+
+    it('no debuff menu on a wipeout question', () => {
+      show(during('question', single, { round: wRound, wipeout: wInfo({ decide: null }), allowed: noDebuffs }));
+      expect(screen.queryAllByRole('button', { name: t('debuff') })).toHaveLength(0);
+      expect(screen.getAllByRole('button', { name: t('points') }).length).toBeGreaterThan(0);
+    });
+
+    it('a text answer on the reveal can be accepted or rejected, never «partly»', () => {
+      show(during('reveal', textQuestion, { round: wRound, wipeout: wInfo({ decide: null }), allowed: noDebuffs }));
+      expect(screen.queryByRole('button', { name: /Частково/ })).toBeNull();
+    });
   });
 });

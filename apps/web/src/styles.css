@@ -8282,3 +8282,85 @@ button.wall-tile:disabled {
 .wipeout-mark.is-pending {
   color: var(--dim);
 }
+
+/* Сцена «Ва-банк»: драбина зліва, гравці справа; усе на екран без прокрутки. */
+.wipeout-strip {
+  text-align: center;
+}
+
+.app.stage:has(.stage-wipeout) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.stage-wipeout {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.stage-wipeout .question {
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.wipeout-ladder.is-stage {
+  grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 2vw;
+  min-height: 0;
+  flex: 1 1 0;
+}
+
+.wipeout-ladder.is-stage .wipeout-steps {
+  gap: 0.2rem;
+  min-height: 0;
+  max-height: 56vh;
+}
+
+.wipeout-ladder.is-stage .wipeout-step {
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: center;
+  padding: 0 0.75rem;
+  font-size: clamp(0.75rem, 2.2vh, 1.375rem);
+  line-height: 1;
+}
+
+.wipeout-players.is-stage {
+  align-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.5rem 1.5vw;
+  min-height: 0;
+  overflow: hidden;
+  font-size: clamp(0.8125rem, 2.4vh, 1.375rem);
+}
+
+.wipeout-players.is-stage .wipeout-decided {
+  grid-column: 1 / -1;
+}
+
+.wipeout-players.is-stage li {
+  padding: 0.125rem 0.5rem;
+}
+
+.wipeout-ladder.is-host .wipeout-steps {
+  flex-direction: row-reverse;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Заставка раунду: низька драбина в один ряд під пам'яткою, щоб усе лишилося на екрані. */
+.stage-board:not(.stage-wipeout) .wipeout-ladder.is-stage {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.stage-board:not(.stage-wipeout) .wipeout-ladder.is-stage .wipeout-steps {
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-height: none;
+}
+
+.stage-board:not(.stage-wipeout) .wipeout-ladder.is-stage .wipeout-step {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.75rem;
+}
