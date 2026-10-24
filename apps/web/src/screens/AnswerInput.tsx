@@ -3,6 +3,7 @@ import type { Answer, Choice, PublicQuestion } from '@quiz/shared';
 import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
+import { CloudInput } from './CloudInput';
 import { MatchInput } from './MatchView';
 import { PinInput } from './PinInput';
 import { SliderInput } from './SliderInput';
@@ -201,6 +202,19 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
       return <MatchInput question={question} onSubmit={onSubmit} />;
     case 'pin':
       return question.pin === null ? null : <PinInput question={{ ...question, pin: question.pin }} onSubmit={onSubmit} submitLabel={submitLabel} />;
+    case 'poll':
+      return (
+        <ChoiceButtons
+          choices={question.choices}
+          picked={[]}
+          removed={removed}
+          onPick={(optionId) => onSubmit({ type: 'poll', optionId })}
+        />
+      );
+    case 'wordcloud':
+      return question.cloud === null ? null : <CloudInput words={question.cloud.words} onSubmit={onSubmit} autoFocus={autoFocus} />;
+    case 'wall':
+      return null; // стіну веде PlayerScreen (WallInput), як сортування
     case 'slider':
       return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} />;
   }

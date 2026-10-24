@@ -50,7 +50,9 @@ const labelled = (choices: Choice[]): Choice[] => choices.map((choice, index) =>
  */
 export function choicesOf(question: Question | null): Choice[] {
   if (question === null) return [];
-  if (question.type === 'single' || question.type === 'multi') return question.options.map((option) => ({ ...option, text: optionText(option.text) }));
+  if (question.type === 'single' || question.type === 'multi' || question.type === 'poll') {
+    return question.options.map((option) => ({ ...option, text: optionText(option.text) }));
+  }
   if (question.type === 'match') return question.pairs.flatMap((pair) => [pair.left, pair.right]);
   return question.type === 'order' ? question.items : [];
 }
@@ -103,6 +105,11 @@ export function correctText(question: Question, presented?: { id: string }[]): s
     case 'text':
     case 'clues':
       return question.accepted[0];
+    case 'wall':
+      return t('wallCorrect', { groups: question.groups.map((group) => group.name).join('; ') });
+    case 'poll':
+    case 'wordcloud':
+      return t('pollNoCorrect');
     case 'pin':
       return t(question.map === null ? 'pinCorrectImage' : (`pinCorrect_${question.map}` as TextKey));
     case 'numeric':
@@ -145,7 +152,14 @@ export function answerText(answer: Answer | null, question: Question | null, pre
   const name = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
   switch (answer.type) {
     case 'single':
+    case 'poll':
       return name(answer.optionId);
+    case 'wordcloud':
+      return answer.words.join(', ');
+    case 'wall':
+      return answer.found === answer.groups
+        ? t('wallAnswerDone', { mistakes: answer.mistakes })
+        : t('wallAnswerPart', { found: answer.found, groups: answer.groups, mistakes: answer.mistakes });
     case 'multi':
       return answer.optionIds.map(name).join(', ');
     case 'boolean':
@@ -251,6 +265,7 @@ export function pickedText(answer: Answer, choices: Choice[], slider: PublicSlid
   const name = (id: string) => named.find((choice) => choice.id === id)?.text ?? id;
   switch (answer.type) {
     case 'single':
+    case 'poll':
       return name(answer.optionId);
     case 'multi':
       return answer.optionIds.map(name).join(', ');

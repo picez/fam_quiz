@@ -16,7 +16,7 @@ const question: PublicQuestion = {
   right: [],
   chain: null,
   sort: null,
-  orderLabels: null, slider: null, clues: null, pin: null, audio: null, reveal: null,
+  orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, audio: null, reveal: null,
   choices: [
     { id: 'a', text: 'Львів' },
     // Варіант-картинка підписується літерою показу.

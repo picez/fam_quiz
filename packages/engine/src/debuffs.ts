@@ -1,4 +1,4 @@
-import { allowedDebuffs, debuffPrice, type DebuffKind, type DebuffNotice, type Phase, type ShopBlock } from '@quiz/shared';
+import { allowedDebuffs, debuffPrice, isUnscored, type DebuffKind, type DebuffNotice, type Phase, type ShopBlock } from '@quiz/shared';
 import { addAdjustment, afterQuestionNow } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { currentRound, fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
@@ -97,10 +97,14 @@ export function answerersOf(state: GameState, play: Play): string[] {
   return state.players.map((p) => p.id);
 }
 
-/** Викликається в кінці openQuestion: прибирає застарілі спрацьовані, запускає ті, що чекають, для підключених answerersOf. */
+/**
+ * Викликається в кінці openQuestion: прибирає застарілі спрацьовані, запускає ті, що чекають, для підключених answerersOf.
+ * На запитанні без балів нічого не запускає.
+ */
 export function fireDebuffs(state: GameState, now: number): GameState {
   const play = state.plays[state.questionIndex];
-  const answering = new Set(play === undefined ? [] : answerersOf(state, play));
+  // На опитуванні й хмарі дебаф не згорає даремно: ті, що чекають, чекають наступного запитання з балами.
+  const answering = new Set(play === undefined || isUnscored(play.question) ? [] : answerersOf(state, play));
   const connected = new Set(state.players.filter((p) => p.connected).map((p) => p.id));
   const debuffs: Record<string, DebuffState> = {};
   for (const [playerId, debuff] of Object.entries(state.debuffs)) {

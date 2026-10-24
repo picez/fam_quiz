@@ -87,6 +87,8 @@ export interface PlayRef {
   questionId: string;
   /** Клітинка поля й той, хто її вибрав; лише для запитань раунду поля. */
   cell?: { cellId: string; chooserId: string };
+  /** Ключі слів «хмари», які ведучий сховав; лише для хмари й лише якщо щось сховано. */
+  cloudHidden?: string[];
 }
 
 /** Зіграна або поточна гра. id збігається з id кімнати. */
@@ -134,6 +136,9 @@ export const participant = pgTable(
 
 /** Номер рядка answer з балами без відповіді: штраф бліц-клітинки або мовчання у фіналі; спроби мають номери 0…n. */
 export const PENALTY_ATTEMPT = -1;
+
+/** Номер рядка answer для голосу в запитанні без балів (опитування, хмара, 10d): не відповідь для статистики. */
+export const VOTE_ATTEMPT = -3;
 
 export const answer = pgTable(
   'answer',

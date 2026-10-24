@@ -2,7 +2,7 @@ import type { PlayedGame } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { achievementsOf, bestStreak, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound } from './achievements';
 import type { GameTable, TableRow } from './history';
-import { ADJUSTMENT_ATTEMPT, PENALTY_ATTEMPT } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, PENALTY_ATTEMPT, VOTE_ATTEMPT } from './db/schema';
 
 const m = (questionIndex: number, accepted: boolean, attempt = 0) => ({ questionIndex, attempt, accepted });
 
@@ -221,5 +221,19 @@ describe('new achievements', () => {
     const p = (userId: string | null) => ({ participantId: `${userId}-p`, userId, rank: null, score: 0, rows: [] });
     const tables = [table(['classic'], [p('me'), p('f1'), p('f2'), p(null)]), table(['classic'], [p('me'), p('f1'), p('x')])];
     expect(friendsPlayedWith(tables, 'me', new Set(['f1', 'f2', 'f3', 'me']))).toBe(2);
+  });
+});
+
+describe('votes (10d)', () => {
+  it('a poll between correct answers keeps the best streak and the perfect game', () => {
+    const marks = [m(0, true), m(1, false, VOTE_ATTEMPT), m(2, true), m(3, true), m(4, false, VOTE_ATTEMPT), m(5, true), m(6, true)];
+    expect(bestStreak(marks)).toBe(5);
+    expect(isPerfect({ played: played(), marks })).toBe(true);
+  });
+
+  it('only votes are not answered questions', () => {
+    const votes = [0, 1, 2, 3, 4].map((i) => m(i, false, VOTE_ATTEMPT));
+    expect(isPerfect({ played: played(), marks: votes })).toBe(false);
+    expect(bestStreak(votes)).toBe(0);
   });
 });

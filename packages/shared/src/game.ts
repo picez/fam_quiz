@@ -26,6 +26,10 @@ export type RetryStage = 'armed' | 'again' | 'choice' | 'done';
 export type BuffBlock =
   | 'used' | 'taken' | 'answered' | 'time' | 'paused' | 'elsewhere' | 'not_chooser'
   | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_chain' | 'off_sort'
+  /** Стіна: бафів немає (10d). */
+  | 'off_wall'
+  /** Опитування й хмара: без балів — без бафів (10d). */
+  | 'off_vote'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
@@ -56,6 +60,10 @@ export type ErrorCode =
   | 'already_answered'
   /** Усі підказки «Хто я?» уже відкрито (10c). */
   | 'clues_done'
+  /** Вибір плиток стіни не підходить: не та кількість, повтор, знайдена плитка або поза стіною (10d). */
+  | 'wall_pick'
+  /** Цей неправильний вибір уже був — помилка не рахується (10d). */
+  | 'wall_repeat'
   | 'time_over'
   | 'type_mismatch'
   | 'partial_disabled'

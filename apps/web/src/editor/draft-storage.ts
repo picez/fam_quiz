@@ -24,6 +24,9 @@ import {
   type Round,
 } from '@quiz/shared';
 import { QUESTION_TYPES } from './draft';
+import { newId } from './new-id';
+
+const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
 
 const key = (id: string | undefined) => `quiz:draft:${id ?? 'new'}`;
 
@@ -38,6 +41,29 @@ function reviveAudio(value: unknown): QuestionAudio | null {
   if (source === 'file' && typeof url === 'string' && AUDIO_URL.test(url)) return { source, url, ...times };
   if (source === 'youtube' && typeof id === 'string' && YOUTUBE_ID.test(id)) return { source, id, ...times };
   return null;
+}
+
+/**
+ * Стіна з чернетки: групи — об'єкти з рядками або чотири порожні; розмір (3 чи 4, інакше 4) вирівнює кількість плиток кожної групи.
+ * Відео стіна не має, а кількість помилок — звичайне число (порожнє поле — NaN, як і скрізь).
+ */
+function reviveWall(base: Extract<Question, { type: 'wall' }>): Question {
+  const raw = Array.isArray(base.groups) ? (base.groups as unknown[]).filter(isRecord) : [];
+  const size = raw.length === 3 ? 3 : 4;
+  const text = (value: unknown) => (typeof value === 'string' ? value : '');
+  const groups = Array.from({ length: size }, (_, index) => {
+    const group = raw[index];
+    const tiles = group !== undefined && Array.isArray(group.tiles) ? (group.tiles as unknown[]).filter(isRecord) : [];
+    return {
+      id: group !== undefined && typeof group.id === 'string' ? group.id : newId(),
+      name: group === undefined ? '' : text(group.name),
+      tiles: Array.from({ length: size }, (_, at) => ({
+        id: typeof tiles[at]?.id === 'string' ? (tiles[at].id as string) : newId(),
+        text: text(tiles[at]?.text),
+      })),
+    };
+  });
+  return { ...base, video: null, groups, mistakes: typeof base.mistakes === 'number' ? base.mistakes : base.mistakes === undefined ? LIMITS.defaultWallMistakes : Number.NaN };
 }
 
 function revive(stored: Question): Question {
@@ -92,6 +118,18 @@ function revive(stored: Question): Question {
     };
   }
   if (base.type === 'sort') return { ...base, lockSeconds: numberOr(base.lockSeconds) };
+  if (base.type === 'wall') return reviveWall(base);
+  if (base.type === 'poll') {
+    const options = Array.isArray(base.options)
+      ? (base.options as unknown[]).filter(isRecord).map((option) => ({
+          ...option,
+          id: typeof option.id === 'string' ? option.id : newId(),
+          text: typeof option.text === 'string' ? option.text : '',
+        }))
+      : [];
+    return { ...base, points: 0, options: (options.length >= LIMITS.minOptions ? options : [...options, ...blanks(LIMITS.minOptions - options.length)]) as typeof base.options };
+  }
+  if (base.type === 'wordcloud') return { ...base, points: 0, words: typeof base.words === 'number' ? base.words : LIMITS.maxCloudWords };
   return base;
 }
 

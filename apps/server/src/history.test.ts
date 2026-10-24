@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer } from '@quiz/shared';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
-import { gameTables, hostGame } from './history';
+import { gameTables, hostGame, playerGames } from './history';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, answer, game, participant, user } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, game, participant, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
 import { FakeScheduler } from './testing/fake-scheduler';
@@ -1158,6 +1158,101 @@ describe('history: clues and pin (10c)', () => {
       ['Олена', 1100, 2],
       ['Петро', 250, 0],
     ]);
+    await local.app.close();
+  });
+});
+
+describe('history: wall, poll and cloud (10d)', () => {
+  it('history shows wall results, poll and cloud votes; votes do not count as answers', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const olenaAccount = await signUp(local.app, 'Оля');
+    const petroAccount = await signUp(local.app, 'Петро');
+    const quiz = makeQuiz([wall, poll, cloud, single], { speedBonus: false });
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const enter = async (nickname: string, cookie: string) => {
+      const playerId = ((await send(`/api/games/by-code/${created.code}/join`, { nickname }, cookie)).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId });
+      return playerId;
+    };
+    const olena = await enter('Оля', olenaAccount.cookie);
+    const petro = await enter('Петро', petroAccount.cookie);
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    const toQuestion = () => {
+      for (let i = 0; i < 4 && room.state.phase !== 'question'; i += 1) step('next');
+    };
+    const group = (id: string) => wall.groups.find((g) => g.id === id)?.tiles.map((t) => room.state.presented.indexOf(t.id)) ?? [];
+
+    step('start');
+    step('next');
+    expect(local.manager.wall(room, olena, group('gr'))).toEqual({ ok: true });
+    expect(local.manager.wall(room, olena, group('gm'))).toEqual({ ok: true });
+    expect(local.manager.wall(room, petro, group('gr'))).toEqual({ ok: true });
+    step('lock');
+    toQuestion();
+    local.manager.answer(room, olena, { type: 'poll', optionId: 'b' });
+    local.manager.answer(room, petro, { type: 'poll', optionId: 'a' });
+    toQuestion();
+    local.manager.answer(room, olena, { type: 'wordcloud', words: ['каштани'] });
+    local.manager.answer(room, petro, { type: 'wordcloud', words: ['Дніпро'] });
+    toQuestion();
+    local.manager.answer(room, olena, { type: 'single', optionId: 'b' });
+    local.manager.answer(room, petro, { type: 'single', optionId: 'a' });
+    for (let i = 0; i < 4 && room.state.phase !== 'finished'; i += 1) step('next');
+    await local.recorder.idle();
+
+    const detail = (
+      await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
+    ).json() as {
+      questionsPlayed: number;
+      questions: { type: string; answered: number; accepted: number; responses: { nickname: string; answer: unknown; accepted: boolean }[] }[];
+      standings: { nickname: string; score: number; correct: number }[];
+    };
+    expect(detail.questions.map((q) => [q.type, q.answered, q.accepted])).toEqual([
+      ['wall', 2, 1],
+      ['poll', 2, 0],
+      ['wordcloud', 2, 0],
+      ['single', 2, 1],
+    ]);
+    expect(detail.questions[0].responses).toMatchObject([
+      { nickname: 'Оля', answer: { type: 'wall', found: 2, groups: 4, mistakes: 0 }, accepted: true },
+      { nickname: 'Петро', answer: { type: 'wall', found: 1, groups: 4, mistakes: 0 }, accepted: false },
+    ]);
+    expect(detail.questions[1].responses).toMatchObject([
+      { nickname: 'Оля', answer: { type: 'poll', optionId: 'b' }, accepted: false },
+      { nickname: 'Петро', answer: { type: 'poll', optionId: 'a' }, accepted: false },
+    ]);
+    expect(detail.questions[2].responses).toMatchObject([
+      { nickname: 'Оля', answer: { type: 'wordcloud', words: ['каштани'] } },
+      { nickname: 'Петро', answer: { type: 'wordcloud', words: ['Дніпро'] } },
+    ]);
+    expect(detail.questionsPlayed).toBe(4);
+
+    const rows = await localDb.select().from(answer);
+    expect(rows.filter((row) => row.attempt === VOTE_ATTEMPT)).toHaveLength(4);
+
+    const userId = async (email: string) => (await localDb.select({ id: user.id }).from(user).where(eq(user.email, email)))[0].id;
+    const [olenaGame] = await playerGames(localDb, await userId(olenaAccount.email), null);
+    expect(olenaGame.played).toMatchObject({ correct: 2, answered: 2, questionsPlayed: 2 });
+    expect(olenaGame.marks.map((mark) => [mark.questionIndex, mark.attempt, mark.accepted])).toEqual([
+      [0, 0, true],
+      [3, 0, true],
+    ]);
+    const [petroGame] = await playerGames(localDb, await userId(petroAccount.email), null);
+    expect(petroGame.played).toMatchObject({ correct: 0, answered: 2, questionsPlayed: 2 });
+    expect(petroGame.marks.some((mark) => mark.attempt === VOTE_ATTEMPT)).toBe(false);
+
+    // Рядки голосів не потрапляють у таблицю для досягнень.
+    const [table] = await gameTables(localDb, [created.gameId]);
+    expect(table.players.flatMap((p) => p.rows).some((row) => row.attempt === VOTE_ATTEMPT)).toBe(false);
+    expect(table.players.map((p) => p.rows.length)).toEqual([2, 2]);
     await local.app.close();
   });
 });

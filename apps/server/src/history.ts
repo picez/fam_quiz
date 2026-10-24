@@ -1,5 +1,6 @@
 import {
   allSpares,
+  isUnscored,
   questionPrice,
   questionsOf,
   findCell,
@@ -21,9 +22,9 @@ import {
   type Quiz,
   type Round,
 } from '@quiz/shared';
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, type PlayRef } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIMIT = 100;
@@ -256,6 +257,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         accepted: distinct(main.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
+        ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
         responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },
@@ -291,6 +293,23 @@ export interface AnswerMark {
   questionIndex: number;
   attempt: number;
   accepted: boolean;
+}
+
+/** Рядок-відповідь для статистики гравця: без штрафів і голосів (опитування, хмара). */
+const isAnswerRow = (attempt: number) => attempt !== PENALTY_ATTEMPT && attempt !== VOTE_ATTEMPT;
+
+/** Скільки з перших questionsPlayed запитань журналу — без балів (опитування, хмара). Старі ігри без журналу — 0. */
+function unscoredPlayed(snapshot: unknown, plays: PlayRef[] | null, questionsPlayed: number): number {
+  if (plays === null || typeof snapshot !== 'object' || snapshot === null) return 0;
+  const { rounds } = snapshot as { rounds?: unknown };
+  if (!Array.isArray(rounds)) return 0;
+  return plays.slice(0, questionsPlayed).filter((ref) => {
+    const round: unknown = rounds[ref.roundIndex];
+    const questions = typeof round === 'object' && round !== null ? (round as { questions?: unknown }).questions : undefined;
+    if (!Array.isArray(questions)) return false;
+    const found: unknown = questions.find((q: unknown) => typeof q === 'object' && q !== null && (q as { id?: unknown }).id === ref.questionId);
+    return typeof found === 'object' && found !== null && isUnscored(found as { type: Question['type'] });
+  }).length;
 }
 
 /** Ігри гравця з акаунта, найновіші першими, з рядками його відповідей; limit null — усі. */
@@ -332,10 +351,10 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
         rank: row.participant.rank,
         playerCount: players.get(row.game.id) ?? 0,
         correct: distinct(mine.filter((a) => a.accepted).map((a) => a.questionIndex)),
-        answered: distinct(mine.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.questionIndex)),
-        questionsPlayed: row.game.questionsPlayed,
+        answered: distinct(mine.filter((a) => isAnswerRow(a.attempt)).map((a) => a.questionIndex)),
+        questionsPlayed: row.game.questionsPlayed - unscoredPlayed(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed),
       },
-      marks: mine.map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
+      marks: mine.filter((a) => isAnswerRow(a.attempt)).map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
     };
   });
 }
@@ -429,9 +448,13 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
           .select({ participantId: answer.participantId, roundIndex: answer.roundIndex, attempt: answer.attempt, accepted: answer.accepted, points: answer.points, wager: answer.wager })
           .from(answer)
           .where(
-            inArray(
-              answer.participantId,
-              participants.map((p) => p.id),
+            and(
+              inArray(
+                answer.participantId,
+                participants.map((p) => p.id),
+              ),
+              // Голоси опитувань і хмари не бувають спробами: таблиця рахує лише відповіді й штрафи.
+              ne(answer.attempt, VOTE_ATTEMPT),
             ),
           );
   const adjustments =

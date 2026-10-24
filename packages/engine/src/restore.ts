@@ -3,15 +3,18 @@ import { pause, setConnected, tick, type GameState } from './game';
 /** Версія формату GameState для збережених кімнат (9b). Піднімати, коли змінюється форма стану; кімнати іншої версії не відновлюються.
  * 2 — 9c: DebuffState.by, ScoreAdjustment.target/debuff, QuizSettings.debuffPrices.
  * 3 — 10c: Play.clues (скільки підказок «Хто я?» відкрито).
+ * 4 — 10d: Play.wall (поступ стіни), Play.cloudHidden (сховані слова «хмари»).
  */
-export const GAME_STATE_VERSION = 3;
+export const GAME_STATE_VERSION = 4;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
  * 2 → 3 лише додала необов'язкове Play.clues (без нього — 1 підказка), а стан версії 2 не може містити «Хто я?»:
  * тож кімната, збережена до розгортання 10c, відновлюється. Версія 1 — ні (інша форма 9c).
+ * 3 → 4 лише додала необов'язкові Play.wall і Play.cloudHidden, а стан версій 2–3 не може містити стіни, опитування чи хмари:
+ * тож кімната, збережена до розгортання 10d, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

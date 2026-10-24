@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkAnswer, paceFactor, paysForTime, textMatches, verdictOf } from './check';
+import { checkAnswer, paceFactor, paysForTime, shareVerdict, textMatches, verdictOf } from './check';
 import type { Question } from '@quiz/shared';
 import { bool, clues, match, multi, numeric, order, pin, single, slider, text, withReveal } from './testing/fixtures';
 
@@ -226,5 +226,15 @@ describe('«Who am I?» and pin (10c)', () => {
     expect(paceFactor(clues, 12_000, 1)).toBe(1);
     expect(paceFactor(withReveal(text), 20_000)).toBeCloseTo(0.3);
     expect(paceFactor(pin, 20_000)).toBe(1);
+  });
+});
+
+describe('shareVerdict', () => {
+  it('half the price or more is correct, less is partial, nothing is wrong', () => {
+    expect(shareVerdict(0.5)).toEqual({ accepted: true, accuracy: 0.5, grade: 'correct' });
+    expect(shareVerdict(0.75)).toEqual({ accepted: true, accuracy: 0.75, grade: 'correct' });
+    expect(shareVerdict(0.25)).toEqual({ accepted: false, accuracy: 0.25, grade: 'partial' });
+    expect(shareVerdict(0)).toEqual({ accepted: false, accuracy: 0, grade: 'wrong' });
+    expect(shareVerdict(0.4999999999)).toMatchObject({ accepted: true, grade: 'correct' });
   });
 });

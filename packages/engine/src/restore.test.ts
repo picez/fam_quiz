@@ -34,14 +34,16 @@ import {
   type PlayerState,
   type ScoreAdjustment,
   type SortProgress,
+  type WallProgress,
 } from './game';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
 import type { Splash } from './splash';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
-import { blitzRound, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, text, withAudio, withId, withReveal } from './testing/fixtures';
+import { blitzRound, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, text, wall, withAudio, withId, withReveal } from './testing/fixtures';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
+import { guessWall } from './wall';
 
 const HOUR = 3_600_000;
 const kyiv = { type: 'single', optionId: 'b' } as const;
@@ -213,7 +215,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -227,6 +229,7 @@ const STATE_SHAPE: Record<string, string> = {
   FinalState: keysOf<FinalState>()(['limits', 'wagers', 'allIn', 'order', 'shown', 'split'], true),
   FinalPlay: keysOf<FinalPlay>()(['wagers', 'allIn', 'graded'], true),
   SortProgress: keysOf<SortProgress>()(['queue', 'sorted', 'misses', 'lockedUntil', 'missed'], true),
+  WallProgress: keysOf<WallProgress>()(['found', 'mistakes', 'tried'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare'], true),
   DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since', 'by'], true),
@@ -310,6 +313,31 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  4: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,board,buffs,chain,cloudHidden,clues,extraMs,final,overtime,question,roundIndex,sort,wall',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,misses,queue,sorted',
+    WallProgress: 'found,mistakes,tried',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -328,7 +356,15 @@ function representative(): GameState[] {
   // 10c: «Хто я?» з відповіддю — Play.clues; точка — нові поля запитання й відповіді.
   const cluesQuiz = makeRoundsQuiz([classicRound('r1', [clues, pin])]);
   const clued = must(submitAnswer(tick(openAt(lobbyWith(cluesQuiz, 'Оля', 'Петро'), T0), T0 + 5000), 'p1', { type: 'clues', value: 'Шевченко' }, T0 + 6000));
+  // 10d: стіна з поступом Олі (одна група й одна помилка) — Play.wall, WallProgress; сховане слово «хмари» — Play.cloudHidden.
+  let walled = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [wall])]), 'Оля', 'Петро'), T0, () => 0);
+  const tilesAt = (...ids: string[]) => ids.map((id) => walled.presented.indexOf(id));
+  walled = must(guessWall(walled, 'p1', tilesAt('r1', 'r2', 'r3', 'r4'), T0 + 1000));
+  walled = must(guessWall(walled, 'p1', tilesAt('m1', 'm2', 'm3', 'l1'), T0 + 2000));
+  const hidden: GameState = { ...walled, plays: walled.plays.map((p) => ({ ...p, cloudHidden: ['лайка'] })) };
   return [
+    walled,
+    hidden,
     clued,
     slid,
     must(submitAnswer(toBuffQuestion(), 'p2', kyiv, T0 + 3000)),
@@ -373,6 +409,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -407,6 +444,7 @@ describe('the saved state', () => {
       add('DuelQuestionPlay', s.duel?.questions ?? []);
       add('ScoreAdjustment', s.adjustments);
       add('Splash', [s.splash]);
+      add('WallProgress', s.plays.flatMap((p) => Object.values(p.wall ?? {})));
       // стан без змін переживає JSON
       expect(roundTrip(s)).toEqual(s);
     }

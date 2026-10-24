@@ -36,6 +36,8 @@ function rotate<T>(items: T[], step: number): T[] {
 
 /** Зсув варіантів по колу на step позицій (single/multi; у сортуванні — зони категорій; інші типи без змін). */
 export function rotateChoices(question: PublicQuestion, step: number): PublicQuestion {
+  // Стіна: позиції плиток мають лишатися справжніми, тож запитання не змінюється.
+  if (question.type === 'wall') return question;
   if (question.type === 'sort' && question.sort !== null) {
     const categories = rotate(question.sort.categories, step);
     return categories === question.sort.categories ? question : { ...question, sort: { ...question.sort, categories } };

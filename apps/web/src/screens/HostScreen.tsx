@@ -3,6 +3,10 @@ import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Gr
 import { secondsLeft } from '../clock';
 import { ChainBoard } from './ChainView';
 import { SortBoard } from './SortView';
+import { WallReveal } from './WallReveal';
+import { WallTable } from './WallTable';
+import { PollBars } from './PollBars';
+import { HostCloud } from './HostCloud';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -195,7 +199,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const live = phase !== 'lobby' && phase !== 'finished';
   const final = view.final;
   const isFinal = round?.type === 'final';
-  const base = MAIN_ACTION[phase];
+  // Опитування й хмара не мають відповіді: розкриття — це результати.
+  const votes = view.question?.type === 'poll' || view.question?.type === 'wordcloud';
+  const base = phase === 'locked' && votes ? { label: 'revealVotes' as const, event: 'host:next' as const } : MAIN_ACTION[phase];
   // «Як грати»: на останній сторінці «Далі» веде до гри, тож окрема «До гри» вже не потрібна.
   const guide = phase === 'guide' ? view.guide : null;
   const guideLast = guide !== null && guide.page >= guide.pages.length - 1;
@@ -225,12 +231,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const board = view.board;
   const chooserId = board?.turn?.playerId ?? null;
   // У полі оцінка йде одразу після відповіді вибравшого: у запитанні лише коли ведучий оцінює вручну.
-  // Сортування рахує бали за слова саме: ручної оцінки в нього немає (сервер її відхиляє).
+  // Сортування й стіна рахують бали самі: ручної оцінки в них немає (сервер її відхиляє).
   const canGradeBoard =
     board !== null &&
     blitz === null &&
     view.question !== null &&
     view.question.type !== 'sort' &&
+    view.question.type !== 'wall' &&
     chooserId !== null &&
     ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
   const voiceCell = blitz === null && board?.cell?.answerMode === 'voice';
@@ -258,6 +265,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
   const clip = view.question?.audio?.clip ?? null;
   const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz' && !isFinal;
+
+  // Лічильники опитування: з відповідей, ще до розкриття.
+  const voteCounts: Record<string, number> = {};
+  for (const response of view.responses) {
+    if (response.answer?.type === 'poll') voteCounts[response.answer.optionId] = (voteCounts[response.answer.optionId] ?? 0) + 1;
+  }
 
   const act = async (event: HostEvent, payload?: unknown) => {
     const result = await send(event, payload);
@@ -544,7 +557,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               />
             </div>
           )}
-          {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
@@ -810,10 +823,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                         <>
                           {response.buff !== null && <BuffBadge kind={response.buff} />}
                           {response.spare !== null && <SpareMark spare={response.spare} />}
-                          <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
-                            {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
-                          </span>
-                          <span className="score">{num(response.points)}</span>
+                          {response.grade !== null && (
+                            <>
+                              <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
+                                {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
+                              </span>
+                              <span className="score">{num(response.points)}</span>
+                            </>
+                          )}
                         </>
                       )}
                     </>
@@ -854,8 +871,41 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {/* Стіна: ведучий бачить групи завжди й поступ кожного гравця наживо. */}
+      {correct?.type === 'wall' && (
+        <section className="panel host-wall">
+          <h2>
+            {t('hostWallTitle')}
+            <HelpButton id="question.wall" />
+          </h2>
+          <WallReveal question={correct} />
+          {view.wall !== null && <WallTable info={view.wall} />}
+        </section>
+      )}
+
+      {correct?.type === 'poll' && view.question !== null && (
+        <section className="panel host-poll">
+          <h2>
+            {t('hostPollTitle')}
+            <HelpButton id="question.poll" />
+          </h2>
+          <PollBars choices={view.question.choices} counts={voteCounts} total={view.responses.length} />
+        </section>
+      )}
+
+      {view.question?.type === 'wordcloud' && view.cloud !== null && (
+        <section className="panel">
+          <h2>
+            {t('hostCloudTitle')}
+            <HelpButton id="question.wordcloud" />
+          </h2>
+          <p className="meta">{t('cloudHideHint')}</p>
+          <HostCloud words={view.cloud} onHide={(key, hidden) => void act('host:cloud-hide', { key, hidden })} />
+        </section>
+      )}
+
       {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
-      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.sort !== null) && !isFinal && phase === 'question') && (
+      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (
@@ -882,7 +932,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   </span>
                   {response.clue !== null && <span className="meta">{t('clueAt', { n: response.clue })}</span>}
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
-                  {!isFinal && (
+                  {!isFinal && response.grade !== null && (
                     <>
                       <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                         {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}

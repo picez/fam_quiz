@@ -172,6 +172,67 @@ export const pin = {
   zeroRadius: 15,
 } satisfies Question;
 
+const tiles = (prefix: string, ...texts: string[]) => texts.map((text, i) => ({ id: `${prefix}${i + 1}`, text }));
+
+/** Стіна 4×4: групи gr (r1…r4), gm (m1…m4), gl (l1…l4), gi (i1…i4); 1000 балів, 3 помилки, 90 с; до типового списку makeQuiz не входить. */
+export const wall = {
+  ...base,
+  id: 'q13',
+  type: 'wall',
+  text: 'Знайдіть зв’язки',
+  timeLimit: 90,
+  points: 1000,
+  mistakes: 3,
+  groups: [
+    { id: 'gr', name: 'Річки', tiles: tiles('r', 'Дніпро', 'Десна', 'Рось', 'Псел') },
+    { id: 'gm', name: 'Гори', tiles: tiles('m', 'Говерла', 'Петрос', 'Піп Іван', 'Бребенескул') },
+    { id: 'gl', name: 'Озера', tiles: tiles('l', 'Світязь', 'Синевир', 'Ялпуг', 'Кагул') },
+    { id: 'gi', name: 'Острови', tiles: tiles('i', 'Хортиця', 'Джарилгач', 'Зміїний', 'Бірючий') },
+  ],
+} satisfies Question;
+
+/** Стіна 3×3: групи ga (a1…a3), gb (b1…b3), gc (c1…c3); 900 балів, 2 помилки, 60 с. */
+export const wall3 = {
+  ...base,
+  id: 'q14',
+  type: 'wall',
+  text: 'Швидка стіна',
+  timeLimit: 60,
+  points: 900,
+  mistakes: 2,
+  groups: [
+    { id: 'ga', name: 'Фрукти', tiles: tiles('a', 'Яблуко', 'Груша', 'Слива') },
+    { id: 'gb', name: 'Птахи', tiles: tiles('b', 'Сова', 'Лелека', 'Чапля') },
+    { id: 'gc', name: 'Метали', tiles: tiles('c', 'Мідь', 'Залізо', 'Олово') },
+  ],
+} satisfies Question;
+
+/** Опитування: три варіанти, без правильного, 0 балів, 20 с; до типового списку makeQuiz не входить. */
+export const poll = {
+  ...base,
+  id: 'q15',
+  type: 'poll',
+  text: 'Найкраща пора року?',
+  timeLimit: 20,
+  points: 0,
+  options: [
+    { id: 'a', text: 'Весна' },
+    { id: 'b', text: 'Літо' },
+    { id: 'c', text: 'Осінь' },
+  ],
+} satisfies Question;
+
+/** «Хмара слів»: до 3 слів, 0 балів, 30 с; до типового списку makeQuiz не входить. */
+export const cloud = {
+  ...base,
+  id: 'q16',
+  type: 'wordcloud',
+  text: 'З чим асоціюється Київ?',
+  timeLimit: 30,
+  points: 0,
+  words: 3,
+} satisfies Question;
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 

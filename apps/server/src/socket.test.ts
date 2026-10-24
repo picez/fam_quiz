@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withAudio, withId } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, wall, withAudio, withId } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -444,6 +444,85 @@ describe('host presence', () => {
     expect(await send(olena, 'player:sort', { wordId: card, categoryId: other })).toEqual({ ok: true });
     expect(await send(olena, 'player:sort', { wordId: card, categoryId: category })).toEqual({ ok: false, error: 'sort_locked' });
     expect(await send(olena, 'player:answer', { type: 'sort' })).toMatchObject({ ok: false });
+  });
+
+  /** Позиції плиток групи в порядку показу: тест бере їх із кімнати, телефон ідів плиток не знає. */
+  const groupAt = (code: string, groupId: string) => {
+    const room = ctx.manager.get(code);
+    if (room === undefined) throw new Error('room missing');
+    const group = wall.groups.find((g) => g.id === groupId);
+    if (group === undefined) throw new Error('no group');
+    return group.tiles.map((tile) => room.state.presented.indexOf(tile.id));
+  };
+
+  it('player:wall finds a group and the phone gets it by position', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([wall, single]))).game;
+    const { host, olena } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, (v) => v.role === 'player' && v.phase === 'question');
+    const tiles = groupAt(created.code, 'gr');
+    expect(await send(olena, 'player:wall', { tiles })).toEqual({ ok: true });
+    const view = await until(olena, (v) => v.role === 'player' && (v.me.wall?.found.length ?? 0) === 1);
+    if (view.role !== 'player') throw new Error('not a player');
+    expect([...(view.me.wall?.found[0].tiles ?? [])].sort((a, b) => a - b)).toEqual([...tiles].sort((a, b) => a - b));
+    expect(await send(olena, 'player:wall', { tiles })).toMatchObject({ ok: false });
+  });
+
+  it('player:wall: bad payload — invalid; the host cannot send it', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([wall, single]))).game;
+    const { host, stage, olena } = await lobby(created);
+    expect(await send(host, 'player:wall', { tiles: [0, 1, 2, 3] })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:wall', { tiles: [0, 1, 2, 3] })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:wall')).toEqual({ ok: false, error: 'invalid_payload' });
+    for (const payload of [{ tiles: [0, 1] }, { tiles: [0, 1, 2, 3, 4] }, { tiles: [0, 1, 2, 16] }, { tiles: [0, 1, 2, -1] }, { tiles: [0, 1, 2, 1.5] }, { tiles: 'abcd' }, {}]) {
+      expect(await send(olena, 'player:wall', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:wall', { tiles: [0, 1, 2, 3] })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('no socket frame to a phone carries the wall groups', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([wall, single]))).game;
+    const { host, olena } = await lobby(created);
+    const frames: string[] = [];
+    olena.socket.on('state', (view) => frames.push(JSON.stringify(view)));
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, (v) => v.role === 'player' && v.phase === 'question');
+    expect(await send(olena, 'player:wall', { tiles: groupAt(created.code, 'gr') })).toEqual({ ok: true });
+    await until(olena, (v) => v.role === 'player' && (v.me.wall?.found.length ?? 0) === 1);
+    expect(frames.length).toBeGreaterThan(1);
+    for (const frame of frames) {
+      for (const group of wall.groups) expect(frame).not.toContain(group.name);
+      expect(frame).not.toContain('"groups"');
+      for (const group of wall.groups) for (const tile of group.tiles) expect(frame).not.toContain(`"${tile.id}"`);
+    }
+  });
+
+  it('host:cloud-hide hides a word from the stage', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([cloud, single]))).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, (v) => v.role === 'player' && v.phase === 'question');
+    expect(await send(olena, 'player:answer', { type: 'wordcloud', words: ['лайка', 'Київ'] })).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', { type: 'wordcloud', words: ['київ'] })).toEqual({ ok: true });
+    // Обоє відповіли: запитання закрилося само, далі розкриття.
+    await until(host, inPhase('locked'));
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const shown = await until(stage, (v) => v.phase === 'reveal');
+    if (shown.role !== 'stage') throw new Error('not the stage');
+    expect(shown.cloud?.map((w) => w.key).sort()).toEqual(['київ', 'лайка']);
+
+    expect(await send(olena, 'host:cloud-hide', { key: 'лайка', hidden: true })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:cloud-hide', { hidden: true })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:cloud-hide', { key: 'лайка', hidden: true })).toEqual({ ok: true });
+    const hidden = await until(stage, (v) => v.role === 'stage' && v.cloud?.some((w) => w.key === 'лайка') === false);
+    if (hidden.role !== 'stage') throw new Error('not the stage');
+    expect(hidden.cloud?.map((w) => w.key)).toEqual(['київ']);
+    expect(JSON.stringify(hidden)).not.toContain('лайка');
+    expect(await send(host, 'host:cloud-hide', { key: 'лайка', hidden: false })).toEqual({ ok: true });
+    await until(stage, (v) => v.role === 'stage' && v.cloud?.some((w) => w.key === 'лайка') === true);
   });
 
   it('buff events are role-checked and validated', async () => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, emptyBrief, type HostDuel, type HostView, Question, RoundInfo } from '@quiz/shared';
+import { DEBUFF_KINDS, emptyBrief, type Answer, type HostDuel, type HostView, Question, RoundInfo } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -17,7 +17,7 @@ const options = [
 ];
 const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
 const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
-const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, audio: null, reveal: null });
+const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, audio: null, reveal: null });
 
 const players = [
   { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0, debuff: null },
@@ -62,6 +62,8 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   standings: [],
   sliderMarks: null,
   pinMarks: null,
+  wall: null,
+  cloud: null,
   ...over,
 });
 
@@ -1787,5 +1789,154 @@ describe('HostScreen clues and pin (10c)', () => {
     const sendPin = show(during('question', pinFull, { question: { ...publicOf(pinFull), pin: { map: 'world' as const, aspect: 2 } }, pinMarks: [] }));
     fireEvent.click(within(document.querySelector('.host-pin') as HTMLElement).getByRole('button', { name: 'Довідка: Точка на мапі' }));
     expect(sendPin).not.toHaveBeenCalled();
+  });
+});
+
+describe('HostScreen: wall, poll and word cloud (10d)', () => {
+  const names = ['Річки', 'Міста', 'Гори', 'Озера'];
+  const wallQ: Question = {
+    id: 'w1',
+    type: 'wall',
+    text: 'Знайдіть групи',
+    imageUrl: null,
+    video: null,
+    timeLimit: 90,
+    points: 1000,
+    mistakes: 3,
+    groups: names.map((name, g) => ({ id: `g${g}`, name, tiles: [0, 1, 2, 3].map((n) => ({ id: `t${g}${n}`, text: `${name}${n}` })) })),
+  };
+  const pollOptions = [
+    { id: 'a', text: 'Весна' },
+    { id: 'b', text: 'Літо' },
+  ];
+  const pollQ: Question = { id: 'p1', type: 'poll', text: 'Яка пора найкраща?', imageUrl: null, video: null, timeLimit: 20, points: 0, options: pollOptions };
+  const cloudQ: Question = { id: 'c1', type: 'wordcloud', text: 'З чим асоціюється Київ?', imageUrl: null, video: null, timeLimit: 30, points: 0, words: 3 };
+  const vote = (playerId: string, nickname: string, answer: Answer) => ({
+    playerId,
+    nickname,
+    answer,
+    timeMs: 1000,
+    accepted: null,
+    grade: null,
+    streakBonus: 0,
+    points: 0,
+    overridden: false,
+    buff: null,
+    spare: null,
+    clue: null,
+  });
+
+  it('the wall shows the groups with names and the live table, with no grading buttons', () => {
+    show(
+      during('question', wallQ, {
+        question: { ...publicOf(wallQ), wall: { tiles: [], size: 4, groupCount: 4, maxMistakes: 3 } },
+        wall: { groupCount: 4, rows: [{ playerId: 'p1', nickname: 'Олена', found: 2, mistakes: 1, locked: false, solved: false, points: null, tiles: [[0, 1, 2, 3]] }] },
+      }),
+    );
+    const panel = document.querySelector('.host-wall') as HTMLElement;
+    for (const name of names) expect(within(panel).getByText(name)).toBeTruthy();
+    expect(within(panel).getByText('Олена')).toBeTruthy();
+    expect(within(panel).getByText('2 / 4')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Неправильно' })).toBeNull();
+  });
+
+  it('a wall cell on the board shows no grade buttons and no correct-answer line in the reveal', () => {
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board'), times: null };
+    show(
+      during('reveal', wallQ, {
+        round: boardRound,
+        question: { ...publicOf(wallQ), wall: { tiles: [], size: 4, groupCount: 4, maxMistakes: 3 } },
+        wall: { groupCount: 4, rows: [] },
+        board: {
+          categories: [],
+          order: [],
+          turn: { playerId: 'p1', nickname: 'Олена' },
+          cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+          dice: null,
+          schedule: [],
+          scheduleRepeats: false,
+          skipAt: null,
+          marks: [],
+          marksHidden: false,
+          manual: false,
+          answer: null,
+        },
+      }),
+    );
+    for (const name of ['Зарахувати', 'Частково', 'Не зараховувати']) expect(screen.queryByRole('button', { name })).toBeNull();
+    expect(document.querySelector('.answer')).toBeNull();
+  });
+
+  it('the poll shows live bars from the responses and the reveal button is Показати результати', () => {
+    show(
+      during('locked', pollQ, {
+        question: { ...publicOf(pollQ), choices: pollOptions },
+        responses: [vote('p1', 'Олена', { type: 'poll', optionId: 'b' }), vote('p2', 'Тарас', { type: 'poll', optionId: 'b' }), vote('p3', 'Віра', { type: 'poll', optionId: 'a' })],
+      }),
+    );
+    expect(screen.getByText('67 % · 2')).toBeTruthy();
+    expect(screen.getByText('33 % · 1')).toBeTruthy();
+    expect(button('Показати результати')).toBeTruthy();
+  });
+
+  it('a vote row shows the answer but no verdict, no points and no grading buttons', () => {
+    show(
+      during('reveal', pollQ, {
+        question: { ...publicOf(pollQ), choices: pollOptions },
+        responses: [vote('p1', 'Олена', { type: 'poll', optionId: 'b' })],
+      }),
+    );
+    const row = document.querySelector('.rows li') as HTMLElement;
+    expect(within(row).getByText('Літо')).toBeTruthy();
+    expect(row.querySelector('.tag')).toBeNull();
+    expect(row.querySelector('.score')).toBeNull();
+    expect(within(row).queryByRole('button')).toBeNull();
+  });
+
+  it('a cloud vote row has no verdict mark either', () => {
+    show(during('question', cloudQ, { responses: [vote('p1', 'Олена', { type: 'wordcloud', words: ['каштани', 'Дніпро'] })], cloud: [] }));
+    const row = document.querySelector('.rows li') as HTMLElement;
+    expect(within(row).getByText('каштани, Дніпро')).toBeTruthy();
+    expect(row.querySelector('.tag')).toBeNull();
+    expect(row.querySelector('.is-wrong, .is-correct')).toBeNull();
+  });
+
+  it('a tap on a cloud word hides it, a hidden word comes back with another tap', () => {
+    const send = show(
+      during('question', cloudQ, {
+        cloud: [
+          { key: 'каштани', text: 'каштани', count: 2, hidden: false, by: ['Олена', 'Тарас'] },
+          { key: 'борщ', text: 'борщ', count: 1, hidden: true, by: ['Віра'] },
+        ],
+      }),
+    );
+    expect(screen.getByText('Торкніться слова, щоб сховати його з екрана. Ще дотик — повернути.')).toBeTruthy();
+    fireEvent.click(button('каштани'));
+    expect(send).toHaveBeenCalledWith('host:cloud-hide', { key: 'каштани', hidden: true });
+    fireEvent.click(button('борщ'));
+    expect(send).toHaveBeenCalledWith('host:cloud-hide', { key: 'борщ', hidden: false });
+  });
+
+  it('the wall, poll and cloud panels have ⓘ with their own entry; it sends nothing', () => {
+    const wallSend = show(
+      during('question', wallQ, {
+        question: { ...publicOf(wallQ), wall: { tiles: [], size: 4, groupCount: 4, maxMistakes: 3 } },
+        wall: { groupCount: 4, rows: [] },
+      }),
+    );
+    const wallPanel = document.querySelector('.host-wall') as HTMLElement;
+    fireEvent.click(within(wallPanel).getByRole('button', { name: "Довідка: Стіна зв'язків" }));
+    expect(wallSend).not.toHaveBeenCalled();
+    cleanup();
+    const pollSend = show(during('locked', pollQ, { question: { ...publicOf(pollQ), choices: pollOptions }, responses: [] }));
+    const pollPanel = document.querySelector('.host-poll') as HTMLElement;
+    fireEvent.click(within(pollPanel).getByRole('button', { name: 'Довідка: Опитування' }));
+    expect(pollSend).not.toHaveBeenCalled();
+    cleanup();
+    const cloudSend = show(during('question', cloudQ, { cloud: [] }));
+    const cloudPanel = screen.getByRole('heading', { name: /Хмара слів/ }).closest('section') as HTMLElement;
+    fireEvent.click(within(cloudPanel).getByRole('button', { name: 'Довідка: Хмара слів' }));
+    expect(cloudSend).not.toHaveBeenCalled();
   });
 });

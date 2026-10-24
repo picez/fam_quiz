@@ -100,6 +100,17 @@ export const LIMITS = {
   defaultPinZero: 15,
   pinMinAspect: 0.25,
   pinMaxAspect: 4,
+  /** Стіна зв'язків: символів у плитці й назві групи, ліміт помилок, типовий час (с). */
+  wallTile: 20,
+  wallGroupName: 40,
+  minWallMistakes: 1,
+  maxWallMistakes: 5,
+  defaultWallMistakes: 3,
+  defaultWallTime: 90,
+  /** «Хмара слів»: слів від гравця, символів у слові, слів на сцені. */
+  maxCloudWords: 3,
+  cloudWord: 24,
+  cloudShown: 40,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -107,6 +118,9 @@ export const PIN_MAPS = ['world', 'europe', 'ukraine'] as const;
 export type PinMap = (typeof PIN_MAPS)[number];
 /** Пропорції вбудованих мап = viewBox їхніх SVG (2000×1000, 1600×1200, 1600×1100). */
 export const PIN_MAP_ASPECT: Record<PinMap, number> = { world: 2, europe: 4 / 3, ukraine: 16 / 11 };
+
+/** Розміри стіни: 3×3 або 4×4 (груп = плиток у групі). */
+export const WALL_SIZES = [3, 4] as const;
 
 const share01 = z.number().finite().min(0).max(1);
 
@@ -200,7 +214,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Прийнятні написання відповіді («текст», «Хто я?»). */
@@ -316,10 +330,42 @@ export const questionSchema = z
       fullRadius: z.number().finite().min(0).max(LIMITS.pinMaxFullRadius),
       zeroRadius: z.number().finite().positive().max(LIMITS.pinMaxZeroRadius),
     }),
+    z.object({
+      ...base,
+      type: z.literal('wall'),
+      /** Групи: 4×4 або 3×3; гравці бачать назву зв'язку лише на розкритті. */
+      groups: z
+        .array(
+          z.object({
+            id: z.string().min(1).refine(isStorable, UNSTORABLE),
+            name: z.string().trim().min(1).max(LIMITS.wallGroupName).refine(isStorable, UNSTORABLE),
+            tiles: z
+              .array(
+                z.object({
+                  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+                  text: z.string().trim().min(1).max(LIMITS.wallTile).refine(isStorable, UNSTORABLE),
+                }),
+              )
+              .min(3)
+              .max(4),
+          }),
+        )
+        .min(3)
+        .max(4),
+      /** Скільки помилок до замикання стіни для гравця. */
+      mistakes: z.number().int().min(LIMITS.minWallMistakes).max(LIMITS.maxWallMistakes),
+    }),
+    z.object({ ...base, type: z.literal('poll'), options }),
+    z.object({
+      ...base,
+      type: z.literal('wordcloud'),
+      /** Скільки слів може написати гравець. */
+      words: z.number().int().min(1).max(LIMITS.maxCloudWords),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
-      q.type === 'single' || q.type === 'multi'
+      q.type === 'single' || q.type === 'multi' || q.type === 'poll'
         ? q.options.map((o) => o.id)
         : q.type === 'order'
           ? q.items.map((i) => i.id)
@@ -327,7 +373,9 @@ export const questionSchema = z
             ? q.pairs.flatMap((p) => [p.left.id, p.right.id])
             : q.type === 'sort'
               ? [...q.categories.map((c) => c.id), ...q.words.map((w) => w.id)]
-              : [];
+              : q.type === 'wall'
+                ? [...q.groups.map((g) => g.id), ...q.groups.flatMap((g) => g.tiles.map((t) => t.id))]
+                : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
     if (q.type === 'chain' && q.video !== null) ctx.addIssue({ code: 'custom', message: 'chain_video' });
     if (q.type === 'sort') {
@@ -360,6 +408,14 @@ export const questionSchema = z
       if (q.zeroRadius <= q.fullRadius) ctx.addIssue({ code: 'custom', message: 'pin_radius' });
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'pin_video' });
     }
+    if (q.type === 'wall') {
+      if (q.groups.some((g) => g.tiles.length !== q.groups.length)) ctx.addIssue({ code: 'custom', message: 'wall_shape' });
+      if (hasDuplicates(q.groups.flatMap((g) => g.tiles.map((t) => cloudKey(t.text))))) {
+        ctx.addIssue({ code: 'custom', message: 'wall_duplicate_tiles' });
+      }
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'wall_video' });
+    }
+    if ((q.type === 'poll' || q.type === 'wordcloud') && q.points !== 0) ctx.addIssue({ code: 'custom', message: 'vote_points' });
     if (q.audio !== undefined && q.video !== null) ctx.addIssue({ code: 'custom', message: 'audio_video' });
     if (q.reveal !== undefined) {
       if (q.imageUrl === null) ctx.addIssue({ code: 'custom', message: 'reveal_image' });
@@ -444,16 +500,54 @@ export function revealShare(timeMs: number, windowMs: number): number {
   return 1 - (1 - REVEAL_MIN_SHARE) * t;
 }
 
+/** Типи без балів (10d): не йдуть у таблицю, серії, точність і досягнення. */
+export const UNSCORED_TYPES = ['poll', 'wordcloud'] as const satisfies readonly Question['type'][];
+
+export function isUnscored(question: { type: Question['type'] }): boolean {
+  return (UNSCORED_TYPES as readonly string[]).includes(question.type);
+}
+
+/** Груп, що дають бали: остання група стіни складається сама й балів не дає. */
+export function wallScored(found: number, groups: number): number {
+  return Math.min(Math.max(found, 0), groups - 1);
+}
+
+/** Частка ціни стіни: wallScored / groups. */
+export function wallShare(found: number, groups: number): number {
+  return groups <= 0 ? 0 : wallScored(found, groups) / groups;
+}
+
+/** Ключ слова «хмари»: NFC, обрізано, пробіли зведено, апострофи ’ʼ‘` → ', toLocaleLowerCase('uk'). */
+export function cloudKey(word: string): string {
+  return word.normalize('NFC').trim().replace(/\s+/gu, ' ').replace(/[’ʼ‘`]/gu, "'").toLocaleLowerCase('uk');
+}
+
+/** Слова гравця: обрізані, пробіли зведено, без порожніх і повторів за cloudKey, не більше max. */
+export function cloudWords(words: readonly string[], max: number): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const word of words) {
+    const text = word.normalize('NFC').trim().replace(/\s+/gu, ' ');
+    const key = cloudKey(text);
+    if (key === '' || seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 /**
- * Бали за близькість відповіді (лише такі типи: повзунок і точка): частка вбудована, не залежить від правила «частково»,
+ * Бали за близькість відповіді чи кількість знайденого (повзунок, точка, стіна): частка вбудована, не залежить від правила «частково»,
  * правильна — частка ≥ 0,5 (14a). Картинка, що проявляється, сюди не входить: її спадання — плата за час, не правильність.
  */
 export function proximityPartial(question: Question): boolean {
-  return question.type === 'slider' || question.type === 'pin';
+  return question.type === 'slider' || question.type === 'pin' || question.type === 'wall';
 }
 
 /** Ціна запитання: для сортування — найбільша сума (слова × бали за слово), інакше points. */
 export function questionPrice(question: Question): number {
+  if (question.type === 'poll' || question.type === 'wordcloud') return 0;
   return question.type === 'sort' ? question.points * question.words.length : question.points;
 }
 
@@ -712,6 +806,15 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'pin' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'pin');
       if (pinPlace) ctx.addIssue({ code: 'custom', message: 'pin_place' });
+      // Стіна: класика й звичайна клітинка з телефона.
+      const wallPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'wall' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'wall');
+      if (wallPlace) ctx.addIssue({ code: 'custom', message: 'wall_place' });
+      // Опитування й «хмара слів»: лише класика.
+      const votePlace = round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'poll' || q.type === 'wordcloud');
+      if (votePlace) ctx.addIssue({ code: 'custom', message: 'vote_place' });
     }
     const { debuffs, buffs } = quiz.settings;
     if ((debuffs && hasDuplicates(debuffs)) || (buffs && hasDuplicates(buffs))) {
@@ -767,10 +870,15 @@ export function roundQuestions(round: Round): Question[] {
   return round.type === 'board' ? boardCells(round).map(({ cell }) => cell.question) : round.questions;
 }
 
+/** Скільки запитань раунду дають бали (опитування й хмари слів не рахуються). */
+function scoredCount(round: Round): number {
+  return roundQuestions(round).filter((q) => !isUnscored(q)).length;
+}
+
 /** ⌈запитань не-фінальних раундів / 3⌉; null — дуелей немає (немає duels або таких запитань 0). */
 export function duelThreshold(quiz: Quiz): number | null {
   if (quiz.duels === undefined) return null;
-  const count = quiz.rounds.reduce((sum, round) => (round.type === 'final' ? sum : sum + roundQuestions(round).length), 0);
+  const count = quiz.rounds.reduce((sum, round) => (round.type === 'final' ? sum : sum + scoredCount(round)), 0);
   return count === 0 ? null : Math.ceil(count / 3);
 }
 
@@ -787,7 +895,7 @@ export function duelCutoff(quiz: Quiz): number {
 export function duelShortfall(quiz: Quiz): number | null {
   if (quiz.duels === undefined) return null;
   const needed = duelThreshold(quiz) ?? 1;
-  const before = quiz.rounds.slice(0, duelCutoff(quiz)).reduce((sum, round) => sum + roundQuestions(round).length, 0);
+  const before = quiz.rounds.slice(0, duelCutoff(quiz)).reduce((sum, round) => sum + scoredCount(round), 0);
   return before >= needed ? null : needed;
 }
 

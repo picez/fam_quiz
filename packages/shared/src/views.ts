@@ -85,6 +85,10 @@ export interface PublicQuestion {
   clues: PublicClues | null;
   /** null для інших типів; картинка власної основи — у imageUrl. */
   pin: PublicPin | null;
+  /** null для інших типів; лише тексти плиток у порядку показу — ні груп, ні id. */
+  wall: PublicWall | null;
+  /** «Хмара слів»: скільки слів може написати гравець; null для інших типів. */
+  cloud: { words: number } | null;
   /** null — без аудіо. */
   audio: PublicAudio | null;
   /** null — звичайна картинка. */
@@ -175,9 +179,67 @@ export interface PlayerSort {
   timeMs: number | null;
 }
 
+/** Стіна без груп: лише тексти плиток у порядку показу; гравець надсилає позиції. */
+export interface PublicWall {
+  tiles: string[];
+  /** Плиток у групі (= груп): 3 або 4. */
+  size: number;
+  groupCount: number;
+  maxMistakes: number;
+}
+
+/** Стіна для самого гравця: лише власні знайдені групи (позиції), без назв. */
+export interface PlayerWall {
+  /** Знайдені групи в порядку знаходження; color — номер кольору (0…3). */
+  found: { tiles: number[]; color: number }[];
+  mistakes: number;
+  maxMistakes: number;
+  /** Стіну замкнено помилками. */
+  locked: boolean;
+  /** Склав усю стіну. */
+  solved: boolean;
+  /** question, не пауза, гравець складає тут, запису ще немає. */
+  canGuess: boolean;
+}
+
+export interface WallRow {
+  playerId: string;
+  nickname: string;
+  /** Знайдено груп разом з автоматичною. */
+  found: number;
+  mistakes: number;
+  locked: boolean;
+  solved: boolean;
+  /** Бали; лише на reveal, інакше null. */
+  points: number | null;
+  /** Позиції знайдених груп; лише на полі (стіна того, хто вибрав) і для пульта, інакше null. */
+  tiles: number[][] | null;
+}
+
+/** Поступ стіни. Пульт — з question; сцена в класиці — лише на reveal; на полі — усі ролі з question. */
+export interface WallInfo {
+  groupCount: number;
+  /** Порядок: склали (за часом), далі за found спаданням, далі за mistakes зростанням, далі в порядку гравців. На полі — лише той, хто вибрав. */
+  rows: WallRow[];
+}
+
+/** Слово хмари для сцени: без схованих і без авторів. */
+export interface CloudWord {
+  key: string;
+  text: string;
+  count: number;
+}
+
+/** Слово хмари для пульта: з позначкою «сховано» й нікнеймами авторів. */
+export interface HostCloudWord extends CloudWord {
+  hidden: boolean;
+  by: string[];
+}
+
 export interface RevealStats {
   answered: number;
-  accepted: number;
+  /** Скільки прийнято; null для запитань без балів (опитування, хмара). */
+  accepted: number | null;
   /** Кількість виборів за id варіанта; для boolean ключі "true" і "false". */
   counts: Record<string, number>;
 }
@@ -577,6 +639,8 @@ interface BaseView {
   chain: ChainInfo | null;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
   sort: SortInfo | null;
+  /** null поза стіною; див. WallInfo. */
+  wall: WallInfo | null;
   /** Останнє коригування балів ведучим; null — не було. */
   notice: AdjustmentNotice | null;
   /** Оголошена або поточна дуель; null — немає. */
@@ -643,6 +707,10 @@ export interface StageView extends BaseView {
   sliderMarks: SliderMark[] | null;
   /** Точки гравців: лише етап reveal запитання-точки; від найближчої, далі за нікнеймом. Інакше null. */
   pinMarks: PinMark[] | null;
+  /** «Хмара слів»: лише на reveal, без схованих, не більше LIMITS.cloudShown найчастіших. Інакше null. */
+  cloud: CloudWord[] | null;
+  /** Скільки гравців написали слова (для підпису «Написали N»); null поза хмарою на reveal. */
+  cloudVoters: number | null;
 }
 
 export interface PlayerResult {
@@ -676,6 +744,8 @@ export interface PlayerView extends BaseView {
     chain: PlayerChain | null;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
     sort: PlayerSort | null;
+    /** null поза стіною і для того, хто тут не складає (глядач на полі). */
+    wall: PlayerWall | null;
     /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера); by — нікнейм покупця (null — ведучий або покупця вилучено). */
     debuff: { kind: DebuffKind; since: number; by: string | null } | null;
     /** null — у вікторині немає дебафів чи купівлю вимкнено, немає суперників або етап lobby/guide/finished. */
@@ -703,8 +773,10 @@ export interface HostResponse {
   /** null — бліц, гравець натиснув, але не встиг відповісти. */
   answer: Answer | null;
   timeMs: number;
-  accepted: boolean;
-  grade: Grade;
+  /** null — голос у запитанні без балів (опитування, хмара): вердикту немає. */
+  accepted: boolean | null;
+  /** null — голос у запитанні без балів. */
+  grade: Grade | null;
   streakBonus: number;
   points: number;
   overridden: boolean;
@@ -745,6 +817,8 @@ export interface HostView extends BaseView {
   sliderMarks: SliderMark[] | null;
   /** Як у сцени, але з етапу question. */
   pinMarks: PinMark[] | null;
+  /** Уся хмара з question/locked/reveal, разом зі схованими. Інакше null. */
+  cloud: HostCloudWord[] | null;
 }
 
 export type GameView = StageView | PlayerView | HostView;

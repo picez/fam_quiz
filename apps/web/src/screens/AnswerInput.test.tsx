@@ -20,7 +20,7 @@ const question = (over: Partial<PublicQuestion>): PublicQuestion => ({
   timeLimit: 20,
   points: 1000,
   choices: cities,
-  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, audio: null, reveal: null,
+  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, audio: null, reveal: null,
   ...over,
 });
 
@@ -298,5 +298,23 @@ describe('AnswerInput', () => {
     fireEvent.click(button(/Київ/));
     fireEvent.click(button('Відповісти'));
     expect(onSubmit).toHaveBeenCalledWith({ type: 'multi', optionIds: ['b'] });
+  });
+
+  it('poll: a tap on an option sends it as a poll answer', () => {
+    const season = [
+      { id: 'a', text: 'Зима' },
+      { id: 'b', text: 'Літо' },
+    ];
+    const onSubmit = setup({ type: 'poll', choices: season, points: 0 });
+    fireEvent.click(button(/Літо/));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'poll', optionId: 'b' });
+  });
+
+  it('wordcloud: renders the word fields from the question', () => {
+    setup({ type: 'wordcloud', choices: [], points: 0, cloud: { words: 2 } });
+    expect(screen.getByLabelText('Слово 1')).toBeTruthy();
+    fireEvent.click(button('＋ Ще слово'));
+    expect(screen.getByLabelText('Слово 2')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '＋ Ще слово' })).toBeNull();
   });
 });

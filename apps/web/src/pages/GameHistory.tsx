@@ -1,5 +1,5 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { pinDistance, type GameAdjustment, type GameQuestionResult } from '@quiz/shared';
+import { cloudKey, isUnscored, pinDistance, type GameAdjustment, type GameQuestionResult } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
@@ -7,6 +7,8 @@ import { t } from '../i18n';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
 import { PinBoard, type PinBoardMark } from '../screens/PinBoard';
+import { WallReveal } from '../screens/WallReveal';
+import { PollBars } from '../screens/PollBars';
 import { usePrivateData } from '../usePrivateData';
 
 /** Точки гравців на мініатюрі запитання-точки (відповіді на основне) і найближча з них; для інших типів — порожньо. */
@@ -32,6 +34,46 @@ function HistoryPin({ question }: { question: GameQuestionResult }) {
       <PinBoard pin={{ map: q.map, aspect: q.aspect }} imageUrl={q.imageUrl} target={q.target} radii={{ full: q.fullRadius, zero: q.zeroRadius }} marks={marks} highlight={nearest} />
     </div>
   );
+}
+
+/** Голоси опитування за варіантами (відповіді на основне запитання). */
+export function historyPollCounts(question: GameQuestionResult): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const response of question.responses) {
+    if (response.spare === null && response.answer?.type === 'poll') counts[response.answer.optionId] = (counts[response.answer.optionId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** Слова хмари з відповідей: зведені через cloudKey, найчастіші першими; текст — найчастіше написання (за рівності — перше). Сховані ведучим — з позначкою. */
+// Рахує всі збережені рядки (і вилучених гравців), на відміну від живого cloudTally.
+export function historyCloudWords(question: GameQuestionResult): { key: string; text: string; count: number; hidden: boolean }[] {
+  const hidden = new Set(question.cloudHidden ?? []);
+  const words = new Map<string, { count: number; spellings: Map<string, number> }>();
+  for (const response of question.responses) {
+    if (response.spare !== null || response.answer?.type !== 'wordcloud') continue;
+    for (const word of response.answer.words) {
+      const key = cloudKey(word);
+      const entry = words.get(key) ?? { count: 0, spellings: new Map<string, number>() };
+      entry.count++;
+      entry.spellings.set(word, (entry.spellings.get(word) ?? 0) + 1);
+      words.set(key, entry);
+    }
+  }
+  return [...words.entries()]
+    .map(([key, { count, spellings }]) => {
+      let text = '';
+      let best = 0;
+      for (const [spelling, times] of spellings) if (times > best) [text, best] = [spelling, times];
+      return { key, text, count, hidden: hidden.has(key) };
+    })
+    .sort((x, y) => y.count - x.count || x.text.localeCompare(y.text, 'uk'));
+}
+
+/** Слова однієї відповіді хмари; сховані ведучим замінені на «приховано». */
+function cloudAnswerText(words: string[], hidden: string[] | undefined): string {
+  const set = new Set(hidden ?? []);
+  return words.map((word) => (set.has(cloudKey(word)) ? t('cloudHiddenWord') : word)).join(', ');
 }
 
 /** Рядки дуелей: пари 'duel' з сусідніми seq (+N і −N) — один рядок; непарне — окремо. */
@@ -157,7 +199,11 @@ export function GameHistory() {
                             </span>
                           </>
                         )}
-                        <span className="tag">{t('answeredStat', { answered: question.answered, accepted: question.accepted })}</span>
+                        <span className="tag">
+                          {isUnscored(question.question)
+                            ? t('votedStat', { voted: question.answered })
+                            : t('answeredStat', { answered: question.answered, accepted: question.accepted })}
+                        </span>
                         {question.final !== null && (
                           <div className="wager-list">
                             <h4>{t(question.final.mode === 'bank' ? 'historyFinalBank' : 'historyFinal')}</h4>
@@ -174,12 +220,23 @@ export function GameHistory() {
                           <p className="meta">{t('correctAnswer', { answer: correctText(question.question) })}</p>
                         )}
                         {question.question.type === 'pin' && <HistoryPin question={question} />}
+                        {question.question.type === 'wall' && <WallReveal question={question.question} />}
+                        {question.question.type === 'poll' && (
+                          <PollBars choices={choicesOf(question.question)} counts={historyPollCounts(question)} total={question.answered} />
+                        )}
+                        {question.question.type === 'wordcloud' && (
+                          <ul className="history-cloud">
+                            {historyCloudWords(question).map((word) => (
+                              <li key={word.key} className={word.hidden ? 'is-hidden' : undefined}>{`${word.hidden ? t('cloudHiddenWord') : word.text} · ${word.count}`}</li>
+                            ))}
+                          </ul>
+                        )}
                         {question.responses.length > 0 && (
                           <details className="responses">
                             <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
                             <ul>
                               {question.responses.map((response, at) => (
-                                <li key={at} className={response.accepted ? 'is-correct' : 'is-wrong'}>
+                                <li key={at} className={isUnscored(question.question) ? undefined : response.accepted ? 'is-correct' : 'is-wrong'}>
                                   <span className="responses-who">
                                     <span className="responses-name">{response.nickname}</span>
                                     {response.buff !== null && <BuffBadge kind={response.buff} />}
@@ -189,7 +246,11 @@ export function GameHistory() {
                                   {response.answer?.type === 'match' ? (
                                     <PairList pairs={pairTexts(response.answer.links, choicesOf(question.question))} tone="" />
                                   ) : (
-                                    <span className="responses-answer">{answerText(response.answer, response.spare ?? question.question)}</span>
+                                    <span className="responses-answer">
+                                      {response.answer?.type === 'wordcloud' && response.spare === null
+                                        ? cloudAnswerText(response.answer.words, question.cloudHidden)
+                                        : answerText(response.answer, response.spare ?? question.question)}
+                                    </span>
                                   )}
                                 </li>
                               ))}

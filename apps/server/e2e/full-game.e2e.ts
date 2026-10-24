@@ -7850,3 +7850,294 @@ async function cluesPinGame() {
 
   expect(problems).toEqual([]);
 }
+
+/** Торкається плиток стіни за текстами й (якщо не просили інакше) натискає «Перевірити». */
+async function pickWall(page: Page, texts: string[], submit = true): Promise<void> {
+  for (const text of texts) await page.locator(`.wall-tile[aria-label="${text}"]`).click();
+  if (submit) await click(page, 'Перевірити');
+}
+
+/** Кадри сокета до першого кадру з phase "reveal" (для перевірки витоку). */
+const framesBeforeReveal = (frames: string[]) => frames.slice(0, Math.max(0, frames.findIndex((f) => f.includes('"phase":"reveal"'))));
+
+/** Сума гравця в рядку «Гравці» пульта (не бали за запитання). */
+async function totalOf(host: Page, nickname: string): Promise<number> {
+  const text = await host.locator('.player-row', { hasText: nickname }).locator('.score').first().textContent();
+  return Number(text!.replace(/[^\d-]/g, ''));
+}
+
+/** Сцена 1280 × 720 не прокручується вниз. */
+async function expectStageFits(stage: Page, name: string) {
+  const height = (await stage.evaluate('document.documentElement.scrollHeight')) as number;
+  expect(height, `${name}: the stage scrolls (${height}px)`).toBeLessThanOrEqual(720);
+}
+
+it('part 10d: wall, poll and word cloud — the editor builds a wall (375 px too), wall groups never leak to phones or the stage, the phone finds groups and locks at the limit, the stage reveals groups with names, poll bars and a word cloud on the reveal, the host hides a word', async () => {
+  try {
+    await wallPollCloudGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function wallPollCloudGame() {
+  const host = await open('host10d', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10d@example.com');
+
+  const common = { imageUrl: null, video: null };
+  const tile = (prefix: string, texts: string[]) => texts.map((text, i) => ({ id: `${prefix}-${i + 1}`, text }));
+  const w1 = {
+    ...common,
+    id: 'w1',
+    type: 'wall' as const,
+    text: 'Знайдіть зв’язки',
+    points: 1000,
+    timeLimit: 90,
+    mistakes: 2,
+    groups: [
+      { id: 'g-river', name: 'Річки', tiles: tile('river', ['Дніпро', 'Десна', 'Рось', 'Псел']) },
+      { id: 'g-peak', name: 'Гори', tiles: tile('peak', ['Говерла', 'Петрос', 'Піп Іван', 'Бребенескул']) },
+      { id: 'g-lake', name: 'Озера', tiles: tile('lake', ['Світязь', 'Синевир', 'Ялпуг', 'Кагул']) },
+      { id: 'g-isle', name: 'Ост', tiles: tile('isle', ['Хортиця', 'Джарилгач', 'Зміїний', 'Бірючий']) },
+    ],
+  };
+  const season = (id: string, text: string) => ({ id, text });
+  const p1 = {
+    ...common,
+    id: 'p1',
+    type: 'poll' as const,
+    text: 'Найкраща пора року?',
+    points: 0,
+    timeLimit: 20,
+    options: [season('p1-spring', 'Весна'), season('p1-summer', 'Літо'), season('p1-autumn', 'Осінь'), season('p1-winter', 'Зима')],
+  };
+  const k1 = { ...common, id: 'k1', type: 'wordcloud' as const, text: 'Одним словом: з чим асоціюється Київ?', points: 0, timeLimit: 30, words: 3 };
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [w1, p1, k1] as never, { title: 'Стіна й голоси', speedBonus: false, rules: DEFAULT_RULES, shuffleOptions: false })]),
+    title: 'Стіна й голоси 10d',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const quizId = ((await saved.json()) as { id: string }).id;
+
+  // 1. Редактор.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Стіна й голоси 10d' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+
+  await host.getByRole('button', { name: /^Запитання 1 / }).click();
+  expect(await host.locator('.wall-group-edit').count()).toBe(4);
+  expect(await field(host, 'Помилок до замикання').inputValue()).toBe('2');
+  await host.getByText('Кожна група — 250 балів. Остання складається сама, тож за всю стіну — 750.', exact).waitFor();
+  await field(host, 'Назва групи 4').fill('Острови');
+  await shot(host, 'p10d-editor-wall');
+
+  const second = host.getByRole('group', { name: 'Група 2', ...exact });
+  await second.getByLabel('Плитка 1', exact).fill('Дніпро');
+  await click(host, 'Зберегти');
+  await host.locator('ul.problems').getByText('плитка «дніпро» повторюється', { exact: false }).waitFor();
+  await second.getByLabel('Плитка 1', exact).fill('Говерла');
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.locator('.wall-group-edit').last().scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10d-editor-wall-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await host.getByRole('button', { name: /^Запитання 2 / }).click();
+  await host.getByText('Правильної відповіді немає', { exact: false }).waitFor();
+  expect(await field(host, 'Бали').count(), 'a poll has no points field').toBe(0);
+  await host.getByText('Без балів', { exact: false }).first().waitFor();
+  await shot(host, 'p10d-editor-poll');
+
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as {
+    rounds: { questions?: { id: string; points: number; groups?: { name: string }[] }[] }[];
+  };
+  const [storedWall, storedPoll] = [stored.rounds[0]!.questions![0]!, stored.rounds[0]!.questions![1]!];
+  expect(storedWall.groups![3]!.name).toBe('Острови');
+  expect(storedWall.groups![1]!.name).toBe('Гори');
+  expect(storedPoll.points).toBe(0);
+
+  // 2. Гра.
+  await host.locator('.quiz-list li', { hasText: 'Стіна й голоси 10d' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10d', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya10d', 375, 812);
+  const petro = await open('petro10d', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await click(host, 'Почати гру');
+  await afterSplash(host, olya, petro, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, olya, petro, stage);
+
+  // 3. Стіна.
+  await stage.locator('.wall-tile').first().waitFor();
+  expect(await stage.locator('.wall-tile').count()).toBe(16);
+  expect(await stage.locator('[class*="wall-color-"]').count()).toBe(0);
+  await stage.getByText('Шукайте групи на телефоні', exact).waitFor();
+  await expectStageFits(stage, 'stage wall');
+  await shot(stage, 'p10d-stage-wall-question');
+
+  await olya.locator('.wall-tile').first().waitFor();
+  expect(await olya.getByRole('button', { name: 'Перевірити', ...exact }).isDisabled()).toBe(true);
+  await pickWall(olya, ['Дніпро', 'Десна', 'Рось', 'Псел']);
+  await expect.poll(async () => (await olya.locator('.wall-tile.wall-color-0').allTextContents()).sort()).toEqual(['Десна', 'Дніпро', 'Псел', 'Рось']);
+  expect(await olya.locator('.wall-grid .wall-tile').first().getAttribute('class')).toContain('wall-color-0');
+  await olya.getByRole('img', { name: 'Помилок: 0 з 2', ...exact }).waitFor();
+
+  await pickWall(olya, ['Говерла', 'Петрос', 'Світязь', 'Хортиця']);
+  await olya.getByRole('img', { name: 'Помилок: 1 з 2', ...exact }).waitFor();
+  expect(await olya.locator('.wall-tile.is-selected').count()).toBe(0);
+
+  await pickWall(olya, ['Світязь', 'Синевир'], false);
+  await olya.getByText('Вибрано 2 з 4', exact).waitFor();
+  await shot(olya, 'p10d-phone-wall');
+  await expectNoSideScroll(olya, 'p10d-phone-wall');
+  await pickWall(olya, ['Ялпуг', 'Кагул']);
+  await expect.poll(() => olya.locator('.wall-tile.wall-color-1').count()).toBe(4);
+
+  await pickWall(petro, ['Дніпро', 'Говерла', 'Світязь', 'Хортиця']);
+  await petro.getByRole('img', { name: 'Помилок: 1 з 2', ...exact }).waitFor();
+  await pickWall(petro, ['Десна', 'Петрос', 'Синевир', 'Джарилгач']);
+  await petro.getByText('Стіну замкнено', { exact: false }).waitFor();
+
+  await pickWall(olya, ['Говерла', 'Петрос', 'Піп Іван', 'Бребенескул']);
+  // Обидва закінчили: запитання закривається одразу, тож «Стіну складено!» може не встигнути з'явитися.
+  await host.getByText('Запитання закрите').waitFor();
+  await expect.poll(() => olya.locator('.wall-tile.wall-color-3').count()).toBe(4);
+
+  // Витік: до розкриття жодних груп, назв чи id плиток.
+  await click(host, 'Показати відповідь');
+  await stage.locator('.wall-reveal').waitFor();
+  for (const [who, frames] of [['olya', olyaFrames], ['petro', petroFrames], ['stage', stageFrames]] as const) {
+    const early = framesBeforeReveal(frames);
+    expect(early.length, `${who}: no frames before the reveal`).toBeGreaterThan(0);
+    const text = early.join('\n');
+    // Власна відповідь телефона містить лише число груп (`"groups":4`), а не самі групи.
+    for (const secret of ['Річки', 'Гори', 'Озера', 'Острови', '"groups":[', 'river-1', 'peak-1', 'lake-1', 'isle-1', 'g-river']) {
+      const at = text.indexOf(secret);
+      expect(at < 0, `${who} got «${secret}» before the reveal: ${text.slice(Math.max(0, at - 150), at + 150)}`).toBe(true);
+    }
+  }
+
+  const groups = stage.locator('.wall-reveal .wall-group');
+  expect(await groups.count()).toBe(4);
+  expect(await groups.allTextContents()).toEqual(
+    expect.arrayContaining([expect.stringContaining('Річки'), expect.stringContaining('Гори'), expect.stringContaining('Озера'), expect.stringContaining('Острови')]),
+  );
+  const olyaRow = stage.locator('.wall-table tbody tr', { hasText: 'Оля' });
+  const petroRow = stage.locator('.wall-table tbody tr', { hasText: 'Петро' });
+  expect(await olyaRow.textContent()).toMatch(/4 \/ 4.*склав/);
+  expect(await petroRow.textContent()).toMatch(/0 \/ 4.*замкнено/);
+  await expectStageFits(stage, 'stage wall reveal');
+  await shot(stage, 'p10d-stage-wall');
+  expect(await scoreOf(host, 'Оля')).toBe(750);
+  expect(await scoreOf(host, 'Петро')).toBe(0);
+  await olya.getByText('Груп: 4 з 4 · 750', { exact: false }).waitFor();
+  expect(await olya.locator('.wall-reveal .wall-group').count()).toBe(4);
+  await shot(olya, 'p10d-phone-wall-reveal');
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+
+  // 4. Опитування.
+  await stage.getByText('Проголосували 0 з 2', exact).waitFor();
+  for (const name of ['Весна', 'Літо', 'Осінь', 'Зима']) await stage.getByText(name, exact).waitFor();
+  expect(await stage.locator('.poll-bars').count()).toBe(0);
+  await olya.getByRole('button', { name: /Літо/ }).click();
+  await petro.getByRole('button', { name: /Літо/ }).click();
+  await olya.getByText('Голос прийнято', exact).waitFor();
+  const sent = await olya.locator('.sent').innerText();
+  expect(sent).not.toMatch(/бал|правильно/i);
+  const pollBar = (page: Page | ReturnType<Page['locator']>, name: string) => page.locator('.poll-bar', { hasText: name });
+  await host.getByText('Запитання закрите').waitFor();
+  await expect.poll(async () => await pollBar(host.locator('.host-poll'), 'Літо').textContent()).toContain('100 % · 2');
+  await click(host, 'Показати результати');
+  await stage.locator('.poll-bars').waitFor();
+  expect(await pollBar(stage, 'Літо').textContent()).toContain('100 % · 2');
+  expect(await pollBar(stage, 'Весна').textContent()).toContain('0 % · 0');
+  expect(await stage.getByText('Правильна відповідь', { exact: false }).count()).toBe(0);
+  await expectStageFits(stage, 'stage poll');
+  await shot(stage, 'p10d-stage-poll');
+  expect(await totalOf(host, 'Оля')).toBe(750);
+  expect(await totalOf(host, 'Петро')).toBe(0);
+  await olya.getByText('Результати — на екрані.', exact).waitFor();
+  await toNextQuestion(host);
+  await afterSplash(host, olya, petro, stage);
+
+  // 5. Хмара слів.
+  await stage.getByText('Пишіть до 3 слів на телефоні', exact).waitFor();
+  expect(await stage.locator('.word-cloud').count()).toBe(0);
+  await field(olya, 'Слово 1').fill('Каштани');
+  await click(olya, '＋ Ще слово');
+  await field(olya, 'Слово 2').fill('Лайкаслово');
+  await click(olya, 'Відповісти');
+  await field(petro, 'Слово 1').fill(' каштани ');
+  await click(petro, '＋ Ще слово');
+  await field(petro, 'Слово 2').fill('Дніпро');
+  await click(petro, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+
+  const hostWord = (name: string) => host.locator('.host-cloud').getByRole('button', { name, ...exact });
+  await hostWord('Лайкаслово').waitFor();
+  await hostWord('Дніпро').waitFor();
+  expect(await host.locator('.host-cloud li', { hasText: /каштани/i }).locator('.host-cloud-count').textContent()).toBe('2');
+  await hostWord('Лайкаслово').click();
+  await expect.poll(() => hostWord('Лайкаслово').getAttribute('aria-pressed')).toBe('true');
+  const box = (await hostWord('Лайкаслово').boundingBox())!;
+  expect(box.height, 'cloud word button is a tap target').toBeGreaterThanOrEqual(44);
+  await shot(host, 'p10d-host-cloud-hide');
+
+  await click(host, 'Показати результати');
+  await stage.locator('.word-cloud').waitFor();
+  const sizeOf = async (word: RegExp) =>
+    parseFloat(await stage.locator('.word-cloud .word', { hasText: word }).evaluate((el) => (globalThis as unknown as { getComputedStyle: (e: unknown) => { fontSize: string } }).getComputedStyle(el).fontSize));
+  expect(await sizeOf(/каштани/i)).toBeGreaterThan(await sizeOf(/Дніпро/));
+  expect(await stage.locator('.word-cloud').innerText()).not.toContain('Лайкаслово');
+  await expectStageFits(stage, 'stage cloud');
+  await shot(stage, 'p10d-stage-cloud');
+  for (const [who, frames] of [['stage', stageFrames], ['petro', petroFrames]] as const) {
+    expect(frames.join('\n').includes('Лайкаслово'), `${who} got the hidden word`).toBe(false);
+  }
+
+  // Повернути слово й сховати знову.
+  await hostWord('Лайкаслово').click();
+  await expect.poll(() => stage.locator('.word-cloud .word', { hasText: 'Лайкаслово' }).count()).toBe(1);
+  await hostWord('Лайкаслово').click();
+  await expect.poll(() => stage.locator('.word-cloud .word', { hasText: 'Лайкаслово' }).count()).toBe(0);
+  expect(await totalOf(host, 'Оля')).toBe(750);
+  expect(await totalOf(host, 'Петро')).toBe(0);
+
+  // 6. Історія.
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Стіна й голоси 10d/ }).click();
+  const items = host.locator('.rows.stacked > li');
+  await items.first().waitFor();
+  expect(await items.count()).toBe(3);
+  expect(await items.nth(0).locator('.wall-reveal .wall-group').count()).toBe(4);
+  expect(await items.nth(0).textContent()).toContain('Острови');
+  await items.nth(0).getByText('Відповіді (2)').click();
+  await items.nth(0).locator('.responses li', { hasText: 'Оля' }).getByText('Стіну складено, помилок: 1', { exact: false }).waitFor();
+  await items.nth(0).locator('.responses li', { hasText: 'Петро' }).getByText('0 з 4 груп, помилок: 2', { exact: false }).waitFor();
+  await items.nth(1).getByText('Проголосували: 2', exact).waitFor();
+  expect(await pollBar(items.nth(1), 'Літо').textContent()).toContain('100 % · 2');
+  await items.nth(2).getByText('Проголосували: 2', exact).waitFor();
+  const cloudWords = await items.nth(2).locator('.history-cloud li').allTextContents();
+  expect(cloudWords.some((w) => /^каштани · 2$/i.test(w))).toBe(true);
+  expect(cloudWords).toContain('Дніпро · 1');
+  expect(cloudWords).toContain('приховано · 1');
+  expect(cloudWords.join('\n')).not.toContain('Лайкаслово');
+  await shot(host, 'p10d-history');
+
+  expect(problems).toEqual([]);
+}

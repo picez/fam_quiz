@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { blitzRound, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, text, withId, withReveal } from '@quiz/engine/testing';
+import { blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, text, withId, withReveal } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
@@ -9,6 +9,8 @@ import { playToEnd } from './testing/final-game';
 import { follow, game, participant, profile, user } from './db/schema';
 import { ensureProfile, profileFacts, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
+import type { Room } from './rooms/manager';
+import { questionsOf } from '@quiz/shared';
 import { seedGame } from './testing/history-rows';
 
 const addUser = (db: Awaited<ReturnType<typeof createTestDb>>, id: string, name: string) =>
@@ -367,5 +369,55 @@ describe('profile facts', () => {
     const wrong = await play('Помилилась', 'Франко', 0.5);
     expect(wrong.stats.accuracy).toBe(80);
     expect(earned(wrong.achievements)).not.toContain('perfect_game');
+  });
+
+  /** Гра з акаунтом на одного гравця: колбек дає відповіді на запитання за номером, решту проходить пульт. */
+  const playFor = async (name: string, quiz: ReturnType<typeof makeQuiz>, act: (room: Room, playerId: string, index: number) => void) => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const player = await signUp(ctx.app, name);
+    const { game: created } = await startGame(ctx.app, quiz, host.cookie);
+    const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: name }, player.cookie)).json() as { playerId: string };
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    ctx.manager.connect(room, { role: 'player', playerId });
+    expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    for (let index = 0; index < questionsOf(quiz).length; index += 1) {
+      for (let i = 0; i < 4 && room.state.phase !== 'question'; i += 1) ctx.manager.host(room, { type: 'next' });
+      act(room, playerId, index);
+    }
+    for (let i = 0; i < 4 && room.state.phase !== 'finished'; i += 1) ctx.manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+    return profileFacts(db, await idOf(player.email));
+  };
+
+  it('profile accuracy ignores poll and cloud votes (10d)', async () => {
+    const quiz = makeQuiz([wall, poll, cloud, single], { speedBonus: false });
+    const group = (room: Room, id: string) => wall.groups.find((g) => g.id === id)?.tiles.map((t) => room.state.presented.indexOf(t.id)) ?? [];
+    const play = (name: string, groups: string[], pick: string) =>
+      playFor(name, quiz, (room, playerId, index) => {
+        if (index === 0) {
+          for (const id of groups) ctx.manager.wall(room, playerId, group(room, id));
+          ctx.manager.host(room, { type: 'lock' });
+        }
+        if (index === 1) ctx.manager.answer(room, playerId, { type: 'poll', optionId: 'a' });
+        if (index === 2) ctx.manager.answer(room, playerId, { type: 'wordcloud', words: ['Київ'] });
+        if (index === 3) ctx.manager.answer(room, playerId, { type: 'single', optionId: pick });
+      });
+
+    // Без опитування й хмари знаменник — 2 (стіна й single).
+    const right = await play('Стінолаз', ['gr', 'gm'], 'b');
+    expect(right.stats.accuracy).toBe(100);
+    const wrong = await play('Промах', ['gr'], 'a');
+    expect(wrong.stats.accuracy).toBe(0);
+  });
+
+  it('a game with one poll vote and all other answers correct still earns the perfect game and the streak (10d)', async () => {
+    const quiz = makeQuiz([single, withId(single, 's2'), poll, withId(single, 's3'), withId(single, 's4'), withId(single, 's5')], { speedBonus: false });
+    const facts = await playFor('Бездоганна', quiz, (room, playerId, index) => {
+      ctx.manager.answer(room, playerId, index === 2 ? { type: 'poll', optionId: 'c' } : { type: 'single', optionId: 'b' });
+    });
+    expect(facts.stats.accuracy).toBe(100);
+    expect(earned(facts.achievements)).toEqual(expect.arrayContaining(['perfect_game', 'streak_5']));
   });
 });

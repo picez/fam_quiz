@@ -1,8 +1,8 @@
 import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
-import type { Answer, BuffKind } from '@quiz/shared';
+import { isUnscored, type Answer, type BuffKind } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment } from './db/schema';
+import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
 
 export interface Recorder {
@@ -38,7 +38,9 @@ function signature(state: GameState): string {
   });
   const scores = state.players.map((p) => [p.id, p.score]);
   // Коригування не змінюють фазу, а рахунок можуть лишити тим самим (+50 і −50): рахуємо їх окремо.
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq]);
+  // Сховані слова хмари останнього закритого запитання теж варті запису.
+  const hidden = last < 0 ? null : (state.plays[last].cloudHidden ?? null);
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden]);
 }
 
 interface AnswerRow {
@@ -69,7 +71,9 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
     // у спільному банку бали не дорівнюють ±ставці.
     const silent = final !== undefined && payload === null;
     const wager = final === undefined ? null : Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
-    return [{ attempt: silent ? PENALTY_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden, wager, buff: record.buff ?? null, spareId: record.spare ?? null }];
+    // Голос в опитуванні чи «хмарі» — не відповідь для статистики: свій номер рядка.
+    const vote = isUnscored(state.plays[index].question);
+    return [{ attempt: silent ? PENALTY_ATTEMPT : vote ? VOTE_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden, wager, buff: record.buff ?? null, spareId: record.spare ?? null }];
   }
   const rows = attempts.map((attempt, number) => {
     // Бонус серії належить виграшній спробі; бали спроби в журналі бліцу його не містять.
@@ -109,6 +113,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       roundIndex: play.roundIndex,
       questionId: play.question.id,
       ...(play.board === undefined ? {} : { cell: { cellId: play.board.cellId, chooserId: play.board.chooserId } }),
+      ...(play.cloudHidden === undefined || play.cloudHidden.length === 0 ? {} : { cloudHidden: play.cloudHidden }),
     })),
     finishedAt: finished ? new Date() : null,
   };

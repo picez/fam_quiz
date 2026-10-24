@@ -28,6 +28,7 @@ import {
   boardSpareSource,
   cellAnswerMode,
   QUESTION_TYPES,
+  cloudKey,
   REVEAL_TYPES,
   type QuestionType,
 } from '@quiz/shared';
@@ -36,11 +37,20 @@ import { newId } from './new-id';
 
 export { QUESTION_TYPES, type QuestionType };
 
-/** Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?» і точки; поле — без ланцюжка; фінал — без «Хто я?» і точки; сортування — скрізь. */
+/**
+ * Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?», точки, стіни, опитування й хмари;
+ * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, опитування й хмари;
+ * сортування — скрізь; класика — усі.
+ */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
-  if (roundType === 'blitz') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin');
-  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain');
-  if (roundType === 'final') return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin');
+  const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
+  if (roundType === 'blitz') {
+    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin' && type !== 'wall' && !unscored(type));
+  }
+  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && !unscored(type));
+  if (roundType === 'final') {
+    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && !unscored(type));
+  }
   return QUESTION_TYPES;
 }
 
@@ -81,6 +91,19 @@ function build(common: Common, type: QuestionType): Question {
         fullRadius: LIMITS.defaultPinFull,
         zeroRadius: LIMITS.defaultPinZero,
       };
+    case 'wall':
+      return {
+        ...common,
+        video: null,
+        type,
+        timeLimit: LIMITS.defaultWallTime,
+        mistakes: LIMITS.defaultWallMistakes,
+        groups: Array.from({ length: 4 }, () => ({ id: newId(), name: '', tiles: blanks(4) })),
+      };
+    case 'poll':
+      return { ...common, type, points: 0, options: blanks(LIMITS.minOptions) };
+    case 'wordcloud':
+      return { ...common, type, points: 0, words: LIMITS.maxCloudWords };
     case 'order':
       return { ...common, type, items: blanks(LIMITS.minOrderItems) };
     case 'match':
@@ -130,13 +153,15 @@ export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === type) return question;
   const { id, text, imageUrl, video, timeLimit, points, hint, audio, reveal } = question;
   const keepsReveal = reveal !== undefined && (REVEAL_TYPES as readonly string[]).includes(type);
+  const unscored = (value: QuestionType) => value === 'poll' || value === 'wordcloud';
+  // Опитування й хмара без балів; з них в інший тип повертається типова ціна.
   const common: Common = {
     id,
     text,
     imageUrl,
     video,
     timeLimit,
-    points,
+    points: unscored(type) ? 0 : unscored(question.type) ? LIMITS.defaultPoints : points,
     ...(hint === undefined ? {} : { hint }),
     ...(audio === undefined ? {} : { audio }),
     ...(keepsReveal ? { reveal } : {}),
@@ -149,6 +174,10 @@ export function changeType(question: Question, type: QuestionType): Question {
     const firstCorrect = question.options.find((option) => question.correctIds.includes(option.id));
     return { ...common, type, options: question.options, correctId: (firstCorrect ?? question.options[0]).id };
   }
+  if (question.type === 'single' && type === 'poll') return { ...common, type, options: question.options };
+  if (question.type === 'multi' && type === 'poll') return { ...common, type, options: question.options };
+  if (question.type === 'poll' && type === 'single') return { ...common, type, options: question.options, correctId: question.options[0].id };
+  if (question.type === 'poll' && type === 'multi') return { ...common, type, options: question.options, correctIds: [question.options[0].id] };
   return build(common, type);
 }
 
@@ -196,6 +225,14 @@ export function duplicateQuestion(question: Question): Question {
       return { ...question, id, clues: [...question.clues], accepted: [...question.accepted] };
     case 'pin':
       return { ...question, id, target: { ...question.target } };
+    case 'wall':
+      return {
+        ...question,
+        id,
+        groups: question.groups.map((group) => ({ ...group, id: newId(), tiles: group.tiles.map((tile) => ({ ...tile, id: newId() })) })),
+      };
+    case 'poll':
+      return { ...question, id, options: question.options.map((option) => ({ ...option, id: newId() })) };
     case 'chain':
       return { ...question, id, words: [...question.words] };
     case 'sort': {
@@ -369,6 +406,10 @@ export function cleaned(quiz: Quiz): Quiz {
     switch (question.type) {
       case 'single':
         return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions, [question.correctId]) };
+      case 'poll':
+        return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions) };
+      case 'wall':
+        return { ...question, text, groups: question.groups.map((group) => ({ ...group, name: group.name.trim(), tiles: trimAll(group.tiles) })) };
       case 'multi': {
         const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
         const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
@@ -488,18 +529,22 @@ interface Place {
   reveal: boolean;
   clues: boolean;
   pin: boolean;
+  /** Стіна зв'язків: класика й звичайна клітинка з телефона. */
+  wall: boolean;
+  /** Опитування й хмара: лише класика. */
+  vote: boolean;
   /** Усна клітинка: інтервал підказок схований, тож порада «зменште інтервал» недоречна. */
   voice: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, voice: false };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, voice: false };
 /** Бліц і фінал: нічого з нового. Класика — усе. */
-const roundPlace = (round: Round): Place => (round.type === 'classic' ? ANYWHERE : { reveal: false, clues: false, pin: false, voice: false });
+const roundPlace = (round: Round): Place => (round.type === 'classic' ? ANYWHERE : { reveal: false, clues: false, pin: false, wall: false, vote: false, voice: false });
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, voice: normal && !phone };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, voice: normal && !phone };
 };
 
 /** Чи вистачає часу останній підказці: (n − 1) × інтервал + хвіст ≤ час. */
@@ -600,6 +645,20 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       }
       break;
     }
+    case 'wall': {
+      if (question.groups.some((group) => group.name === '' || group.tiles.some((tile) => tile.text === ''))) return 'problemWallEmpty';
+      if (duplicateTile(question) !== '') return 'problemWallDuplicate';
+      if (!Number.isInteger(question.mistakes) || question.mistakes < LIMITS.minWallMistakes || question.mistakes > LIMITS.maxWallMistakes) {
+        return 'problemWallMistakes';
+      }
+      break;
+    }
+    case 'poll':
+      if (question.options.some(isBlankOption)) return 'problemEmptyOption';
+      break;
+    case 'wordcloud':
+      if (!Number.isInteger(question.words) || question.words < 1 || question.words > LIMITS.maxCloudWords) return 'problemCloudWords';
+      break;
     case 'boolean':
       break;
   }
@@ -618,6 +677,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.reveal !== undefined && !place.reveal) return 'problemRevealPlace';
   if (question.type === 'clues' && !place.clues) return 'problemCluesPlace';
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
+  if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
+  if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';
   return questionSchema.safeParse(question).success ? null : 'problemGeneric';
 }
 
@@ -652,6 +713,19 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
   return null;
 }
 
+/** Перша плитка стіни, що повторюється (без урахування регістру, пробілів і апострофів), у вигляді, у якому її порівнює схема. */
+function duplicateTile(question: Extract<Question, { type: 'wall' }>): string {
+  const seen = new Set<string>();
+  for (const group of question.groups) {
+    for (const tile of group.tiles) {
+      const key = cloudKey(tile.text);
+      if (seen.has(key)) return key;
+      seen.add(key);
+    }
+  }
+  return '';
+}
+
 /** Текст проблеми запитання; числа меж підставляються з LIMITS, а для підказок ще й з самого запитання. */
 const problemText = (key: TextKey, index: number, question?: Question) =>
   t(key, {
@@ -662,6 +736,10 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     clueMax: LIMITS.maxClueSeconds,
     pinMax: LIMITS.pinMaxZeroRadius,
     pinFullMax: LIMITS.pinMaxFullRadius,
+    wallMin: LIMITS.minWallMistakes,
+    wallMax: LIMITS.maxWallMistakes,
+    cloudMax: LIMITS.maxCloudWords,
+    tile: question?.type === 'wall' ? duplicateTile(question) : '',
     ...(question?.type === 'clues' ? { count: question.clues.length, at: lastClueAt(question), need: lastClueAt(question) + LIMITS.clueTailSeconds } : {}),
   });
 
