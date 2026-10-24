@@ -7,6 +7,7 @@ import { CloudInput } from './CloudInput';
 import { MatchInput } from './MatchView';
 import { PinInput } from './PinInput';
 import { SliderInput } from './SliderInput';
+import { SurveyInput } from './SurveyInput';
 
 interface Props {
   question: PublicQuestion;
@@ -216,7 +217,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
     case 'wall':
       return null; // стіну веде PlayerScreen (WallInput), як сортування
     case 'survey':
-      return null; // задача 7
+      return question.survey === null ? null : <SurveyInput answers={question.survey.answers} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} />;
     case 'slider':
       return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} />;
   }

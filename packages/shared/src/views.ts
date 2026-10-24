@@ -131,6 +131,8 @@ export interface PlayerSurveyLine {
   rank: number | null;
   text: string | null;
   popularity: number | null;
+  /** Влучило в рядок, який ще закритий на табло: телефон не випереджає ведучого. */
+  pending: boolean;
 }
 
 export interface PublicChain {

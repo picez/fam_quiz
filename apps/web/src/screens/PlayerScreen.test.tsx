@@ -2044,4 +2044,86 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(screen.getByText('Каштани, Дніпро')).toBeTruthy();
     });
   });
+
+  describe('survey (10e)', () => {
+    const surveyPublic = { ...publicQuestion, type: 'survey' as const, choices: [], points: 1000, survey: { answers: 3, rows: 5 } };
+    const surveyFull = { ...fullQuestion, type: 'survey', rows: [] } as unknown as Question;
+    const sent = { type: 'survey' as const, values: ['Яблуко', 'ананас'] };
+    const closedRow = (rank: number) => ({ rank, open: false, text: null, popularity: null, by: null });
+
+    it('the input on the question: three fields', () => {
+      show(onQuestion({ question: surveyPublic }));
+      expect(screen.getAllByRole('textbox')).toHaveLength(3);
+    });
+
+    it('after sending: the sent screen with the own answers', () => {
+      show(onQuestion({ question: surveyPublic, me: { ...me, answer: sent } }));
+      expect(screen.getByText('Відповіді надіслано')).toBeTruthy();
+      expect(screen.getByText('Яблуко')).toBeTruthy();
+      expect(screen.getByText('ананас')).toBeTruthy();
+      expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+    });
+
+    it('the reveal: own lines with place and popularity, misses, and the board is on the stage', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: surveyPublic,
+          reveal: surveyFull,
+          me: {
+            ...me,
+            answer: sent,
+            survey: {
+              lines: [
+                { value: 'Яблуко', rank: 1, text: 'Яблуко', popularity: 32, pending: false },
+                { value: 'ананас', rank: null, text: null, popularity: null, pending: false },
+              ],
+            },
+            result: { accepted: false, accuracy: 0.32, grade: 'partial', streakBonus: 0, points: 320 },
+          },
+        }),
+      );
+      expect(screen.getByText('Яблуко — місце 1, 32')).toBeTruthy();
+      expect(screen.getByText('ананас — немає на табло')).toBeTruthy();
+      expect(screen.getByText('Табло — на екрані')).toBeTruthy();
+      expect(document.querySelector('main')!.textContent).not.toContain('Правильна відповідь');
+    });
+
+    it('a row not opened yet stays a plain answer: the phone does not spoil the reveal', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: surveyPublic,
+          reveal: surveyFull,
+          me: {
+            ...me,
+            answer: sent,
+            survey: {
+              lines: [
+                { value: 'Яблуко', rank: null, text: null, popularity: null, pending: true },
+                { value: 'ананас', rank: null, text: null, popularity: null, pending: false },
+              ],
+            },
+          },
+        }),
+      );
+      expect(screen.getByText('Яблуко')).toBeTruthy();
+      expect(screen.queryByText(/місце/)).toBeNull();
+      expect(screen.getByText('ананас — немає на табло')).toBeTruthy();
+    });
+
+    it('a spectator on a board cell sees the survey board', () => {
+      show(
+        onQuestion({
+          question: surveyPublic,
+          survey: { source: 'host', total: 5, shown: 0, rows: [1, 2, 3, 4, 5].map(closedRow) },
+          board: { turn: { playerId: 'p2', nickname: 'Тарас' }, cell: null } as never,
+        }),
+      );
+      expect(document.querySelectorAll('.survey-row.is-closed')).toHaveLength(5);
+      expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+    });
+  });
 });

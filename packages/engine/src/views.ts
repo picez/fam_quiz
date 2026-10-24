@@ -964,12 +964,15 @@ function playerSurvey(state: GameState, playerId: string): { lines: PlayerSurvey
   const record = currentRecord(state, playerId);
   if (open === null || !isRevealed(state) || record?.answer?.type !== 'survey') return null;
   const order = surveyOrder(open.question.rows);
+  const total = order.length;
+  const shown = surveyShown(state, open.play);
   const hits = surveyHitsOf(record.answer) ?? [];
   const lines = record.answer.values.map((value, i): PlayerSurveyLine => {
     const place = order.findIndex((row) => row.id === hits[i]);
-    return place < 0
-      ? { value, rank: null, text: null, popularity: null }
-      : { value, rank: place + 1, text: order[place].text, popularity: order[place].popularity };
+    if (place < 0) return { value, rank: null, text: null, popularity: null, pending: false };
+    // Свій рядок видно, лише коли ведучий відкрив його на табло (місце > total − shown).
+    if (place + 1 <= total - shown) return { value, rank: null, text: null, popularity: null, pending: true };
+    return { value, rank: place + 1, text: order[place].text, popularity: order[place].popularity, pending: false };
   });
   return { lines };
 }

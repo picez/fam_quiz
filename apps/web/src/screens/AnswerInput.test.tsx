@@ -317,4 +317,12 @@ describe('AnswerInput', () => {
     expect(screen.getByLabelText('Слово 2')).toBeTruthy();
     expect(screen.queryByRole('button', { name: '＋ Ще слово' })).toBeNull();
   });
+
+  it('survey: renders the answer fields and sends the non-empty ones', () => {
+    const onSubmit = setup({ type: 'survey', choices: [], points: 1000, survey: { answers: 2, rows: 5 } });
+    expect(screen.getAllByRole('textbox')).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText('Відповідь 1'), { target: { value: 'Яблуко' } });
+    fireEvent.click(button('Відповісти'));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'survey', values: ['Яблуко'] });
+  });
 });

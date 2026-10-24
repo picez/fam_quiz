@@ -99,20 +99,29 @@ describe('survey views', () => {
     expect(all.rows[0]).toEqual({ rank: 1, open: true, text: 'Яблуко', popularity: 32, by: ['Анна'] });
   });
 
-  it('the phone sees its own lines on the reveal', () => {
+  it('the phone sees its own lines only once their rows are opened', () => {
     let s = must(submitAnswer(openClassic(), 'p1', answer('Яблуко', 'ананас'), 1000));
     s = must(lock(s));
     expect(playerView(s, 'p1')!.me.survey).toBeNull();
     s = must(next(s, 2000, rng));
     const phone = playerView(s, 'p1')!;
+    // Рядок «Яблуко» (місце 1) ще закритий на табло: телефон не випереджає ведучого; «мимо» нічого не розкриває.
     expect(phone.me.survey).toEqual({
       lines: [
-        { value: 'Яблуко', rank: 1, text: 'Яблуко', popularity: 32 },
-        { value: 'ананас', rank: null, text: null, popularity: null },
+        { value: 'Яблуко', rank: null, text: null, popularity: null, pending: true },
+        { value: 'ананас', rank: null, text: null, popularity: null, pending: false },
       ],
     });
+    expect(JSON.stringify(phone.me.survey)).not.toContain('32');
     expect(phone.me.result?.points).toBe(320);
     expect(playerView(s, 'p2')!.me.survey).toBeNull();
+    s = must(revealSurveyAll(s));
+    expect(playerView(s, 'p1')!.me.survey).toEqual({
+      lines: [
+        { value: 'Яблуко', rank: 1, text: 'Яблуко', popularity: 32, pending: false },
+        { value: 'ананас', rank: null, text: null, popularity: null, pending: false },
+      ],
+    });
   });
 
   it('everything is open after the reveal', () => {
