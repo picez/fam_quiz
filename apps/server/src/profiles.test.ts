@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { bluff, blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal } from '@quiz/engine/testing';
+import { bluff, blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
+import { playWipeout } from './testing/wipeout-game';
 import { follow, game, participant, profile, user } from './db/schema';
 import { ensureProfile, profileFacts, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
@@ -456,5 +457,31 @@ describe('profile facts', () => {
     expect(petro.stats.accuracy).toBe(100);
     const olena = await play('Олена', false);
     expect(olena.stats.accuracy).toBe(0);
+  });
+
+  it('wipeout accuracy comes from the answers the player gave: the steps after burning have no rows (10g)', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const quiz = makeRoundsQuiz([wipeoutRound('w', wipeoutLadder)]);
+    const { game: created } = await startGame(ctx.app, quiz, host.cookie);
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const people: Record<string, { playerId: string; email: string }> = {};
+    for (const name of ['Згорів', 'Забрав', 'Дійшов', 'Мовчун']) {
+      const player = await signUp(ctx.app, name);
+      const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: name }, player.cookie)).json() as { playerId: string };
+      ctx.manager.connect(room, { role: 'player', playerId });
+      people[name] = { playerId, email: player.email };
+    }
+    const id = (name: string) => people[name].playerId;
+    playWipeout(ctx.manager, room, { [id('Згорів')]: [0], [id('Забрав')]: [0, 1, 2, 3, 4], [id('Дійшов')]: [0, 1, 2, 3, 4], [id('Мовчун')]: null }, { [id('Забрав')]: 1 });
+    expect(room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+    const accuracy = async (name: string) => (await profileFacts(db, await idOf(people[name].email))).stats.accuracy;
+    // Згорів: 1 з 2 відповідей; Забрав: 2 з 2 (далі не грав); Дійшов: 5 з 5.
+    expect(await accuracy('Згорів')).toBe(50);
+    expect(await accuracy('Забрав')).toBe(100);
+    expect(await accuracy('Дійшов')).toBe(100);
+    // Мовчун у грі на першій сходинці, тож його мовчання — одна невдала відповідь; далі він згорів і не грав.
+    expect(await accuracy('Мовчун')).toBe(0);
   });
 });

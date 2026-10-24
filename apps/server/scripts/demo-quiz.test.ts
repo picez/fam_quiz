@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, READY_BUFFS, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
+import { LIMITS, READY_BUFFS, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
@@ -402,5 +402,19 @@ describe('the bluff in the demo quiz', () => {
     expect(questionSchema.safeParse(ok).success).toBe(true);
     expect(ok).toMatchObject({ type: 'bluff', points: 1000, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime });
     expect(questionSchema.safeParse(bluff('Факт з …', ['Правда'], ['А'])).success).toBe(false);
+  });
+});
+
+describe('the wipeout round in the demo quiz (10g)', () => {
+  it('is valid, has five questions with rising prices and only wipeout types', () => {
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+    const round = demoQuiz.rounds.find((r) => r.type === 'wipeout');
+    if (round === undefined || round.type !== 'wipeout') throw new Error('no wipeout round');
+    expect(round.questions).toHaveLength(5);
+    expect(round.questions.map((question) => question.points)).toEqual([100, 200, 300, 400, 500]);
+    expect(round.questions.map((question) => question.type).sort()).toEqual([...WIPEOUT_TYPES].sort());
+    expect(demoQuiz.rounds.at(-1)?.type).toBe('final');
+    expect(demoQuiz.rounds.at(-2)).toBe(round);
+    expect(demoQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
   });
 });

@@ -40,7 +40,9 @@ function signature(state: GameState): string {
   // Коригування не змінюють фазу, а рахунок можуть лишити тим самим (+50 і −50): рахуємо їх окремо.
   // Сховані слова хмари останнього закритого запитання теж варті запису.
   const hidden = last < 0 ? null : (state.plays[last].cloudHidden ?? null);
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden]);
+  // Рішення «Ва-банк» не міняють фазу, а рахунок можуть лишити тим самим (банк 0): їх теж записуємо.
+  const wipeout = last < 0 ? null : (state.plays[last].wipeout ?? null);
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout]);
 }
 
 interface AnswerRow {
@@ -118,6 +120,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       ...(play.bluff?.stage === 'choice'
         ? { bluff: { options: play.bluff.options, picks: Object.fromEntries(Object.entries(play.bluff.picks).map(([id, pick]) => [id, pick.optionId])) } }
         : {}),
+      ...(play.wipeout === undefined ? {} : { wipeout: { took: play.wipeout.took, ...(play.wipeout.end ? { end: true as const } : {}) } }),
     })),
     finishedAt: finished ? new Date() : null,
   };

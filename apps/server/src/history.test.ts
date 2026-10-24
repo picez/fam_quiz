@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer, Question } from '@quiz/shared';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame, playerGames } from './history';
@@ -9,6 +9,7 @@ import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
+import { playWipeout } from './testing/wipeout-game';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { seedGame } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
@@ -1441,6 +1442,75 @@ describe('history: bluff (10f)', () => {
     expect(await correctOf('Петро')).toBe(1);
     expect(await correctOf('Оля')).toBe(0);
     expect(await correctOf('Віра')).toBe(0);
+    await local.app.close();
+  });
+});
+
+describe('history: wipeout (10g)', () => {
+  it('shows the ladder state of every participant after every step', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const quizId = ((await send('/api/quizzes', makeRoundsQuiz([wipeoutRound('w', wipeoutLadder), classicRound('c', [single])]), host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро', 'Віра']) {
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name }, (await signUp(local.app, name)).cookie)).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    // Оля згорає на другій сходинці, Петро забирає після другої, Віра доносить до кінця.
+    playWipeout(local.manager, room, { [ids['Оля']]: [0], [ids['Петро']]: [0, 1, 2, 3, 4], [ids['Віра']]: [0, 1, 2, 3, 4] }, { [ids['Петро']]: 1 });
+    expect(room.state.phase).toBe('round_end');
+    await local.recorder.idle();
+
+    const detail = (
+      await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
+    ).json() as {
+      standings: { nickname: string; score: number; correct: number }[];
+      questions: { index: number; wipeout?: { price: number; rows: { nickname: string; status: string; bank: number }[] } }[];
+    };
+    const at = (index: number) => {
+      const step = detail.questions[index].wipeout;
+      return { price: step?.price, rows: Object.fromEntries((step?.rows ?? []).map((r) => [r.nickname, [r.status, r.bank]])) };
+    };
+    expect(detail.questions).toHaveLength(5);
+    expect(at(0)).toEqual({ price: 100, rows: { Оля: ['in', 100], Петро: ['in', 100], Віра: ['in', 100] } });
+    expect(at(1)).toEqual({ price: 200, rows: { Оля: ['burned', 0], Петро: ['took', 300], Віра: ['in', 300] } });
+    expect(at(2)).toEqual({ price: 300, rows: { Оля: ['burned', 0], Петро: ['took', 300], Віра: ['in', 600] } });
+    expect(at(4)).toEqual({ price: 500, rows: { Оля: ['burned', 0], Петро: ['took', 300], Віра: ['survived', 1500] } });
+    // Правильні (прийняті) відповіді рахуються як завжди: Оля 1, Петро 2 (потім не грав), Віра 5.
+    expect(Object.fromEntries(detail.standings.map((s) => [s.nickname, [s.score, s.correct]]))).toEqual({ Оля: [0, 1], Петро: [300, 2], Віра: [1500, 5] });
+    await local.app.close();
+  });
+
+  it('a removed participant does not appear in the rows', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const quizId = ((await send('/api/quizzes', makeRoundsQuiz([wipeoutRound('w', wipeoutLadder)]), host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро']) {
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name }, (await signUp(local.app, name)).cookie)).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    playWipeout(local.manager, room, { [ids['Оля']]: [0, 1], [ids['Петро']]: [0, 1] }, {}, 2);
+    expect(local.manager.host(room, { type: 'kick', playerId: ids['Петро'] })).toEqual({ ok: true });
+    await local.recorder.idle();
+    const detail = (
+      await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
+    ).json() as { questions: { wipeout?: { rows: { nickname: string }[] } }[] };
+    expect(detail.questions.map((q) => q.wipeout?.rows.map((r) => r.nickname))).toEqual([['Оля'], ['Оля']]);
     await local.app.close();
   });
 });
