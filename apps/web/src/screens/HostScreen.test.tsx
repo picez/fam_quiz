@@ -1562,3 +1562,59 @@ describe('HostScreen: after the game', () => {
     expect(screen.queryByRole('link', { name: 'До вікторин' })).toBeNull();
   });
 });
+
+describe('host help', () => {
+  const classicRound: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+  const boardRound: RoundInfo = { ...classicRound, title: 'Поле', type: 'board', partial: true, brief: emptyBrief('board') };
+  const cellOf = (over: object) => ({ id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const, ...over });
+  const boardWith = (cell: ReturnType<typeof cellOf>): NonNullable<HostView['board']> => ({
+    categories: [],
+    order: [],
+    turn: null,
+    cell,
+    dice: null,
+    schedule: [],
+    scheduleRepeats: false,
+    skipAt: null,
+    marks: [],
+    marksHidden: false,
+    manual: false,
+    answer: null,
+  });
+
+  it('during a question the round and the question type have ⓘ; help sends nothing and the main button still works', () => {
+    const send = show(during('question', single, { round: classicRound, endsAt: Date.now() + 20_000 }));
+    const line = document.querySelector('.host-context') as HTMLElement;
+    expect(line.textContent).toContain('Розминка');
+    expect(line.textContent).toContain('Один правильний варіант');
+    fireEvent.click(within(line).getByRole('button', { name: 'Довідка: Один правильний варіант' }));
+    screen.getByRole('dialog', { name: 'Один правильний варіант' });
+    expect(send).not.toHaveBeenCalled();
+    const lock = button('Закрити запитання');
+    fireEvent.pointerDown(lock);
+    fireEvent.click(lock);
+    expect(send).toHaveBeenCalledWith('host:lock', undefined);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('the round intro has ⓘ next to its title', () => {
+    show(view({ phase: 'intro', round: classicRound }));
+    fireEvent.click(button('Довідка: Класичний'));
+    screen.getByRole('dialog', { name: 'Класичний' });
+  });
+
+  it('a board cell shows ⓘ of its kind', () => {
+    show(during('question', single, { round: boardRound, board: boardWith(cellOf({ kind: 'blitz' })) }));
+    button('Довідка: Бліц-клітинка');
+    cleanup();
+    show(during('question', single, { round: boardRound, board: boardWith(cellOf({ answerMode: 'voice' })) }));
+    button('Довідка: Відповідь уголос');
+  });
+
+  it('links to the host reference in a new tab', () => {
+    show(view({ phase: 'lobby' }));
+    const link = screen.getByRole('link', { name: 'Довідка ведучого' });
+    expect(link.getAttribute('href')).toBe('/help');
+    expect(link.getAttribute('target')).toBe('_blank');
+  });
+});
