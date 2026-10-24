@@ -116,9 +116,13 @@ export function PinFrame({ pin, imageUrl, point, onPlace, overlay }: Props) {
     startPan(rest);
   };
 
+  /** Кнопки наближають навколо поставленої точки (вона лишається на місці), без точки — навколо середини рамки. */
   const zoomBy = (factor: number) => {
     const b = box();
-    apply(zoomAround(viewRef.current, factor, b.width / 2, b.height / 2, b));
+    const v = viewRef.current;
+    // Власні координати рамки (шар трансформується всередині неї), тож «Дзеркало» вже враховане.
+    const anchor = point === null ? { x: b.width / 2, y: b.height / 2 } : { x: v.x + point.x * b.width * v.scale, y: v.y + point.y * b.height * v.scale };
+    apply(zoomAround(v, factor, anchor.x, anchor.y, b));
   };
 
   const unscale = 1 / view.scale;

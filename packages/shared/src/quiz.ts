@@ -390,9 +390,9 @@ export function cluesAt(question: { clues: readonly string[]; interval: number }
   return Math.min(total, 1 + Math.floor(elapsedMs / (question.interval * 1000)));
 }
 
-/** Частка ціни за відповідь після opened-ї з total підказок: (total − opened + 1) / total; opened притискається до 1…total. */
+/** Частка ціни за відповідь після opened-ї з total підказок: (total − opened + 1) / total; opened притискається до 1…total, NaN — як 1. */
 export function clueShare(total: number, opened: number): number {
-  const k = Math.min(total, Math.max(1, opened));
+  const k = Number.isNaN(opened) ? 1 : Math.min(total, Math.max(1, opened));
   return (total - k + 1) / total;
 }
 

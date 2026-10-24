@@ -1,5 +1,6 @@
 import { cluesAt, type Question } from '@quiz/shared';
 // game.ts імпортує цей файл, а цей файл — його; звертання лише під час виклику функцій.
+import { questionFor } from './buffs';
 import { fail, ok, withCurrentPlay, type GameState, type Play, type Result } from './game';
 import { clockOf } from './hold';
 import { notStarted } from './splash';
@@ -14,17 +15,21 @@ export function cluesOpen(play: Play): number {
   return play.clues ?? 1;
 }
 
-/** Поточне запитання «Хто я?» (те, що бачать усі) на етапі question; інакше null. */
+/**
+ * Поточне запитання «Хто я?» на етапі question, якщо його бачать усі; інакше null.
+ * На полі після заміни всі бачать запасне (простий тип), тож підказок основного вже немає — null.
+ */
 function openClues(state: GameState): { play: Play; question: Extract<Question, { type: 'clues' }> } | null {
   if (state.phase !== 'question') return null;
   const play = state.plays[state.questionIndex];
   if (play === undefined || play.question.type !== 'clues') return null;
+  if (play.board !== undefined && questionFor(state, play, play.board.chooserId) !== play.question) return null;
   return { play, question: play.question };
 }
 
 /**
  * Мить (час сервера), коли відкриється наступна підказка: startedAt + cluesOpen × interval × 1000.
- * null — не етап question, не «Хто я?» (на полі із заміною — те, що бачать усі), ведучий відкриває сам, усі відкриті, пауза, утримання або startedAt === null.
+ * null — не етап question, не «Хто я?», на полі вибирач замінив запитання запасним, ведучий відкриває сам (усна клітинка), усі відкриті, пауза, утримання або startedAt === null.
  */
 export function nextClueAt(state: GameState): number | null {
   const open = openClues(state);

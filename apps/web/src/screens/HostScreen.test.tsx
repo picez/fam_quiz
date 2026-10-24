@@ -1770,6 +1770,14 @@ describe('HostScreen clues and pin (10c)', () => {
     expect(document.querySelectorAll('.host-pin svg.pin-layer circle')).toHaveLength(2);
   });
 
+  it('an own picture of a pin is drawn once, by the pin board, not as a question image', () => {
+    const img = `/uploads/${'b'.repeat(32)}.png`;
+    const pinOwn: Question = { id: 'q6', type: 'pin', text: 'Де?', imageUrl: img, video: null, timeLimit: 20, points: 1000, map: null, aspect: 1.5, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+    show(during('question', pinOwn, { question: { ...publicOf(pinOwn), imageUrl: img, pin: { map: null, aspect: 1.5 } }, pinMarks: [] }));
+    expect(document.querySelector('img.question-image')).toBeNull();
+    expect(document.querySelectorAll(`.host-pin img[src="${img}"]`)).toHaveLength(1);
+  });
+
   it('has a help button on the clue panel and on the pin map that sends nothing', () => {
     const send = show(during('question', cluesFull, { question: cluesOf(2, { nextAt: Date.now() + 5000 }) }));
     fireEvent.click(within(document.querySelector('.host-clues') as HTMLElement).getByRole('button', { name: 'Довідка: Хто я?' }));

@@ -2,7 +2,7 @@ import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, quest
 import { HelpButton } from '../help/HelpButton';
 import { useEffect, useId, useState } from 'react';
 import { t } from '../i18n';
-import { moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
+import { fitCell, moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
 import { QuestionEditor } from './QuestionEditor';
 import { SparesEditor } from './SparesEditor';
 
@@ -55,15 +55,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
       category,
       cells.map((cell, i) => {
         if (i !== index) return cell;
-        const next = { ...cell, ...patch };
-        // «Хто я?» на усній клітинці: схований інтервал стає найменшим, щоб не вимагати зайвого часу.
-        if (next.question.type === 'clues' && next.kind === 'normal' && cellAnswerMode(round, next) === 'voice' && next.question.interval !== LIMITS.minClueSeconds) {
-          next.question = { ...next.question, interval: LIMITS.minClueSeconds };
-        }
-        // Картинка, що проявляється, не діє в бліц-клітинці й у відповіді вголос: режим прибирається.
-        if (next.question.reveal === undefined || (next.kind === 'normal' && cellAnswerMode(round, next) === 'phone')) return next;
-        const { reveal: _reveal, ...question } = next.question;
-        return { ...next, question: question as typeof next.question };
+        return fitCell(round, { ...cell, ...patch });
       }),
     );
 

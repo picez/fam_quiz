@@ -502,7 +502,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           {answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
           <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
-          <QuestionImage url={view.question.imageUrl} />
+          {view.question.pin === null && <QuestionImage url={view.question.imageUrl} />}
           {view.question.reveal !== null && view.question.imageUrl !== null && (
             <p className="meta reveal-tag">
               {t(view.question.reveal === 'pixels' ? 'revealTag_pixels' : 'revealTag_blur')}

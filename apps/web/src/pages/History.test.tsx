@@ -539,7 +539,7 @@ describe('GameHistory sort', () => {
 });
 
 describe('GameHistory pin (10c)', () => {
-  it('shows the map with the target and the circles and the distance of each answer', async () => {
+  it('shows the map with the target, the circles, every answer as a named mark (nearest highlighted) and the distance of each answer', async () => {
     const pinQ: Question = { ...base, id: 'q6', type: 'pin', text: 'Де Львів?', map: 'ukraine', aspect: 16 / 11, target: { x: 0.1, y: 0.4 }, fullRadius: 3, zeroRadius: 15 };
     vi.mocked(getGame).mockResolvedValue({
       ok: true,
@@ -548,7 +548,10 @@ describe('GameHistory pin (10c)', () => {
         questions: [
           {
             index: 0, roundIndex: 0, text: 'Де Львів?', type: 'pin', answered: 1, accepted: 1, cell: null, question: pinQ,
-            responses: [{ nickname: 'Олена', answer: { type: 'pin', x: 0.12, y: 0.4 }, buff: null, spare: null, accepted: true }],
+            responses: [
+              { nickname: 'Богдан', answer: { type: 'pin', x: 0.3, y: 0.5 }, buff: null, spare: null, accepted: false },
+              { nickname: 'Олена', answer: { type: 'pin', x: 0.12, y: 0.4 }, buff: null, spare: null, accepted: true },
+            ],
             final: null,
           },
         ],
@@ -558,6 +561,9 @@ describe('GameHistory pin (10c)', () => {
     expect(await screen.findByText('Точка за 2,0 % від правильної')).toBeTruthy();
     expect(document.querySelector('.history-pin .pin-target')).not.toBeNull();
     expect(document.querySelectorAll('.history-pin svg.pin-layer circle')).toHaveLength(2);
-    expect(document.querySelector('.history-pin .pin-mark')).toBeNull();
+    const marks = [...document.querySelectorAll('.history-pin .pin-mark')];
+    expect(marks.map((mark) => mark.getAttribute('aria-label'))).toEqual(['Богдан', 'Олена']);
+    expect(document.querySelector('.history-pin .pin-mark.is-best')?.getAttribute('aria-label')).toBe('Олена');
+    expect(document.querySelector('.history-pin .pin-mark.is-best .pin-label')?.textContent).toBe('Олена');
   });
 });

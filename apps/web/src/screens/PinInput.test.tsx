@@ -69,6 +69,31 @@ describe('PinInput', () => {
     expect(layer().style.transform).toContain('scale(1)');
   });
 
+  it('with a pin placed the zoom buttons zoom around the pin, which stays under the finger', () => {
+    const onSubmit = vi.fn();
+    render(<PinInput question={question} onSubmit={onSubmit} />);
+    tap(60, 30);
+    fireEvent.click(screen.getByRole('button', { name: 'Наблизити' }));
+    expect(layer().style.transform).toBe('translate(-30px, -15px) scale(1.5)');
+    tap(60, 30);
+    fireEvent.click(submit());
+    const answer = onSubmit.mock.calls[0][0] as { x: number; y: number };
+    expect(answer.x).toBeCloseTo(0.2);
+    expect(answer.y).toBeCloseTo(0.2);
+  });
+
+  it('under the mirror the zoom buttons also zoom around the pin', () => {
+    render(
+      <div className="is-mirror">
+        <PinInput question={question} onSubmit={() => {}} />
+      </div>,
+    );
+    tap(60, 30); // у дзеркалі це x = 240 рамки, тобто 0,8
+    expect((document.querySelector('.pin-mark.is-mine') as HTMLElement).style.left).toBe('80%');
+    fireEvent.click(screen.getByRole('button', { name: 'Наблизити' }));
+    expect(layer().style.transform).toBe('translate(-120px, -15px) scale(1.5)');
+  });
+
   it('a finger that moves more than a few pixels does not place the pin', () => {
     render(<PinInput question={question} onSubmit={() => {}} />);
     fireEvent.pointerDown(frame(), { pointerId: 1, clientX: 75, clientY: 75 });

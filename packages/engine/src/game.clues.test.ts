@@ -6,7 +6,7 @@ import { buffBlock, takeBuff } from './buffs';
 import { cluesAnswered, cluesOpen, nextClue, nextClueAt } from './clues';
 import { acceptAnswer, lock, next, override, pause, recordOf, repick, resume, start, submitAnswer, tick, type GameState, type Play } from './game';
 import { suspend } from './restore';
-import { boardRound, classicRound, clues, makeRoundsQuiz, withId } from './testing/fixtures';
+import { bool, boardRound, classicRound, clues, makeRoundsQuiz, withId } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 
 const right: Answer = { type: 'clues', value: 'Тарас Шевченко' };
@@ -144,6 +144,20 @@ describe('«Who am I?» on a board phone cell', () => {
     expect(nextClueAt(s)).toBe(13_000);
     expect(currentPlay(tick(s, 12_999)).clues).toBe(2);
     expect(currentPlay(tick(s, 13_000)).clues).toBe(3);
+  });
+});
+
+describe('«Who am I?» swapped away on a board cell', () => {
+  it('after the chooser swaps to a spare no clue ticks are scheduled or opened', () => {
+    const spare = withId(bool, 'sp1');
+    const round = boardRound('g1', [{ title: 'A', cells: [clues], spares: [spare] }], { answerMode: 'phone' });
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round], { buffs: ['swap'] }), 'Анна', 'Богдан')));
+    const picked = must(pickCell(must(next(intro, 0)), null, clues.id, 0, rng));
+    expect(nextClueAt(picked)).toBe(5000);
+    const s = must(takeBuff(picked, 'p1', 'swap', 1000, rng));
+    expect(nextClueAt(s)).toBeNull();
+    expect(nextDeadline(s, 1000)).not.toBe(5000);
+    expect(currentPlay(tick(s, 6000)).clues).toBe(1);
   });
 });
 

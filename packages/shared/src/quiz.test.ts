@@ -1246,6 +1246,13 @@ describe('clues (10c)', () => {
     expect([1, 2, 3, 4, 5].map((k) => clueShare(5, k))).toEqual([1, 0.8, 0.6, 0.4, 0.2]);
     expect(clueShare(5, 9)).toBe(0.2);
     expect(clueShare(5, 0)).toBe(1);
+    expect(clueShare(5, Number.NaN)).toBe(1);
+  });
+  it('a revealing picture is not allowed (reveal_type); audio is allowed', () => {
+    const img = `/uploads/${'b'.repeat(32)}.png`;
+    expect(issues({ ...cluesQ, imageUrl: img, reveal: 'blur' })).toContain('reveal_type');
+    expect(valid(questionSchema, { ...cluesQ, imageUrl: img })).toBe(true);
+    expect(valid(questionSchema, { ...cluesQ, audio: { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 0, duration: 20 } })).toBe(true);
   });
   it('the answer is a string', () => {
     expect(valid(answerSchema, { type: 'clues', value: 'Шевченко' })).toBe(true);
@@ -1286,6 +1293,15 @@ describe('pin (10c)', () => {
     expect(pinShare(pinQ, 0.66, 0.5)).toBe(0);
     expect(pinShare(pinQ, Number.NaN, 0.5)).toBe(0);
     expect(pinShare(pinQ, 1.2, 0.5)).toBe(0);
+  });
+  it('pinShare exactly on the circles: full radius pays all, zero radius pays nothing', () => {
+    expect(pinShare(pinQ, 0.53, 0.5)).toBe(1); // рівно 3 %
+    expect(pinShare(pinQ, 0.65, 0.5)).toBe(0); // рівно 15 %
+    expect(pinShare(pinQ, 0.5, 0.56)).toBe(1); // висота — половина ширини: 0,06 × 0,5 = 3 %
+  });
+  it('a revealing own picture is not allowed (reveal_type); audio is allowed', () => {
+    expect(issues({ ...pinQ, map: null, imageUrl: img, reveal: 'pixels' })).toContain('reveal_type');
+    expect(valid(questionSchema, { ...pinQ, audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } })).toBe(true);
   });
   it('proximityPartial: slider and pin only', () => {
     expect(proximityPartial(pinQ as unknown as Question)).toBe(true);

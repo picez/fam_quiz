@@ -7031,6 +7031,26 @@ label.powers-price {
   font-size: 1.2rem;
 }
 
+/* Сцена з точкою — рівно на екран: мапа бере всю решту висоти, а не штовхає «Найближче» за край. */
+.app.stage:has(.stage-pin) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.stage-question:has(.stage-pin) {
+  min-height: 0;
+  gap: 1.5vh;
+}
+
+/* Без порожнечі над мапою: рядок запитання займає лише свою висоту. */
+.stage-question:has(.stage-pin) .stage-main {
+  flex: 0 0 auto;
+}
+
+.stage-question:has(.stage-pin) .question {
+  font-size: clamp(1.5rem, 3.2vw, 3.25rem);
+}
+
 .stage-pin {
   display: flex;
   flex: 1 1 0;
@@ -7040,8 +7060,20 @@ label.powers-price {
   min-height: 0;
 }
 
-.stage-pin .pin-board {
-  width: min(100%, calc(52vh * var(--pin-aspect, 1)));
+.stage-pin-fit {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  align-self: stretch;
+  justify-content: center;
+  min-height: 0;
+  container-type: size;
+}
+
+/* Найбільша дошка, що вміщається в обгортку: ширина — менша з ширини й висоти × пропорцію (--pin-aspect задає PinBoard). */
+.stage-pin-fit .pin-board {
+  flex: none;
+  width: min(100cqw, calc(100cqh * var(--pin-aspect, 1)));
 }
 
 .pin-best {

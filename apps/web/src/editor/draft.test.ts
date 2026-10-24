@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
 import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
@@ -701,6 +701,21 @@ describe('board cell kinds and modes', () => {
     expect(next.answerMode).toBe('voice');
     expect(next.categories[0].cells[0].answerMode).toBe('phone');
     expect(next.categories[0].cells[1].answerMode).toBe('voice');
+  });
+
+  it('switching the round mode leaves no hidden clue interval on voice cells', () => {
+    const round = newBoardRound();
+    const [a, b, c] = round.categories[0].cells;
+    const clue = { ...newQuestion('clues'), interval: 8 } as Question;
+    const { answerMode: _drop, ...legacy } = c;
+    round.categories[0].cells = [{ ...a, answerMode: 'voice', question: clue }, { ...b, answerMode: 'phone', question: clue }, { ...legacy, question: clue }];
+    const toVoice = { ...round, answerMode: 'voice' as const };
+    const next = withDefaultMode(toVoice, 'voice');
+    const interval = (i: number) => (next.categories[0].cells[i].question as Extract<Question, { type: 'clues' }>).interval;
+    expect(interval(0)).toBe(LIMITS.minClueSeconds);
+    expect(interval(1)).toBe(8);
+    expect(interval(2)).toBe(LIMITS.minClueSeconds);
+    expect(withDefaultMode(round, 'phone').categories[0].cells[1].question).toBe(clue);
   });
 
   it('a stored draft keeps cell kinds, modes and penalties', () => {

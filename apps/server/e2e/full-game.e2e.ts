@@ -7612,6 +7612,12 @@ it('part 10c: «Who am I?» and pins — the editor builds both (375 px too), cl
 async function cluesPinGame() {
   const host = await open('host10c', 1280, 900);
   await register(host, 'host', 'Ірина Ведуча', 'host10c@example.com');
+  // Збірка кладе поруч із мапами стиснені копії, сервер віддає їх за Accept-Encoding.
+  for (const encoding of ['br', 'gzip']) {
+    const map = await host.request.get(`${base}/maps/world.svg`, { headers: { 'accept-encoding': encoding } });
+    expect(map.ok()).toBe(true);
+    expect(map.headers()['content-encoding'], `/maps/world.svg with ${encoding}`).toBe(encoding);
+  }
 
   const common = { imageUrl: null, video: null, points: 1000 };
   const FIVE = 'Я написав «Кобзар».';
@@ -7622,7 +7628,8 @@ async function cluesPinGame() {
     text: 'Хто я?',
     clues: ['Я народився в Моринцях.', 'Я був кріпаком.', 'Я художник і поет.', 'Мій портрет — на 100 гривнях.'],
     accepted: ['Шевченко', 'Тарас Шевченко'],
-    interval: 4,
+    // 3 × 8 + 5 = 29 ≤ 30; між підказками досить часу, щоб гравці встигли відповісти саме на потрібній.
+    interval: 8,
     timeLimit: 30,
   };
   const p1 = {
@@ -7674,10 +7681,11 @@ async function cluesPinGame() {
 
   await host.getByRole('button', { name: /^Запитання 1 / }).click();
   for (const n of [1, 2, 3, 4]) await field(host, `Підказка ${n}`).waitFor();
-  await host.getByText('Остання підказка відкриється на 12-й секунді з 30.', exact).waitFor();
+  await host.getByText('Остання підказка відкриється на 24-й секунді з 30.', exact).waitFor();
   await click(host, 'Додати підказку');
   await field(host, 'Підказка 5').fill(FIVE);
-  await host.getByText('Остання підказка відкриється на 16-й секунді з 30.', exact).waitFor();
+  // П'ята підказка піднімає час до 4 × 8 + 5 = 37 с.
+  await host.getByText('Остання підказка відкриється на 32-й секунді з 37.', exact).waitFor();
   await shot(host, 'p10c-editor-clues');
 
   await host.getByRole('button', { name: /^Запитання 2 / }).click();
@@ -7798,6 +7806,13 @@ async function cluesPinGame() {
   await stage.locator('.pin-circle-zero').waitFor({ state: 'attached' });
   await stage.getByText(/Найближче: Оля/).waitFor();
   await shot(stage, 'p10c-stage-pins');
+  // Сцена 1280 × 720 вміщає все разом із «Найближче», а мапа бере решту висоти.
+  const pageHeight = (await stage.evaluate('document.documentElement.scrollHeight')) as number;
+  const best = (await stage.locator('.pin-best').boundingBox())!;
+  const board = (await stage.locator('.stage-pin .pin-board').boundingBox())!;
+  expect(pageHeight, 'the stage pin reveal scrolls').toBeLessThanOrEqual(720);
+  expect(best.y + best.height).toBeLessThanOrEqual(720);
+  expect(board.height, 'the stage map is too small').toBeGreaterThanOrEqual(400);
   // Рядок пульта показує бали за запитання: коло повних балів, без бонусу за швидкість.
   expect(await scoreOf(host, 'Оля')).toBe(1000);
   expect(await scoreOf(host, 'Петро')).toBe(0);

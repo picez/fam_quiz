@@ -311,14 +311,17 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
       )}
       {question.pin !== null && (
         <div className="stage-pin">
-          <PinBoard
-            pin={question.pin}
-            imageUrl={question.imageUrl}
-            marks={reveal?.type === 'pin' ? (view.pinMarks ?? []) : []}
-            target={reveal?.type === 'pin' ? reveal.target : undefined}
-            radii={reveal?.type === 'pin' ? { full: reveal.fullRadius, zero: reveal.zeroRadius } : undefined}
-            highlight={reveal?.type === 'pin' ? view.pinMarks?.[0]?.playerId : undefined}
-          />
+          {/* Обгортка-контейнер: дошка бере найбільший розмір, що вміщається в решту висоти екрана, не розтягуючи мапу. */}
+          <div className="stage-pin-fit">
+            <PinBoard
+              pin={question.pin}
+              imageUrl={question.imageUrl}
+              marks={reveal?.type === 'pin' ? (view.pinMarks ?? []) : []}
+              target={reveal?.type === 'pin' ? reveal.target : undefined}
+              radii={reveal?.type === 'pin' ? { full: reveal.fullRadius, zero: reveal.zeroRadius } : undefined}
+              highlight={reveal?.type === 'pin' ? view.pinMarks?.[0]?.playerId : undefined}
+            />
+          </div>
           {reveal?.type === 'pin' && view.pinMarks !== null && view.pinMarks.length > 0 && view.pinMarks[0].points > 0 && (
             <p className="lead pin-best">{t('pinBest', { name: view.pinMarks[0].nickname, distance: pinDistanceText(reveal, view.pinMarks[0].x, view.pinMarks[0].y) })}</p>
           )}

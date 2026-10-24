@@ -295,14 +295,29 @@ export function newBoardRound(): BoardRound {
   };
 }
 
-/** Змінює типовий спосіб раунду; клітинки без власного способу спершу отримують попередній спосіб раунду явно. */
+/**
+ * Клітинка, узгоджена зі своїм видом і способом: «Хто я?» на звичайній усній клітинці отримує найменший (схований) інтервал,
+ * щоб не вимагати зайвого часу; картинка, що проявляється, поза звичайною клітинкою з телефона втрачає режим. Без змін — той самий об'єкт.
+ */
+export function fitCell(round: BoardRound, cell: BoardCell): BoardCell {
+  let next = cell;
+  const voice = next.kind === 'normal' && cellAnswerMode(round, next) === 'voice';
+  if (next.question.type === 'clues' && voice && next.question.interval !== LIMITS.minClueSeconds) {
+    next = { ...next, question: { ...next.question, interval: LIMITS.minClueSeconds } };
+  }
+  if (next.question.reveal === undefined || (next.kind === 'normal' && cellAnswerMode(round, next) === 'phone')) return next;
+  const { reveal: _reveal, ...question } = next.question;
+  return { ...next, question: question as Question };
+}
+
+/** Змінює типовий спосіб раунду; клітинки без власного способу спершу отримують попередній спосіб раунду явно; усні клітинки узгоджуються (fitCell). */
 export function withDefaultMode(round: BoardRound, mode: AnswerMode): BoardRound {
+  const next = { ...round, answerMode: mode };
   return {
-    ...round,
-    answerMode: mode,
+    ...next,
     categories: round.categories.map((category) => ({
       ...category,
-      cells: category.cells.map((cell) => ({ ...cell, answerMode: cell.answerMode ?? round.answerMode })),
+      cells: category.cells.map((cell) => fitCell(next, { ...cell, answerMode: cell.answerMode ?? round.answerMode })),
     })),
   };
 }

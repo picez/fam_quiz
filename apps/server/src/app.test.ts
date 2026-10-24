@@ -1,6 +1,7 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as joinPath } from 'node:path';
+import { brotliCompressSync, brotliDecompressSync, gunzipSync, gzipSync } from 'node:zlib';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { buildApp } from './app';
@@ -231,6 +232,33 @@ describe('serving the web client', () => {
     expect(page.statusCode).toBe(200);
     // If a page CSP is ever added, it must allow frame-src https://www.youtube-nocookie.com.
     expect(page.headers['content-security-policy']).toBeUndefined();
+    await served.app.close();
+  });
+
+  it('serves the maps precompressed when the browser accepts it', async () => {
+    const webRoot = mkdtempSync(joinPath(tmpdir(), 'quiz-web-'));
+    writeFileSync(joinPath(webRoot, 'index.html'), '<!doctype html><title>quiz</title>');
+    mkdirSync(joinPath(webRoot, 'maps'));
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg">${'<path d="M0 0L10 10"/>'.repeat(200)}</svg>`;
+    writeFileSync(joinPath(webRoot, 'maps', 'world.svg'), svg);
+    writeFileSync(joinPath(webRoot, 'maps', 'world.svg.br'), brotliCompressSync(svg));
+    writeFileSync(joinPath(webRoot, 'maps', 'world.svg.gz'), gzipSync(svg));
+    const served = await buildApp({ db, auth: TEST_AUTH, webRoot });
+    const get = (encoding?: string) => served.app.inject({ method: 'GET', url: '/maps/world.svg', headers: encoding === undefined ? {} : { 'accept-encoding': encoding } });
+
+    const br = await get('gzip, deflate, br');
+    expect(br.statusCode).toBe(200);
+    expect(br.headers['content-encoding']).toBe('br');
+    expect(br.headers['content-type']).toContain('image/svg+xml');
+    expect(brotliDecompressSync(br.rawPayload).toString()).toBe(svg);
+
+    const gz = await get('gzip');
+    expect(gz.headers['content-encoding']).toBe('gzip');
+    expect(gunzipSync(gz.rawPayload).toString()).toBe(svg);
+
+    const plain = await get();
+    expect(plain.headers['content-encoding']).toBeUndefined();
+    expect(plain.body).toBe(svg);
     await served.app.close();
   });
 
