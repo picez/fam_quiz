@@ -66,7 +66,7 @@ const question: PublicQuestion = {
   right: [],
   chain: null,
   sort: null,
-  orderLabels: null, slider: null, audio: null, reveal: null,
+  orderLabels: null, slider: null, clues: null, pin: null, audio: null, reveal: null,
 };
 
 const okSend = () => vi.fn(async () => ({ ok: true as const })) as unknown as Send & ReturnType<typeof vi.fn>;

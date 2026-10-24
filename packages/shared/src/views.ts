@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
-import type { AnswerMode, CellKind, CellMark, CellPenalty, Question, QuestionAudio, RevealMode, Round, Video, WagerMode } from './quiz';
+import type { AnswerMode, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, Video, WagerMode } from './quiz';
 import type { GuidePage } from './guide';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
@@ -18,6 +18,33 @@ export interface PublicSlider {
   max: number;
   step: number;
   unit: string;
+}
+
+/** «Хто я?» без прихованих підказок і відповіді. */
+export interface PublicClues {
+  total: number;
+  /** Відкриті підказки, від найважчої. */
+  shown: string[];
+  /** Мить наступної підказки (час сервера); null — ведучий відкриває сам, усі відкриті, пауза, утримання або не етап question. */
+  nextAt: number | null;
+  /** Наступну відкриває ведучий (усна клітинка). */
+  byHost: boolean;
+  intervalSeconds: number;
+}
+
+/** Основа точки без правильної точки й кіл. */
+export interface PublicPin {
+  map: PinMap | null;
+  aspect: number;
+}
+
+/** Точка гравця на мапі. */
+export interface PinMark {
+  playerId: string;
+  nickname: string;
+  x: number;
+  y: number;
+  points: number;
 }
 
 /** Аудіо запитання: тривалість — усім (табло «Слухайте»); джерело — лише сцені й пульту. */
@@ -54,6 +81,10 @@ export interface PublicQuestion {
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
   slider: PublicSlider | null;
+  /** null для інших типів. */
+  clues: PublicClues | null;
+  /** null для інших типів; картинка власної основи — у imageUrl. */
+  pin: PublicPin | null;
   /** null — без аудіо. */
   audio: PublicAudio | null;
   /** null — звичайна картинка. */
@@ -610,6 +641,8 @@ export interface StageView extends BaseView {
   standings: Standing[] | null;
   /** Позначки на шкалі: лише етап reveal запитання-повзунка поза фіналом; за відстанню до правильного, далі за нікнеймом. Інакше null. */
   sliderMarks: SliderMark[] | null;
+  /** Точки гравців: лише етап reveal запитання-точки; від найближчої, далі за нікнеймом. Інакше null. */
+  pinMarks: PinMark[] | null;
 }
 
 export interface PlayerResult {
@@ -678,6 +711,8 @@ export interface HostResponse {
   buff: BuffKind | null;
   /** Запасне запитання, на яке дано відповідь (з правильною відповіддю); null — основне. */
   spare: Question | null;
+  /** «Хто я?»: на якій підказці дано відповідь; інакше null. */
+  clue: number | null;
 }
 
 export interface HostPlayer extends LobbyPlayer {
@@ -708,6 +743,8 @@ export interface HostView extends BaseView {
   standings: Standing[];
   /** Як у сцени, але з етапу question (ведучий і так бачить відповіді). */
   sliderMarks: SliderMark[] | null;
+  /** Як у сцени, але з етапу question. */
+  pinMarks: PinMark[] | null;
 }
 
 export type GameView = StageView | PlayerView | HostView;

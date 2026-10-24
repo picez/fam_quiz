@@ -62,6 +62,8 @@ describe('while a question is open', () => {
       right: [],
       orderLabels: null,
       slider: null,
+      clues: null,
+      pin: null,
       audio: null,
       reveal: null,
       chain: null,
@@ -105,6 +107,7 @@ describe('while a question is open', () => {
         overridden: false,
         buff: null,
         spare: null,
+        clue: null,
       },
     ]);
   });
