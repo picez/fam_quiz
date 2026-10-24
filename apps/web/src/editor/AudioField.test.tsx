@@ -88,6 +88,7 @@ describe('AudioField', () => {
       onloadedmetadata: (() => void) | null = null;
       onended: (() => void) | null = null;
       pause = vi.fn();
+      removeAttribute = vi.fn();
       play = vi.fn(() => Promise.resolve());
       constructor() {
         clips.push(this);
@@ -109,6 +110,40 @@ describe('AudioField', () => {
     await waitFor(() => expect(clips).toHaveLength(2));
     view.unmount();
     expect(clips[1].pause).toHaveBeenCalled();
+  });
+
+  it('a preview stopped before the metadata arrives never plays', () => {
+    const made: { onloadedmetadata: (() => void) | null; play: ReturnType<typeof vi.fn> }[] = [];
+    class Clip {
+      currentTime = 0;
+      onloadedmetadata: (() => void) | null = null;
+      play = vi.fn(() => Promise.resolve());
+      pause = vi.fn();
+      removeAttribute = vi.fn();
+      set src(_value: string) {}
+      constructor() {
+        made.push(this);
+      }
+    }
+    vi.stubGlobal('Audio', Clip);
+    render(<AudioField audio={{ source: 'file', url: URL_MP3, start: 0, duration: 12 }} timeLimit={30} onChange={vi.fn()} onToVideo={vi.fn()} />);
+    const late = (() => {
+      fireEvent.click(screen.getByRole('button', { name: '▶ Прослухати фрагмент' }));
+      return made[0].onloadedmetadata;
+    })();
+    fireEvent.click(screen.getByRole('button', { name: '▶ Прослухати фрагмент' }));
+    expect(made[0].onloadedmetadata).toBeNull();
+    late?.();
+    expect(made[0].play).not.toHaveBeenCalled();
+  });
+
+  it('says so when the upload is discarded by the editor', async () => {
+    stubAudio(10);
+    answerWith(201, { url: URL_MP3 });
+    const onChange = vi.fn(() => false);
+    render(<AudioField audio={undefined} timeLimit={30} onChange={onChange} onToVideo={vi.fn()} />);
+    choose(file('audio/mpeg'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Аудіо не додано: до запитання вже додано відео.'));
   });
 
   it('refuses a wrong type and a big file without a request', () => {

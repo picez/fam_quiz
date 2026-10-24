@@ -690,7 +690,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             timeLimit={question.timeLimit}
             onChange={(audio) => {
               // Відео могли додати, поки файл вантажився: тоді аудіо відкидається.
-              if (latest.current.question.video !== null) return;
+              if (latest.current.question.video !== null) return false;
               const { audio: _old, ...rest } = latest.current.question;
               latest.current.onChange((audio === undefined ? rest : { ...rest, audio }) as Question);
             }}

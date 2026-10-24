@@ -61,8 +61,8 @@ function revive(stored: Question): Question {
       step: numberOr(base.step),
       correct: numberOr(base.correct),
       tolerance: numberOr(base.tolerance),
-      // NaN (сміття в полі межі нуля) у JSON стає null і повертається як NaN; порожнє поле — це відсутній ключ.
-      ...(typeof zeroBeyond === 'number' ? { zeroBeyond } : zeroBeyond === null ? { zeroBeyond: Number.NaN } : {}),
+      // Сміття в полі межі нуля (NaN) у JSON стає null і не відновлюється: поле покаже порожнім.
+      ...(typeof zeroBeyond === 'number' ? { zeroBeyond } : {}),
       ...(typeof unit === 'string' ? { unit } : {}),
     };
   }

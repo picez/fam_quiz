@@ -8,7 +8,8 @@ interface Props {
   audio: QuestionAudio | undefined;
   /** Час запитання, с: для підказки про відкладений таймер. */
   timeLimit: number;
-  onChange: (audio: QuestionAudio | undefined) => void;
+  /** false — зміну відкинуто (наприклад, відео додали, поки файл вантажився). */
+  onChange: (audio: QuestionAudio | undefined) => void | boolean;
   /** «Лише звук» знято: повернути YouTube-аудіо у відео. */
   onToVideo: (video: Video) => void;
 }
@@ -61,10 +62,20 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
   const player = useRef<HTMLAudioElement | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const stop = () => {
+  /** Зупиняє й відчіплює фрагмент: пізня подія метаданих уже нічого не зіграє. */
+  const release = () => {
     clearTimeout(stopTimer.current);
-    player.current?.pause();
+    const clip = player.current;
     player.current = null;
+    if (clip === null) return;
+    clip.onloadedmetadata = null;
+    clip.onerror = null;
+    clip.onended = null;
+    clip.pause();
+    clip.removeAttribute('src');
+  };
+  const stop = () => {
+    release();
     setPlaying(false);
   };
 
@@ -72,8 +83,7 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      clearTimeout(stopTimer.current);
-      player.current?.pause();
+      release();
     };
   }, []);
 
@@ -90,7 +100,10 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
     const [result, seconds] = await Promise.all([uploadAudio(file), fileSeconds(file)]);
     if (!mounted.current) return;
     setBusy(false);
-    if (result.ok) latest.current({ source: 'file', url: result.url, start: 0, duration: initialDuration(seconds) });
+    if (result.ok) {
+      const kept = latest.current({ source: 'file', url: result.url, start: 0, duration: initialDuration(seconds) });
+      if (kept === false) setError(t('audioDiscarded'));
+    }
     else setError(errorText(result.error));
   };
 
@@ -105,6 +118,7 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
     const seconds = Number.isFinite(audio.duration) ? audio.duration : LIMITS.defaultAudioSeconds;
     // Позицію можна ставити, лише коли метадані вже відомі.
     clip.onloadedmetadata = () => {
+      if (player.current !== clip) return;
       clip.currentTime = begin;
       void Promise.resolve(clip.play()).catch(stop);
       stopTimer.current = setTimeout(stop, seconds * 1000);

@@ -1179,7 +1179,7 @@ describe('slider, audio and revealing picture drafts (10b)', () => {
     const back = roundQuestions(loadDraft('slider-draft')!.rounds[0])[0];
     if (back.type !== 'slider') throw new Error('slider');
     expect(back.min).toBeNaN();
-    expect(back.zeroBeyond).toBeNaN();
+    expect('zeroBeyond' in back).toBe(false);
     expect('audio' in back).toBe(false);
     expect('reveal' in back).toBe(false);
     expect(problemsOf(loadDraft('slider-draft')!)).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
