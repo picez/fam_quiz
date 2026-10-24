@@ -159,4 +159,35 @@ describe('wipeout views (10g)', () => {
     expect(phone(classic, 'p1').me.wipeout).toBeNull();
     expect(hostView(classic).wipeout).toBeNull();
   });
+
+  it('the table button respects "only at the end" during the decision window, "each" shows everyone', () => {
+    const open = (leaderboard: 'end' | 'each') => {
+      const q = makeRoundsQuiz([wipeoutRound('rw', wipeoutLadder), classicRound('r2', [single])], { leaderboard });
+      const revealed = must(next(answered(startRound(lobbyWith(q, 'Оля', 'Петро', 'Віра'), 0, rng), { p1: RIGHT[0], p2: RIGHT[0], p3: RIGHT[0] }), 1500, rng));
+      return must(next(revealed, 2000, rng));
+    };
+    const end = open('end');
+    expect(end.phase).toBe('leaderboard');
+    const own = phone(end, 'p1').table;
+    expect(own?.full).toBe(false);
+    expect(own?.rows.map((r) => r.participantId)).toEqual(['p1']);
+    const each = phone(open('each'), 'p1').table;
+    expect(each?.full).toBe(true);
+    expect(each?.rows).toHaveLength(3);
+  });
+
+  it('a player who is out gets no newcomer type tip, one who is still in does', () => {
+    const q = makeRoundsQuiz([wipeoutRound('rw', wipeoutLadder), classicRound('r2', [single])], { newcomers: true });
+    // w1: p2 помиляється й вибуває; w2 (boolean) — новий тип
+    let g = must(start(lobbyWith(q, 'Оля', 'Петро', 'Віра')));
+    while (g.phase === 'guide') g = must(next(g, 0, rng));
+    let s = answered(must(next(g, 0, rng)), { p1: RIGHT[0], p2: WRONG, p3: RIGHT[0] });
+    s = must(next(s, 1500, rng));
+    s = must(next(s, 2000, rng));
+    for (const id of ['p1', 'p3']) s = must(decideWipeout(s, id, false, 3000));
+    s = must(next(s, 13_000, rng));
+    expect(s.phase).toBe('question');
+    expect(phone(s, 'p1').me.tip).toBe('boolean');
+    expect(phone(s, 'p2').me.tip).toBeNull();
+  });
 });

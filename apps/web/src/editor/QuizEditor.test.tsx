@@ -2203,6 +2203,22 @@ describe('QuizEditor: wipeout round', () => {
     expect((screen.getByRole('button', { name: t('addQuestion') }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('remove goes back to disabled at five after a removal, and duplicate is disabled at fifteen', () => {
+    open();
+    addRound('Ва-банк');
+    click(t('addQuestion'));
+    expect(prices()).toHaveLength(6);
+    expect(removeButton().disabled).toBe(false);
+    fireEvent.click(removeButton());
+    expect(prices()).toHaveLength(5);
+    expect(removeButton().disabled).toBe(true);
+    const duplicateButton = () => screen.getByRole('button', { name: t('duplicate') }) as HTMLButtonElement;
+    expect(duplicateButton().disabled).toBe(false);
+    for (let i = 0; i < 10; i += 1) click(t('addQuestion'));
+    expect(prices()).toHaveLength(15);
+    expect(duplicateButton().disabled).toBe(true);
+  });
+
   it('settings show no rule controls, only the note', () => {
     open();
     addRound('Ва-банк');

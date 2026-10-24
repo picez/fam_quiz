@@ -1118,7 +1118,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             {wipeoutDeciding && view.wipeout?.decide != null
               ? <DecidingLabel decide={view.wipeout.decide} offsetMs={offsetMs} />
               : phase === 'leaderboard' && view.wipeout !== null && view.wipeout.inCount === 0
-              ? t('wipeoutToResults')
+              ? t(lastRound ? 'next' : 'wipeoutToResults')
               : surveyStep && view.survey !== null
               ? t('surveyNextRow', { shown: view.survey.shown + 1, total: view.survey.total })
               : bluffStep && bluff !== null

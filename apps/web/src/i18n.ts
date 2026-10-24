@@ -465,6 +465,7 @@ const uk = {
   wipeoutChoseTake: 'забирає',
   wipeoutChoseStay: 'іде далі',
   wipeoutDeciding: 'Гравці вирішують… {seconds} с',
+  wipeoutDecidingNow: 'Гравці вирішують…',
   wipeoutToResults: 'Підсумки раунду',
   problemWipeoutFew: 'У «Ва-банк» щонайменше {min} запитань.',
   problemWipeoutMany: 'У «Ва-банк» щонайбільше {max} запитань.',

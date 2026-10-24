@@ -270,6 +270,16 @@ describe('wall, poll and word cloud: checks and drafts (10d)', () => {
     expect(question.groups[0].name).toBe("Зв'язок 1");
   });
 
+  it('a wipeout draft round-trips through storage without rules or a speed bonus', () => {
+    const quiz: Quiz = { ...newQuiz(), title: 'Т', rounds: [newWipeoutRound()] };
+    saveDraft('wipeout-draft', quiz);
+    const back = loadDraft('wipeout-draft')!.rounds[0];
+    expect(back).toEqual(quiz.rounds[0]);
+    expect(back.type).toBe('wipeout');
+    expect('rules' in back).toBe(false);
+    expect('speedBonus' in back).toBe(false);
+  });
+
   it('a wall draft keeps its groups; a wrong size is aligned to 3×3 or 4×4', () => {
     const wall = withTile(wallQ(), 'Київ', 0, 0);
     saveDraft('wall-draft', quizWith(wall));

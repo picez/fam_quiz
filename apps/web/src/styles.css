@@ -1455,6 +1455,13 @@ a.banner {
   white-space: nowrap;
 }
 
+.question-item-price {
+  color: var(--dim);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .question-item-type {
   color: var(--dim);
   font-size: 0.75rem;

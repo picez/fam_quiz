@@ -87,7 +87,7 @@ import {
 import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
 import { activeDebuff, debuffsOff, lastPurchase, shopBlock, shownDebuff } from './debuffs';
-import { decisionOpen, wipeoutPlayOf, wipeoutTable } from './wipeout';
+import { decisionOpen, inWipeoutRound, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
 import {
   answerLimitMs,
   buffBlock,
@@ -1279,6 +1279,8 @@ function typeTip(state: GameState, playerId: string): Question['type'] | null {
   if (!newcomersOn(state.quiz) || state.phase !== 'question') return null;
   const play = state.plays[state.questionIndex];
   if (play === undefined) return null;
+  // Той, хто вибув із «Ва-банк», не відповідає на запитання: підказка йому ні до чого й не має рахуватися баченою.
+  if (inWipeoutRound(state) && !wipeoutIn(state).includes(playerId)) return null;
   if (play.board !== undefined && (play.board.answerMode === 'voice' || (play.board.kind === 'normal' && play.board.chooserId !== playerId))) return null;
   const type = play.question.type;
   // Знайомим тип робить лише запитання, на яке відповідали з телефона: усна клітинка не рахується.
@@ -1578,7 +1580,8 @@ function windowCash(state: GameState, playerId: string): number {
 function liveTable(state: GameState, playerId: string): PlayerTable | null {
   if (state.phase === 'lobby') return null;
   const rows = rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hiddenPoints(state, p.id) - (p.id === playerId ? 0 : windowCash(state, p.id)) })));
-  const full = state.quiz.settings.leaderboard === 'each' || WITH_STANDINGS.includes(state.phase);
+  // У вікні рішення «Ва-банк» етап leaderboard — не підсумки: повна таблиця лише з leaderboard 'each'.
+  const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && inWipeoutRound(state)));
   return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
 }
 

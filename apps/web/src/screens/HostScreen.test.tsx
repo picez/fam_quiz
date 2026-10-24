@@ -2144,9 +2144,13 @@ describe('HostScreen: bluff (10f)', () => {
       expect(button('Наступне запитання').disabled).toBe(false);
     });
 
-    it('nobody left in the game: «Підсумки раунду»', () => {
-      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo({ decide: null, inCount: 0, rows: [wRow('p1', 'Олена', { status: 'burned', bank: 0 })] }), allowed: noDebuffs }));
+    it('nobody left in the game: «Підсумки раунду», and plain «Далі» when it is the last round', () => {
+      show(view({ phase: 'leaderboard', round: { ...wRound, total: 2 }, wipeout: wInfo({ decide: null, inCount: 0, rows: [wRow('p1', 'Олена', { status: 'burned', bank: 0 })] }), allowed: noDebuffs }));
       expect(button('Підсумки раунду').disabled).toBe(false);
+      cleanup();
+      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo({ decide: null, inCount: 0, rows: [wRow('p1', 'Олена', { status: 'burned', bank: 0 })] }), allowed: noDebuffs }));
+      expect(screen.queryByRole('button', { name: 'Підсумки раунду' })).toBeNull();
+      expect(button('Далі').disabled).toBe(false);
     });
 
     it('«Відповіли N з M» counts only the players still in the game', () => {

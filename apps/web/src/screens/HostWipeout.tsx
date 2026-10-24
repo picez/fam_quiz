@@ -16,7 +16,7 @@ export function DecidingLabel({ decide, offsetMs }: { decide: NonNullable<Wipeou
   }, [running, decide.endsAt]);
   const seconds = secondsLeft(decide, offsetMs, Date.now()) ?? 0;
   // «0 с» не показуємо: вікно ось-ось закриється.
-  return <>{seconds > 0 ? t('wipeoutDeciding', { seconds }) : t('wipeoutDeciding', { seconds: 0 }).replace(/\s*0 с$/, '')}</>;
+  return <>{seconds > 0 ? t('wipeoutDeciding', { seconds }) : t('wipeoutDecidingNow')}</>;
 }
 
 /** Пульт «Ва-банк»: драбина, гравці з банками й рішеннями наживо, «ⓘ» раунду. */

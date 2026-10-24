@@ -137,7 +137,7 @@ describe('wipeout isolation', () => {
       expect(declareDuel(s, 'p1', 'p2')).toEqual({ ok: false, error: 'wrong_phase' });
       expect(duelDue({ ...s, duel: declared })).toBe(false);
     }
-    // оголошена раніше дуель не заважає «Далі» на intro
+    // Захисна перевірка: дуель, оголошена до заставки раунду, у грі недосяжна (вікно дуелі там закрите), але «Далі» її не чіпає.
     expect(must(next({ ...intro, duel: declared }, 3000, rng)).phase).toBe('question');
     const end = toWipeoutEnd();
     expect(end.phase).toBe('round_end');
