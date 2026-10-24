@@ -1076,7 +1076,8 @@ describe('category spares in the draft (9d)', () => {
     expect(swapGaps(withClassic).classicWithoutPool).toBe(true);
     const legacy = boardQuiz({}, { spares: [filled(newSpare('boolean'))] });
     expect(swapGaps(legacy)).toMatchObject({ anyCategory: false, emptyCategories: [], legacyBoard: true });
-    expect(swapGaps(boardQuiz()).emptyCategories).toEqual(['Поле · Спорт', 'Поле · Міста', 'Поле · Річки']);
+    expect(swapGaps(boardQuiz()).emptyCategories).toEqual([]);
+    expect(swapGaps(boardQuiz()).classicWithoutPool).toBe(false);
     const [round] = some.rounds as BoardRound[];
     const blank: Quiz = { ...some, rounds: [{ ...round, title: '', categories: round.categories.map((c, i) => (i === 1 ? { ...c, title: '' } : c)) }] };
     expect(swapGaps(blank).emptyCategories).toEqual(['Раунд 1 · Категорія 2', 'Раунд 1 · Річки']);

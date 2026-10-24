@@ -635,7 +635,7 @@ export function swapGaps(quiz: Quiz): SwapGaps {
   const hasPool = (quiz.spares?.length ?? 0) > 0;
   const emptyCategories: string[] = [];
   let hasBoard = false;
-  if (anyCategory || !hasPool) {
+  if (anyCategory) {
     quiz.rounds.forEach((round, roundIndex) => {
       if (round.type !== 'board') return;
       const roundName = round.title.trim() === '' ? t('roundN', { index: roundIndex + 1 }) : round.title.trim();
