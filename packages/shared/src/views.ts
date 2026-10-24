@@ -89,10 +89,48 @@ export interface PublicQuestion {
   wall: PublicWall | null;
   /** «Хмара слів»: скільки слів може написати гравець; null для інших типів. */
   cloud: { words: number } | null;
+  /** «100 до 1»: скільки відповідей можна ввести й скільки рядків на табло — без текстів; null для інших типів. */
+  survey: PublicSurvey | null;
   /** null — без аудіо. */
   audio: PublicAudio | null;
   /** null — звичайна картинка. */
   reveal: RevealMode | null;
+}
+
+/** «100 до 1» для всіх під час запитання: скільки відповідей можна ввести й скільки рядків на табло — без текстів. */
+export interface PublicSurvey {
+  answers: number;
+  rows: number;
+}
+
+export interface SurveyRowView {
+  /** Місце на табло: 1 — найпопулярніший. */
+  rank: number;
+  /** Відкрито на сцені. */
+  open: boolean;
+  /** Для сцени й телефонів — лише відкриті рядки; пульт бачить усе. Інакше null. */
+  text: string | null;
+  popularity: number | null;
+  /** Нікнейми тих, хто назвав рядок, у порядку гравців; null — як text. */
+  by: string[] | null;
+}
+
+/** Табло «100 до 1». Сцена й телефони — з question, рядки закриті до reveal; пульт — уся дошка з question. */
+export interface SurveyInfo {
+  source: 'host' | 'cloud';
+  total: number;
+  /** Скільки рядків відкрито знизу. */
+  shown: number;
+  /** За місцем (rank 1…total). */
+  rows: SurveyRowView[];
+}
+
+export interface PlayerSurveyLine {
+  value: string;
+  /** Місце влученого рядка; null — мимо. */
+  rank: number | null;
+  text: string | null;
+  popularity: number | null;
 }
 
 export interface PublicChain {
@@ -641,6 +679,8 @@ interface BaseView {
   sort: SortInfo | null;
   /** null поза стіною; див. WallInfo. */
   wall: WallInfo | null;
+  /** null поза «100 до 1» (і на полі із заміною — там показано запасне); див. SurveyInfo. */
+  survey: SurveyInfo | null;
   /** Останнє коригування балів ведучим; null — не було. */
   notice: AdjustmentNotice | null;
   /** Оголошена або поточна дуель; null — немає. */
@@ -746,6 +786,8 @@ export interface PlayerView extends BaseView {
     sort: PlayerSort | null;
     /** null поза стіною і для того, хто тут не складає (глядач на полі). */
     wall: PlayerWall | null;
+    /** Власні відповіді «100 до 1» зі збігами — лише на reveal і пізніше, для того, хто відповідав. Інакше null. */
+    survey: { lines: PlayerSurveyLine[] } | null;
     /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера); by — нікнейм покупця (null — ведучий або покупця вилучено). */
     debuff: { kind: DebuffKind; since: number; by: string | null } | null;
     /** null — у вікторині немає дебафів чи купівлю вимкнено, немає суперників або етап lobby/guide/finished. */
@@ -819,6 +861,8 @@ export interface HostView extends BaseView {
   pinMarks: PinMark[] | null;
   /** Уся хмара з question/locked/reveal, разом зі схованими. Інакше null. */
   cloud: HostCloudWord[] | null;
+  /** Тексти «100 до 1» поточного раунду, які пропущено (хмара без слів, запасних рядків немає). */
+  surveySkipped: string[];
 }
 
 export type GameView = StageView | PlayerView | HostView;

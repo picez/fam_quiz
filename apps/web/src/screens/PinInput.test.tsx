@@ -12,7 +12,7 @@ const question: PublicQuestion & { pin: PublicPin } = {
   timeLimit: 30,
   points: 1000,
   choices: [],
-  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, wall: null, cloud: null, audio: null, reveal: null,
+  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, wall: null, cloud: null, survey: null, audio: null, reveal: null,
   pin: { map: 'ukraine', aspect: 2 },
 };
 
