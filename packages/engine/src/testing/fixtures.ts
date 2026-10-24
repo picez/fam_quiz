@@ -187,7 +187,7 @@ export const withPoints = (question: Question, points: number): Question => ({ .
 /** Фікстура схему не перевіряє: тести рушія можуть будувати поле менше за 3×3. */
 export function boardRound(
   id: string,
-  categories: { title: string; cells: (Question | (Partial<BoardCell> & { question: Question }))[] }[],
+  categories: { title: string; cells: (Question | (Partial<BoardCell> & { question: Question }))[]; spares?: Question[] }[],
   options: Partial<Omit<BoardRound, 'id' | 'type' | 'categories'>> = {},
 ): BoardRound {
   return {
@@ -199,7 +199,7 @@ export function boardRound(
     check: 'auto',
     rules: DEFAULT_RULES,
     ...options,
-    categories: categories.map(({ title, cells }, index) => ({
+    categories: categories.map(({ title, cells, spares }, index) => ({
       id: `c${index + 1}`,
       title,
       cells: cells.map(
@@ -210,6 +210,7 @@ export function boardRound(
           ...('question' in cell ? cell : { question: cell }),
         }),
       ),
+      ...(spares === undefined ? {} : { spares }),
     })),
   };
 }

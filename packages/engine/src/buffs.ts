@@ -1,5 +1,8 @@
 import {
+  allSpares,
   allowedBuffs,
+  boardSpareSource,
+  findCell,
   rulesOf,
   type Answer,
   SIMPLE_TYPES,
@@ -176,17 +179,32 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
     case 'audience':
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
       return state.players.some((p) => p.connected && canVote(state, p.id, playerId)) ? null : 'no_voters';
-    case 'swap':
-      return nextSpare(state) === null ? 'spares_out' : null;
+    case 'swap': {
+      const { spares, scope } = sparePool(state, play);
+      if (scope === 'category' && spares.length === 0) return 'no_category_spares';
+      return nextSpare(state, play) === null ? 'spares_out' : null;
+    }
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
   const unknown: never = kind;
   return unknown;
 }
 
-/** Наступне невикористане запасне; null — пулу немає або він вичерпаний. */
-export function nextSpare(state: GameState): Question | null {
-  return (state.quiz.spares ?? []).find((spare) => !state.sparesUsed.includes(spare.id)) ?? null;
+/**
+ * Пул заміни для запитання play: клітинка поля — запасні її категорії, якщо вікторина в режимі 'category'
+ * (порожній список, якщо в категорії їх немає); інакше — загальний пул (класика завжди, поле старих вікторин).
+ */
+export function sparePool(state: GameState, play: Play): { spares: Question[]; scope: 'category' | 'quiz' } {
+  const round = state.quiz.rounds[play.roundIndex];
+  if (play.board !== undefined && round?.type === 'board' && boardSpareSource(state.quiz) === 'category') {
+    return { spares: findCell(round, play.board.cellId)?.category.spares ?? [], scope: 'category' };
+  }
+  return { spares: state.quiz.spares ?? [], scope: 'quiz' };
+}
+
+/** Наступне невикористане запасне з пулу play; null — пулу немає або він вичерпаний. */
+export function nextSpare(state: GameState, play: Play): Question | null {
+  return sparePool(state, play).spares.find((spare) => !state.sparesUsed.includes(spare.id)) ?? null;
 }
 
 /** Запитання, на яке відповідає гравець: запасне після заміни, інакше основне. */
@@ -194,7 +212,7 @@ export function questionFor(state: GameState, play: Play, playerId: string): Que
   const spare = buffOf(play, playerId)?.spare;
   if (spare === undefined) return play.question;
   // Запасне видано з пулу цієї гри; якщо його там немає, лишається основне.
-  return (state.quiz.spares ?? []).find((q) => q.id === spare.id) ?? play.question;
+  return allSpares(state.quiz).find((q) => q.id === spare.id) ?? play.question;
 }
 
 /** Порядок варіантів того, що бачить гравець: presented запасного або state.presented. */
@@ -267,7 +285,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
  * щонайменше SWAP_MIN_MS — особистим понад спільний кінець. Без таймера — без особистого часу.
  */
 function takeSpare(state: GameState, play: Play, playerId: string, buff: BuffPlay, now: number, rng: Rng): GameState {
-  const spare = nextSpare(state);
+  const spare = nextSpare(state, play);
   if (spare === null) return state;
   const round = state.quiz.rounds[play.roundIndex];
   const timed = isTimed(play.question) && state.endsAt !== null;
