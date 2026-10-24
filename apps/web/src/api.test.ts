@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authProviders, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadImage } from './api';
+import { authProviders, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -87,6 +87,23 @@ describe('uploadImage', () => {
     respond(413, { error: 'too_large' });
     const file = new File([new Uint8Array(4)], 'a.png', { type: 'image/png' });
     expect(await uploadImage(file)).toEqual({ ok: false, error: 'too_large' });
+  });
+});
+
+describe('uploadAudio', () => {
+  it('sends the file with its type to the audio route', async () => {
+    const fetchMock = respond(201, { url: '/uploads/0123456789abcdef.mp3' });
+    const file = new File([new Uint8Array(4)], 'a.mp3', { type: 'audio/mpeg' });
+    expect(await uploadAudio(file)).toEqual({ ok: true, url: '/uploads/0123456789abcdef.mp3' });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/uploads/audio');
+    expect(init.body).toBe(file);
+    expect(new Headers(init.headers).get('content-type')).toBe('audio/mpeg');
+  });
+
+  it('passes the refusal code through', async () => {
+    respond(400, { error: 'bad_audio' });
+    expect(await uploadAudio(new File([new Uint8Array(4)], 'a.mp3', { type: 'audio/mpeg' }))).toEqual({ ok: false, error: 'bad_audio' });
   });
 });
 

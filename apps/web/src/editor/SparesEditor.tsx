@@ -58,6 +58,7 @@ export function SparesEditor({ spares, onChange, max = LIMITS.maxSpares, hint }:
             showHint={false}
             showTime={false}
             showVideo={false}
+            showAudio={false}
             onChange={(next) => onChange(list.map((spare, i) => (i === at ? next : spare)))}
           />
           <button type="button" className="btn btn-small btn-danger spare-remove" onClick={remove}>

@@ -51,7 +51,17 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
     setCategories(categories.map((c, i) => (i === at ? { ...c, ...patch } : c)));
   const setCells = (at: number, next: BoardCell[]) => setCategory(at, { cells: next });
   const setCell = (patch: Partial<BoardCell>) =>
-    setCells(category, cells.map((cell, i) => (i === index ? { ...cell, ...patch } : cell)));
+    setCells(
+      category,
+      cells.map((cell, i) => {
+        if (i !== index) return cell;
+        const next = { ...cell, ...patch };
+        // Картинка, що проявляється, не діє в бліц-клітинці й у відповіді вголос: режим прибирається.
+        if (next.question.reveal === undefined || (next.kind === 'normal' && cellAnswerMode(round, next) === 'phone')) return next;
+        const { reveal: _reveal, ...question } = next.question;
+        return { ...next, question: question as typeof next.question };
+      }),
+    );
 
   const addCategory = () => {
     setCategories([...categories, newBoardCategory(round.answerMode)]);
@@ -222,6 +232,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           key={current.question.id}
           question={current.question}
           types={questionTypesFor('board')}
+          showReveal={current.kind === 'normal' && cellAnswerMode(round, current) === 'phone'}
           onChange={(question) =>
             setCell(question.type === 'sort' ? { question, kind: 'normal', answerMode: 'phone', penalty: 'none' } : { question })
           }

@@ -11,6 +11,7 @@ import {
   type AnswerMode,
   type BlitzRound,
   type BoardCategory,
+  type BoardCell,
   type BoardRound,
   type ClassicRound,
   type DuelCategory,
@@ -24,6 +25,7 @@ import {
   rulesOf,
   categorySparesOf,
   boardSpareSource,
+  cellAnswerMode,
   QUESTION_TYPES,
   REVEAL_TYPES,
   type QuestionType,
@@ -369,15 +371,28 @@ export function cleaned(quiz: Quiz): Quiz {
       }
       case 'text':
         return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
+      case 'slider': {
+        // Порожня одиниця й порожня межа нуля не зберігаються: ключів немає, як у старих запитань.
+        const { unit, zeroBeyond, ...rest } = question;
+        const trimmedUnit = unit?.trim() ?? '';
+        return {
+          ...rest,
+          text,
+          ...(trimmedUnit === '' ? {} : { unit: trimmedUnit }),
+          ...(zeroBeyond === undefined || Number.isNaN(zeroBeyond) ? {} : { zeroBeyond }),
+        };
+      }
       default:
         return { ...question, text };
     }
   };
   // Порожня підказка не зберігається: ключа немає, як у старих запитань.
   const cleanQuestion = (question: Question): Question => {
-    const { hint, ...rest } = cleanBody(question);
+    const { hint, reveal, ...rest } = cleanBody(question);
     const trimmed = hint?.trim() ?? '';
-    return (trimmed === '' ? rest : { ...rest, hint: trimmed }) as Question;
+    // Режим проявлення без картинки (її прибрали) зникає тихо.
+    const kept = reveal !== undefined && rest.imageUrl !== null ? { ...rest, reveal } : rest;
+    return (trimmed === '' ? kept : { ...kept, hint: trimmed }) as Question;
   };
   // У фіналі бали — ставки, поля балів за слово немає: прихована ціна не має блокувати збереження.
   const inFinal = (question: Question): Question =>
@@ -424,7 +439,8 @@ export function cleaned(quiz: Quiz): Quiz {
   };
 }
 
-function problemKey(question: Question): TextKey | null {
+/** `revealOk` — чи діє в цьому місці картинка, що проявляється (класика й звичайна клітинка поля з телефона). */
+function problemKey(question: Question, revealOk = true): TextKey | null {
   if (question.text === '') return 'problemNoText';
   const { timeLimit, points } = question;
   const inLimits =
@@ -456,6 +472,16 @@ function problemKey(question: Question): TextKey | null {
         return 'problemNumber';
       }
       break;
+    case 'slider': {
+      const { min, max, step, correct, tolerance, zeroBeyond } = question;
+      const steps = (max - min) / step;
+      if (![min, max, step].every(Number.isFinite) || min >= max || step <= 0 || steps > LIMITS.maxSliderSteps || Math.abs(steps - Math.round(steps)) > 1e-9) {
+        return 'problemSliderRange';
+      }
+      if (!Number.isFinite(correct) || !Number.isFinite(tolerance) || correct < min || correct > max || tolerance < 0) return 'problemSliderCorrect';
+      if (zeroBeyond !== undefined && !(zeroBeyond > tolerance)) return 'problemSliderZero';
+      break;
+    }
     case 'chain':
       if (question.words.some((word) => word === '')) return 'problemEmptyWord';
       if (question.words.map((word) => word.normalize('NFC')).some((word) => word.length < 2 || word.length > LIMITS.chainWord || !CHAIN_WORD.test(word))) {
@@ -491,8 +517,24 @@ function problemKey(question: Question): TextKey | null {
     case 'boolean':
       break;
   }
+  const { audio } = question;
+  if (
+    audio !== undefined &&
+    (!Number.isInteger(audio.start) ||
+      audio.start < 0 ||
+      audio.start > LIMITS.maxVideoStart ||
+      !Number.isInteger(audio.duration) ||
+      audio.duration < LIMITS.minAudioSeconds ||
+      audio.duration > LIMITS.maxAudioSeconds)
+  ) {
+    return 'problemAudio';
+  }
+  if (question.reveal !== undefined && !revealOk) return 'problemRevealPlace';
   return questionSchema.safeParse(question).success ? null : 'problemGeneric';
 }
+
+/** Чи діє картинка, що проявляється, у клітинці поля: лише звичайна, з відповіддю з телефона. */
+const cellRevealOk = (round: BoardRound, cell: BoardCell) => cell.kind === 'normal' && cellAnswerMode(round, cell) === 'phone';
 
 export interface ProblemPlace {
   round: number;
@@ -513,21 +555,24 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
         const { title, cells } = current.categories[category];
         if (title === '') return { round, question, cell: { category, index: 0 } };
         for (let index = 0; index < cells.length; index += 1) {
-          if (problemKey(cells[index].question) !== null) return { round, question: question + index, cell: { category, index } };
+          if (problemKey(cells[index].question, cellRevealOk(current, cells[index])) !== null) return { round, question: question + index, cell: { category, index } };
         }
         question += cells.length;
       }
       continue;
     }
-    const question = current.questions.findIndex((q) => problemKey(q) !== null);
+    const question = current.questions.findIndex((q) => problemKey(q, current.type === 'classic') !== null);
     if (question !== -1) return { round, question, cell: null };
   }
   return null;
 }
 
+/** Текст проблеми запитання; числа меж аудіо підставляються з LIMITS. */
+const problemText = (key: TextKey, index: number) => t(key, { index, min: LIMITS.minAudioSeconds, max: LIMITS.maxAudioSeconds });
+
 /** Повідомлення про проблему клітинки: те саме, що для запитання, але з категорією. */
 function cellProblem(category: number, index: number, key: TextKey): string {
-  const text = t(key, { index });
+  const text = problemText(key, index);
   return t('problemCell', { category, problem: text.charAt(0).toLowerCase() + text.slice(1) });
 }
 
@@ -564,7 +609,7 @@ function spareProblems(spares: Question[]): string[] {
     const key = problemKey(spare);
     if (key === null) return;
     // «Запитання N: текст» → «Запасне N: текст».
-    const problem = t(key, { index: index + 1 }).replace(/^[^:]*:\s*/, '');
+    const problem = problemText(key, index + 1).replace(/^[^:]*:\s*/, '');
     problems.push(t('problemSpare', { index: index + 1, problem }));
   });
   return problems;
@@ -587,11 +632,11 @@ export function problemsOf(quiz: Quiz): string[] {
         (category.spares ?? []).forEach((spare, index) => {
           const key = problemKey(spare);
           if (key === null) return;
-          const problem = t(key, { index: index + 1 }).replace(/^[^:]*:\s*/, '');
+          const problem = problemText(key, index + 1).replace(/^[^:]*:\s*/, '');
           problems.push(where(t('problemCategorySpare', { category: name, index: index + 1, problem })));
         });
         category.cells.forEach((cell, index) => {
-          const key = problemKey(cell.question);
+          const key = problemKey(cell.question, cellRevealOk(round, cell));
           if (key !== null) problems.push(where(cellProblem(categoryIndex + 1, index + 1, key)));
         });
       });
@@ -601,8 +646,8 @@ export function problemsOf(quiz: Quiz): string[] {
       return;
     }
     round.questions.forEach((question, index) => {
-      const key = problemKey(question);
-      if (key !== null) problems.push(where(t(key, { index: index + 1 })));
+      const key = problemKey(question, round.type === 'classic');
+      if (key !== null) problems.push(where(problemText(key, index + 1)));
     });
   });
   if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));

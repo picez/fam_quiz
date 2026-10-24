@@ -247,6 +247,32 @@ a {
   gap: 0.5rem;
 }
 
+.audio-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.reveal-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.slider-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.slider-preview input[type='range'] {
+  width: 100%;
+}
+
+.slider-preview output {
+  font-weight: 700;
+}
+
 .image-field .question-image {
   height: min(28vh, 13rem);
 }

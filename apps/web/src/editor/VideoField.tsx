@@ -7,10 +7,12 @@ interface Props {
   video: Video | null;
   /** Викликається з розібраним відео або з null (порожнє чи неправильне посилання). */
   onChange: (video: Video | null) => void;
+  /** «Лише звук»: перенести розібране відео в аудіо (картинку сховано). Без пропа прапорця немає. */
+  onAudioOnly?: (video: Video) => void;
 }
 
 /** Поле посилання YouTube з помилкою під ним і попереднім переглядом. */
-export function VideoField({ video, onChange }: Props) {
+export function VideoField({ video, onChange, onAudioOnly }: Props) {
   const [text, setText] = useState(() => (video === null ? '' : videoLink(video)));
   const [invalid, setInvalid] = useState(false);
 
@@ -44,6 +46,12 @@ export function VideoField({ video, onChange }: Props) {
         </p>
       )}
       <YouTubePlayer video={video} />
+      {video !== null && onAudioOnly !== undefined && (
+        <label className="check">
+          <input type="checkbox" checked={false} onChange={() => onAudioOnly(video)} />
+          <span>{t('audioOnly')}</span>
+        </label>
+      )}
       {video !== null && (
         <div className="toolbar">
           <button type="button" className="btn btn-small" onClick={() => edit('')}>

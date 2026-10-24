@@ -1106,3 +1106,92 @@ describe('category spares in the draft (9d)', () => {
     expect('spares' in round.categories[1]).toBe(false);
   });
 });
+
+describe('slider, audio and revealing picture drafts (10b)', () => {
+  const slider = (patch: Record<string, unknown> = {}) => ({ ...filled(newQuestion('slider')), ...patch }) as Question;
+  const IMAGE = '/uploads/0123456789abcdef0123456789abcdef.png';
+
+  it('a right slider has no problems; a wrong one names what to check', () => {
+    expect(problemsOf(quizWith(slider()))).toEqual([]);
+    expect(problemsOf(quizWith(slider({ min: 10, max: 10 })))).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
+    expect(problemsOf(quizWith(slider({ step: 0 })))).toHaveLength(1);
+    expect(problemsOf(quizWith(slider({ step: 0.3 })))).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
+    expect(problemsOf(quizWith(slider({ min: Number.NaN })))).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
+    expect(problemsOf(quizWith(slider({ correct: 200 })))).toEqual(['Запитання 1: правильне значення має бути між мінімумом і максимумом.']);
+    expect(problemsOf(quizWith(slider({ tolerance: -1 })))).toEqual(['Запитання 1: правильне значення має бути між мінімумом і максимумом.']);
+    expect(problemsOf(quizWith(slider({ zeroBeyond: 1, tolerance: 2 })))).toEqual(['Запитання 1: межа «нуль балів» має бути більшою за допуск.']);
+  });
+
+  it('audio out of limits is a problem for any type', () => {
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 0 };
+    expect(problemsOf(quizWith({ ...filled(newQuestion('boolean')), audio } as Question))).toEqual([
+      'Запитання 1: аудіо — початок від 0 с, тривалість від 1 до 120 с.',
+    ]);
+    expect(problemsOf(quizWith({ ...filled(newQuestion('boolean')), audio: { ...audio, duration: 15 } } as Question))).toEqual([]);
+    expect(problemsOf(quizWith({ ...filled(newQuestion('boolean')), audio: { ...audio, duration: 15, start: Number.NaN } } as Question))).toHaveLength(1);
+  });
+
+  it('a revealing picture works in a classic round and on a normal phone cell only', () => {
+    const revealing = { ...filled(newQuestion('single')), imageUrl: IMAGE, reveal: 'pixels' } as Question;
+    expect(problemsOf(quizWith(revealing))).toEqual([]);
+
+    const two = { ...quizWith(filled(newQuestion('boolean'))) };
+    const blitz = { ...newBlitzRound(), questions: [revealing] };
+    expect(problemsOf({ ...two, rounds: [two.rounds[0], blitz] })).toEqual([
+      'Раунд 2: Запитання 1: картинка, що проявляється, діє лише в класиці й на звичайній клітинці поля з телефона.',
+    ]);
+
+    const board = (patch: Record<string, unknown>) => {
+      const round = newBoardRound();
+      const categories = round.categories.map((category, i) => ({
+        ...category,
+        title: `К${i}`,
+        cells: category.cells.map((cell, j) =>
+          i === 0 && j === 0 ? { ...cell, ...patch, question: { ...filled(cell.question), imageUrl: IMAGE, reveal: 'blur' as const } } : { ...cell, question: filled(cell.question) },
+        ),
+      }));
+      return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories }] } as Quiz;
+    };
+    expect(problemsOf(board({}))).toEqual([]);
+    expect(problemsOf(board({ kind: 'blitz' }))).toEqual([
+      'Категорія 1, запитання 1: картинка, що проявляється, діє лише в класиці й на звичайній клітинці поля з телефона.',
+    ]);
+    expect(problemsOf(board({ answerMode: 'voice' }))).toHaveLength(1);
+  });
+
+  it('cleaned drops an empty unit, an empty zero line and a mode without a picture', () => {
+    const quiz = quizWith(
+      slider({ unit: '  ', zeroBeyond: Number.NaN, reveal: 'pixels', imageUrl: null }),
+      { ...filled(newQuestion('single')), imageUrl: IMAGE, reveal: 'blur' } as Question,
+      slider({ unit: ' км ', zeroBeyond: 5 }),
+    );
+    const [first, second, third] = roundQuestions(cleaned(quiz).rounds[0]);
+    expect('unit' in first).toBe(false);
+    expect('zeroBeyond' in first).toBe(false);
+    expect('reveal' in first).toBe(false);
+    expect(second).toMatchObject({ reveal: 'blur' });
+    expect(third).toMatchObject({ unit: 'км', zeroBeyond: 5 });
+  });
+
+  it('a slider draft with empty fields comes back with NaN and a problem; a bad audio and a bad mode are dropped', () => {
+    const broken = slider({ min: Number.NaN, zeroBeyond: Number.NaN, audio: { source: 'file', url: 'https://evil.example/a.mp3', start: 0, duration: 10 }, reveal: 'sparkles' });
+    saveDraft('slider-draft', quizWith(broken));
+    const back = roundQuestions(loadDraft('slider-draft')!.rounds[0])[0];
+    if (back.type !== 'slider') throw new Error('slider');
+    expect(back.min).toBeNaN();
+    expect('zeroBeyond' in back).toBe(false);
+    expect('audio' in back).toBe(false);
+    expect('reveal' in back).toBe(false);
+    expect(problemsOf(loadDraft('slider-draft')!)).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
+  });
+
+  it('a good audio, mode and unit survive the draft; empty audio numbers stay empty', () => {
+    const audio = { source: 'file', url: '/uploads/0123456789abcdef0123456789abcdef.mp3', start: Number.NaN, duration: 20 };
+    const question = { ...filled(newQuestion('single')), imageUrl: IMAGE, reveal: 'pixels', audio } as Question;
+    saveDraft('audio-draft', quizWith(question, slider({ unit: 'км', zeroBeyond: 5 })));
+    const [single, sliderBack] = roundQuestions(loadDraft('audio-draft')!.rounds[0]);
+    expect(single).toMatchObject({ reveal: 'pixels', audio: { source: 'file', duration: 20 } });
+    expect(single.audio?.start).toBeNaN();
+    expect(sliderBack).toMatchObject({ unit: 'км', zeroBeyond: 5 });
+  });
+});

@@ -112,6 +112,12 @@ export async function uploadImage(file: File): Promise<ApiResult<{ url: string }
   return result.ok ? { ok: true, ...(result.data as { url: string }) } : result;
 }
 
+/** Надсилає аудіофайл до запитання; тілом запиту є сам файл. */
+export async function uploadAudio(file: File): Promise<ApiResult<{ url: string }>> {
+  const result = await send('/api/uploads/audio', { method: 'POST', headers: { 'content-type': file.type || 'audio/mpeg' }, body: file });
+  return result.ok ? { ok: true, ...(result.data as { url: string }) } : result;
+}
+
 export const listGames = () => fetchData<GameSummary[]>('/api/games');
 export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encodeURIComponent(id)}`);
 export const myHistory = () => fetchData<PlayedGame[]>('/api/me/history');

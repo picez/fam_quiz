@@ -1,8 +1,9 @@
-import { LIMITS, type Question } from '@quiz/shared';
+import { LIMITS, REVEAL_TYPES, type Question, type RevealMode } from '@quiz/shared';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { LETTERS } from '../format';
+import { LETTERS, sliderValueText } from '../format';
 import { HelpButton } from '../help/HelpButton';
 import { countText, t, type TextKey } from '../i18n';
+import { AudioField } from './AudioField';
 import { ImageField } from './ImageField';
 import { OptionImage } from './OptionImage';
 import { VideoField } from './VideoField';
@@ -20,6 +21,10 @@ interface Props {
   showTime?: boolean;
   /** Поле відео (типово є); запасні запитання без відео. */
   showVideo?: boolean;
+  /** Аудіо до запитання (типово є); запасні запитання без аудіо. */
+  showAudio?: boolean;
+  /** Вибір режиму картинки, що проявляється (типово немає); лише класика й звичайна клітинка поля з телефона. */
+  showReveal?: boolean;
   /** Типи запитань, доступні в цьому раунді. */
   types: readonly QuestionType[];
 }
@@ -40,7 +45,7 @@ const sameNumber = (a: number, b: number) => a === b || (Number.isNaN(a) && Numb
  * Поле для числа. Показує саме те, що набрано ("-", "2,", "30x"), і віддає назовні число
  * або NaN: якби поле перемальовувалося з числа, проміжні стани набору зникали б.
  */
-export function NumberField(props: { label: string; value: number; decimal?: boolean; onChange: (value: number) => void }) {
+export function NumberField(props: { label: string; value: number; decimal?: boolean; placeholder?: string; onChange: (value: number) => void }) {
   const [raw, setRaw] = useState(() => shown(props.value));
 
   // Значення змінили ззовні (наприклад, відновили чернетку): показати його.
@@ -54,6 +59,7 @@ export function NumberField(props: { label: string; value: number; decimal?: boo
       <input
         inputMode={props.decimal ? 'text' : 'numeric'}
         value={raw}
+        placeholder={props.placeholder}
         maxLength={24}
         onChange={(event) => {
           setRaw(event.target.value);
@@ -533,8 +539,65 @@ function Body({ question, onChange, showPoints }: Pick<Props, 'question' | 'onCh
       );
     case 'sort':
       return <SortBody question={question} onChange={onChange} showPoints={showPoints} />;
-    case 'slider':
-      return null; // задача 8
+    case 'slider': {
+      const { min, max, step, correct } = question;
+      const set = (patch: Partial<typeof question>) => onChange({ ...question, ...patch });
+      const preview = [min, max, step, correct].every(Number.isFinite) && min < max && step > 0;
+      return (
+        <>
+          <div className="pair">
+            <NumberField label={t('sliderMin')} value={min} decimal onChange={(value) => set({ min: value })} />
+            <NumberField label={t('sliderMax')} value={max} decimal onChange={(value) => set({ max: value })} />
+          </div>
+          <div className="pair">
+            <NumberField label={t('sliderStep')} value={step} decimal onChange={(value) => set({ step: value })} />
+            <label className="field compact">
+              <span>{t('sliderUnit')}</span>
+              <input
+                value={question.unit ?? ''}
+                maxLength={LIMITS.sliderUnit}
+                placeholder={t('sliderUnitPlaceholder')}
+                onChange={(event) => {
+                  const { unit: _old, ...rest } = question;
+                  onChange((event.target.value === '' ? rest : { ...rest, unit: event.target.value }) as Question);
+                }}
+              />
+            </label>
+          </div>
+          <div className="pair">
+            <NumberField label={t('sliderCorrect')} value={correct} decimal onChange={(value) => set({ correct: value })} />
+            <NumberField label={t('sliderTolerance')} value={question.tolerance} decimal onChange={(value) => set({ tolerance: value })} />
+          </div>
+          <NumberField
+            label={t('sliderZero')}
+            value={question.zeroBeyond ?? Number.NaN}
+            decimal
+            placeholder={t('sliderZeroPlaceholder')}
+            onChange={(value) => {
+              const { zeroBeyond: _old, ...rest } = question;
+              // Порожнє поле прибирає межу: лишаються лише повні бали або нуль.
+              onChange((Number.isNaN(value) ? rest : { ...rest, zeroBeyond: value }) as Question);
+            }}
+          />
+          {preview && (
+            <div className="slider-preview">
+              <input
+                type="range"
+                disabled
+                aria-label={t('sliderLabel')}
+                min={min}
+                max={max}
+                step={step}
+                value={Math.min(max, Math.max(min, correct))}
+                readOnly
+              />
+              <output>{sliderValueText(correct, { step, unit: question.unit ?? '' })}</output>
+            </div>
+          )}
+          <p className="meta">{t('sliderHint')}</p>
+        </>
+      );
+    }
   }
 }
 
@@ -543,8 +606,14 @@ function timeInLimits(timeLimit: number): boolean {
   return Number.isInteger(timeLimit) && timeLimit >= LIMITS.minTime && timeLimit <= LIMITS.maxTime;
 }
 
+/** Режим картинки, що проявляється; undefined («Звичайна») прибирає ключ. */
+function setReveal(question: Question, onChange: (next: Question) => void, mode: RevealMode | undefined) {
+  const { reveal: _old, ...rest } = question;
+  onChange((mode === undefined ? rest : { ...rest, reveal: mode }) as Question);
+}
+
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true }: Props) {
+export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
@@ -569,12 +638,60 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
       </div>
 
       <div className="stage-card">
-        <ImageField url={question.imageUrl} onChange={(imageUrl) => latest.current.onChange({ ...latest.current.question, imageUrl })} />
-        {showVideo && question.type !== 'chain' && question.type !== 'sort' && (
+        <ImageField
+          url={question.imageUrl}
+          onChange={(imageUrl) => {
+            // Режим проявлення живе лише разом із картинкою.
+            const { reveal: _reveal, ...rest } = latest.current.question;
+            latest.current.onChange((imageUrl === null ? { ...rest, imageUrl } : { ...latest.current.question, imageUrl }) as Question);
+          }}
+        />
+        {showReveal && question.imageUrl !== null && question.video === null && (REVEAL_TYPES as readonly string[]).includes(question.type) && (
+          <div className="reveal-modes" role="group" aria-label={t('revealLabel')}>
+            {([undefined, 'pixels', 'blur'] as const).map((mode) => (
+              <button
+                type="button"
+                key={mode ?? 'none'}
+                className={question.reveal === mode ? 'chip is-on' : 'chip'}
+                aria-pressed={question.reveal === mode}
+                onClick={() => setReveal(question, onChange, mode)}
+              >
+                {t(mode === undefined ? 'revealNone' : mode === 'pixels' ? 'revealPixels' : 'revealBlur')}
+              </button>
+            ))}
+          </div>
+        )}
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && (
           <VideoField
             key={question.id}
             video={question.video}
             onChange={(video) => latest.current.onChange({ ...latest.current.question, video })}
+            onAudioOnly={
+              showAudio
+                ? (video) =>
+                    latest.current.onChange({
+                      ...latest.current.question,
+                      video: null,
+                      audio: { source: 'youtube', id: video.id, start: video.start, duration: LIMITS.defaultAudioSeconds },
+                    })
+                : undefined
+            }
+          />
+        )}
+        {showAudio && question.video === null && (
+          <AudioField
+            audio={question.audio}
+            timeLimit={question.timeLimit}
+            onChange={(audio) => {
+              const { audio: _old, ...rest } = latest.current.question;
+              latest.current.onChange((audio === undefined ? rest : { ...rest, audio }) as Question);
+            }}
+            onToVideo={(video) => {
+              const { audio: _old, ...rest } = latest.current.question;
+              // У ланцюжку й сортуванні відео немає: звук просто зникає.
+              const noVideo = rest.type === 'chain' || rest.type === 'sort';
+              latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
+            }}
           />
         )}
         <label className="field question-field">
