@@ -18,16 +18,16 @@ export interface GuideText {
   items: GuideItem[];
 }
 
-const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆' };
+export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆' };
 
-const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
+export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   classic: 'roundTypeClassic',
   blitz: 'roundTypeBlitz',
   board: 'roundTypeBoard',
   final: 'roundTypeFinal',
 };
 
-const TYPE_ICONS: Record<Question['type'], string> = {
+export const TYPE_ICONS: Record<Question['type'], string> = {
   single: '◉',
   multi: '☑',
   boolean: '✓✗',

@@ -24,12 +24,13 @@ import {
   rulesOf,
   categorySparesOf,
   boardSpareSource,
+  QUESTION_TYPES,
+  type QuestionType,
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
 
-export type QuestionType = Question['type'];
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort'] as const;
+export { QUESTION_TYPES, type QuestionType };
 
 /** Типи запитань, доступні в раунді: без ланцюжка в бліці й полі; сортування — скрізь. */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {

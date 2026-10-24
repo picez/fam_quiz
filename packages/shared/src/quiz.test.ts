@@ -20,6 +20,8 @@ import {
   guessSchema,
   joinSchema,
   questionSchema,
+  ROUND_TYPES,
+  QUESTION_TYPES,
   questionsOf,
   questionPrice,
   sortSchema,
@@ -1069,5 +1071,12 @@ describe('buffs and debuffs in the settings', () => {
     expect(valid(hintSchema, { playerId: PLAYER_UUID, text: null })).toBe(true);
     expect(valid(hintSchema, { playerId: PLAYER_UUID, text: '  ' })).toBe(false);
     expect(valid(hintSchema, { playerId: PLAYER_UUID, text: 'я'.repeat(LIMITS.hintText + 1) })).toBe(false);
+  });
+});
+
+describe('type lists', () => {
+  it('ROUND_TYPES and QUESTION_TYPES list every schema discriminator in editor order', () => {
+    expect(roundSchema.options.map((o) => o.shape.type.value)).toEqual([...ROUND_TYPES]);
+    expect(questionSchema.options.map((o) => o.shape.type.value)).toEqual([...QUESTION_TYPES]);
   });
 });

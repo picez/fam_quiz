@@ -132,6 +132,10 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
+/** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort'] as const;
+export type QuestionType = (typeof QUESTION_TYPES)[number];
+
 export const questionSchema = z
   .discriminatedUnion('type', [
     z.object({ ...base, type: z.literal('single'), options, correctId: z.string() }),
@@ -379,6 +383,10 @@ export const finalRoundSchema = z.object({
 });
 
 export type FinalRound = z.infer<typeof finalRoundSchema>;
+
+/** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final'] as const;
+export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
   classicRoundSchema,
