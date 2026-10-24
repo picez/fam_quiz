@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer, Question } from '@quiz/shared';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame, playerGames } from './history';
@@ -9,6 +9,7 @@ import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
+import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { seedGame } from './testing/history-rows';
@@ -1511,6 +1512,81 @@ describe('history: wipeout (10g)', () => {
       await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
     ).json() as { questions: { wipeout?: { rows: { nickname: string }[] } }[] };
     expect(detail.questions.map((q) => q.wipeout?.rows.map((r) => r.nickname))).toEqual([['Оля'], ['Оля']]);
+    await local.app.close();
+  });
+});
+
+describe('history: survival (10h)', () => {
+  it('shows the verdict, the trial rows, the ghosts, who is alive and the end for every question', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    // Одне питання на виживання: на третьому запитанні випробування стає удачею (fellBack).
+    const quiz = makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials.slice(0, 1))]);
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро', 'Віра', 'Гліб']) {
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name }, (await signUp(local.app, name)).cookie)).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    const id = (...names: string[]) => names.map((name) => ids[name]);
+    // s1: Оля помилилася й вибула на питанні.
+    playSurvivalQuestion(local.manager, room, { right: id('Петро', 'Віра', 'Гліб'), trial: [] });
+    // s2: помилилися всі живі, Оля-привид відгадала.
+    playSurvivalQuestion(local.manager, room, { right: [], ghosts: { [ids['Оля']]: true } });
+    // s3: Петро помилився, вибрав двері з пасткою і вибув; удача з fellBack.
+    playSurvivalQuestion(local.manager, room, { right: id('Віра', 'Гліб'), ghosts: { [ids['Оля']]: false }, doors: { [ids['Петро']]: 'trap' } });
+    // s4: Віра помилилася й вибрала двері з пасткою — вибула; лишився Гліб, раунд скінчився з бонусом.
+    playSurvivalQuestion(local.manager, room, { right: id('Гліб'), doors: { [ids['Віра']]: 'trap' } });
+    for (let guard = 0; guard < 4 && room.state.phase !== 'finished'; guard++) local.manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('finished');
+    await local.recorder.idle();
+
+    const detail = (
+      await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
+    ).json() as {
+      standings: { nickname: string; score: number }[];
+      adjustments: { nickname: string; points: number; source: string }[];
+      questions: { index: number; survival?: { verdict: string; ghosts: unknown; trial: { kind: string; fellBack: boolean; question: string | null; rows: unknown[] } | null; alive: string[]; end: boolean } }[];
+    };
+    expect(detail.questions).toHaveLength(4);
+    const at = (index: number) => {
+      const survival = detail.questions[index].survival;
+      return survival === undefined ? undefined : { ...survival, alive: [...survival.alive].sort() };
+    };
+    expect(at(0)).toEqual({
+      verdict: 'trial',
+      ghosts: { answered: 0, right: 0 },
+      trial: {
+        kind: 'question',
+        fellBack: false,
+        question: survivalTrials[0].text,
+        rows: [{ nickname: 'Оля', out: true, answer: { type: 'boolean', value: false }, door: null, auto: false, trap: null }],
+      },
+      alive: ['Віра', 'Гліб', 'Петро'],
+      end: false,
+    });
+    expect(at(1)).toEqual({ verdict: 'all_wrong', ghosts: { answered: 1, right: 1 }, trial: null, alive: ['Віра', 'Гліб', 'Петро'], end: false });
+    expect(at(2)).toEqual({
+      verdict: 'trial',
+      ghosts: { answered: 1, right: 0 },
+      trial: { kind: 'luck', fellBack: true, question: null, rows: [{ nickname: 'Петро', out: true, answer: null, door: expect.any(Number), auto: false, trap: expect.any(Number) }] },
+      alive: ['Віра', 'Гліб'],
+      end: false,
+    });
+    // Вибув той, чиї двері збіглися з пасткою.
+    const row = detail.questions[2].survival?.trial?.rows[0] as { door: number; trap: number };
+    expect(row.door).toBe(row.trap);
+    expect(at(3)).toMatchObject({ verdict: 'trial', alive: ['Гліб'], end: true, trial: { kind: 'luck', fellBack: true } });
+    // Бонус виживання — коригування живому, рахунок його враховує: 100 + 0 + 100 + 100 + 500.
+    expect(detail.adjustments).toMatchObject([{ nickname: 'Гліб', points: 500, source: 'survival' }]);
+    expect(detail.standings.find((s) => s.nickname === 'Гліб')?.score).toBe(800);
     await local.app.close();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, READY_BUFFS, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
+import { LIMITS, READY_BUFFS, SURVIVAL_TYPES, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
@@ -414,6 +414,19 @@ describe('the wipeout round in the demo quiz (10g)', () => {
     expect(round.questions.map((question) => question.points)).toEqual([100, 200, 300, 400, 500]);
     expect(round.questions.map((question) => question.type).sort()).toEqual([...WIPEOUT_TYPES].sort());
     expect(demoQuiz.rounds.at(-1)?.type).toBe('final');
+    expect(demoQuiz.rounds.at(-3)).toBe(round);
+    expect(demoQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
+  });
+});
+
+describe('the survival round in the demo quiz (10h)', () => {
+  it('is valid, has five questions and two survival questions of simple types', () => {
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+    const round = demoQuiz.rounds.find((r) => r.type === 'survival');
+    if (round === undefined || round.type !== 'survival') throw new Error('no survival round');
+    expect(round.questions).toHaveLength(5);
+    expect(round.trials).toHaveLength(2);
+    for (const question of [...round.questions, ...round.trials]) expect(SURVIVAL_TYPES).toContain(question.type);
     expect(demoQuiz.rounds.at(-2)).toBe(round);
     expect(demoQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
   });

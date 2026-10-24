@@ -1,8 +1,8 @@
-import { rankPlayers, recordOf, type GameState } from '@quiz/engine';
+import { rankPlayers, recordOf, type GameState, type SurvivalPlay } from '@quiz/engine';
 import { isUnscored, type Answer, type BuffKind } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT } from './db/schema';
+import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
 
 export interface Recorder {
@@ -42,7 +42,9 @@ function signature(state: GameState): string {
   const hidden = last < 0 ? null : (state.plays[last].cloudHidden ?? null);
   // Рішення «Ва-банк» не міняють фазу, а рахунок можуть лишити тим самим (банк 0): їх теж записуємо.
   const wipeout = last < 0 ? null : (state.plays[last].wipeout ?? null);
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout]);
+  // Привиди й випробування «Вибування» теж не міняють фазу.
+  const survival = last < 0 ? null : (state.plays[last].survival ?? null);
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival]);
 }
 
 interface AnswerRow {
@@ -103,6 +105,34 @@ function answerRows(state: GameState, index: number, playerId: string): AnswerRo
   ];
 }
 
+/** «Вибування» для PlayRef: лише закрите випробування; відповіді привидів — лише лічильники. */
+function survivalRef(survival: SurvivalPlay): NonNullable<PlayRef['survival']> {
+  const ghosts = Object.values(survival.ghosts);
+  const trial = survival.trial;
+  return {
+    edge: survival.edge ?? [],
+    ...(ghosts.length === 0 ? {} : { ghosts: { answered: ghosts.length, right: ghosts.filter((g) => g.correct).length } }),
+    ...(trial === null || trial.stage !== 'closed'
+      ? {}
+      : {
+          trial: {
+            kind: trial.kind,
+            ...(trial.fellBack ? { fellBack: true as const } : {}),
+            ...(trial.questionId === null ? {} : { questionId: trial.questionId }),
+            ...(trial.kind === 'question'
+              ? { answers: Object.fromEntries(Object.entries(trial.answers).map(([id, a]) => [id, { answer: a.answer, correct: a.correct }])) }
+              : {
+                  doors: Object.fromEntries(
+                    (survival.edge ?? []).map((id) => [id, { door: trial.doors[id] ?? trial.fallback[id], auto: !(id in trial.doors), trap: trial.traps[id] }]),
+                  ),
+                }),
+            out: trial.out,
+          },
+        }),
+    ...(survival.end ? { end: true as const } : {}),
+  };
+}
+
 async function save(db: Db, snapshot: Snapshot): Promise<void> {
   const { state } = snapshot;
   const finished = state.phase === 'finished';
@@ -121,6 +151,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         ? { bluff: { options: play.bluff.options, picks: Object.fromEntries(Object.entries(play.bluff.picks).map(([id, pick]) => [id, pick.optionId])) } }
         : {}),
       ...(play.wipeout === undefined ? {} : { wipeout: { took: play.wipeout.took, ...(play.wipeout.end ? { end: true as const } : {}) } }),
+      ...(play.survival === undefined ? {} : { survival: survivalRef(play.survival) }),
     })),
     finishedAt: finished ? new Date() : null,
   };

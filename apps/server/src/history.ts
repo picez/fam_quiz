@@ -7,6 +7,7 @@ import {
   roundQuestions,
   quizSchema,
   roundSchema,
+  survivorsAfter,
   upgradeQuiz,
   wipeoutStandings,
   type AdjustmentSource,
@@ -202,6 +203,48 @@ function wipeoutResult(
   };
 }
 
+/**
+ * «Вибування» після запитання index: вердикт (з edge і живих до запитання), випробування за учасниками таблиці, привиди й живі після нього.
+ * Живі — учасники без тих, хто є в out випробувань цього раунду до index включно.
+ */
+function survivalResult(quiz: Quiz, plays: PlayRef[], index: number, standings: { participantId: string; nickname: string }[]): GameQuestionResult['survival'] {
+  const ref = plays[index];
+  const survival = ref?.survival;
+  if (ref === undefined || survival === undefined) return undefined;
+  const ids = standings.map((s) => s.participantId);
+  const outsUpTo = (upTo: number) => plays.flatMap((play, i) => (i <= upTo && play.roundIndex === ref.roundIndex ? [play.survival?.trial?.out ?? []] : []));
+  const before = survivorsAfter(ids, outsUpTo(index - 1));
+  const verdict = survival.edge.length === 0 ? 'all_right' : before.every((id) => survival.edge.includes(id)) ? 'all_wrong' : 'trial';
+  const trial = survival.trial;
+  const round = quiz.rounds[ref.roundIndex];
+  const trialQuestion = trial?.questionId === undefined || round?.type !== 'survival' ? undefined : round.trials.find((q) => q.id === trial.questionId);
+  const alive = new Set(survivorsAfter(ids, outsUpTo(index)));
+  return {
+    verdict,
+    ghosts: survival.ghosts ?? { answered: 0, right: 0 },
+    trial:
+      trial === undefined
+        ? null
+        : {
+            kind: trial.kind,
+            fellBack: trial.fellBack === true,
+            question: trialQuestion?.text ?? null,
+            rows: standings
+              .filter((s) => survival.edge.includes(s.participantId))
+              .map(({ participantId, nickname }) => ({
+                nickname,
+                out: trial.out.includes(participantId),
+                answer: trial.answers?.[participantId]?.answer ?? null,
+                door: trial.doors?.[participantId]?.door ?? null,
+                auto: trial.doors?.[participantId]?.auto === true,
+                trap: trial.doors?.[participantId]?.trap ?? null,
+              })),
+          },
+    alive: standings.filter((s) => alive.has(s.participantId)).map((s) => s.nickname),
+    end: survival.end === true,
+  };
+}
+
 /** Кількість різних значень: у бліці гравець може мати кілька рядків-спроб на одне запитання. */
 const distinct = (values: unknown[]) => new Set(values).size;
 
@@ -318,6 +361,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
         responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
         ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),
+        ...(round?.type === 'survival' && quiz !== null ? { survival: survivalResult(quiz, row.plays, index, standings) } : {}),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },
     ];
@@ -398,6 +442,27 @@ function unplayedWipeout(snapshot: unknown, plays: PlayRef[] | null, questionsPl
   return unplayed;
 }
 
+/**
+ * Скільки зіграних запитань «Вибування» цей гравець не грав живим: після вибування він лише був привидом, рядків-відповідей на ті запитання немає.
+ * Такі запитання не рахуємо його запитаннями: точність — із запитань, на яких він був живим. Вибув він на запитанні, де був рядок, — те рахується.
+ */
+function unplayedSurvival(snapshot: unknown, plays: PlayRef[] | null, questionsPlayed: number, participantId: string): number {
+  // Розбір знімка дорогий: для ігор без «Вибування» його не робимо.
+  const rounds = typeof snapshot === 'object' && snapshot !== null ? (snapshot as { rounds?: unknown }).rounds : undefined;
+  if (plays === null || !Array.isArray(rounds) || !rounds.some((round: unknown) => (round as { type?: unknown } | null)?.type === 'survival')) return 0;
+  const quiz = snapshotOf(snapshot);
+  if (quiz === null) return 0;
+  const played = plays.slice(0, questionsPlayed);
+  let unplayed = 0;
+  for (const roundIndex of new Set(played.map((ref) => ref.roundIndex))) {
+    if (quiz.rounds[roundIndex]?.type !== 'survival') continue;
+    const indices = played.flatMap((ref, i) => (ref.roundIndex === roundIndex ? [i] : []));
+    const outAt = indices.findIndex((i) => played[i].survival?.trial?.out.includes(participantId) === true);
+    if (outAt >= 0) unplayed += indices.length - 1 - outAt;
+  }
+  return unplayed;
+}
+
 /** Ігри гравця з акаунта, найновіші першими, з рядками його відповідей; limit null — усі. */
 export async function playerGames(db: Db, userId: string, limit: number | null): Promise<{ played: PlayedGame; marks: AnswerMark[] }[]> {
   const query = db
@@ -447,7 +512,8 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
             row.game.questionsPlayed,
             row.participant.id,
             new Set(mine.filter((a) => a.accepted && a.attempt === 0).map((a) => a.questionIndex)),
-          ),
+          ) -
+          unplayedSurvival(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed, row.participant.id),
       },
       marks: mine.filter((a) => isAnswerRow(a.attempt)).map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
     };

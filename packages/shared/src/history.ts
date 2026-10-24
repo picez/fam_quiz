@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
-import type { CellKind, Question, Round, WagerMode } from './quiz';
+import type { CellKind, Question, Round, TrialKind, WagerMode } from './quiz';
 import type { WipeoutStatus } from './wipeout';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
@@ -71,6 +71,22 @@ export interface GameQuestionResult {
   bluff?: { options: { text: string; kind: 'truth' | 'lie' | 'spare'; authors: string[]; pickedBy: string[]; removed: boolean }[] };
   /** «Ва-банк»: ціна сходинки й стан кожного учасника після неї (за турнірною таблицею). */
   wipeout?: { price: number; rows: { nickname: string; status: WipeoutStatus; bank: number }[] };
+  /** «Вибування»: вердикт після розкриття, випробування, привиди й хто живий після цього запитання. */
+  survival?: {
+    verdict: 'trial' | 'all_wrong' | 'all_right';
+    ghosts: { answered: number; right: number };
+    trial: {
+      kind: TrialKind;
+      fellBack: boolean;
+      /** Текст питання на виживання; null — удача. */
+      question: string | null;
+      rows: { nickname: string; out: boolean; answer: Answer | null; door: number | null; auto: boolean; trap: number | null }[];
+    } | null;
+    /** Живі після цього запитання (нікнейми). */
+    alive: string[];
+    /** На цьому запитанні раунд скінчився. */
+    end: boolean;
+  };
   /** Відповіді в порядку: учасник за турнірною таблицею, потім номер спроби. */
   responses: GameResponse[];
   /** Запитання фіналу: ставки й результати учасників за турнірною таблицею; null поза фіналом. */
