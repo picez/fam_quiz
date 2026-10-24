@@ -1890,4 +1890,26 @@ describe('HostScreen: wall, poll and word cloud (10d)', () => {
     fireEvent.click(button('борщ'));
     expect(send).toHaveBeenCalledWith('host:cloud-hide', { key: 'борщ', hidden: false });
   });
+
+  it('the wall, poll and cloud panels have ⓘ with their own entry; it sends nothing', () => {
+    const wallSend = show(
+      during('question', wallQ, {
+        question: { ...publicOf(wallQ), wall: { tiles: [], size: 4, groupCount: 4, maxMistakes: 3 } },
+        wall: { groupCount: 4, rows: [] },
+      }),
+    );
+    const wallPanel = document.querySelector('.host-wall') as HTMLElement;
+    fireEvent.click(within(wallPanel).getByRole('button', { name: "Довідка: Стіна зв'язків" }));
+    expect(wallSend).not.toHaveBeenCalled();
+    cleanup();
+    const pollSend = show(during('locked', pollQ, { question: { ...publicOf(pollQ), choices: pollOptions }, responses: [] }));
+    const pollPanel = document.querySelector('.host-poll') as HTMLElement;
+    fireEvent.click(within(pollPanel).getByRole('button', { name: 'Довідка: Опитування' }));
+    expect(pollSend).not.toHaveBeenCalled();
+    cleanup();
+    const cloudSend = show(during('question', cloudQ, { cloud: [] }));
+    const cloudPanel = screen.getByRole('heading', { name: /Хмара слів/ }).closest('section') as HTMLElement;
+    fireEvent.click(within(cloudPanel).getByRole('button', { name: 'Довідка: Хмара слів' }));
+    expect(cloudSend).not.toHaveBeenCalled();
+  });
 });

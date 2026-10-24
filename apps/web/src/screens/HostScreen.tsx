@@ -873,7 +873,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {/* Стіна: ведучий бачить групи завжди й поступ кожного гравця наживо. */}
       {correct?.type === 'wall' && (
         <section className="panel host-wall">
-          <h2>{t('hostWallTitle')}</h2>
+          <h2>
+            {t('hostWallTitle')}
+            <HelpButton id="question.wall" />
+          </h2>
           <WallReveal question={correct} />
           {view.wall !== null && <WallTable info={view.wall} />}
         </section>
@@ -881,14 +884,20 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {correct?.type === 'poll' && view.question !== null && (
         <section className="panel host-poll">
-          <h2>{t('hostPollTitle')}</h2>
+          <h2>
+            {t('hostPollTitle')}
+            <HelpButton id="question.poll" />
+          </h2>
           <PollBars choices={view.question.choices} counts={voteCounts} total={view.responses.length} />
         </section>
       )}
 
       {view.question?.type === 'wordcloud' && view.cloud !== null && (
         <section className="panel">
-          <h2>{t('hostCloudTitle')}</h2>
+          <h2>
+            {t('hostCloudTitle')}
+            <HelpButton id="question.wordcloud" />
+          </h2>
           <p className="meta">{t('cloudHideHint')}</p>
           <HostCloud words={view.cloud} onHide={(key, hidden) => void act('host:cloud-hide', { key, hidden })} />
         </section>

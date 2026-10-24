@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUDIO_LIMITS, REVEAL_MIN_SHARE, clueShare, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES } from '@quiz/shared';
+import { AUDIO_LIMITS, REVEAL_MIN_SHARE, clueShare, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES, wallShare } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { debuffName } from '../debuff-meta';
 import { ROUND_NAMES } from '../guide-text';
@@ -146,7 +146,7 @@ describe('host help', () => {
     for (const kind of BUFF_KINDS) {
       const e = helpEntry(`buff.${kind}`);
       expect(e.how[0], kind).toContain('раз за гру, не більше одного на запитання і лише до відповіді');
-      expect((e.limits ?? []).join(' '), kind).toContain('Бафи не діють у бліці, на бліц-клітинках, у фіналі, на запитаннях «ланцюжок» і «сортування» та в дуелях');
+      expect((e.limits ?? []).join(' '), kind).toContain("Бафи не діють у бліці, на бліц-клітинках, у фіналі, на запитаннях «ланцюжок» і «сортування», на стіні зв'язків, опитуванні й хмарі слів та в дуелях");
     }
     expect(text('buff.shield')).toContain('в інших баф узяти не можна');
     expect(text('buff.swap')).toContain('лише за наявності запасних запитань');
@@ -155,5 +155,32 @@ describe('host help', () => {
     expect(text('setting.streak')).toContain('У бліці без натискання серія не обривається');
     expect(text('round.board')).toContain(`до ${LIMITS.maxCategories * LIMITS.maxCategoryQuestions} клітинок`);
     expect(text('round.classic')).toContain('Запитання з відео й картинкою, що проявляється, бонусу за швидкість не мають');
+  });
+
+  it('10d entries tell the engine numbers', () => {
+    const wall = helpEntry('question.wall');
+    const full4 = Math.round(wallShare(4, 4) * 100);
+    const full3 = Math.round(wallShare(3, 3) * 100);
+    expect(wall.points.join(' ')).toContain(`${full4} %`);
+    expect(wall.points.join(' ')).toContain(`${full3} %`);
+    expect([full4, full3]).toEqual([75, 67]);
+    expect((wall.limits ?? []).join(' ')).toContain(`${LIMITS.minWallMistakes}–${LIMITS.maxWallMistakes}`);
+    expect(wall.tip.join(' ')).toContain(`${LIMITS.wallTile}`);
+    expect(helpEntry('question.poll').points.join(' ')).toContain('Балів немає');
+    expect(helpEntry('question.wordcloud').points.join(' ')).toContain('Балів немає');
+    expect(helpEntry('question.wordcloud').how.join(' ')).toContain(`${LIMITS.cloudShown}`);
+    expect(helpEntry('question.wordcloud').how.join(' ')).toContain('сховати');
+    expect(helpEntry('question.wordcloud').tip.join(' ')).not.toContain('100 до 1');
+  });
+
+  it('related entries mention the new limits', () => {
+    expect(text('buff.double')).toContain('стіні');
+    expect(text('buff.double')).toContain('опитуванні');
+    for (const kind of DEBUFF_KINDS) expect(text(`debuff.${kind}`), kind).toContain('опитуванні');
+    expect(text('cell.normal')).toContain("Стіна зв'язків");
+    expect(text('round.board')).toContain('Опитування');
+    expect(text('round.blitz')).toContain("Стіна зв'язків");
+    expect(text('round.final')).toContain("Стіна зв'язків");
+    expect(text('setting.speedBonus')).toContain('стіні');
   });
 });
