@@ -127,18 +127,22 @@ export function paceFactor(question: Question, timeMs: number, opened?: number):
   return question.reveal == null ? 1 : revealShare(timeMs, answerWindowMs(question));
 }
 
+/** Вердикт за часткою ціни для типів з балами за близькість чи кількість знайденого (14a): правильна — частка ≥ 0,5. */
+export function shareVerdict(share: number): Verdict {
+  // Частка в двійковому може вийти 0.4999…
+  const accepted = share >= PROXIMITY_CORRECT_SHARE - EPSILON;
+  return { accepted, accuracy: share, grade: accepted ? 'correct' : share > 0 ? 'partial' : 'wrong' };
+}
+
 /**
  * Перевірка з урахуванням часу.
- * Типи з балами за близькість (proximityPartial, повзунок і точка): accepted — частка ≥ 0,5; grade 'correct' | 'partial' | 'wrong' за цим правилом (14a).
+ * Типи з балами за близькість (proximityPartial: повзунок і точка; стіна рахується в wall.ts): shareVerdict — accepted, коли частка ≥ 0,5 (14a).
  * Решта: accepted і grade — з самої відповіді (checkAnswer, gradeOf); на картинці, що проявляється, і в «Хто я?» точність × paceFactor —
  * це плата за час, як бонус швидкості, а не часткова правильність. opened — для усної клітинки (підказки відкрив ведучий).
  */
 export function verdictOf(question: Question, answer: Answer, timeMs: number, opened?: number): Verdict {
   const checked = checkAnswer(question, answer);
-  if (proximityPartial(question)) {
-    const grade = checked.accepted ? 'correct' : checked.accuracy > 0 ? 'partial' : 'wrong';
-    return { accepted: checked.accepted, accuracy: checked.accuracy, grade };
-  }
+  if (proximityPartial(question)) return shareVerdict(checked.accuracy);
   return {
     accepted: checked.accepted,
     accuracy: checked.accuracy * paceFactor(question, timeMs, opened),

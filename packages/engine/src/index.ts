@@ -19,6 +19,7 @@ export * from './board-cells';
 export * from './final';
 export * from './chain';
 export * from './sort';
+export * from './wall';
 export * from './duel';
 export * from './splash';
 export * from './restore';

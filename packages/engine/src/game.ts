@@ -43,6 +43,7 @@ import { dicePending, dropFromDice } from './board-dice';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { chainDone, scoreChain } from './chain';
 import { scoreSort, shiftSortLocks } from './sort';
+import { scoreWall, wallPresent } from './wall';
 import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
@@ -133,6 +134,19 @@ export interface Play {
   overtime?: Record<string, number>;
   /** «Хто я?»: скільки підказок відкрито (від 1); лише в такому запитанні (10c). */
   clues?: number;
+  /** Лише в запитанні-стіні; гравця тут немає, поки він не надіслав жодного вибору (10d). */
+  wall?: Record<string, WallProgress>;
+  /** «Хмара слів»: ключі cloudKey, які ведучий сховав (10d). */
+  cloudHidden?: string[];
+}
+
+/** Поступ гравця на стіні. */
+export interface WallProgress {
+  /** Id знайдених груп у порядку знаходження; остання автоматична теж тут. */
+  found: string[];
+  mistakes: number;
+  /** Неправильні вибори: відсортовані id плиток через кому. */
+  tried: string[];
 }
 
 /** Поступ гравця в сортуванні. */
@@ -442,6 +456,10 @@ export function removePlayer(state: GameState, playerId: string): Result {
       const { [playerId]: _progress, ...sort } = play.sort;
       kept.sort = sort;
     }
+    if (play.wall !== undefined) {
+      const { [playerId]: _progress, ...wall } = play.wall;
+      kept.wall = wall;
+    }
     if (play.buffs !== undefined) {
       const { [playerId]: _buff, ...buffs } = play.buffs;
       // Голос вилученого більше не рахується.
@@ -577,6 +595,8 @@ export function present(question: Question, shuffleOptions: boolean, rng: Rng): 
     // Авторський порядок часто згрупований за категоріями: слова перемішуються завжди, однаково для всіх.
     return shuffle(question.words.map((word) => word.id), rng);
   }
+  // Стіна: плитки перемішуються завжди, однаково для всіх; жоден ряд показу не є групою.
+  if (question.type === 'wall') return wallPresent(question, rng);
   return [];
 }
 
@@ -895,19 +915,20 @@ function dropQueue(state: GameState): GameState {
 
 /**
  * Закриває запитання; «Мінус для всіх» бліц-клітинки нараховується саме тут, рівно один раз.
- * Внутрішня функція рушія: експортовано для sort.ts, не для сервера.
+ * Внутрішня функція рушія: експортовано для sort.ts і wall.ts, не для сервера.
  */
 export function lockNow(state: GameState): GameState {
   // Бали за ланцюжок залежать від найшвидшого, тож рахуються лише тут, коли відомі часи всіх.
   // Незакінчене сортування отримує записи за відсортовані слова.
   // Незавершена друга спроба зараховує першу відповідь.
-  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreSort(scoreChain(settleRetries(state))))));
+  // Незакінчена стіна отримує записи за знайдені групи.
+  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreWall(scoreSort(scoreChain(settleRetries(state)))))));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
 /**
  * Закриває запитання поля й одразу розкриває оцінку: так відповідь світиться зеленим або червоним.
- * Внутрішня функція рушія: експортовано для sort.ts, не для сервера.
+ * Внутрішня функція рушія: експортовано для sort.ts і wall.ts, не для сервера.
  */
 export function revealNow(state: GameState): GameState {
   return withTotals({ ...lockNow(state), phase: 'reveal' });
@@ -968,6 +989,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'chain' || play.question.type === 'chain') return fail('type_mismatch');
   // Сортування — лише хід за ходом через sortWord.
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
+  // Стіна — лише вибір за вибором через guessWall.
+  if (answer.type === 'wall' || play.question.type === 'wall') return fail('type_mismatch');
   const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
   if (play.blitz !== undefined) {
@@ -1446,9 +1469,9 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
   // Ланцюжок перевіряється за літерами однозначно; зміна одного вердикту зсунула б бали інших.
-  // Сортування так само однозначне: сервер перевіряв кожен хід.
+  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід.
   const type = state.plays[state.questionIndex]?.question.type;
-  if (type === 'chain' || type === 'sort') return fail('wrong_phase');
+  if (type === 'chain' || type === 'sort' || type === 'wall') return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
   if (current?.type === 'final') return overrideFinal(state, playerId, grade);
@@ -1494,7 +1517,7 @@ export function end(state: GameState, now?: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   // Поза фіналом closeFinal лише перераховує підсумки; у фіналі ще оцінює мовчання й розкриває всіх.
   const closed = closeFinal({
-    ...dropQueue(scoreSort(scoreChain(state))),
+    ...dropQueue(scoreWall(scoreSort(scoreChain(state)))),
     phase: 'finished',
     board: clearAway(state.board),
     paused: false,
