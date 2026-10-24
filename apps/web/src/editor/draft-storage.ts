@@ -75,6 +75,7 @@ function revive(stored: Question): Question {
     return { ...base, clues: strings(clues) ?? ['', '', ''], accepted: strings(accepted) ?? [''], interval: numberOr(base.interval) };
   }
   if (base.type === 'pin') {
+    const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5);
     const known = (PIN_MAPS as readonly unknown[]).includes(base.map);
     const target: { x?: unknown; y?: unknown } = isRecord(base.target) ? base.target : {};
     // Невідома мапа (чернетка з майбутнього чи зіпсована) стає світом: основа без картинки не буває порожньою.
@@ -84,7 +85,7 @@ function revive(stored: Question): Question {
       map,
       aspect: map === null ? numberOr(base.aspect) : PIN_MAP_ASPECT[map],
       // Точка без координат — у центр: порожньою вона не буває.
-      target: { x: typeof target.x === 'number' ? target.x : 0.5, y: typeof target.y === 'number' ? target.y : 0.5 },
+      target: { x: share(target.x), y: share(target.y) },
       fullRadius: numberOr(base.fullRadius),
       zeroRadius: numberOr(base.zeroRadius),
       imageUrl: map === null ? base.imageUrl : null,

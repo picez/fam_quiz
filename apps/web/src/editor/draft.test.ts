@@ -1274,13 +1274,16 @@ describe('clues and pin drafts (10c)', () => {
     expect(problemsOf(quizWith(pin({ zeroRadius: 2, fullRadius: 3 })))).toEqual([radius]);
     expect(problemsOf(quizWith(pin({ zeroRadius: Number.NaN })))).toEqual([radius]);
     expect(problemsOf(quizWith(pin({ zeroRadius: 101 })))).toEqual([radius]);
+    expect(problemsOf(quizWith(pin({ fullRadius: 60, zeroRadius: 90 })))).toEqual(['Запитання 1: радіус повних балів — від 0 до 50 %.']);
+    expect(problemsOf(quizWith(pin({ fullRadius: -1 })))).toEqual(['Запитання 1: радіус повних балів — від 0 до 50 %.']);
   });
 
   it('every schema code of clues and pin is a problem the editor explains', () => {
     // Те, що редактор не дає створити, усе одно не проходить мовчки: перевірка чернетки каже, що не так.
-    expect(problemsOf(quizWith(clues({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toHaveLength(1);
-    expect(problemsOf(quizWith(pin({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toHaveLength(1);
-    expect(problemsOf(quizWith(pin({ aspect: 3 })))).toHaveLength(1);
+    const generic = ['Запитання 1: перевірте заповнення.'];
+    expect(problemsOf(quizWith(clues({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toEqual(generic);
+    expect(problemsOf(quizWith(pin({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toEqual(generic);
+    expect(problemsOf(quizWith(pin({ aspect: 3 })))).toEqual(generic);
   });
 
   it('places: clues and pins by round and cell', () => {
@@ -1303,6 +1306,12 @@ describe('clues and pin drafts (10c)', () => {
     expect(problemsOf(boardWith(pin(), { kind: 'blitz' }))).toHaveLength(1);
     expect(problemsOf(boardWith(pin(), { answerMode: 'phone' }))).toEqual([]);
     expect(firstProblem(boardWith(pin(), { answerMode: 'voice' }))).toMatchObject({ cell: { category: 0, index: 0 } });
+  });
+
+  it('a voice clues cell does not tell the host to reduce a hidden interval', () => {
+    const six = clues({ clues: ['1', '2', '3', '4', '5', '6'], interval: 8, timeLimit: 30 });
+    expect(problemsOf(boardWith(six, { answerMode: 'voice' }))).toEqual(['Категорія 1, запитання 1: для 6 підказок дайте щонайменше 45 с часу.']);
+    expect(problemsOf(boardWith(six, { answerMode: 'phone' }))[0]).toContain('зменште інтервал');
   });
 
   it('cleaned trims the clues and the spellings', () => {
@@ -1335,6 +1344,11 @@ describe('clues and pin drafts (10c)', () => {
     expect(mars).toMatchObject({ type: 'pin', map: 'world', aspect: 2, imageUrl: null });
     expect(empty).toMatchObject({ type: 'clues', clues: ['', '', ''], accepted: [''] });
     expect(empty.type === 'clues' && Number.isNaN(empty.interval)).toBe(true);
+  });
+
+  it('draft storage clamps the target into the picture', () => {
+    saveDraft('far-pin', quizWith(pin({ target: { x: 1.7, y: -3 } })));
+    expect(roundQuestions(loadDraft('far-pin')!.rounds[0])[0]).toMatchObject({ target: { x: 1, y: 0 } });
   });
 
   it('draft storage keeps an own picture and the target', () => {

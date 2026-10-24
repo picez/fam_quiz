@@ -89,6 +89,77 @@ describe('PinEditor', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('a tap while zoomed in sets the target in the picture own coordinates', () => {
+    const onChange = vi.fn();
+    render(<PinEditor question={pin()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Наблизити' }));
+    const frame = screen.getByRole('group', { name: /Мапа/ });
+    fireEvent.pointerDown(frame, { pointerId: 1, clientX: 80, clientY: 110 });
+    fireEvent.pointerUp(frame, { pointerId: 1, clientX: 80, clientY: 110 });
+    const next = onChange.mock.calls[0][0] as Pin;
+    expect(next.target.x).toBeCloseTo(0.5 - 80 / (320 * 1.5), 2);
+    expect(next.target.y).toBeCloseTo(0.5);
+  });
+
+  it('a built-in map after an own picture clears the picture', () => {
+    const onChange = vi.fn();
+    render(<PinEditor question={{ ...pin(), map: null, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', aspect: 1.5 }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Європа' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ map: 'europe', aspect: 4 / 3, imageUrl: null }));
+  });
+
+  it('a picture that fails to load reports it and changes nothing', async () => {
+    class BrokenImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.());
+      }
+    }
+    vi.stubGlobal('Image', BrokenImage);
+    upload();
+    const onChange = vi.fn();
+    render(<PinEditor question={pin()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Своя картинка' }));
+    pickFile();
+    await screen.findByText(/Не вдалося прочитати картинку/);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('a picture that never reports its size times out after 3 s', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    class SilentImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {}
+    }
+    vi.stubGlobal('Image', SilentImage);
+    upload();
+    const onChange = vi.fn();
+    render(<PinEditor question={pin()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Своя картинка' }));
+    pickFile();
+    await vi.advanceTimersByTimeAsync(3100);
+    await screen.findByText(/Не вдалося прочитати картинку/);
+    expect(onChange).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('a late upload does not override a base chosen meanwhile', async () => {
+    stubImage(1200, 800);
+    let release: (value: Response) => void = () => {};
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => (release = resolve))));
+    const onChange = vi.fn();
+    render(<PinEditor question={pin()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Своя картинка' }));
+    pickFile();
+    fireEvent.click(screen.getByRole('button', { name: 'Україна' }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    release(new Response(JSON.stringify({ url: '/uploads/0123456789abcdef0123456789abcdef.png' }), { status: 201 }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
   it('the zero radius field changes zeroRadius', () => {
     const onChange = vi.fn();
     render(<PinEditor question={pin()} onChange={onChange} />);

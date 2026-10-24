@@ -56,6 +56,10 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
       cells.map((cell, i) => {
         if (i !== index) return cell;
         const next = { ...cell, ...patch };
+        // «Хто я?» на усній клітинці: схований інтервал стає найменшим, щоб не вимагати зайвого часу.
+        if (next.question.type === 'clues' && next.kind === 'normal' && cellAnswerMode(round, next) === 'voice' && next.question.interval !== LIMITS.minClueSeconds) {
+          next.question = { ...next.question, interval: LIMITS.minClueSeconds };
+        }
         // Картинка, що проявляється, не діє в бліц-клітинці й у відповіді вголос: режим прибирається.
         if (next.question.reveal === undefined || (next.kind === 'normal' && cellAnswerMode(round, next) === 'phone')) return next;
         const { reveal: _reveal, ...question } = next.question;

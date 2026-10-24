@@ -317,7 +317,8 @@ function SortBody({
 
 /** Час, якого досить, щоб остання підказка відкрилася за LIMITS.clueTailSeconds до кінця; не вище максимуму. */
 function raisedTime(timeLimit: number, count: number, interval: number): number {
-  if (!Number.isFinite(timeLimit) || !Number.isFinite(interval)) return timeLimit;
+  // Інтервал, якого ще не вписано або який поза межами, час не піднімає: про нього скаже перевірка.
+  if (!Number.isFinite(timeLimit) || !Number.isInteger(interval) || interval < LIMITS.minClueSeconds || interval > LIMITS.maxClueSeconds) return timeLimit;
   const need = Math.min(LIMITS.maxTime, (count - 1) * interval + LIMITS.clueTailSeconds);
   return Math.max(timeLimit, need);
 }
@@ -615,7 +616,11 @@ function Body({ question, onChange, showPoints, cluesByHost }: Pick<Props, 'ques
       const rows = question.clues.map((text, index) => ({ id: String(index), text }));
       const spellings = question.accepted.map((text, index) => ({ id: String(index), text }));
       const { interval } = question;
-      const setClues = (clues: string[]) => onChange({ ...question, clues, timeLimit: raisedTime(question.timeLimit, clues.length, interval) });
+      // На усній клітинці інтервалу не видно й він нічого не робить: беремо найменший, щоб часу треба було мінімум.
+      const setClues = (clues: string[]) => {
+        const used = cluesByHost ? LIMITS.minClueSeconds : interval;
+        onChange({ ...question, clues, interval: used, timeLimit: raisedTime(question.timeLimit, clues.length, used) });
+      };
       const showAt = Number.isFinite(interval) && Number.isFinite(question.timeLimit);
       return (
         <>

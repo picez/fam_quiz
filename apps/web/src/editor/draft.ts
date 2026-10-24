@@ -473,16 +473,18 @@ interface Place {
   reveal: boolean;
   clues: boolean;
   pin: boolean;
+  /** Усна клітинка: інтервал підказок схований, тож порада «зменште інтервал» недоречна. */
+  voice: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, voice: false };
 /** Бліц і фінал: нічого з нового. Класика — усе. */
-const roundPlace = (round: Round): Place => (round.type === 'classic' ? ANYWHERE : { reveal: false, clues: false, pin: false });
+const roundPlace = (round: Round): Place => (round.type === 'classic' ? ANYWHERE : { reveal: false, clues: false, pin: false, voice: false });
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone };
+  return { reveal: phone, clues: normal, pin: phone, voice: normal && !phone };
 };
 
 /** Чи вистачає часу останній підказці: (n − 1) × інтервал + хвіст ≤ час. */
@@ -567,17 +569,15 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (question.accepted.length === 0) return 'problemNoAccepted';
       const { interval } = question;
       if (!Number.isInteger(interval) || interval < LIMITS.minClueSeconds || interval > LIMITS.maxClueSeconds) return 'problemCluesInterval';
-      if (lastClueAt(question) + LIMITS.clueTailSeconds > timeLimit) return 'problemCluesTime';
+      if (lastClueAt(question) + LIMITS.clueTailSeconds > timeLimit) return place.voice ? 'problemCluesTimeVoice' : 'problemCluesTime';
       break;
     }
     case 'pin': {
       if (question.map === null && question.imageUrl === null) return 'problemPinImage';
       const { fullRadius, zeroRadius } = question;
+      if (!Number.isFinite(fullRadius) || fullRadius < 0 || fullRadius > LIMITS.pinMaxFullRadius) return 'problemPinFull';
       if (
-        !Number.isFinite(fullRadius) ||
         !Number.isFinite(zeroRadius) ||
-        fullRadius < 0 ||
-        fullRadius > LIMITS.pinMaxFullRadius ||
         zeroRadius > LIMITS.pinMaxZeroRadius ||
         zeroRadius <= fullRadius
       ) {
@@ -646,7 +646,8 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     clueMin: LIMITS.minClueSeconds,
     clueMax: LIMITS.maxClueSeconds,
     pinMax: LIMITS.pinMaxZeroRadius,
-    ...(question?.type === 'clues' ? { at: lastClueAt(question), need: lastClueAt(question) + LIMITS.clueTailSeconds } : {}),
+    pinFullMax: LIMITS.pinMaxFullRadius,
+    ...(question?.type === 'clues' ? { count: question.clues.length, at: lastClueAt(question), need: lastClueAt(question) + LIMITS.clueTailSeconds } : {}),
   });
 
 /** Повідомлення про проблему клітинки: те саме, що для запитання, але з категорією. */

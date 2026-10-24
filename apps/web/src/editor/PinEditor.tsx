@@ -44,14 +44,19 @@ export function PinEditor({ question, onChange }: { question: Pin; onChange: (q:
   }, []);
 
   // «Своя картинка» натиснули, але файл ще не завантажено: основа лишається колишньою.
+  // Номер останнього вибору основи: запізніла відповідь завантаження чи вимірювання нічого не міняє.
+  const request = useRef(0);
+  /** Значення request у мить, коли вибрали файл. */
+  const started = useRef(0);
   const [choosing, setChoosing] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const own = question.map === null;
 
   const upload = useImageUpload((url) => {
     if (url === null) return;
+    const mine = started.current;
     void measure(url).then((aspect) => {
-      if (!mounted.current) return;
+      if (!mounted.current || mine !== request.current) return;
       if (aspect === null) return setProblem(t('pinImageFailed'));
       if (aspect < LIMITS.pinMinAspect || aspect > LIMITS.pinMaxAspect) return setProblem(t('pinAspectBad'));
       setProblem(null);
@@ -62,6 +67,7 @@ export function PinEditor({ question, onChange }: { question: Pin; onChange: (q:
   });
 
   const pickMap = (map: PinMap) => {
+    request.current += 1;
     setChoosing(false);
     setProblem(null);
     upload.clearError();
@@ -82,7 +88,10 @@ export function PinEditor({ question, onChange }: { question: Pin; onChange: (q:
             {t(`pinMap_${map}`)}
           </button>
         ))}
-        <button type="button" className={choosing || own ? 'chip is-on' : 'chip'} aria-pressed={choosing || own} onClick={() => setChoosing(true)}>
+        <button type="button" className={choosing || own ? 'chip is-on' : 'chip'} aria-pressed={choosing || own} onClick={() => {
+            request.current += 1;
+            setChoosing(true);
+          }}>
           {t('pinOwnImage')}
         </button>
       </div>
@@ -90,7 +99,12 @@ export function PinEditor({ question, onChange }: { question: Pin; onChange: (q:
         <div className="toolbar">
           <label className={upload.busy ? 'btn btn-small file-pick is-busy' : 'btn btn-small file-pick'}>
             <span>{t(upload.busy ? 'uploading' : own ? 'replaceImage' : 'pinUpload')}</span>
-            <input type="file" accept={ACCEPT} disabled={upload.busy} onChange={upload.pick} />
+            <input type="file" accept={ACCEPT} disabled={upload.busy}
+              onChange={(event) => {
+                started.current = request.current;
+                return upload.pick(event);
+              }}
+            />
           </label>
         </div>
       )}

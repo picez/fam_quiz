@@ -1011,6 +1011,8 @@ const uk = {
   problemClueEmpty: 'Запитання {index}: заповніть кожну підказку.',
   problemCluesTime: 'Запитання {index}: остання підказка відкривається на {at}-й секунді — дайте щонайменше {need} с часу або зменште інтервал.',
   problemCluesInterval: 'Запитання {index}: інтервал між підказками — від {clueMin} до {clueMax} с.',
+  problemPinFull: 'Запитання {index}: радіус повних балів — від 0 до {pinFullMax} %.',
+  problemCluesTimeVoice: 'Запитання {index}: для {count} підказок дайте щонайменше {need} с часу.',
   problemPinImage: 'Запитання {index}: завантажте картинку для точки або виберіть мапу.',
   problemPinRadius: 'Запитання {index}: радіус нуля має бути більшим за радіус повних балів (до {pinMax} %).',
   problemCluesPlace: 'Запитання {index}: «Хто я?» діє лише в класиці й на звичайній клітинці поля.',
