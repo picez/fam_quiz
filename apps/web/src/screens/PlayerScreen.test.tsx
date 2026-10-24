@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, survey: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -48,6 +48,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   sort: null,
   wall: null,
   survey: null,
+  bluff: null,
   notice: null,
   buffs: [],
   buffNotice: null,

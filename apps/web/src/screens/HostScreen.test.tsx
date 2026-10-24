@@ -63,7 +63,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   sliderMarks: null,
   pinMarks: null,
   wall: null,
-  cloud: null, survey: null, surveySkipped: [],
+  cloud: null, survey: null, bluff: null, surveySkipped: [],
   ...over,
 });
 
