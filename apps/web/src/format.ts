@@ -1,4 +1,4 @@
-import type { Answer, CellMark, Choice, LobbyPlayer, PublicQuestion, PublicSlider, Question, Round, RoundInfo } from '@quiz/shared';
+import { pinDistance, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
@@ -101,7 +101,10 @@ export function correctText(question: Question, presented?: { id: string }[]): s
     case 'boolean':
       return yesNo(question.correct);
     case 'text':
+    case 'clues':
       return question.accepted[0];
+    case 'pin':
+      return t(question.map === null ? 'pinCorrectImage' : (`pinCorrect_${question.map}` as TextKey));
     case 'numeric':
       return question.tolerance > 0 ? `${question.correct} (± ${question.tolerance})` : String(question.correct);
     case 'slider': {
@@ -148,7 +151,12 @@ export function answerText(answer: Answer | null, question: Question | null, pre
     case 'boolean':
       return yesNo(answer.value);
     case 'text':
+    case 'clues':
       return answer.value;
+    case 'pin':
+      return question?.type === 'pin'
+        ? t('pinAnswerAt', { distance: pinDistance(question, answer.x, answer.y).toLocaleString('uk-UA', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })
+        : t('pinAnswerBare');
     case 'numeric':
       return String(answer.value);
     case 'slider':

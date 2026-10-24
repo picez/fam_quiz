@@ -600,6 +600,9 @@ function Body({ question, onChange, showPoints }: Pick<Props, 'question' | 'onCh
         </>
       );
     }
+    case 'clues':
+    case 'pin':
+      return null; // задача 9
   }
 }
 

@@ -25,6 +25,8 @@ function filled(question: Question): Question {
       };
     case 'text':
       return { ...question, text, accepted: ['Відповідь'] };
+    case 'clues':
+      return { ...question, text, clues: ['Раз', 'Два', 'Три'], accepted: ['Відповідь'] };
     case 'chain':
       return { ...question, text, words: ['Форель', 'Риба', 'Океан'] };
     case 'sort':
@@ -60,6 +62,39 @@ describe('newQuestion', () => {
     expect(first.points).toBe(1000);
     expect(first.id).not.toBe(second.id);
     if (first.type === 'single') expect(new Set(first.options.map((o) => o.id)).size).toBe(first.options.length);
+  });
+});
+
+describe('clues and pin in the editor (10c)', () => {
+  it('questionTypesFor: blitz has neither, the board has both, the final has neither', () => {
+    expect(questionTypesFor('blitz')).not.toContain('clues');
+    expect(questionTypesFor('blitz')).not.toContain('pin');
+    expect(questionTypesFor('board')).toContain('clues');
+    expect(questionTypesFor('board')).toContain('pin');
+    expect(questionTypesFor('classic')).toContain('clues');
+    expect(questionTypesFor('classic')).toContain('pin');
+    expect(questionTypesFor('final')).not.toContain('clues');
+    expect(questionTypesFor('final')).not.toContain('pin');
+  });
+
+  it('a single with a picture becomes a pin on the world map without the picture', () => {
+    const source = { ...newQuestion('single'), imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png' } as Question;
+    const pin = changeType(source, 'pin');
+    expect(pin.type === 'pin' && pin.map).toBe('world');
+    expect(pin.imageUrl).toBeNull();
+  });
+
+  it('a duplicated clues or pin question shares no arrays or points', () => {
+    const clues = newQuestion('clues');
+    const copy = duplicateQuestion(clues);
+    if (clues.type === 'clues' && copy.type === 'clues') {
+      expect(copy.id).not.toBe(clues.id);
+      expect(copy.clues).not.toBe(clues.clues);
+      expect(copy.accepted).not.toBe(clues.accepted);
+    }
+    const pin = newQuestion('pin');
+    const pinCopy = duplicateQuestion(pin);
+    if (pin.type === 'pin' && pinCopy.type === 'pin') expect(pinCopy.target).not.toBe(pin.target);
   });
 });
 

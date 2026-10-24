@@ -38,6 +38,8 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   chain: '⛓',
   sort: '▤',
   slider: '⟷',
+  clues: '…?',
+  pin: '⌖',
 };
 
 /** Як проходить раунд — 1 рядок (у фіналі 2: ставка і режим ставок; пам'ятка бере лише перший). */

@@ -3,6 +3,7 @@ import {
   DEFAULT_SETTINGS,
   LIMITS,
   CHAIN_WORD,
+  PIN_MAP_ASPECT,
   questionSchema,
   quizSchema,
   boardRoundIssues,
@@ -35,9 +36,12 @@ import { newId } from './new-id';
 
 export { QUESTION_TYPES, type QuestionType };
 
-/** Типи запитань, доступні в раунді: без ланцюжка в бліці й полі; сортування — скрізь. */
+/** Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?» і точки; поле — без ланцюжка; фінал — без «Хто я?» і точки; сортування — скрізь. */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
-  return roundType === 'blitz' || roundType === 'board' ? QUESTION_TYPES.filter((type) => type !== 'chain') : QUESTION_TYPES;
+  if (roundType === 'blitz') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin');
+  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain');
+  if (roundType === 'final') return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin');
+  return QUESTION_TYPES;
 }
 
 type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint' | 'audio' | 'reveal'>;
@@ -63,6 +67,20 @@ function build(common: Common, type: QuestionType): Question {
       return { ...common, type, correct: 0, tolerance: 0 };
     case 'slider':
       return { ...common, type, min: 0, max: 100, step: 1, correct: 50, tolerance: 0 };
+    case 'clues':
+      return { ...common, video: null, type, clues: ['', '', ''], accepted: [''], interval: LIMITS.defaultClueSeconds };
+    case 'pin':
+      return {
+        ...common,
+        video: null,
+        imageUrl: null,
+        type,
+        map: 'world',
+        aspect: PIN_MAP_ASPECT.world,
+        target: { x: 0.5, y: 0.5 },
+        fullRadius: LIMITS.defaultPinFull,
+        zeroRadius: LIMITS.defaultPinZero,
+      };
     case 'order':
       return { ...common, type, items: blanks(LIMITS.minOrderItems) };
     case 'match':
@@ -174,6 +192,10 @@ export function duplicateQuestion(question: Question): Question {
       };
     case 'text':
       return { ...question, id, accepted: [...question.accepted] };
+    case 'clues':
+      return { ...question, id, clues: [...question.clues], accepted: [...question.accepted] };
+    case 'pin':
+      return { ...question, id, target: { ...question.target } };
     case 'chain':
       return { ...question, id, words: [...question.words] };
     case 'sort': {
