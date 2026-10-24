@@ -33,6 +33,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   spotlight: null,
   final: null,
   wipeout: null,
+  survival: null,
   chain: null,
   sort: null,
   notice: null,

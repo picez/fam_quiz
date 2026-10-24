@@ -1,9 +1,10 @@
 import type { Answer } from './answer';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
-import type { AnswerMode, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, Video, WagerMode } from './quiz';
+import type { AnswerMode, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, TrialKind, Video, WagerMode } from './quiz';
 import type { GuidePage } from './guide';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
+import type { SurvivalStatus } from './survival';
 import type { WipeoutStatus } from './wipeout';
 
 export interface Choice {
@@ -627,6 +628,60 @@ export interface WipeoutInfo {
   decide: { endsAt: number | null; remainingMs: number | null; decided: number; total: number } | null;
 }
 
+/** Рядок «Вибування»: гравець, стан, коли вибув, відповідь привида, випробування. */
+export interface SurvivalRow extends BlitzPlayer {
+  /** edge — лише з розкриття до закриття випробування. */
+  status: SurvivalStatus;
+  /** Номер запитання раунду (з 1), після якого вибув; null — живий. */
+  outAfter: number | null;
+  /** Привид на поточному запитанні: correct — лише з розкриття (до того null); null — не привид або не відповідав. */
+  ghost: { correct: boolean | null } | null;
+  /** Для «на межі»: pending / done, поки випробування відкрите (і пульт); safe / out — після закриття; інакше null. */
+  trial: 'pending' | 'done' | 'safe' | 'out' | null;
+  /** Удача: picked — вибрані двері (сцена й телефони — лише після закриття, пульт — наживо); auto — вибрано самі; trap — лише після закриття. */
+  door: { picked: number | null; auto: boolean; trap: number | null } | null;
+}
+
+/** Випробування для всіх. */
+export interface SurvivalTrialInfo {
+  kind: TrialKind;
+  fellBack: boolean;
+  stage: 'open' | 'closed';
+  endsAt: number | null;
+  remainingMs: number | null;
+  limitMs: number;
+  /** Скільки на межі вже відповіли / вибрали і скільки їх усього. */
+  done: number;
+  total: number;
+  /** Питання на виживання без правильної відповіді; null — удача. */
+  question: PublicQuestion | null;
+  /** Правильна відповідь питання — лише після закриття (без підказки); інакше null. */
+  reveal: Question | null;
+}
+
+/** «Вибування» (10h). */
+export interface SurvivalInfo {
+  /** Поточне запитання раунду (0-базове); -1 до першого. */
+  current: number;
+  total: number;
+  /** Скільки має лишитися, бонус, вид випробування й скільки питань на виживання ще є. */
+  target: number;
+  bonus: number;
+  trialKind: TrialKind;
+  trialsLeft: number;
+  /** У порядку гравців. */
+  rows: SurvivalRow[];
+  aliveCount: number;
+  ghostCount: number;
+  /** Привиди на поточному запитанні: answered — наживо; right — лише з розкриття. */
+  ghosts: { answered: number; right: number | null };
+  /** Після розкриття; null до нього. */
+  verdict: 'trial' | 'all_wrong' | 'all_right' | null;
+  trial: SurvivalTrialInfo | null;
+  /** Наступне «Далі» ведучого завершить раунд (живих ≤ target після вибування або запитань більше немає). */
+  ending: boolean;
+}
+
 /** Останній узятий баф у грі, для сповіщення «Оля: 50/50». seq — номер використання в грі. */
 export interface BuffNotice extends BlitzPlayer {
   seq: number;
@@ -738,6 +793,8 @@ interface BaseView {
   final: FinalInfo | null;
   /** «Ва-банк»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   wipeout: WipeoutInfo | null;
+  /** «Вибування»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
+  survival: SurvivalInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
   chain: ChainInfo | null;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -849,6 +906,23 @@ export interface PlayerView extends BaseView {
     final: { wager: number | null; limit: number; allIn: boolean } | null;
     /** Власний стан у «Ва-банк»; null поза раундом. canDecide — вікно відкрите, гравець у грі, ще не вирішив, не пауза. */
     wipeout: { status: WipeoutStatus; bank: number; decision: 'stay' | 'take' | null; canDecide: boolean } | null;
+    /** Власний стан у «Вибуванні»; null поза раундом. */
+    survival: {
+      status: SurvivalStatus;
+      outAfter: number | null;
+      /** Привид: правильність власної відповіді «для себе» — лише з розкриття. */
+      ghostCorrect: boolean | null;
+      /** На межі, питання відкрите, ще не відповів, не пауза (заставку відстежує клієнт за splash). */
+      canAnswerTrial: boolean;
+      trialAnswer: Answer | null;
+      /** На межі, удача відкрита, ще не вибрав, не пауза. */
+      canPickDoor: boolean;
+      door: number | null;
+      /** Після закриття випробування для того, хто був на межі. */
+      result: 'safe' | 'out' | null;
+      /** На round_end / finished — бонус, який гравець отримав; інакше null. */
+      bonus: number | null;
+    } | null;
     /** null поза запитанням-ланцюжком. */
     chain: PlayerChain | null;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */

@@ -40,6 +40,9 @@ import {
   type SurveyRowView,
   type SortRow,
   type Choice,
+  type SurvivalInfo,
+  type SurvivalRow,
+  type SurvivalStatus,
   type WipeoutInfo,
   type WipeoutRow,
   type FinalEntry,
@@ -86,7 +89,8 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
-import { activeDebuff, debuffsOff, lastPurchase, shopBlock, shownDebuff } from './debuffs';
+import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
+import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
 import { decisionOpen, inWipeoutRound, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
 import {
   answerLimitMs,
@@ -1216,6 +1220,127 @@ function playerWipeout(state: GameState, playerId: string): PlayerView['me']['wi
   return { status: own.status, bank: own.bank, decision, canDecide: windowOpen && wasIn && decision === null && !state.paused };
 }
 
+const SURVIVAL_PHASES: Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard', 'round_end', 'finished'];
+
+/** Номер запитання раунду (з 1), після якого гравець вибув; null — не вибув. */
+function survivalOutAfter(state: GameState, playerId: string): number | null {
+  let number = 0;
+  for (const play of state.plays) {
+    if (play.roundIndex !== state.roundIndex) continue;
+    number += 1;
+    if (play.survival?.trial?.stage === 'closed' && play.survival.trial.out.includes(playerId)) return number;
+  }
+  return null;
+}
+
+/**
+ * «Вибування»: живі, привиди, «на межі» (лише з розкриття), відповіді привидів (лише з розкриття) і випробування.
+ * Поки випробування відкрите, ніхто (і пульт) не бачить пасток, правильної відповіді й чужої правильності; forHost — вибрані двері наживо.
+ */
+function survivalInfo(state: GameState, forHost: boolean): SurvivalInfo | null {
+  const round = currentRound(state);
+  if (round?.type !== 'survival' || !SURVIVAL_PHASES.includes(state.phase)) return null;
+  const play = survivalPlayOf(state);
+  const shown = play !== null && state.phase !== 'question' && state.phase !== 'locked';
+  const alive = survivalAlive(state);
+  const trial = play?.survival.trial ?? null;
+  const edge = !shown ? [] : state.phase === 'reveal' ? edgeNow(state) : state.phase === 'leaderboard' ? (play.survival.edge ?? []) : [];
+  const ghosts = play?.survival.ghosts ?? {};
+  const rows = state.players.map((p): SurvivalRow => {
+    const isOut = !alive.includes(p.id);
+    const onEdge = edge.includes(p.id);
+    // Після закриття випробування хто вцілів, знову живий.
+    const status: SurvivalStatus = isOut ? 'ghost' : onEdge && trial?.stage !== 'closed' ? 'edge' : 'alive';
+    let trialState: SurvivalRow['trial'] = null;
+    let door: SurvivalRow['door'] = null;
+    if (trial !== null && onEdge) {
+      const done = trial.kind === 'question' ? Object.hasOwn(trial.answers, p.id) : Object.hasOwn(trial.doors, p.id);
+      trialState = trial.stage === 'open' ? (done ? 'done' : 'pending') : trial.out.includes(p.id) ? 'out' : 'safe';
+      if (trial.kind === 'luck') {
+        door =
+          trial.stage === 'open'
+            ? { picked: forHost ? (trial.doors[p.id] ?? null) : null, auto: false, trap: null }
+            : { picked: trial.doors[p.id] ?? trial.fallback[p.id] ?? null, auto: !Object.hasOwn(trial.doors, p.id), trap: trial.traps[p.id] ?? null };
+      }
+    }
+    return {
+      ...blitzPlayer(state, p.id),
+      status,
+      outAfter: survivalOutAfter(state, p.id),
+      ghost: Object.hasOwn(ghosts, p.id) ? { correct: shown ? ghosts[p.id].correct : null } : null,
+      trial: trialState,
+      door,
+    };
+  });
+  const ghostCount = rows.filter((row) => row.status === 'ghost').length;
+  const used = state.plays.filter((p) => p.roundIndex === state.roundIndex && (p.survival?.trial?.questionId ?? null) !== null).length;
+  const question = trialQuestionOf(state);
+  const current = state.plays.slice(0, state.questionIndex + 1).filter((p) => p.roundIndex === state.roundIndex).length - 1;
+  const settled = state.phase === 'leaderboard' && !trialOpen(state);
+  return {
+    current,
+    total: round.questions.length,
+    target: round.survivors,
+    bonus: round.bonus,
+    trialKind: round.trial,
+    trialsLeft: round.trials.length - used,
+    rows,
+    aliveCount: rows.length - ghostCount,
+    ghostCount,
+    ghosts: {
+      answered: Object.keys(ghosts).length,
+      right: shown ? Object.values(ghosts).filter((g) => g.correct).length : null,
+    },
+    verdict: state.phase === 'reveal' || state.phase === 'leaderboard' ? survivalVerdict(state) : null,
+    trial:
+      state.phase !== 'leaderboard' || trial === null
+        ? null
+        : {
+            kind: trial.kind,
+            fellBack: trial.fellBack,
+            stage: trial.stage,
+            endsAt: state.endsAt,
+            remainingMs: state.remainingMs,
+            limitMs: question === null ? SURVIVAL_LUCK_MS : question.timeLimit * 1000,
+            done: trial.kind === 'question' ? Object.keys(trial.answers).length : Object.keys(trial.doors).length,
+            total: (play?.survival.edge ?? []).length,
+            question: question === null ? null : withoutClip(publicQuestion(question, trial.presented)),
+            reveal: question !== null && trial.stage === 'closed' ? withoutHint(question) : null,
+          },
+    ending: settled && (survivalOver(state) || current + 1 >= round.questions.length),
+  };
+}
+
+/** Власний стан гравця в «Вибуванні»; null поза раундом. */
+function playerSurvival(state: GameState, playerId: string): PlayerView['me']['survival'] {
+  const info = survivalInfo(state, false);
+  const row = info?.rows.find((r) => r.playerId === playerId);
+  if (info === null || row === undefined) return null;
+  const trial = state.phase === 'leaderboard' ? (survivalPlayOf(state)?.survival.trial ?? null) : null;
+  const waiting = trial !== null && trial.stage === 'open' && row.status === 'edge' && !state.paused;
+  const ended = state.phase === 'round_end' || state.phase === 'finished';
+  const bonus =
+    ended && row.status !== 'ghost'
+      ? state.adjustments.filter((a) => a.source === 'survival' && a.roundIndex === state.roundIndex && a.playerId === playerId).reduce((sum, a) => sum + a.points, 0)
+      : null;
+  return {
+    status: row.status,
+    outAfter: row.outAfter,
+    ghostCorrect: row.ghost?.correct ?? null,
+    canAnswerTrial: waiting && trial.kind === 'question' && !Object.hasOwn(trial.answers, playerId),
+    trialAnswer: trial?.answers[playerId]?.answer ?? null,
+    canPickDoor: waiting && trial.kind === 'luck' && !Object.hasOwn(trial.doors, playerId),
+    door: trial === null ? null : trial.stage === 'closed' ? (row.door?.picked ?? null) : (trial.doors[playerId] ?? null),
+    result: row.trial === 'safe' || row.trial === 'out' ? row.trial : null,
+    bonus,
+  };
+}
+
+/** Відповідь привида «для себе» на поточне запитання «Вибування»; null — не привид чи не відповідав. */
+function ghostAnswer(state: GameState, playerId: string): Answer | null {
+  return inQuestion(state) ? (survivalPlayOf(state)?.survival.ghosts[playerId]?.answer ?? null) : null;
+}
+
 /** Чи гравці в поточному фіналі: сцена й телефони не бачать чужого прогресу. */
 function inFinalRound(state: GameState): boolean {
   return currentRound(state)?.type === 'final';
@@ -1253,6 +1378,7 @@ function base(state: GameState, forHost: boolean) {
     spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
     wipeout: wipeoutInfo(state, forHost),
+    survival: survivalInfo(state, forHost),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
@@ -1422,7 +1548,7 @@ function isRevealed(state: GameState): boolean {
 
 function publicStandings(state: GameState): Standing[] | null {
   // У «Ва-банк» між запитаннями замість таблиці драбина.
-  if (state.phase === 'leaderboard' && currentRound(state)?.type === 'wipeout') return null;
+  if (state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || inSurvivalRound(state))) return null;
   return WITH_STANDINGS.includes(state.phase) ? rankPlayers(state.players) : null;
 }
 
@@ -1525,7 +1651,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
       // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули;
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
-      answer: publicAnswer(queued === undefined ? (record?.answer ?? pending) : queued, revealed && !spoilerHeld(state)),
+      answer: publicAnswer(queued === undefined ? (record?.answer ?? pending ?? ghostAnswer(state, playerId)) : queued, revealed && !spoilerHeld(state)),
       result:
         revealed && record !== undefined && finalShown(state, playerId) && !spoilerHeld(state) && !(seen !== null && isUnscored(seen.question))
           ? {
@@ -1539,6 +1665,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       blitz: playerBlitz(state, playerId),
       final: playerFinal(state, playerId),
       wipeout: playerWipeout(state, playerId),
+      survival: playerSurvival(state, playerId),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),
@@ -1581,7 +1708,7 @@ function liveTable(state: GameState, playerId: string): PlayerTable | null {
   if (state.phase === 'lobby') return null;
   const rows = rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hiddenPoints(state, p.id) - (p.id === playerId ? 0 : windowCash(state, p.id)) })));
   // У вікні рішення «Ва-банк» етап leaderboard — не підсумки: повна таблиця лише з leaderboard 'each'.
-  const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && inWipeoutRound(state)));
+  const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && (inWipeoutRound(state) || inSurvivalRound(state))));
   return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
 }
 
@@ -1609,7 +1736,7 @@ function playerShop(state: GameState, playerId: string): PlayerShop | null {
   if (['lobby', 'guide', 'finished'].includes(state.phase) || state.quiz.settings.debuffShop === false) return null;
   const items = allowedDebuffs(state.quiz).map((kind) => ({ kind, price: debuffPrice(state.quiz, kind) }));
   const targets = state.players
-    .filter((p) => p.id !== playerId)
+    .filter((p) => p.id !== playerId && !ghostTarget(state, p.id))
     .map((p) => ({ ...blitzPlayer(state, p.id), busy: shownDebuff(state, p.id) !== null, offline: !p.connected }));
   if (items.length === 0 || targets.length === 0) return null;
   return { items, targets, block: shopBlock(state, playerId) };
