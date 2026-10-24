@@ -22,6 +22,7 @@ import {
   rulesOf,
   answerWindowMs,
   proximityPartial,
+  isUnscored,
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
@@ -44,6 +45,7 @@ import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, ent
 import { chainDone, scoreChain } from './chain';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
+import { submitVote } from './votes';
 import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
@@ -587,7 +589,7 @@ export function present(question: Question, shuffleOptions: boolean, rng: Rng): 
     const mixed = shuffle(ids, rng);
     return mixed.every((id, index) => id === ids[index]) ? [...ids.slice(1), ids[0]] : mixed;
   }
-  if (question.type === 'single' || question.type === 'multi') {
+  if (question.type === 'single' || question.type === 'multi' || question.type === 'poll') {
     const ids = question.options.map((option) => option.id);
     return shuffleOptions ? shuffle(ids, rng) : ids;
   }
@@ -822,7 +824,7 @@ function advance(state: GameState, now: number, rng: Rng): GameState {
  * Серія кожного гравця після перших upTo запитань журналу: поспіль правильні відповіді в раунді
  * останнього з них. Без відповіді серія перервана, але в бліці запитання, де гравець не натискав,
  * серію не обриває й не продовжує (натискання без правильної спроби обриває; так само сортування без ходів); на межі раундів вона скидається;
- * якщо правил серії в тому раунді немає, серій немає.
+ * якщо правил серії в тому раунді немає, серій немає. Запитання без балів (опитування, хмара) серію не обривають і не продовжують.
  */
 export function streakCounts(state: GameState, upTo: number): Record<string, number> {
   const last = state.plays[upTo - 1];
@@ -833,6 +835,7 @@ export function streakCounts(state: GameState, upTo: number): Record<string, num
   for (const player of state.players) {
     let count = 0;
     for (let i = upTo - 1; i >= 0 && state.plays[i].roundIndex === last.roundIndex; i -= 1) {
+      if (isUnscored(state.plays[i].question)) continue;
       const record = recordOf(state, i, player.id);
       const blitz = state.plays[i].blitz;
       if (record === undefined && blitz !== undefined && !blitz.buzzed.includes(player.id)) continue;
@@ -866,6 +869,8 @@ export function withTotals(input: GameState): GameState {
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
     if (index >= closedCount) return play;
+    // Без балів — без бонусу серії.
+    if (isUnscored(play.question)) return play;
     const streak = rulesOf(state.quiz.rounds[play.roundIndex]).streak;
     if (streak === null) return play;
     // Серія враховує і саме це запитання.
@@ -892,6 +897,8 @@ export function withTotals(input: GameState): GameState {
     for (const play of plays.slice(0, closedCount)) {
       const record = Object.hasOwn(play.answers, player.id) ? play.answers[player.id] : undefined;
       score += record ? record.points : 0;
+      // Голос без балів не додає часу: інакше швидкий голос давав би перевагу за рівного рахунку.
+      if (isUnscored(play.question)) continue;
       // Час для рівного рахунку йде лише за класичні раунди й лише за запитання з таймером;
       // відповідь у додатковий час коштує не більше за ліміт, як і мовчання.
       const limitMs = limitMsOf(play);
@@ -985,6 +992,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (notStarted(state, now)) return fail('not_started');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const play = state.plays[state.questionIndex];
+  // Опитування й «хмара слів» — голос без балів.
+  if (isUnscored(play.question)) return submitVote(state, playerId, answer, now);
   // Ланцюжок проходять лише guessWord і takeHint: підсумок з телефона не приймається.
   if (answer.type === 'chain' || play.question.type === 'chain') return fail('type_mismatch');
   // Сортування — лише хід за ходом через sortWord.
@@ -1469,9 +1478,10 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
   // Ланцюжок перевіряється за літерами однозначно; зміна одного вердикту зсунула б бали інших.
-  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід.
+  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід. Опитування й хмара без балів не оцінюються.
   const type = state.plays[state.questionIndex]?.question.type;
   if (type === 'chain' || type === 'sort' || type === 'wall') return fail('wrong_phase');
+  if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
   if (current?.type === 'final') return overrideFinal(state, playerId, grade);

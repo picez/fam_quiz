@@ -207,6 +207,32 @@ export const wall3 = {
   ],
 } satisfies Question;
 
+/** Опитування: три варіанти, без правильного, 0 балів, 20 с; до типового списку makeQuiz не входить. */
+export const poll = {
+  ...base,
+  id: 'q15',
+  type: 'poll',
+  text: 'Найкраща пора року?',
+  timeLimit: 20,
+  points: 0,
+  options: [
+    { id: 'a', text: 'Весна' },
+    { id: 'b', text: 'Літо' },
+    { id: 'c', text: 'Осінь' },
+  ],
+} satisfies Question;
+
+/** «Хмара слів»: до 3 слів, 0 балів, 30 с; до типового списку makeQuiz не входить. */
+export const cloud = {
+  ...base,
+  id: 'q16',
+  type: 'wordcloud',
+  text: 'З чим асоціюється Київ?',
+  timeLimit: 30,
+  points: 0,
+  words: 3,
+} satisfies Question;
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 
