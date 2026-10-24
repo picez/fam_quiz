@@ -61,6 +61,7 @@ import {
   surveyOrder,
   surveyShare,
   surveyHitsOf,
+  answerKey,
   type Answer,
   type BoardRound,
   type Question,
@@ -1528,6 +1529,12 @@ describe('survey (10e)', () => {
     expect(issues({ ...surveyQ, rows: [surveyQ.rows[0], row('b', 'Банан', 25, [' ЯБЛУЧКО ']), ...surveyQ.rows.slice(2)] })).toContain('survey_duplicate');
     expect(valid(questionSchema, { ...surveyQ, rows: [row('a', 'Яблуко', 0), ...surveyQ.rows.slice(1)] })).toBe(false);
     expect(issues({ ...surveyQ, rows: [row('b', 'Яблуко', 32), ...surveyQ.rows.slice(1)] })).toContain('duplicate_ids');
+  });
+  it('duplicate spellings use the answer key: quote variants clash, a row repeating its own text does not', () => {
+    const kobzar = [row('a', '«Кобзар»', 32), row('b', 'Банан', 25, ['“Кобзар”']), ...surveyQ.rows.slice(2)];
+    expect(issues({ ...surveyQ, rows: kobzar })).toContain('survey_duplicate');
+    expect(issues({ ...surveyQ, rows: [row('a', 'Яблуко', 32, [' яблуко ', 'ЯБЛУКО', 'яблучко']), ...surveyQ.rows.slice(1)] })).not.toContain('survey_duplicate');
+    expect(answerKey('  «Кам’янець»   Поділь ')).toBe(`"кам'янець" поділь`);
   });
   it('a cloud board may have no rows or 4–8 spare rows', () => {
     expect(valid(questionSchema, { ...surveyQ, rows: [], cloudId: 'k1' })).toBe(true);

@@ -21,6 +21,7 @@ export * from './chain';
 export * from './sort';
 export * from './wall';
 export * from './votes';
+export * from './survey';
 export * from './duel';
 export * from './splash';
 export * from './restore';

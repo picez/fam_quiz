@@ -7,9 +7,11 @@ import {
   proximityPartial,
   revealShare,
   sliderShare,
+  surveyShare,
   type Answer,
   type Grade,
   type Question,
+  type SurveyRow,
 } from '@quiz/shared';
 import { normalizeText } from './normalize';
 
@@ -28,6 +30,17 @@ const full = (correct: boolean): CheckResult => (correct ? FULL : REJECTED);
 export function textMatches(accepted: string[], value: string): boolean {
   const normalized = normalizeText(value);
   return normalized !== '' && accepted.some((spelling) => normalizeText(spelling) === normalized);
+}
+
+/** Збіги значень з рядками дошки: id першого рядка, де textMatches([text, ...accepted], value); рядок, уже влучений раніше, — null. */
+export function surveyHits(rows: readonly SurveyRow[], values: readonly string[]): (string | null)[] {
+  const hit = new Set<string>();
+  return values.map((value) => {
+    const row = rows.find((r) => textMatches([r.text, ...r.accepted], value));
+    if (row === undefined || hit.has(row.id)) return null;
+    hit.add(row.id);
+    return row.id;
+  });
 }
 
 export function checkAnswer(question: Question, answer: Answer): CheckResult {
@@ -72,6 +85,11 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
   if (question.type === 'pin' && answer.type === 'pin') {
     const share = pinShare(question, answer.x, answer.y);
     if (share <= 0) return REJECTED;
+    return { accepted: share >= PROXIMITY_CORRECT_SHARE - EPSILON, accuracy: share };
+  }
+
+  if (question.type === 'survey' && answer.type === 'survey') {
+    const share = surveyShare(question.rows, surveyHits(question.rows, answer.values));
     return { accepted: share >= PROXIMITY_CORRECT_SHARE - EPSILON, accuracy: share };
   }
 
@@ -136,7 +154,8 @@ export function shareVerdict(share: number): Verdict {
 
 /**
  * Перевірка з урахуванням часу.
- * Типи з балами за близькість (proximityPartial: повзунок і точка; стіна рахується в wall.ts): shareVerdict — accepted, коли частка ≥ 0,5 (14a).
+ * Типи з балами за близькість чи кількість знайденого (proximityPartial: повзунок, точка, «100 до 1» — частка популярності влучених рядків;
+ * стіна рахується в wall.ts): shareVerdict — accepted, коли частка ≥ 0,5 (14a).
  * Решта: accepted і grade — з самої відповіді (checkAnswer, gradeOf); на картинці, що проявляється, і в «Хто я?» точність × paceFactor —
  * це плата за час, як бонус швидкості, а не часткова правильність. opened — для усної клітинки (підказки відкрив ведучий).
  */

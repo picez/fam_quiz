@@ -49,6 +49,7 @@ import { submitVote } from './votes';
 import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
+import { scoreSurvey } from './survey';
 import { cluesByHost, cluesOpen, openDueClues } from './clues';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -1000,6 +1001,13 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
   // Стіна — лише вибір за вибором через guessWall.
   if (answer.type === 'wall' || play.question.type === 'wall') return fail('type_mismatch');
+  // «100 до 1»: рушій чистить відповідь і додає збіги до будь-якої гілки — і клітинка поля чекає вже перевірену.
+  const asked0 = questionFor(state, play, playerId);
+  if (asked0.type === 'survey') {
+    if (answer.type !== 'survey') return fail('type_mismatch');
+    answer = scoreSurvey(asked0, answer);
+    if (answer.values.length === 0) return fail('type_mismatch');
+  }
   const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
   if (play.blitz !== undefined) {
@@ -1023,7 +1031,12 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   const { accepted, accuracy, grade } = verdictOf(asked, answer, timeMs);
   const limit = answerLimitMs(play, playerId);
   // Картинка, що проявляється, і «Хто я?» вже платять за час часткою ціни: бонусу швидкості поверх немає.
-  const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && !paysForTime(asked));
+  // «100 до 1»: ціна вже спадає з популярністю, швидкість набору — не знання.
+  const speed = speedFactor(
+    timeMs,
+    limit ?? 0,
+    round.type === 'classic' && round.speedBonus && limit !== null && !paysForTime(asked) && asked.type !== 'survey',
+  );
   const points = answerPoints({
     points: question.points,
     accuracy,
@@ -1102,9 +1115,11 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
     const correct = checkAnswer(play.question, pending.answer).accuracy === 1;
     return closeIfDone(applyVerdict(state, pending.playerId, correct, now), now);
   }
-  if (round.type !== 'board' || play.board === undefined || round.check === 'manual') return fail('wrong_phase');
-
+  if (round.type !== 'board' || play.board === undefined) return fail('wrong_phase');
   const asked = questionFor(state, play, pending.playerId);
+  // «100 до 1» ведучий приймає і за ручної перевірки: дошка однозначна.
+  if (round.check === 'manual' && asked.type !== 'survey') return fail('wrong_phase');
+
   // Годинник стоїть, поки ведучий приймає: на картинці, що проявляється, і в «Хто я?» рахується час до надсилання.
   const timeMs = Math.max(0, clockOf(state, now) - (state.startedAt ?? now));
   const verdict = verdictOf(asked, pending.answer, timeMs);
@@ -1478,9 +1493,10 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
   // Ланцюжок перевіряється за літерами однозначно; зміна одного вердикту зсунула б бали інших.
-  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід. Опитування й хмара без балів не оцінюються.
+  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід. «100 до 1» — за дошкою (і на полі).
+  // Опитування й хмара без балів не оцінюються.
   const type = state.plays[state.questionIndex]?.question.type;
-  if (type === 'chain' || type === 'sort' || type === 'wall') return fail('wrong_phase');
+  if (type === 'chain' || type === 'sort' || type === 'wall' || type === 'survey') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);

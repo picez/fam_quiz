@@ -452,7 +452,9 @@ export const questionSchema = z
       const fine = q.cloudId === undefined ? count >= LIMITS.minSurveyRows : count === 0 || count >= LIMITS.minSurveyRows;
       if (!fine) ctx.addIssue({ code: 'custom', message: 'survey_rows' });
       if (q.rows.reduce((sum, r) => sum + r.popularity, 0) > LIMITS.surveyTotal) ctx.addIssue({ code: 'custom', message: 'survey_total' });
-      if (hasDuplicates(q.rows.flatMap((r) => [r.text, ...r.accepted].map(cloudKey)))) ctx.addIssue({ code: 'custom', message: 'survey_duplicate' });
+      // Ключ той самий, що й у перевірці відповіді рушієм: одне написання не веде у два рядки; повтор у межах рядка не заважає.
+      const keys = q.rows.flatMap((r) => [...new Set([r.text, ...r.accepted].map(answerKey))]);
+      if (hasDuplicates(keys)) ctx.addIssue({ code: 'custom', message: 'survey_duplicate' });
     }
     if ((q.type === 'poll' || q.type === 'wordcloud') && q.points !== 0) ctx.addIssue({ code: 'custom', message: 'vote_points' });
     if (q.audio !== undefined && q.video !== null) ctx.addIssue({ code: 'custom', message: 'audio_video' });
@@ -571,6 +573,20 @@ export function surveyShare(rows: readonly { id: string; popularity: number }[],
   const hit = new Set(hits.filter((id): id is string => id !== null));
   const sum = rows.filter((r) => hit.has(r.id)).reduce((total, r) => total + r.popularity, 0);
   return Math.min(1, sum / LIMITS.surveyTotal);
+}
+
+/**
+ * Ключ написання текстової відповіді (тип text, «Хто я?», рядки «100 до 1»): NFC, апострофи ’ʼ`‘ → ', лапки “”«»„ → ",
+ * пробіли зведено, обрізано, toLowerCase. Рушій порівнює відповіді за ним (normalizeText), схема — написання рядків «100 до 1».
+ */
+export function answerKey(value: string): string {
+  return value
+    .normalize('NFC')
+    .replace(/[’ʼ`‘]/g, "'")
+    .replace(/[“”«»„]/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 /** Ключ слова «хмари»: NFC, обрізано, пробіли зведено, апострофи ’ʼ‘` → ', toLocaleLowerCase('uk'). */
