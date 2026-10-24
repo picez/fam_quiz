@@ -101,7 +101,7 @@ function wrongOptions(question: Question): string[] {
   return [];
 }
 
-type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_wipeout' | 'off_chain' | 'off_sort' | 'off_wall' | 'off_vote';
+type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_wipeout' | 'off_survival' | 'off_chain' | 'off_sort' | 'off_wall' | 'off_vote';
 
 /** Де гравець відповідає: null — тут бафи можна; not_chooser — на полі відповідає інший; elsewhere — немає де; off_* — тут бафів немає. */
 function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock | null {
@@ -115,6 +115,7 @@ function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock 
   } else if (play.blitz !== undefined || round.type === 'blitz') return 'off_blitz';
   else if (round.type === 'final') return 'off_final';
   else if (round.type === 'wipeout') return 'off_wipeout';
+  else if (round.type === 'survival') return 'off_survival';
   // Ланцюжок, сортування й стіна рахуються окремо.
   if (play.question.type === 'chain') return 'off_chain';
   if (play.question.type === 'sort') return 'off_sort';

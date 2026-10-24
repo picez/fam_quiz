@@ -21,9 +21,10 @@ export function duelPlayed(state: GameState): number {
   return state.plays.slice(0, closed).filter((play) => state.quiz.rounds[play.roundIndex]?.type !== 'final').length;
 }
 
-/** У раунді «Ва-банк» дуелей немає (14a): на його етапах, крім round_end. */
+/** У раундах «Ва-банк» і «Вибування» дуелей немає (14a): на їхніх етапах, крім round_end. */
 function duelsOff(state: GameState): boolean {
-  return state.quiz.rounds[state.roundIndex]?.type === 'wipeout' && state.phase !== 'round_end';
+  const type = state.quiz.rounds[state.roundIndex]?.type;
+  return (type === 'wipeout' || type === 'survival') && state.phase !== 'round_end';
 }
 
 /** Чи можна зараз оголосити дуель за етапом, межею й порогом (без перевірок гравця й зайнятості). */
