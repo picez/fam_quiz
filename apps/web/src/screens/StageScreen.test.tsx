@@ -1340,6 +1340,21 @@ describe('StageScreen clues and pin (10c)', () => {
     expect(screen.getByText('Відповідайте на телефоні, щойно впізнаєте: що раніше, то більше балів.')).toBeTruthy();
   });
 
+  it('keeps six long clues in the list without extra placeholders', () => {
+    const long = 'я'.repeat(150);
+    const six = { ...cluesQuestion, clues: { ...cluesQuestion.clues, total: 6, shown: Array.from({ length: 6 }, () => long) } };
+    show(view({ phase: 'question', questionIndex: 0, question: six }));
+    expect(document.querySelectorAll('.clues-list.is-big .clue')).toHaveLength(6);
+    expect(document.querySelector('.clue.is-hidden')).toBeNull();
+  });
+
+  it('names the nearest only when it scored', () => {
+    const pinMarks = [{ playerId: 'p1', nickname: 'Оля', x: 0.9, y: 0.9, points: 0 }];
+    show(view({ phase: 'reveal', questionIndex: 0, question: pinQuestion, reveal: pinFull, pinMarks }));
+    expect(screen.queryByText(/Найближче/)).toBeNull();
+    expect(document.querySelector('.pin-mark.is-best')).not.toBeNull();
+  });
+
   it('has no phone hint on a voice cell', () => {
     const voice = { ...cluesQuestion, clues: { ...cluesQuestion.clues, byHost: true } };
     show(view({ phase: 'question', questionIndex: 0, question: voice, board: { cell: { kind: 'normal', answerMode: 'voice', category: 'К', price: 100, mark: 'none' } } as unknown as BoardInfo }));

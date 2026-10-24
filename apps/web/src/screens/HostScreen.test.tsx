@@ -1728,6 +1728,19 @@ describe('HostScreen clues and pin (10c)', () => {
     expect(screen.queryByRole('button', { name: /Відкрити підказку/ })).toBeNull();
   });
 
+  it('shows the unopened clues as paused, not closed, while the clock is stopped, and disables the voice-cell button', () => {
+    show(during('question', cluesFull, { paused: true, question: cluesOf(2) }));
+    const panel = document.querySelector('.host-clues') as HTMLElement;
+    expect(within(panel).getAllByText('пауза')).toHaveLength(3);
+    expect(within(panel).queryByText('закрито')).toBeNull();
+    cleanup();
+    show(during('reveal', cluesFull, { question: cluesOf(2) }));
+    expect(within(document.querySelector('.host-clues') as HTMLElement).getAllByText('закрито')).toHaveLength(3);
+    cleanup();
+    show(during('question', cluesFull, { paused: true, question: cluesOf(2, { byHost: true }) }));
+    expect(button('Відкрити підказку 3').disabled).toBe(true);
+  });
+
   it('names the clue each answer was given on', () => {
     show(
       during('reveal', cluesFull, {

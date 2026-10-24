@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { PinBoard } from './PinBoard';
+import { PinBoard, labelPlacement } from './PinBoard';
 
 afterEach(cleanup);
 
@@ -60,5 +60,26 @@ describe('PinBoard', () => {
     expect(named.map((mark) => mark.getAttribute('aria-label'))).toContain('Гравець 7');
     expect(named.length).toBe(4);
     expect(screen.getByRole('img', { name: 'Край' }).querySelector('.pin-label')!.classList.contains('is-left')).toBe(true);
+  });
+
+  it('flips a label up near the bottom edge, also for lower rows, and right near the right edge', () => {
+    render(
+      <PinBoard
+        pin={world}
+        imageUrl={null}
+        marks={[
+          { playerId: 'a', nickname: 'Низ', x: 0.5, y: 0.95 },
+          { playerId: 'b', nickname: 'Право', x: 0.99, y: 0.3 },
+          { playerId: 'c', nickname: 'Середина', x: 0.5, y: 0.3 },
+        ]}
+      />,
+    );
+    const label = (name: string) => screen.getByRole('img', { name }).querySelector('.pin-label')!;
+    expect(label('Низ').classList.contains('is-up')).toBe(true);
+    expect(label('Право').classList.contains('is-right')).toBe(true);
+    expect(label('Середина').className).toBe('pin-label');
+    // Третій рядок під крапкою (3.9rem) не вміщується під позначкою на 0.7 висоти дошки: підпис іде вгору.
+    expect(labelPlacement({ x: 0.5, y: 0.7, nickname: 'Х' }, 2, { width: 300, height: 150 }).up).toBe(true);
+    expect(labelPlacement({ x: 0.5, y: 0.2, nickname: 'Х' }, 2, { width: 300, height: 150 }).up).toBe(false);
   });
 });

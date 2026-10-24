@@ -319,7 +319,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
             radii={reveal?.type === 'pin' ? { full: reveal.fullRadius, zero: reveal.zeroRadius } : undefined}
             highlight={reveal?.type === 'pin' ? view.pinMarks?.[0]?.playerId : undefined}
           />
-          {reveal?.type === 'pin' && view.pinMarks !== null && view.pinMarks.length > 0 && (
+          {reveal?.type === 'pin' && view.pinMarks !== null && view.pinMarks.length > 0 && view.pinMarks[0].points > 0 && (
             <p className="lead pin-best">{t('pinBest', { name: view.pinMarks[0].nickname, distance: pinDistanceText(reveal, view.pinMarks[0].x, view.pinMarks[0].y) })}</p>
           )}
         </div>

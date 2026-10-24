@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { PublicPin } from '@quiz/shared';
 import { t } from '../i18n';
 import { pinBaseUrl } from '../pin-maps';
@@ -41,8 +41,38 @@ export function pinSpot(point: { x: number; y: number }): CSSProperties {
 const MAX_LABEL_ROWS = 3;
 /** Скільки підписів узагалі: сотня імен на мапі нечитабельна. */
 const MAX_LABELS = 12;
-/** Біля цього краю (частка ширини) підпис притискається до краю, щоб не виходити за мапу. */
-const EDGE = 0.12;
+/** Розміри підпису в px: рядок 1.1rem, відступ від крапки, максимальна ширина 7rem, середня ширина літери. */
+const ROW_PX = 17.6;
+const LABEL_GAP_PX = 8;
+const LABEL_MAX_PX = 112;
+const CHAR_PX = 7.5;
+
+/** Куди притиснути підпис, щоб його не обрізала рамка мапи: по краю й угору, коли знизу немає місця (рахується в px від розміру дошки). */
+export function labelPlacement(mark: { x: number; y: number; nickname: string }, row: number, size: { width: number; height: number }): { side: 'center' | 'left' | 'right'; up: boolean } {
+  const half = Math.min(LABEL_MAX_PX, mark.nickname.length * CHAR_PX) / 2;
+  const side = mark.x * size.width < half ? 'left' : (1 - mark.x) * size.width < half ? 'right' : 'center';
+  const need = (row + 1) * ROW_PX + LABEL_GAP_PX;
+  const up = (1 - mark.y) * size.height < need && mark.y * size.height >= need;
+  return { side, up };
+}
+
+/** Розмір дошки в px (clientWidth/Height не залежать від наближення); до першого виміру — оцінка за пропорцією для телефона. */
+function useBoardSize(aspect: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 300, height: 300 / aspect });
+  useEffect(() => {
+    const node = ref.current;
+    if (node === null || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      if (node.clientWidth > 0 && node.clientHeight > 0) setSize((old) => (old.width === node.clientWidth && old.height === node.clientHeight ? old : { width: node.clientWidth, height: node.clientHeight }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return { ref, size };
+}
 
 /**
  * Рядок підпису кожної позначки (null — без підпису): розвід по вертикалі від ближчих попередніх.
@@ -63,13 +93,18 @@ function labelRows(marks: PinBoardMark[], aspect: number, highlight: string | un
   return rows;
 }
 
+function labelClass({ side, up }: { side: 'center' | 'left' | 'right'; up: boolean }): string {
+  return ['pin-label', side === 'center' ? '' : `is-${side}`, up ? 'is-up' : ''].filter(Boolean).join(' ');
+}
+
 /** Основа точки з шаром SVG: кола (за наявності radii), правильна точка, позначки. Пропорція — aspect; позначки сталого розміру. */
 export function PinBoard({ pin, imageUrl, marks = NONE, target, radii, highlight, children }: Props) {
   const { width, height } = pinLayerSize(pin.aspect);
   const url = pinBaseUrl(pin, imageUrl);
   const rows = labelRows(marks, pin.aspect, highlight);
+  const { ref, size } = useBoardSize(pin.aspect);
   return (
-    <div className="pin-board" style={{ aspectRatio: String(pin.aspect), '--pin-aspect': pin.aspect } as CSSProperties}>
+    <div className="pin-board" ref={ref} style={{ aspectRatio: String(pin.aspect), '--pin-aspect': pin.aspect } as CSSProperties}>
       {url !== null && <img className="pin-base" src={url} alt={t('pinMapAlt')} draggable={false} />}
       <svg className="pin-layer" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
         {target !== undefined && radii !== undefined && (
@@ -88,7 +123,7 @@ export function PinBoard({ pin, imageUrl, marks = NONE, target, radii, highlight
           style={{ ...pinSpot(mark), '--label-row': rows[index] ?? 0 } as CSSProperties}
         >
           {rows[index] !== null && (
-            <span className={['pin-label', mark.x < EDGE ? 'is-left' : mark.x > 1 - EDGE ? 'is-right' : '', mark.y > 1 - EDGE ? 'is-up' : ''].filter(Boolean).join(' ')} aria-hidden="true">
+            <span className={labelClass(labelPlacement(mark, rows[index] ?? 0, size))} aria-hidden="true">
               {mark.nickname}
             </span>
           )}
