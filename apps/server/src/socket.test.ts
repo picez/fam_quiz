@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { blitzRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId } from '@quiz/engine/testing';
+import { blitzRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withAudio, withId } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -591,5 +591,82 @@ describe('«Як грати» over sockets', () => {
     expect(await send(olena, 'host:guide-skip')).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(host, 'host:guide-skip')).toEqual({ ok: true });
     await until(stage, inPhase('intro'));
+  });
+});
+
+describe('audio over sockets', () => {
+  type Command = { action: 'replay' | 'stop'; seq: number };
+  const listen = (tracked: Tracked) => {
+    const received: Command[] = [];
+    tracked.socket.on('audio', (command) => received.push(command));
+    return received;
+  };
+  const audioGame = async () =>
+    (await startGame(ctx.app, makeQuiz([withAudio(single), text]))).game;
+  const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it('host:audio reaches the stage and the host, never the players', async () => {
+    const { host, stage, olena, taras } = await lobby(await audioGame());
+    const heard = { host: listen(host), stage: listen(stage), olena: listen(olena), taras: listen(taras) };
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    await until(olena, inPhase('question'));
+
+    expect(await send(host, 'host:audio', { action: 'replay' })).toEqual({ ok: true });
+    expect(await send(host, 'host:audio', { action: 'stop' })).toEqual({ ok: true });
+    await pause(200);
+    expect(heard.stage).toEqual([{ action: 'replay', seq: 1 }, { action: 'stop', seq: 2 }]);
+    expect(heard.host).toEqual(heard.stage);
+    expect(heard.olena).toEqual([]);
+    expect(heard.taras).toEqual([]);
+  });
+
+  it('host:audio outside an audio question is wrong_phase; a player cannot send it; a bad payload is invalid', async () => {
+    const { host, stage, olena } = await lobby(await audioGame());
+    expect(await send(host, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'wrong_phase' });
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [undefined, {}, { action: 'play' }, { action: 1 }, 'replay']) {
+      expect(await send(host, 'host:audio', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    // Вікторина без аудіо.
+    const plain = await lobby();
+    await send(plain.host, 'host:start');
+    await send(plain.host, 'host:next');
+    await until(plain.olena, inPhase('question'));
+    expect(await send(plain.host, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('does not touch the game clock', async () => {
+    const { host, olena } = await lobby(await audioGame());
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    const before = await until(olena, inPhase('question'));
+    await send(host, 'host:audio', { action: 'replay' });
+    await pause(100);
+    expect(olena.last).toEqual(before);
+  });
+
+  it('the host learns whether the stage is open', async () => {
+    const game = await createGame();
+    const host = open({ code: game.code, role: 'host', token: game.hostToken });
+    const stageOnline = (online: boolean) =>
+      new Promise<void>((resolve) =>
+        host.socket.on('state', (_view, meta) => {
+          if (meta.stageOnline === online) resolve();
+        }),
+      );
+
+    await stageOnline(false);
+    const opened = stageOnline(true);
+    const stage = open({ code: game.code, role: 'stage', token: game.stageToken });
+    await opened;
+
+    const closed = stageOnline(false);
+    stage.socket.close();
+    await closed;
   });
 });

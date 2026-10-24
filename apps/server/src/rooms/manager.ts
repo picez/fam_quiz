@@ -1,5 +1,6 @@
 import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
+  audioOf,
   acceptAnswer,
   addPlayer,
   adjustScore,
@@ -87,10 +88,17 @@ export interface Room {
   absence: unknown;
   expiry: unknown;
   expiryPhase: Phase | null;
+  /** Лічильник команд звуку; лише в пам'яті, у збережену кімнату не потрапляє. */
+  audioSeq: number;
 }
 
 /** moved — кімнату тепер веде інший процес (9b): вона пішла з пам'яті, але не закрита. */
-export type RoomEvent = { type: 'changed' } | { type: 'kicked'; playerId: string } | { type: 'closed' } | { type: 'moved' };
+export type RoomEvent =
+  | { type: 'changed' }
+  | { type: 'kicked'; playerId: string }
+  | { type: 'closed' }
+  | { type: 'moved' }
+  | { type: 'audio'; action: 'replay' | 'stop'; seq: number };
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
@@ -194,6 +202,10 @@ export class RoomManager {
     return (room.connections.get('host') ?? 0) > 0;
   }
 
+  stageOnline(room: Room): boolean {
+    return (room.connections.get('stage') ?? 0) > 0;
+  }
+
   onEvent(listener: RoomListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -216,6 +228,7 @@ export class RoomManager {
       absence: null,
       expiry: null,
       expiryPhase: null,
+      audioSeq: 0,
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -261,6 +274,7 @@ export class RoomManager {
       absence: null,
       expiry: null,
       expiryPhase: null,
+      audioSeq: 0,
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -341,6 +355,7 @@ export class RoomManager {
       room.absence = null;
       if (count === 1) this.emit(room, { type: 'changed' });
     }
+    if (identity.role === 'stage' && count === 1) this.emit(room, { type: 'changed' });
     if (identity.playerId !== null && count === 1) {
       this.apply(room, setConnected(room.state, identity.playerId, true, this.now()));
     }
@@ -363,6 +378,16 @@ export class RoomManager {
       this.hostLeft(room);
       this.emit(room, { type: 'changed' });
     }
+    if (identity.role === 'stage') this.emit(room, { type: 'changed' });
+  }
+
+  /** Звук поточного запитання: не змінює стан гри, лише розсилається сцені й пульту. */
+  audio(room: Room, action: 'replay' | 'stop'): AckResult {
+    if (!this.alive(room)) return this.gone();
+    if (audioOf(room.state) === null) return { ok: false, error: 'wrong_phase' };
+    const seq = ++room.audioSeq;
+    this.emit(room, { type: 'audio', action, seq });
+    return { ok: true };
   }
 
   view(room: Room, identity: Identity): GameView | null {

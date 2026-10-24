@@ -22,6 +22,7 @@ import {
   hintSchema,
   voteSchema,
   retrySchema,
+  audioCommandSchema,
   timeSchema,
   undebuffSchema,
   type AckResult,
@@ -128,13 +129,26 @@ export function attachSockets(
   const push = (socket: GameSocket) => {
     const { room, identity } = socket.data;
     const view = manager.view(room, identity);
-    if (view !== null) socket.emit('state', view, { serverNow: manager.now(), hostOnline: manager.hostOnline(room) });
+    if (view !== null) {
+      socket.emit('state', view, {
+        serverNow: manager.now(),
+        hostOnline: manager.hostOnline(room),
+        stageOnline: manager.stageOnline(room),
+      });
+    }
   };
 
   manager.onEvent((room, event) => {
     const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
     if (event.type === 'changed') {
       members.forEach(push);
+      return;
+    }
+    if (event.type === 'audio') {
+      // Звук знає лише сцена й пульт: телефони не отримують ні команди, ні джерела.
+      members
+        .filter((socket) => socket.data.identity.role !== 'player')
+        .forEach((socket) => socket.emit('audio', { action: event.action, seq: event.seq }));
       return;
     }
     if (event.type === 'moved') {
@@ -339,6 +353,12 @@ export function attachSockets(
         return payload.success ? manager.host(room, { type, ...payload.data }) : INVALID;
       });
     }
+
+    on('host:audio', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = audioCommandSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.audio(room, payload.data.action) : INVALID;
+    });
 
     on('host:time', (args) => {
       if (!isHost) return FORBIDDEN;
