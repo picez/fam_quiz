@@ -146,6 +146,32 @@ export const slider = {
   unit: '%',
 } satisfies Question;
 
+/** «Хто я?»: 5 підказок по 5 с, 30 с; до типового списку makeQuiz не входить. */
+export const clues = {
+  ...base,
+  id: 'q11',
+  type: 'clues',
+  text: 'Хто я?',
+  timeLimit: 30,
+  clues: ['Я народився 1814 року.', 'Я був кріпаком.', 'Я художник.', 'Я написав «Кобзар».', 'Я на купюрі 100 гривень.'],
+  accepted: ['Шевченко', 'Тарас Шевченко'],
+  interval: 5,
+} satisfies Question;
+
+/** Точка на мапі «Світ» (2 : 1): правильна в центрі, повні бали до 3 %, нуль від 15 %; до типового списку makeQuiz не входить. */
+export const pin = {
+  ...base,
+  id: 'q12',
+  type: 'pin',
+  text: 'Де Київ?',
+  timeLimit: 30,
+  map: 'world',
+  aspect: 2,
+  target: { x: 0.5, y: 0.5 },
+  fullRadius: 3,
+  zeroRadius: 15,
+} satisfies Question;
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 

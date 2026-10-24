@@ -35,11 +35,11 @@ import {
   type ScoreAdjustment,
   type SortProgress,
 } from './game';
-import { GAME_STATE_VERSION, suspend } from './restore';
+import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
 import type { Splash } from './splash';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
-import { blitzRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, slider, text, withAudio, withId, withReveal } from './testing/fixtures';
+import { blitzRound, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, text, withAudio, withId, withReveal } from './testing/fixtures';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -213,7 +213,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -286,6 +286,30 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  3: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,board,buffs,chain,clues,extraMs,final,overtime,question,roundIndex,sort',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,misses,queue,sorted',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -301,7 +325,11 @@ function representative(): GameState[] {
   // 10b: повзунок з аудіо й картинка, що проявляється, — нові поля запитання й відповіді, ключі стану ті самі.
   const media = makeRoundsQuiz([classicRound('r1', [withAudio(slider), withReveal(text)])]);
   const slid = must(submitAnswer(openAt(lobbyWith(media, 'Оля', 'Петро'), T0), 'p1', { type: 'slider', value: 57 }, T0 + 1000));
+  // 10c: «Хто я?» з відповіддю — Play.clues; точка — нові поля запитання й відповіді.
+  const cluesQuiz = makeRoundsQuiz([classicRound('r1', [clues, pin])]);
+  const clued = must(submitAnswer(tick(openAt(lobbyWith(cluesQuiz, 'Оля', 'Петро'), T0), T0 + 5000), 'p1', { type: 'clues', value: 'Шевченко' }, T0 + 6000));
   return [
+    clued,
     slid,
     must(submitAnswer(toBuffQuestion(), 'p2', kyiv, T0 + 3000)),
     must(takeBuff(toBuffCell(), 'p1', 'fifty', T0 + 1000, () => 0)),
@@ -340,6 +368,18 @@ describe('the saved state', () => {
     // не пройде непоміченим, а тест порівнює перелік із KEYS поточної версії.
     // Якщо тест упав, бо змінився формат: підніміть GAME_STATE_VERSION і додайте новий запис у KEYS.
     expect(STATE_SHAPE).toEqual(KEYS[GAME_STATE_VERSION]);
+  });
+
+  it('older readable versions are a subset of the current format', () => {
+    // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
+    expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
+    expect(READABLE_STATE_VERSIONS).not.toContain(1);
+    for (const version of READABLE_STATE_VERSIONS) {
+      for (const [name, keys] of Object.entries(KEYS[version])) {
+        const current = new Set(KEYS[GAME_STATE_VERSION][name].split(','));
+        for (const key of keys.split(',')) expect(current.has(key), `${version}: ${name}.${key}`).toBe(true);
+      }
+    }
   });
 
   it('representative states carry no keys beyond the pinned ones', () => {

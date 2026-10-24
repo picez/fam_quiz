@@ -51,6 +51,7 @@ import {
   takeHint,
   tick,
   GAME_STATE_VERSION,
+  READABLE_STATE_VERSIONS,
   type GameState,
   type Result,
 } from '@quiz/engine';
@@ -145,12 +146,13 @@ export interface SavedRoom {
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
-/** Перевірка рядка з бази: та сама версія знімка й стану, на місці поля, без яких кімнату не підняти. */
+/** Перевірка рядка з бази: та сама версія знімка, версія стану, що читається як поточна, на місці поля, без яких кімнату не підняти. */
 export function isSavedRoom(raw: unknown): raw is SavedRoom {
   if (!isObject(raw)) return false;
   return (
     raw.v === SAVED_ROOM_VERSION &&
-    raw.stateVersion === GAME_STATE_VERSION &&
+    typeof raw.stateVersion === 'number' &&
+    READABLE_STATE_VERSIONS.includes(raw.stateVersion) &&
     ['id', 'code', 'hostToken', 'stageToken'].every((key) => typeof raw[key] === 'string') &&
     Array.isArray(raw.playerUsers) &&
     Array.isArray(raw.playerTokens) &&

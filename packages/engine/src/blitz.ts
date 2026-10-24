@@ -2,6 +2,7 @@ import { DEFAULT_ANSWER_WINDOW, type ErrorCode } from '@quiz/shared';
 import { cellBlitzRules } from './board-cells';
 import { BOARD_AWAY_MS } from './board-turns';
 import { chainDeadline } from './chain';
+import { nextClueAt } from './clues';
 // З game.ts лише типи, але chain.ts (вище) під час виконання імпортує game.ts, тож цикл є:
 // game.ts → blitz.ts → chain.ts → game.ts. Він безпечний, бо всі звертання відбуваються лише під час виклику функцій.
 import { presentPlayers } from './present';
@@ -214,6 +215,8 @@ export function nextDeadline(state: GameState, now: number): number | null {
     away === null ? null : away + BOARD_AWAY_MS,
     ...(play?.blitz?.queue.map((e) => e.deadline) ?? []),
     ...chainers.map((id) => chainDeadline(state, id)),
+    // «Хто я?»: мить наступної підказки.
+    nextClueAt(state),
   ];
   const upcoming = times.filter((time): time is number => time !== null && time > now);
   return upcoming.length === 0 ? null : Math.min(...upcoming);

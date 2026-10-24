@@ -1,4 +1,16 @@
-import { answerWindowMs, PROXIMITY_CORRECT_SHARE, proximityPartial, revealShare, sliderShare, type Answer, type Grade, type Question } from '@quiz/shared';
+import {
+  answerWindowMs,
+  clueShare,
+  cluesAt,
+  pinShare,
+  PROXIMITY_CORRECT_SHARE,
+  proximityPartial,
+  revealShare,
+  sliderShare,
+  type Answer,
+  type Grade,
+  type Question,
+} from '@quiz/shared';
 import { normalizeText } from './normalize';
 
 export interface CheckResult {
@@ -39,6 +51,10 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
     return full(textMatches(question.accepted, answer.value));
   }
 
+  if (question.type === 'clues' && answer.type === 'clues') {
+    return full(textMatches(question.accepted, answer.value));
+  }
+
   if (question.type === 'numeric' && answer.type === 'numeric') {
     const distance = Math.abs(answer.value - question.correct);
     if (!Number.isFinite(distance) || distance > question.tolerance + EPSILON) return REJECTED;
@@ -50,6 +66,12 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
     const share = sliderShare(question, answer.value);
     if (share <= 0) return REJECTED;
     // (zeroBeyond − d) / (zeroBeyond − tolerance) у двійковому може вийти 0.4999…
+    return { accepted: share >= PROXIMITY_CORRECT_SHARE - EPSILON, accuracy: share };
+  }
+
+  if (question.type === 'pin' && answer.type === 'pin') {
+    const share = pinShare(question, answer.x, answer.y);
+    if (share <= 0) return REJECTED;
     return { accepted: share >= PROXIMITY_CORRECT_SHARE - EPSILON, accuracy: share };
   }
 
@@ -90,23 +112,36 @@ export function gradeOf(accuracy: number): Grade {
   return accuracy >= 1 ? 'correct' : accuracy <= 0 ? 'wrong' : 'partial';
 }
 
-/** Множник ціни за час на картинці, що проявляється (revealShare від повного вікна); інакше 1. */
-export function revealFactor(question: Question, timeMs: number): number {
+/** Чи тип платить за час часткою ціни (без бонусу швидкості): картинка, що проявляється, і «Хто я?». */
+export function paysForTime(question: Question): boolean {
   // Старі запитання (сирий JSON) поля reveal не мають.
+  return question.type === 'clues' || question.reveal != null;
+}
+
+/**
+ * Множник ціни за темп: картинка, що проявляється, — revealShare від повного вікна;
+ * «Хто я?» — clueShare(n, opened ?? cluesAt(question, timeMs)) (opened — підказки, відкриті ведучим на усній клітинці); інакше 1.
+ */
+export function paceFactor(question: Question, timeMs: number, opened?: number): number {
+  if (question.type === 'clues') return clueShare(question.clues.length, opened ?? cluesAt(question, timeMs));
   return question.reveal == null ? 1 : revealShare(timeMs, answerWindowMs(question));
 }
 
 /**
  * Перевірка з урахуванням часу.
- * Типи з балами за близькість (proximityPartial, повзунок): accepted — частка ≥ 0,5; grade 'correct' | 'partial' | 'wrong' за цим правилом (14a).
- * Решта: accepted і grade — з самої відповіді (checkAnswer, gradeOf); на картинці, що проявляється, точність × revealFactor —
- * це плата за час, як бонус швидкості, а не часткова правильність.
+ * Типи з балами за близькість (proximityPartial, повзунок і точка): accepted — частка ≥ 0,5; grade 'correct' | 'partial' | 'wrong' за цим правилом (14a).
+ * Решта: accepted і grade — з самої відповіді (checkAnswer, gradeOf); на картинці, що проявляється, і в «Хто я?» точність × paceFactor —
+ * це плата за час, як бонус швидкості, а не часткова правильність. opened — для усної клітинки (підказки відкрив ведучий).
  */
-export function verdictOf(question: Question, answer: Answer, timeMs: number): Verdict {
+export function verdictOf(question: Question, answer: Answer, timeMs: number, opened?: number): Verdict {
   const checked = checkAnswer(question, answer);
   if (proximityPartial(question)) {
     const grade = checked.accepted ? 'correct' : checked.accuracy > 0 ? 'partial' : 'wrong';
     return { accepted: checked.accepted, accuracy: checked.accuracy, grade };
   }
-  return { accepted: checked.accepted, accuracy: checked.accuracy * revealFactor(question, timeMs), grade: gradeOf(checked.accuracy) };
+  return {
+    accepted: checked.accepted,
+    accuracy: checked.accuracy * paceFactor(question, timeMs, opened),
+    grade: gradeOf(checked.accuracy),
+  };
 }
