@@ -111,6 +111,15 @@ export const LIMITS = {
   maxCloudWords: 3,
   cloudWord: 24,
   cloudShown: 40,
+  /** «100 до 1»: рядків дошки, символів у рядку, популярність (людей зі 100), відповідей гравця, символів у відповіді, типовий час (с). */
+  minSurveyRows: 4,
+  maxSurveyRows: 8,
+  surveyRowText: 40,
+  surveyTotal: 100,
+  maxSurveyAnswers: 5,
+  defaultSurveyAnswers: 3,
+  surveyAnswer: 40,
+  defaultSurveyTime: 45,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -214,8 +223,19 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
+
+/** Рядок дошки «100 до 1». */
+const surveyRow = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  /** Відповідь на табло; вона ж перше прийнятне написання. */
+  text: z.string().trim().min(1).max(LIMITS.surveyRowText).refine(isStorable, UNSTORABLE),
+  /** Людей зі 100, що дали цю відповідь. */
+  popularity: z.number().int().min(1).max(LIMITS.surveyTotal),
+  /** Додаткові написання (без text). */
+  accepted: z.array(z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE)).max(LIMITS.maxAccepted - 1),
+});
 
 /** Прийнятні написання відповіді («текст», «Хто я?»). */
 const spellings = z
@@ -362,6 +382,16 @@ export const questionSchema = z
       /** Скільки слів може написати гравець. */
       words: z.number().int().min(1).max(LIMITS.maxCloudWords),
     }),
+    z.object({
+      ...base,
+      type: z.literal('survey'),
+      /** Дошка ведучого; з cloudId — запасні рядки на випадок порожньої хмари (можна []). */
+      rows: z.array(surveyRow).max(LIMITS.maxSurveyRows),
+      /** Скільки відповідей вводить гравець. */
+      answers: z.number().int().min(1).max(LIMITS.maxSurveyAnswers),
+      /** Дошка з відповідей на «хмару слів» з цим id, що звучала раніше в грі. */
+      cloudId: z.string().min(1).refine(isStorable, UNSTORABLE).optional(),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
@@ -375,7 +405,9 @@ export const questionSchema = z
               ? [...q.categories.map((c) => c.id), ...q.words.map((w) => w.id)]
               : q.type === 'wall'
                 ? [...q.groups.map((g) => g.id), ...q.groups.flatMap((g) => g.tiles.map((t) => t.id))]
-                : [];
+                : q.type === 'survey'
+                  ? q.rows.map((r) => r.id)
+                  : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
     if (q.type === 'chain' && q.video !== null) ctx.addIssue({ code: 'custom', message: 'chain_video' });
     if (q.type === 'sort') {
@@ -414,6 +446,13 @@ export const questionSchema = z
         ctx.addIssue({ code: 'custom', message: 'wall_duplicate_tiles' });
       }
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'wall_video' });
+    }
+    if (q.type === 'survey') {
+      const count = q.rows.length;
+      const fine = q.cloudId === undefined ? count >= LIMITS.minSurveyRows : count === 0 || count >= LIMITS.minSurveyRows;
+      if (!fine) ctx.addIssue({ code: 'custom', message: 'survey_rows' });
+      if (q.rows.reduce((sum, r) => sum + r.popularity, 0) > LIMITS.surveyTotal) ctx.addIssue({ code: 'custom', message: 'survey_total' });
+      if (hasDuplicates(q.rows.flatMap((r) => [r.text, ...r.accepted].map(cloudKey)))) ctx.addIssue({ code: 'custom', message: 'survey_duplicate' });
     }
     if ((q.type === 'poll' || q.type === 'wordcloud') && q.points !== 0) ctx.addIssue({ code: 'custom', message: 'vote_points' });
     if (q.audio !== undefined && q.video !== null) ctx.addIssue({ code: 'custom', message: 'audio_video' });
@@ -517,6 +556,23 @@ export function wallShare(found: number, groups: number): number {
   return groups <= 0 ? 0 : wallScored(found, groups) / groups;
 }
 
+export type SurveyRow = Extract<Question, { type: 'survey' }>['rows'][number];
+
+/** Рядки за місцем на табло: популярність спаданням, за рівності — порядок дошки. */
+export function surveyOrder<T extends { popularity: number }>(rows: readonly T[]): T[] {
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => b.row.popularity - a.row.popularity || a.index - b.index)
+    .map(({ row }) => row);
+}
+
+/** Частка ціни: Σ популярності різних влучених рядків / 100, не більше 1; невідомі id і null пропускаються. */
+export function surveyShare(rows: readonly { id: string; popularity: number }[], hits: readonly (string | null)[]): number {
+  const hit = new Set(hits.filter((id): id is string => id !== null));
+  const sum = rows.filter((r) => hit.has(r.id)).reduce((total, r) => total + r.popularity, 0);
+  return Math.min(1, sum / LIMITS.surveyTotal);
+}
+
 /** Ключ слова «хмари»: NFC, обрізано, пробіли зведено, апострофи ’ʼ‘` → ', toLocaleLowerCase('uk'). */
 export function cloudKey(word: string): string {
   return word.normalize('NFC').trim().replace(/\s+/gu, ' ').replace(/[’ʼ‘`]/gu, "'").toLocaleLowerCase('uk');
@@ -538,11 +594,11 @@ export function cloudWords(words: readonly string[], max: number): string[] {
 }
 
 /**
- * Бали за близькість відповіді чи кількість знайденого (повзунок, точка, стіна): частка вбудована, не залежить від правила «частково»,
+ * Бали за близькість відповіді чи кількість знайденого (повзунок, точка, стіна, «100 до 1»): частка вбудована, не залежить від правила «частково»,
  * правильна — частка ≥ 0,5 (14a). Картинка, що проявляється, сюди не входить: її спадання — плата за час, не правильність.
  */
 export function proximityPartial(question: Question): boolean {
-  return question.type === 'slider' || question.type === 'pin' || question.type === 'wall';
+  return question.type === 'slider' || question.type === 'pin' || question.type === 'wall' || question.type === 'survey';
 }
 
 /** Ціна запитання: для сортування — найбільша сума (слова × бали за слово), інакше points. */
@@ -812,10 +868,31 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'wall' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'wall');
       if (wallPlace) ctx.addIssue({ code: 'custom', message: 'wall_place' });
+      // «100 до 1»: класика й звичайна клітинка з телефона.
+      const surveyPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'survey' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'survey');
+      if (surveyPlace) ctx.addIssue({ code: 'custom', message: 'survey_place' });
+      // Дошка з хмари — лише в класиці.
+      if (round.type === 'board' && boardCells(round).some(({ cell }) => cell.question.type === 'survey' && cell.question.cloudId !== undefined)) {
+        ctx.addIssue({ code: 'custom', message: 'survey_cloud_place' });
+      }
       // Опитування й «хмара слів»: лише класика.
       const votePlace = round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'poll' || q.type === 'wordcloud');
       if (votePlace) ctx.addIssue({ code: 'custom', message: 'vote_place' });
     }
+    // Дошка з хмари: хмара стоїть раніше — в одному з попередніх раундів або в цьому ж класичному раунді до запитання.
+    quiz.rounds.forEach((round, r) => {
+      if (round.type !== 'classic') return;
+      round.questions.forEach((q, i) => {
+        if (q.type !== 'survey' || q.cloudId === undefined) return;
+        const isCloud = (x: { id: string; type: string }) => x.id === q.cloudId && x.type === 'wordcloud';
+        const found =
+          quiz.rounds.slice(0, r).some((earlier) => roundQuestions(earlier).some(isCloud)) || round.questions.slice(0, i).some(isCloud);
+        if (!found) ctx.addIssue({ code: 'custom', message: 'survey_cloud' });
+      });
+    });
     const { debuffs, buffs } = quiz.settings;
     if ((debuffs && hasDuplicates(debuffs)) || (buffs && hasDuplicates(buffs))) {
       ctx.addIssue({ code: 'custom', message: 'duplicate_powers' });

@@ -716,6 +716,8 @@ function Body({ question, onChange, showPoints, cluesByHost }: Pick<Props, 'ques
           <p className="meta">{t('pollHint')}</p>
         </>
       );
+    case 'survey':
+      return null; // задача 9
     case 'wordcloud':
       return (
         <>

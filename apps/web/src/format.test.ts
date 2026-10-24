@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyBrief, type Question, type RoundInfo } from '@quiz/shared';
+import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
 import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, sliderNumber } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -24,6 +24,18 @@ describe('correctText', () => {
     expect(correctText(numeric)).toBe('2061 (± 100)');
     expect(correctText({ ...numeric, tolerance: 0 })).toBe('2061');
     expect(correctText(order)).toBe('Львів → Київ → Одеса');
+  });
+});
+
+describe('survey texts (10e)', () => {
+  const row = (id: string, text: string, popularity: number) => ({ id, text, popularity, accepted: [] });
+  const survey: Question = { ...base, type: 'survey', answers: 3, rows: [row('a', 'Яблуко', 32), row('b', 'Банан', 25), row('c', 'Полуниця', 15), row('d', 'Кавун', 10), row('e', 'Груша', 8)] };
+  it('correctText lists the rows by popularity', () => {
+    expect(correctText(survey)).toBe('Яблуко (32); Банан (25); Полуниця (15); Кавун (10); Груша (8)');
+  });
+  it('answerText marks hits and misses, or lists the values without hits', () => {
+    expect(answerText({ type: 'survey', values: ['яблучко', 'ананас'], rows: ['a', null] }, survey)).toBe('яблучко ✓, ананас ✗');
+    expect(answerText({ type: 'survey', values: ['яблучко', 'ананас'] } as unknown as Answer, survey)).toBe('яблучко, ананас');
   });
 });
 

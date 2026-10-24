@@ -39,17 +39,18 @@ export { QUESTION_TYPES, type QuestionType };
 
 /**
  * Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?», точки, стіни, опитування й хмари;
- * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, опитування й хмари;
+ * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, «100 до 1», опитування й хмари;
  * сортування — скрізь; класика — усі.
+ * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
   const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
   if (roundType === 'blitz') {
-    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin' && type !== 'wall' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && !unscored(type));
   }
   if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && !unscored(type));
   if (roundType === 'final') {
-    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && !unscored(type));
   }
   return QUESTION_TYPES;
 }
@@ -99,6 +100,15 @@ function build(common: Common, type: QuestionType): Question {
         timeLimit: LIMITS.defaultWallTime,
         mistakes: LIMITS.defaultWallMistakes,
         groups: Array.from({ length: 4 }, () => ({ id: newId(), name: '', tiles: blanks(4) })),
+      };
+    case 'survey':
+      return {
+        ...common,
+        type,
+        timeLimit: LIMITS.defaultSurveyTime,
+        answers: LIMITS.defaultSurveyAnswers,
+        // popularity 0 — чернетка: редактор вимагає заповнення, схему проходить лише заповнена.
+        rows: Array.from({ length: 5 }, () => ({ id: newId(), text: '', popularity: 0, accepted: [] as string[] })),
       };
     case 'poll':
       return { ...common, type, points: 0, options: blanks(LIMITS.minOptions) };
@@ -178,6 +188,12 @@ export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === 'multi' && type === 'poll') return { ...common, type, options: question.options };
   if (question.type === 'poll' && type === 'single') return { ...common, type, options: question.options, correctId: question.options[0].id };
   if (question.type === 'poll' && type === 'multi') return { ...common, type, options: question.options, correctIds: [question.options[0].id] };
+  if (question.type === 'text' && type === 'survey') {
+    // Перше написання тексту стає першим рядком дошки.
+    const made = build(common, type);
+    const first = question.accepted[0] ?? '';
+    return made.type === 'survey' ? { ...made, rows: made.rows.map((row, index) => (index === 0 ? { ...row, text: first } : row)) } : made;
+  }
   return build(common, type);
 }
 
@@ -231,6 +247,8 @@ export function duplicateQuestion(question: Question): Question {
         id,
         groups: question.groups.map((group) => ({ ...group, id: newId(), tiles: group.tiles.map((tile) => ({ ...tile, id: newId() })) })),
       };
+    case 'survey':
+      return { ...question, id, rows: question.rows.map((row) => ({ ...row, id: newId(), accepted: [...row.accepted] })) };
     case 'poll':
       return { ...question, id, options: question.options.map((option) => ({ ...option, id: newId() })) };
     case 'chain':

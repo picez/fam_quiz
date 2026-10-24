@@ -41,6 +41,8 @@ function filled(question: Question): Question {
           tiles: group.tiles.map((tile, n) => ({ ...tile, text: `Плитка ${g + 1}.${n + 1}` })),
         })),
       };
+    case 'survey':
+      return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
     case 'sort':
       return {
         ...question,
@@ -107,6 +109,41 @@ describe('clues and pin in the editor (10c)', () => {
     const pin = newQuestion('pin');
     const pinCopy = duplicateQuestion(pin);
     if (pin.type === 'pin' && pinCopy.type === 'pin') expect(pinCopy.target).not.toBe(pin.target);
+  });
+});
+
+describe('survey in the editor (10e)', () => {
+  it('a new survey is 45 seconds, three answers and five blank rows; valid once rows are filled', () => {
+    const blank = newQuestion('survey');
+    expect(blank.type === 'survey' && [blank.timeLimit, blank.answers, blank.rows.length]).toEqual([LIMITS.defaultSurveyTime, 3, 5]);
+    expect(LIMITS.defaultSurveyTime).toBe(45);
+    const filledIn = filled(blank);
+    expect(filledIn.type === 'survey' && filledIn.rows.slice(0, 4).every((r) => r.text !== '' && r.popularity > 0)).toBe(true);
+    expect(quizSchema.safeParse(cleaned(quizWith(filledIn))).success).toBe(true);
+    expect(problemsOf(quizWith(blank))).not.toEqual([]);
+  });
+
+  it('questionTypesFor: the survey is in classic and on the board, not in blitz or the final', () => {
+    expect(questionTypesFor('classic')).toContain('survey');
+    expect(questionTypesFor('board')).toContain('survey');
+    expect(questionTypesFor('blitz')).not.toContain('survey');
+    expect(questionTypesFor('final')).not.toContain('survey');
+  });
+
+  it('a text becomes a survey with its first spelling as the first row; reveal and cloudId are dropped', () => {
+    const text = { ...(newQuestion('text') as Extract<Question, { type: 'text' }>), accepted: ['Дніпро', 'Днепр'], imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png', reveal: { start: 20, end: 100 } } as unknown as Question;
+    const survey = changeType(text, 'survey');
+    expect(survey.type === 'survey' && survey.rows[0].text).toBe('Дніпро');
+    expect(survey.reveal).toBeUndefined();
+    const withCloud = { ...(newQuestion('survey') as Extract<Question, { type: 'survey' }>), cloudId: 'k1' };
+    expect('cloudId' in changeType(withCloud, 'text')).toBe(false);
+  });
+
+  it('a duplicated survey gets new row ids', () => {
+    const source = filled(newQuestion('survey')) as Extract<Question, { type: 'survey' }>;
+    const copy = duplicateQuestion(source) as Extract<Question, { type: 'survey' }>;
+    expect(copy.rows.map((r) => r.id).some((id) => source.rows.some((r) => r.id === id))).toBe(false);
+    expect(copy.rows.map((r) => r.text)).toEqual(source.rows.map((r) => r.text));
   });
 });
 
@@ -387,7 +424,7 @@ describe('duplicateQuestion', () => {
       const source = filled(newQuestion(type));
       const copy = duplicateQuestion(source);
       expect(copy.id, type).not.toBe(source.id);
-      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, groups: undefined, words: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
+      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, groups: undefined, rows: undefined, words: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
         ...source,
         id: '',
         options: undefined,
@@ -395,6 +432,7 @@ describe('duplicateQuestion', () => {
         pairs: undefined,
         categories: undefined,
         groups: undefined,
+        rows: undefined,
         words: undefined,
         correctId: undefined,
         correctIds: undefined,

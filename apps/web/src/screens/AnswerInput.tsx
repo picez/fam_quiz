@@ -215,6 +215,8 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
       return question.cloud === null ? null : <CloudInput words={question.cloud.words} onSubmit={onSubmit} autoFocus={autoFocus} />;
     case 'wall':
       return null; // стіну веде PlayerScreen (WallInput), як сортування
+    case 'survey':
+      return null; // задача 7
     case 'slider':
       return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} />;
   }
