@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { READY_BUFFS, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
+import { LIMITS, READY_BUFFS, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
-import { clues, demoQuiz, pin, revealing, single, slider, withAudio } from './demo-quiz';
+import { clues, cloud, demoQuiz, pin, poll, revealing, single, slider, wall, withAudio } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
@@ -99,6 +99,45 @@ describe('the seeded demo quiz', () => {
     expect(six.timeLimit).toBe(45);
     expect(questionSchema.safeParse(six).success).toBe(true);
     expect(clues('Хто я?', ['а', 'б', 'в'], ['Х'], 6).timeLimit).toBe(40);
+  });
+
+  it('demo has a 4×4 wall in classic, a 3×3 wall on a phone board cell, a poll and a word cloud in the warm-up', () => {
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+    const warmup = demoQuiz.rounds.find((r) => r.id === 'r-warmup');
+    expect(warmup?.type === 'classic' && warmup.questions.slice(-2).map((x) => x.type)).toEqual(['poll', 'wordcloud']);
+    const classic = demoQuiz.rounds.find((r) => r.id === 'r-x3');
+    const big = classic?.type === 'classic' ? classic.questions.find((x) => x.type === 'wall') : undefined;
+    expect(big?.type === 'wall' && [big.groups.length, big.groups.map((g) => g.tiles.length)]).toEqual([4, [4, 4, 4, 4]]);
+    const board = demoQuiz.rounds.find((r) => r.id === 'r-board-phone');
+    expect(board?.type === 'board' && board.answerMode).toBe('phone');
+    const cells = board?.type === 'board' ? board.categories.flatMap((c) => c.cells) : [];
+    const small = cells.find((c) => c.question.type === 'wall');
+    expect(small).toMatchObject({ kind: 'normal' });
+    expect(small?.question.type === 'wall' && small.question.groups.map((g) => g.tiles.length)).toEqual([3, 3, 3]);
+    expect(demoQuiz.description).toContain('стін');
+    expect(demoQuiz.description).toContain('опитування');
+    expect(demoQuiz.description).toContain('хмар');
+    expect(demoQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
+    for (const round of demoQuiz.rounds) {
+      const count = questionsOf({ ...demoQuiz, rounds: [round] }).length;
+      expect(count).toBeLessThanOrEqual(LIMITS.maxQuestions);
+    }
+  });
+
+  it('the wall, poll and cloud helpers build valid questions', () => {
+    const small = wall('Стіна', [['Фрукти', ['Яблуко', 'Груша', 'Слива']], ['Птахи', ['Сова', 'Лелека', 'Чапля']], ['Метали', ['Мідь', 'Залізо', 'Олово']]], 2, 600, 60);
+    expect(questionSchema.safeParse(small).success).toBe(true);
+    expect(small).toMatchObject({ type: 'wall', mistakes: 2, points: 600, timeLimit: 60 });
+    const ids = small.type === 'wall' ? small.groups.flatMap((g) => g.tiles.map((t) => t.id)) : [];
+    expect(new Set(ids).size).toBe(9);
+    for (const tileId of ids) expect(tileId).not.toMatch(/Фрукти|Птахи|Метали/);
+    const voted = poll('Що краще?', ['А', 'Б']);
+    expect(voted).toMatchObject({ type: 'poll', points: 0 });
+    expect(questionSchema.safeParse(voted).success).toBe(true);
+    const one = cloud('Слово?', 1);
+    expect(one).toMatchObject({ type: 'wordcloud', words: 1, points: 0 });
+    expect(questionSchema.safeParse(one).success).toBe(true);
+    expect(cloud('Слова?')).toMatchObject({ words: LIMITS.maxCloudWords });
   });
 
   it('ends with a final round', () => {
