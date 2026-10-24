@@ -3,7 +3,7 @@ import { LIMITS, READY_BUFFS, allowedBuffs, boardSpareSource, questionSchema, qu
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
-import { clues, cloud, demoQuiz, pin, poll, revealing, single, slider, wall, withAudio } from './demo-quiz';
+import { clues, cloud, demoQuiz, pin, poll, revealing, single, slider, survey, surveyFromCloud, wall, withAudio } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
@@ -343,5 +343,42 @@ describe('the mosaic quiz', () => {
     const own = texts(mosaicQuiz).map(norm);
     expect(own.filter((text) => others.has(text))).toEqual([]);
     expect(new Set(own).size).toBe(own.length);
+  });
+});
+
+describe('«100 до 1» in the demo quiz', () => {
+  it('demo has a host-board survey in r-x3 and a survey from the warm-up word cloud in r-rules', () => {
+    expect(quizSchema.safeParse(demoQuiz).success).toBe(true);
+    const find = (roundId: string) => {
+      const round = demoQuiz.rounds.find((r) => r.id === roundId);
+      return round?.type === 'classic' ? round.questions : [];
+    };
+    const board = find('r-x3').at(-1);
+    expect(board?.type === 'survey' && [board.cloudId, board.rows.length, board.answers]).toEqual([undefined, 6, LIMITS.defaultSurveyAnswers]);
+    const fromCloud = find('r-rules').at(-1);
+    const warmCloud = find('r-warmup').find((x) => x.type === 'wordcloud');
+    expect(warmCloud).toBeDefined();
+    expect(fromCloud?.type === 'survey' && fromCloud.cloudId).toBe(warmCloud?.id);
+    expect(fromCloud?.type === 'survey' && fromCloud.rows.length).toBeGreaterThanOrEqual(LIMITS.minSurveyRows);
+    const order = demoQuiz.rounds.map((r) => r.id);
+    expect(order.indexOf('r-warmup')).toBeLessThan(order.indexOf('r-rules'));
+    expect(demoQuiz.description).toContain('100 до 1');
+    expect(demoQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
+    for (const round of demoQuiz.rounds) {
+      expect(questionsOf({ ...demoQuiz, rounds: [round] }).length).toBeLessThanOrEqual(LIMITS.maxQuestions);
+    }
+  });
+
+  it('the helpers build valid questions', () => {
+    const own = survey('Фрукт?', [['Яблуко', 40, ['яблучко']], ['Банан', 30], ['Груша', 20], ['Слива', 10]]);
+    expect(questionSchema.safeParse(own).success).toBe(true);
+    expect(own).toMatchObject({ type: 'survey', answers: LIMITS.defaultSurveyAnswers, points: 1000, timeLimit: LIMITS.defaultSurveyTime });
+    expect(own.type === 'survey' && own.rows.reduce((sum, r) => sum + r.popularity, 0)).toBeLessThanOrEqual(100);
+    expect(own.type === 'survey' && own.rows[0].accepted).toEqual(['яблучко']);
+    const word = cloud('Слово?');
+    const linked = surveyFromCloud('З хмари', word, []);
+    expect(linked).toMatchObject({ type: 'survey', rows: [], cloudId: word.id, answers: 2 });
+    const quiz = { ...demoQuiz, rounds: [{ id: 'a', type: 'classic' as const, title: 'A', speedBonus: false, shuffleOptions: false, rules: demoQuiz.rounds[0].type === 'classic' ? demoQuiz.rounds[0].rules : (undefined as never), questions: [word, linked] }] };
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
   });
 });
