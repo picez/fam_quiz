@@ -50,7 +50,7 @@ import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
 import { scoreSurvey, stepSurvey, surveyBoard, surveyPlayOf } from './survey';
-import { bluffAuto, bluffPlayOf, startChoice } from './bluff';
+import { bluffAuto, bluffOrder, bluffPlayOf, scoreBluff, startChoice, stepBluff } from './bluff';
 import { cluesByHost, cluesOpen, openDueClues } from './clues';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -1005,7 +1005,8 @@ export function lockNow(state: GameState): GameState {
   // Незакінчене сортування отримує записи за відсортовані слова.
   // Незавершена друга спроба зараховує першу відповідь.
   // Незакінчена стіна отримує записи за знайдені групи.
-  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreWall(scoreSort(scoreChain(settleRetries(state)))))));
+  // Блеф отримує записи лише тут: бали залежать від виборів усіх.
+  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(settleRetries(state))))))));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
@@ -1399,6 +1400,9 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   if (state.phase === 'reveal') {
     const surveyPlay = surveyPlayOf(state);
     if (surveyPlay !== null && surveyPlay.survey.shown < surveyPlay.question.rows.length) return ok(stepSurvey(state));
+    // Блеф: так само по варіанту, найменше вибрані першими, правда остання.
+    const bluffPlay = bluffPlayOf(state);
+    if (bluffPlay !== null && bluffPlay.bluff.shown < bluffOrder(bluffPlay).length) return ok(stepBluff(state));
   }
   // «Як грати» гортається до будь-яких дуелей (на guide їх і не буває): на останній сторінці — перший раунд.
   if (state.phase === 'guide') {
@@ -1584,13 +1588,13 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
   // Ланцюжок перевіряється за літерами однозначно; зміна одного вердикту зсунула б бали інших.
-  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід. «100 до 1» — за дошкою (і на полі).
+  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід. «100 до 1» — за дошкою (і на полі). Блеф — вибір однозначний.
   // Опитування й хмара без балів не оцінюються.
   // Після «Заміни запитання» гравець відповідав на запасне: рішення — за його запитанням (на полі — того, хто вибрав клітинку).
   const active = state.plays[state.questionIndex];
   const target = active?.board?.chooserId ?? playerId;
   const type = active === undefined ? undefined : questionFor(state, active, target).type;
-  if (type === 'chain' || type === 'sort' || type === 'wall' || type === 'survey') return fail('wrong_phase');
+  if (type === 'chain' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
@@ -1637,7 +1641,7 @@ export function end(state: GameState, now?: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   // Поза фіналом closeFinal лише перераховує підсумки; у фіналі ще оцінює мовчання й розкриває всіх.
   const closed = closeFinal({
-    ...dropQueue(scoreWall(scoreSort(scoreChain(state)))),
+    ...dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(state))))),
     phase: 'finished',
     board: clearAway(state.board),
     paused: false,
