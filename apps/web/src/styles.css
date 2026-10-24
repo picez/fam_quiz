@@ -6530,3 +6530,165 @@ label.powers-price {
 .reveal-hint {
   text-align: center;
 }
+
+/* Звук запитання (10b): картка «Слухайте»; рамка YouTube «лише звук» невидима й не ловить дотиків. */
+.audio-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: rgb(0 0 0 / 0.2);
+}
+
+.audio-card.is-playing .audio-listen {
+  animation: audio-pulse 1.2s ease-in-out infinite;
+}
+
+.audio-listen,
+.audio-failed {
+  font-weight: 600;
+}
+
+.audio-failed {
+  color: var(--dim);
+}
+
+@keyframes audio-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-card.is-playing .audio-listen {
+    animation: none;
+  }
+}
+
+.audio-only-frame {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.host-audio .panel-actions {
+  margin-top: 0.5rem;
+}
+
+.reveal-tag {
+  text-align: center;
+}
+
+/* Шкала повзунка на розкритті. */
+.slider-scale {
+  --mark-rows: 1;
+  --row-h: 1.6rem;
+  width: 100%;
+  max-width: 56rem;
+  margin: 1rem auto 0;
+  padding: 0 1.5rem;
+  box-sizing: border-box;
+}
+
+.scale-axis {
+  position: relative;
+  height: 1rem;
+  margin-top: 2.5rem;
+  border-radius: 0.5rem;
+  background: var(--line);
+}
+
+.scale-zero,
+.scale-tolerance {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 0.5rem;
+}
+
+.scale-zero {
+  background: rgb(60 180 100 / 0.3);
+}
+
+.scale-tolerance {
+  background: rgb(60 180 100 / 0.9);
+}
+
+.scale-correct {
+  position: absolute;
+  top: -0.35rem;
+  width: 0.35rem;
+  height: 1.7rem;
+  margin-left: -0.175rem;
+  border-radius: 0.2rem;
+  background: #fff;
+}
+
+.scale-correct-label {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.scale-limits {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.scale-marks {
+  position: relative;
+  height: calc(var(--mark-rows) * var(--row-h) + 0.5rem);
+  margin-top: 0.25rem;
+}
+
+.scale-mark {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+  font-size: 0.875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.scale-pin {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
+.scale-mark.is-near .scale-pin {
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(60 180 100 / 0.8);
+}
+
+.scale-mark.is-near .scale-name {
+  font-weight: 700;
+}
+
+.stage .slider-scale {
+  --row-h: 2.4rem;
+  font-size: 1.25rem;
+}
+
+.stage .scale-mark {
+  font-size: 1.25rem;
+}

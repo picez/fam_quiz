@@ -15,6 +15,7 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
 import { RevealImage } from './RevealImage';
+import { SliderScale } from './SliderScale';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
@@ -58,12 +59,22 @@ function Result({ view }: { view: PlayerView }) {
       {view.me.sort !== null && <SortOutcome view={view} />}
       {view.reveal !== null &&
         (view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
-          <p>
-            {t('sliderYours', {
-              value: sliderValueText(view.me.answer.value, view.question.slider),
-              correct: correctText(view.reveal, view.question.choices),
-            })}
-          </p>
+          <>
+            <p>
+              {t('sliderYours', {
+                value: sliderValueText(view.me.answer.value, view.question.slider),
+                correct: correctText(view.reveal, view.question.choices),
+              })}
+            </p>
+            <SliderScale
+              slider={view.question.slider}
+              correct={view.reveal.correct}
+              tolerance={view.reveal.tolerance}
+              zeroBeyond={view.reveal.zeroBeyond}
+              marks={[{ playerId: view.me.id, nickname: view.me.nickname, value: view.me.answer.value }]}
+              highlight={view.me.id}
+            />
+          </>
         ) : (
           <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>
         ))}

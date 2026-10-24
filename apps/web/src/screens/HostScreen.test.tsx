@@ -1630,3 +1630,42 @@ describe('host help', () => {
     expect(link.getAttribute('target')).toBe('_blank');
   });
 });
+
+describe('HostScreen media (10b)', () => {
+  const clip = { source: 'file' as const, url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 10 };
+  const withAudio = { ...publicOf(single), audio: { duration: 10, clip } };
+
+  it('with a stage open, says where the sound plays and sends replay and stop', async () => {
+    const send = show(during('question', single, { question: withAudio }));
+    expect(screen.getByText('🎵 Звук грає на сцені')).toBeTruthy();
+    expect(document.querySelector('.audio-card')).toBeNull();
+    fireEvent.click(button('Програти ще раз'));
+    fireEvent.click(button('Стоп'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:audio', { action: 'stop' }));
+    expect(send).toHaveBeenCalledWith('host:audio', { action: 'replay' });
+  });
+
+  it('without a stage, plays the clip itself', () => {
+    render(
+      <HostScreen view={during('question', single, { question: withAudio })} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />,
+    );
+    expect(screen.getByText('🎵 Сцена не відкрита — звук грає тут')).toBeTruthy();
+    expect(document.querySelector('.audio-card')).not.toBeNull();
+  });
+
+  it('shows a revealing picture whole, with a tag', () => {
+    const revealing = { ...publicOf(single), imageUrl: '/uploads/a.png', reveal: 'pixels' as const };
+    show(during('question', single, { question: revealing }));
+    expect(document.querySelector('img.question-image')).not.toBeNull();
+    expect(document.querySelector('canvas')).toBeNull();
+    expect(screen.getByText(/Проявляється з пікселів/)).toBeTruthy();
+  });
+
+  it('shows the slider scale during the question', () => {
+    const sliderFull: Question = { id: 'q3', type: 'slider', text: 'Скільки?', imageUrl: null, video: null, timeLimit: 20, points: 1000, min: 0, max: 100, step: 1, correct: 50, tolerance: 2, unit: '%' };
+    const question = { ...publicOf(sliderFull), slider: { min: 0, max: 100, step: 1, unit: '%' } };
+    show(during('question', sliderFull, { question, sliderMarks: [{ playerId: 'p1', nickname: 'Олена', value: 40, points: 0 }] }));
+    expect(document.querySelector('.slider-scale')).not.toBeNull();
+    expect(screen.getByLabelText('Олена: 40 %')).toBeTruthy();
+  });
+});

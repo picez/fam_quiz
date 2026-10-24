@@ -23,6 +23,11 @@ export function publicWindowMs(question: Windowed): number {
   return limit * 1000 + (duration !== undefined && duration > limit ? duration * 1000 : 0);
 }
 
+/** На скільки мс фрагмент довший за таймер запитання (табло «Слухайте»); 0 без довшого аудіо. */
+export function publicLeadMs(question: Windowed): number {
+  return publicWindowMs(question) - (question.timeLimit ?? 0) * 1000;
+}
+
 /** Поступ 0…1: (limitMs − залишок) / вікно; поза етапом question або без таймера — 1. Додатковий час «±15 с» не продовжує. */
 export function revealProgress(view: Clock, question: Windowed, serverNow: number): number {
   if (view.phase !== 'question' || view.limitMs === null || question.timeLimit === null) return 1;

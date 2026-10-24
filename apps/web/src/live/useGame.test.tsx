@@ -43,7 +43,7 @@ afterEach(() => {
 
 const auth = { code: '123456', role: 'player', token: 't1' } as const;
 const view = { role: 'player', phase: 'question', splash: null } as unknown as GameView;
-const meta = () => ({ serverNow: Date.now(), hostOnline: true });
+const meta = (stageOnline = true) => ({ serverNow: Date.now(), hostOnline: true, stageOnline });
 
 describe('useGame across a server restart', () => {
   it('shows restarting after the server says so and reconnects by itself after a server-side disconnect', () => {
@@ -104,5 +104,20 @@ describe('useGame across a server restart', () => {
     expect(result.current.closed).toBe('kicked');
     act(() => vi.advanceTimersByTime(RETRY_MS * 2));
     expect(socket.connect).not.toHaveBeenCalled();
+  });
+});
+
+describe('useGame audio', () => {
+  it('keeps the last audio command and reads stageOnline from the meta', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    expect(result.current.stageOnline).toBe(true);
+    expect(result.current.audioCommand).toBeNull();
+    act(() => socket.fire('state', view, meta(false)));
+    expect(result.current.stageOnline).toBe(false);
+    act(() => socket.fire('audio', { action: 'replay', seq: 5 }));
+    expect(result.current.audioCommand).toEqual({ action: 'replay', seq: 5 });
+    act(() => socket.fire('audio', { action: 'stop', seq: 6 }));
+    expect(result.current.audioCommand).toEqual({ action: 'stop', seq: 6 });
   });
 });

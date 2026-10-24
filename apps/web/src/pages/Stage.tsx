@@ -40,6 +40,7 @@ export function Stage() {
         joinUrl={`${window.location.origin}/play/${code}`}
         offsetMs={game.offsetMs}
         hostOnline={game.hostOnline}
+        audioCommand={game.audioCommand}
       />
     </>
   );

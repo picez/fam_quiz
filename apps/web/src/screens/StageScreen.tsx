@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
-import { LETTERS, answerText, correctPairs, correctText, markText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
+import { LETTERS, answerText, correctPairs, correctText, markText, sliderNumber, sliderValueText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
@@ -14,7 +14,11 @@ import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { BoardIntro } from './Dice';
 import { TurnSchedule } from './TurnSchedule';
-import { QuestionImage } from './QuestionImage';
+import { RevealImage } from './RevealImage';
+import { QuestionAudio } from './QuestionAudio';
+import { SliderScale } from './SliderScale';
+import { publicLeadMs, revealStage, useRevealProgress } from '../reveal';
+import type { AudioCommand } from '../live/useGame';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
@@ -31,6 +35,8 @@ interface Props {
   joinUrl: string;
   offsetMs: number;
   hostOnline: boolean;
+  /** Остання команда звуку від ведучого. */
+  audioCommand?: AudioCommand | null;
 }
 
 function hostOf(url: string): string {
@@ -129,11 +135,13 @@ function FinalReveal({ final, question, presented }: { final: FinalInfo; questio
   );
 }
 
-function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'offsetMs'> & { blink: boolean; blinking: ReadonlySet<string> }) {
+function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props, 'view' | 'offsetMs'> & { blink: boolean; blinking: ReadonlySet<string>; audioCommand: AudioCommand | null }) {
   const { question, reveal, stats } = view;
   // Поки йде заставка запитання чи клітинки, запитання під шаром ще не почалося: aria-busy для читачів екрана.
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
   const busy = view.phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell');
+  // Поступ проявлення рахується лише для запитань із проявленням: решта не перемальовується щоразу.
+  const revealP = useRevealProgress(view, view.question?.reveal ? view.question : null, offsetMs);
   if (question === null) return null;
   const correctIds =
     reveal === null
@@ -159,7 +167,9 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
   const finalReveal = view.final !== null && view.phase === 'reveal';
   const orderLabels = question.orderLabels === null ? '' : orderLabelsText(question.orderLabels);
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
-  const hint = voice ? null : question.type === 'chain' ? t('chainOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const sliderHint = question.slider === null ? '' : t('sliderOnPhone', { min: sliderNumber(question.slider.min, question.slider.step), max: sliderValueText(question.slider.max, question.slider) });
+  const scale = reveal !== null && reveal.type === 'slider' && question.slider !== null && view.sliderMarks !== null ? { correct: reveal, slider: question.slider, marks: view.sliderMarks } : null;
+  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question" aria-busy={busy || undefined}>
@@ -205,13 +215,22 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
         {view.phase === 'question' && (
           // «Чекаємо …» висить під табло поза потоком: його поява на спільному кінці нічого не зсуває.
           <div className="stage-clock">
-            <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />
+            <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={publicLeadMs(question)} />
             {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
           </div>
         )}
       </div>
       {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} presented={view.question?.choices} />}
-      {!finalReveal && <QuestionImage url={question.imageUrl} />}
+      {!finalReveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(revealP)} />}
+      {question.audio?.clip != null && (
+        <QuestionAudio
+          clip={question.audio.clip}
+          questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
+          ready={view.phase === 'question' && !busy && !view.paused}
+          paused={view.paused}
+          command={audioCommand}
+        />
+      )}
       {!finalReveal && <YouTubePlayer video={question.video} masked={reveal === null} />}
       {finalReveal && question.type !== 'match' ? null : question.chain !== null ? (
         reveal !== null && reveal.type === 'chain' ? (
@@ -279,7 +298,10 @@ function Question({ view, offsetMs, blink, blinking }: Pick<Props, 'view' | 'off
       ) : (
         reveal === null && hint !== null && <p className="lead">{hint}</p>
       )}
-      {reveal !== null && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {scale !== null && (
+        <SliderScale slider={scale.slider} correct={scale.correct.correct} tolerance={scale.correct.tolerance} zeroBeyond={scale.correct.zeroBeyond} marks={scale.marks} highlight={scale.marks[0]?.playerId} />
+      )}
+      {reveal !== null && scale === null && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }
@@ -330,7 +352,7 @@ function BoardStage({ board }: { board: BoardInfo }) {
   );
 }
 
-export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props) {
+export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCommand = null }: Props) {
   const { phase, standings } = view;
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
   const blink = useVerdictBlink(view.spotlight);
@@ -358,7 +380,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline }: Props
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
