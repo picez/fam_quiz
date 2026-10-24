@@ -721,6 +721,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud 
           <p className="meta">{t('pollHint')}</p>
         </>
       );
+    case 'bluff':
+      return null; // задача 9
     case 'survey':
       return <SurveyEditor question={question} onChange={onChange} clouds={clouds} allowCloud={allowCloud} />;
     case 'wordcloud':

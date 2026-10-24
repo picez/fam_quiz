@@ -107,6 +107,8 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.accepted[0];
     case 'wall':
       return t('wallCorrect', { groups: question.groups.map((group) => group.name).join('; ') });
+    case 'bluff':
+      return question.accepted[0] ?? '';
     case 'survey':
       return surveyOrder(question.rows).map((row) => `${row.text} (${row.popularity})`).join('; ');
     case 'poll':
@@ -162,6 +164,14 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       const hits = surveyHitsOf(answer);
       if (hits === null) return answer.values.join(', ');
       return answer.values.map((value, index) => t(hits[index] ? 'surveyHit' : 'surveyMiss', { value })).join(', ');
+    }
+    case 'bluff': {
+      const mark = answer.truth ? '✓' : '✗';
+      const main =
+        answer.lie !== null && answer.pick !== null
+          ? `${t('bluffAnswer', { lie: answer.lie, pick: answer.pick })} ${mark}`
+          : [answer.lie === null ? t('bluffNoLie') : `«${answer.lie}»`, answer.pick === null ? t('bluffNoPick') : `«${answer.pick}» ${mark}`].join(' · ');
+      return answer.fooled > 0 ? `${main} · ${t('bluffFooled', { n: answer.fooled })}` : main;
     }
     case 'wall':
       return answer.found === answer.groups

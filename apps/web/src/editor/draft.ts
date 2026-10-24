@@ -43,16 +43,17 @@ export { QUESTION_TYPES, type QuestionType };
  * Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?», точки, стіни, опитування й хмари;
  * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, «100 до 1», опитування й хмари;
  * сортування — скрізь; класика — усі.
+ * Блеф — лише класика (поле, бліц і фінал його не мають).
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
   const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
   if (roundType === 'blitz') {
-    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
-  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && !unscored(type));
+  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'bluff' && !unscored(type));
   if (roundType === 'final') {
-    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
   return QUESTION_TYPES;
 }
@@ -127,6 +128,8 @@ function build(common: Common, type: QuestionType): Question {
         // popularity 0 — чернетка: редактор вимагає заповнення, схему проходить лише заповнена.
         rows: Array.from({ length: 5 }, () => ({ id: newId(), text: '', popularity: 0, accepted: [] as string[] })),
       };
+    case 'bluff':
+      return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
     case 'poll':
       return { ...common, type, points: 0, options: blanks(LIMITS.minOptions) };
     case 'wordcloud':
@@ -211,6 +214,12 @@ export function changeType(question: Question, type: QuestionType): Question {
     const first = question.accepted[0] ?? '';
     return made.type === 'survey' ? { ...made, rows: made.rows.map((row, index) => (index === 0 ? { ...row, text: first } : row)) } : made;
   }
+  if ((question.type === 'text' || question.type === 'clues') && type === 'bluff') {
+    // Правда — наявні написання; запасні вигадки й час вибору — типові.
+    const made = build(common, type);
+    return made.type === 'bluff' ? { ...made, accepted: [...question.accepted] } : made;
+  }
+  if (question.type === 'bluff' && type === 'text') return { ...build(common, type), accepted: [...question.accepted] } as Question;
   return build(common, type);
 }
 
@@ -264,6 +273,8 @@ export function duplicateQuestion(question: Question): Question {
         id,
         groups: question.groups.map((group) => ({ ...group, id: newId(), tiles: group.tiles.map((tile) => ({ ...tile, id: newId() })) })),
       };
+    case 'bluff':
+      return { ...question, id, accepted: [...question.accepted], lies: [...question.lies] };
     case 'survey':
       return { ...question, id, rows: question.rows.map((row) => ({ ...row, id: newId(), accepted: [...row.accepted] })) };
     case 'poll':

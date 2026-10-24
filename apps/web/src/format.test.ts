@@ -238,3 +238,15 @@ describe('round facts and the question label', () => {
     expect(questionLabel(null, 0, 3)).toBe('Запитання 1 з 3 · лишилося 2');
   });
 });
+
+describe('bluff (10f)', () => {
+  const bluffQ = { ...base, type: 'bluff', timeLimit: 60, choiceTime: 30, accepted: ['Барселона', 'Барселоні'], lies: ['Мадрид', 'Лондон'] } as Question;
+  it('correctText is the first spelling of the truth', () => {
+    expect(correctText(bluffQ)).toBe('Барселона');
+  });
+  it('answerText tells the lie, the pick with its mark and how many were fooled', () => {
+    expect(answerText({ type: 'bluff', lie: 'Рим', pick: 'Барселона', truth: true, fooled: 1 }, bluffQ)).toBe('вигадка «Рим» · вибір «Барселона» ✓ · купилися: 1');
+    expect(answerText({ type: 'bluff', lie: 'Рим', pick: 'Мадрид', truth: false, fooled: 0 }, bluffQ)).toBe('вигадка «Рим» · вибір «Мадрид» ✗');
+    expect(answerText({ type: 'bluff', lie: null, pick: null, truth: false, fooled: 0 }, bluffQ)).toBe('без вигадки · без вибору');
+  });
+});

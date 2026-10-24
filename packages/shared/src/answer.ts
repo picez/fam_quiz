@@ -69,7 +69,20 @@ export interface SurveyAnswer {
   rows: (string | null)[];
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer;
+/** Підсумок блефу гравця; складає рушій у мить закриття, з телефона не приходить. */
+export interface BluffAnswer {
+  type: 'bluff';
+  /** Вигадка гравця, як він її написав; null — не писав. */
+  lie: string | null;
+  /** Текст вибраного варіанта; null — не вибирав. */
+  pick: string | null;
+  /** Вибрав правду. */
+  truth: boolean;
+  /** Скільки інших гравців вибрали його (неприбрану) вигадку. */
+  fooled: number;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {

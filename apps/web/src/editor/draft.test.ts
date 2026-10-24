@@ -41,6 +41,8 @@ function filled(question: Question): Question {
           tiles: group.tiles.map((tile, n) => ({ ...tile, text: `Плитка ${g + 1}.${n + 1}` })),
         })),
       };
+    case 'bluff':
+      return { ...question, text, accepted: ['Правда'], lies: ['Вигадка 1', 'Вигадка 2'] };
     case 'survey':
       return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
     case 'sort':
@@ -315,8 +317,8 @@ describe('wall, poll and word cloud: checks and drafts (10d)', () => {
 describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
-    // Сортування, стіна, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud'].includes(candidate))) {
+    // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -1752,5 +1754,28 @@ describe('survey: checks, clouds and drafts (10e)', () => {
     expect(fallback.rows).toHaveLength(5);
     expect(fallback.rows.every((row) => row.text === '' && row.popularity === 0 && row.accepted.length === 0)).toBe(true);
     expect(revived({ rows: undefined, cloudId: 'c1' }).cloudId).toBe('c1');
+  });
+});
+
+describe('bluff (10f)', () => {
+  it('a new bluff has 60 s of lies, 30 s of choice, an empty truth and two empty spares; it passes the schema once filled', () => {
+    const blank = newQuestion('bluff');
+    expect(blank.type === 'bluff' && [blank.timeLimit, blank.choiceTime, blank.accepted, blank.lies]).toEqual([60, 30, [''], ['', '']]);
+    expect(quizSchema.safeParse(cleaned(quizWith(filled(blank)))).success).toBe(true);
+  });
+
+  it('questionTypesFor: only classic has the bluff', () => {
+    expect(questionTypesFor('classic')).toContain('bluff');
+    expect(questionTypesFor('board')).not.toContain('bluff');
+    expect(questionTypesFor('blitz')).not.toContain('bluff');
+    expect(questionTypesFor('final')).not.toContain('bluff');
+  });
+
+  it('a text becomes a bluff keeping its spellings; a bluff becomes a text keeping them too', () => {
+    const text = { ...(newQuestion('text') as Extract<Question, { type: 'text' }>), accepted: ['Барселона'] } as Question;
+    const bluff = changeType(text, 'bluff');
+    expect(bluff.type === 'bluff' && [bluff.accepted, bluff.lies]).toEqual([['Барселона'], ['', '']]);
+    const back = changeType(bluff, 'text');
+    expect(back.type === 'text' && back.accepted).toEqual(['Барселона']);
   });
 });
