@@ -1940,3 +1940,44 @@ describe('HostScreen: wall, poll and word cloud (10d)', () => {
     expect(cloudSend).not.toHaveBeenCalled();
   });
 });
+
+describe('HostScreen: survey (10e)', () => {
+  const surveyQ = { id: 's1', type: 'survey', text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 45, points: 1000, answers: 3, rows: [] } as unknown as Question;
+  const texts = ['Яблуко', 'Банан', 'Полуниця', 'Кавун', 'Груша'];
+  const board = (shown: number) => ({
+    source: 'host' as const,
+    total: 5,
+    shown,
+    rows: texts.map((text, at) => ({ rank: at + 1, open: at + 1 > 5 - shown, text, popularity: 30 - at, by: at === 0 ? ['Олена'] : [] })),
+  });
+  const surveyView = (phase: HostView['phase'], shown: number, over: Partial<HostView> = {}) =>
+    during(phase, surveyQ, { survey: board(shown), ...over, question: { ...publicOf(surveyQ), survey: { answers: 3, rows: 5 } } });
+
+  it('shows the whole board with popularity and live authors, and no grading buttons', () => {
+    show(surveyView('question', 0));
+    expect(screen.getByText('Яблуко')).toBeTruthy();
+    expect(document.querySelector('.host-survey .survey-by')?.textContent).toBe('Олена');
+    expect(screen.getByText('Ваша дошка')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+  });
+
+  it('the main button opens the next row, the second button opens all, and when all are open it is «Далі»', () => {
+    const send = show(surveyView('reveal', 1));
+    fireEvent.click(button('Відкрити рядок 2 з 5'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+    cleanup();
+    const sendAll = show(surveyView('reveal', 1));
+    fireEvent.click(button('Відкрити всі'));
+    expect(sendAll).toHaveBeenCalledWith('host:survey-all', undefined);
+    cleanup();
+    show(surveyView('reveal', 5));
+    expect(button('Далі')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
+  });
+
+  it('warns about a skipped survey', () => {
+    show(view({ phase: 'intro', surveySkipped: ['Що ви назвали про Київ?'] }));
+    expect(screen.getByText('Запитання «Що ви назвали про Київ?» пропущено: хмара не дала слів, а запасних рядків немає.')).toBeTruthy();
+  });
+});

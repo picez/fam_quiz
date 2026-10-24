@@ -7793,3 +7793,60 @@ button.wall-tile:disabled {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+.host-survey .survey-board {
+  margin-top: 0.5rem;
+}
+
+.host-warning {
+  margin: 0;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--signal);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--signal);
+}
+
+.history-survey {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0.5rem 0;
+}
+
+/* Табло на сцені: 8 рядків рівно в решту висоти (1280 × 720), рядки стискаються разом із шрифтом. */
+.stage-survey {
+  align-items: center;
+}
+
+.stage-survey .survey-board {
+  flex: 1 1 0;
+  min-height: 0;
+  max-width: 60rem;
+}
+
+.stage-survey .survey-board .survey-row {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 4rem;
+  overflow: hidden;
+}
+
+.stage-survey .survey-board .survey-row.is-closed {
+  min-height: 0;
+}
+
+.stage-survey .survey-board .survey-by {
+  font-size: 0.75rem;
+  line-height: 1.1;
+}
+
+.stage-survey .survey-board .survey-text {
+  line-height: 1.15;
+}
+
+.stage-survey .lead,
+.stage-survey .meta {
+  margin: 0;
+  flex: 0 0 auto;
+}

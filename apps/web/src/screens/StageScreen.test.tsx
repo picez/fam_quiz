@@ -1500,3 +1500,39 @@ describe('StageScreen: wall, poll and word cloud (10d)', () => {
     expect(document.querySelectorAll('.wall-tile.is-found.wall-color-0')).toHaveLength(4);
   });
 });
+
+describe('StageScreen: survey (10e)', () => {
+  const surveyQuestion = { ...question, type: 'survey' as const, text: 'Назвіть фрукт, який люблять діти', choices: [], survey: { answers: 3, rows: 5 } };
+  const surveyFull = { id: 's1', type: 'survey', text: surveyQuestion.text, imageUrl: null, video: null, timeLimit: 45, points: 1000, rows: [], answers: 3 } as unknown as Question;
+  const texts = ['Яблуко', 'Банан', 'Полуниця', 'Кавун', 'Груша'];
+  const board = (shown: number, source: 'host' | 'cloud' = 'host') => ({
+    source,
+    total: 5,
+    shown,
+    rows: texts.map((text, at) => {
+      const open = at + 1 > 5 - shown;
+      return { rank: at + 1, open, text: open ? text : null, popularity: open ? 30 - at : null, by: open ? ['Олена'] : null };
+    }),
+  });
+
+  it('shows closed rows and the hint, with no correct answer line', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: surveyQuestion, endsAt: Date.now() + 45_000, survey: board(0) }));
+    expect(document.querySelectorAll('.survey-row.is-closed')).toHaveLength(5);
+    expect(screen.getByText('Пишіть до 3 відповідей на телефоні')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+  });
+
+  it('at the reveal only the opened bottom rows have text', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: surveyQuestion, reveal: surveyFull, survey: board(2) }));
+    expect(screen.getByText('Груша')).toBeTruthy();
+    expect(screen.getByText('Кавун')).toBeTruthy();
+    expect(screen.queryByText('Яблуко')).toBeNull();
+    expect(document.querySelectorAll('.survey-row.is-closed')).toHaveLength(3);
+    expect(document.querySelector('.lead.answer')).toBeNull();
+  });
+
+  it('a board built from the word cloud says so', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: surveyQuestion, endsAt: Date.now() + 45_000, survey: board(0, 'cloud') }));
+    expect(screen.getByText('Дошка з ваших відповідей у хмарі слів')).toBeTruthy();
+  });
+});

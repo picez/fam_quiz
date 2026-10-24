@@ -638,3 +638,31 @@ describe('GameHistory wall, poll and word cloud (10d)', () => {
     expect(screen.getAllByText('каштани, приховано').length + screen.getAllByText('Каштани, приховано').length).toBeGreaterThan(0);
   });
 });
+
+describe('GameHistory survey (10e)', () => {
+  it('shows the board with names, the cloud caption and the answers with hit marks', async () => {
+    const rows = [
+      { id: 'r1', text: 'Яблуко', popularity: 32, accepted: ['яблучко'] },
+      { id: 'r2', text: 'Банан', popularity: 25, accepted: [] },
+    ];
+    const hostQ = { ...base, id: 's1', type: 'survey', text: 'Назвіть фрукт', answers: 3, rows } as unknown as Question;
+    const cloudQ = { ...base, id: 's2', type: 'survey', text: 'Що ви назвали?', answers: 3, cloudId: 'c1', rows } as unknown as Question;
+    const vote = (nickname: string, values: string[], hits: (string | null)[]) => ({ nickname, answer: { type: 'survey', values, rows: hits }, accepted: true, buff: null, spare: null });
+    const responses = [vote('Олена', ['яблучко', 'ананас'], ['r1', null]), vote('Тарас', ['Банан'], ['r2'])];
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        questions: [
+          { index: 0, roundIndex: 0, text: hostQ.text, type: 'survey', answered: 2, accepted: 2, cell: null, question: hostQ, responses, final: null },
+          { index: 1, roundIndex: 0, text: cloudQ.text, type: 'survey', answered: 2, accepted: 2, cell: null, question: cloudQ, responses, final: null, surveyFromCloud: true },
+        ],
+      },
+    } as never);
+    open('/history/g1');
+    expect(await screen.findAllByText('Яблуко')).toHaveLength(2);
+    expect(screen.getAllByText('Олена').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Дошка з хмари слів')).toHaveLength(1);
+    expect(screen.getAllByText('яблучко ✓, ананас ✗')).toHaveLength(2);
+  });
+});
