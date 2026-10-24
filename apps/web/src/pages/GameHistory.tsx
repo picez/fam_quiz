@@ -1,5 +1,5 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { cloudKey, isUnscored, pinDistance, type GameAdjustment, type GameQuestionResult } from '@quiz/shared';
+import { cloudKey, isUnscored, pinDistance, surveyHitsOf, surveyOrder, type GameAdjustment, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
@@ -9,6 +9,7 @@ import { BuffBadge, SpareMark } from '../screens/Buffs';
 import { PinBoard, type PinBoardMark } from '../screens/PinBoard';
 import { WallReveal } from '../screens/WallReveal';
 import { PollBars } from '../screens/PollBars';
+import { SurveyBoard } from '../screens/SurveyBoard';
 import { usePrivateData } from '../usePrivateData';
 
 /** Точки гравців на мініатюрі запитання-точки (відповіді на основне) і найближча з них; для інших типів — порожньо. */
@@ -34,6 +35,24 @@ function HistoryPin({ question }: { question: GameQuestionResult }) {
       <PinBoard pin={{ map: q.map, aspect: q.aspect }} imageUrl={q.imageUrl} target={q.target} radii={{ full: q.fullRadius, zero: q.zeroRadius }} marks={marks} highlight={nearest} />
     </div>
   );
+}
+
+/** Табло «100 до 1» з історії: усе відкрито; автори — нікнейми з відповідей, що влучили в рядок. Не «100 до 1» — null. */
+export function historySurvey(question: GameQuestionResult): SurveyInfo | null {
+  const q = question.question;
+  if (q.type !== 'survey') return null;
+  const authors = new Map<string, string[]>();
+  for (const response of question.responses) {
+    if (response.spare !== null) continue;
+    for (const id of new Set(surveyHitsOf(response.answer))) {
+      if (id === null) continue;
+      const list = authors.get(id) ?? [];
+      if (!list.includes(response.nickname)) list.push(response.nickname);
+      authors.set(id, list);
+    }
+  }
+  const rows = surveyOrder(q.rows).map((row, index) => ({ rank: index + 1, open: true, text: row.text, popularity: row.popularity, by: authors.get(row.id) ?? [] }));
+  return { source: question.surveyFromCloud === true ? 'cloud' : 'host', total: rows.length, shown: rows.length, rows };
 }
 
 /** Голоси опитування за варіантами (відповіді на основне запитання). */
@@ -223,6 +242,15 @@ export function GameHistory() {
                         {question.question.type === 'wall' && <WallReveal question={question.question} />}
                         {question.question.type === 'poll' && (
                           <PollBars choices={choicesOf(question.question)} counts={historyPollCounts(question)} total={question.answered} />
+                        )}
+                        {question.question.type === 'survey' && (
+                          <div className="history-survey">
+                            {question.surveyFromCloud === true && <p className="meta">{t('surveyFromCloudHistory')}</p>}
+                            {(() => {
+                              const info = historySurvey(question);
+                              return info === null ? null : <SurveyBoard info={info} />;
+                            })()}
+                          </div>
                         )}
                         {question.question.type === 'wordcloud' && (
                           <ul className="history-cloud">

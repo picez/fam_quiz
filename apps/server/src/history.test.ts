@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import type { Answer } from '@quiz/shared';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
+import type { Answer, Question } from '@quiz/shared';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame, playerGames } from './history';
@@ -1254,5 +1254,119 @@ describe('history: wall, poll and cloud (10d)', () => {
     expect(table.players.flatMap((p) => p.rows).some((row) => row.attempt === VOTE_ATTEMPT)).toBe(false);
     expect(table.players.map((p) => p.rows.length)).toEqual([2, 2]);
     await local.app.close();
+  });
+});
+
+describe('history: survey (10e)', () => {
+  type Mgr = Awaited<ReturnType<typeof buildApp>>['manager'];
+  type RoomOf = NonNullable<ReturnType<Mgr['get']>>;
+
+  /** Проходить класику до кінця: на кожному запитанні відповіді дає `act`, на reveal ведучий відкриває всі рядки. */
+  async function playSurveyGame(questions: Question[], act: (manager: Mgr, room: RoomOf, olena: string, petro: string, index: number) => void) {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const olenaAccount = await signUp(local.app, 'Оля');
+    const petroAccount = await signUp(local.app, 'Петро');
+    const quiz = makeQuiz(questions, { speedBonus: false });
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const enter = async (nickname: string, cookie: string) => {
+      const playerId = ((await send(`/api/games/by-code/${created.code}/join`, { nickname }, cookie)).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId });
+      return playerId;
+    };
+    const olena = await enter('Оля', olenaAccount.cookie);
+    const petro = await enter('Петро', petroAccount.cookie);
+    const step = (type: 'start' | 'lock' | 'next' | 'survey-all') => local.manager.host(room, { type });
+    step('start');
+    for (let index = 0; index < questionsOfCount(quiz); index += 1) {
+      for (let i = 0; i < 4 && room.state.phase !== 'question'; i += 1) step('next');
+      // Запитання без дошки пропускаються: пульт не зависає на 'question', якщо дійшли до кінця.
+      if (room.state.phase !== 'question') break;
+      act(local.manager, room, olena, petro, index);
+      if (room.state.phase === 'question') step('lock');
+      step('next');
+      step('survey-all');
+      step('next');
+    }
+    for (let i = 0; i < 4 && room.state.phase !== 'finished'; i += 1) step('next');
+    await local.recorder.idle();
+    const userId = async (email: string) => (await localDb.select({ id: user.id }).from(user).where(eq(user.email, email)))[0].id;
+    return { local, localDb, host, created, olenaAccount, petroAccount, userId, room };
+  }
+  const questionsOfCount = (quiz: ReturnType<typeof makeQuiz>) => quiz.rounds.reduce((sum, round) => sum + (round.type === 'classic' ? round.questions.length : 0), 0);
+
+  const detailOf = async (played: Awaited<ReturnType<typeof playSurveyGame>>) =>
+    (
+      await played.local.app.inject({ method: 'GET', url: `/api/games/${played.created.gameId}`, headers: { cookie: played.host.cookie } })
+    ).json() as {
+      questionsPlayed: number;
+      questions: {
+        type: string;
+        surveyFromCloud?: true;
+        question: { rows?: { id: string; text: string }[] };
+        responses: { nickname: string; answer: { rows?: unknown }; accepted: boolean }[];
+      }[];
+    };
+
+  it('history shows the survey board, cloud boards from plays, and answers with hits', async () => {
+    const played = await playSurveyGame([cloud, surveyCloud, survey], (manager, room, olena, petro, index) => {
+      if (index === 0) {
+        manager.answer(room, olena, { type: 'wordcloud', words: ['каштани', 'Дніпро'] });
+        manager.answer(room, petro, { type: 'wordcloud', words: ['каштани'] });
+      }
+      if (index === 1) {
+        manager.answer(room, olena, { type: 'survey', values: ['каштани'] });
+        manager.answer(room, petro, { type: 'survey', values: ['Лавра'] });
+      }
+      if (index === 2) {
+        manager.answer(room, olena, { type: 'survey', values: ['Яблуко', 'Банан'] });
+        manager.answer(room, petro, { type: 'survey', values: ['Кавун'] });
+      }
+    });
+    const detail = await detailOf(played);
+    expect(detail.questions.map((q) => q.type)).toEqual(['wordcloud', 'survey', 'survey']);
+    expect(detail.questions[1].surveyFromCloud).toBe(true);
+    expect(detail.questions[1].question.rows?.map((r) => r.id)).toEqual(['cloud-1', 'cloud-2']);
+    expect(detail.questions[1].question.rows?.map((r) => r.text)).toEqual(['каштани', 'Дніпро']);
+    expect(detail.questions[2].surveyFromCloud).toBeUndefined();
+    expect(detail.questions[2].question.rows?.map((r) => r.id)).toEqual(['sa', 'sb', 'sc', 'sd', 'se']);
+    for (const question of detail.questions.slice(1)) {
+      expect(question.responses.every((r) => Array.isArray(r.answer.rows))).toBe(true);
+    }
+    expect(detail.questions[1].responses.map((r) => [r.nickname, r.accepted])).toEqual([
+      ['Оля', true],
+      ['Петро', false],
+    ]);
+    expect(detail.questions[2].responses.map((r) => [r.nickname, r.accepted])).toEqual([
+      ['Оля', true],
+      ['Петро', false],
+    ]);
+
+    const [olenaGame] = await playerGames(played.localDb, await played.userId(played.olenaAccount.email), null);
+    expect(olenaGame.played).toMatchObject({ correct: 2, answered: 2, questionsPlayed: 2 });
+    await played.local.app.close();
+  });
+
+  it('a skipped survey is not a played question', async () => {
+    const played = await playSurveyGame([cloud, surveyCloud, single], (manager, room, olena, petro, index) => {
+      // Хмара без жодного слова: surveyCloud без запасних рядків пропускається.
+      if (index === 1) {
+        manager.answer(room, olena, { type: 'single', optionId: 'b' });
+        manager.answer(room, petro, { type: 'single', optionId: 'a' });
+      }
+    });
+    const detail = await detailOf(played);
+    expect(detail.questionsPlayed).toBe(2);
+    expect(detail.questions.map((q) => q.type)).toEqual(['wordcloud', 'single']);
+    const [olenaGame] = await playerGames(played.localDb, await played.userId(played.olenaAccount.email), null);
+    expect(olenaGame.played).toMatchObject({ questionsPlayed: 1, correct: 1, answered: 1 });
+    await played.local.app.close();
   });
 });

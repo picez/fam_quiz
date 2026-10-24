@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -41,6 +41,8 @@ function filled(question: Question): Question {
           tiles: group.tiles.map((tile, n) => ({ ...tile, text: `Плитка ${g + 1}.${n + 1}` })),
         })),
       };
+    case 'survey':
+      return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
     case 'sort':
       return {
         ...question,
@@ -107,6 +109,41 @@ describe('clues and pin in the editor (10c)', () => {
     const pin = newQuestion('pin');
     const pinCopy = duplicateQuestion(pin);
     if (pin.type === 'pin' && pinCopy.type === 'pin') expect(pinCopy.target).not.toBe(pin.target);
+  });
+});
+
+describe('survey in the editor (10e)', () => {
+  it('a new survey is 45 seconds, three answers and five blank rows; valid once rows are filled', () => {
+    const blank = newQuestion('survey');
+    expect(blank.type === 'survey' && [blank.timeLimit, blank.answers, blank.rows.length]).toEqual([LIMITS.defaultSurveyTime, 3, 5]);
+    expect(LIMITS.defaultSurveyTime).toBe(45);
+    const filledIn = filled(blank);
+    expect(filledIn.type === 'survey' && filledIn.rows.slice(0, 4).every((r) => r.text !== '' && r.popularity > 0)).toBe(true);
+    expect(quizSchema.safeParse(cleaned(quizWith(filledIn))).success).toBe(true);
+    expect(problemsOf(quizWith(blank))).not.toEqual([]);
+  });
+
+  it('questionTypesFor: the survey is in classic and on the board, not in blitz or the final', () => {
+    expect(questionTypesFor('classic')).toContain('survey');
+    expect(questionTypesFor('board')).toContain('survey');
+    expect(questionTypesFor('blitz')).not.toContain('survey');
+    expect(questionTypesFor('final')).not.toContain('survey');
+  });
+
+  it('a text becomes a survey with its first spelling as the first row; reveal and cloudId are dropped', () => {
+    const text = { ...(newQuestion('text') as Extract<Question, { type: 'text' }>), accepted: ['Дніпро', 'Днепр'], imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png', reveal: { start: 20, end: 100 } } as unknown as Question;
+    const survey = changeType(text, 'survey');
+    expect(survey.type === 'survey' && survey.rows[0].text).toBe('Дніпро');
+    expect(survey.reveal).toBeUndefined();
+    const withCloud = { ...(newQuestion('survey') as Extract<Question, { type: 'survey' }>), cloudId: 'k1' };
+    expect('cloudId' in changeType(withCloud, 'text')).toBe(false);
+  });
+
+  it('a duplicated survey gets new row ids', () => {
+    const source = filled(newQuestion('survey')) as Extract<Question, { type: 'survey' }>;
+    const copy = duplicateQuestion(source) as Extract<Question, { type: 'survey' }>;
+    expect(copy.rows.map((r) => r.id).some((id) => source.rows.some((r) => r.id === id))).toBe(false);
+    expect(copy.rows.map((r) => r.text)).toEqual(source.rows.map((r) => r.text));
   });
 });
 
@@ -387,7 +424,7 @@ describe('duplicateQuestion', () => {
       const source = filled(newQuestion(type));
       const copy = duplicateQuestion(source);
       expect(copy.id, type).not.toBe(source.id);
-      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, groups: undefined, words: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
+      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, groups: undefined, rows: undefined, words: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
         ...source,
         id: '',
         options: undefined,
@@ -395,6 +432,7 @@ describe('duplicateQuestion', () => {
         pairs: undefined,
         categories: undefined,
         groups: undefined,
+        rows: undefined,
         words: undefined,
         correctId: undefined,
         correctIds: undefined,
@@ -1548,5 +1586,171 @@ describe('clues and pin drafts (10c)', () => {
     const own = pin({ map: null, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', aspect: 1.5, target: { x: 0.2, y: 0.7 } });
     saveDraft('own-pin', quizWith(own));
     expect(roundQuestions(loadDraft('own-pin')!.rounds[0])[0]).toMatchObject({ map: null, aspect: 1.5, target: { x: 0.2, y: 0.7 } });
+  });
+});
+
+describe('survey: checks, clouds and drafts (10e)', () => {
+  type Survey = Extract<Question, { type: 'survey' }>;
+  const surveyQ = (): Survey => filled(newQuestion('survey')) as Survey;
+  const withRows = (survey: Survey, patch: (rows: Survey['rows']) => Survey['rows']): Survey => ({ ...survey, rows: patch(survey.rows) });
+  const cloudQ = (id: string): Question => ({ ...newQuestion('wordcloud'), id, text: `Слова ${id}?` }) as Question;
+  const single = () => filled(newQuestion('single'));
+  const classic = (...questions: Question[]) => ({ ...newClassicRound(), questions });
+  const quizOf = (...rounds: Quiz['rounds']): Quiz => ({ ...newQuiz(), title: 'Гра', rounds });
+  const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+  const onCell = (question: Question, cell: Partial<BoardRound['categories'][number]['cells'][number]>): Quiz => {
+    const round = newBoardRound();
+    const categories = round.categories.map((category, i) => ({
+      ...category,
+      title: `К${i + 1}`,
+      cells: category.cells.map((c) => ({ ...c, question: filled(c.question) })),
+    }));
+    const [first, ...rest] = categories;
+    const [head, ...cells] = first.cells;
+    return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories: [{ ...first, cells: [{ ...head, ...cell, question }, ...cells] }, ...rest] }] };
+  };
+
+  it('cloudSources lists only the clouds above the question, numbered across the quiz', () => {
+    const quiz = quizOf(classic(cloudQ('c1'), filled(newQuestion('text'))), classic(single(), cloudQ('c2'), surveyQ(), cloudQ('c3')));
+    expect(cloudSources(quiz, 0, 1)).toEqual([{ n: 1, id: 'c1', text: 'Слова c1?' }]);
+    expect(cloudSources(quiz, 1, 2).map((c) => [c.n, c.id])).toEqual([
+      [1, 'c1'],
+      [2, 'c2'],
+    ]);
+    expect(cloudSources(quiz, 1, 0).map((c) => c.id)).toEqual(['c1']);
+    expect(cloudSources(quiz, 0, 0)).toEqual([]);
+    expect(cloudSources({ rounds: [classic(cloudQ('c1')), newBoardRound()] }, 1, 0)).toEqual([]);
+  });
+
+  it('a filled survey has no problems', () => {
+    expect(problemsOf(quizWith(surveyQ()))).toEqual([]);
+  });
+
+  it('fewer than four filled rows, or a row without popularity, asks for the rows', () => {
+    const three = withRows(surveyQ(), (rows) => rows.slice(0, 3));
+    expect(problemsOf(quizWith(three))).toEqual([t('problemSurveyRows', { index: 1, surveyMin: 4 })]);
+    expect(problemsOf(quizWith(three))[0]).toContain('щонайменше 4 відповіді');
+    // Півзаповнений рядок не губиться мовчки.
+    const half = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 4 ? { ...row, popularity: 0 } : row)));
+    expect(problemsOf(quizWith(half))).toEqual([t('problemSurveyRows', { index: 1, surveyMin: 4 })]);
+  });
+
+  it('blank rows are not saved when four are filled', () => {
+    const survey = withRows(surveyQ(), (rows) => [...rows.slice(0, 4), { id: 'blank', text: ' ', popularity: 0, accepted: [' '] }]);
+    expect(problemsOf(quizWith(survey))).toEqual([]);
+    expect((roundQuestions(cleaned(quizWith(survey)).rounds[0])[0] as Survey).rows).toHaveLength(4);
+  });
+
+  it('a total over 100 names the total', () => {
+    const total110 = withRows(surveyQ(), (rows) => rows.map((row) => ({ ...row, popularity: 22 })));
+    expect(problemsOf(quizWith(total110))).toEqual([t('problemSurveyTotal', { index: 1, total: 110 })]);
+    expect(problemsOf(quizWith(total110))[0]).toContain('разом популярність 110');
+    const exact = withRows(surveyQ(), (rows) => rows.map((row) => ({ ...row, popularity: 20 })));
+    expect(problemsOf(quizWith(exact))).toEqual([]);
+  });
+
+  it('the same spelling in two rows is named; the same spelling inside one row is fine', () => {
+    const twins = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: 'Яблуко' } : i === 1 ? { ...row, text: 'яблуко' } : row)));
+    // Назва — так, як ведучий її ввів, а не ключ порівняння.
+    expect(problemsOf(quizWith(twins))).toEqual([t('problemSurveyDuplicate', { index: 1, text: 'яблуко' })]);
+    const typed = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: 'Яблуко' } : i === 1 ? { ...row, text: '«ЯБЛУКО»', accepted: ['  ЯБЛУКО '] } : row)));
+    expect(problemsOf(quizWith(typed))).toEqual([t('problemSurveyDuplicate', { index: 1, text: 'ЯБЛУКО' })]);
+    const viaAccepted = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: 'Яблуко' } : i === 2 ? { ...row, accepted: ['  ЯБЛУКО '] } : row)));
+    expect(problemsOf(quizWith(viaAccepted))).toHaveLength(1);
+    expect(problemsOf(quizWith(viaAccepted))[0]).toContain('веде у два рядки');
+    const inside = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: 'Яблуко', accepted: ['яблуко'] } : row)));
+    expect(problemsOf(quizWith(inside))).toEqual([]);
+  });
+
+  it('a popularity that is not a whole number gets its own message', () => {
+    const fraction = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, popularity: 12.5 } : row)));
+    expect(problemsOf(quizWith(fraction))).toEqual([t('problemSurveyPopularity', { index: 1 })]);
+    expect(problemsOf(quizWith(fraction))[0]).toContain('ціле число');
+  });
+
+  it('the answers per player are checked with a message', () => {
+    expect(problemsOf(quizWith({ ...surveyQ(), answers: 9 }))).toEqual([t('problemSurveyAnswers', { index: 1, surveyMax: 5 })]);
+    expect(problemsOf(quizWith({ ...surveyQ(), answers: Number.NaN }))).toHaveLength(1);
+  });
+
+  it('a board from a cloud: an earlier cloud is fine, spare rows are optional, a gone, moved or reordered cloud is named', () => {
+    const fromCloud: Survey = { ...surveyQ(), rows: [], cloudId: 'c1' };
+    expect(problemsOf(quizOf(classic(cloudQ('c1'), fromCloud)))).toEqual([]);
+    expect(problemsOf(quizOf(classic(cloudQ('c1')), classic(fromCloud)))).toEqual([]);
+    expect(problemsOf(quizOf(classic(cloudQ('c1'), single(), fromCloud)))).toEqual([]);
+    // Запасні — або жодного, або щонайменше чотири.
+    const spare: Survey = { ...surveyQ(), cloudId: 'c1' };
+    expect(problemsOf(quizOf(classic(cloudQ('c1'), spare)))).toEqual([]);
+    const fewSpares = withRows(spare, (rows) => rows.slice(0, 2));
+    expect(problemsOf(quizOf(classic(cloudQ('c1'), fewSpares)))).toEqual([t('problemSurveyRows', { index: 2, surveyMin: 4 })]);
+    // Хмару видалено, переставлено після запитання, перенесено в наступний раунд.
+    expect(problemsOf(quizOf(classic(single(), fromCloud)))).toEqual([t('problemSurveyCloud', { index: 2 })]);
+    expect(problemsOf(quizOf(classic(fromCloud, cloudQ('c1'))))).toEqual([t('problemSurveyCloud', { index: 1 })]);
+    expect(problemsOf(quizOf(classic(fromCloud), classic(cloudQ('c1'))))).toEqual([`${t('problemRound', { round: 1 })} ${t('problemSurveyCloud', { index: 1 })}`]);
+    expect(t('problemSurveyCloud', { index: 1 })).toContain('хмари для дошки вже немає раніше в класиці');
+    // Id вказує не на хмару.
+    expect(problemsOf(quizOf(classic({ ...single(), id: 'c1' }, fromCloud)))).toEqual([t('problemSurveyCloud', { index: 2 })]);
+  });
+
+  it('a survey is only for classic and a normal phone cell; a cloud board never on the board', () => {
+    const survey = surveyQ();
+    const place = t('problemSurveyPlace', { index: 1 });
+    expect(problemsOf({ ...quizWith(survey), rounds: [{ ...newBlitzRound(), questions: [survey] }] })).toEqual([place]);
+    expect(problemsOf({ ...quizWith(survey), rounds: [{ ...newFinalRound(), questions: [survey] }] })).toEqual([place]);
+    expect(problemsOf(onCell(survey, { kind: 'normal', answerMode: 'phone' }))).toEqual([]);
+    const cellPlace = t('problemCell', { category: 1, problem: lower(place) });
+    expect(problemsOf(onCell(survey, { kind: 'normal', answerMode: 'voice' }))).toEqual([cellPlace]);
+    expect(problemsOf(onCell(survey, { kind: 'blitz', answerMode: 'phone' }))).toEqual([cellPlace]);
+    const cloud = t('problemCell', { category: 1, problem: lower(t('problemSurveyCloud', { index: 1 })) });
+    expect(problemsOf(onCell({ ...survey, cloudId: 'c1' }, { kind: 'normal', answerMode: 'phone' }))).toEqual([cloud]);
+  });
+
+  it('cleaning trims rows and spellings and drops empty spellings', () => {
+    const survey = withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, text: '  Яблуко ', accepted: [' яблучко ', '  ', ''] } : row)));
+    const [first] = (roundQuestions(cleaned(quizWith(survey)).rounds[0])[0] as Survey).rows;
+    expect(first.text).toBe('Яблуко');
+    expect(first.accepted).toEqual(['яблучко']);
+  });
+
+  it('a cloud board with only blank spare rows saves with no rows', () => {
+    const fresh = newQuestion('survey') as Survey;
+    const blankSpares: Survey = { ...fresh, text: 'Питання?', cloudId: 'c1', rows: fresh.rows.slice(0, 4) };
+    const quiz = quizOf(classic(cloudQ('c1'), blankSpares));
+    expect(problemsOf(quiz)).toEqual([]);
+    expect((roundQuestions(cleaned(quiz).rounds[0])[1] as Survey).rows).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+  });
+
+  it('a survey draft with no rows and no cloud comes back with five blank rows', () => {
+    const empty: Survey = { ...surveyQ(), rows: [] };
+    saveDraft('survey-empty', quizWith(empty));
+    const rows = (roundQuestions(loadDraft('survey-empty')!.rounds[0])[0] as Survey).rows;
+    expect(rows).toHaveLength(5);
+    expect(rows.every((row) => row.text === '' && row.popularity === 0 && row.accepted.length === 0)).toBe(true);
+  });
+
+  it('a survey draft keeps rows, spellings, answers and the cloud', () => {
+    const survey: Survey = { ...withRows(surveyQ(), (rows) => rows.map((row, i) => (i === 0 ? { ...row, accepted: ['яблучко'] } : row))), answers: 4, cloudId: 'c1' };
+    saveDraft('survey-draft', quizOf(classic(cloudQ('c1'), survey)));
+    expect(roundQuestions(loadDraft('survey-draft')!.rounds[0])[1]).toEqual(survey);
+  });
+
+  it('a broken survey draft revives: popularity "x" is 0, answers keep the number, rows fall back to five blanks', () => {
+    const revived = (patch: Record<string, unknown>) => {
+      sessionStorage.setItem('quiz:draft:sv', JSON.stringify(quizWith({ ...surveyQ(), ...patch } as unknown as Question)));
+      return roundQuestions(loadDraft('sv')!.rounds[0])[0] as Survey;
+    };
+    const rows = surveyQ().rows.map((row, i) => (i === 0 ? { ...row, popularity: 'x', accepted: ['a', 5] } : row));
+    const back = revived({ rows, answers: 9, cloudId: 7 });
+    expect(back.rows[0].popularity).toBe(0);
+    expect(back.rows[0].accepted).toEqual(['a', '']);
+    expect(back.answers).toBe(9);
+    expect('cloudId' in back).toBe(false);
+    expect(revived({ answers: undefined }).answers).toBe(LIMITS.defaultSurveyAnswers);
+    expect(Number.isNaN(revived({ answers: Number.NaN }).answers)).toBe(true);
+    const fallback = revived({ rows: 'oops' });
+    expect(fallback.rows).toHaveLength(5);
+    expect(fallback.rows.every((row) => row.text === '' && row.popularity === 0 && row.accepted.length === 0)).toBe(true);
+    expect(revived({ rows: undefined, cloudId: 'c1' }).cloudId).toBe('c1');
   });
 });

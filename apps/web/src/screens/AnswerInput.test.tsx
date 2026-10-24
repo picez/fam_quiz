@@ -20,7 +20,7 @@ const question = (over: Partial<PublicQuestion>): PublicQuestion => ({
   timeLimit: 20,
   points: 1000,
   choices: cities,
-  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, audio: null, reveal: null,
+  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, survey: null, audio: null, reveal: null,
   ...over,
 });
 
@@ -316,5 +316,13 @@ describe('AnswerInput', () => {
     fireEvent.click(button('＋ Ще слово'));
     expect(screen.getByLabelText('Слово 2')).toBeTruthy();
     expect(screen.queryByRole('button', { name: '＋ Ще слово' })).toBeNull();
+  });
+
+  it('survey: renders the answer fields and sends the non-empty ones', () => {
+    const onSubmit = setup({ type: 'survey', choices: [], points: 1000, survey: { answers: 2, rows: 5 } });
+    expect(screen.getAllByRole('textbox')).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText('Відповідь 1'), { target: { value: 'Яблуко' } });
+    fireEvent.click(button('Відповісти'));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'survey', values: ['Яблуко'] });
   });
 });

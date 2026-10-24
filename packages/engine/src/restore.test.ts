@@ -34,13 +34,14 @@ import {
   type PlayerState,
   type ScoreAdjustment,
   type SortProgress,
+  type SurveyPlay,
   type WallProgress,
 } from './game';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
 import type { Splash } from './splash';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
-import { blitzRound, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, text, wall, withAudio, withId, withReveal } from './testing/fixtures';
+import { blitzRound, classicRound, clues, finalRound, makeQuiz, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, wall, withAudio, withId, withReveal } from './testing/fixtures';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
@@ -215,7 +216,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -230,6 +231,7 @@ const STATE_SHAPE: Record<string, string> = {
   FinalPlay: keysOf<FinalPlay>()(['wagers', 'allIn', 'graded'], true),
   SortProgress: keysOf<SortProgress>()(['queue', 'sorted', 'misses', 'lockedUntil', 'missed'], true),
   WallProgress: keysOf<WallProgress>()(['found', 'mistakes', 'tried'], true),
+  SurveyPlay: keysOf<SurveyPlay>()(['source', 'shown'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare'], true),
   DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since', 'by'], true),
@@ -338,6 +340,32 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  5: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,board,buffs,chain,cloudHidden,clues,extraMs,final,overtime,question,roundIndex,sort,survey,wall',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,misses,queue,sorted',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -362,7 +390,19 @@ function representative(): GameState[] {
   walled = must(guessWall(walled, 'p1', tilesAt('r1', 'r2', 'r3', 'r4'), T0 + 1000));
   walled = must(guessWall(walled, 'p1', tilesAt('m1', 'm2', 'm3', 'l1'), T0 + 2000));
   const hidden: GameState = { ...walled, plays: walled.plays.map((p) => ({ ...p, cloudHidden: ['лайка'] })) };
+  // 10e: «100 до 1» з дошкою з хмари, два рядки відкрито — Play.survey, SurveyPlay; збудовані рядки — у question.rows.
+  const surveyOpen = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [survey])]), 'Оля', 'Петро'), T0);
+  const surveyed = must(submitAnswer(surveyOpen, 'p1', { type: 'survey', values: ['Яблуко'] }, T0 + 1000));
+  const built = [
+    { id: 'cloud-1', text: 'Каштани', popularity: 100, accepted: [] },
+    { id: 'cloud-2', text: 'Дніпро', popularity: 50, accepted: [] },
+  ];
+  const fromCloud: GameState = {
+    ...surveyed,
+    plays: surveyed.plays.map((p) => ({ ...p, question: { ...surveyCloud, rows: built }, survey: { source: 'cloud' as const, shown: 2 } })),
+  };
   return [
+    fromCloud,
     walled,
     hidden,
     clued,
@@ -409,7 +449,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -445,6 +485,7 @@ describe('the saved state', () => {
       add('ScoreAdjustment', s.adjustments);
       add('Splash', [s.splash]);
       add('WallProgress', s.plays.flatMap((p) => Object.values(p.wall ?? {})));
+      add('SurveyPlay', s.plays.map((p) => p.survey));
       // стан без змін переживає JSON
       expect(roundTrip(s)).toEqual(s);
     }

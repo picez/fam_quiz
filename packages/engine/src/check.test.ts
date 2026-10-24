@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { checkAnswer, paceFactor, paysForTime, shareVerdict, textMatches, verdictOf } from './check';
+import { checkAnswer, paceFactor, paysForTime, shareVerdict, surveyHits, textMatches, verdictOf } from './check';
 import type { Question } from '@quiz/shared';
-import { bool, clues, match, multi, numeric, order, pin, single, slider, text, withReveal } from './testing/fixtures';
+import { bool, clues, match, multi, numeric, order, pin, single, slider, survey, text, withReveal } from './testing/fixtures';
 
 const REJECTED = { accepted: false, accuracy: 0 };
 const FULL = { accepted: true, accuracy: 1 };
@@ -236,5 +236,30 @@ describe('shareVerdict', () => {
     expect(shareVerdict(0.25)).toEqual({ accepted: false, accuracy: 0.25, grade: 'partial' });
     expect(shareVerdict(0)).toEqual({ accepted: false, accuracy: 0, grade: 'wrong' });
     expect(shareVerdict(0.4999999999)).toMatchObject({ accepted: true, grade: 'correct' });
+  });
+});
+
+describe('«100 to 1» survey (10e)', () => {
+  it('surveyHits: normalized like text, the first matching row, a row already hit is null', () => {
+    expect(surveyHits(survey.rows, [' ЯБЛУЧКО ', 'Яблуко', 'банан', 'ананас'])).toEqual(['sa', null, 'sb', null]);
+    expect(surveyHits(survey.rows, ['', '  '])).toEqual([null, null]);
+    expect(surveyHits(survey.rows, ['«Кавун»'])).toEqual([null]);
+  });
+
+  it('checkAnswer: the share of the price from distinct hit rows; half is accepted', () => {
+    const both = checkAnswer(survey, { type: 'survey', values: ['Яблуко', 'Банан'] });
+    expect(both.accepted).toBe(true);
+    expect(both.accuracy).toBeCloseTo(0.57);
+    const one = checkAnswer(survey, { type: 'survey', values: ['Кавун'] });
+    expect(one.accepted).toBe(false);
+    expect(one.accuracy).toBeCloseTo(0.1);
+    expect(checkAnswer(survey, { type: 'survey', values: [] })).toEqual(REJECTED);
+    expect(checkAnswer(survey, { type: 'text', value: 'Яблуко' })).toEqual(REJECTED);
+  });
+
+  it('verdictOf: a survey is graded by its share', () => {
+    expect(verdictOf(survey, { type: 'survey', values: ['Яблуко', 'Банан'] }, 40_000)).toMatchObject({ accepted: true, grade: 'correct' });
+    expect(verdictOf(survey, { type: 'survey', values: ['Кавун'] }, 0)).toMatchObject({ accepted: false, grade: 'partial' });
+    expect(verdictOf(survey, { type: 'survey', values: ['ананас'] }, 0)).toEqual({ accepted: false, accuracy: 0, grade: 'wrong' });
   });
 });

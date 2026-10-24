@@ -51,7 +51,8 @@ describe('DebuffShop', () => {
     expect(send).toHaveBeenCalledWith('player:debuff', { targetId: 'p2', kind: 'fog' });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(onError).toHaveBeenLastCalledWith(null);
-    expect(document.activeElement).toBe(trigger);
+    // Фокус повертає очищення ефекту діалогу, що може виконатися вже після зникнення діалогу з DOM.
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it('an offline rival is shown as «Не в грі» and cannot be picked', () => {

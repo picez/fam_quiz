@@ -34,6 +34,7 @@ import { WallReveal } from './WallReveal';
 import { WallTable } from './WallTable';
 import { PollBars } from './PollBars';
 import { WordCloud } from './WordCloud';
+import { SurveyBoard } from './SurveyBoard';
 
 interface Props {
   view: StageView;
@@ -176,7 +177,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
   const sliderHint = question.slider === null ? '' : t('sliderOnPhone', { min: sliderNumber(question.slider.min, question.slider.step), max: sliderValueText(question.slider.max, question.slider) });
   const scale = reveal !== null && reveal.type === 'slider' && question.slider !== null && view.sliderMarks !== null ? { correct: reveal, slider: question.slider, marks: view.sliderMarks } : null;
-  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'clues' ? t('cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'clues' ? t('cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question" aria-busy={busy || undefined}>
@@ -274,6 +275,12 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
             <WallGrid wall={question.wall} found={(view.wall?.rows[0]?.tiles ?? []).map((tiles, color) => ({ tiles, color }))} big />
           )}
         </div>
+      ) : question.type === 'survey' && view.survey !== null ? (
+        <div className="stage-fit stage-survey">
+          <SurveyBoard info={view.survey} big />
+          {view.phase === 'question' && hint !== null && hint !== '' && <p className="lead">{hint}</p>}
+          {reveal === null && view.survey.source === 'cloud' && <p className="meta">{t('surveyFromCloud')}</p>}
+        </div>
       ) : question.type === 'poll' && reveal?.type === 'poll' && stats !== null ? (
         <div className="stage-fit stage-poll">
           <PollBars choices={question.choices} counts={stats.counts} total={stats.answered} big />
@@ -335,7 +342,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
         // Підказка сортування лишає своє місце й на розкритті: сцена не зсувається.
         <p className="lead sort-line">{reveal === null ? hint : ''}</p>
       ) : (
-        reveal === null && hint !== null && <p className="lead">{hint}</p>
+        reveal === null && hint !== null && question.type !== 'survey' && <p className="lead">{hint}</p>
       )}
       {scale !== null && (
         <SliderScale slider={scale.slider} correct={scale.correct.correct} tolerance={scale.correct.tolerance} zeroBeyond={scale.correct.zeroBeyond} marks={scale.marks} highlight={scale.marks[0]?.playerId} />
@@ -358,7 +365,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           )}
         </div>
       )}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }

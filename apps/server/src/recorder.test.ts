@@ -1,7 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, text, withId } from '@quiz/engine/testing';
-import { DEFAULT_RULES, isUnscored } from '@quiz/shared';
+import { blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, withId } from '@quiz/engine/testing';
+import { DEFAULT_RULES, isUnscored, type Question } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
@@ -1053,5 +1053,55 @@ describe('recorder: votes and walls (10d)', () => {
     await recorder.idle();
     const [saved] = await db.select().from(game);
     expect(saved.plays).toEqual([{ roundIndex: 0, questionId: cloud.id, cloudHidden: ['каштани'] }]);
+  });
+});
+
+describe('recorder: survey (10e)', () => {
+  async function playSurveys(questions: Question[], act: (manager: RoomManager, room: Room, playerId: string, index: number) => void) {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db, (error) => {
+      throw error;
+    });
+    const room = manager.create(makeQuiz(questions, { speedBonus: false }), HOST, null);
+    const joined = manager.join(room.code, 'Олена', null);
+    if (!joined.ok) throw new Error(joined.error);
+    manager.connect(room, { role: 'player', playerId: joined.playerId });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    for (let index = 0; index < questions.length; index += 1) {
+      for (let i = 0; i < 4 && room.state.phase !== 'question'; i += 1) manager.host(room, { type: 'next' });
+      act(manager, room, joined.playerId, index);
+      for (let i = 0; i < 4 && room.state.phase !== 'reveal' && room.state.phase !== 'finished'; i += 1) {
+        manager.host(room, { type: room.state.phase === 'question' ? 'lock' : 'next' });
+      }
+      manager.host(room, { type: 'survey-all' });
+      manager.host(room, { type: 'next' });
+    }
+    await recorder.idle();
+    return { db };
+  }
+
+  it('a cloud survey stores its built rows in plays; a host board does not; the answer row carries values and hits', async () => {
+    const { db } = await playSurveys([cloud, surveyCloud, survey], (manager, room, playerId, index) => {
+      if (index === 0) manager.answer(room, playerId, { type: 'wordcloud', words: ['каштани', 'Дніпро'] });
+      if (index === 1) manager.answer(room, playerId, { type: 'survey', values: ['каштани'] });
+      if (index === 2) manager.answer(room, playerId, { type: 'survey', values: ['Яблуко', 'Банан'] });
+    });
+    const [saved] = await db.select().from(game);
+    expect(saved.plays).toHaveLength(3);
+    expect(saved.plays[0].surveyRows).toBeUndefined();
+    expect(saved.plays[1].surveyRows).toEqual([
+      { id: 'cloud-1', text: 'Дніпро', popularity: 100, accepted: [] },
+      { id: 'cloud-2', text: 'каштани', popularity: 100, accepted: [] },
+    ]);
+    expect(saved.plays[2].surveyRows).toBeUndefined();
+    const rows = (await db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.attempt))).filter((row) => row.questionIndex > 0);
+    expect(rows.map((row) => [row.questionIndex, row.attempt])).toEqual([
+      [1, 0],
+      [2, 0],
+    ]);
+    expect(rows[1].payload).toEqual({ type: 'survey', values: ['Яблуко', 'Банан'], rows: ['sa', 'sb'] });
+    expect(rows[0].payload).toMatchObject({ type: 'survey', values: ['каштани'], rows: ['cloud-2'] });
   });
 });

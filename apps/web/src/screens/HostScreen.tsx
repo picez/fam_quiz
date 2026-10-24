@@ -7,6 +7,7 @@ import { WallReveal } from './WallReveal';
 import { WallTable } from './WallTable';
 import { PollBars } from './PollBars';
 import { HostCloud } from './HostCloud';
+import { SurveyBoard } from './SurveyBoard';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -229,22 +230,29 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               : base;
   const blitz = view.blitz;
   const board = view.board;
+  // «100 до 1» на розкритті: головна кнопка спершу відкриває рядки по одному.
+  const surveyStep = phase === 'reveal' && view.question?.type === 'survey' && view.survey !== null && view.survey.shown < view.survey.total;
   const chooserId = board?.turn?.playerId ?? null;
+  // Тип запитання, на яке відповідав гравець: після «Заміни запитання» це запасне, і відповідь його видає.
+  const answeredType = view.spotlight?.answer?.type ?? view.question?.type ?? null;
   // У полі оцінка йде одразу після відповіді вибравшого: у запитанні лише коли ведучий оцінює вручну.
-  // Сортування й стіна рахують бали самі: ручної оцінки в них немає (сервер її відхиляє).
+  // Сортування, стіна й «100 до 1» рахують бали самі: ручної оцінки в них немає (сервер її відхиляє).
   const canGradeBoard =
     board !== null &&
     blitz === null &&
     view.question !== null &&
     view.question.type !== 'sort' &&
     view.question.type !== 'wall' &&
+    answeredType !== 'survey' &&
     chooserId !== null &&
     ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
   const voiceCell = blitz === null && board?.cell?.answerMode === 'voice';
   // Відповідь з телефона, що чекає на рішення ведучого (помаранчева).
   // На усній клітинці помаранчева лише позначка ведучого: приймати чи перевибирати там нічого.
   const pending = phase === 'question' && !voiceCell && view.spotlight !== null && view.spotlight.grade === null ? view.spotlight : null;
-  const manualPending = pending !== null && ((board !== null && board.manual) || (blitz !== null && blitz.manual));
+  // «100 до 1» ведучий приймає і за ручної перевірки: дошка однозначна.
+  const manualPending =
+    pending !== null && ((board !== null && board.manual && pending.answer?.type !== 'survey') || (blitz !== null && blitz.manual));
   // На бліц-клітинці відповідає голова черги, а не вибравший.
   const instant = blitz?.instant === true;
   const answering = blitz !== null ? (instant ? null : (blitz.queue[0] ?? null)) : (board?.turn ?? null);
@@ -404,6 +412,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
       </p>
 
+      {view.surveySkipped.map((text) => (
+        <p key={text} className="host-warning" role="alert">
+          {t('surveySkipped', { text })}
+        </p>
+      ))}
+
       {guide !== null && (
         <section className="panel">
           <GuidePageView guide={guide} size="host" />
@@ -557,7 +571,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               />
             </div>
           )}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
@@ -883,6 +897,17 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {view.survey !== null && view.question?.type === 'survey' && (
+        <section className="panel host-survey">
+          <h2>
+            {t('hostSurveyTitle')}
+            <HelpButton id="question.survey" />
+          </h2>
+          <p className="meta">{t(view.survey.source === 'cloud' ? 'surveyFromCloud' : 'surveyFromHost')}</p>
+          <SurveyBoard info={view.survey} showClosed />
+        </section>
+      )}
+
       {correct?.type === 'poll' && view.question !== null && (
         <section className="panel host-poll">
           <h2>
@@ -1061,6 +1086,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             {t('guideToGame')}
           </button>
         )}
+        {surveyStep && !view.paused && (
+          <button type="button" className="btn" disabled={stepping} onClick={() => step('host:survey-all')}>
+            {t('surveyAllRows')}
+          </button>
+        )}
         {main !== undefined && !view.paused && (
           <button
             type="button"
@@ -1068,7 +1098,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             disabled={stepping || (phase === 'lobby' && view.players.length === 0) || diceRolling}
             onClick={() => step(main.event)}
           >
-            {t(main.label === 'lock' && blitz !== null && board !== null ? 'closeCell' : main.label === 'lock' && noWait ? 'noWait' : main.label)}
+            {surveyStep && view.survey !== null
+              ? t('surveyNextRow', { shown: view.survey.shown + 1, total: view.survey.total })
+              : t(main.label === 'lock' && blitz !== null && board !== null ? 'closeCell' : main.label === 'lock' && noWait ? 'noWait' : main.label)}
           </button>
         )}
       </footer>

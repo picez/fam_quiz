@@ -1,4 +1,4 @@
-import { pinDistance, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo } from '@quiz/shared';
+import { pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
@@ -107,6 +107,8 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.accepted[0];
     case 'wall':
       return t('wallCorrect', { groups: question.groups.map((group) => group.name).join('; ') });
+    case 'survey':
+      return surveyOrder(question.rows).map((row) => `${row.text} (${row.popularity})`).join('; ');
     case 'poll':
     case 'wordcloud':
       return t('pollNoCorrect');
@@ -156,6 +158,11 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return name(answer.optionId);
     case 'wordcloud':
       return answer.words.join(', ');
+    case 'survey': {
+      const hits = surveyHitsOf(answer);
+      if (hits === null) return answer.values.join(', ');
+      return answer.values.map((value, index) => t(hits[index] ? 'surveyHit' : 'surveyMiss', { value })).join(', ');
+    }
     case 'wall':
       return answer.found === answer.groups
         ? t('wallAnswerDone', { mistakes: answer.mistakes })

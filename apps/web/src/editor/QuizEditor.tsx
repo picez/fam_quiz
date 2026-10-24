@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
   cleaned,
+  cloudSources,
   duplicateQuestion,
   firstProblem,
   moveItem,
@@ -397,6 +398,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               showPoints={round.type !== 'final'}
               showReveal={round.type === 'classic'}
               types={questionTypesFor(round.type)}
+              clouds={cloudSources(quiz, ri, Math.min(selected, questions.length - 1))}
+              allowCloud={round.type === 'classic'}
               onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
             />
             {round.type !== 'final' && (

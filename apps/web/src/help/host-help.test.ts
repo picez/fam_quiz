@@ -170,7 +170,25 @@ describe('host help', () => {
     expect(helpEntry('question.wordcloud').points.join(' ')).toContain('Балів немає');
     expect(helpEntry('question.wordcloud').how.join(' ')).toContain(`${LIMITS.cloudShown}`);
     expect(helpEntry('question.wordcloud').how.join(' ')).toContain('сховати');
-    expect(helpEntry('question.wordcloud').tip.join(' ')).not.toContain('100 до 1');
+    expect(helpEntry('question.wordcloud').tip.join(' ')).toContain('100 до 1');
+  });
+
+  it('10e entries tell the engine numbers', () => {
+    const survey = helpEntry('question.survey');
+    const limits = (survey.limits ?? []).join(' ');
+    expect(limits).toContain(`${LIMITS.minSurveyRows}–${LIMITS.maxSurveyRows}`);
+    expect(limits).toContain(`1–${LIMITS.maxSurveyAnswers}`);
+    expect(survey.points.join(' ')).toContain('ціна × популярність / 100');
+    expect(survey.points.join(' ')).toContain('Половина ціни');
+    expect(survey.how.join(' ')).toContain('знизу вгору');
+    expect(survey.how.join(' ')).toContain('пропускається');
+  });
+
+  it('related entries mention 100 до 1', () => {
+    const ids: HelpId[] = ['buff.fifty', 'buff.retry', 'buff.audience', 'buff.double', 'cell.normal', 'cell.voice', 'cell.blitz', 'round.board', 'round.blitz', 'round.final', 'round.classic', 'setting.speedBonus'];
+    for (const id of ids) {
+      expect(text(id), id).toContain('100 до 1');
+    }
   });
 
   it('related entries mention the new limits', () => {

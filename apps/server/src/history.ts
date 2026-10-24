@@ -247,6 +247,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     // Як на сцені: у класиці відповіді на запасні — інше запитання, лічильники їх не рахують; на полі рахують.
     const main = ref?.cell !== undefined ? given : given.filter((a) => a.spareId === null);
     const round = quiz?.rounds[roundIndex];
+    const cloudRows = question.type === 'survey' ? ref?.surveyRows : undefined;
     return [
       {
         index,
@@ -256,7 +257,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         answered: distinct(main.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
         accepted: distinct(main.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
-        question,
+        question: cloudRows === undefined ? question : { ...question, rows: cloudRows },
+        ...(cloudRows === undefined ? {} : { surveyFromCloud: true as const }),
         ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
         responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,

@@ -66,6 +66,7 @@ describe('while a question is open', () => {
       pin: null,
       wall: null,
       cloud: null,
+      survey: null,
       audio: null,
       reveal: null,
       chain: null,

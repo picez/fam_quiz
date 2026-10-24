@@ -237,3 +237,13 @@ describe('votes (10d)', () => {
     expect(bestStreak(votes)).toBe(0);
   });
 });
+
+describe('survey (10e)', () => {
+  it('a survey with half the price continues the best streak; less than half breaks it', () => {
+    // «Правильно» для «100 до 1» — щонайменше половина ціни: рушій ставить accepted, а серія читає лише його.
+    const kept = [m(0, true), m(1, true), m(2, true), m(3, true)];
+    expect(bestStreak(kept)).toBe(4);
+    const broken = [m(0, true), m(1, true), m(2, false), m(3, true), m(4, true)];
+    expect(bestStreak(broken)).toBe(2);
+  });
+});

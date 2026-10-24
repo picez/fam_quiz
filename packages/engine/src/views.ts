@@ -29,10 +29,13 @@ import {
   type HostCloudWord,
   type PlayerSort,
   type PlayerTable,
+  type PlayerSurveyLine,
   type PlayerWall,
   type WallInfo,
   type WallRow,
   type SortInfo,
+  type SurveyInfo,
+  type SurveyRowView,
   type SortRow,
   type Choice,
   type FinalEntry,
@@ -71,6 +74,8 @@ import {
   isUnscored,
   LIMITS,
   pinDistance,
+  surveyHitsOf,
+  surveyOrder,
   newcomersOn,
   roundBrief,
   rulesOf,
@@ -98,6 +103,7 @@ import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain
 import { sortOf, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
 import { cloudTally, cloudVoters } from './votes';
+import { skippedSurveys, surveyShown } from './survey';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { cluesAnswered, cluesByHost, cluesOpen, nextClueAt } from './clues';
@@ -146,6 +152,19 @@ function ownSpare(state: GameState, playerId: string): { question: Question; pre
 function withoutHint(question: Question): Question {
   const { hint: _hint, ...rest } = question;
   return rest;
+}
+
+/** Копія запитання «100 до 1» без рядків дошки: сцена й телефони отримують їх лише з SurveyInfo, і то відкриті. Інші типи — без змін. */
+function withoutSurveyRows(question: Question): Question {
+  return question.type === 'survey' ? { ...question, rows: [] } : question;
+}
+
+/**
+ * Відповідь для сцени й телефонів: збіги «100 до 1» (rows) видали б дошку до розкриття, тож без revealed лишаються лише values.
+ * Інші відповіді без змін.
+ */
+function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T | Answer {
+  return answer !== null && answer.type === 'survey' && !revealed ? { type: 'survey', values: answer.values } : answer;
 }
 
 /** Запитання без правильної відповіді й підказки; choices у порядку presented. */
@@ -204,6 +223,8 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
           }
         : null,
     cloud: question.type === 'wordcloud' ? { words: question.words } : null,
+    // Лише кількості: тексти рядків — у SurveyInfo і лише відкриті.
+    survey: question.type === 'survey' ? { answers: question.answers, rows: question.rows.length } : null,
     // Збережені кімнати — сирий JSON: відсутнє поле читаємо як «немає».
     audio: question.audio ? { duration: question.audio.duration, clip: question.audio } : null,
     reveal: question.reveal ?? null,
@@ -315,7 +336,7 @@ function currentRecord(state: GameState, playerId: string) {
 
 /** Серія гравця для показу: на етапі locked без поточного запитання, щоб не видати правильність. */
 function shownStreak(state: GameState, player: PlayerState): number {
-  return state.phase === 'locked' ? previousStreak(state, player.id) : player.streak;
+  return state.phase === 'locked' || surveyClosing(state) ? previousStreak(state, player.id) : player.streak;
 }
 
 /** Серія гравця перед поточним запитанням: поспіль правильні відповіді в цьому раунді. */
@@ -519,6 +540,14 @@ function hostBoard(state: GameState): HostBoard | null {
  * У миттєвому бліці вибір видно лише в черзі: сцені й гравцям spotlight немає, ведучому — лише голова, що чекає.
  */
 function spotlightOf(state: GameState, forHost: boolean): Spotlight | null {
+  const spot = rawSpotlight(state, forHost);
+  // Збіги «100 до 1» сцені й телефонам не потрібні: табло показує лише відкриті рядки.
+  // Вердикт дошки теж чекає, поки ведучий не відкриє всі рядки.
+  if (spot === null || forHost) return spot;
+  return { ...spot, answer: publicAnswer(spot.answer, false), grade: surveyClosing(state) ? null : spot.grade };
+}
+
+function rawSpotlight(state: GameState, forHost: boolean): Spotlight | null {
   // Сортування видно в SortInfo: підсумок одного гравця тут нічого не додає.
   if (currentQuestion(state)?.type === 'sort') return null;
   const instant = currentBlitz(state);
@@ -894,6 +923,69 @@ function hostCloud(state: GameState): HostCloudWord[] | null {
   }));
 }
 
+/** Рядки табло «100 до 1» поточного запитання з дошкою; null поза ним і на полі із заміною (там показано запасне). */
+function currentSurvey(state: GameState) {
+  const shown = shownQuestion(state);
+  const play = state.plays[state.questionIndex];
+  if (shown === null || play === undefined || shown.question !== play.question || play.question.type !== 'survey') return null;
+  return { play, question: play.question };
+}
+
+/** «100 до 1» на розкритті, поки ведучий не відкрив усі рядки: бали, вердикт і серія видали б популярність і рядки, яких ще не видно. */
+function surveyClosing(state: GameState): boolean {
+  const open = currentSurvey(state);
+  return open !== null && state.phase === 'reveal' && surveyShown(state, open.play) < open.question.rows.length;
+}
+
+/**
+ * Табло «100 до 1»: рядки за місцем; відкриті знизу (surveyShown). Сцена й телефони бачать text/popularity/by лише відкритих,
+ * пульт — усю дошку, а by наживо з етапу question.
+ */
+function surveyInfo(state: GameState, forHost: boolean): SurveyInfo | null {
+  const open = currentSurvey(state);
+  if (open === null) return null;
+  const { play, question } = open;
+  const total = question.rows.length;
+  const shown = surveyShown(state, play);
+  const records = state.players.flatMap((player) => {
+    const record = currentAnswers(state)[player.id];
+    return record === undefined ? [] : [{ nickname: player.nickname, hits: surveyHitsOf(record.answer) ?? [] }];
+  });
+  const rows = surveyOrder(question.rows).map((row, index): SurveyRowView => {
+    const rank = index + 1;
+    const isOpen = rank > total - shown;
+    if (!isOpen && !forHost) return { rank, open: false, text: null, popularity: null, by: null };
+    return {
+      rank,
+      open: isOpen,
+      text: row.text,
+      popularity: row.popularity,
+      by: records.filter((r) => r.hits.includes(row.id)).map((r) => r.nickname),
+    };
+  });
+  return { source: play.survey?.source ?? 'host', total, shown, rows };
+}
+
+/** Власні відповіді «100 до 1» зі збігами: з розкриття й пізніше, лише для того, хто відповідав. */
+function playerSurvey(state: GameState, playerId: string): { lines: PlayerSurveyLine[] } | null {
+  const open = currentSurvey(state);
+  const record = currentRecord(state, playerId);
+  if (open === null || !isRevealed(state) || record?.answer?.type !== 'survey') return null;
+  const order = surveyOrder(open.question.rows);
+  const total = order.length;
+  const shown = surveyShown(state, open.play);
+  const hits = surveyHitsOf(record.answer) ?? [];
+  const lines = record.answer.values.map((value, i): PlayerSurveyLine => {
+    const place = order.findIndex((row) => row.id === hits[i]);
+    // Поки не відкрито всю дошку, «мимо» теж у очікуванні: інакше методом виключення видно, що влучило.
+    if (place < 0) return { value, rank: null, text: null, popularity: null, pending: shown < total };
+    // Свій рядок видно, лише коли ведучий відкрив його на табло (місце > total − shown).
+    if (place + 1 <= total - shown) return { value, rank: null, text: null, popularity: null, pending: true };
+    return { value, rank: place + 1, text: order[place].text, popularity: order[place].popularity, pending: false };
+  });
+  return { lines };
+}
+
 /** Поточне запитання дуелі з його грою (етапи question, answer); інакше null. */
 function currentDuelPlay(state: GameState) {
   const duel = state.duel;
@@ -985,7 +1077,8 @@ function base(state: GameState, forHost: boolean) {
     paused: state.paused,
     round: roundInfo(state),
     questionIndex: roundQuestionNumber(state),
-    total: round ? roundQuestions(round).length : questionsOf(state.quiz).length,
+    // Пропущені «100 до 1» (хмара без слів) у лічильник не входять.
+    total: round ? roundQuestions(round).length - skippedSurveys(state).length : questionsOf(state.quiz).length,
     question: shownPublic(state),
     endsAt: held ? null : state.endsAt,
     remainingMs,
@@ -1006,6 +1099,7 @@ function base(state: GameState, forHost: boolean) {
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
+    survey: surveyInfo(state, forHost),
     notice: lastNotice(state),
     duel: duelInfo(state, false),
     buffs: currentBuffs(state),
@@ -1193,13 +1287,14 @@ function revealStats(state: GameState, question: Question): RevealStats {
       if (known.has(key)) counts[key] = (counts[key] ?? 0) + 1;
     }
   }
-  // Голоси без балів не бувають «прийнятими»: лише answered і counts.
-  return { answered: records.length, accepted: isUnscored(question) ? null : records.filter((r) => r.accepted).length, counts };
+  // Голоси без балів не бувають «прийнятими»: лише answered і counts. «100 до 1» ховає прийняті, поки дошка не відкрита.
+  const hidden = isUnscored(question) || surveyClosing(state);
+  return { answered: records.length, accepted: hidden ? null : records.filter((r) => r.accepted).length, counts };
 }
 
 export function stageView(state: GameState): StageView {
   const shown = isRevealed(state) ? shownQuestion(state) : null;
-  const revealed = shown === null ? null : withoutHint(shown.question);
+  const revealed = shown === null ? null : withoutSurveyRows(withoutHint(shown.question));
   return {
     ...base(state, false),
     role: 'stage',
@@ -1262,9 +1357,9 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       rank: standings?.find((s) => s.participantId === player.id)?.rank ?? null,
       // У бліці відповідь гравця лежить у його записі черги, доки його не розглянули;
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
-      answer: queued === undefined ? (record?.answer ?? pending) : queued,
+      answer: publicAnswer(queued === undefined ? (record?.answer ?? pending) : queued, revealed && !surveyClosing(state)),
       result:
-        revealed && record !== undefined && finalShown(state, playerId) && !(seen !== null && isUnscored(seen.question))
+        revealed && record !== undefined && finalShown(state, playerId) && !surveyClosing(state) && !(seen !== null && isUnscored(seen.question))
           ? {
               accepted: record.accepted,
               accuracy: record.accuracy,
@@ -1278,6 +1373,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),
+      survey: playerSurvey(state, playerId),
       debuff: playerDebuff(state, playerId),
       shop: playerShop(state, playerId),
       duel: playerDuel(state, playerId),
@@ -1286,7 +1382,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       tip: typeTip(state, playerId),
       vote: votePrompt(state, playerId),
     },
-    reveal: revealed && seen !== null ? withoutHint(seen.question) : null,
+    reveal: revealed && seen !== null ? withoutSurveyRows(withoutHint(seen.question)) : null,
     standings,
     table: liveTable(state, playerId),
   };
@@ -1299,7 +1395,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
 function hiddenPoints(state: GameState, playerId: string): number {
   const record = currentRecord(state, playerId);
   if (record === undefined) return 0;
-  if (state.phase === 'locked') return record.points;
+  if (state.phase === 'locked' || surveyClosing(state)) return record.points;
   return state.phase === 'reveal' ? record.points - finalVisiblePoints(state, playerId) : 0;
 }
 
@@ -1402,5 +1498,6 @@ export function hostView(state: GameState): HostView {
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),
     cloud: hostCloud(state),
+    surveySkipped: skippedSurveys(state).map((q) => q.text),
   };
 }

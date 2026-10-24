@@ -58,6 +58,11 @@ import {
   roundQuestions,
   roundSchema,
   rulesOf,
+  surveyOrder,
+  surveyShare,
+  surveyHitsOf,
+  answerKey,
+  type Answer,
   type BoardRound,
   type Question,
   type Quiz,
@@ -1498,6 +1503,113 @@ describe('where walls, polls and clouds live (10d)', () => {
   it('spares cannot be walls, polls or clouds', () => {
     const base = quizOf([round('r', [single])]);
     for (const q of [wallQ, pollQ, cloudQ]) expect(issues({ ...base, spares: [{ ...q, id: 's1' }] })).toContain('spare_type');
+  });
+});
+
+describe('survey (10e)', () => {
+  const row = (id: string, text: string, popularity: number, accepted: string[] = []) => ({ id, text, popularity, accepted });
+  const surveyQ = { id: 's1', type: 'survey', text: 'Назвіть фрукт, який люблять діти', imageUrl: null, video: null, timeLimit: 45, points: 1000, answers: 3,
+    rows: [row('a', 'Яблуко', 32, ['яблучко']), row('b', 'Банан', 25), row('c', 'Полуниця', 15), row('d', 'Кавун', 10), row('e', 'Груша', 8)] } as const;
+  const issues = (value: unknown) => {
+    const result = questionSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  it('a survey is a scored, not simple question type with 4–8 rows', () => {
+    expect(QUESTION_TYPES).toContain('survey');
+    expect(SIMPLE_TYPES).not.toContain('survey');
+    expect(isUnscored(surveyQ)).toBe(false);
+    expect(valid(questionSchema, surveyQ)).toBe(true);
+    expect(issues({ ...surveyQ, rows: surveyQ.rows.slice(0, 3) })).toContain('survey_rows');
+    expect(valid(questionSchema, { ...surveyQ, rows: [...surveyQ.rows, ...['f', 'g', 'h', 'i'].map((id) => row(id, id, 1))] })).toBe(false);
+    expect(valid(questionSchema, { ...surveyQ, answers: 0 })).toBe(false);
+    expect(valid(questionSchema, { ...surveyQ, answers: 6 })).toBe(false);
+  });
+  it('checks the total, duplicate spellings, popularity and ids', () => {
+    expect(issues({ ...surveyQ, rows: [row('a', 'Яблуко', 60), ...surveyQ.rows.slice(1)] })).toContain('survey_total');
+    expect(issues({ ...surveyQ, rows: [surveyQ.rows[0], row('b', 'Банан', 25, [' ЯБЛУЧКО ']), ...surveyQ.rows.slice(2)] })).toContain('survey_duplicate');
+    expect(valid(questionSchema, { ...surveyQ, rows: [row('a', 'Яблуко', 0), ...surveyQ.rows.slice(1)] })).toBe(false);
+    expect(issues({ ...surveyQ, rows: [row('b', 'Яблуко', 32), ...surveyQ.rows.slice(1)] })).toContain('duplicate_ids');
+  });
+  it('duplicate spellings use the answer key: quote variants clash, a row repeating its own text does not', () => {
+    const kobzar = [row('a', '«Кобзар»', 32), row('b', 'Банан', 25, ['“Кобзар”']), ...surveyQ.rows.slice(2)];
+    expect(issues({ ...surveyQ, rows: kobzar })).toContain('survey_duplicate');
+    expect(issues({ ...surveyQ, rows: [row('a', 'Яблуко', 32, [' яблуко ', 'ЯБЛУКО', 'яблучко']), ...surveyQ.rows.slice(1)] })).not.toContain('survey_duplicate');
+    expect(answerKey('  «Кам’янець»   Поділь ')).toBe(`"кам'янець" поділь`);
+  });
+  it('a cloud board may have no rows or 4–8 spare rows', () => {
+    expect(valid(questionSchema, { ...surveyQ, rows: [], cloudId: 'k1' })).toBe(true);
+    expect(valid(questionSchema, { ...surveyQ, cloudId: 'k1' })).toBe(true);
+    expect(issues({ ...surveyQ, rows: surveyQ.rows.slice(0, 2), cloudId: 'k1' })).toContain('survey_rows');
+  });
+  it('surveyOrder and surveyShare', () => {
+    expect(surveyOrder([row('x', 'X', 5), row('y', 'Y', 9), row('z', 'Z', 5)]).map((r) => r.id)).toEqual(['y', 'x', 'z']);
+    expect(surveyShare(surveyQ.rows, ['a', 'b', null])).toBeCloseTo(0.57);
+    expect(surveyShare(surveyQ.rows, ['a', 'a'])).toBeCloseTo(0.32);
+    expect(surveyShare([row('a', 'A', 100), row('b', 'B', 50)], ['a', 'b'])).toBe(1);
+    expect(surveyShare(surveyQ.rows, ['zzz'])).toBe(0);
+    expect(proximityPartial(surveyQ as unknown as Question)).toBe(true);
+  });
+  it('the answer: one to five short values, empty ones allowed; surveyHitsOf', () => {
+    expect(valid(answerSchema, { type: 'survey', values: ['Яблуко', ''] })).toBe(true);
+    expect(valid(answerSchema, { type: 'survey', values: [] })).toBe(false);
+    expect(valid(answerSchema, { type: 'survey', values: ['a', 'b', 'c', 'd', 'e', 'f'] })).toBe(false);
+    expect(valid(answerSchema, { type: 'survey', values: ['x'.repeat(LIMITS.surveyAnswer + 1)] })).toBe(false);
+    expect(surveyHitsOf({ type: 'survey', values: ['a'] } as unknown as Answer)).toBeNull();
+    expect(surveyHitsOf({ type: 'survey', values: ['a'], rows: ['x'] })).toEqual(['x']);
+    expect(surveyHitsOf({ type: 'text', value: 'a' })).toBeNull();
+    expect(surveyHitsOf(null)).toBeNull();
+  });
+});
+
+describe('where surveys live (10e)', () => {
+  const row = (id: string, text: string, popularity: number) => ({ id, text, popularity, accepted: [] });
+  const rows = [row('a', 'Яблуко', 32), row('b', 'Банан', 25), row('c', 'Полуниця', 15), row('d', 'Кавун', 10)];
+  const surveyQ = { id: 's1', type: 'survey', text: 'Фрукт', imageUrl: null, video: null, timeLimit: 45, points: 1000, answers: 3, rows };
+  const cloudQ = { id: 'k1', type: 'wordcloud', text: 'Хмара', imageUrl: null, video: null, timeLimit: 30, points: 0, words: 3 };
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const blitz = (q: object) => ({ id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: DEFAULT_ANSWER_WINDOW, attempts: 1,
+    check: 'auto', rules: { ...DEFAULT_RULES, partial: null }, questions: [q] });
+  const finalR = (q: object) => ({ id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [q] });
+  const board = (q: object, patch: object = {}) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+  const withCell = (q: object, cellPatch: object) => {
+    const b = board(q);
+    Object.assign(b.categories[0]!.cells[0]!, cellPatch);
+    return quizOf([b]);
+  };
+
+  it('survey: classic and a normal phone cell; not blitz, final, a blitz cell or a voice cell', () => {
+    expect(issues(quizOf([round('r', [surveyQ])]))).toEqual([]);
+    expect(issues(quizOf([board(surveyQ)]))).toEqual([]);
+    expect(issues(quizOf([blitz(surveyQ)]))).toContain('survey_place');
+    expect(issues(quizOf([finalR(surveyQ)]))).toContain('survey_place');
+    expect(issues(withCell(surveyQ, { kind: 'blitz' }))).toContain('survey_place');
+    expect(issues(withCell(surveyQ, { answerMode: 'voice' }))).toContain('survey_place');
+    expect(issues(quizOf([board(surveyQ, { answerMode: 'voice' })]))).toContain('survey_place');
+  });
+  it('a cloud board needs an earlier word cloud, in the same classic round or an earlier round', () => {
+    const fromCloud = { ...surveyQ, id: 's2', cloudId: 'k1', rows: [] };
+    expect(issues(quizOf([round('r', [cloudQ, fromCloud])]))).toEqual([]);
+    expect(issues(quizOf([round('r1', [cloudQ]), round('r2', [fromCloud])]))).toEqual([]);
+    expect(issues(quizOf([round('r', [fromCloud, cloudQ])]))).toContain('survey_cloud');
+    expect(issues(quizOf([round('r1', [fromCloud]), round('r2', [cloudQ])]))).toContain('survey_cloud');
+    expect(issues(quizOf([round('r', [{ ...cloudQ, id: 'k2' }, fromCloud])]))).toContain('survey_cloud');
+    expect(issues(quizOf([round('r', [{ ...surveyQ, id: 'k1' }, fromCloud])]))).toContain('survey_cloud');
+  });
+  it('a cloud board cannot sit on the board', () => {
+    const fromCloud = { ...surveyQ, id: 's2', cloudId: 'k1', rows: [] };
+    expect(issues(quizOf([round('r1', [cloudQ]), board(fromCloud)]))).toContain('survey_cloud_place');
+  });
+  it('spares cannot be surveys', () => {
+    const base = quizOf([round('r', [single])]);
+    expect(issues({ ...base, spares: [{ ...surveyQ, id: 's9' }] })).toContain('spare_type');
   });
 });
 

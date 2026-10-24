@@ -17,7 +17,7 @@ const options = [
 ];
 const single: Question = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctId: 'b' };
 const textQuestion: Question = { id: 'q2', type: 'text', text: 'Перлина біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
-const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, audio: null, reveal: null });
+const publicOf = (q: Question) => ({ type: q.type, text: q.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, choices: q.type === 'single' ? options : [], right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, survey: null, audio: null, reveal: null });
 
 const players = [
   { id: 'p1', nickname: 'Олена', connected: true, score: 750, streak: 0, debuff: null },
@@ -63,7 +63,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   sliderMarks: null,
   pinMarks: null,
   wall: null,
-  cloud: null,
+  cloud: null, survey: null, surveySkipped: [],
   ...over,
 });
 
@@ -809,6 +809,40 @@ describe('HostScreen: blitz', () => {
       expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'partial' });
       fireEvent.click(button('Перевибрати'));
       expect(send).toHaveBeenCalledWith('host:repick', { playerId: 'p1' });
+    });
+
+    it('a survey answer on a manual board is accepted, not graded by hand; a swapped chooser keeps the manual buttons', async () => {
+      const surveyQ = { id: 's1', type: 'survey', text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 45, points: 1000, answers: 3, rows: [] } as unknown as Question;
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const answer = { type: 'survey' as const, values: ['Яблуко'], rows: ['sa'] } as Answer;
+      const spotlight = { playerId: 'p1', nickname: 'Олена', answer, grade: null };
+      const send = show(during('question', surveyQ, { round: boardRound, players: three, spotlight, board: boardOf({ manual: true, cell, answer }) }));
+      expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Неправильно' })).toBeNull();
+      fireEvent.click(button('Прийняти'));
+      await waitFor(() => expect(send).toHaveBeenCalledWith('host:accept', { playerId: 'p1' }));
+      cleanup();
+      // Після «Заміни запитання» гравець відповідав на запасне текстове: оцінка вручну.
+      const swapped = { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Одеса' }, grade: null };
+      show(during('question', surveyQ, { round: boardRound, players: three, spotlight: swapped, board: boardOf({ manual: true, cell, answer: swapped.answer }) }));
+      expect(button('Правильно')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Прийняти' })).toBeNull();
+    });
+
+    it('a survey cell has no hand grading after it closes', () => {
+      const surveyQ = { id: 's1', type: 'survey', text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 45, points: 1000, answers: 3, rows: [] } as unknown as Question;
+      const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const answer = { type: 'survey' as const, values: ['Яблуко'], rows: ['sa'] } as Answer;
+      for (const phase of ['locked', 'reveal'] as const) {
+        const spotlight = { playerId: 'p1', nickname: 'Олена', answer, grade: phase === 'reveal' ? ('partial' as const) : null };
+        show(during(phase, surveyQ, { round: boardRound, players: three, spotlight, board: boardOf({ manual: true, cell, answer }) }));
+        expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Не зараховувати' })).toBeNull();
+        cleanup();
+      }
+      // Звичайна клітинка на reveal оцінюється.
+      show(during('reveal', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }) }));
+      expect(button('Зарахувати')).toBeTruthy();
     });
 
     it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
@@ -1938,5 +1972,59 @@ describe('HostScreen: wall, poll and word cloud (10d)', () => {
     const cloudPanel = screen.getByRole('heading', { name: /Хмара слів/ }).closest('section') as HTMLElement;
     fireEvent.click(within(cloudPanel).getByRole('button', { name: 'Довідка: Хмара слів' }));
     expect(cloudSend).not.toHaveBeenCalled();
+  });
+});
+
+describe('HostScreen: survey (10e)', () => {
+  const surveyQ = { id: 's1', type: 'survey', text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 45, points: 1000, answers: 3, rows: [] } as unknown as Question;
+  const texts = ['Яблуко', 'Банан', 'Полуниця', 'Кавун', 'Груша'];
+  const board = (shown: number) => ({
+    source: 'host' as const,
+    total: 5,
+    shown,
+    rows: texts.map((text, at) => ({ rank: at + 1, open: at + 1 > 5 - shown, text, popularity: 30 - at, by: at === 0 ? ['Олена'] : [] })),
+  });
+  const surveyView = (phase: HostView['phase'], shown: number, over: Partial<HostView> = {}) =>
+    during(phase, surveyQ, { survey: board(shown), ...over, question: { ...publicOf(surveyQ), survey: { answers: 3, rows: 5 } } });
+
+  it('shows the whole board with popularity and live authors, and no grading buttons', () => {
+    show(surveyView('question', 0));
+    expect(screen.getByText('Яблуко')).toBeTruthy();
+    expect(document.querySelector('.host-survey .survey-by')?.textContent).toBe('Олена');
+    expect(screen.getByText('Ваша дошка')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+  });
+
+  it('the main button opens the next row, the second button opens all, and when all are open it is «Далі»', () => {
+    const send = show(surveyView('reveal', 1));
+    fireEvent.click(button('Відкрити рядок 2 з 5'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+    cleanup();
+    const sendAll = show(surveyView('reveal', 1));
+    fireEvent.click(button('Відкрити всі'));
+    expect(sendAll).toHaveBeenCalledWith('host:survey-all', undefined);
+    cleanup();
+    show(surveyView('reveal', 5));
+    expect(button('Далі')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
+  });
+
+  it('while paused there are no row buttons', () => {
+    show(surveyView('reveal', 1, { paused: true }));
+    expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Відкрити рядок/ })).toBeNull();
+  });
+
+  it('has a help button on the survey panel that sends nothing', () => {
+    const send = show(surveyView('question', 0));
+    fireEvent.click(within(document.querySelector('.host-survey') as HTMLElement).getByRole('button', { name: 'Довідка: 100 до 1' }));
+    expect(send).not.toHaveBeenCalled();
+    screen.getByRole('dialog', { name: '100 до 1' });
+  });
+
+  it('warns about a skipped survey', () => {
+    show(view({ phase: 'intro', surveySkipped: ['Що ви назвали про Київ?'] }));
+    expect(screen.getByText('Запитання «Що ви назвали про Київ?» пропущено: хмара не дала слів, а запасних рядків немає.')).toBeTruthy();
   });
 });

@@ -7269,6 +7269,135 @@ button.wall-tile:disabled {
   color: var(--signal);
 }
 
+.survey-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.survey-input input {
+  min-height: 2.75rem;
+}
+
+.survey-input .field.is-same input {
+  border-color: var(--signal);
+}
+
+.survey-hint {
+  margin: 0;
+}
+
+.survey-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  overflow-wrap: anywhere;
+}
+
+.survey-line.is-hit {
+  color: var(--correct);
+}
+
+.survey-line.is-miss {
+  color: var(--dim);
+}
+
+.survey-board {
+  perspective: 40rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  width: 100%;
+}
+
+.survey-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  text-align: left;
+}
+
+.survey-row.is-closed {
+  grid-template-columns: 2rem;
+  min-height: 2.25rem;
+  background: var(--spot);
+}
+
+.survey-row.is-pale {
+  opacity: 0.55;
+}
+
+.survey-rank {
+  font-weight: 700;
+  color: var(--amber);
+  text-align: center;
+}
+
+.survey-text {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+
+.survey-pop {
+  font-weight: 700;
+  color: var(--correct);
+  font-variant-numeric: tabular-nums;
+}
+
+.survey-by {
+  font-size: 0.75rem;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.survey-board.is-big {
+  gap: 0.25rem;
+}
+
+.survey-board.is-big .survey-row {
+  font-size: 1.5rem;
+  padding: 0.25rem 1rem;
+}
+
+.survey-board.is-big .survey-by {
+  font-size: 0.875rem;
+}
+
+.survey-row.is-flipping {
+  transform-origin: center top;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .survey-row.is-flipping {
+    animation: survey-flip 0.6s ease-out;
+  }
+
+  @keyframes survey-flip {
+    from {
+      transform: rotateX(-90deg);
+      opacity: 0;
+    }
+
+    to {
+      transform: rotateX(0);
+      opacity: 1;
+    }
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .wall-tile.wall-shake {
     animation: wall-shake 0.4s ease-in-out;
@@ -7663,4 +7792,110 @@ button.wall-tile:disabled {
   .wall-tiles-edit {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+.host-survey .survey-board {
+  margin-top: 0.5rem;
+}
+
+.host-warning {
+  margin: 0;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--signal);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--signal);
+}
+
+.history-survey {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0.5rem 0;
+}
+
+/* Табло на сцені: 8 рядків рівно в решту висоти (1280 × 720); довгі тексти — в один рядок, нікнейми — «+N». */
+.stage-survey {
+  align-items: center;
+}
+
+.stage-survey .survey-board {
+  flex: 1 1 0;
+  min-height: 0;
+  max-width: 60rem;
+}
+
+.stage-survey .survey-board .survey-row {
+  flex: 1 1 0;
+  min-height: 2.75rem;
+  max-height: 4rem;
+  overflow: hidden;
+}
+
+.stage-survey .survey-board .survey-row.is-closed {
+  min-height: 2.75rem;
+}
+
+.stage-survey .survey-board .survey-text,
+.stage-survey .survey-board .survey-by {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+}
+
+.stage-survey .survey-board .survey-by {
+  font-size: 0.75rem;
+  line-height: 1.1;
+}
+
+.stage-survey .survey-board .survey-text {
+  line-height: 1.15;
+}
+
+.stage-survey .survey-board.is-dense {
+  gap: 0.1875rem;
+}
+
+.stage-survey .survey-board.is-dense .survey-row {
+  font-size: 1.25rem;
+  padding: 0.125rem 0.875rem;
+}
+
+.stage-survey .lead,
+.stage-survey .meta {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+/* Редактор «100 до 1»: картка рядка — відповідь на всю ширину, нижче «Людей зі 100» і «Прибрати» в ряд, далі написання. */
+.survey-row-edit {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.survey-row-meta {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.survey-row-meta .field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.survey-row-meta .btn {
+  flex: none;
+  min-height: 3.25rem;
+}
+
+.survey-total.is-over {
+  color: var(--signal);
+  font-weight: 700;
 }

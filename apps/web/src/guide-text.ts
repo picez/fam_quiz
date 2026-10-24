@@ -43,6 +43,7 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   wall: '▦',
   poll: '▮▮',
   wordcloud: '☁',
+  survey: '💯',
 };
 
 /** Як проходить раунд — 1 рядок (у фіналі 2: ставка і режим ставок; пам'ятка бере лише перший). */

@@ -233,6 +233,36 @@ export const cloud = {
   words: 3,
 } satisfies Question;
 
+const row = (id: string, text: string, popularity: number, accepted: string[] = []) => ({ id, text, popularity, accepted });
+
+/**
+ * «100 до 1»: дошка ведучого sa Яблуко 32 (ще «яблучко»), sb Банан 25, sc Полуниця 15, sd Кавун 10, se Груша 8;
+ * до 3 відповідей, 1000 балів, 45 с; до типового списку makeQuiz не входить.
+ */
+export const survey = {
+  ...base,
+  id: 'q17',
+  type: 'survey',
+  text: 'Назвіть фрукт, який люблять діти',
+  timeLimit: 45,
+  points: 1000,
+  answers: 3,
+  rows: [row('sa', 'Яблуко', 32, ['яблучко']), row('sb', 'Банан', 25), row('sc', 'Полуниця', 15), row('sd', 'Кавун', 10), row('se', 'Груша', 8)],
+} satisfies Question;
+
+/** «100 до 1» з хмари cloud (q16), без запасних рядків; до 2 відповідей, 1000 балів, 45 с. */
+export const surveyCloud = {
+  ...base,
+  id: 'q18',
+  type: 'survey',
+  text: 'Що ви назвали про Київ?',
+  timeLimit: 45,
+  points: 1000,
+  answers: 2,
+  rows: [],
+  cloudId: cloud.id,
+} satisfies Question;
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 

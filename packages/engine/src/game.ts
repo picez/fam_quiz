@@ -49,6 +49,7 @@ import { submitVote } from './votes';
 import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
+import { scoreSurvey, stepSurvey, surveyBoard, surveyPlayOf } from './survey';
 import { cluesByHost, cluesOpen, openDueClues } from './clues';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -140,6 +141,16 @@ export interface Play {
   wall?: Record<string, WallProgress>;
   /** «Хмара слів»: ключі cloudKey, які ведучий сховав (10d). */
   cloudHidden?: string[];
+  /** «100 до 1»: звідки дошка й скільки рядків відкрито на розкритті; збудована дошка — у question.rows (10e). */
+  survey?: SurveyPlay;
+}
+
+/** Дошка «100 до 1» у грі. */
+export interface SurveyPlay {
+  /** cloud — дошка з хмари слів; host — дошка ведучого (зокрема запасна, коли хмара порожня). */
+  source: 'host' | 'cloud';
+  /** Скільки рядків відкрито на сцені знизу вгору (етап reveal). */
+  shown: number;
 }
 
 /** Поступ гравця на стіні. */
@@ -602,19 +613,30 @@ export function present(question: Question, shuffleOptions: boolean, rng: Rng): 
   return [];
 }
 
-/** Наступне запитання поточного раунду: перше за порядком, якого ще немає в журналі цього раунду. */
+/** Чи можна відкрити запитання: «100 до 1» без дошки (хмара порожня, запасних рядків немає) пропускається. */
+function playable(state: GameState, question: Question): boolean {
+  return question.type !== 'survey' || surveyBoard(state, question) !== null;
+}
+
+/**
+ * Наступне запитання поточного раунду: перше за порядком, якого ще немає в журналі цього раунду й яке можна відкрити.
+ * Пропущене «100 до 1» запису в журналі не має: ні балів, ні серій, ні зіграних запитань.
+ */
 function nextQuestion(state: GameState): Question | undefined {
   const round = currentRound(state);
   if (round === null || round.type === 'board') return undefined;
   const played = new Set(state.plays.filter((p) => p.roundIndex === state.roundIndex).map((p) => p.question.id));
-  return round.questions.find((question) => !played.has(question.id));
+  return round.questions.find((question) => !played.has(question.id) && playable(state, question));
 }
 
 export function openQuestion(state: GameState, question: Question, now: number, rng: Rng, board?: BoardPlay): GameState {
   const round = state.quiz.rounds[state.roundIndex];
+  // «100 до 1»: збудована дошка лягає в запитання запису (знімок вікторини не змінюється). Без дошки сюди не потрапляють:
+  // класика відсіює пропуск у nextQuestion, на полі дошка завжди ведучого; null — захист, рядки ведучого.
+  const built = question.type === 'survey' ? (surveyBoard(state, question) ?? { rows: question.rows, source: 'host' as const }) : null;
   const play: Play = {
     roundIndex: state.roundIndex,
-    question,
+    question: built !== null && question.type === 'survey' ? { ...question, rows: built.rows } : question,
     answers: {},
     extraMs: 0,
     ...(board !== undefined ? { board } : {}),
@@ -623,6 +645,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       ? { blitz: { queue: [], attempts: [], buzzed: [], dropped: [] } }
       : {}),
     ...(question.type === 'clues' ? { clues: 1 } : {}),
+    ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
@@ -1000,6 +1023,13 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
   // Стіна — лише вибір за вибором через guessWall.
   if (answer.type === 'wall' || play.question.type === 'wall') return fail('type_mismatch');
+  // «100 до 1»: рушій чистить відповідь і додає збіги до будь-якої гілки — і клітинка поля чекає вже перевірену.
+  const asked0 = questionFor(state, play, playerId);
+  if (asked0.type === 'survey') {
+    if (answer.type !== 'survey') return fail('type_mismatch');
+    answer = scoreSurvey(asked0, answer);
+    if (answer.values.length === 0) return fail('type_mismatch');
+  }
   const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
   if (play.blitz !== undefined) {
@@ -1023,7 +1053,12 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   const { accepted, accuracy, grade } = verdictOf(asked, answer, timeMs);
   const limit = answerLimitMs(play, playerId);
   // Картинка, що проявляється, і «Хто я?» вже платять за час часткою ціни: бонусу швидкості поверх немає.
-  const speed = speedFactor(timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && !paysForTime(asked));
+  // «100 до 1»: ціна вже спадає з популярністю, швидкість набору — не знання.
+  const speed = speedFactor(
+    timeMs,
+    limit ?? 0,
+    round.type === 'classic' && round.speedBonus && limit !== null && !paysForTime(asked) && asked.type !== 'survey',
+  );
   const points = answerPoints({
     points: question.points,
     accuracy,
@@ -1102,9 +1137,11 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
     const correct = checkAnswer(play.question, pending.answer).accuracy === 1;
     return closeIfDone(applyVerdict(state, pending.playerId, correct, now), now);
   }
-  if (round.type !== 'board' || play.board === undefined || round.check === 'manual') return fail('wrong_phase');
-
+  if (round.type !== 'board' || play.board === undefined) return fail('wrong_phase');
   const asked = questionFor(state, play, pending.playerId);
+  // «100 до 1» ведучий приймає і за ручної перевірки: дошка однозначна.
+  if (round.check === 'manual' && asked.type !== 'survey') return fail('wrong_phase');
+
   // Годинник стоїть, поки ведучий приймає: на картинці, що проявляється, і в «Хто я?» рахується час до надсилання.
   const timeMs = Math.max(0, clockOf(state, now) - (state.startedAt ?? now));
   const verdict = verdictOf(asked, pending.answer, timeMs);
@@ -1294,6 +1331,11 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   if (state.paused) return fail('paused');
   // Дуель вклинюється між кроками гри: оголошена стартує замість кроку, після підсумку гра йде далі.
   if (state.phase === 'duel') return advanceDuel(state, now, rng);
+  // «100 до 1»: на розкритті кожне «Далі» спершу відкриває ще один рядок знизу; дуель, що чекає, — після останнього рядка.
+  if (state.phase === 'reveal') {
+    const surveyPlay = surveyPlayOf(state);
+    if (surveyPlay !== null && surveyPlay.survey.shown < surveyPlay.question.rows.length) return ok(stepSurvey(state));
+  }
   // «Як грати» гортається до будь-яких дуелей (на guide їх і не буває): на останній сторінці — перший раунд.
   if (state.phase === 'guide') {
     return ok(state.guidePage + 1 < guidePages(state.quiz).length ? { ...state, guidePage: state.guidePage + 1 } : enterFirstRound(state, now));
@@ -1478,9 +1520,13 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
 /** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
   // Ланцюжок перевіряється за літерами однозначно; зміна одного вердикту зсунула б бали інших.
-  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід. Опитування й хмара без балів не оцінюються.
-  const type = state.plays[state.questionIndex]?.question.type;
-  if (type === 'chain' || type === 'sort' || type === 'wall') return fail('wrong_phase');
+  // Сортування й стіна так само однозначні: сервер перевіряв кожен хід. «100 до 1» — за дошкою (і на полі).
+  // Опитування й хмара без балів не оцінюються.
+  // Після «Заміни запитання» гравець відповідав на запасне: рішення — за його запитанням (на полі — того, хто вибрав клітинку).
+  const active = state.plays[state.questionIndex];
+  const target = active?.board?.chooserId ?? playerId;
+  const type = active === undefined ? undefined : questionFor(state, active, target).type;
+  if (type === 'chain' || type === 'sort' || type === 'wall' || type === 'survey') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);

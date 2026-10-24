@@ -18,6 +18,10 @@ export const answerSchema = z.discriminatedUnion('type', [
     type: z.literal('wordcloud'),
     words: z.array(z.string().trim().min(1).max(LIMITS.cloudWord).refine(isStorable, UNSTORABLE)).min(1).max(LIMITS.maxCloudWords),
   }),
+  z.object({
+    type: z.literal('survey'),
+    values: z.array(z.string().max(LIMITS.surveyAnswer).refine(isStorable, UNSTORABLE)).min(1).max(LIMITS.maxSurveyAnswers),
+  }),
   z.object({ type: z.literal('order'), itemIds: z.array(id).max(LIMITS.maxOrderItems) }),
   z.object({
     type: z.literal('match'),
@@ -57,4 +61,18 @@ export interface WallAnswer {
   timeMs: number | null;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer;
+/** Відповідь «100 до 1» після перевірки: рушій чистить values і додає збіги; з телефона rows не приходить. */
+export interface SurveyAnswer {
+  type: 'survey';
+  values: string[];
+  /** Id влученого рядка для кожного значення; null — мимо або рядок уже влучено. */
+  rows: (string | null)[];
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer;
+
+/** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
+export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {
+  if (answer === null || answer.type !== 'survey') return null;
+  return 'rows' in answer && Array.isArray(answer.rows) ? answer.rows : null;
+}

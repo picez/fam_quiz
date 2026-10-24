@@ -4,8 +4,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 2 — 9c: DebuffState.by, ScoreAdjustment.target/debuff, QuizSettings.debuffPrices.
  * 3 — 10c: Play.clues (скільки підказок «Хто я?» відкрито).
  * 4 — 10d: Play.wall (поступ стіни), Play.cloudHidden (сховані слова «хмари»).
+ * 5 — 10e: Play.survey (джерело дошки «100 до 1» і скільки рядків відкрито).
  */
-export const GAME_STATE_VERSION = 4;
+export const GAME_STATE_VERSION = 5;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -13,8 +14,10 @@ export const GAME_STATE_VERSION = 4;
  * тож кімната, збережена до розгортання 10c, відновлюється. Версія 1 — ні (інша форма 9c).
  * 3 → 4 лише додала необов'язкові Play.wall і Play.cloudHidden, а стан версій 2–3 не може містити стіни, опитування чи хмари:
  * тож кімната, збережена до розгортання 10d, теж відновлюється.
+ * 4 → 5 лише додала необов'язкове Play.survey, а стан версій 2–4 не може містити «100 до 1»:
+ * тож кімната, збережена до розгортання 10e, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

@@ -16,7 +16,7 @@ const question: PublicQuestion & { wall: PublicWall } = {
   timeLimit: 90,
   points: 1000,
   choices: [],
-  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, cloud: null, audio: null, reveal: null,
+  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, cloud: null, survey: null, audio: null, reveal: null,
   wall: publicWall,
 };
 const playerWall = (patch: Partial<PlayerWall> = {}): PlayerWall => ({

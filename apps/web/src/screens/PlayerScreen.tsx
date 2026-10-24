@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerView, type PublicClues, type PublicQuestion, type Question, type Spotlight } from '@quiz/shared';
+import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
@@ -28,6 +28,7 @@ import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
 import { WallInput } from './WallInput';
+import { SurveyBoard } from './SurveyBoard';
 import { DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { MenuLinks } from './MenuLinks';
@@ -76,6 +77,35 @@ function RevealDetail({ view, answer, player }: { view: PlayerView; answer: Answ
 
 /** Знайдені групи глядача на полі: позиції з рядка того, хто вибрав. */
 const foundOf = (rows: number[][] | null | undefined) => (rows ?? []).map((tiles, color) => ({ tiles, color }));
+
+/** Власні відповіді «100 до 1» списком: до розкриття — як введено, на розкритті — з місцем і популярністю влучених. */
+function SurveyLines({ values, lines }: { values: string[]; lines: PlayerSurveyLine[] | null }) {
+  return (
+    <ul className="survey-lines">
+      {(lines ?? values.map((value): PlayerSurveyLine => ({ value, rank: null, text: null, popularity: null, pending: true }))).map((line, index) => {
+        const hit = line.rank !== null;
+        const miss = lines !== null && !hit && !line.pending;
+        return (
+          <li key={index} className={hit ? 'survey-line is-hit' : miss ? 'survey-line is-miss' : 'survey-line'}>
+            {hit ? t('surveyLineHit', { value: line.value, rank: line.rank ?? 0, popularity: line.popularity ?? 0 }) : miss ? t('surveyLineMiss', { value: line.value }) : line.value}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Власний підсумок «100 до 1» на розкритті: рядки зі збігами й підказка, що табло на екрані. */
+function SurveyOutcome({ view }: { view: PlayerView }) {
+  if (view.reveal?.type !== 'survey') return null;
+  const { me } = view;
+  return (
+    <>
+      {me.answer?.type === 'survey' && <SurveyLines values={me.answer.values} lines={me.survey?.lines ?? null} />}
+      <p className="meta">{t('surveyBoardOnStage')}</p>
+    </>
+  );
+}
 
 /** Власний підсумок стіни: сітка зі знайденими групами, правильні групи й рядок «Груп: N з M · бали». */
 function WallOutcome({ view }: { view: PlayerView }) {
@@ -129,9 +159,10 @@ function Result({ view }: { view: PlayerView }) {
       )}
       {view.me.sort !== null && <SortOutcome view={view} />}
       <WallOutcome view={view} />
+      <SurveyOutcome view={view} />
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {view.reveal !== null &&
-        (view.reveal.type === 'wall' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -458,6 +489,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const chainMine = question?.type === 'chain' && me.chain !== null;
   const isSort = question?.type === 'sort';
   const isWall = question?.type === 'wall';
+  const isSurvey = question?.type === 'survey';
   const unscored = question !== null && isUnscored(question);
 
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
@@ -646,6 +678,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <>
                 {/* Глядач бачить мапу, але не точку вибравшого — лише що її поставлено. */}
                 {question.pin !== null && <PinBoard pin={question.pin} imageUrl={question.imageUrl} />}
+                {isSurvey && view.survey !== null && <SurveyBoard info={view.survey} />}
                 <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
               </>
             ) : board !== null && voice && me.answer === null ? (
@@ -656,7 +689,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </>
             ) : me.answer !== null ? (
               <section className="sent">
-                <h2>{t(unscored ? 'voteSent' : 'answerSent')}</h2>
+                <h2>{t(unscored ? 'voteSent' : me.answer.type === 'survey' ? 'surveySent' : 'answerSent')}</h2>
                 {me.answer.type === 'pin' && question.pin !== null ? (
                   <PinBoard
                     pin={question.pin}
@@ -664,6 +697,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                     marks={[{ playerId: me.id, nickname: me.nickname, x: me.answer.x, y: me.answer.y }]}
                     highlight={me.id}
                   />
+                ) : me.answer.type === 'survey' ? (
+                  <SurveyLines values={me.answer.values} lines={null} />
                 ) : (
                   <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>
                 )}
@@ -705,6 +740,12 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               <WallGrid wall={question.wall} found={me.wall !== null ? me.wall.found : foundOf(view.wall?.rows[0]?.tiles)} />
               <p className="lead">{t('waitReveal')}</p>
             </section>
+          ) : me.answer?.type === 'survey' ? (
+            <section className="sent">
+              <h2>{t('surveySent')}</h2>
+              <SurveyLines values={me.answer.values} lines={null} />
+              <p className="lead">{t('waitReveal')}</p>
+            </section>
           ) : unscored && me.answer !== null && question !== null ? (
             <section className="sent">
               <h2>{t('voteSent')}</h2>
@@ -730,6 +771,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           ) : (
             <>
               {/* Поле й бліц: варіанти з помаранчевою відповіддю чи позначкою ведучого лишаються до розкриття. */}
+              {isSurvey && view.survey !== null && <SurveyBoard info={view.survey} />}
               {question !== null && (spotlight !== null || board !== null || view.blitz !== null) && (
                 <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
               )}
@@ -746,16 +788,18 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             <FinalResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
-              {question !== null && !isSort && !isWall && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {/* «100 до 1»: підсумок — на табло (SurveyBoard), рядок відповіді з вердиктом зайвий. */}
+              {question !== null && !isSort && !isWall && !isSurvey && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
               {isSort && question?.sort != null && (
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} />
               )}
               {isWall && question?.wall != null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />}
               {view.reveal?.type === 'wall' && <WallReveal question={view.reveal} colors={view.reveal.groups.map(() => null)} />}
+              {isSurvey && view.survey !== null && <SurveyBoard info={view.survey} />}
               <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
-              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
             <>
@@ -763,7 +807,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {instant
                 ? question !== null && <SpotlightChoices removed={view.removed} question={question} spotlight={own} reveal={view.reveal} blink={blink} voice={false} />
                 : spotlight !== null &&
-                  question !== null && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
+                  question !== null &&
+                  !isSurvey && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
               {queue}
               <Result view={view} />
             </>

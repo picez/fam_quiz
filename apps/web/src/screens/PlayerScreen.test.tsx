@@ -15,7 +15,7 @@ const publicQuestion = {
   video: null,
   timeLimit: 20,
   points: 1000,
-  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, audio: null, reveal: null,
+  right: [], chain: null, sort: null, orderLabels: null, slider: null, clues: null, pin: null, wall: null, cloud: null, survey: null, audio: null, reveal: null,
   choices: [
     { id: 'a', text: 'Львів' },
     { id: 'b', text: 'Київ' },
@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, survey: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -47,6 +47,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   chain: null,
   sort: null,
   wall: null,
+  survey: null,
   notice: null,
   buffs: [],
   buffNotice: null,
@@ -2041,6 +2042,109 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       show(onQuestion({ question: cloud, me: { ...me, answer: { type: 'wordcloud', words: ['Каштани', 'Дніпро'] } } }));
       expect(screen.getByText('Голос прийнято')).toBeTruthy();
       expect(screen.getByText('Каштани, Дніпро')).toBeTruthy();
+    });
+  });
+
+  describe('survey (10e)', () => {
+    const surveyPublic = { ...publicQuestion, type: 'survey' as const, choices: [], points: 1000, survey: { answers: 3, rows: 5 } };
+    const surveyFull = { ...fullQuestion, type: 'survey', rows: [] } as unknown as Question;
+    const sent = { type: 'survey' as const, values: ['Яблуко', 'ананас'] };
+    const closedRow = (rank: number) => ({ rank, open: false, text: null, popularity: null, by: null });
+
+    it('the input on the question: three fields', () => {
+      show(onQuestion({ question: surveyPublic }));
+      expect(screen.getAllByRole('textbox')).toHaveLength(3);
+    });
+
+    it('after sending: the sent screen with the own answers', () => {
+      show(onQuestion({ question: surveyPublic, me: { ...me, answer: sent } }));
+      expect(screen.getByText('Відповіді надіслано')).toBeTruthy();
+      expect(screen.getByText('Яблуко')).toBeTruthy();
+      expect(screen.getByText('ананас')).toBeTruthy();
+      expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+    });
+
+    it('the reveal: own lines with place and popularity, misses, and the board is on the stage', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: surveyPublic,
+          reveal: surveyFull,
+          me: {
+            ...me,
+            answer: sent,
+            survey: {
+              lines: [
+                { value: 'Яблуко', rank: 1, text: 'Яблуко', popularity: 32, pending: false },
+                { value: 'ананас', rank: null, text: null, popularity: null, pending: false },
+              ],
+            },
+            result: { accepted: false, accuracy: 0.32, grade: 'partial', streakBonus: 0, points: 320 },
+          },
+        }),
+      );
+      expect(screen.getByText('Яблуко — місце 1, 32')).toBeTruthy();
+      expect(screen.getByText('ананас — немає на табло')).toBeTruthy();
+      expect(screen.getByText('Табло — на екрані')).toBeTruthy();
+      expect(document.querySelector('main')!.textContent).not.toContain('Правильна відповідь');
+    });
+
+    it('a row not opened yet stays a plain answer: the phone does not spoil the reveal', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: surveyPublic,
+          reveal: surveyFull,
+          me: {
+            ...me,
+            answer: sent,
+            survey: {
+              lines: [
+                { value: 'Яблуко', rank: null, text: null, popularity: null, pending: true },
+                { value: 'ананас', rank: null, text: null, popularity: null, pending: false },
+              ],
+            },
+          },
+        }),
+      );
+      expect(screen.getByText('Яблуко')).toBeTruthy();
+      expect(screen.queryByText(/місце/)).toBeNull();
+      expect(screen.getByText('ананас — немає на табло')).toBeTruthy();
+    });
+
+    it('the board reveal shows the survey board, not a spotlight line, to the spectator and the chooser', () => {
+      const spotlight = { playerId: 'p2', nickname: 'Тарас', answer: sent, grade: 'partial' as const };
+      for (const chooser of ['p2', 'p1']) {
+        show(
+          view({
+            phase: 'reveal',
+            questionIndex: 0,
+            question: surveyPublic,
+            reveal: surveyFull,
+            spotlight: { ...spotlight, playerId: chooser },
+            survey: { source: 'host', total: 5, shown: 5, rows: [1, 2, 3, 4, 5].map(closedRow) },
+            board: { turn: { playerId: chooser, nickname: 'Тарас' }, cell: null } as never,
+          }),
+        );
+        // Глядач бачить табло; вибравший — власні рядки в результаті.
+        if (chooser === 'p2') expect(document.querySelectorAll('.survey-row')).toHaveLength(5);
+        expect(document.querySelector('.spotlight-answer')).toBeNull();
+        cleanup();
+      }
+    });
+
+    it('a spectator on a board cell sees the survey board', () => {
+      show(
+        onQuestion({
+          question: surveyPublic,
+          survey: { source: 'host', total: 5, shown: 0, rows: [1, 2, 3, 4, 5].map(closedRow) },
+          board: { turn: { playerId: 'p2', nickname: 'Тарас' }, cell: null } as never,
+        }),
+      );
+      expect(document.querySelectorAll('.survey-row.is-closed')).toHaveLength(5);
+      expect(screen.queryAllByRole('textbox')).toHaveLength(0);
     });
   });
 });
