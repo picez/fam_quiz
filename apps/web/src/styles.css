@@ -8382,3 +8382,165 @@ button.wall-tile:disabled {
   flex: 0 0 auto;
   padding: 0.25rem 0.75rem;
 }
+
+/* ---------- Вибування ---------- */
+
+.survival-trial {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: stretch;
+  min-width: 0;
+}
+
+.survival-trial .timer {
+  justify-self: center;
+}
+
+.survival-trial.is-out .survival-state {
+  color: var(--signal);
+}
+
+.survival-trial.is-safe .survival-state {
+  color: var(--correct);
+}
+
+.survival-state,
+.survival-door-line,
+.survival-ghost-banner,
+.survival-edge {
+  text-align: center;
+}
+
+.survival-ghost-banner {
+  opacity: 0.8;
+}
+
+.survival-doors {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.survival-door {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 6rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--panel);
+  color: var(--paper);
+  font: inherit;
+  cursor: pointer;
+}
+
+.survival-doors.is-stage .survival-door {
+  min-height: 12rem;
+}
+
+.survival-door:disabled {
+  cursor: default;
+}
+
+.survival-door-n {
+  font-family: var(--display);
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.survival-door-note {
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.survival-door.is-picked {
+  border-color: var(--amber);
+  background: rgb(255 179 0 / 0.14);
+}
+
+.survival-door.is-trap {
+  border-color: var(--signal);
+}
+
+.survival-door-note.is-trap {
+  color: var(--signal);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .survival-door.is-open.is-trap {
+    animation: survival-trap 0.4s ease-out;
+  }
+}
+
+@keyframes survival-trap {
+  0% {
+    transform: scale(0.9);
+  }
+  60% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.survival-board {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.survival-count,
+.survival-ghost-hits {
+  text-align: center;
+}
+
+.survival-group ul {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.survival-group li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.survival-group li.is-me {
+  background: rgb(255 179 0 / 0.14);
+  border-radius: 0.5rem;
+}
+
+.survival-group .name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.survival-group.is-edge li {
+  border-color: var(--amber);
+  background: rgb(255 179 0 / 0.1);
+}
+
+.survival-group.is-ghost li {
+  opacity: 0.55;
+}
+
+.survival-mark {
+  color: var(--correct);
+  font-size: 0.875rem;
+}
+
+.survival-mark.is-pending {
+  color: var(--dim);
+}
