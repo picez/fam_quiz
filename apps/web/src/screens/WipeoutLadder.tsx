@@ -35,7 +35,7 @@ export function WipeoutPlayers({ info, size, highlightId }: { info: WipeoutInfo;
             <h3 className="meta">{t(title)}</h3>
             <ul>
               {rows.map((row) => {
-                const mark = status === 'in' ? decisionMark(row, size) : null;
+                const mark = status === 'in' || status === 'took' ? decisionMark(row, size) : null;
                 return (
                   <li key={row.playerId} className={row.playerId === highlightId ? 'is-me' : undefined}>
                     <span className="name">{row.nickname}</span>

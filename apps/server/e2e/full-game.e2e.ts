@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, text as textQ, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { DEFAULT_RULES } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
@@ -8831,6 +8831,304 @@ async function bluffGame() {
   expect(history2).toContain('Дурня');
   expect(history2).toContain('Прибрано');
   await shot(host, 'p10f-history');
+
+  expect(problems).toEqual([]);
+}
+
+/** Натискає «Далі» (take false) чи «Забрати …» (take true) на телефоні. */
+async function decide(page: Page, take: boolean): Promise<void> {
+  const button = take ? page.getByRole('button', { name: /^Забрати \d/ }) : page.getByRole('button', { name: 'Далі', ...exact });
+  expect((await button.boundingBox())!.height, 'decision button is a tap target').toBeGreaterThanOrEqual(44);
+  await button.click();
+}
+
+/** Стан гравця на драбині сцени чи пульта: текст групи, у якій стоїть нікнейм. */
+async function ladderGroupOf(page: Page, nickname: string): Promise<string> {
+  const group = page.locator('.wipeout-group').filter({ has: page.locator('li .name', { hasText: new RegExp(`^${nickname}$`) }) });
+  return (await group.locator('h3').first().textContent())!.trim();
+}
+
+const NL = '\n';
+
+/** Кадри від позиції from до першого розкриття після неї (для перевірки витоку одного запитання). */
+const framesUntilNextReveal = (frames: string[], from: number) => {
+  const rest = frames.slice(from);
+  const at = rest.findIndex((f) => f.includes('"phase":"reveal"'));
+  return at < 0 ? rest : rest.slice(0, at);
+};
+
+it('part 10g: wipeout — the editor builds a ladder with rising prices (375 px too), only players still in answer, a wrong answer burns the bank, take or go on the phone with a countdown, the host waits and pauses the window, a text verdict overridden on the reveal, survivors cash in at the end, no buffs or debuffs, the ladder instead of the leaderboard, banks never leak before the reveal, ladder states in the history', async () => {
+  try {
+    await wipeoutGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function wipeoutGame() {
+  const host = await open('host10g', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10g@example.com');
+
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const q0 = { ...common, id: 'q0', type: 'single' as const, text: 'Розминка: 2 + 2?', points: 100, options: [{ id: 'q0-4', text: '4' }, { id: 'q0-5', text: '5' }], correctId: 'q0-4' };
+  const w1 = {
+    ...common,
+    id: 'w1',
+    type: 'single' as const,
+    text: 'Столиця Канади?',
+    points: 100,
+    options: [{ id: 'w1-a', text: 'Оттава' }, { id: 'w1-b', text: 'Торонто' }, { id: 'w1-c', text: 'Монреаль' }],
+    correctId: 'w1-a',
+  };
+  const w2 = { ...common, id: 'w2', type: 'boolean' as const, text: 'Канберра — столиця Австралії', points: 200, correct: true };
+  const w3 = { ...common, id: 'w3', type: 'numeric' as const, text: 'Скільки сантиметрів в одному метрі?', points: 300, correct: 100, tolerance: 0 };
+  const w4 = { ...common, id: 'w4', type: 'text' as const, text: 'Столиця Туреччини?', points: 400, accepted: ['Анкара'] };
+  const w5 = { ...common, id: 'w5', type: 'slider' as const, text: 'Скільки країн-членів має ООН?', points: 500, min: 150, max: 210, step: 1, correct: 193, tolerance: 2 };
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('r1', [q0] as never, { title: 'Розминка', speedBonus: false, rules: DEFAULT_RULES, shuffleOptions: false }),
+        wipeoutRound('rw', [w1, w2, w3, w4, w5] as never, { title: 'Драбина', shuffleOptions: false }),
+        classicRound('r3', [{ ...q0, id: 'q9', text: 'Кінець?' }] as never, { title: 'Після драбини', speedBonus: false, rules: DEFAULT_RULES, shuffleOptions: false }),
+      ],
+      { leaderboard: 'each', buffs: ['double'], debuffs: ['fog'] },
+    ),
+    title: 'Ва-банк 10g',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Редактор.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Ва-банк 10g' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  await host.locator('.round-tab', { hasText: 'Драбина' }).click();
+  await expect.poll(() => host.locator('.question-list .question-item-price').allTextContents()).toEqual(['100', '200', '300', '400', '500']);
+  await openRoundSettings(host);
+  const settingsPanel = host.locator('details.round-settings');
+  await settingsPanel.getByText('Правил балів, бафів, дебафів і дуелей у «Ва-банк» немає.', exact).waitFor();
+  await settingsPanel.locator('.with-help button').first().waitFor();
+  expect(await host.getByLabel(/Штраф|Мінус за помилку/).count(), 'no penalty rule in a wipeout').toBe(0);
+  await shot(host, 'p10g-editor-wipeout');
+  expect(await host.getByRole('group', { name: 'Тип запитання', ...exact }).getByRole('button').count(), 'five question types').toBe(5);
+
+  await click(host, '+ Раунд');
+  await click(host, 'Ва-банк');
+  await expect.poll(() => host.locator('.question-list .question-item-price').allTextContents()).toEqual(['100', '200', '300', '400', '500']);
+  await shot(host, 'p10g-editor-new-wipeout');
+  await click(host, 'Додати запитання');
+  await expect.poll(() => host.locator('.question-list .question-item-price').allTextContents()).toEqual(['100', '200', '300', '400', '500', '600']);
+  await click(host, 'Видалити раунд');
+  await host.locator('.round-tab', { hasText: 'Драбина' }).click();
+  expect(await host.locator('.round-tab').count()).toBe(3);
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await settingsPanel.scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10g-editor-wipeout-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // 2. Гра.
+  await host.locator('.quiz-list li', { hasText: 'Ва-банк 10g' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10g', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya10g', 375, 812);
+  const petro = await open('petro10g', 375, 812);
+  const vira = await open('vira10g', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const viraFrames = socketFrames(vira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(vira, code, 'Віра', false);
+  const phones = [olya, petro, vira];
+  const all = [host, stage, ...phones];
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // Розминка: усі «4», по 100.
+  for (const page of phones) await page.getByRole('button', { name: /(^|\s)4$/ }).click();
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+
+  // 3. Інтро «Ва-банк»: на сцені лише сходинки.
+  await stage.locator('.wipeout-ladder').waitFor();
+  await expect.poll(() => stage.locator('.wipeout-step').count()).toBe(5);
+  expect(await stage.locator('.wipeout-group').count(), 'the intro ladder shows steps only').toBe(0);
+  await expectStageFits(stage, 'p10g-stage-intro');
+  await shot(stage, 'p10g-stage-intro');
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 4. w1.
+  await stage.getByText('Столиця Канади?', exact).waitFor();
+  await expectStageFits(stage, 'p10g-stage-question');
+  await tapBuff(olya, 'Подвійні бали', 'У «Ва-банк» бафів немає.');
+  await shot(olya, 'p10g-phone-no-buffs');
+  expect(await host.locator('.player-row', { hasText: 'Оля' }).getByRole('button', { name: 'Дебаф', ...exact }).count(), 'no debuffs in a wipeout').toBe(0);
+  for (const page of phones) await pickOption(page, 'Оттава');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  for (const page of phones) await page.getByText('Банк: 100', exact).waitFor();
+  await shot(olya, 'p10g-phone-reveal');
+
+  await click(host, 'Далі');
+  await stage.getByText('Вирішили 0 з 3', exact).waitFor();
+  await stage.locator('[role=timer]').waitFor();
+  await expectStageFits(stage, 'p10g-stage-ladder');
+  await shot(stage, 'p10g-stage-ladder');
+  const deciding = host.getByRole('button', { name: /^Гравці вирішують/ });
+  await deciding.waitFor();
+  expect(await deciding.isDisabled(), 'the host waits while players decide').toBe(true);
+  await shot(host, 'p10g-host-deciding');
+
+  // Пауза: відлік стоїть, поки вікно на паузі (повільні перевірки — під паузою, щоб вікно не збігло).
+  await host.getByRole('button', { name: 'Пауза', ...exact }).first().click();
+  await petro.getByText('Не вибереш за 10 с — банк забереться сам.', exact).waitFor();
+  await petro.getByRole('button', { name: 'Забрати 100', ...exact }).waitFor();
+  await petro.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+  await expectNoSideScroll(petro, 'p10g-phone-decide');
+  await vira.getByRole('button', { name: 'Таблиця', ...exact }).click();
+  const sheet = vira.getByRole('dialog', { name: 'Таблиця', ...exact });
+  await sheet.waitFor();
+  for (const nick of ['Оля', 'Петро', 'Віра']) await sheet.getByText(nick, exact).first().waitFor();
+  expect(await sheet.innerText()).toContain('100');
+  await vira.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+  const timerOf = () => petro.locator('[role=timer]').getAttribute('aria-label');
+  const held = await timerOf();
+  await petro.waitForTimeout(1500);
+  expect(await timerOf(), 'the countdown stands still on pause').toBe(held);
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+
+  // Рішення наживо: пульт бачить вибір, сцена й чужі телефони — лише «вирішив».
+  await decide(petro, false);
+  await host.locator('.host-wipeout li', { hasText: 'Петро' }).getByText('іде далі', exact).waitFor();
+  await stage.locator('.wipeout-group li', { hasText: 'Петро' }).getByText('✓ вирішив', exact).waitFor();
+  await stage.getByText('Вирішили 1 з 3', exact).waitFor();
+  for (const [who, page] of [['stage', stage], ['olya', olya], ['vira', vira]] as const) {
+    expect(await bodyText(page), `${who} sees a decision`).not.toMatch(/забирає|іде далі/);
+  }
+  await decide(olya, false);
+  await decide(vira, false);
+  await host.getByRole('button', { name: 'Наступне запитання', ...exact }).waitFor();
+  await expect.poll(() => stage.locator('[role=timer]').count(), POLL).toBe(0);
+  expect(await ladderGroupOf(stage, 'Петро')).toBe('У грі');
+
+  const fromW2 = { stage: stageFrames.length, petro: petroFrames.length, vira: viraFrames.length };
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 5. w2: Оля помиляється.
+  await stage.getByText('Канберра — столиця Австралії', exact).waitFor();
+  await pickOption(olya, '(^|\\s)Ні$');
+  await pickOption(petro, '(^|\\s)Так$');
+  await pickOption(vira, '(^|\\s)Так$');
+  await host.getByText('Запитання закрите').waitFor();
+  for (const [who, frames, from] of [['stage', stageFrames, fromW2.stage], ['petro', petroFrames, fromW2.petro], ['vira', viraFrames, fromW2.vira]] as const) {
+    const text = framesUntilNextReveal(frames, from).join('\n');
+    const at = text.indexOf('"status":"burned"');
+    expect(at < 0, `${who} got a burned status before the reveal: ${text.slice(Math.max(0, at - 150), at + 150)}`).toBe(true);
+  }
+  await click(host, 'Показати відповідь');
+  await olya.getByText('Банк згорів', exact).first().waitFor();
+  await expectNoSideScroll(olya, 'p10g-phone-burned');
+  await click(host, 'Далі');
+  await stage.getByText('Вирішили 0 з 2', exact).waitFor();
+  expect(await ladderGroupOf(stage, 'Оля')).toBe('Згоріли');
+  expect(await olya.getByRole('button', { name: /^Забрати/ }).count(), 'a burned player cannot decide').toBe(0);
+  await decide(petro, true);
+  await host.locator('.host-wipeout li', { hasText: 'Петро' }).getByText('забирає', exact).waitFor();
+  await shot(host, 'p10g-host-live');
+  for (const [who, page] of [['stage', stage], ['olya', olya], ['vira', vira]] as const) {
+    expect(await bodyText(page), `${who} sees the take`).not.toMatch(/забирає|іде далі/);
+  }
+  await decide(vira, false);
+  await host.getByRole('button', { name: 'Наступне запитання', ...exact }).waitFor();
+  expect(await totalOf(host, 'Петро')).toBe(400);
+  expect(await totalOf(host, 'Віра')).toBe(100);
+
+  // Рішення інших не доходять до сцени; Оля й Віра не бачили, що забрав Петро (власне «далі» вони бачать).
+  expect(stageFrames.join(NL), 'the stage got a live decision').not.toMatch(/"decision":"(take|stay)"/);
+  for (const [who, frames] of [['olya', olyaFrames], ['vira', viraFrames]] as const) {
+    expect(frames.join(NL), `${who} got the take of Petro`).not.toContain('"decision":"take"');
+  }
+
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 6. w3: грає лише Віра.
+  await stage.getByText('Скільки сантиметрів в одному метрі?', exact).waitFor();
+  await olya.getByText('Ти вже не граєш у цьому раунді — дивись.', exact).waitFor();
+  expect(await field(olya, 'Ваша відповідь').count(), 'no answer field for a burned player').toBe(0);
+  await shot(olya, 'p10g-phone-out');
+  await petro.getByText('Ти вже не граєш у цьому раунді — дивись.', exact).waitFor();
+  expect(await field(petro, 'Ваша відповідь').count()).toBe(0);
+  await numericAnswer(vira, '100');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await vira.getByText('Банк: 600', exact).waitFor();
+  for (const page of [olya, petro]) await page.getByText('Ти дивишся', exact).first().waitFor();
+  for (const [who, page] of [['stage', stage], ['olya', olya], ['petro', petro]] as const) expect(await bodyText(page), `${who} sees the bank of Vira`).not.toContain('Банк: 600');
+  await click(host, 'Далі');
+  await decide(vira, false);
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 7. w4: ручна оцінка.
+  await stage.getByText('Столиця Туреччини?', exact).waitFor();
+  await numericAnswer(vira, 'Анкарра');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await vira.getByText('Банк згорів', exact).first().waitFor();
+  await host.locator('.rows li', { hasText: 'Віра' }).getByRole('button', { name: 'Зарахувати', ...exact }).click();
+  await vira.getByText('Банк: 1000', exact).waitFor();
+  await shot(host, 'p10g-host-override');
+  await click(host, 'Далі');
+  await decide(vira, false);
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 8. w5: повзунок у межах допуску, банк доноситься до кінця.
+  await stage.getByText('Скільки країн-членів має ООН?', exact).waitFor();
+  await vira.getByRole('slider', { name: 'Повзунок', ...exact }).fill('195');
+  await click(vira, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await vira.getByText('Банк: 1500', exact).waitFor();
+  await click(host, 'Далі');
+  await vira.getByText('Донесено до кінця: 1500', exact).waitFor();
+  await olya.getByText('Банк згорів', exact).first().waitFor();
+  await petro.getByText('Забрано 300', exact).first().waitFor();
+  await expectNoSideScroll(vira, 'p10g-phone-survived');
+  expect(await totalOf(host, 'Віра')).toBe(1600);
+  expect(await totalOf(host, 'Петро')).toBe(400);
+  expect(await totalOf(host, 'Оля')).toBe(100);
+  await shot(stage, 'p10g-stage-round-end');
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  // 9. Історія.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Ва-банк 10g/ }).click();
+  const items = host.locator('.rows.stacked > li');
+  await items.first().waitFor();
+  const history2 = await items.filter({ hasText: 'Канберра' }).innerText();
+  expect(history2).toContain('Оля — банк згорів');
+  expect(history2).toContain('Петро — забрав(-ла) 300');
+  expect(await items.filter({ hasText: 'країн-членів' }).innerText()).toContain('Віра — доніс(-ла) 1500');
+  await shot(host, 'p10g-history');
 
   expect(problems).toEqual([]);
 }
