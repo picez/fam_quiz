@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { cloudKey, LIMITS, type Answer } from '@quiz/shared';
+import { answerKey, LIMITS, type Answer } from '@quiz/shared';
 import { t } from '../i18n';
 
 /** «100 до 1» на телефоні: одразу answers полів; однакові відповіді підсвічуються; Enter веде до наступного поля, з останнього надсилає. */
@@ -16,7 +16,7 @@ export function SurveyInput({
 }) {
   const [fields, setFields] = useState<string[]>(() => Array.from({ length: answers }, () => ''));
   const refs = useRef<(HTMLInputElement | null)[]>([]);
-  const keys = fields.map((value) => cloudKey(value));
+  const keys = fields.map((value) => answerKey(value));
   const same = keys.map((key, index) => key !== '' && keys.some((other, i) => i !== index && other === key));
   const ready = fields.some((value) => value.trim() !== '');
 

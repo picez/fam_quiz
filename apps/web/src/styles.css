@@ -7307,6 +7307,7 @@ button.wall-tile:disabled {
 }
 
 .survey-board {
+  perspective: 40rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -7326,7 +7327,6 @@ button.wall-tile:disabled {
   border-radius: 0.5rem;
   background: var(--panel);
   text-align: left;
-  perspective: 40rem;
 }
 
 .survey-row.is-closed {

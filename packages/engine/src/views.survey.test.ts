@@ -109,13 +109,19 @@ describe('survey views', () => {
     expect(phone.me.survey).toEqual({
       lines: [
         { value: 'Яблуко', rank: null, text: null, popularity: null, pending: true },
-        { value: 'ананас', rank: null, text: null, popularity: null, pending: false },
+        { value: 'ананас', rank: null, text: null, popularity: null, pending: true },
       ],
     });
     expect(JSON.stringify(phone.me.survey)).not.toContain('32');
-    expect(phone.me.result?.points).toBe(320);
+    // Бали й рахунок не випереджають табло.
+    expect(phone.me.result).toBeNull();
+    expect(phone.me.score).toBe(0);
     expect(playerView(s, 'p2')!.me.survey).toBeNull();
+    expect(playerView(s, 'p1')!.table?.rows.every((r) => r.score === 0)).toBe(true);
+    expect(stageView(s).players.every((p) => p.streak === 0)).toBe(true);
     s = must(revealSurveyAll(s));
+    expect(playerView(s, 'p1')!.me.result?.points).toBe(320);
+    expect(playerView(s, 'p1')!.me.score).toBe(320);
     expect(playerView(s, 'p1')!.me.survey).toEqual({
       lines: [
         { value: 'Яблуко', rank: 1, text: 'Яблуко', popularity: 32, pending: false },

@@ -336,7 +336,7 @@ function currentRecord(state: GameState, playerId: string) {
 
 /** Серія гравця для показу: на етапі locked без поточного запитання, щоб не видати правильність. */
 function shownStreak(state: GameState, player: PlayerState): number {
-  return state.phase === 'locked' ? previousStreak(state, player.id) : player.streak;
+  return state.phase === 'locked' || surveyClosing(state) ? previousStreak(state, player.id) : player.streak;
 }
 
 /** Серія гравця перед поточним запитанням: поспіль правильні відповіді в цьому раунді. */
@@ -929,6 +929,12 @@ function currentSurvey(state: GameState) {
   return { play, question: play.question };
 }
 
+/** «100 до 1» на розкритті, поки ведучий не відкрив усі рядки: бали, вердикт і серія видали б популярність і рядки, яких ще не видно. */
+function surveyClosing(state: GameState): boolean {
+  const open = currentSurvey(state);
+  return open !== null && state.phase === 'reveal' && surveyShown(state, open.play) < open.question.rows.length;
+}
+
 /**
  * Табло «100 до 1»: рядки за місцем; відкриті знизу (surveyShown). Сцена й телефони бачать text/popularity/by лише відкритих,
  * пульт — усю дошку, а by наживо з етапу question.
@@ -969,7 +975,8 @@ function playerSurvey(state: GameState, playerId: string): { lines: PlayerSurvey
   const hits = surveyHitsOf(record.answer) ?? [];
   const lines = record.answer.values.map((value, i): PlayerSurveyLine => {
     const place = order.findIndex((row) => row.id === hits[i]);
-    if (place < 0) return { value, rank: null, text: null, popularity: null, pending: false };
+    // Поки не відкрито всю дошку, «мимо» теж у очікуванні: інакше методом виключення видно, що влучило.
+    if (place < 0) return { value, rank: null, text: null, popularity: null, pending: shown < total };
     // Свій рядок видно, лише коли ведучий відкрив його на табло (місце > total − shown).
     if (place + 1 <= total - shown) return { value, rank: null, text: null, popularity: null, pending: true };
     return { value, rank: place + 1, text: order[place].text, popularity: order[place].popularity, pending: false };
@@ -1349,7 +1356,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       // запис без відповіді (повторне натискання) не підміняємо підсумком попередньої спроби.
       answer: publicAnswer(queued === undefined ? (record?.answer ?? pending) : queued, revealed),
       result:
-        revealed && record !== undefined && finalShown(state, playerId) && !(seen !== null && isUnscored(seen.question))
+        revealed && record !== undefined && finalShown(state, playerId) && !surveyClosing(state) && !(seen !== null && isUnscored(seen.question))
           ? {
               accepted: record.accepted,
               accuracy: record.accuracy,
@@ -1385,7 +1392,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
 function hiddenPoints(state: GameState, playerId: string): number {
   const record = currentRecord(state, playerId);
   if (record === undefined) return 0;
-  if (state.phase === 'locked') return record.points;
+  if (state.phase === 'locked' || surveyClosing(state)) return record.points;
   return state.phase === 'reveal' ? record.points - finalVisiblePoints(state, playerId) : 0;
 }
 
