@@ -37,19 +37,37 @@ export function pinSpot(point: { x: number; y: number }): CSSProperties {
   return { left: `${point.x * 100}%`, top: `${point.y * 100}%` };
 }
 
-/** Рядок підпису кожної позначки: скільки попередніх стоять ближче за LABEL_NEAR — простий розвід по вертикалі. */
-function labelRows(marks: PinBoardMark[], aspect: number): number[] {
+/** Скільки рядків підписів дозволено під скупченням позначок; решта лишається без імені (ім'я є в aria-label). */
+const MAX_LABEL_ROWS = 3;
+/** Скільки підписів узагалі: сотня імен на мапі нечитабельна. */
+const MAX_LABELS = 12;
+/** Біля цього краю (частка ширини) підпис притискається до краю, щоб не виходити за мапу. */
+const EDGE = 0.12;
+
+/**
+ * Рядок підпису кожної позначки (null — без підпису): розвід по вертикалі від ближчих попередніх.
+ * Підсвічена (найближча) йде першою, тож завжди має ім'я; далі — не більше MAX_LABELS підписів і MAX_LABEL_ROWS рядків.
+ */
+function labelRows(marks: PinBoardMark[], aspect: number, highlight: string | undefined): (number | null)[] {
   const { width, height } = pinLayerSize(aspect);
-  return marks.map((mark, index) =>
-    marks.slice(0, index).filter((other) => Math.hypot((other.x - mark.x) * width, (other.y - mark.y) * height) / 10 < LABEL_NEAR).length,
-  );
+  const order = marks.map((_, index) => index).sort((a, b) => Number(marks[b].playerId === highlight) - Number(marks[a].playerId === highlight) || a - b);
+  const rows: (number | null)[] = marks.map(() => null);
+  const labelled: PinBoardMark[] = [];
+  for (const index of order) {
+    const mark = marks[index];
+    const near = labelled.filter((other) => Math.hypot((other.x - mark.x) * width, (other.y - mark.y) * height) / 10 < LABEL_NEAR).length;
+    if (near >= MAX_LABEL_ROWS || labelled.length >= MAX_LABELS) continue;
+    rows[index] = near;
+    labelled.push(mark);
+  }
+  return rows;
 }
 
 /** Основа точки з шаром SVG: кола (за наявності radii), правильна точка, позначки. Пропорція — aspect; позначки сталого розміру. */
 export function PinBoard({ pin, imageUrl, marks = NONE, target, radii, highlight, children }: Props) {
   const { width, height } = pinLayerSize(pin.aspect);
   const url = pinBaseUrl(pin, imageUrl);
-  const rows = labelRows(marks, pin.aspect);
+  const rows = labelRows(marks, pin.aspect, highlight);
   return (
     <div className="pin-board" style={{ aspectRatio: String(pin.aspect), '--pin-aspect': pin.aspect } as CSSProperties}>
       {url !== null && <img className="pin-base" src={url} alt={t('pinMapAlt')} draggable={false} />}
@@ -67,11 +85,13 @@ export function PinBoard({ pin, imageUrl, marks = NONE, target, radii, highlight
           className={mark.playerId === highlight ? 'pin-mark is-best' : 'pin-mark'}
           role="img"
           aria-label={mark.nickname}
-          style={{ ...pinSpot(mark), '--label-row': rows[index] } as CSSProperties}
+          style={{ ...pinSpot(mark), '--label-row': rows[index] ?? 0 } as CSSProperties}
         >
-          <span className="pin-label" aria-hidden="true">
-            {mark.nickname}
-          </span>
+          {rows[index] !== null && (
+            <span className={['pin-label', mark.x < EDGE ? 'is-left' : mark.x > 1 - EDGE ? 'is-right' : '', mark.y > 1 - EDGE ? 'is-up' : ''].filter(Boolean).join(' ')} aria-hidden="true">
+              {mark.nickname}
+            </span>
+          )}
         </span>
       ))}
       {target !== undefined && (

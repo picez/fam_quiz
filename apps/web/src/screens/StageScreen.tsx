@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
-import { LETTERS, answerText, correctPairs, correctText, markText, sliderNumber, sliderValueText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
+import { LETTERS, answerText, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
@@ -17,6 +17,8 @@ import { TurnSchedule } from './TurnSchedule';
 import { RevealImage } from './RevealImage';
 import { QuestionAudio } from './QuestionAudio';
 import { SliderScale } from './SliderScale';
+import { PinBoard } from './PinBoard';
+import { CluesList } from './CluesList';
 import { publicLeadMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import type { AudioCommand } from '../live/useGame';
 import { YouTubePlayer } from './YouTubePlayer';
@@ -169,7 +171,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
   const sliderHint = question.slider === null ? '' : t('sliderOnPhone', { min: sliderNumber(question.slider.min, question.slider.step), max: sliderValueText(question.slider.max, question.slider) });
   const scale = reveal !== null && reveal.type === 'slider' && question.slider !== null && view.sliderMarks !== null ? { correct: reveal, slider: question.slider, marks: view.sliderMarks } : null;
-  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'clues' ? t('cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className="stage-question" aria-busy={busy || undefined}>
@@ -221,7 +223,10 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
         )}
       </div>
       {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} presented={view.question?.choices} />}
-      {!finalReveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(revealP)} />}
+      {question.clues !== null && !finalReveal && (
+        <CluesList clues={question.clues} offsetMs={offsetMs} all={reveal?.type === 'clues' ? reveal.clues : undefined} big />
+      )}
+      {!finalReveal && question.pin === null && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(revealP)} />}
       {question.audio?.clip != null && (
         <QuestionAudio
           key={`${view.round?.index ?? 0}:${view.questionIndex}`}
@@ -304,7 +309,22 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
       {scale !== null && (
         <SliderScale slider={scale.slider} correct={scale.correct.correct} tolerance={scale.correct.tolerance} zeroBeyond={scale.correct.zeroBeyond} marks={scale.marks} highlight={scale.marks[0]?.playerId} />
       )}
-      {reveal !== null && scale === null && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {question.pin !== null && (
+        <div className="stage-pin">
+          <PinBoard
+            pin={question.pin}
+            imageUrl={question.imageUrl}
+            marks={reveal?.type === 'pin' ? (view.pinMarks ?? []) : []}
+            target={reveal?.type === 'pin' ? reveal.target : undefined}
+            radii={reveal?.type === 'pin' ? { full: reveal.fullRadius, zero: reveal.zeroRadius } : undefined}
+            highlight={reveal?.type === 'pin' ? view.pinMarks?.[0]?.playerId : undefined}
+          />
+          {reveal?.type === 'pin' && view.pinMarks !== null && view.pinMarks.length > 0 && (
+            <p className="lead pin-best">{t('pinBest', { name: view.pinMarks[0].nickname, distance: pinDistanceText(reveal, view.pinMarks[0].x, view.pinMarks[0].y) })}</p>
+          )}
+        </div>
+      )}
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }

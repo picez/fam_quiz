@@ -1709,3 +1709,51 @@ describe('HostScreen media (10b)', () => {
     expect(screen.getByLabelText('Олена: 40 %')).toBeTruthy();
   });
 });
+
+describe('HostScreen clues and pin (10c)', () => {
+  const cluesFull: Question = { id: 'q4', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 60, points: 1000, clues: ['Перша', 'Друга', 'Третя', 'Четверта', 'П’ята'], accepted: ['Шевченко'], interval: 8 };
+  const cluesOf = (shown: number, over: { byHost?: boolean; nextAt?: number | null } = {}) => ({
+    ...publicOf(cluesFull),
+    clues: { total: 5, shown: cluesFull.clues.slice(0, shown), nextAt: over.nextAt ?? null, byHost: over.byHost ?? false, intervalSeconds: 8 },
+  });
+
+  it('lists every clue with the opened ones marked and no open button in a classic round', () => {
+    show(during('question', cluesFull, { question: cluesOf(2, { nextAt: Date.now() + 5000 }) }));
+    const panel = document.querySelector('.host-clues') as HTMLElement;
+    expect(panel.querySelectorAll('li')).toHaveLength(5);
+    expect(within(panel).getByText('Четверта')).toBeTruthy();
+    expect(within(panel).getAllByText('відкрито')).toHaveLength(2);
+    expect(within(panel).getAllByText(/^за \d+ с$/).length).toBeGreaterThan(0);
+    expect(within(panel).getByText('Відкрито 2 з 5: правильна відповідь зараз — 80 % ціни')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Відкрити підказку/ })).toBeNull();
+  });
+
+  it('names the clue each answer was given on', () => {
+    show(
+      during('reveal', cluesFull, {
+        question: cluesOf(5),
+        responses: [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'clues', value: 'Шевченко' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 800, overridden: false, buff: null, spare: null, clue: 2 }],
+      }),
+    );
+    expect(screen.getByText('на підказці 2')).toBeTruthy();
+  });
+
+  it('opens the next clue on a voice cell and disables the button after the last one', () => {
+    const send = show(during('question', cluesFull, { question: cluesOf(2, { byHost: true }) }));
+    fireEvent.click(button('Відкрити підказку 3'));
+    expect(send).toHaveBeenCalledWith('host:clue', undefined);
+    cleanup();
+    show(during('question', cluesFull, { question: cluesOf(5, { byHost: true }) }));
+    expect(screen.queryByRole('button', { name: /Відкрити підказку/ })).toBeNull();
+    expect((button('Усі підказки відкрито')).disabled).toBe(true);
+  });
+
+  it('shows live pins and the target with the circles during the question', () => {
+    const pinFull: Question = { id: 'q5', type: 'pin', text: 'Де?', imageUrl: null, video: null, timeLimit: 20, points: 1000, map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+    const question = { ...publicOf(pinFull), pin: { map: 'world' as const, aspect: 2 } };
+    show(during('question', pinFull, { question, pinMarks: [{ playerId: 'p1', nickname: 'Олена', x: 0.4, y: 0.4, points: 0 }] }));
+    expect(document.querySelectorAll('.host-pin .pin-mark')).toHaveLength(1);
+    expect(document.querySelector('.host-pin .pin-target')).not.toBeNull();
+    expect(document.querySelectorAll('.host-pin svg.pin-layer circle')).toHaveLength(2);
+  });
+});

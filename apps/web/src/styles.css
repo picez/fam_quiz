@@ -6978,6 +6978,23 @@ label.powers-price {
   font-weight: 700;
 }
 
+/* Біля краю мапи підпис притиснутий до нього й не виходить за основу. */
+.pin-label.is-left {
+  left: 0;
+  transform: none;
+}
+
+.pin-label.is-right {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.pin-label.is-up {
+  top: auto;
+  bottom: calc(100% + 0.15rem + var(--label-row, 0) * 1.1rem);
+}
+
 .pin-target {
   z-index: 2;
   color: #fff;
@@ -6996,4 +7013,81 @@ label.powers-price {
 .pin-zoom .btn-icon {
   min-width: 2.75rem;
   min-height: 2.75rem;
+}
+
+/* Сцена (10c): підказки великим без прокрутки (до 6 по 150 символів на 1280 × 720), мапа вписується у висоту. */
+.stage .clues-list.is-big {
+  gap: 0.4rem;
+}
+
+.stage .clues-list.is-big .clue {
+  padding: 0.5rem 1rem;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+.stage .clues-list.is-big:has(.clue:nth-child(5)) .clue {
+  padding: 0.35rem 0.9rem;
+  font-size: 1.2rem;
+}
+
+.stage-pin {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 0;
+}
+
+.stage-pin .pin-board {
+  width: min(100%, calc(52vh * var(--pin-aspect, 1)));
+}
+
+.pin-best {
+  margin: 0;
+}
+
+/* Пульт (10c): усі підказки й живі точки. */
+.host-clues {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.host-clues ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.host-clues li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+.host-clues li.is-closed {
+  color: var(--dim);
+}
+
+.host-clues .clue-state {
+  flex: none;
+  margin-left: auto;
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+.host-pin {
+  max-width: 480px;
+}
+
+.history-pin {
+  width: 100%;
+  max-width: 320px;
+  margin-block: 0.5rem;
 }

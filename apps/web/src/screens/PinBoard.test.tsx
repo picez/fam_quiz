@@ -51,4 +51,14 @@ describe('PinBoard', () => {
     expect(document.querySelector('img.pin-base')!.getAttribute('src')).toBe('/uploads/a.png');
     expect(document.querySelector('svg.pin-layer')!.getAttribute('viewBox')).toBe('0 0 500 1000');
   });
+
+  it('caps the labels of a crowd, always names the highlighted one and pins edge labels to the edge', () => {
+    const crowd = Array.from({ length: 8 }, (_, i) => ({ playerId: `p${i}`, nickname: `Гравець ${i}`, x: 0.5 + i * 0.001, y: 0.5 }));
+    render(<PinBoard pin={world} imageUrl={null} marks={[...crowd, { playerId: 'e', nickname: 'Край', x: 0.02, y: 0.5 }]} highlight="p7" />);
+    // Три рядки під скупченням, решта без імені (ім'я лишається в aria-label); найближчий завжди з підписом.
+    const named = Array.from(document.querySelectorAll('.pin-mark')).filter((mark) => mark.querySelector('.pin-label') !== null);
+    expect(named.map((mark) => mark.getAttribute('aria-label'))).toContain('Гравець 7');
+    expect(named.length).toBe(4);
+    expect(screen.getByRole('img', { name: 'Край' }).querySelector('.pin-label')!.classList.contains('is-left')).toBe(true);
+  });
 });

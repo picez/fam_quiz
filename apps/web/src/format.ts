@@ -155,7 +155,7 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return answer.value;
     case 'pin':
       return question?.type === 'pin'
-        ? t('pinAnswerAt', { distance: pinDistance(question, answer.x, answer.y).toLocaleString('uk-UA', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })
+        ? t('pinAnswerAt', { distance: pinDistanceText(question, answer.x, answer.y) })
         : t('pinAnswerBare');
     case 'numeric':
       return String(answer.value);
@@ -263,4 +263,9 @@ export function pickedText(answer: Answer, choices: Choice[], slider: PublicSlid
     default:
       return answerText(answer, null);
   }
+}
+
+/** Відстань точки від правильної, % довшої сторони, з одним знаком після коми. */
+export function pinDistanceText(question: Parameters<typeof pinDistance>[0], x: number, y: number): string {
+  return pinDistance(question, x, y).toLocaleString('uk-UA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }

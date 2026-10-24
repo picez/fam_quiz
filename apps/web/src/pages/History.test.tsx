@@ -537,3 +537,27 @@ describe('GameHistory sort', () => {
     expect(screen.getByText('Правильна відповідь: Овочі: Морква, Буряк; Фрукти: Яблуко, Груша')).toBeTruthy();
   });
 });
+
+describe('GameHistory pin (10c)', () => {
+  it('shows the map with the target and the circles and the distance of each answer', async () => {
+    const pinQ: Question = { ...base, id: 'q6', type: 'pin', text: 'Де Львів?', map: 'ukraine', aspect: 16 / 11, target: { x: 0.1, y: 0.4 }, fullRadius: 3, zeroRadius: 15 };
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        questions: [
+          {
+            index: 0, roundIndex: 0, text: 'Де Львів?', type: 'pin', answered: 1, accepted: 1, cell: null, question: pinQ,
+            responses: [{ nickname: 'Олена', answer: { type: 'pin', x: 0.12, y: 0.4 }, buff: null, spare: null, accepted: true }],
+            final: null,
+          },
+        ],
+      },
+    } as never);
+    open('/history/g1');
+    expect(await screen.findByText('Точка за 2,0 % від правильної')).toBeTruthy();
+    expect(document.querySelector('.history-pin .pin-target')).not.toBeNull();
+    expect(document.querySelectorAll('.history-pin svg.pin-layer circle')).toHaveLength(2);
+    expect(document.querySelector('.history-pin .pin-mark')).toBeNull();
+  });
+});

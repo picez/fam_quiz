@@ -1325,3 +1325,52 @@ describe('StageScreen media (10b)', () => {
     expect(document.querySelector('canvas[data-stage]')).not.toBeNull();
   });
 });
+
+describe('StageScreen clues and pin (10c)', () => {
+  const cluesQuestion = { ...question, type: 'clues' as const, choices: [], clues: { total: 5, shown: ['Народився у 1814 році', 'Писав вірші'], nextAt: null, byHost: false, intervalSeconds: 8 } };
+  const pinQuestion = { ...question, type: 'pin' as const, choices: [], pin: { map: 'world' as const, aspect: 2 } };
+  const pinFull: Question = { id: 'q4', type: 'pin', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
+  const cluesFull: Question = { id: 'q5', type: 'clues', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, clues: ['a', 'b', 'c'], accepted: ['Шевченко'], interval: 8 };
+
+  it('shows the opened clues large with the phone hint', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: cluesQuestion }));
+    expect(document.querySelector('.clues-list.is-big')).not.toBeNull();
+    expect(screen.getByText('Народився у 1814 році')).toBeTruthy();
+    expect(screen.getByText('Писав вірші')).toBeTruthy();
+    expect(screen.getByText('Відповідайте на телефоні, щойно впізнаєте: що раніше, то більше балів.')).toBeTruthy();
+  });
+
+  it('has no phone hint on a voice cell', () => {
+    const voice = { ...cluesQuestion, clues: { ...cluesQuestion.clues, byHost: true } };
+    show(view({ phase: 'question', questionIndex: 0, question: voice, board: { cell: { kind: 'normal', answerMode: 'voice', category: 'К', price: 100, mark: 'none' } } as unknown as BoardInfo }));
+    expect(screen.queryByText(/Відповідайте на телефоні, щойно впізнаєте/)).toBeNull();
+  });
+
+  it('shows the map without marks or target during the question', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: pinQuestion }));
+    expect(document.querySelector('img.pin-base')).not.toBeNull();
+    expect(screen.getByText('Ставте точку на телефоні')).toBeTruthy();
+    expect(document.querySelector('.pin-mark')).toBeNull();
+    expect(document.querySelector('.pin-target')).toBeNull();
+  });
+
+  it('shows every pin, the target and both circles at the reveal with the nearest highlighted', () => {
+    const pinMarks = [
+      { playerId: 'p1', nickname: 'Оля', x: 0.52, y: 0.5, points: 900 },
+      { playerId: 'p2', nickname: 'Петро', x: 0.6, y: 0.5, points: 100 },
+    ];
+    show(view({ phase: 'reveal', questionIndex: 0, question: pinQuestion, reveal: pinFull, pinMarks }));
+    expect(document.querySelectorAll('.pin-mark')).toHaveLength(2);
+    expect(document.querySelector('.pin-mark.is-best')!.getAttribute('aria-label')).toBe('Оля');
+    expect(document.querySelector('.pin-target')).not.toBeNull();
+    expect(document.querySelectorAll('svg.pin-layer circle')).toHaveLength(2);
+    expect(screen.getByText('Найближче: Оля — 2,0 %')).toBeTruthy();
+    expect(document.querySelector('.lead.answer')).toBeNull();
+  });
+
+  it('lists every clue at the reveal, then the usual answer line', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: cluesQuestion, reveal: cluesFull }));
+    expect(document.querySelectorAll('.clues-list .clue')).toHaveLength(3);
+    expect(document.querySelector('.lead.answer')).not.toBeNull();
+  });
+});

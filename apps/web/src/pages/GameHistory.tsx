@@ -6,6 +6,7 @@ import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t } from '../i18n';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
+import { PinBoard } from '../screens/PinBoard';
 import { usePrivateData } from '../usePrivateData';
 
 /** Рядки дуелей: пари 'duel' з сусідніми seq (+N і −N) — один рядок; непарне — окремо. */
@@ -146,6 +147,16 @@ export function GameHistory() {
                         )}
                         {question.question.type === 'sort' && (
                           <p className="meta">{t('correctAnswer', { answer: correctText(question.question) })}</p>
+                        )}
+                        {question.question.type === 'pin' && (
+                          <div className="history-pin">
+                            <PinBoard
+                              pin={{ map: question.question.map, aspect: question.question.aspect }}
+                              imageUrl={question.question.imageUrl}
+                              target={question.question.target}
+                              radii={{ full: question.question.fullRadius, zero: question.question.zeroRadius }}
+                            />
+                          </div>
                         )}
                         {question.responses.length > 0 && (
                           <details className="responses">
