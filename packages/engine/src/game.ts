@@ -472,7 +472,9 @@ export function removePlayer(state: GameState, playerId: string): Result {
   const final = state.final === null ? null : dropFromFinal(state.final, playerId);
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
   const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
-  const { [playerId]: _debuff, ...debuffs } = state.debuffs;
+  const { [playerId]: _debuff, ...kept } = state.debuffs;
+  // Дебаф, куплений вилученим, лишається на цілі, але стає «від ведучого»: ведучий може його скасувати.
+  const debuffs = Object.fromEntries(Object.entries(kept).map(([id, d]) => [id, d.by === playerId ? { ...d, by: null } : d]));
   // Дуель з вилученим скасовується; якщо вилучено суперника до підсумку, той, хто оголосив, отримує право назад.
   const duel = state.duel;
   const inDuel = duel !== null && (duel.challengerId === playerId || duel.opponentId === playerId);

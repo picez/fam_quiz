@@ -6,7 +6,7 @@ import { placeWager } from './final';
 import { end, lock, next, pause, removePlayer, start, type GameState } from './game';
 import { T0, debuffQuiz as quiz, rich, rng } from './testing/debuffs';
 import { toDuelQuestion } from './testing/duel';
-import { classicRound, finalRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { boardRound, classicRound, finalRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const scoreOf = (s: GameState, id: string) => s.players.find((p) => p.id === id)?.score;
@@ -155,14 +155,34 @@ describe('buying a debuff', () => {
     expect(cancelDebuff(rich(), 'p2')).toEqual({ ok: false, error: 'not_found' });
   });
 
-  it('a kicked buyer leaves the debuff on the target; a kicked target takes it away and the price stays spent', () => {
+  it('a kicked buyer leaves the debuff on the target, which the host can now cancel; a kicked target takes it away and the price stays spent', () => {
     const bought = must(buyDebuff(rich(), 'p1', 'p2', 'fog', T0));
     const noBuyer = must(removePlayer(bought, 'p1'));
-    expect(noBuyer.debuffs.p2).toEqual({ kind: 'fog', firedAt: null, since: null, by: 'p1' });
+    expect(noBuyer.debuffs.p2).toEqual({ kind: 'fog', firedAt: null, since: null, by: null });
     expect(noBuyer.adjustments.some((a) => a.playerId === 'p1')).toBe(false);
+    expect(Object.hasOwn(must(cancelDebuff(noBuyer, 'p2')).debuffs, 'p2')).toBe(false);
+    // уже діє: by теж null, а скасувати діючий не можна, як і від ведучого
+    const active = must(removePlayer(must(next(bought, T0 + 1000, rng)), 'p1'));
+    expect(active.debuffs.p2).toMatchObject({ kind: 'fog', since: T0 + 1000, by: null });
+    expect(cancelDebuff(active, 'p2')).toEqual({ ok: false, error: 'wrong_phase' });
+    // чужі куплені дебафи не зачіпаються
+    const vira = must(buyDebuff(must(adjustScore(bought, 'p3', 500, T0)), 'p3', 'p1', 'mud', T0));
+    expect(must(removePlayer(vira, 'p2')).debuffs.p1).toEqual({ kind: 'mud', firedAt: null, since: null, by: 'p3' });
     const noTarget = must(removePlayer(bought, 'p2'));
     expect(Object.hasOwn(noTarget.debuffs, 'p2')).toBe(false);
     expect(noTarget.adjustments.at(-1)).toMatchObject({ playerId: 'p1', points: -200, source: 'debuff', target: 'p2' });
     expect(scoreOf(noTarget, 'p1')).toBe(300);
+  });
+
+  it('can buy on the board while a cell is being picked; the next cell is a new cycle', () => {
+    const quiz = makeRoundsQuiz([boardRound('g1', [{ title: 'Міста', cells: [withId(single, 'c1'), withId(single, 'c2')] }])], { leaderboard: 'each' });
+    const intro = must(adjustScore(must(start(lobbyWith(quiz, 'Олена', 'Тарас'))), 'p1', 500, T0));
+    const board = must(next(intro, T0, rng));
+    expect(board.phase).toBe('board');
+    expect(shopBlock(board, 'p1')).toBeNull();
+    const bought = must(buyDebuff(board, 'p1', 'p2', 'fog', T0 + 100));
+    expect(scoreOf(bought, 'p1')).toBe(300);
+    expect(bought.debuffs.p2).toEqual({ kind: 'fog', firedAt: null, since: null, by: 'p1' });
+    expect(shopBlock(bought, 'p1')).toBe('bought');
   });
 });
