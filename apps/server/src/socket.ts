@@ -18,6 +18,8 @@ import {
   wagerSchema,
   socketAuthSchema,
   sortSchema,
+  wallSchema,
+  cloudHideSchema,
   buffSchema,
   hintSchema,
   voteSchema,
@@ -212,6 +214,12 @@ export function attachSockets(
       return payload.success ? manager.sort(room, identity.playerId, payload.data.wordId, payload.data.categoryId) : INVALID;
     });
 
+    on('player:wall', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = wallSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.wall(room, identity.playerId, payload.data.tiles) : INVALID;
+    });
+
     on('player:buff', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = buffSchema.safeParse(payloadOf(args));
@@ -302,6 +310,12 @@ export function attachSockets(
       if (!isHost) return FORBIDDEN;
       const payload = orderSchema.safeParse(payloadOf(args));
       return payload.success ? manager.host(room, { type: 'order', ...payload.data }) : INVALID;
+    });
+
+    on('host:cloud-hide', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = cloudHideSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'cloud-hide', ...payload.data }) : INVALID;
     });
 
     on('host:kick', (args) => {

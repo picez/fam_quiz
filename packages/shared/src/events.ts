@@ -38,6 +38,10 @@ export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).ref
 const id64 = z.string().min(1).max(64).refine(isStorable, UNSTORABLE);
 /** Хід сортування: слово з поточної картки в категорію; перевіряє рушій. */
 export const sortSchema = z.object({ wordId: id64, categoryId: id64 });
+/** Вибір плиток стіни: позиції в порядку показу (10d). */
+export const wallSchema = z.object({ tiles: z.array(z.number().int().min(0).max(15)).min(3).max(4) });
+/** Сховати чи повернути слово «хмари» (10d). */
+export const cloudHideSchema = z.object({ key: z.string().min(1).max(LIMITS.cloudWord * 2), hidden: z.boolean() });
 /** Варіант, названий уголос на усній клітинці; null знімає позначку. */
 export const nameSchema = z.object({ answer: answerSchema.nullable() });
 /** Бали від ведучого: ціле, не нуль, за модулем не більше LIMITS.maxAdjust. */
@@ -81,6 +85,7 @@ export interface ClientToServerEvents {
   'player:guess': (payload: z.infer<typeof guessSchema>, ack: Ack) => void;
   'player:hint': (ack: Ack) => void;
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;
+  'player:wall': (payload: z.infer<typeof wallSchema>, ack: Ack) => void;
   /** Узяти баф на поточне запитання. */
   'player:buff': (payload: z.infer<typeof buffSchema>, ack: Ack) => void;
   /** Купити дебаф для суперника за бали. */
@@ -123,6 +128,7 @@ export interface ClientToServerEvents {
   'host:repick': (payload: z.infer<typeof pendingSchema>, ack: Ack) => void;
   'host:pick': (payload: z.infer<typeof pickSchema>, ack: Ack) => void;
   'host:order': (payload: z.infer<typeof orderSchema>, ack: Ack) => void;
+  'host:cloud-hide': (payload: z.infer<typeof cloudHideSchema>, ack: Ack) => void;
   /** Почати кидки кубиків: кожен гравець кидає сам. */
   'host:dice': (ack: Ack) => void;
   /** Кинути за тих, хто в поточному турі ще не кинув. */

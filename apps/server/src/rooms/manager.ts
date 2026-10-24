@@ -40,6 +40,8 @@ import {
   skipDuelQuestion,
   skipTurn,
   sortWord,
+  guessWall,
+  hideCloudWord,
   takeBuff,
   chooseRetry,
   nextClue,
@@ -116,6 +118,7 @@ export type HostAction =
   | { type: 'pick'; cellId: string }
   | { type: 'duel-category'; categoryId: string }
   | { type: 'order'; playerIds: string[] }
+  | { type: 'cloud-hide'; key: string; hidden: boolean }
   | { type: 'time'; seconds: -15 | 15 };
 
 export type JoinResult =
@@ -419,6 +422,11 @@ export class RoomManager {
     return this.apply(room, sortWord(room.state, playerId, wordId, categoryId, this.now()));
   }
 
+  wall(room: Room, playerId: string, tiles: number[]): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, guessWall(room.state, playerId, tiles, this.now()));
+  }
+
   buff(room: Room, playerId: string, kind: BuffKind): AckResult {
     if (!this.alive(room)) return this.gone();
     return this.apply(room, takeBuff(room.state, playerId, kind, this.now(), this.rng));
@@ -521,6 +529,8 @@ export class RoomManager {
         return this.apply(room, nextClue(state, this.now()));
       case 'order':
         return this.apply(room, setOrder(state, action.playerIds));
+      case 'cloud-hide':
+        return this.apply(room, hideCloudWord(state, action.key, action.hidden));
       case 'kick':
         return this.kick(room, action.playerId);
       case 'adjust':
