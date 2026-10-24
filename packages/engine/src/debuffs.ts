@@ -49,7 +49,7 @@ const BLOCK_ERRORS = { phase: 'wrong_phase', paused: 'paused', bought: 'debuff_b
 /**
  * Гравець купує дебаф для суперника за debuffPrice. Помилки в такому порядку: not_found (немає покупця чи цілі),
  * not_allowed (ціль — сам покупець, дебаф не дозволено або купівлю вимкнено settings.debuffShop), wrong_phase / paused /
- * debuff_bought (shopBlock), debuff_busy (на цілі вже чекає або діє дебаф), points_short (score < ціна: у мінус не можна).
+ * debuff_bought (shopBlock), target_offline (ціль не підключена: дебаф не спрацював би), debuff_busy (на цілі вже чекає або діє дебаф), points_short (score < ціна: у мінус не можна).
  * Успіх: коригування −ціна з source 'debuff', target, debuff; дебаф цілі { kind, firedAt: null, since: null, by: buyerId }.
  */
 export function buyDebuff(state: GameState, buyerId: string, targetId: string, kind: DebuffKind, now: number): Result {
@@ -60,6 +60,7 @@ export function buyDebuff(state: GameState, buyerId: string, targetId: string, k
   }
   const block = shopBlock(state, buyerId);
   if (block !== null) return fail(BLOCK_ERRORS[block]);
+  if (!state.players.some((p) => p.id === targetId && p.connected)) return fail('target_offline');
   if (shownDebuff(state, targetId) !== null) return fail('debuff_busy');
   const price = debuffPrice(state.quiz, kind);
   // На дозволених етапах прихованих балів немає, тож score — справжній рахунок.

@@ -13,8 +13,8 @@ const shop: PlayerShop = {
     { kind: 'mud', price: 300 },
   ],
   targets: [
-    { playerId: 'p2', nickname: 'Петро', busy: false },
-    { playerId: 'p3', nickname: 'Іра', busy: true },
+    { playerId: 'p2', nickname: 'Петро', busy: false, offline: false },
+    { playerId: 'p3', nickname: 'Іра', busy: true, offline: false },
   ],
   block: null,
 };
@@ -52,6 +52,16 @@ describe('DebuffShop', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(onError).toHaveBeenLastCalledWith(null);
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('an offline rival is shown as «Не в грі» and cannot be picked', () => {
+    const away: PlayerShop = { ...shop, targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: true }] };
+    render(<DebuffShop shop={away} score={250} send={okSend()} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    fireEvent.click(button(/Туман/));
+    expect(button(/Петро/).disabled).toBe(true);
+    expect(screen.getByText('Не в грі')).toBeTruthy();
+    expect(button('Купити за 100').disabled).toBe(true);
   });
 
   it('«Назад» returns to the debuff list', () => {

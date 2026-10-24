@@ -1131,7 +1131,7 @@ function playerShop(state: GameState, playerId: string): PlayerShop | null {
   const items = allowedDebuffs(state.quiz).map((kind) => ({ kind, price: debuffPrice(state.quiz, kind) }));
   const targets = state.players
     .filter((p) => p.id !== playerId)
-    .map((p) => ({ ...blitzPlayer(state, p.id), busy: shownDebuff(state, p.id) !== null }));
+    .map((p) => ({ ...blitzPlayer(state, p.id), busy: shownDebuff(state, p.id) !== null, offline: !p.connected }));
   if (items.length === 0 || targets.length === 0) return null;
   return { items, targets, block: shopBlock(state, playerId) };
 }

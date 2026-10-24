@@ -340,7 +340,7 @@ describe('debuff strength', () => {
     expect(css).toContain('--fog: rgb(150 160 185 / 0.3);');
     const fog = rule('.debuff-fog');
     expect(fog).toContain('background: var(--fog);');
-    expect(fog).toContain('backdrop-filter: blur(5px);');
+    expect(fog).toContain('backdrop-filter: blur(3px);');
     expect(css).toMatch(/@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*\.debuff-fog \{\s*background: rgb\(150 160 185 \/ 0\.6\);/);
   });
 

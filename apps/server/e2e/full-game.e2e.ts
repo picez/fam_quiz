@@ -6653,14 +6653,15 @@ async function debuffShopGame() {
   };
   const notice = (page: Page) => page.locator('.live-notice.is-debuff');
   const bought = 'Оля насилає дебаф на гравця Петро';
-  /** Покупка в аркуші: дебаф → суперник → «Купити за …»; аркуш закривається, сповіщення в жертви. */
+  /** Покупка в аркуші: дебаф → суперник → «Купити за …»; аркуш закривається, сповіщення в Іри (жертві — ні: банер назве покупця). */
   const buy = async (page: Page, debuff: RegExp, target: string, cost: number) => {
     await openShop(page);
     await sheet(page).locator('.shop-item', { hasText: debuff }).click();
     await sheet(page).locator('.shop-target', { hasText: target }).click();
     await sheet(page).getByRole('button', { name: `Купити за ${cost}`, ...exact }).click();
     await sheet(page).waitFor({ state: 'detached' });
-    await notice(petro).getByText(bought, exact).waitFor();
+    await notice(ira).getByText(bought, exact).waitFor();
+    expect(await notice(petro).count(), 'the victim gets no purchase notice').toBe(0);
   };
   const answer = async (page: Page) => {
     await page.getByRole('button', { name: /Київ/ }).click();
@@ -6714,14 +6715,16 @@ async function debuffShopGame() {
   await sheet(olya).getByRole('button', { name: 'Купити за 100', ...exact }).click();
   await sheet(olya).waitFor({ state: 'detached' });
   await olya.locator('header.bar .score').getByText('1900', exact).waitFor();
-  for (const page of [stage, host, petro, ira]) {
+  for (const page of [stage, host, olya, ira]) {
     await notice(page).getByText(bought, exact).waitFor();
     expect(await notice(page).textContent()).not.toContain('Туман');
   }
+  // Жертві сповіщення про покупку немає: її дебаф чекає, а банер, коли спрацює, назве покупця.
+  expect(await notice(petro).count(), 'the victim gets no purchase notice').toBe(0);
   await stage.waitForTimeout(300); // сповіщення проявляється 0,25 с
   await shot(stage, 'debuff9c-notice-stage');
-  await shot(petro, 'debuff9c-notice-375');
-  await expectApart(petro, '.live-notice.is-debuff', ['header.bar'], 'purchase notice 375×812');
+  await shot(olya, 'debuff9c-notice-375');
+  await expectApart(olya, '.live-notice.is-debuff', ['header.bar'], 'purchase notice 375×812');
   await row('Петро').locator('.debuff-tag').getByText('🌫️ Туман від гравця Оля · чекає', exact).waitFor();
   await tool('Петро', 'Дебаф');
   await row('Петро').getByText('Куплено гравцем — скасувати не можна.', exact).waitFor();
@@ -6822,9 +6825,37 @@ async function debuffShopGame() {
   await answer(ira);
   await toTable();
 
-  // 8. Дзеркало (Q4): перевернуто, але відповісти можна.
+  // 8. Дзеркало (Q4) на 375×667: банер жертви й сповіщення про бали — одне над одним, остання відповідь видна; перевернуто, але відповісти можна.
   await buy(olya, /Дзеркало/, 'Петро', 200);
+  await petro.setViewportSize({ width: 375, height: 667 });
+  await tool('Петро', 'Бали');
   await nextQuestion(4);
+  await petro.locator('.debuff-banner').waitFor();
+  await row('Петро').getByRole('button', { name: '+100', ...exact }).click();
+  await petro.locator('.live-notice').waitFor();
+  await petro.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+  const victim = (await petro.evaluate(`(() => {
+    const box = (element) => {
+      if (element === null) return null;
+      const r = element.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const choices = [...document.querySelectorAll('.choice')];
+    return {
+      banner: box(document.querySelector('.debuff-banner')),
+      notices: [...document.querySelectorAll('.live-notice')].map(box),
+      content: Math.max(...choices.map((element) => element.getBoundingClientRect().bottom)),
+    };
+  })()`)) as { banner: Box | null; notices: Box[]; content: number };
+  console.log(`victim stack 375×667: ${JSON.stringify(victim)}`);
+  await shot(petro, 'debuff9c-victim-notice-375x667');
+  expect(victim.banner, 'the debuff banner was gone before the check (3 s)').not.toBeNull();
+  expect(victim.notices.length).toBe(1);
+  const [pointsNotice] = victim.notices as [Box];
+  expect(overlaps(pointsNotice, victim.banner!), 'the notice covers the banner').toBe(false);
+  expect(pointsNotice.y + pointsNotice.height <= victim.banner!.y + 0.5, 'the notice is above the banner').toBe(true);
+  expect(victim.content <= pointsNotice.y + 0.5, 'the last answer is under the notice').toBe(true);
+  await petro.setViewportSize({ width: 375, height: 812 });
   await petro.locator('.debuff-zone.is-mirror').waitFor();
   await afterSplash(...all);
   expect(await petro.evaluate(`getComputedStyle(document.querySelector('.debuff-content')).transform`)).toMatch(/^matrix\(-1/);

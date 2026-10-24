@@ -3,7 +3,7 @@ import type { ErrorCode } from '@quiz/shared';
 import { adjustScore } from './adjust';
 import { buyDebuff, cancelDebuff, setDebuff, shopBlock } from './debuffs';
 import { placeWager } from './final';
-import { end, lock, next, pause, removePlayer, start, type GameState } from './game';
+import { end, lock, next, pause, removePlayer, setConnected, start, type GameState } from './game';
 import { T0, debuffQuiz as quiz, rich, rng } from './testing/debuffs';
 import { toDuelQuestion } from './testing/duel';
 import { boardRound, classicRound, finalRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
@@ -56,6 +56,13 @@ describe('buying a debuff', () => {
     expect(buyDebuff(rich(), 'nobody', 'p2', 'fog', T0)).toEqual({ ok: false, error: 'not_found' });
     // ведучий насилає й тоді, коли гравцям купувати не можна
     expect(setDebuff(rich({ debuffShop: false }), 'p2', 'fog').ok).toBe(true);
+  });
+
+  it('not for a rival who is offline; back online — can buy again', () => {
+    const away = must(setConnected(rich(), 'p2', false, T0));
+    expect(buyDebuff(away, 'p1', 'p2', 'fog', T0)).toEqual({ ok: false, error: 'target_offline' });
+    expect(scoreOf(away, 'p1')).toBe(500);
+    expect(buyDebuff(must(setConnected(away, 'p2', true, T0)), 'p1', 'p2', 'fog', T0).ok).toBe(true);
   });
 
   it('a target with a debuff is busy whoever sent it', () => {

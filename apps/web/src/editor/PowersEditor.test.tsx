@@ -21,7 +21,40 @@ describe('PowersEditor prices', () => {
     fireEvent.change(screen.getAllByLabelText('Ціна, балів')[0], { target: { value: '' } });
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ debuffPrices: undefined }));
     fireEvent.change(screen.getAllByLabelText('Ціна, балів')[0], { target: { value: '200' } });
+    rerender(<PowersEditor settings={{ leaderboard: 'each', debuffs: ['fog', 'mud'], debuffPrices: { fog: 200 } }} spares={undefined} onChange={onChange} />);
+    fireEvent.blur(screen.getAllByLabelText('Ціна, балів')[0]);
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ debuffPrices: undefined }));
+  });
+
+  it('typing 2000 passes through 200 without clearing the field', () => {
+    let settings: Parameters<typeof PowersEditor>[0]['settings'] = { leaderboard: 'each', debuffs: ['fog'] };
+    const onChange = vi.fn((powers: { debuffPrices: Partial<Record<'fog', number>> | undefined }) => {
+      settings = { ...settings, debuffPrices: powers.debuffPrices };
+    });
+    const { rerender } = render(<PowersEditor settings={settings} spares={undefined} onChange={onChange} />);
+    for (const text of ['2', '20', '200', '2000']) {
+      fireEvent.change(screen.getByLabelText('Ціна, балів'), { target: { value: text } });
+      rerender(<PowersEditor settings={settings} spares={undefined} onChange={onChange} />);
+      expect((screen.getByLabelText('Ціна, балів') as HTMLInputElement).value).toBe(text);
+    }
+    fireEvent.blur(screen.getByLabelText('Ціна, балів'));
+    rerender(<PowersEditor settings={settings} spares={undefined} onChange={onChange} />);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ debuffPrices: { fog: 2000 } }));
+    expect((screen.getByLabelText('Ціна, балів') as HTMLInputElement).value).toBe('2000');
+  });
+
+  it('an out-of-range price typed stays visible and invalid after blur', () => {
+    let settings: Parameters<typeof PowersEditor>[0]['settings'] = { leaderboard: 'each', debuffs: ['fog'] };
+    const onChange = vi.fn((powers: { debuffPrices: Partial<Record<'fog', number>> | undefined }) => {
+      settings = { ...settings, debuffPrices: powers.debuffPrices };
+    });
+    const { rerender } = render(<PowersEditor settings={settings} spares={undefined} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText('Ціна, балів'), { target: { value: '9000' } });
+    fireEvent.blur(screen.getByLabelText('Ціна, балів'));
+    rerender(<PowersEditor settings={settings} spares={undefined} onChange={onChange} />);
+    const input = screen.getByLabelText('Ціна, балів') as HTMLInputElement;
+    expect(input.value).toBe('9000');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
   });
 
   it('unticking a debuff drops its price', () => {

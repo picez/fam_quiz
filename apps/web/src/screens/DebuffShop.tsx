@@ -70,7 +70,7 @@ export function DebuffShop({ shop, score, send, onError }: { shop: PlayerShop; s
 
   const item = kind === null ? undefined : shop.items.find((i) => i.kind === kind);
   const target = shop.targets.find((p) => p.playerId === targetId);
-  const canBuy = item !== undefined && target !== undefined && !target.busy && shop.block === null && item.price <= score && !busy;
+  const canBuy = item !== undefined && target !== undefined && !target.busy && !target.offline && shop.block === null && item.price <= score && !busy;
   const buy = () => {
     if (!canBuy) return;
     void run('player:debuff', { targetId: target.playerId, kind: item.kind }).then((ok) => {
@@ -118,11 +118,15 @@ export function DebuffShop({ shop, score, send, onError }: { shop: PlayerShop; s
                         type="button"
                         className="shop-target"
                         aria-pressed={p.playerId === targetId}
-                        disabled={p.busy || shop.block !== null}
+                        disabled={p.busy || p.offline || shop.block !== null}
                         onClick={() => setTargetId(p.playerId)}
                       >
                         <span className="shop-target-name">{p.nickname}</span>
-                        {p.busy && <span className="shop-item-note">{t('shopBusy')}</span>}
+                        {p.offline ? (
+                          <span className="shop-item-note">{t('shopOffline')}</span>
+                        ) : (
+                          p.busy && <span className="shop-item-note">{t('shopBusy')}</span>
+                        )}
                       </button>
                     ))}
                   </div>

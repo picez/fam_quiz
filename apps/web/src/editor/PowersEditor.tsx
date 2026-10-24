@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { allowedBuffs, allowedDebuffs, BUFF_KINDS, DEBUFF_KINDS, LIMITS, READY_BUFFS, type BuffKind, type DebuffKind, type Question, type QuizSettings } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
@@ -46,12 +47,26 @@ export function PowersEditor({ settings, spares, onChange }: Props) {
     });
   };
 
+  /** Сирий текст полів ціни, поки поле у фокусі: «2000» набирається через «200», тож нормалізуємо лише на blur. */
+  const [drafts, setDrafts] = useState<Partial<Record<DebuffKind, string>>>({});
+
   const setPrice = (kind: DebuffKind, raw: string) => {
+    setDrafts((current) => ({ ...current, [kind]: raw }));
     const value = raw.trim() === '' ? NaN : Number(raw);
     const rest: Prices = { ...prices };
-    if (Number.isNaN(value) || value === LIMITS.defaultDebuffPrice) delete rest[kind];
+    if (Number.isNaN(value)) delete rest[kind];
     else rest[kind] = value;
     emit({ prices: rest });
+  };
+
+  /** На blur порожнє чи рівне типовому поле прибирає ключ; решта (і поза межами) лишається видимою. */
+  const settlePrice = (kind: DebuffKind) => {
+    setDrafts(({ [kind]: _dropped, ...current }) => current);
+    if (prices?.[kind] === LIMITS.defaultDebuffPrice) {
+      const rest: Prices = { ...prices };
+      delete rest[kind];
+      emit({ prices: rest });
+    }
   };
 
   return (
@@ -70,7 +85,8 @@ export function PowersEditor({ settings, spares, onChange }: Props) {
           {DEBUFF_KINDS.map((kind) => {
             const on = debuffs.includes(kind);
             const price = prices?.[kind];
-            const bad = price !== undefined && (price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice);
+            const bad =
+              price !== undefined && (!Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice);
             return (
               <div className="powers-row" key={kind}>
                 <label className="powers-item">
@@ -92,9 +108,10 @@ export function PowersEditor({ settings, spares, onChange }: Props) {
                       max={LIMITS.maxDebuffPrice}
                       step={50}
                       placeholder={String(LIMITS.defaultDebuffPrice)}
-                      value={price ?? ''}
+                      value={drafts[kind] ?? price ?? ''}
                       aria-invalid={bad ? true : undefined}
                       onChange={(event) => setPrice(kind, event.target.value)}
+                      onBlur={() => settlePrice(kind)}
                     />
                   </label>
                 )}

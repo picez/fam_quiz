@@ -68,6 +68,7 @@ export type ErrorCode =
   | 'debuff_busy'
   | 'points_short'
   | 'debuff_bought'
+  | 'target_offline'
   | 'sort_locked'
   | 'sort_stale'
   | 'duel_used'

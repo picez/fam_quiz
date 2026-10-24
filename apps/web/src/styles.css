@@ -3503,17 +3503,28 @@ button.match-item {
   color: var(--amber);
 }
 
-/* Сповіщення про бали й значки дебафів: position: fixed, тож ніщо на екрані не зсувається. */
-.live-notice {
+/*
+ * Стовпчик сповіщень (бали, баф, покупка дебафу): position: fixed, тож ніщо на екрані не зсувається;
+ * усередині — flex-колонка, тож сповіщення, навіть перенесені на два рядки, стоять одне під одним і не накладаються.
+ */
+.live-notices {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  /* По центру без transform: ширина за вмістом до всієї ширини екрана, а не до половини (left: 50%). */
   left: 0;
   right: 0;
-  width: fit-content;
-  margin-inline: auto;
   z-index: 66; /* над заставкою (65): тости ±15 с і бафів не ховаються під нею */
-  max-width: calc(100vw - 2rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 1rem;
+  pointer-events: none;
+}
+
+.live-notice {
+  /* По центру без transform: ширина за вмістом до всієї ширини стовпчика. */
+  width: fit-content;
+  max-width: 100%;
   padding: 0.6rem 1.1rem;
   border: 2px solid var(--notice-up);
   border-radius: 0.75rem;
@@ -3539,22 +3550,25 @@ button.match-item {
 }
 
 .app.player:has(.debuff-banner) {
-  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6rem + var(--notice-room));
+  padding-bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--notice-room));
 }
 
-/* На пульті внизу липка панель дій («Закрити запитання»): сповіщення стоїть угорі, над шапкою. */
-.host .live-notice {
+/* На пульті внизу липка панель дій («Закрити запитання»): сповіщення стоять угорі, над шапкою. */
+.host .live-notices {
   top: max(0.75rem, env(safe-area-inset-top));
   bottom: auto;
 }
 
 /* Поки вгорі смуга «Немає зв'язку», сповіщення пульта стоїть під нею, а не під смугою. */
-body:has(.banner.is-offline) .host .live-notice {
+body:has(.banner.is-offline) .host .live-notices {
   top: calc(max(0.75rem, env(safe-area-inset-top)) + 3rem);
 }
 
-.stage .live-notice {
+.stage .live-notices {
   bottom: 0.75rem;
+}
+
+.stage .live-notice {
   padding: 0.35rem 1rem;
   font-size: 1.5rem;
 }
@@ -3688,9 +3702,9 @@ body:has(.banner.is-offline) .host .live-notice {
   pointer-events: none;
 }
 
-/* Сповіщення про бали в ці секунди стає над банером, а не на нього. */
-body:has(.debuff-banner) .live-notice {
-  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6rem);
+/* Сповіщення в ці секунди стають над банером, а не на нього. */
+body:has(.debuff-banner) .live-notices {
+  bottom: calc(var(--banner-base) + var(--debuff-banner-room));
 }
 
 .debuff-banner span {
@@ -3730,10 +3744,10 @@ body:has(.debuff-banner) .live-notice {
   inset: 0;
   z-index: 1;
   border-radius: 0.75rem;
-  /* Легкий серпанок і сильне розмиття: обриси тексту вгадуються, а не біла стіна. */
+  /* Легкий серпанок і помірне розмиття (3px): слова й обриси тексту вгадуються, а не біла стіна. */
   background: var(--fog);
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   /* Маска — крихітний canvas сітки; розтягування дає м'які краї протертих місць. */
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
@@ -4532,11 +4546,11 @@ body:has(.debuff-banner) .duel-banner {
 }
 
 /* Сповіщення про бали стає над смугою, а з банером дебафу — над обома. Сцена має власне правило нижче. */
-body:has(.duel-banner) .live-notice {
+body:has(.duel-banner) .live-notices {
   bottom: calc(var(--banner-base) + var(--duel-banner-room));
 }
 
-body:has(.duel-banner):has(.debuff-banner) .live-notice {
+body:has(.duel-banner):has(.debuff-banner) .live-notices {
   bottom: calc(var(--banner-base) + var(--debuff-banner-room) + var(--duel-banner-room));
 }
 
@@ -4734,7 +4748,7 @@ body:has(.duel-banner):has(.debuff-banner) .live-notice {
   margin: 0;
 }
 
-.stage .duel-banner ~ .live-notice {
+.stage .duel-banner ~ .live-notices {
   bottom: 5rem;
 }
 
@@ -5133,35 +5147,14 @@ label.powers-price {
   white-space: pre;
 }
 
-/* Сповіщення про баф — у тому ж стовпчику, під сповіщенням балів від ведучого: те піднімається на рядок. */
+/* Сповіщення про баф — у стовпчику .live-notices під сповіщенням балів від ведучого (порядок DOM). */
 .live-notice.is-buff {
   border-color: var(--buff-accent);
 }
 
-.live-notice:has(~ .live-notice.is-buff) {
-  translate: 0 -3.5rem;
-}
-
-/* Сповіщення про покупку дебафу — у тому ж стовпчику найнижче: ті, що над ним, піднімаються на рядок (обидва — на два). */
+/* Сповіщення про покупку дебафу — у тому ж стовпчику найнижче; на пульті стовпчик угорі, тож воно під бафом. */
 .live-notice.is-debuff {
   border-color: var(--amber);
-}
-
-.live-notice:has(~ .live-notice.is-debuff) {
-  translate: 0 -3.5rem;
-}
-
-.live-notice:has(~ .live-notice.is-buff ~ .live-notice.is-debuff) {
-  translate: 0 -7rem;
-}
-
-/* На пульті сповіщення стоять угорі: покупка дебафу опускається під сповіщення бафу, а не штовхає його за край. */
-.host .live-notice:has(~ .live-notice.is-debuff) {
-  translate: none;
-}
-
-.host .live-notice ~ .live-notice.is-debuff {
-  translate: 0 3.5rem;
 }
 
 /* «Чекаємо …» на сцені висить під табло поза потоком: поява на спільному кінці нічого не зсуває. */

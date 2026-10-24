@@ -96,9 +96,9 @@ describe('PlayerScreen', () => {
     expect(document.querySelector('.debuff-zone')).not.toBeNull();
     expect(document.querySelector('[data-debuff]')).toBeNull();
     expect(document.querySelector('.debuff-zone h1.question')).not.toBeNull();
-    // Перший — постійний живий регіон аркуша голосування (невидимий).
-    expect(classes()).toEqual(['sr-only vote-live', 'bar', 'question-head', 'debuff-zone']);
-    expect(debuffed).toEqual(['sr-only vote-live', 'bar', 'question-head', 'debuff-zone is-mirror']);
+    // Спершу — постійний (порожній) стовпчик сповіщень і живий регіон аркуша голосування (невидимий).
+    expect(classes()).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone']);
+    expect(debuffed).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone is-mirror']);
   });
 
   it('a video question shows the player and no timer on the phone', () => {
@@ -1780,7 +1780,7 @@ describe('PlayerScreen: table and menu', () => {
     show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
     expect(screen.queryByRole('button', { name: 'Дебафи' })).toBeNull();
     cleanup();
-    const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false }], block: null };
+    const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: false }], block: null };
     const debuffNotice = { seq: 1, at: Date.now(), buyer: { playerId: 'p2', nickname: 'Петро' }, target: { playerId: 'p3', nickname: 'Іра' } };
     show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true }, debuffNotice, me: { ...me, shop } }));
     const header = document.querySelector('header.bar')!;
@@ -1789,5 +1789,11 @@ describe('PlayerScreen: table and menu', () => {
     expect(shopButton.nextElementSibling).toBe(screen.getByRole('button', { name: 'Таблиця' }));
     expect(shopButton.classList.contains('table-button')).toBe(true);
     expect(screen.getByText('Петро насилає дебаф на гравця Іра')).toBeTruthy();
+    // Усі сповіщення — в одному стовпчику .live-notices.
+    expect(screen.getByText('Петро насилає дебаф на гравця Іра').parentElement?.className).toBe('live-notices');
+    cleanup();
+    // Жертві — ні: її банер, коли дебаф спрацює, сам назве покупця.
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, debuffNotice: { ...debuffNotice, target: { playerId: me.id, nickname: me.nickname } } }));
+    expect(screen.queryByText(/насилає дебаф/)).toBeNull();
   });
 });

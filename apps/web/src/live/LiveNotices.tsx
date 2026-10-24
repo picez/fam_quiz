@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AdjustmentNotice, BlitzPlayer, BuffNotice, DebuffNotice, SplashView } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { signed } from '../format';
@@ -47,7 +47,15 @@ export function useNotice<T extends { seq: number; at: number }>(notice: T | nul
   return shown;
 }
 
-/** Сповіщення про бали від ведучого; position: fixed, тож нічого не зсуває. */
+/**
+ * Стовпчик сповіщень (position: fixed, flex-колонка): сповіщення стоять одне під одним за своєю висотою,
+ * тож і перенесені на два рядки ніколи не накладаються; нічого на екрані не зсувають.
+ */
+export function LiveNotices({ children }: { children: ReactNode }) {
+  return <div className="live-notices">{children}</div>;
+}
+
+/** Сповіщення про бали від ведучого; у стовпчику .live-notices. */
 export function AdjustmentToast({ notice, offsetMs }: { notice: AdjustmentNotice | null; offsetMs: number }) {
   const shown = useNotice(notice, offsetMs);
   if (shown === null) return null;
@@ -67,7 +75,7 @@ export interface BuffToastView {
 }
 
 /**
- * «Оля: 50/50» — хтось узяв баф; position: fixed під сповіщенням балів, тож нічого не зсуває.
+ * «Оля: 50/50» — хтось узяв баф; у стовпчику .live-notices під сповіщенням балів.
  * Лише на запитанні, де баф узято, і не поверх заставки; тому, хто взяв баф (selfId), — ні: про це вже каже його рядок бафів.
  */
 export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; offsetMs: number; selfId?: string }) {
@@ -82,10 +90,13 @@ export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; off
   );
 }
 
-/** «Оля насилає дебаф на гравця Петро» — сцена, пульт і телефони; без виду дебафу; position: fixed, як сповіщення бафу. */
-export function DebuffToast({ notice, offsetMs }: { notice: DebuffNotice | null; offsetMs: number }) {
+/**
+ * «Оля насилає дебаф на гравця Петро» — сцена, пульт і телефони; без виду дебафу; у стовпчику .live-notices.
+ * Жертві (selfId — ціль) — ні: свіжа покупка для неї означає, що дебаф чекає чи діє, а її банер сам назве покупця.
+ */
+export function DebuffToast({ notice, offsetMs, selfId }: { notice: DebuffNotice | null; offsetMs: number; selfId?: string }) {
   const shown = useNotice(notice, offsetMs);
-  if (shown === null) return null;
+  if (shown === null || shown.target.playerId === selfId) return null;
   return (
     <div className="live-notice is-debuff" role="status" aria-live="polite">
       {t('debuffBoughtNotice', { buyer: shown.buyer.nickname, target: shown.target.nickname })}

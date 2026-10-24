@@ -15,7 +15,7 @@ const correct = { type: 'single', optionId: 'b' } as const;
 const steady = (view: unknown) =>
   JSON.parse(
     JSON.stringify(view, (key, value) =>
-      ['paused', 'pausedAt', 'endsAt', 'startedAt', 'remainingMs', 'connected', 'serverNow'].includes(key) || (key === 'block' && (value === null || value === 'paused'))
+      ['paused', 'pausedAt', 'endsAt', 'startedAt', 'remainingMs', 'connected', 'offline', 'serverNow'].includes(key) || (key === 'block' && (value === null || value === 'paused'))
         ? undefined
         : value,
     ),

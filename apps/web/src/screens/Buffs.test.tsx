@@ -639,7 +639,7 @@ describe('StageBuffs', () => {
   });
 
   it('buff notices never cover controls: top on the host, a reserved strip on the phone, full width to wrap', () => {
-    const host = rule('.host .live-notice');
+    const host = rule('.host .live-notices');
     expect(host).toMatch(/top:/);
     expect(host).toContain('bottom: auto');
     expect(rule('.app.player')).toContain('var(--notice-room)');
@@ -648,6 +648,9 @@ describe('StageBuffs', () => {
     const notice = rule('.live-notice');
     expect(notice).not.toContain('translateX(-50%)');
     expect(notice).toContain('width: fit-content');
+    // Стовпчик: сповіщення стоять одне під одним за своєю висотою, без зсувів на фіксовану кількість rem.
+    expect(rule('.live-notices')).toContain('flex-direction: column');
+    expect(css).not.toMatch(/\.live-notice[^{]*\{[^}]*translate:/);
   });
 
   it('the help sheet is a fixed layer above the vote sheet', () => {

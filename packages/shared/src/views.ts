@@ -557,8 +557,8 @@ export interface SplashView {
 export interface PlayerShop {
   /** Дозволені дебафи з цінами, у порядку DEBUFF_KINDS. */
   items: { kind: DebuffKind; price: number }[];
-  /** Суперники в порядку гравців; busy — на ньому вже чекає або діє дебаф. */
-  targets: (BlitzPlayer & { busy: boolean })[];
+  /** Суперники в порядку гравців; busy — на ньому вже чекає або діє дебаф; offline — не підключений (купити не можна). */
+  targets: (BlitzPlayer & { busy: boolean; offline: boolean })[];
   /** null — купити можна (бали телефон порівнює з ціною сам); інакше чому ні. */
   block: ShopBlock | null;
 }

@@ -192,6 +192,15 @@ describe('LiveNotices', () => {
     expect(screen.getByRole('status').textContent).toBe('Оля: 50/50');
   });
 
+  it('the victim (selfId is the target) gets no purchase toast; everyone else does', () => {
+    const debuffNotice = { seq: 3, at: NOW, buyer: { playerId: 'p1', nickname: 'Оля' }, target: { playerId: 'p2', nickname: 'Петро' } };
+    render(<DebuffToast notice={debuffNotice} offsetMs={0} selfId="p2" />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<DebuffToast notice={debuffNotice} offsetMs={0} selfId="p1" />);
+    expect(screen.getByRole('status').textContent).toBe('Оля насилає дебаф на гравця Петро');
+  });
+
   it('debuff toast names the buyer and the target, not the kind, for four seconds', () => {
     const debuffNotice = { seq: 3, at: NOW, buyer: { playerId: 'p1', nickname: 'Оля' }, target: { playerId: 'p2', nickname: 'Петро' } };
     const { container } = render(<DebuffToast notice={debuffNotice} offsetMs={0} />);

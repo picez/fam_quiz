@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { adjustScore } from './adjust';
 import { buyDebuff, setDebuff } from './debuffs';
-import { end, next, pause, removePlayer, start } from './game';
+import { end, next, pause, removePlayer, setConnected, start } from './game';
 import { T0, debuffQuiz, rich, rng } from './testing/debuffs';
 import { lobbyWith, must } from './testing/helpers';
 import { hostView, playerView as viewOf, stageView } from './views';
@@ -19,6 +19,11 @@ describe('the debuff shop in views', () => {
     expect(playerView(bought, 'p1').me.shop!.block).toBe('bought');
     expect(playerView(bought, 'p3').me.shop!.targets.find((t) => t.playerId === 'p2')?.busy).toBe(true);
     expect(playerView(must(pause(bought, T0)), 'p3').me.shop!.block).toBe('paused');
+  });
+
+  it('marks an offline rival as offline', () => {
+    const away = must(setConnected(rich(), 'p2', false, T0));
+    expect(playerView(away, 'p1').me.shop!.targets.map((t) => [t.nickname, t.offline])).toEqual([['Тарас', true], ['Віра', false]]);
   });
 
   it('no shop in the lobby, the guide, after the game, without debuffs, without rivals or with the shop off', () => {

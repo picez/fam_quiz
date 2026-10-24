@@ -291,7 +291,7 @@ describe('splash styles', () => {
 
   it('toasts (±15 s, buffs) stay above the splash', () => {
     const z = (selector: string) => Number(/z-index:\s*(\d+)/.exec(rule(selector))?.[1]);
-    expect(z('.live-notice')).toBeGreaterThan(z('.splash'));
+    expect(z('.live-notices')).toBeGreaterThan(z('.splash'));
   });
 
   // Знімок transition8c-question-360: «Запитання 1» ламалося на два рядки.

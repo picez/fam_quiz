@@ -4,7 +4,7 @@ import { correctText, markText, pickedText, shownChoices, num, questionClass, qu
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
-import { AdjustmentToast, BuffToast, DebuffToast } from '../live/LiveNotices';
+import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
 import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
@@ -364,9 +364,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
     <main className="app player" aria-busy={notStarted || undefined}>
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} />
-      <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
-      <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
-      <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />
+      <LiveNotices>
+        <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
+        <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
+        <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} selfId={me.id} />
+      </LiveNotices>
       {/* Запрошення проголосувати — нижній аркуш position: fixed: чужий баф нічого не зсуває. */}
       {phase === 'question' && question !== null && (
         <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
