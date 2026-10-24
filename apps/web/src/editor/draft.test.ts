@@ -186,6 +186,7 @@ describe('wall, poll and word cloud: checks and drafts (10d)', () => {
     const wall = withTile(withTile(wallQ(), 'Дніпро', 0, 0), ' дніпро ', 2, 1);
     expect(problemsOf(quizWith(wall))).toEqual([t('problemWallDuplicate', { index: 1, tile: 'дніпро' })]);
     expect(problemsOf(quizWith(withTile(withTile(wallQ(), 'Дніпро', 0, 0), 'ДНІПРО', 1, 0)))[0]).toContain('«дніпро»');
+    expect(problemsOf(quizWith(withTile(withTile(wallQ(), 'Піп Іван', 0, 0), 'піп   ІВАН', 1, 0)))[0]).toContain('«піп іван»');
   });
 
   it('the mistake limit and the word count are checked with their own messages', () => {

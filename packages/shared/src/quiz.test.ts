@@ -39,6 +39,9 @@ import {
   cloudKey,
   cloudWords,
   isUnscored,
+  duelThreshold,
+  duelShortfall,
+  cloudHideSchema,
   wallScored,
   wallShare,
   clueShare,
@@ -1502,5 +1505,47 @@ describe('type lists', () => {
   it('ROUND_TYPES and QUESTION_TYPES list every schema discriminator in editor order', () => {
     expect(roundSchema.options.map((o) => o.shape.type.value)).toEqual([...ROUND_TYPES]);
     expect(questionSchema.options.map((o) => o.shape.type.value)).toEqual([...QUESTION_TYPES]);
+  });
+});
+
+describe('review fixes (10d)', () => {
+  const tiles = (prefix: string, ...texts: string[]) => texts.map((text, i) => ({ id: `${prefix}${i + 1}`, text }));
+  const wall = (texts: string[][]) => ({ id: 'w1', type: 'wall', text: 'Стіна', imageUrl: null, video: null, timeLimit: 90, points: 1000, mistakes: 3,
+    groups: texts.map((row, g) => ({ id: `g${g}`, name: `Група ${g}`, tiles: tiles(`t${g}`, ...row) })) });
+  const issuesOf = (q: object) => {
+    const result = questionSchema.safeParse(q);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+
+  it('wall duplicate tiles compare case-insensitively across groups, with collapsed spaces', () => {
+    const base = [['Дніпро', 'Десна', 'Рось', 'Псел'], ['Київ', 'Львів', 'Харків', 'Одеса'], ['Говерла', 'Петрос', 'Піп Іван', 'Бребенескул'], ['Світязь', 'Синевир', 'Несамовите', 'Пісочне']];
+    expect(issuesOf(wall(base))).toEqual([]);
+    const cross = base.map((row) => [...row]);
+    cross[1]![0] = 'ДНІПРО';
+    expect(issuesOf(wall(cross))).toContain('wall_duplicate_tiles');
+    const spaced = base.map((row) => [...row]);
+    spaced[3]![0] = 'піп   іван';
+    expect(issuesOf(wall(spaced))).toContain('wall_duplicate_tiles');
+  });
+
+  it('duel thresholds do not count polls and clouds', () => {
+    const q = (id: string, type: string) => (type === 'single'
+      ? { id, type, text: 'Т', imageUrl: null, video: null, timeLimit: 20, points: 1000, options: [{ id: 'a', text: 'a' }, { id: 'b', text: 'b' }], correctId: 'a' }
+      : { id, type, text: 'Т', imageUrl: null, video: null, timeLimit: 20, points: 0, options: [{ id: 'a', text: 'a' }, { id: 'b', text: 'b' }] });
+    const duels = { categories: [{ id: 'c', title: 'К', questions: [{ id: 'd', text: 'Т?', accepted: ['так'] }] }], questionsPerDuel: 1, timeLimit: 30, stake: 0 };
+    const quiz = quizSchema.parse({
+      title: 'T', description: '', settings: DEFAULT_SETTINGS, duels,
+      rounds: [round('r1', [q('a', 'single'), q('b', 'single'), q('c', 'single'), q('d', 'poll'), q('e', 'poll'), q('f', 'poll')]), round('r2', [q('g', 'single')])],
+    });
+    expect(duelThreshold(quiz)).toBe(2);
+    expect(duelShortfall(quiz)).toBeNull();
+    const onlyPolls = quizSchema.parse({ title: 'T', description: '', settings: DEFAULT_SETTINGS, duels, rounds: [round('r1', [q('d', 'poll')]), round('r2', [q('e', 'poll')])] });
+    expect(duelThreshold(onlyPolls)).toBeNull();
+    expect(duelShortfall(onlyPolls)).toBe(1);
+  });
+
+  it('cloudHideSchema refuses keys with control characters', () => {
+    expect(valid(cloudHideSchema, { key: 'київ', hidden: true })).toBe(true);
+    expect(valid(cloudHideSchema, { key: 'ки\u0000їв', hidden: true })).toBe(false);
   });
 });

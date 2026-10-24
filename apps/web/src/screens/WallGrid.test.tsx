@@ -52,4 +52,16 @@ describe('WallGrid', () => {
     expect(cls('Фортепіано')).toMatch(/is-mid/);
     expect(cls("Дев'ятнадцять")).toMatch(/is-long/);
   });
+
+  it('long words get soft hyphens on phones but not on the stage; the label stays clean', () => {
+    const long: PublicWall = { ...wall, tiles: ['Бребенескул', ...wall.tiles.slice(1)] };
+    const { unmount } = render(<WallGrid wall={long} found={[]} onToggle={() => {}} />);
+    const tile = document.querySelector('.wall-tile') as HTMLElement;
+    expect(tile.textContent).toBe('Бребен­ескул');
+    expect(tile.getAttribute('aria-label')).toBe('Бребенескул');
+    expect(document.querySelector('.wall-grid')!.getAttribute('lang')).toBe('uk');
+    unmount();
+    render(<WallGrid wall={long} found={[]} big />);
+    expect((document.querySelector('.wall-tile') as HTMLElement).textContent).toBe('Бребенескул');
+  });
 });

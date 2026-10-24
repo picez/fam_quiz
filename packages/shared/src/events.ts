@@ -41,7 +41,7 @@ export const sortSchema = z.object({ wordId: id64, categoryId: id64 });
 /** Вибір плиток стіни: позиції в порядку показу (10d). */
 export const wallSchema = z.object({ tiles: z.array(z.number().int().min(0).max(15)).min(3).max(4) });
 /** Сховати чи повернути слово «хмари» (10d). */
-export const cloudHideSchema = z.object({ key: z.string().min(1).max(LIMITS.cloudWord * 2), hidden: z.boolean() });
+export const cloudHideSchema = z.object({ key: z.string().min(1).max(LIMITS.cloudWord * 2).refine(isStorable, UNSTORABLE), hidden: z.boolean() });
 /** Варіант, названий уголос на усній клітинці; null знімає позначку. */
 export const nameSchema = z.object({ answer: answerSchema.nullable() });
 /** Бали від ведучого: ціле, не нуль, за модулем не більше LIMITS.maxAdjust. */

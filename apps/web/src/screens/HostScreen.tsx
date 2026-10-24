@@ -231,12 +231,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const board = view.board;
   const chooserId = board?.turn?.playerId ?? null;
   // У полі оцінка йде одразу після відповіді вибравшого: у запитанні лише коли ведучий оцінює вручну.
-  // Сортування рахує бали за слова саме: ручної оцінки в нього немає (сервер її відхиляє).
+  // Сортування й стіна рахують бали самі: ручної оцінки в них немає (сервер її відхиляє).
   const canGradeBoard =
     board !== null &&
     blitz === null &&
     view.question !== null &&
     view.question.type !== 'sort' &&
+    view.question.type !== 'wall' &&
     chooserId !== null &&
     ((phase === 'question' && board.manual && board.cell?.answerMode === 'voice') || phase === 'locked' || phase === 'reveal');
   const voiceCell = blitz === null && board?.cell?.answerMode === 'voice';
@@ -556,7 +557,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               />
             </div>
           )}
-          {correct !== null && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}

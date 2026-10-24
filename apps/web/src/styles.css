@@ -7172,12 +7172,9 @@ button.wall-tile:disabled {
   font-size: 0.8125rem;
 }
 
-.wall-tile.is-mid {
-  font-size: 0.6875rem;
-}
-
+.wall-tile.is-mid,
 .wall-tile.is-long {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
 }
 
 .wall-grid.is-big .wall-tile {

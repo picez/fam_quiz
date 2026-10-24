@@ -46,6 +46,7 @@ export function historyPollCounts(question: GameQuestionResult): Record<string, 
 }
 
 /** Слова хмари з відповідей: зведені через cloudKey, найчастіші першими; текст — найчастіше написання (за рівності — перше). Сховані ведучим — з позначкою. */
+// Рахує всі збережені рядки (і вилучених гравців), на відміну від живого cloudTally.
 export function historyCloudWords(question: GameQuestionResult): { key: string; text: string; count: number; hidden: boolean }[] {
   const hidden = new Set(question.cloudHidden ?? []);
   const words = new Map<string, { count: number; spellings: Map<string, number> }>();

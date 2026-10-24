@@ -51,9 +51,9 @@ export function wallPresent(question: WallQuestion, rng: Rng): string[] {
   );
   for (let tries = 0; groupedRow(question, mixed) && tries < SHUFFLE_TRIES; tries += 1) mixed = shuffle(mixed, rng);
   if (!groupedRow(question, mixed)) return mixed;
-  // Кожен ряд — по плитці з усіх груп: g0t0, g1t0, …, g0t1, …
+  // Кожен ряд — по плитці з усіх груп, і групи зсунуті з рядка в рядок, тож ні ряд, ні стовпець не є групою.
   const n = question.groups.length;
-  return Array.from({ length: n }, (_, t) => question.groups.map((g) => g.tiles[t].id)).flat();
+  return Array.from({ length: n }, (_, t) => question.groups.map((_g, j) => question.groups[(j + t) % n].tiles[t].id)).flat();
 }
 
 /** Поступ гравця; без ходів — { found: [], mistakes: 0, tried: [] }. */

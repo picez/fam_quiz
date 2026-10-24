@@ -1841,6 +1841,33 @@ describe('HostScreen: wall, poll and word cloud (10d)', () => {
     expect(screen.queryByRole('button', { name: 'Неправильно' })).toBeNull();
   });
 
+  it('a wall cell on the board shows no grade buttons and no correct-answer line in the reveal', () => {
+    const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: true, description: '', brief: emptyBrief('board'), times: null };
+    show(
+      during('reveal', wallQ, {
+        round: boardRound,
+        question: { ...publicOf(wallQ), wall: { tiles: [], size: 4, groupCount: 4, maxMistakes: 3 } },
+        wall: { groupCount: 4, rows: [] },
+        board: {
+          categories: [],
+          order: [],
+          turn: { playerId: 'p1', nickname: 'Олена' },
+          cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+          dice: null,
+          schedule: [],
+          scheduleRepeats: false,
+          skipAt: null,
+          marks: [],
+          marksHidden: false,
+          manual: false,
+          answer: null,
+        },
+      }),
+    );
+    for (const name of ['Зарахувати', 'Частково', 'Не зараховувати']) expect(screen.queryByRole('button', { name })).toBeNull();
+    expect(document.querySelector('.answer')).toBeNull();
+  });
+
   it('the poll shows live bars from the responses and the reveal button is Показати результати', () => {
     show(
       during('locked', pollQ, {

@@ -28,6 +28,7 @@ import {
   boardSpareSource,
   cellAnswerMode,
   QUESTION_TYPES,
+  cloudKey,
   REVEAL_TYPES,
   type QuestionType,
 } from '@quiz/shared';
@@ -712,12 +713,12 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
   return null;
 }
 
-/** Перша плитка стіни, що повторюється (без урахування регістру й пробілів), у вигляді, у якому її порівнює схема. */
+/** Перша плитка стіни, що повторюється (без урахування регістру, пробілів і апострофів), у вигляді, у якому її порівнює схема. */
 function duplicateTile(question: Extract<Question, { type: 'wall' }>): string {
   const seen = new Set<string>();
   for (const group of question.groups) {
     for (const tile of group.tiles) {
-      const key = tile.text.trim().toLocaleLowerCase('uk');
+      const key = cloudKey(tile.text);
       if (seen.has(key)) return key;
       seen.add(key);
     }

@@ -410,7 +410,7 @@ export const questionSchema = z
     }
     if (q.type === 'wall') {
       if (q.groups.some((g) => g.tiles.length !== q.groups.length)) ctx.addIssue({ code: 'custom', message: 'wall_shape' });
-      if (hasDuplicates(q.groups.flatMap((g) => g.tiles.map((t) => t.text.trim().toLocaleLowerCase('uk'))))) {
+      if (hasDuplicates(q.groups.flatMap((g) => g.tiles.map((t) => cloudKey(t.text))))) {
         ctx.addIssue({ code: 'custom', message: 'wall_duplicate_tiles' });
       }
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'wall_video' });
@@ -870,10 +870,15 @@ export function roundQuestions(round: Round): Question[] {
   return round.type === 'board' ? boardCells(round).map(({ cell }) => cell.question) : round.questions;
 }
 
+/** Скільки запитань раунду дають бали (опитування й хмари слів не рахуються). */
+function scoredCount(round: Round): number {
+  return roundQuestions(round).filter((q) => !isUnscored(q)).length;
+}
+
 /** ⌈запитань не-фінальних раундів / 3⌉; null — дуелей немає (немає duels або таких запитань 0). */
 export function duelThreshold(quiz: Quiz): number | null {
   if (quiz.duels === undefined) return null;
-  const count = quiz.rounds.reduce((sum, round) => (round.type === 'final' ? sum : sum + roundQuestions(round).length), 0);
+  const count = quiz.rounds.reduce((sum, round) => (round.type === 'final' ? sum : sum + scoredCount(round)), 0);
   return count === 0 ? null : Math.ceil(count / 3);
 }
 
@@ -890,7 +895,7 @@ export function duelCutoff(quiz: Quiz): number {
 export function duelShortfall(quiz: Quiz): number | null {
   if (quiz.duels === undefined) return null;
   const needed = duelThreshold(quiz) ?? 1;
-  const before = quiz.rounds.slice(0, duelCutoff(quiz)).reduce((sum, round) => sum + roundQuestions(round).length, 0);
+  const before = quiz.rounds.slice(0, duelCutoff(quiz)).reduce((sum, round) => sum + scoredCount(round), 0);
   return before >= needed ? null : needed;
 }
 

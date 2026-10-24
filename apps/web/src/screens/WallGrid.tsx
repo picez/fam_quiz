@@ -6,6 +6,22 @@ function sizeClass(text: string): string | false {
   return longest >= 13 ? 'is-long' : longest >= 10 ? 'is-mid' : longest >= 8 ? 'is-semi' : false;
 }
 
+/** Довге слово (10+ літер) з м'якими переносами приблизно кожні 5–6 літер, щоб у вузькій плитці воно ламалося на два рядки й лишалося читабельним. */
+export function softWord(word: string): string {
+  const letters = [...word];
+  if (letters.length < 10) return word;
+  const parts = Math.ceil(letters.length / 6);
+  const size = Math.ceil(letters.length / parts);
+  const chunks: string[] = [];
+  for (let at = 0; at < letters.length; at += size) chunks.push(letters.slice(at, at + size).join(''));
+  return chunks.join('\u00AD');
+}
+
+/** Текст плитки для телефона: довгі слова з м'якими переносами. */
+function softText(text: string): string {
+  return text.split(/(\s+)/u).map(softWord).join('');
+}
+
 /**
  * Сітка стіни: спершу знайдені групи рядами (кольори .wall-color-0…3), далі решта плиток у порядку показу.
  * selected — позиції, вибрані гравцем; onToggle — дотик (немає — лише перегляд); shake — позиції для трусіння.
@@ -36,9 +52,10 @@ export function WallGrid({
   ];
   const className = ['wall-grid', big && 'is-big'].filter(Boolean).join(' ');
   return (
-    <div className={className} style={{ gridTemplateColumns: `repeat(${wall.size}, 1fr)` }}>
+    <div className={className} lang="uk" style={{ gridTemplateColumns: `repeat(${wall.size}, 1fr)` }}>
       {order.map((position) => {
         const text = wall.tiles[position] ?? '';
+        const shown = big ? text : softText(text);
         const color = colorOf.get(position);
         const isFound = color !== undefined;
         const tileClass = [
@@ -52,7 +69,7 @@ export function WallGrid({
           .join(' ');
         return onToggle === undefined || isFound ? (
           <div key={position} className={tileClass} aria-label={text}>
-            {text}
+            {shown}
           </div>
         ) : (
           <button
@@ -64,7 +81,7 @@ export function WallGrid({
             disabled={disabled}
             onClick={() => onToggle(position)}
           >
-            {text}
+            {shown}
           </button>
         );
       })}
