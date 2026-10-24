@@ -101,6 +101,7 @@ const CLOUD_LIVE: Phase[] = ['question', 'locked', 'reveal'];
  */
 export function skippedSurveys(state: GameState): Question[] {
   const round = currentRound(state);
+  // Лише класика: «100 до 1» поза SURVIVAL_TYPES, тож у «Вибуванні» його не буває.
   if (round?.type !== 'classic') return [];
   const played = new Set(state.plays.filter((p) => p.roundIndex === state.roundIndex).map((p) => p.question.id));
   return round.questions.filter((question) => {

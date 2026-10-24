@@ -17,6 +17,7 @@ import {
   type BoardRound,
   type FinalRound,
   type Round,
+  type TrialKind,
   guidePages,
   newcomersOn,
   rulesOf,
@@ -59,6 +60,7 @@ import { splitBank, type BankOutcome } from './bank';
 import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
 import { presentPlayers } from './present';
 import { closeDecision, decisionOpen, dropUnstarted, markWipeoutEnd, openDecision, settleDecision, submitWipeoutAnswer, wipeoutIn, withWipeoutPoints } from './wipeout';
+import { awardSurvivalBonus, isGhost, openTrialOrBoard, submitGhostAnswer, survivalAlive, survivalOver } from './survival';
 import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
@@ -149,6 +151,56 @@ export interface Play {
   bluff?: BluffPlay;
   /** «Ва-банк»: рішення після цього запитання й позначка кінця раунду (10g). */
   wipeout?: WipeoutPlay;
+  /** «Вибування»: відповіді привидів, хто «на межі», випробування й позначка кінця раунду (10h). */
+  survival?: SurvivalPlay;
+}
+
+/** «Вибування» в журналі. */
+export interface SurvivalPlay {
+  /** Відповіді привидів «для себе» за id: поза answers, тож ні балів, ні серій, ні точності. */
+  ghosts: Record<string, GhostAnswer>;
+  /** Хто був «на межі» — фіксується на «Далі» після розкриття; null — ще не вирішено. */
+  edge: string[] | null;
+  /** Випробування після цього запитання; null — його не було (усі вціліли, помилилися всі або ще не вирішено). */
+  trial: SurvivalTrial | null;
+  /** Раунд закінчився на цьому запитанні: бонус нараховано. */
+  end: boolean;
+}
+
+export interface GhostAnswer {
+  answer: Answer;
+  /** grade 'correct' за verdictOf. */
+  correct: boolean;
+  timeMs: number;
+}
+
+/** Випробування «на межі». */
+export interface SurvivalTrial {
+  kind: TrialKind;
+  /** Мало бути питання, але питання на виживання скінчилися. */
+  fellBack: boolean;
+  stage: 'open' | 'closed';
+  /** Питання на виживання: id з round.trials; null — удача. */
+  questionId: string | null;
+  /** Порядок варіантів питання; [] для удачі й без варіантів. */
+  presented: string[];
+  /** Відповіді на питання за id. */
+  answers: Record<string, TrialAnswer>;
+  /** Удача: пастка (0…DOOR_COUNT − 1) кожного «на межі». */
+  traps: Record<string, number>;
+  /** Удача: двері, які вибрав гравець. */
+  doors: Record<string, number>;
+  /** Удача: двері, що виберуться самі, якщо гравець не вибрав. */
+  fallback: Record<string, number>;
+  /** Хто вибув; заповнюється при закритті (і після оцінки ведучого). */
+  out: string[];
+}
+
+export interface TrialAnswer {
+  answer: Answer;
+  correct: boolean;
+  timeMs: number;
+  overridden: boolean;
 }
 
 /** «Ва-банк» у журналі. */
@@ -539,6 +591,21 @@ export function removePlayer(state: GameState, playerId: string): Result {
       const without = (ids: string[]) => ids.filter((id) => id !== playerId);
       kept.wipeout = { ...play.wipeout, took: without(play.wipeout.took), stay: without(play.wipeout.stay) };
     }
+    if (play.survival !== undefined) {
+      const without = (ids: string[]) => ids.filter((id) => id !== playerId);
+      const { [playerId]: _ghost, ...ghosts } = play.survival.ghosts;
+      const edge = play.survival.edge === null ? null : without(play.survival.edge);
+      const trial = play.survival.trial;
+      if (trial === null) {
+        kept.survival = { ...play.survival, ghosts, edge };
+      } else {
+        const { [playerId]: _answer, ...answers } = trial.answers;
+        const { [playerId]: _trap, ...traps } = trial.traps;
+        const { [playerId]: _door, ...doors } = trial.doors;
+        const { [playerId]: _fallback, ...fallback } = trial.fallback;
+        kept.survival = { ...play.survival, ghosts, edge, trial: { ...trial, answers, traps, doors, fallback, out: without(trial.out) } };
+      }
+    }
     if (play.buffs !== undefined) {
       const { [playerId]: _buff, ...buffs } = play.buffs;
       // Голос вилученого більше не рахується.
@@ -695,6 +762,8 @@ function nextQuestion(state: GameState): Question | undefined {
   if (round === null || round.type === 'board') return undefined;
   // «Ва-банк»: коли в грі нікого не лишилося, решта драбини лишається незіграною.
   if (round.type === 'wipeout' && wipeoutIn(state).length === 0) return undefined;
+  // «Вибування»: щойно після вибування живих ≤ N, решта запитань лишається незіграною.
+  if (round.type === 'survival' && survivalOver(state)) return undefined;
   const played = new Set(state.plays.filter((p) => p.roundIndex === state.roundIndex).map((p) => p.question.id));
   return round.questions.find((question) => !played.has(question.id) && playable(state, question));
 }
@@ -721,6 +790,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       ? { bluff: { stage: 'lies' as const, seed: Math.floor(rng() * 2 ** 32), lies: {}, options: [], picks: {}, shown: 0 } }
       : {}),
     ...(round.type === 'wipeout' ? { wipeout: { took: [], stay: [], end: false } } : {}),
+    ...(round.type === 'survival' ? { survival: { ghosts: {}, edge: null, trial: null, end: false } } : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
@@ -904,7 +974,9 @@ function clearAway(board: BoardState | null): BoardState | null {
 function finishRound(input: GameState, now?: number): GameState {
   // «Ва-банк»: банки тих, хто в грі, переносяться в бали на останньому зіграному запитанні.
   const marked = markWipeoutEnd(input);
-  const state = marked === input ? input : withTotals(marked);
+  // «Вибування»: кожен живий отримує бонус виживання — до зміни фази, поки afterQuestion і roundIndex ще цього раунду.
+  // Без now (старі виклики) мить коригування невідома — 0.
+  const state = awardSurvivalBonus(marked === input ? input : withTotals(marked), now ?? 0);
   const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
   const finished: GameState = { ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) };
   return isLastRound && now !== undefined ? withSplash(finished, 'podium', now) : finished;
@@ -1001,7 +1073,8 @@ export function withTotals(input: GameState): GameState {
       score += record ? record.points : 0;
       // Голос без балів не додає часу: інакше швидкий голос давав би перевагу за рівного рахунку.
       if (isUnscored(play.question)) continue;
-      // Час для рівного рахунку йде лише за класичні раунди й лише за запитання з таймером;
+      // Час для рівного рахунку йде лише за класичні раунди й лише за запитання з таймером
+      // («Ва-банк» і «Вибування» не входять: спільна формула не змінюється);
       // відповідь у додатковий час коштує не більше за ліміт, як і мовчання.
       const limitMs = limitMsOf(play);
       if (state.quiz.rounds[play.roundIndex].type !== 'classic' || limitMs === null) continue;
@@ -1062,7 +1135,9 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
   // «Ва-банк»: чекають лише тих, хто в грі; без присутніх у грі запитання закриє таймер чи ведучий.
-  const playing = currentRound(state)?.type === 'wipeout' ? wipeoutIn(state) : null;
+  // «Вибування»: так само лише живих — привиди запитання не тримають.
+  const type = currentRound(state)?.type;
+  const playing = type === 'wipeout' ? wipeoutIn(state) : type === 'survival' ? survivalAlive(state) : null;
   const connected = presentPlayers(state).filter((p) => playing === null || playing.includes(p.id));
   if (connected.length === 0) return state;
   const everyoneAnswered = connected.every((p) => recordOf(state, state.questionIndex, p.id) !== undefined);
@@ -1093,11 +1168,18 @@ export function skipGuide(state: GameState, now: number): Result {
   return ok(enterFirstRound(state, now));
 }
 
+/** Чи раунд дає бонус за швидкість: класика й «Вибування» (бали як у класиці) з увімкненим speedBonus. */
+export function speedOn(round: Round): boolean {
+  return (round.type === 'classic' || round.type === 'survival') && round.speedBonus;
+}
+
 export function submitAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
   if (state.paused) return fail('paused');
   if (notStarted(state, now)) return fail('not_started');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
+  // «Вибування»: привид відповідає «для себе» — поза answers, без балів; живі йдуть класичним шляхом.
+  if (currentRound(state)?.type === 'survival' && isGhost(state, playerId)) return submitGhostAnswer(state, playerId, answer, now);
   const play = state.plays[state.questionIndex];
   // Опитування й «хмара слів» — голос без балів.
   if (isUnscored(play.question)) return submitVote(state, playerId, answer, now);
@@ -1144,7 +1226,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   const speed = speedFactor(
     timeMs,
     limit ?? 0,
-    round.type === 'classic' && round.speedBonus && limit !== null && !paysForTime(asked) && asked.type !== 'survey',
+    speedOn(round) && limit !== null && !paysForTime(asked) && asked.type !== 'survey',
   );
   const points = answerPoints({
     points: question.points,
@@ -1463,6 +1545,9 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
         if (!hasActiveCells(state)) return ok(finishRound(state, now));
         return ok(state.quiz.settings.leaderboard === 'each' ? { ...state, phase: 'leaderboard' } : enterBoard(state, now));
       }
+      // «Вибування»: після кожного запитання (і останнього) — сторінка «живі / привиди» з вердиктом чи випробуванням,
+      // незалежно від налаштування leaderboard; кінець раунду — з неї.
+      if (currentRound(state)?.type === 'survival') return ok(openTrialOrBoard(state, now, rng));
       if (nextQuestion(state) === undefined) return ok(finishRound(state, now));
       // «Ва-банк»: драбина з вікном рішення після кожного запитання, крім останнього, незалежно від налаштування leaderboard.
       if (currentRound(state)?.type === 'wipeout') return ok(openDecision(state, now));
@@ -1472,6 +1557,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
       // «Ва-банк»: поки гравці вирішують, далі не можна; без тих, хто в грі, advance завершує раунд.
       if (decisionOpen(state)) return fail('deciding');
+      // «Вибування»: відкрите випробування «Далі» закриває (задача 3); інакше — наступне запитання або кінець раунду з бонусом.
       return ok(advance(state, now, rng));
     case 'round_end':
       // Нова серія в новому раунді починається з нуля.
@@ -1663,7 +1749,7 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   // «правильно» — це правильність, ціна все одно спадає зі 100 до 30 % за часом відповіді.
   // Після заміни гравець відповідав на запасне: проявлення — з його запитання, як у submitAnswer.
   const asked = questionFor(state, play, playerId);
-  const speed = speedFactor(record.timeMs, limit ?? 0, round.type === 'classic' && round.speedBonus && limit !== null && !paysForTime(asked));
+  const speed = speedFactor(record.timeMs, limit ?? 0, speedOn(round) && limit !== null && !paysForTime(asked));
   const paid = accuracy * paceFactor(asked, record.timeMs);
   const points = answerPoints({
     points: question.points,
@@ -1693,7 +1779,7 @@ export function end(state: GameState, now?: number): Result {
   // Відкрите вікно рішення спершу закривається: невирішені забирають банк.
   // Запитання, чия заставка ще грає, незігране: хто в грі, доносить банк, а не згорає.
   const decided = decisionOpen(state) ? closeDecision(state) : dropUnstarted(state, now);
-  const closed = closeFinal({
+  const stopped: GameState = {
     ...dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(markWipeoutEnd(decided)))))),
     phase: 'finished',
     board: clearAway(state.board),
@@ -1703,6 +1789,8 @@ export function end(state: GameState, now?: number): Result {
     remainingMs: null,
     heldAt: null,
     duel: null,
-  });
+  };
+  // «Вибування»: кожен живий отримує бонус виживання (на finished відкрите запитання вже зараховане).
+  const closed = closeFinal(awardSurvivalBonus(stopped, now ?? 0));
   return ok(now === undefined ? closed : withSplash(closed, 'podium', now));
 }
