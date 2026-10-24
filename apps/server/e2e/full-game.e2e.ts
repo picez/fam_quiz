@@ -6811,6 +6811,8 @@ async function debuffShopGame() {
   // 7. Заморозка (Q3): лід на всю зону, відповісти не можна; до 5,5 с лід тане, і відповідь проходить.
   await buy(olya, /Заморозка/, 'Петро', 200);
   await nextQuestion(3);
+  // Лід тане через 5 с від кінця заставки «Запитання 3» (since = startedAt), а не від її появи.
+  await afterSplash(petro);
   await petro.locator('.debuff-ice').waitFor();
   const kyiv = petro.getByRole('button', { name: /Київ/ });
   expect(await kyiv.isDisabled()).toBe(true);
@@ -6924,6 +6926,222 @@ async function debuffShopGame() {
   await host.getByText('Оля купує 📳 Тремтіння екрана для гравця Петро: −150', exact).waitFor();
   expect(await host.getByText(/^Оля купує .+ для гравця Петро: −200$/).count()).toBe(4);
   await shot(host, 'debuff9c-history');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 9d: spares of a board category — the editor adds a spare to a category and warns about an empty one, swap on a board cell takes a spare of the same category, an empty category explains why swap is off, a classic round keeps the global pool, category spares in the history', async () => {
+  try {
+    await categorySparesGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function categorySparesGame() {
+  const host = await open('host9d', 1280, 900);
+  await register(host, 'host', 'Олег Ведучий', 'host9d@example.com');
+
+  const base9d = { imageUrl: null, video: null, timeLimit: 30, points: 100 };
+  const warmup = {
+    ...base9d,
+    id: 'q1',
+    type: 'single' as const,
+    text: 'Розминка: столиця України?',
+    options: ['Київ', 'Львів', 'Одеса'].map((text, at) => ({ id: `q1o${at}`, text })),
+    correctId: 'q1o0',
+  };
+  const cellQ = (category: string, price: number) => ({
+    ...withPoints(withId(single, `b-${category}-${price}`), price),
+    text: `${category} ${price}: столиця України?`,
+  });
+  const sportSpares = [
+    { ...base9d, id: 'sp1', type: 'boolean' as const, text: 'Футбольний м’яч — круглий?', correct: true },
+    { ...base9d, id: 'sp2', type: 'numeric' as const, text: 'Скільки гравців у волейбольній команді на майданчику?', correct: 6, tolerance: 0 },
+  ];
+  const rounds = [
+    classicRound('r1', [warmup], { title: 'Розминка', speedBonus: false }),
+    boardRound(
+      'r2',
+      ['Спорт', 'Міста', 'Річки'].map((title) => ({
+        title,
+        cells: [100, 200, 300].map((price) => cellQ(title, price)),
+        ...(title === 'Спорт' ? { spares: sportSpares } : {}),
+      })),
+      { title: 'Поле', answerMode: 'phone', check: 'auto' },
+    ),
+  ];
+  const spares = [{ ...base9d, id: 'g1', type: 'text' as const, text: 'Яке місто стоїть на Пруті?', accepted: ['Чернівці'] }];
+  const data = { ...makeRoundsQuiz(rounds, { leaderboard: 'end', buffs: ['swap'] }), spares, title: 'Запасні 9d' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Редактор: попередження про категорії без запасних; запасне для «Міста»; збереження не блокується.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Запасні 9d' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('details.powers > summary').click();
+  const buffGroup = host.locator('fieldset.powers-group').nth(1);
+  const warns = () => buffGroup.locator('.powers-warn').allTextContents();
+  await buffGroup
+    .locator('.powers-warn')
+    .getByText('Заміна запитання: немає запасних у категоріях: Поле · Міста, Поле · Річки — на їхніх клітинках заміни не буде.', exact)
+    .waitFor();
+  expect(await warns()).not.toContain('Заміна запитання: додайте запасні запитання');
+  await host.locator('.round-tabs').getByRole('button', { name: 'Поле', ...exact }).click();
+  await host.getByRole('button', { name: /^Категорія 2, клітинка 1: 100/ }).click();
+  const citySpares = host.locator('section.category-spares');
+  await citySpares.getByRole('heading', { name: 'Запасні категорії «Міста»', ...exact }).waitFor();
+  await citySpares.getByText('Немає запасних: на клітинках цієї категорії заміна буде недоступна.', exact).waitFor();
+  await citySpares.scrollIntoViewIfNeeded();
+  await shot(host, 'spares9d-editor-empty');
+  await citySpares.getByRole('button', { name: 'Додати запасне', ...exact }).click();
+  await citySpares.getByRole('button', { name: 'так чи ні', ...exact }).click();
+  await citySpares.locator('.question-field textarea').fill('Львів — обласний центр?');
+  await citySpares.getByRole('button', { name: 'Правильна відповідь: Так', ...exact }).click();
+  await citySpares.getByRole('button', { name: 'Запасне 1 · так чи ні', ...exact }).waitFor();
+  expect(await citySpares.getByText('Немає запасних: на клітинках цієї категорії заміна буде недоступна.', exact).count()).toBe(0);
+  const badge = host.locator('.board-column').nth(1).locator('.board-edit-spares');
+  expect(await badge.textContent()).toBe('⇄ 1');
+  expect(await badge.getAttribute('aria-label')).toBe('Запасних: 1');
+  expect(await host.locator('.board-column').nth(0).locator('.board-edit-spares').textContent()).toBe('⇄ 2');
+  expect(await host.locator('.board-column').nth(2).locator('.board-edit-spares').count()).toBe(0);
+  await expect.poll(warns).toContain('Заміна запитання: немає запасних у категоріях: Поле · Річки — на їхніх клітинках заміни не буде.');
+  await shot(host, 'spares9d-editor-category');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await citySpares.scrollIntoViewIfNeeded();
+  await shot(host, 'spares9d-editor-category-375');
+  await expectNoSideScroll(host, 'spares9d-editor-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // 2. Гра: сцена 1600 × 900, три телефони 375 × 812; черга поля — Оля, Петро, Іра.
+  await host.locator('.quiz-list li', { hasText: 'Запасні 9d' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage9d', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya9d', 375, 812);
+  const petro = await open('petro9d', 375, 812);
+  const ira = await open('ira9d', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+  const all = [stage, ...phones];
+  const cell = (page: Page, category: string, price: number) => page.getByRole('button', { name: `${category}, ${price}`, ...exact });
+  const toBoard = async () => {
+    await click(host, 'Далі');
+    const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+    const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+    await Promise.race([next.waitFor(), picking.waitFor()]);
+    if (await next.isVisible()) await next.click();
+    await picking.waitFor();
+  };
+  const pick = async (page: Page, category: string, price: number) => {
+    await page.getByText('Ваш хід: виберіть клітинку').waitFor();
+    await cell(page, category, price).click();
+    await afterSplash(...all);
+    for (const each of all) await each.locator('h1', { hasText: `${category} ${price}` }).waitFor();
+  };
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 3. Класика — загальний пул.
+  for (const page of phones) await page.locator('h1', { hasText: 'Розминка: столиця України?' }).waitFor();
+  await takeBuff(ira, 'Заміна запитання');
+  await ira.locator('h1', { hasText: 'Яке місто стоїть на Пруті?' }).waitFor();
+  await textAnswer(ira, 'Чернівці');
+  await ira.getByText('Відповідь прийнято', exact).waitFor();
+  await pickOption(olya, 'Київ');
+  await pickOption(petro, 'Київ');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
+  await click(host, 'Показати відповідь');
+  for (const page of phones) await page.locator('section.result').first().waitFor();
+  await click(host, 'Далі');
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 4. «Спорт» — запасне Спорту, не загальне.
+  await pick(olya, 'Спорт', 100);
+  await takeBuff(olya, 'Заміна запитання');
+  for (const page of all) await page.locator('h1', { hasText: 'Футбольний м’яч — круглий?' }).waitFor();
+  for (const page of all) expect(await page.content()).not.toContain('Яке місто стоїть на Пруті?');
+  await stage.locator('.stage-buffs li').getByText('⇄ Оля: запасне запитання', exact).waitFor();
+  await shot(olya, 'spares9d-board-swap-375');
+  await shot(stage, 'spares9d-board-swap-stage');
+  await expectNoSideScroll(olya, 'spares9d-board-swap-375');
+  await click(olya, 'Так');
+  await click(host, 'Прийняти');
+  await olya.getByText('Правильно!').waitFor();
+  await toBoard();
+
+  // 5. «Річки» — запасних немає: кнопка неактивна з причиною; «?» каже про категорію.
+  await pick(petro, 'Річки', 100);
+  await tapBuff(petro, 'Заміна запитання', 'У цій категорії немає запасних запитань.');
+  expect(await buffButton(petro, 'Заміна запитання').getAttribute('aria-disabled')).toBe('true');
+  await shot(petro, 'spares9d-swap-off-375');
+  await expectNoSideScroll(petro, 'spares9d-swap-off-375');
+  await petro.getByRole('button', { name: 'Що роблять бафи', ...exact }).click();
+  const help = petro.locator('.buff-help-sheet');
+  await help.getByRole('heading', { name: 'Бафи', ...exact }).waitFor();
+  await help.locator('.buff-where').getByText('Де: класика й поле у свій хід. На полі — запасне з тієї ж категорії.', exact).waitFor();
+  await shot(petro, 'spares9d-help-375');
+  await expectNoSideScroll(petro, 'spares9d-help-375');
+  await petro.keyboard.press('Escape');
+  await help.waitFor({ state: 'detached' });
+  await pickOption(petro, 'Київ');
+  await click(host, 'Прийняти');
+  await petro.getByText('Правильно!').waitFor();
+  await toBoard();
+
+  // 6. Іра вже використала заміну в класиці.
+  await pick(ira, 'Міста', 100);
+  await tapBuff(ira, 'Заміна запитання', 'Уже використано.');
+  await pickOption(ira, 'Київ');
+  await click(host, 'Прийняти');
+  await ira.getByText('Правильно!').waitFor();
+  await toBoard();
+
+  // 7. Друге коло починає Петро: «Міста» — запасне з редактора, не Спорту й не загальне.
+  await pick(petro, 'Міста', 200);
+  await takeBuff(petro, 'Заміна запитання');
+  for (const page of all) await page.locator('h1', { hasText: 'Львів — обласний центр?' }).waitFor();
+  for (const page of all) {
+    const html = await page.content();
+    expect(html).not.toContain('Скільки гравців у волейбольній');
+    expect(html).not.toContain('Яке місто стоїть на Пруті?');
+  }
+  await shot(petro, 'spares9d-board-swap-cities-375');
+  await click(petro, 'Так');
+  await click(host, 'Прийняти');
+  await petro.getByText('Правильно!').waitFor();
+
+  // 8. Історія: три запасні — загальне в класиці й два категорійні на полі.
+  await click(host, 'Завершити гру');
+  await olya.getByText('Гру завершено').first().waitFor();
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Запасні 9d/ }).click();
+  await host.locator('.standings li').first().waitFor();
+  await host.evaluate("document.querySelectorAll('details.responses').forEach((d) => { d.open = true; })");
+  const line = (question: string, nickname: string) =>
+    host
+      .locator('.rows.stacked > li', { hasText: question })
+      .locator('details.responses li', { has: host.locator('.responses-name', { hasText: nickname }) });
+  expect(await line('Розминка: столиця', 'Іра').locator('.spare-text').textContent()).toBe('Запасне: Яке місто стоїть на Пруті?');
+  expect(await line('Спорт 100', 'Оля').locator('.spare-text').textContent()).toBe('Запасне: Футбольний м’яч — круглий?');
+  expect(await line('Міста 200', 'Петро').locator('.spare-text').textContent()).toBe('Запасне: Львів — обласний центр?');
+  await shot(host, 'spares9d-history');
 
   expect(problems).toEqual([]);
 }
