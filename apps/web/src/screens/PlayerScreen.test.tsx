@@ -2148,4 +2148,80 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(screen.queryAllByRole('textbox')).toHaveLength(0);
     });
   });
+  describe('bluff (10f)', () => {
+    const bluffPublic = { ...publicQuestion, type: 'bluff' as const, choices: [], points: 1000 };
+    const bluffFull = { ...fullQuestion, type: 'bluff' } as unknown as Question;
+    const opt = (id: string, text: string) => ({ id, text, open: false, kind: null, authors: null, pickedBy: null, removed: false });
+    const options = [opt('b1', 'Рим'), opt('b2', 'Мілан'), opt('b3', 'Барселона'), opt('b4', 'Париж'), opt('b5', 'Лондон')];
+    const info = (over: Record<string, unknown> = {}) => ({ stage: 'lies' as const, written: 1, picked: 0, options: [], shown: 0, total: 0, lastOpenedId: null, lies: null, ...over });
+    const mine = (over: Record<string, unknown> = {}) => ({ ...me, bluff: { lie: null, own: [], pick: null, truth: null, fooled: null, ...over } });
+
+    it('the lies phase: a field; after sending, the own lie and the counter', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info(), me: mine() }));
+      expect(screen.getByLabelText('Твоя вигадка')).toBeTruthy();
+      cleanup();
+      show(onQuestion({ question: bluffPublic, bluff: info({ written: 1 }), me: mine({ lie: 'Рим' }) }));
+      expect(screen.getByText('Твоя вигадка: «Рим». Чекаємо на інших.')).toBeTruthy();
+      expect(screen.getByText('Вигадали 1 з 2')).toBeTruthy();
+      expect(screen.queryByLabelText('Твоя вигадка')).toBeNull();
+    });
+
+    it('the choice phase: the list with the own lie disabled; after picking, the pick', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options }), me: mine({ lie: 'Мілан', own: ['b2'] }) }));
+      expect(screen.getByText('Що з цього правда?')).toBeTruthy();
+      expect((screen.getByRole('button', { name: /Мілан/ }) as HTMLButtonElement).disabled).toBe(true);
+      cleanup();
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options, picked: 1 }), me: mine({ pick: 'b3' }) }));
+      expect(screen.getByText('Твій вибір: «Барселона»')).toBeTruthy();
+      expect(screen.getByText('Вибрали 1 з 2')).toBeTruthy();
+      expect(screen.queryByText('Що з цього правда?')).toBeNull();
+    });
+
+    it('a pick the host removed brings the list back', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options: options.filter((o) => o.id !== 'b3') }), me: mine({ pick: null }) }));
+      expect(screen.getByText('Що з цього правда?')).toBeTruthy();
+    });
+
+    it('the input is disabled during the pause', () => {
+      show(onQuestion({ question: bluffPublic, bluff: info(), me: mine(), paused: true }));
+      expect((screen.getByLabelText('Твоя вигадка') as HTMLInputElement).closest('fieldset')!.disabled).toBe(true);
+    });
+
+    it('the reveal before the truth: the board, a hint and no score', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: bluffPublic,
+          reveal: bluffFull,
+          bluff: info({ stage: 'reveal', options, shown: 0, total: 3 }),
+          me: mine({ lie: 'Рим' }),
+        }),
+      );
+      expect(document.querySelectorAll('li.bluff-row')).toHaveLength(5);
+      expect(screen.getByText('Правду відкриють останньою')).toBeTruthy();
+      expect(screen.queryByText('Ти знайшов правду!')).toBeNull();
+      expect(document.querySelector('.earned')).toBeNull();
+    });
+
+    it('the reveal after the truth: the verdict, the fooled and the points', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: bluffPublic,
+          reveal: bluffFull,
+          bluff: info({ stage: 'reveal', options, shown: 3, total: 3, lastOpenedId: 'b1' }),
+          me: {
+            ...mine({ lie: 'Рим', truth: true, fooled: 1 }),
+            result: { accepted: true, accuracy: 1, grade: 'correct', streakBonus: 0, points: 1500 },
+          },
+        }),
+      );
+      expect(screen.getByText('Ти знайшов правду!')).toBeTruthy();
+      expect(screen.getByText('На твою вигадку купилися: 1')).toBeTruthy();
+      expect(document.querySelector('.earned')!.textContent).toContain('1');
+      expect(screen.queryByText('Правду відкриють останньою')).toBeNull();
+    });
+  });
 });

@@ -7899,3 +7899,130 @@ button.wall-tile:disabled {
   color: var(--signal);
   font-weight: 700;
 }
+
+.bluff-input,
+.bluff-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.bluff-input input {
+  min-height: 2.75rem;
+}
+
+.bluff-hint,
+.bluff-stage {
+  margin: 0;
+}
+
+.bluff-stage {
+  font-weight: 700;
+  color: var(--amber);
+}
+
+.bluff-choice .btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 2.75rem;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.bluff-choice .btn:disabled {
+  opacity: 0.6;
+}
+
+.bluff-own {
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.bluff-board {
+  perspective: 40rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  width: 100%;
+}
+
+.bluff-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.bluff-row.is-closed {
+  background: var(--spot);
+}
+
+.bluff-row.is-truth {
+  border-color: var(--correct);
+  color: var(--correct);
+  font-weight: 700;
+}
+
+.bluff-row.is-removed {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.bluff-row.is-removed .bluff-meta {
+  text-decoration: none;
+}
+
+.bluff-meta {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.bluff-board.is-big .bluff-row {
+  font-size: 1.5rem;
+  padding: 0.375rem 1rem;
+}
+
+.bluff-board.is-big .bluff-meta {
+  font-size: 0.875rem;
+}
+
+.bluff-board.is-dense .bluff-row {
+  font-size: 1.125rem;
+  padding: 0.25rem 1rem;
+}
+
+.bluff-row.is-flipping {
+  transform-origin: center top;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bluff-row.is-flipping {
+    animation: bluff-flip 0.6s ease-out;
+  }
+
+  @keyframes bluff-flip {
+    from {
+      transform: rotateX(-90deg);
+      opacity: 0;
+    }
+
+    to {
+      transform: rotateX(0);
+      opacity: 1;
+    }
+  }
+}
