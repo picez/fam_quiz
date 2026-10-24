@@ -94,6 +94,8 @@ export interface PlayRef {
   surveyRows?: SurveyRow[];
   /** Блеф: варіанти (з авторами, видами й позначкою «прибрано») і вибори гравців за id; знімок вікторини їх не має. */
   bluff?: { options: BluffOption[]; picks: Record<string, string> };
+  /** «Ва-банк»: хто забрав банк після цього запитання (id учасників) і чи скінчився на ньому раунд. */
+  wipeout?: { took: string[]; end?: true };
 }
 
 /** Зіграна або поточна гра. id збігається з id кімнати. */

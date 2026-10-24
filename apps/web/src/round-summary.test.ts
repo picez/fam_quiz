@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyBrief, type AnswerMode } from '@quiz/shared';
 import { roundSummary } from './round-summary';
+import { t } from './i18n';
 
 describe('roundSummary', () => {
   it('a default classic round: everyone answers, faster is more', () => {
@@ -66,5 +67,8 @@ describe('roundSummary', () => {
       'Кожен таємно ставить від 0 до свого рахунку.',
       'Хто помилився або не відповів, віддає ставку в спільний банк; хто відповів правильно, зберігає свою й ділить банк пропорційно ставкам.',
     ]);
+  });
+  it('a wipeout round explains the bank and the take', () => {
+    expect(roundSummary(emptyBrief('wipeout'))).toEqual([t('summaryWipeout'), t('summaryWipeoutTake')]);
   });
 });

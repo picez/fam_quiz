@@ -19,6 +19,8 @@ import {
   type DuelQuestion,
   type Duels,
   type FinalRound,
+  type WipeoutRound,
+  WIPEOUT_TYPES,
   type Round,
   type Question,
   type Quiz,
@@ -44,6 +46,7 @@ export { QUESTION_TYPES, type QuestionType };
  * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, «100 до 1», опитування й хмари;
  * сортування — скрізь; класика — усі.
  * Блеф — лише класика (поле, бліц і фінал його не мають).
+ * «Ва-банк» — лише WIPEOUT_TYPES: один варіант, так/ні, число, текст, повзунок.
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
@@ -55,6 +58,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
   if (roundType === 'final') {
     return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
+  if (roundType === 'wipeout') return WIPEOUT_TYPES;
   return QUESTION_TYPES;
 }
 
@@ -338,9 +342,25 @@ export function newBlitzRound(): BlitzRound {
   };
 }
 
+/** Новий «Ва-банк»: п'ять порожніх запитань «один варіант» з цінами 100…500 (драбина зростає), без перемішування. */
+export function newWipeoutRound(): WipeoutRound {
+  return {
+    id: newId(),
+    type: 'wipeout',
+    title: '',
+    shuffleOptions: false,
+    questions: Array.from({ length: LIMITS.minWipeoutQuestions }, (_, i) => ({ ...newQuestion('single'), points: 100 * (i + 1) })),
+  };
+}
+
 /** Новий раунд «Фінал»: одне запитання, автоматична перевірка, класичні ставки; правил балів у ньому немає. */
 export function newFinalRound(): FinalRound {
   return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', questions: [newQuestion('single')] };
+}
+
+/** Нове запитання драбини «Ва-банк»: «один варіант», ціна на сотню вища за попереднє (не більше максимуму); перше — 100. */
+export function newWipeoutQuestion(after: Question | undefined): Question {
+  return newBoardQuestion(after);
 }
 
 /** Нова клітинка поля: порожнє запитання, ціна на сотню вища за попередню (не більше максимуму). */
@@ -979,6 +999,12 @@ export function problemsOf(quiz: Quiz): string[] {
       }
       return;
     }
+    if (round.type === 'wipeout') {
+      if (round.questions.length < LIMITS.minWipeoutQuestions) problems.push(where(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions })));
+      if (round.questions.length > LIMITS.maxWipeoutQuestions) problems.push(where(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions })));
+      const allowed: readonly string[] = WIPEOUT_TYPES;
+      if (round.questions.some((question) => !allowed.includes(question.type))) problems.push(where(t('problemWipeoutType')));
+    }
     round.questions.forEach((question, index) => {
       const key = problemKey(question, roundPlace(draft, roundIndex, index));
       if (key !== null) problems.push(where(problemText(key, index + 1, question)));
@@ -1001,6 +1027,7 @@ export function problemsOf(quiz: Quiz): string[] {
       const messages = parsed.error.issues.map((issue) => issue.message);
       if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
       if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
+      if (messages.includes('wipeout_type')) problems.push(t('problemWipeoutType'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));

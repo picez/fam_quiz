@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView } from '@quiz/shared';
+import { emptyBrief, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
 
@@ -22,6 +22,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   board: null,
   spotlight: null,
   final: null,
+  wipeout: null,
   chain: null,
   sort: null,
   bluff: null,
@@ -1611,5 +1612,45 @@ describe('StageScreen: bluff (10f)', () => {
     expect(document.querySelector('.bluff-board.is-dense')).not.toBeNull();
     expect(screen.getByText('Дуже довга вигадка номер 3 про те, де саме поставили вежу')).toBeTruthy();
     expect(screen.getAllByText('Купилися: Аня, Богдан, Віка +3')).toHaveLength(8);
+  });
+
+  describe('wipeout', () => {
+    const wRow = (id: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname: `Гравець ${id}`, status: 'in', bank: 0, step: null, decision: null, ...over });
+    const wInfo = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
+      ladder: [100, 200, 300, 400, 500],
+      current: 1,
+      done: 2,
+      rows: [wRow('a', { bank: 300, decision: 'decided' }), wRow('b', { bank: 300, decision: 'pending' })],
+      inCount: 2,
+      decide: { endsAt: Date.now() + 10_000, remainingMs: null, decided: 1, total: 2 },
+      ...over,
+    });
+    const wRound: RoundInfo = { index: 0, total: 1, title: '', type: 'wipeout', partial: false, description: '', brief: emptyBrief('wipeout'), times: null };
+
+    it('leaderboard: the ladder with the player groups, «Вирішили 1 з 2», a timer and no standings table', () => {
+      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo(), standings: null }));
+      expect(document.querySelector('.wipeout-ladder.is-stage')).not.toBeNull();
+      expect(screen.getByText('У грі')).toBeTruthy();
+      expect(screen.getByText('Вирішили 1 з 2')).toBeTruthy();
+      expect(screen.getByRole('timer')).toBeTruthy();
+      expect(document.querySelector('.standings')).toBeNull();
+    });
+
+    it('leaderboard after the window closes: no countdown', () => {
+      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo({ decide: null }) }));
+      expect(screen.queryByRole('timer')).toBeNull();
+      expect(screen.queryByText(/Вирішили/)).toBeNull();
+    });
+
+    it('intro: the ladder sits under the briefing', () => {
+      show(view({ phase: 'intro', round: wRound, wipeout: wInfo({ current: -1, done: 0, decide: null }) }));
+      expect(document.querySelector('.wipeout-ladder.is-stage')).not.toBeNull();
+    });
+
+    it('question: a narrow strip with the current rung, no big ladder', () => {
+      show(view({ phase: 'question', round: wRound, questionIndex: 1, question, wipeout: wInfo({ decide: null }) }));
+      expect(screen.getByText('Сходинка 2 з 5 · 200')).toBeTruthy();
+      expect(document.querySelector('.wipeout-ladder')).toBeNull();
+    });
   });
 });

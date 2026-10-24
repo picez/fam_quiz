@@ -1,6 +1,7 @@
 import type { Answer } from './answer';
 import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
 import type { CellKind, Question, Round, WagerMode } from './quiz';
+import type { WipeoutStatus } from './wipeout';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
 
@@ -68,6 +69,8 @@ export interface GameQuestionResult {
   surveyFromCloud?: true;
   /** Блеф: варіанти в порядку розкриття (правда остання) з нікнеймами авторів і тих, хто вибрав; прибрані — в кінці з removed. */
   bluff?: { options: { text: string; kind: 'truth' | 'lie' | 'spare'; authors: string[]; pickedBy: string[]; removed: boolean }[] };
+  /** «Ва-банк»: ціна сходинки й стан кожного учасника після неї (за турнірною таблицею). */
+  wipeout?: { price: number; rows: { nickname: string; status: WipeoutStatus; bank: number }[] };
   /** Відповіді в порядку: учасник за турнірною таблицею, потім номер спроби. */
   responses: GameResponse[];
   /** Запитання фіналу: ставки й результати учасників за турнірною таблицею; null поза фіналом. */

@@ -8,6 +8,7 @@ import {
   quizSchema,
   roundSchema,
   upgradeQuiz,
+  wipeoutStandings,
   type AdjustmentSource,
   type BuffKind,
   type GameDetail,
@@ -165,6 +166,42 @@ function finalResult(
   };
 }
 
+/**
+ * Драбина «Ва-банк» після запитання index: ціна зі знімка, стан і банк кожного учасника за турнірною таблицею.
+ * Кроки — запитання цього раунду до index включно: правильні — учасники з прийнятою відповіддю (спроба 0), забрали — з журналу.
+ */
+function wipeoutResult(
+  quiz: Quiz,
+  plays: PlayRef[],
+  index: number,
+  answers: { participantId: string; questionIndex: number; attempt: number; accepted: boolean }[],
+  standings: { participantId: string; nickname: string }[],
+): GameQuestionResult['wipeout'] {
+  const ref = plays[index];
+  if (ref === undefined) return undefined;
+  const indices = plays.flatMap((play, i) => (i <= index && play.roundIndex === ref.roundIndex ? [i] : []));
+  const steps = indices.flatMap((i) => {
+    const question = roundQuestionsAt(quiz, plays[i].roundIndex).find((q) => q.id === plays[i].questionId);
+    if (question === undefined) return [];
+    return [
+      {
+        price: question.points,
+        correct: answers.filter((a) => a.questionIndex === i && a.attempt === 0 && a.accepted).map((a) => a.participantId),
+        took: plays[i].wipeout?.took ?? [],
+      },
+    ];
+  });
+  const table = wipeoutStandings(
+    standings.map((s) => s.participantId),
+    steps,
+    ref.wipeout?.end === true,
+  );
+  return {
+    price: steps.at(-1)?.price ?? 0,
+    rows: standings.map(({ participantId, nickname }) => ({ nickname, status: table[participantId].status, bank: table[participantId].bank })),
+  };
+}
+
 /** Кількість різних значень: у бліці гравець може мати кілька рядків-спроб на одне запитання. */
 const distinct = (values: unknown[]) => new Set(values).size;
 
@@ -280,6 +317,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         ...(ref?.bluff === undefined ? {} : { bluff: bluffResult(ref, nicknames) }),
         ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
         responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
+        ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },
     ];
@@ -333,6 +371,33 @@ function unscoredPlayed(snapshot: unknown, plays: PlayRef[] | null, questionsPla
   }).length;
 }
 
+/**
+ * Скільки зіграних запитань «Ва-банк» цей гравець не грав: після згоряння чи «Забрати» він лише дивився, рядків-відповідей на ті сходинки немає.
+ * Такі сходинки не рахуємо його запитаннями: точність — зі сходинок, на яких він був у грі (мовчання теж невдала відповідь).
+ * Драбина одного гравця залежить лише від його власних правильних відповідей і його рішення, тож чужих рядків не потрібно.
+ */
+function unplayedWipeout(snapshot: unknown, plays: PlayRef[] | null, questionsPlayed: number, participantId: string, accepted: Set<number>): number {
+  // Розбір знімка дорогий: для ігор без «Ва-банк» його не робимо.
+  const rounds = typeof snapshot === 'object' && snapshot !== null ? (snapshot as { rounds?: unknown }).rounds : undefined;
+  if (plays === null || !Array.isArray(rounds) || !rounds.some((round: unknown) => (round as { type?: unknown } | null)?.type === 'wipeout')) return 0;
+  const quiz = snapshotOf(snapshot);
+  if (quiz === null) return 0;
+  const played = plays.slice(0, questionsPlayed);
+  let unplayed = 0;
+  for (const roundIndex of new Set(played.map((ref) => ref.roundIndex))) {
+    if (quiz.rounds[roundIndex]?.type !== 'wipeout') continue;
+    const indices = played.flatMap((ref, i) => (ref.roundIndex === roundIndex ? [i] : []));
+    const steps = indices.map((i) => ({
+      price: roundQuestionsAt(quiz, roundIndex).find((q) => q.id === played[i].questionId)?.points ?? 0,
+      correct: accepted.has(i) ? [participantId] : [],
+      took: played[i].wipeout?.took ?? [],
+    }));
+    const { step } = wipeoutStandings([participantId], steps, false)[participantId];
+    if (step !== null) unplayed += steps.length - 1 - step;
+  }
+  return unplayed;
+}
+
 /** Ігри гравця з акаунта, найновіші першими, з рядками його відповідей; limit null — усі. */
 export async function playerGames(db: Db, userId: string, limit: number | null): Promise<{ played: PlayedGame; marks: AnswerMark[] }[]> {
   const query = db
@@ -373,7 +438,16 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
         playerCount: players.get(row.game.id) ?? 0,
         correct: distinct(mine.filter((a) => a.accepted).map((a) => a.questionIndex)),
         answered: distinct(mine.filter((a) => isAnswerRow(a.attempt)).map((a) => a.questionIndex)),
-        questionsPlayed: row.game.questionsPlayed - unscoredPlayed(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed),
+        questionsPlayed:
+          row.game.questionsPlayed -
+          unscoredPlayed(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed) -
+          unplayedWipeout(
+            row.game.quizSnapshot,
+            row.game.plays,
+            row.game.questionsPlayed,
+            row.participant.id,
+            new Set(mine.filter((a) => a.accepted && a.attempt === 0).map((a) => a.questionIndex)),
+          ),
       },
       marks: mine.filter((a) => isAnswerRow(a.attempt)).map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
     };

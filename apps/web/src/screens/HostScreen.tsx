@@ -8,6 +8,7 @@ import { WallTable } from './WallTable';
 import { PollBars } from './PollBars';
 import { HostCloud } from './HostCloud';
 import { HostBluff } from './HostBluff';
+import { DecidingLabel, HostWipeout } from './HostWipeout';
 import { SurveyBoard } from './SurveyBoard';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
@@ -231,6 +232,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               : base;
   const blitz = view.blitz;
   const board = view.board;
+  // «Ва-банк»: поки гравці вирішують, «Далі» вимкнене (рушій відповів би deciding).
+  const wipeoutDeciding = phase === 'leaderboard' && view.wipeout?.decide != null;
   // «100 до 1» на розкритті: головна кнопка спершу відкриває рядки по одному.
   const surveyStep = phase === 'reveal' && view.question?.type === 'survey' && view.survey !== null && view.survey.shown < view.survey.total;
   // Блеф: на розкритті головна кнопка спершу відкриває варіанти по одному; у фазах вигадок і вибору вона перемикає фазу.
@@ -414,7 +417,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         {round !== null && round.total > 1 && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
         {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && phase !== 'duel' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&
-          `, ${blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
+          `, ${view.wipeout !== null ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount }) : blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
       </p>
 
       {view.surveySkipped.map((text) => (
@@ -518,6 +521,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </div>
         </section>
       )}
+
+      {view.wipeout !== null && phase !== 'finished' && phase !== 'round_end' && <HostWipeout view={view} offsetMs={offsetMs} />}
 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
@@ -1107,10 +1112,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <button
             type="button"
             className="btn btn-primary"
-            disabled={stepping || (phase === 'lobby' && view.players.length === 0) || diceRolling}
+            disabled={stepping || (phase === 'lobby' && view.players.length === 0) || diceRolling || wipeoutDeciding}
             onClick={() => step(main.event)}
           >
-            {surveyStep && view.survey !== null
+            {wipeoutDeciding && view.wipeout?.decide != null
+              ? <DecidingLabel decide={view.wipeout.decide} offsetMs={offsetMs} />
+              : phase === 'leaderboard' && view.wipeout !== null && view.wipeout.inCount === 0
+              ? t(lastRound ? 'next' : 'wipeoutToResults')
+              : surveyStep && view.survey !== null
               ? t('surveyNextRow', { shown: view.survey.shown + 1, total: view.survey.total })
               : bluffStep && bluff !== null
               ? t('bluffNextRow', { shown: bluff.shown + 1, total: bluff.total })

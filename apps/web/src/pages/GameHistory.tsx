@@ -141,6 +141,14 @@ export function debuffLines(adjustments: GameAdjustment[]): string[] {
     });
 }
 
+/** «Ва-банк»: рядки стану учасників після сходинки. */
+export function wipeoutLines(wipeout: NonNullable<GameQuestionResult['wipeout']>): string[] {
+  return wipeout.rows.map((row) => {
+    const params = { name: row.nickname, bank: num(row.bank) };
+    return t(row.status === 'burned' ? 'historyWipeoutBurned' : row.status === 'took' ? 'historyWipeoutTook' : row.status === 'survived' ? 'historyWipeoutSurvived' : 'historyWipeoutIn', params);
+  });
+}
+
 export function GameHistory() {
   const { id = '' } = useParams();
   const state = usePrivateData(() => getGame(id), id);
@@ -251,6 +259,15 @@ export function GameHistory() {
                               ))}
                             </ul>
                           </div>
+                        )}
+                        {question.wipeout !== undefined && (
+                          <ul className="wipeout-history">
+                            {wipeoutLines(question.wipeout).map((line, at) => (
+                              <li key={at} className="meta">
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
                         )}
                         {question.question.type === 'sort' && (
                           <p className="meta">{t('correctAnswer', { answer: correctText(question.question) })}</p>

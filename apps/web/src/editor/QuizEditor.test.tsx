@@ -21,7 +21,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ва-банк') => {
   click('+ Раунд');
   click(type);
 };
@@ -2173,5 +2173,68 @@ describe('QuizEditor: bluff (10f)', () => {
     click('+ Раунд');
     click('Ігрове поле');
     expect(screen.queryByRole('button', { name: 'Блеф' })).toBeNull();
+  });
+});
+
+describe('QuizEditor: wipeout round', () => {
+  const prices = () => Array.from(document.querySelectorAll('.question-item-price')).map((el) => el.textContent);
+  const removeButton = () => screen.getByRole('button', { name: /^Видалити запитання \d+$/ }) as HTMLButtonElement;
+
+  it('a new wipeout round has five questions priced 100…500', () => {
+    open();
+    addRound('Ва-банк');
+    expect(prices()).toEqual(['100', '200', '300', '400', '500']);
+    const names = within(screen.getByRole('group', { name: t('questionType') }))
+      .getAllByRole('button')
+      .map((b) => b.textContent);
+    expect(names).toHaveLength(5);
+  });
+
+  it('adding a question continues the price and stops at fifteen; removing stops at five', () => {
+    open();
+    addRound('Ва-банк');
+    expect(removeButton().disabled).toBe(true);
+    expect(removeButton().title).toBe(t('wipeoutMinHint', { min: 5 }));
+    click(t('addQuestion'));
+    expect(prices()[5]).toBe('600');
+    expect(removeButton().disabled).toBe(false);
+    for (let i = 0; i < 9; i += 1) click(t('addQuestion'));
+    expect(prices()).toHaveLength(15);
+    expect((screen.getByRole('button', { name: t('addQuestion') }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('remove goes back to disabled at five after a removal, and duplicate is disabled at fifteen', () => {
+    open();
+    addRound('Ва-банк');
+    click(t('addQuestion'));
+    expect(prices()).toHaveLength(6);
+    expect(removeButton().disabled).toBe(false);
+    fireEvent.click(removeButton());
+    expect(prices()).toHaveLength(5);
+    expect(removeButton().disabled).toBe(true);
+    const duplicateButton = () => screen.getByRole('button', { name: t('duplicate') }) as HTMLButtonElement;
+    expect(duplicateButton().disabled).toBe(false);
+    for (let i = 0; i < 10; i += 1) click(t('addQuestion'));
+    expect(prices()).toHaveLength(15);
+    expect(duplicateButton().disabled).toBe(true);
+  });
+
+  it('settings show no rule controls, only the note', () => {
+    open();
+    addRound('Ва-банк');
+    expect(screen.queryByLabelText(t('ruleMinus'))).toBeNull();
+    expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
+    expect(screen.queryByLabelText(t('ruleStreak'))).toBeNull();
+    expect(screen.queryByLabelText(t('ruleMultiplier'))).toBeNull();
+    expect(screen.getByText(t('wipeoutSettingsNote'))).toBeTruthy();
+  });
+
+  it('saving with an empty ladder lists the problems instead of failing silently', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Т');
+    addRound('Ва-банк');
+    click('Зберегти');
+    await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

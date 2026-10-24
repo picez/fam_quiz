@@ -58,6 +58,7 @@ import {
   roundQuestions,
   roundSchema,
   rulesOf,
+  WIPEOUT_TYPES,
   surveyOrder,
   surveyShare,
   surveyHitsOf,
@@ -1664,6 +1665,34 @@ describe('where bluffs live (10f)', () => {
   it('spares cannot be bluffs', () => {
     const base = quizOf([round('r', [single])]);
     expect(issues({ ...base, spares: [{ ...bluffQ, id: 'b9' }] })).toContain('spare_type');
+  });
+});
+
+describe('wipeout round (10g)', () => {
+  const ladder = [100, 200, 300, 400, 500].map((points, i) => ({ ...single, id: `w${i + 1}`, points }));
+  const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false, questions: ladder } as const;
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const quizOf = (questions: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds: [{ ...wipeout, questions }] });
+  it('a wipeout round has 5–15 questions of simple types and no rules', () => {
+    expect(ROUND_TYPES).toContain('wipeout');
+    expect(valid(roundSchema, wipeout)).toBe(true);
+    expect(valid(roundSchema, { ...wipeout, questions: ladder.slice(0, 4) })).toBe(false);
+    expect(valid(roundSchema, { ...wipeout, questions: Array.from({ length: 16 }, (_, i) => ({ ...single, id: `x${i}` })) })).toBe(false);
+    expect(rulesOf(roundSchema.parse(wipeout))).toEqual(DEFAULT_RULES);
+    expect(WIPEOUT_TYPES).toEqual(['single', 'boolean', 'numeric', 'text', 'slider']);
+    expect(LIMITS.wipeoutDecideSeconds).toBe(10);
+  });
+  it('refuses other question types in a wipeout round', () => {
+    const multi = { ...single, id: 'm1', type: 'multi', correctIds: ['b'], correctId: undefined };
+    const poll = { id: 'p1', type: 'poll', text: 'Що?', imageUrl: null, video: null, timeLimit: 20, points: 0,
+      options: [{ id: 'a', text: 'А' }, { id: 'b', text: 'Б' }] };
+    const bluff = { id: 'b1', type: 'bluff', text: 'Факт з …', imageUrl: null, video: null, timeLimit: 60, choiceTime: 30, points: 1000,
+      accepted: ['Барселона'], lies: ['Мадрид', 'Лондон'] };
+    for (const odd of [multi, poll, bluff]) expect(issues(quizOf([...ladder.slice(0, 4), odd]))).toContain('wipeout_type');
+    expect(issues(quizOf(ladder))).toEqual([]);
   });
 });
 

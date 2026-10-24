@@ -4,6 +4,7 @@ import type { AnswerMode, CellKind, CellMark, CellPenalty, PinMap, Question, Que
 import type { GuidePage } from './guide';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
+import type { WipeoutStatus } from './wipeout';
 
 export interface Choice {
   id: string;
@@ -599,6 +600,33 @@ export interface BuffTag extends BlitzPlayer {
   kind: BuffKind;
 }
 
+/** Рядок драбини «Ва-банк»: гравець, стан, банк і рішення у вікні. */
+export interface WipeoutRow extends BlitzPlayer {
+  status: WipeoutStatus;
+  /** in — банк зараз; took / survived — перенесено; burned — 0. */
+  bank: number;
+  /** Крок (0-базовий), на якому забрав, згорів чи доніс; null — у грі. */
+  step: number | null;
+  /** Лише у вікні рішення й лише для тих, хто в грі: сцена й телефони — pending / decided; пульт — pending / stay / take. Інакше null. */
+  decision: 'pending' | 'decided' | 'stay' | 'take' | null;
+}
+
+/** «Ва-банк» (10g). */
+export interface WipeoutInfo {
+  /** Ціни запитань раунду в порядку гри. */
+  ladder: number[];
+  /** Поточна сходинка: запитання, що йде чи щойно розкрите (0-базове); -1 до першого. */
+  current: number;
+  /** Скільки сходинок пройдено й розкрито: на question / locked поточна не входить. */
+  done: number;
+  /** У порядку гравців. */
+  rows: WipeoutRow[];
+  /** Скільки зараз у грі (на question — хто може відповідати). */
+  inCount: number;
+  /** Вікно «Далі / Забрати»; null — вікна немає. */
+  decide: { endsAt: number | null; remainingMs: number | null; decided: number; total: number } | null;
+}
+
 /** Останній узятий баф у грі, для сповіщення «Оля: 50/50». seq — номер використання в грі. */
 export interface BuffNotice extends BlitzPlayer {
   seq: number;
@@ -708,6 +736,8 @@ interface BaseView {
   spotlight: Spotlight | null;
   /** Фінал; null поза раундом фіналу й поза етапами intro, wager, question, locked, reveal. */
   final: FinalInfo | null;
+  /** «Ва-банк»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
+  wipeout: WipeoutInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
   chain: ChainInfo | null;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -817,6 +847,8 @@ export interface PlayerView extends BaseView {
     blitz: PlayerBlitz | null;
     /** Власна ставка й її межа; allIn — ставка дорівнює межі й більша за 0; null поза фіналом. */
     final: { wager: number | null; limit: number; allIn: boolean } | null;
+    /** Власний стан у «Ва-банк»; null поза раундом. canDecide — вікно відкрите, гравець у грі, ще не вирішив, не пауза. */
+    wipeout: { status: WipeoutStatus; bank: number; decision: 'stay' | 'take' | null; canDecide: boolean } | null;
     /** null поза запитанням-ланцюжком. */
     chain: PlayerChain | null;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */

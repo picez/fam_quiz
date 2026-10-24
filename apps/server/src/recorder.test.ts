@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, withId } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, withId, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, isUnscored, type Question } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
@@ -8,6 +8,7 @@ import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { playToEnd } from './testing/final-game';
+import { playWipeout } from './testing/wipeout-game';
 import { createTestDb } from './testing/test-db';
 
 const HOST = 'host-user';
@@ -1154,5 +1155,79 @@ describe('recorder: bluff (10f)', () => {
     const [saved] = await db.select().from(game);
     expect(saved.plays.every((play) => play.bluff === undefined)).toBe(true);
     expect(await db.select().from(answer)).toEqual([]);
+  });
+});
+
+describe('recorder: wipeout (10g)', () => {
+  it('stores the decisions and the end of the round in game.plays; the points rows are the banks', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const room = manager.create(makeRoundsQuiz([wipeoutRound('w', wipeoutLadder)]), HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const p1 = enter('Олена');
+    const p2 = enter('Тарас');
+    // Олена забирає після другої сходинки (банк 300), Тарас доходить до кінця (банк 1500).
+    playWipeout(manager, room, { [p1]: [0, 1, 2, 3, 4], [p2]: [0, 1, 2, 3, 4] }, { [p1]: 1 }, 2);
+    await recorder.idle();
+    const rows = (index: number) => db.select().from(answer).where(eq(answer.questionIndex, index)).orderBy(asc(answer.points));
+    const [saved] = await db.select().from(game);
+    expect(saved.plays.map((play) => play.wipeout)).toEqual([{ took: [] }, { took: [p1] }]);
+    expect((await rows(1)).map((a) => [a.participantId === p1 ? 'p1' : 'p2', a.points])).toEqual([
+      ['p2', 0],
+      ['p1', 300],
+    ]);
+    expect((await rows(0)).map((a) => a.points)).toEqual([0, 0]);
+
+    // Рішення без зміни фази: Тарас на третій сходинці забирає, не змінивши фази.
+    for (let guard = 0; guard < 3 && room.state.phase !== 'question'; guard++) manager.host(room, { type: 'next' });
+    manager.answer(room, p2, { type: 'numeric', value: 2100 });
+    expect(room.state.phase).toBe('locked');
+    manager.host(room, { type: 'next' });
+    manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('leaderboard');
+    await recorder.idle();
+    expect((await db.select().from(game))[0].plays[2].wipeout).toEqual({ took: [] });
+    expect(manager.wipeout(room, p2, true)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('leaderboard');
+    await recorder.idle();
+    expect((await db.select().from(game))[0].plays[2].wipeout).toEqual({ took: [p2] });
+    const [taras] = await db.select().from(participant).where(eq(participant.id, p2));
+    expect(taras.score).toBe(600);
+    expect((await rows(2)).find((a) => a.participantId === p2)?.points).toBe(600);
+  });
+
+  it('marks the last step with end: true and moves the banks into the score', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const room = manager.create(makeRoundsQuiz([wipeoutRound('w', wipeoutLadder)]), HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const p1 = enter('Олена');
+    const p2 = enter('Тарас');
+    playWipeout(manager, room, { [p1]: [0, 1, 2, 3, 4], [p2]: [0] }, {});
+    // Єдиний раунд: після останньої сходинки гра скінчилася.
+    expect(room.state.phase).toBe('finished');
+    await recorder.idle();
+    const [saved] = await db.select().from(game);
+    expect(saved.plays).toHaveLength(5);
+    expect(saved.plays.map((play) => play.wipeout?.end)).toEqual([undefined, undefined, undefined, undefined, true]);
+    const [olena] = await db.select().from(participant).where(eq(participant.id, p1));
+    const [taras] = await db.select().from(participant).where(eq(participant.id, p2));
+    expect([olena.score, taras.score]).toEqual([1500, 0]);
+    const last = await db.select().from(answer).where(eq(answer.questionIndex, 4));
+    expect(last.find((a) => a.participantId === p1)?.points).toBe(1500);
   });
 });

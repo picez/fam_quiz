@@ -18,13 +18,14 @@ export interface GuideText {
   items: GuideItem[];
 }
 
-export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆' };
+export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆', wipeout: '💰' };
 
 export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   classic: 'roundTypeClassic',
   blitz: 'roundTypeBlitz',
   board: 'roundTypeBoard',
   final: 'roundTypeFinal',
+  wipeout: 'roundTypeWipeout',
 };
 
 export const TYPE_ICONS: Record<Question['type'], string> = {
@@ -58,6 +59,8 @@ export function roundHow(brief: RoundBrief): string[] {
       return [t('roundHow_board')];
     case 'final':
       return [t('roundHow_final'), t(brief.wagerMode === 'bank' ? 'summaryFinalBank' : 'summaryFinalScore')];
+    case 'wipeout':
+      return [t('roundHow_wipeout')];
   }
 }
 

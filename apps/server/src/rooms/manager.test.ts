@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import {
@@ -1003,3 +1003,43 @@ describe('«Як грати»', () => {
     expect(plain.room.state.phase).toBe('question');
   });
 });
+
+describe('the wipeout decision window (10g)', () => {
+  function window() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([wipeoutRound('w', wipeoutLadder)]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
+    expect(manager.answer(room, taras.playerId, correct)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    return { scheduler, manager, room, olena, taras };
+  }
+
+  it('closes at once when every present player in the game has decided', () => {
+    const { room, scheduler, manager, olena, taras } = window();
+    expect(room.state.phase).toBe('leaderboard');
+    expect(manager.wipeout(room, taras.playerId, false)).toEqual({ ok: true });
+    scheduler.advance(9_999);
+    expect(room.state.endsAt).not.toBeNull();
+    expect(manager.wipeout(room, olena.playerId, true)).toEqual({ ok: true });
+    expect(room.state.endsAt).toBeNull();
+  });
+
+  it('without decisions the scheduler ends the window at the deadline and the bank is taken', () => {
+    const { room, scheduler } = window();
+    scheduler.advance(9_999);
+    expect(room.state.endsAt).not.toBeNull();
+    scheduler.advance(1);
+    expect(room.state.endsAt).toBeNull();
+    expect(room.state.plays[0].wipeout?.took).toHaveLength(2);
+    expect(room.state.players.map((p) => p.score)).toEqual([100, 100]);
+    expect(room.state.phase).toBe('leaderboard');
+  });
+});
+

@@ -21,6 +21,7 @@ import {
   wallSchema,
   lieSchema,
   bluffOptionSchema,
+  wipeoutSchema,
   cloudHideSchema,
   buffSchema,
   hintSchema,
@@ -232,6 +233,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = bluffOptionSchema.safeParse(payloadOf(args));
       return payload.success ? manager.bluff(room, identity.playerId, payload.data.optionId) : INVALID;
+    });
+
+    on('player:wipeout', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = wipeoutSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.wipeout(room, identity.playerId, payload.data.take) : INVALID;
     });
 
     on('player:buff', (args) => {

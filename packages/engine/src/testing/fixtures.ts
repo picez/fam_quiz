@@ -14,6 +14,7 @@ import {
   type RevealMode,
   type Round,
   type Video,
+  type WipeoutRound,
 } from '@quiz/shared';
 
 const base = { imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -337,6 +338,22 @@ export function finalRound(
 ): FinalRound {
   return { id, type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', ...options, questions: [question] };
 }
+
+/** «Ва-банк»: типово title '', shuffleOptions false. */
+export function wipeoutRound(
+  id: string,
+  questions: Question[],
+  options: Partial<Omit<WipeoutRound, 'id' | 'type' | 'questions'>> = {},
+): WipeoutRound {
+  return { id, type: 'wipeout', title: '', shuffleOptions: false, ...options, questions };
+}
+
+/** П'ять сходинок 100…500: single, bool, numeric, text, slider з id w1…w5. */
+export const wipeoutLadder: Question[] = [single, bool, numeric, text, slider].map((question, i) => ({
+  ...question,
+  id: `w${i + 1}`,
+  points: (i + 1) * 100,
+}));
 
 /** Копія запитання з іншим id: поле збирають з однакових запитань. */
 export const withId = (question: Question, id: string): Question => ({ ...question, id });

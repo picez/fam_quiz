@@ -10,6 +10,7 @@ import { schoolQuiz } from './school-quiz';
 
 /** Типи, що з'явилися після цієї вікторини (10e і далі): її ще не оновлено під них. */
 const LATER_TYPES = new Set<string>(['survey', 'bluff']);
+const LATER_ROUND_TYPES = new Set<string>(['wipeout']);
 
 const key = (text: string) => text.trim().toLocaleLowerCase('uk');
 
@@ -20,7 +21,7 @@ describe('the «Компас» quiz', () => {
   });
 
   it('has every round type and every question type', () => {
-    expect(new Set(compassQuiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES));
+    expect(new Set(compassQuiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => !LATER_ROUND_TYPES.has(type))));
     expect(compassQuiz.rounds.filter((r) => r.type === 'classic').length).toBeGreaterThanOrEqual(2);
     expect(new Set(questionsOf(compassQuiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES.filter((type) => !LATER_TYPES.has(type))));
   });

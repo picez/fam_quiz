@@ -22,6 +22,7 @@ import { horizonQuiz } from './horizon-quiz';
 
 /** Типи, що з'явилися після цієї вікторини (10e і далі): її ще не оновлено під них. */
 const LATER_TYPES = new Set<string>(['survey', 'bluff']);
+const LATER_ROUND_TYPES = new Set<string>(['wipeout']);
 
 /** Тексти всіх запитань вікторини: раунди, загальні запасні, запасні категорій і дуелі. */
 const texts = (quiz: Quiz) => [
@@ -41,7 +42,7 @@ describe('the «Горизонт» quiz', () => {
 
   it('has every round type, two classic rounds and a warm-up', () => {
     const types = horizonQuiz.rounds.map((r) => r.type);
-    for (const type of ROUND_TYPES) expect(types).toContain(type);
+    for (const type of ROUND_TYPES.filter((type) => !LATER_ROUND_TYPES.has(type))) expect(types).toContain(type);
     expect(types.filter((t) => t === 'classic').length).toBeGreaterThanOrEqual(2);
     expect(types.at(-1)).toBe('final');
     const warmup = horizonQuiz.rounds[0];

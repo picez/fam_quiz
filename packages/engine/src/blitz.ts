@@ -198,6 +198,8 @@ export function nextDeadline(state: GameState, now: number): number | null {
     if (state.paused || since === null) return null;
     return since + BOARD_AWAY_MS > now ? since + BOARD_AWAY_MS : null;
   }
+  // «Ва-банк»: кінець вікна «Далі / Забрати» (поза ним endsAt на leaderboard завжди null).
+  if (state.phase === 'leaderboard') return state.paused || state.endsAt === null || state.endsAt <= now ? null : state.endsAt;
   // Годинник запитання дуелі; на інших етапах дуелі чекати нічого.
   if (state.phase === 'duel') {
     if (state.paused || state.endsAt === null) return null;

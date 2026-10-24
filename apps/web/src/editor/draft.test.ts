@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -268,6 +268,16 @@ describe('wall, poll and word cloud: checks and drafts (10d)', () => {
     const question = roundQuestions(clean)[0] as Wall;
     expect(question.groups[0].tiles[0].text).toBe('Київ');
     expect(question.groups[0].name).toBe("Зв'язок 1");
+  });
+
+  it('a wipeout draft round-trips through storage without rules or a speed bonus', () => {
+    const quiz: Quiz = { ...newQuiz(), title: 'Т', rounds: [newWipeoutRound()] };
+    saveDraft('wipeout-draft', quiz);
+    const back = loadDraft('wipeout-draft')!.rounds[0];
+    expect(back).toEqual(quiz.rounds[0]);
+    expect(back.type).toBe('wipeout');
+    expect('rules' in back).toBe(false);
+    expect('speedBonus' in back).toBe(false);
   });
 
   it('a wall draft keeps its groups; a wrong size is aligned to 3×3 or 4×4', () => {
@@ -1867,5 +1877,32 @@ describe('bluff: checks and drafts (10f)', () => {
     expect(revived({ accepted: 5 }).accepted).toEqual(['']);
     expect(revived({ lies: ['а', 7, 'б'] }).lies).toEqual(['а', '', 'б']);
     expect(revived({ video: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0 } }).video).toBeNull();
+  });
+});
+
+describe('wipeout round (10g)', () => {
+  it('a new wipeout round is a ladder of five single questions priced 100…500 that passes the schema once filled', () => {
+    const round = newWipeoutRound();
+    expect(round.questions.map((q) => q.points)).toEqual([100, 200, 300, 400, 500]);
+    expect(roundSchema.safeParse({ ...round, questions: round.questions.map(filled) }).success).toBe(true);
+  });
+  it('a wipeout round offers only its simple types', () => {
+    expect(questionTypesFor('wipeout')).toEqual(WIPEOUT_TYPES);
+  });
+  it('newWipeoutQuestion continues the price and stops at the maximum', () => {
+    const at = (points: number): Question => ({ ...newQuestion('single'), points });
+    expect(newWipeoutQuestion(undefined).points).toBe(100);
+    expect(newWipeoutQuestion(at(1950)).points).toBe(2000);
+    expect(newWipeoutQuestion(at(2000)).points).toBe(2000);
+  });
+  const wipeoutQuiz = (questions: Question[]): Quiz => ({ ...newQuiz(), title: 'Т', rounds: [{ ...newWipeoutRound(), questions }] });
+  it('problemsOf counts the ladder and checks the types', () => {
+    const five = newWipeoutRound().questions.map(filled);
+    expect(problemsOf(wipeoutQuiz(five))).toEqual([]);
+    expect(problemsOf(wipeoutQuiz(five.slice(0, 4)))).toContain(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions }));
+    const many = Array.from({ length: 16 }, (_, i) => ({ ...five[i % 5], id: `q${i}` }));
+    expect(problemsOf(wipeoutQuiz(many))).toContain(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions }));
+    const multi = filled(newQuestion('multi'));
+    expect(problemsOf(wipeoutQuiz([...five.slice(0, 4), multi]))).toContain(t('problemWipeoutType'));
   });
 });

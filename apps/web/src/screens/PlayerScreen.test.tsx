@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -44,6 +44,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   board: null,
   spotlight: null,
   final: null,
+  wipeout: null,
   chain: null,
   sort: null,
   wall: null,
@@ -2284,6 +2285,78 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(screen.getByText('На твою вигадку купилися: 1')).toBeTruthy();
       expect(document.querySelector('.earned')!.textContent).toContain('1');
       expect(screen.queryByText('Правду відкриють останньою')).toBeNull();
+    });
+  });
+
+  describe('wipeout', () => {
+    const wipeoutRound: RoundInfo = { index: 0, total: 1, title: '', type: 'wipeout', partial: false, description: '', brief: emptyBrief('wipeout'), times: null };
+    const ladder = (over: Partial<NonNullable<PlayerView['wipeout']>> = {}): NonNullable<PlayerView['wipeout']> => ({
+      ladder: [100, 200, 300],
+      current: 2,
+      done: 3,
+      rows: [{ playerId: 'p1', nickname: 'Олена', status: 'in', bank: 300, step: null, decision: null }],
+      inCount: 1,
+      decide: { endsAt: Date.now() + 8_000, remainingMs: null, decided: 0, total: 1 },
+      ...over,
+    });
+    const own = (over: Partial<NonNullable<PlayerView['me']['wipeout']>> = {}) => ({ ...me, wipeout: { status: 'in' as const, bank: 300, decision: null, canDecide: true, ...over } });
+    const standings = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 0, rank: 1 }];
+
+    it('shows the decision buttons and the ladder instead of the standings on the leaderboard', async () => {
+      const send = show(view({ phase: 'leaderboard', round: wipeoutRound, wipeout: ladder(), me: own(), standings: null }));
+      expect(document.querySelector('.standings:not(.wipeout-players)')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Забрати 300' }));
+      expect(send).toHaveBeenCalledWith('player:wipeout', { take: true });
+      // Рішення одне: поки відповіді немає, другий дотик не йде.
+      fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+      expect(send).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      await act(async () => {});
+      fireEvent.click(screen.getByRole('button', { name: 'Далі' }));
+      expect(send).toHaveBeenLastCalledWith('player:wipeout', { take: false });
+      expect(document.querySelector('.wipeout-ladder')).not.toBeNull();
+    });
+
+    it('a burned player watches instead of answering', () => {
+      show(onQuestion({ round: wipeoutRound, wipeout: ladder({ decide: null }), me: own({ status: 'burned', bank: 0, canDecide: false }) }));
+      expect(screen.getByText('Ти вже не граєш у цьому раунді — дивись.')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+      expect(document.querySelector('.inputs')).toBeNull();
+    });
+
+    it('the reveal shows the bank, not points for the question', () => {
+      show(
+        view({
+          phase: 'reveal',
+          questionIndex: 0,
+          question: publicQuestion,
+          round: wipeoutRound,
+          wipeout: ladder({ decide: null }),
+          me: { ...own({ canDecide: false }), result: { accepted: true, accuracy: 1, grade: 'correct', streakBonus: 0, points: 300 } },
+        }),
+      );
+      expect(screen.getByText('Банк: 300')).toBeTruthy();
+      expect(screen.queryByText(/\+300/)).toBeNull();
+    });
+
+    it('a player who left earlier sees no verdict on a later reveal', () => {
+      const gone = ladder({ decide: null, rows: [{ playerId: 'p1', nickname: 'Олена', status: 'took', bank: 300, step: 0, decision: null }] });
+      show(view({ phase: 'reveal', questionIndex: 1, question: publicQuestion, round: wipeoutRound, wipeout: gone, me: own({ status: 'took', canDecide: false }) }));
+      expect(screen.getByText('Ти дивишся')).toBeTruthy();
+      expect(screen.queryByText('Неправильно')).toBeNull();
+      expect(screen.queryByText('Банк: 300')).toBeNull();
+    });
+
+    it('a player burned on this very step still sees the burn', () => {
+      const burnt = ladder({ decide: null, rows: [{ playerId: 'p1', nickname: 'Олена', status: 'burned', bank: 0, step: 2, decision: null }] });
+      show(view({ phase: 'reveal', questionIndex: 2, question: publicQuestion, round: wipeoutRound, wipeout: burnt, me: own({ status: 'burned', bank: 0, canDecide: false }) }));
+      expect(screen.getByText('Банк згорів')).toBeTruthy();
+      expect(screen.queryByText('Ти дивишся')).toBeNull();
+    });
+
+    it('the round end sums the round up', () => {
+      show(view({ phase: 'round_end', round: wipeoutRound, wipeout: ladder({ decide: null }), me: own({ status: 'took', bank: 300, canDecide: false }), standings }));
+      expect(screen.getByText('Забрано 300')).toBeTruthy();
     });
   });
 });

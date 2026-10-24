@@ -1,12 +1,13 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, text, wall, withAudio, withId } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
+import { WIPEOUT_RIGHT } from './testing/wipeout-game';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -968,3 +969,41 @@ describe('survey over real sockets (10e)', () => {
     expect(after.phase).not.toBe('reveal');
   });
 });
+
+describe('wipeout over sockets (10g)', () => {
+  const wipeoutGame = async () => {
+    const created = (await startGame(ctx.app, makeRoundsQuiz([wipeoutRound('w', wipeoutLadder)]))).game;
+    return lobby(created);
+  };
+
+  it('player:wipeout takes a decision in the window; it is player-only and checks the payload and the phase', async () => {
+    const { host, stage, olena, taras } = await wipeoutGame();
+    expect(await send(olena, 'player:wipeout', { take: true })).toEqual({ ok: false, error: 'wrong_phase' });
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', WIPEOUT_RIGHT[0])).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', WIPEOUT_RIGHT[0])).toEqual({ ok: true });
+    await until(host, inPhase('locked'));
+    await send(host, 'host:next');
+    await until(host, inPhase('reveal'));
+    expect(await send(olena, 'player:wipeout', { take: true })).toEqual({ ok: false, error: 'wrong_phase' });
+    await send(host, 'host:next');
+    await until(olena, inPhase('leaderboard'));
+
+    expect(await send(host, 'player:wipeout', { take: true })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:wipeout', { take: true })).toEqual({ ok: false, error: 'forbidden' });
+    for (const take of ['yes', 1, undefined]) {
+      expect(await send(olena, 'player:wipeout', { take })).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:wipeout')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:next')).toEqual({ ok: false, error: 'deciding' });
+    expect(await send(olena, 'player:wipeout', { take: true })).toEqual({ ok: true });
+    expect(await send(olena, 'player:wipeout', { take: false })).toEqual({ ok: false, error: 'already_answered' });
+    expect(await send(taras, 'player:wipeout', { take: false })).toEqual({ ok: true });
+    // Вирішили всі: вікно закрилося, ведучий іде далі.
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+  });
+});
+

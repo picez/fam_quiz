@@ -44,6 +44,8 @@ export const wallSchema = z.object({ tiles: z.array(z.number().int().min(0).max(
 export const lieSchema = z.object({ text: z.string().max(LIMITS.bluffLie).refine(isStorable, UNSTORABLE) });
 /** Вибір варіанта блефу або варіант, який прибирає ведучий (10f). */
 export const bluffOptionSchema = z.object({ optionId: z.string().min(1).max(16).refine(isStorable, UNSTORABLE) });
+/** «Ва-банк»: «Забрати» (true) чи «Далі» (false). */
+export const wipeoutSchema = z.object({ take: z.boolean() });
 /** Сховати чи повернути слово «хмари» (10d). */
 export const cloudHideSchema = z.object({ key: z.string().min(1).max(LIMITS.cloudWord * 2).refine(isStorable, UNSTORABLE), hidden: z.boolean() });
 /** Варіант, названий уголос на усній клітинці; null знімає позначку. */
@@ -94,6 +96,8 @@ export interface ClientToServerEvents {
   'player:lie': (payload: z.infer<typeof lieSchema>, ack: Ack) => void;
   /** Блеф: вибір варіанта (10f). */
   'player:bluff': (payload: z.infer<typeof bluffOptionSchema>, ack: Ack) => void;
+  /** «Ва-банк»: рішення після розкриття (10g). */
+  'player:wipeout': (payload: z.infer<typeof wipeoutSchema>, ack: Ack) => void;
   /** Узяти баф на поточне запитання. */
   'player:buff': (payload: z.infer<typeof buffSchema>, ack: Ack) => void;
   /** Купити дебаф для суперника за бали. */

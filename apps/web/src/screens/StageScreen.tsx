@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
-import { LETTERS, answerText, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
+import { LETTERS, answerText, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
@@ -26,6 +26,7 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
+import { WipeoutLadder } from './WipeoutLadder';
 import { MenuLinks } from './MenuLinks';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
 import { SortBoard, SortReveal, SortWords } from './SortView';
@@ -197,6 +198,8 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
               : question.type === 'sort' && view.sort !== null
               ? // Записи з'являються й у тих, хто не встиг, на locked: рахуємо лише тих, хто відсортував усе.
                 t('sortFinishedOf', { finished: view.sort.rows.filter((row) => row.timeMs !== null).length, total: view.playerCount })
+              : view.wipeout !== null
+              ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
               : view.blitz === null
               ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
               : instant
@@ -205,6 +208,11 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           </span>
         )}
       </header>
+      {view.wipeout !== null && view.wipeout.current >= 0 && (
+        <p className="meta wipeout-strip">
+          {t('wipeoutStageStrip', { index: view.wipeout.current + 1, total: view.wipeout.ladder.length, price: num(view.wipeout.ladder[view.wipeout.current] ?? 0) })}
+        </p>
+      )}
       {view.board !== null && view.board.cell !== null && (
         <p className="lead cell-head">
           <span className="cell-tag">{t('cellTitle', { category: view.board.cell.category, price: view.board.cell.price })}</span>
@@ -409,12 +417,31 @@ function Intro({ view }: { view: StageView }) {
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
+      {view.round.type === 'wipeout' && view.wipeout !== null && <WipeoutLadder info={view.wipeout} size="stage" players={false} />}
       {/* Обгортка сцени: на широкому екрані розклад стає поруч із кидками, а не під ними. */}
       {view.board !== null && (
         <div className="stage-dice">
           <BoardIntro board={view.board} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Між запитаннями «Ва-банк»: велика драбина замість таблиці й відлік вікна рішення. */
+function WipeoutBetween({ view, offsetMs }: { view: StageView; offsetMs: number }) {
+  const info = view.wipeout;
+  if (info === null) return null;
+  const decide = info.decide;
+  return (
+    <div className="stage-board stage-wipeout">
+      <h1 className="question">{t('wipeoutLadderTitle')}</h1>
+      {decide !== null && (decide.endsAt !== null || decide.remainingMs !== null) && (
+        <div className="stage-clock">
+          <Timer view={decide} offsetMs={offsetMs} status={timerStatus(view)} />
+        </div>
+      )}
+      <WipeoutLadder info={info} size="stage" />
     </div>
   );
 }
@@ -465,6 +492,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
+      {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && (
         <div className={phase === 'finished' ? 'stage-board is-final' : 'stage-board'}>
           <h1 className="question">

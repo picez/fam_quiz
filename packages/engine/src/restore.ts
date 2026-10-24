@@ -6,8 +6,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 4 — 10d: Play.wall (поступ стіни), Play.cloudHidden (сховані слова «хмари»).
  * 5 — 10e: Play.survey (джерело дошки «100 до 1» і скільки рядків відкрито).
  * 6 — 10f: Play.bluff (фаза, зерно, вигадки, варіанти й вибори блефу).
+ * 7 — 10g: Play.wipeout (рішення «Ва-банк» і кінець раунду).
  */
-export const GAME_STATE_VERSION = 6;
+export const GAME_STATE_VERSION = 7;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -19,8 +20,10 @@ export const GAME_STATE_VERSION = 6;
  * тож кімната, збережена до розгортання 10e, теж відновлюється.
  * 5 → 6 лише додала необов'язкове Play.bluff, а стан версій 2–5 не може містити блефу:
  * тож кімната, збережена до розгортання 10f, теж відновлюється.
+ * 6 → 7 лише додала необов'язкове Play.wipeout, а стан версій 2–6 не може містити «Ва-банк»:
+ * тож кімната, збережена до розгортання 10g, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

@@ -21,10 +21,15 @@ export function duelPlayed(state: GameState): number {
   return state.plays.slice(0, closed).filter((play) => state.quiz.rounds[play.roundIndex]?.type !== 'final').length;
 }
 
+/** У раунді «Ва-банк» дуелей немає (14a): на його етапах, крім round_end. */
+function duelsOff(state: GameState): boolean {
+  return state.quiz.rounds[state.roundIndex]?.type === 'wipeout' && state.phase !== 'round_end';
+}
+
 /** Чи можна зараз оголосити дуель за етапом, межею й порогом (без перевірок гравця й зайнятості). */
 export function duelWindowOpen(state: GameState): boolean {
   const threshold = duelThreshold(state.quiz);
-  if (threshold === null || !DECLARE_PHASES.includes(state.phase)) return false;
+  if (threshold === null || !DECLARE_PHASES.includes(state.phase) || duelsOff(state)) return false;
   return state.roundIndex >= 0 && state.roundIndex < duelCutoff(state.quiz) && duelPlayed(state) >= threshold;
 }
 
@@ -187,7 +192,7 @@ export function duelEnds(state: GameState): boolean {
 
 /** Оголошена дуель стартує на цьому next: етап intro, reveal, leaderboard або round_end і roundIndex < duelCutoff. */
 export function duelDue(state: GameState): boolean {
-  return state.duel?.stage === 'declared' && START_PHASES.includes(state.phase) && state.roundIndex < duelCutoff(state.quiz);
+  return state.duel?.stage === 'declared' && !duelsOff(state) && START_PHASES.includes(state.phase) && state.roundIndex < duelCutoff(state.quiz);
 }
 
 /** phase 'duel', stage 'category', returnPhase = поточний етап, годинник порожній; з now — заставка «Дуель!». */
