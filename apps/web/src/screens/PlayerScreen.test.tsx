@@ -1796,4 +1796,48 @@ describe('PlayerScreen: table and menu', () => {
     show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, debuffNotice: { ...debuffNotice, target: { playerId: me.id, nickname: me.nickname } } }));
     expect(screen.queryByText(/насилає дебаф/)).toBeNull();
   });
+
+  const sliderQuestion = { ...publicQuestion, type: 'slider' as const, choices: [], slider: { min: 0, max: 100, step: 1, unit: '%' } };
+
+  it('a slider question renders the slider and sends the value', async () => {
+    const send = show(onQuestion({ question: sliderQuestion }));
+    fireEvent.change(screen.getByLabelText('Повзунок'), { target: { value: '57' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:answer', { type: 'slider', value: 57 }));
+  });
+
+  it('a revealing picture is not full while answering, also after the answer, and full once locked', () => {
+    const revealing = { ...publicQuestion, imageUrl: '/a.png', reveal: 'blur' as const };
+    show(onQuestion({ question: revealing, limitMs: 20_000, endsAt: Date.now() + 15_000 }));
+    expect(Number(document.querySelector('img.question-image')!.getAttribute('data-stage'))).toBeLessThan(10);
+    expect(screen.getByText(/Картинка проявляється: що раніше відповіси, то більше балів\./)).toBeTruthy();
+    cleanup();
+    show(
+      onQuestion({
+        question: revealing,
+        limitMs: 20_000,
+        endsAt: Date.now() + 15_000,
+        me: { ...me, answer: { type: 'single', optionId: 'b' } },
+      }),
+    );
+    expect(screen.getByText('Відповідь прийнято')).toBeTruthy();
+    expect(Number(document.querySelector('img.question-image')!.getAttribute('data-stage'))).toBeLessThan(10);
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: revealing, limitMs: 20_000 }));
+    expect(document.querySelector('img.question-image')!.getAttribute('data-stage')).toBe('10');
+  });
+
+  it('the slider reveal shows my answer against the correct one', () => {
+    const correct: Question = { id: 'q2', type: 'slider', text: 'Скільки?', imageUrl: null, video: null, timeLimit: 20, points: 1000, min: 0, max: 100, step: 1, correct: 50, tolerance: 2, unit: '%' };
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: sliderQuestion,
+        reveal: correct,
+        me: { ...me, answer: { type: 'slider', value: 57 }, result: { grade: 'wrong', points: 0, streakBonus: 0 } as never },
+      }),
+    );
+    expect(screen.getByText('Твоя відповідь: 57 % · правильна: 50 % (± 2)')).toBeTruthy();
+  });
 });

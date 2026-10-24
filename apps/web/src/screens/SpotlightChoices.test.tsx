@@ -209,4 +209,13 @@ describe('SpotlightChoices', () => {
     expect(done.container.querySelector('li.match-row.is-correct')?.textContent).toContain('Київ — Дніпро');
     expect(screen.getByText('Правильні пари')).toBeTruthy();
   });
+
+  it('a slider cell shows the value of the chooser or waits for a number', () => {
+    const sliderQ: PublicQuestion = { ...base, type: 'slider', text: 'Скільки?', choices: [], slider: { min: 0, max: 100, step: 1, unit: '%' } };
+    const { container } = render(<SpotlightChoices question={sliderQ} spotlight={{ ...spot({ type: 'slider', value: 57 }, null), nickname: 'Оля' }} reveal={null} />);
+    expect(container.textContent).toBe('Оля: 57 %');
+    cleanup();
+    render(<SpotlightChoices question={sliderQ} spotlight={null} reveal={null} />);
+    expect(screen.getByText('Відповідь числом з’явиться тут')).toBeTruthy();
+  });
 });

@@ -6434,3 +6434,99 @@ label.powers-price {
   align-items: center;
   gap: 0.25rem;
 }
+
+/* ---------- Повзунок і картинка, що проявляється (телефон) ---------- */
+
+.slider-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.slider-value {
+  display: block;
+  text-align: center;
+  font-family: var(--display);
+  font-size: clamp(2.5rem, 16vw, 4rem);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--amber);
+  overflow-wrap: anywhere;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slider-step {
+  min-height: 3rem;
+  font-size: 1.5rem;
+}
+
+.slider-input input[type='range'] {
+  width: 100%;
+  min-width: 0;
+  height: 3rem;
+  margin: 0;
+  background: transparent;
+  accent-color: var(--amber);
+  touch-action: pan-y;
+  cursor: pointer;
+}
+
+.slider-input input[type='range']::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.slider-input input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-top: -1.125rem;
+  border: 3px solid var(--paper);
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.slider-input input[type='range']::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.slider-input input[type='range']::-moz-range-thumb {
+  width: 2.75rem;
+  height: 2.75rem;
+  box-sizing: border-box;
+  border: 3px solid var(--paper);
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.slider-bounds {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 3.5rem;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.reveal-frame {
+  overflow: hidden;
+  border-radius: 0.75rem;
+}
+
+.reveal-canvas {
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
+.reveal-hint {
+  text-align: center;
+}
