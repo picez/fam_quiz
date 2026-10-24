@@ -1,4 +1,5 @@
 import {
+  allSpares,
   questionPrice,
   questionsOf,
   findCell,
@@ -255,7 +256,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         accepted: distinct(main.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
-        responses: responsesOf(given, standings, quiz?.spares ?? []),
+        responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },
     ];
