@@ -124,6 +124,22 @@ describe('AnswerInput', () => {
     expect(onSubmit).toHaveBeenCalledWith({ type: 'text', value: 'Одеса' });
   });
 
+  it('clues: the typed answer goes out as a «Who am I?» answer', () => {
+    const onSubmit = setup({ type: 'clues', choices: [], clues: { total: 5, shown: ['Народився 1814 року'], nextAt: null, byHost: false, intervalSeconds: 8 } });
+    fireEvent.change(screen.getByLabelText('Ваша відповідь'), { target: { value: ' Шевченко ' } });
+    fireEvent.click(button('Відповісти'));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'clues', value: 'Шевченко' });
+  });
+
+  it('pin: the map frame with zoom buttons; the answer goes out once a pin is placed', () => {
+    const onSubmit = setup({ type: 'pin', choices: [], pin: { map: 'europe', aspect: 4 / 3 } });
+    expect(screen.getByRole('group', { name: 'Мапа: торкнися, щоб поставити точку' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Наблизити' })).toBeTruthy();
+    expect(button('Відповісти').disabled).toBe(true);
+    expect(document.querySelector('img.pin-base')!.getAttribute('src')).toBe('/maps/europe.svg');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('numeric: accepts a decimal comma and refuses text', () => {
     const onSubmit = setup({ type: 'numeric', choices: [] });
     const input = screen.getByLabelText('Ваша відповідь');

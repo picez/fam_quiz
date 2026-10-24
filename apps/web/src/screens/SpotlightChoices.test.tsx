@@ -218,4 +218,24 @@ describe('SpotlightChoices', () => {
     render(<SpotlightChoices question={sliderQ} spotlight={null} reveal={null} />);
     expect(screen.getByText('Відповідь числом з’явиться тут')).toBeTruthy();
   });
+
+  it('a «Who am I?» cell waits for words and shows the typed answer like text', () => {
+    const cluesQ: PublicQuestion = { ...base, type: 'clues', text: 'Хто я?', choices: [], clues: { total: 3, shown: ['Поет'], nextAt: null, byHost: false, intervalSeconds: 8 } };
+    render(<SpotlightChoices question={cluesQ} spotlight={null} reveal={null} />);
+    expect(screen.getByText('Відповідь словами з’явиться тут')).toBeTruthy();
+    cleanup();
+    const { container } = render(<SpotlightChoices question={cluesQ} spotlight={spot({ type: 'clues', value: 'Шевченко' }, null)} reveal={null} />);
+    expect(container.textContent).toBe('Шевченко');
+  });
+
+  it('a pin cell says the chooser has placed a pin without showing it, or waits for it', () => {
+    const pinQ: PublicQuestion = { ...base, type: 'pin', text: 'Де Одеса?', choices: [], pin: { map: 'ukraine', aspect: 16 / 11 } };
+    const { container } = render(<SpotlightChoices question={pinQ} spotlight={{ ...spot({ type: 'pin', x: 0.4, y: 0.7 }, null), nickname: 'Оля' }} reveal={null} />);
+    expect(container.textContent).toBe('Оля: точку поставлено');
+    expect(container.querySelector('.spotlight-answer.is-pending')).not.toBeNull();
+    expect(container.querySelector('.pin-mark')).toBeNull();
+    cleanup();
+    render(<SpotlightChoices question={pinQ} spotlight={null} reveal={null} />);
+    expect(screen.getByText('Чекаємо на точку…')).toBeTruthy();
+  });
 });

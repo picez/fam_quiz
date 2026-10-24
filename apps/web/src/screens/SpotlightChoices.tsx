@@ -163,10 +163,21 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
         </>
       );
     }
-    // Місце для відповіді словами чи числом; на розкритті його вже не треба.
-    if ((question.type !== 'text' && question.type !== 'numeric' && question.type !== 'slider') || reveal !== null || !placeholder) return <></>;
-    const wait = voice ? 'spotlightVoice' : question.type === 'text' ? 'spotlightWaitText' : 'spotlightWaitNumber';
+    // Місце для відповіді словами, числом чи точкою; на розкритті його вже не треба.
+    const waits = ['text', 'numeric', 'slider', 'clues', 'pin'] as const;
+    if (!waits.some((type) => type === question.type) || reveal !== null || !placeholder) return <></>;
+    const wait = voice
+      ? 'spotlightVoice'
+      : question.type === 'pin'
+        ? 'spotlightWaitPin'
+        : question.type === 'text' || question.type === 'clues'
+          ? 'spotlightWaitText'
+          : 'spotlightWaitNumber';
     return <p className="spotlight-answer is-waiting">{t(wait)}</p>;
+  }
+  // Точку до розкриття не показуємо (сцена й інші телефони бачать лише, що її поставлено).
+  if (answer.type === 'pin') {
+    return <p className={`spotlight-answer ${tone}`.trim()}>{t('spotlightPin', { name: spotlight?.nickname ?? '' })}</p>;
   }
   if (answer.type === 'slider' && question.slider !== null) {
     return <p className={`spotlight-answer ${tone}`.trim()}>{t('spotlightSlider', { name: spotlight?.nickname ?? '', value: pickedText(answer, question.choices, question.slider) })}</p>;
