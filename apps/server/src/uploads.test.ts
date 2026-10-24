@@ -10,10 +10,14 @@ let ctx: Awaited<ReturnType<typeof buildApp>>;
 let cookie: string;
 /** Сховище, яке можна «вимкнути», щоб перевірити поведінку під час збою. */
 let broken = false;
+let reads = 0;
 const inner = memoryStorage();
 const storage: ImageStorage = {
   put: (...args) => (broken ? Promise.reject(new Error('storage down')) : inner.put(...args)),
-  get: (name) => (broken ? Promise.reject(new Error('storage down')) : inner.get(name)),
+  get: (name) => {
+    reads += 1;
+    return broken ? Promise.reject(new Error('storage down')) : inner.get(name);
+  },
 };
 
 beforeAll(async () => {
@@ -316,14 +320,31 @@ describe('serving audio', () => {
     expect([...tail.rawPayload]).toEqual([...bytes.subarray(bytes.length - 4)]);
   });
 
-  it('answers 416 for a range outside the file or malformed', async () => {
+  it('answers 416 for a valid range outside the file', async () => {
     const { url, bytes } = await stored();
-    const bad = ['bytes=999999-', `bytes=${bytes.length}-`, 'bytes=9-3', 'bytes=-0', 'bytes=-', 'bytes=0-1,5-6', 'bytes=a-b', 'items=0-1', `bytes=${'9'.repeat(30)}-`];
-    for (const range of bad) {
+    for (const range of ['bytes=999999-', `bytes=${bytes.length}-`, 'bytes=-0']) {
       const response = await get(url, range);
       expect(response.statusCode, range).toBe(416);
       expect(response.headers['content-range'], range).toBe(`bytes */${bytes.length}`);
     }
+  });
+
+  it('ignores a range it cannot parse and sends the whole file', async () => {
+    const { url, bytes } = await stored();
+    for (const range of ['bytes=9-3', 'bytes=-', 'bytes=0-1,5-6', 'bytes=a-b', 'items=0-1', `bytes=${'9'.repeat(30)}-`]) {
+      const response = await get(url, range);
+      expect(response.statusCode, range).toBe(200);
+      expect(response.rawPayload.length, range).toBe(bytes.length);
+    }
+  });
+
+  it('fetches a file from the storage once for several range requests', async () => {
+    const { url } = await stored();
+    const before = reads;
+    await get(url, 'bytes=0-9');
+    await get(url, 'bytes=10-19');
+    await get(url);
+    expect(reads - before).toBeLessThanOrEqual(1);
   });
 
   it('answers 404 for audio names that are not in the store or leave it', async () => {

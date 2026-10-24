@@ -88,7 +88,7 @@ export interface Room {
   absence: unknown;
   expiry: unknown;
   expiryPhase: Phase | null;
-  /** Лічильник команд звуку; лише в пам'яті, у збережену кімнату не потрапляє. */
+  /** Лічильник команд звуку; лише в пам'яті, у збережену кімнату не потрапляє; стартує з Date.now(), щоб після перезапуску клієнт не проґавив команду. */
   audioSeq: number;
 }
 
@@ -228,7 +228,7 @@ export class RoomManager {
       absence: null,
       expiry: null,
       expiryPhase: null,
-      audioSeq: 0,
+      audioSeq: Date.now(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -274,7 +274,7 @@ export class RoomManager {
       absence: null,
       expiry: null,
       expiryPhase: null,
-      audioSeq: 0,
+      audioSeq: Date.now(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);

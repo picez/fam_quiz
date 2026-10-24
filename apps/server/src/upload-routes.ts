@@ -76,20 +76,34 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
     sniff: sniffAudio,
   });
 
+  // Файли незмінні (ім'я — випадковий хеш), тож їх безпечно тримати в пам'яті: інакше кожен запит Range
+  // тягнув би весь об'єкт із R2 заново.
+  const cache = new MediaCache(MEDIA_CACHE_BYTES);
+  const load = async (name: string): Promise<CachedMedia | null> => {
+    const hit = cache.get(name);
+    if (hit !== undefined) return hit;
+    const found = await storage.get(name);
+    if (found === null) return null;
+    // Тип береться з вмісту: те, що не є зображенням чи аудіо, не віддається взагалі.
+    const type = isAudioName(name) ? sniffAudio(found.bytes) : sniffImage(found.bytes);
+    if (type === null) return null;
+    const media = { bytes: Buffer.from(found.bytes.buffer, found.bytes.byteOffset, found.bytes.byteLength), type };
+    cache.set(name, media);
+    return media;
+  };
+
   app.get<{ Params: { name: string } }>('/uploads/:name', async (request, reply) => {
     const { name } = request.params;
     if (!isMediaName(name)) return reply.code(404).send(NOT_FOUND);
-    let found;
+    let media;
     try {
-      found = await storage.get(name);
+      media = await load(name);
     } catch (error) {
       console.error('Upload read failed:', error instanceof Error ? error.message : error);
       return reply.code(503).send(UNAVAILABLE);
     }
-    // Тип береться з вмісту: те, що не є зображенням чи аудіо, не віддається взагалі.
-    const type = found === null ? null : isAudioName(name) ? sniffAudio(found.bytes) : sniffImage(found.bytes);
-    if (found === null || type === null) return reply.code(404).send(NOT_FOUND);
-    const bytes = Buffer.from(found.bytes);
+    if (media === null) return reply.code(404).send(NOT_FOUND);
+    const { bytes, type } = media;
     reply
       .header('content-type', type)
       .header('x-content-type-options', 'nosniff')
@@ -97,9 +111,9 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
       .header('cache-control', 'public, max-age=31536000, immutable')
       .header('accept-ranges', 'bytes');
     const header = request.headers.range;
-    if (header === undefined) return reply.send(bytes);
-    const range = parseRange(header, bytes.length);
-    if (range === null) return reply.code(416).header('content-range', `bytes */${bytes.length}`).send();
+    const range = header === undefined ? null : parseRange(header, bytes.length);
+    if (range === null) return reply.send(bytes);
+    if (range === 'unsatisfiable') return reply.code(416).header('content-range', `bytes */${bytes.length}`).send();
     return reply
       .code(206)
       .header('content-range', `bytes ${range.start}-${range.end}/${bytes.length}`)
@@ -107,20 +121,55 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
   });
 }
 
+const MEDIA_CACHE_BYTES = 64 * 1024 * 1024;
+
+interface CachedMedia {
+  bytes: Buffer;
+  type: MediaType;
+}
+
+/** Невеликий LRU за сумарним розміром байтів; файл більший за ліміт у кеш не потрапляє. */
+class MediaCache {
+  private readonly entries = new Map<string, CachedMedia>();
+  private total = 0;
+  constructor(private readonly limit: number) {}
+
+  get(name: string): CachedMedia | undefined {
+    const entry = this.entries.get(name);
+    if (entry !== undefined) {
+      this.entries.delete(name);
+      this.entries.set(name, entry);
+    }
+    return entry;
+  }
+
+  set(name: string, entry: CachedMedia): void {
+    if (entry.bytes.length > this.limit || this.entries.has(name)) return;
+    this.entries.set(name, entry);
+    this.total += entry.bytes.length;
+    for (const [oldest, old] of this.entries) {
+      if (this.total <= this.limit) break;
+      this.entries.delete(oldest);
+      this.total -= old.bytes.length;
+    }
+  }
+}
+
 /**
- * Один діапазон «bytes=a-b», «bytes=a-» чи «bytes=-n» у межах файлу розміром size; null — діапазон некоректний
- * чи поза файлом (відповідь 416). Кілька діапазонів не підтримуються.
+ * Один діапазон «bytes=a-b», «bytes=a-» чи «bytes=-n». null — заголовок не розібрати чи не підтримується
+ * (кілька діапазонів, інша одиниця, не числа): його ігнорують і віддають файл цілком. 'unsatisfiable' — діапазон
+ * коректний, але поза файлом розміром size (відповідь 416).
  */
-export function parseRange(header: string, size: number): { start: number; end: number } | null {
+export function parseRange(header: string, size: number): { start: number; end: number } | 'unsatisfiable' | null {
   const match = /^bytes=(\d{1,15})?-(\d{1,15})?$/.exec(header.trim());
-  if (match === null || size === 0) return null;
+  if (match === null) return null;
   const [, first, last] = match;
   if (first === undefined && last === undefined) return null;
   if (first === undefined) {
     const length = Number(last);
-    return length === 0 ? null : { start: Math.max(0, size - length), end: size - 1 };
+    return length === 0 || size === 0 ? 'unsatisfiable' : { start: Math.max(0, size - length), end: size - 1 };
   }
   const start = Number(first);
-  const end = last === undefined ? size - 1 : Math.min(Number(last), size - 1);
-  return start >= size || end < start ? null : { start, end };
+  if (last !== undefined && Number(last) < start) return null;
+  return start >= size ? 'unsatisfiable' : { start, end: last === undefined ? size - 1 : Math.min(Number(last), size - 1) };
 }

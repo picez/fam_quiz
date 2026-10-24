@@ -615,7 +615,8 @@ describe('audio over sockets', () => {
     expect(await send(host, 'host:audio', { action: 'replay' })).toEqual({ ok: true });
     expect(await send(host, 'host:audio', { action: 'stop' })).toEqual({ ok: true });
     await pause(200);
-    expect(heard.stage).toEqual([{ action: 'replay', seq: 1 }, { action: 'stop', seq: 2 }]);
+    expect(heard.stage.map((c) => c.action)).toEqual(['replay', 'stop']);
+    expect(heard.stage[1]!.seq).toBeGreaterThan(heard.stage[0]!.seq);
     expect(heard.host).toEqual(heard.stage);
     expect(heard.olena).toEqual([]);
     expect(heard.taras).toEqual([]);

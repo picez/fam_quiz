@@ -99,7 +99,7 @@ export const IMAGE_URL = /^\/uploads\/[a-z0-9]{16,64}\.(jpg|png|webp)$/;
 export const AUDIO_LIMITS = {
   maxBytes: 5 * 1024 * 1024,
   /** Типи, які приймає маршрут (браузери називають m4a по-різному). */
-  types: ['audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/aac'],
+  types: ['audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/mp4', 'audio/x-m4a'],
 } as const;
 
 /** Адреса завантаженого аудіо: лише власне сховище. */
