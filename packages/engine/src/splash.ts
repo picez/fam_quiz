@@ -22,11 +22,11 @@ export function questionSplashMs(kind: SplashKind, board?: BoardPlay): number {
   return kind === 'cell' && board !== undefined && board.multiplier > 1 ? SPLASH_MS.cell + CELL_SURPRISE_MS : SPLASH_MS[kind];
 }
 
-/** Заставка перед запитанням: поле (board задано) — cell; класика й фінал — question; бліц — null. */
+/** Заставка перед запитанням: поле (board задано) — cell; класика, фінал і «Ва-банк» — question; бліц — null. */
 export function questionSplashKind(state: GameState, board?: BoardPlay): SplashKind | null {
   if (board !== undefined) return 'cell';
   const type = state.quiz.rounds[state.roundIndex]?.type;
-  return type === 'classic' || type === 'final' ? 'question' : null;
+  return type === 'classic' || type === 'final' || type === 'wipeout' ? 'question' : null;
 }
 
 /** Чи запитання (чи запитання дуелі) ще не почалося: startedAt у майбутньому. */

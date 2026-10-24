@@ -58,6 +58,7 @@ import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { splitBank, type BankOutcome } from './bank';
 import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
 import { presentPlayers } from './present';
+import { markWipeoutEnd, submitWipeoutAnswer, wipeoutIn, withWipeoutPoints } from './wipeout';
 import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
@@ -146,6 +147,18 @@ export interface Play {
   survey?: SurveyPlay;
   /** Блеф: фаза, зерно, вигадки, варіанти, вибори й скільки варіантів відкрито на розкритті (10f). */
   bluff?: BluffPlay;
+  /** «Ва-банк»: рішення після цього запитання й позначка кінця раунду (10g). */
+  wipeout?: WipeoutPlay;
+}
+
+/** «Ва-банк» у журналі. */
+export interface WipeoutPlay {
+  /** Хто забрав банк після цього запитання (сам чи за замовчуванням), у порядку рішень. */
+  took: string[];
+  /** Хто вибрав «Далі» після цього запитання. */
+  stay: string[];
+  /** Раунд закінчився на цьому запитанні: банки тих, хто в грі, перенесено в бали. */
+  end: boolean;
 }
 
 /** Блеф у грі. */
@@ -522,6 +535,10 @@ export function removePlayer(state: GameState, playerId: string): Result {
       const options = play.bluff.options.map((o) => ({ ...o, authors: o.authors.filter((id) => id !== playerId) }));
       kept.bluff = { ...play.bluff, lies, picks, options };
     }
+    if (play.wipeout !== undefined) {
+      const without = (ids: string[]) => ids.filter((id) => id !== playerId);
+      kept.wipeout = { ...play.wipeout, took: without(play.wipeout.took), stay: without(play.wipeout.stay) };
+    }
     if (play.buffs !== undefined) {
       const { [playerId]: _buff, ...buffs } = play.buffs;
       // Голос вилученого більше не рахується.
@@ -674,6 +691,8 @@ function playable(state: GameState, question: Question): boolean {
 function nextQuestion(state: GameState): Question | undefined {
   const round = currentRound(state);
   if (round === null || round.type === 'board') return undefined;
+  // «Ва-банк»: коли в грі нікого не лишилося, решта драбини лишається незіграною.
+  if (round.type === 'wipeout' && wipeoutIn(state).length === 0) return undefined;
   const played = new Set(state.plays.filter((p) => p.roundIndex === state.roundIndex).map((p) => p.question.id));
   return round.questions.find((question) => !played.has(question.id) && playable(state, question));
 }
@@ -699,6 +718,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(question.type === 'bluff'
       ? { bluff: { stage: 'lies' as const, seed: Math.floor(rng() * 2 ** 32), lies: {}, options: [], picks: {}, shown: 0 } }
       : {}),
+    ...(round.type === 'wipeout' ? { wipeout: { took: [], stay: [], end: false } } : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
@@ -879,7 +899,10 @@ function clearAway(board: BoardState | null): BoardState | null {
 }
 
 /** Після останнього раунду гра закінчується (з now — заставка «Підсумки»), інакше показуються підсумки раунду. */
-function finishRound(state: GameState, now?: number): GameState {
+function finishRound(input: GameState, now?: number): GameState {
+  // «Ва-банк»: банки тих, хто в грі, переносяться в бали на останньому зіграному запитанні.
+  const marked = markWipeoutEnd(input);
+  const state = marked === input ? input : withTotals(marked);
   const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
   const finished: GameState = { ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) };
   return isLastRound && now !== undefined ? withSplash(finished, 'podium', now) : finished;
@@ -939,8 +962,9 @@ function streakBase(play: Play, playerId: string, record: AnswerRecord): number 
  * Внутрішня функція рушія: експортовано для adjust.ts, не для сервера.
  */
 export function withTotals(input: GameState): GameState {
-  // Бали фіналу залежать від усіх записів запитання (спільний банк), тож перераховуються першими.
-  const state = withFinalPoints(input);
+  // Бали фіналу залежать від усіх записів запитання (спільний банк), тож перераховуються першими;
+  // бали «Ва-банк» — з драбини всього раунду.
+  const state = withWipeoutPoints(withFinalPoints(input));
   // Відкрите запитання завжди останнє в журналі.
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
@@ -1035,7 +1059,9 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   if (state.plays[state.questionIndex]?.question.type === 'chain') return chainDone(state, now) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
-  const connected = presentPlayers(state);
+  // «Ва-банк»: чекають лише тих, хто в грі; без присутніх у грі запитання закриє таймер чи ведучий.
+  const playing = currentRound(state)?.type === 'wipeout' ? wipeoutIn(state) : null;
+  const connected = presentPlayers(state).filter((p) => playing === null || playing.includes(p.id));
   if (connected.length === 0) return state;
   const everyoneAnswered = connected.every((p) => recordOf(state, state.questionIndex, p.id) !== undefined);
   return everyoneAnswered ? lockNow(state) : state;
@@ -1090,6 +1116,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   }
   const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
+  if (round.type === 'wipeout') return submitWipeoutAnswer(state, playerId, answer, now);
   if (play.blitz !== undefined) {
     // Усну відповідь голови черги оцінює ведучий, з телефона її не приймають.
     if (blitzRulesOf(state, play)?.check === 'voice') return fail('wrong_phase');
@@ -1640,8 +1667,9 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
 export function end(state: GameState, now?: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   // Поза фіналом closeFinal лише перераховує підсумки; у фіналі ще оцінює мовчання й розкриває всіх.
+  // «Ва-банк»: банки тих, хто в грі, переносяться в бали; хто не відповів на відкрите запитання, згорає.
   const closed = closeFinal({
-    ...dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(state))))),
+    ...dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(markWipeoutEnd(state)))))),
     phase: 'finished',
     board: clearAway(state.board),
     paused: false,
