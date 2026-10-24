@@ -45,7 +45,7 @@ const sameNumber = (a: number, b: number) => a === b || (Number.isNaN(a) && Numb
  * Поле для числа. Показує саме те, що набрано ("-", "2,", "30x"), і віддає назовні число
  * або NaN: якби поле перемальовувалося з числа, проміжні стани набору зникали б.
  */
-export function NumberField(props: { label: string; value: number; decimal?: boolean; placeholder?: string; onChange: (value: number) => void }) {
+export function NumberField(props: { label: string; value: number; decimal?: boolean; placeholder?: string; invalidHint?: string; onChange: (value: number, raw: string) => void }) {
   const [raw, setRaw] = useState(() => shown(props.value));
 
   // Значення змінили ззовні (наприклад, відновили чернетку): показати його.
@@ -63,9 +63,10 @@ export function NumberField(props: { label: string; value: number; decimal?: boo
         maxLength={24}
         onChange={(event) => {
           setRaw(event.target.value);
-          props.onChange(asNumber(event.target.value));
+          props.onChange(asNumber(event.target.value), event.target.value);
         }}
       />
+      {props.invalidHint !== undefined && raw.trim() !== '' && Number.isNaN(asNumber(raw)) && <small className="error">{props.invalidHint}</small>}
     </label>
   );
 }
@@ -573,10 +574,11 @@ function Body({ question, onChange, showPoints }: Pick<Props, 'question' | 'onCh
             value={question.zeroBeyond ?? Number.NaN}
             decimal
             placeholder={t('sliderZeroPlaceholder')}
-            onChange={(value) => {
+            invalidHint={t('sliderZeroInvalid')}
+            onChange={(value, raw) => {
               const { zeroBeyond: _old, ...rest } = question;
-              // Порожнє поле прибирає межу: лишаються лише повні бали або нуль.
-              onChange((Number.isNaN(value) ? rest : { ...rest, zeroBeyond: value }) as Question);
+              // Порожнє поле прибирає межу: лишаються лише повні бали або нуль. Сміття лишає NaN: збереження його зупинить.
+              onChange((raw.trim() === '' ? rest : { ...rest, zeroBeyond: value }) as Question);
             }}
           />
           {preview && (
@@ -665,7 +667,11 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
           <VideoField
             key={question.id}
             video={question.video}
-            onChange={(video) => latest.current.onChange({ ...latest.current.question, video })}
+            onChange={(video) => {
+              // Картинка, що проявляється, не живе разом із відео.
+              const { reveal: _reveal, ...rest } = latest.current.question;
+              latest.current.onChange((video === null ? { ...latest.current.question, video } : { ...rest, video }) as Question);
+            }}
             onAudioOnly={
               showAudio
                 ? (video) =>
@@ -683,11 +689,13 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             audio={question.audio}
             timeLimit={question.timeLimit}
             onChange={(audio) => {
+              // Відео могли додати, поки файл вантажився: тоді аудіо відкидається.
+              if (latest.current.question.video !== null) return;
               const { audio: _old, ...rest } = latest.current.question;
               latest.current.onChange((audio === undefined ? rest : { ...rest, audio }) as Question);
             }}
             onToVideo={(video) => {
-              const { audio: _old, ...rest } = latest.current.question;
+              const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку й сортуванні відео немає: звук просто зникає.
               const noVideo = rest.type === 'chain' || rest.type === 'sort';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);

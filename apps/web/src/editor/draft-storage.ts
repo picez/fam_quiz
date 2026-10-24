@@ -45,7 +45,7 @@ function revive(stored: Question): Question {
   const base = {
     ...question,
     ...(typeof hint === 'string' ? { hint } : {}),
-    ...(revivedAudio === null ? {} : { audio: revivedAudio }),
+    ...(revivedAudio === null || video !== null ? {} : { audio: revivedAudio }),
     ...((REVEAL_MODES as readonly string[]).includes(reveal as string) ? { reveal } : {}),
     video,
     timeLimit: numberOr(question.timeLimit),
@@ -61,8 +61,8 @@ function revive(stored: Question): Question {
       step: numberOr(base.step),
       correct: numberOr(base.correct),
       tolerance: numberOr(base.tolerance),
-      // Порожнє поле межі нуля в JSON стає null: ключ прибирається.
-      ...(typeof zeroBeyond === 'number' ? { zeroBeyond } : {}),
+      // NaN (сміття в полі межі нуля) у JSON стає null і повертається як NaN; порожнє поле — це відсутній ключ.
+      ...(typeof zeroBeyond === 'number' ? { zeroBeyond } : zeroBeyond === null ? { zeroBeyond: Number.NaN } : {}),
       ...(typeof unit === 'string' ? { unit } : {}),
     };
   }

@@ -24,6 +24,7 @@ function stubAudio(seconds: number) {
       queueMicrotask(() => this.onloadedmetadata?.());
     }
     pause() {}
+    removeAttribute() {}
     play() {
       return Promise.resolve();
     }
@@ -71,6 +72,45 @@ describe('AudioField', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ source: 'file', url: URL_MP3, start: 0, duration: 7 }));
   });
 
+  it('accepts a file with no type by its extension and sends a matching type', async () => {
+    stubAudio(10);
+    const fetchMock = answerWith(201, { url: '/uploads/0123456789abcdef0123456789abcdef.ogg' });
+    const { onChange } = setup();
+    choose(file('', 10, 'song.OGG'));
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get('content-type')).toBe('audio/ogg');
+  });
+
+  it('the preview starts at the start second once the metadata is known, stops on a second press and on unmount', async () => {
+    const clips: { currentTime: number; pause: ReturnType<typeof vi.fn> }[] = [];
+    class Clip {
+      currentTime = 0;
+      onloadedmetadata: (() => void) | null = null;
+      onended: (() => void) | null = null;
+      pause = vi.fn();
+      play = vi.fn(() => Promise.resolve());
+      constructor() {
+        clips.push(this);
+      }
+      set src(_value: string) {
+        queueMicrotask(() => this.onloadedmetadata?.());
+      }
+    }
+    vi.stubGlobal('Audio', Clip);
+    const view = render(
+      <AudioField audio={{ source: 'file', url: URL_MP3, start: 5, duration: 12 }} timeLimit={30} onChange={vi.fn()} onToVideo={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '▶ Прослухати фрагмент' }));
+    await waitFor(() => expect(clips[0].currentTime).toBe(5));
+    expect(screen.getByRole('button', { name: '▶ Прослухати фрагмент' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: '▶ Прослухати фрагмент' }));
+    expect(clips[0].pause).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '▶ Прослухати фрагмент' }));
+    await waitFor(() => expect(clips).toHaveLength(2));
+    view.unmount();
+    expect(clips[1].pause).toHaveBeenCalled();
+  });
+
   it('refuses a wrong type and a big file without a request', () => {
     const fetchMock = answerWith(201, { url: URL_MP3 });
     const { onChange } = setup();
@@ -112,7 +152,7 @@ describe('AudioField', () => {
   it('YouTube audio: the «only sound» box is on, and clearing it returns the video', () => {
     const { onToVideo, onChange } = setup({ source: 'youtube', id: 'dQw4w9WgXcQ', start: 90, duration: 15 });
     expect(screen.getByText('YouTube — лише звук: https://youtu.be/dQw4w9WgXcQ?t=90')).toBeTruthy();
-    const box = screen.getByLabelText('Лише звук (картинку сховано)') as HTMLInputElement;
+    const box = screen.getByLabelText('Лише звук') as HTMLInputElement;
     expect(box.checked).toBe(true);
     fireEvent.change(screen.getByLabelText('Тривалість, с'), { target: { value: '25' } });
     expect(onChange).toHaveBeenLastCalledWith({ source: 'youtube', id: 'dQw4w9WgXcQ', start: 90, duration: 25 });

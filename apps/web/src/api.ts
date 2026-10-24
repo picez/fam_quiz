@@ -112,9 +112,15 @@ export async function uploadImage(file: File): Promise<ApiResult<{ url: string }
   return result.ok ? { ok: true, ...(result.data as { url: string }) } : result;
 }
 
+/** Тип за розширенням для файлів, яким браузер не дав типу. */
+function audioTypeByName(name: string): string {
+  const ext = name.toLowerCase().split('.').pop();
+  return ext === 'ogg' ? 'audio/ogg' : ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg';
+}
+
 /** Надсилає аудіофайл до запитання; тілом запиту є сам файл. */
 export async function uploadAudio(file: File): Promise<ApiResult<{ url: string }>> {
-  const result = await send('/api/uploads/audio', { method: 'POST', headers: { 'content-type': file.type || 'audio/mpeg' }, body: file });
+  const result = await send('/api/uploads/audio', { method: 'POST', headers: { 'content-type': file.type || audioTypeByName(file.name) }, body: file });
   return result.ok ? { ok: true, ...(result.data as { url: string }) } : result;
 }
 

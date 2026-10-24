@@ -14,26 +14,30 @@ interface Props {
 }
 
 const ACCEPT = [...AUDIO_LIMITS.types, '.mp3', '.ogg', '.m4a'].join(',');
-const isAllowed = (type: string) => (AUDIO_LIMITS.types as readonly string[]).includes(type);
+const isAllowed = (file: File) =>
+  (AUDIO_LIMITS.types as readonly string[]).includes(file.type) || (file.type === '' && /\.(mp3|ogg|m4a)$/i.test(file.name));
 
 /** Скільки секунд триває файл: читається з метаданих; NaN, якщо браузер не відповів за 3 с. */
 function fileSeconds(file: File): Promise<number> {
   return new Promise((resolve) => {
     let src: string | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let probe: HTMLAudioElement | null = null;
     const finish = (seconds: number) => {
       clearTimeout(timer);
+      probe?.removeAttribute('src');
       if (src !== null) URL.revokeObjectURL(src);
       resolve(seconds);
     };
     try {
       src = URL.createObjectURL(file);
-      const probe = new Audio();
-      probe.preload = 'metadata';
-      probe.onloadedmetadata = () => finish(probe.duration);
-      probe.onerror = () => finish(Number.NaN);
+      const made = new Audio();
+      probe = made;
+      made.preload = 'metadata';
+      made.onloadedmetadata = () => finish(made.duration);
+      made.onerror = () => finish(Number.NaN);
       timer = setTimeout(() => finish(Number.NaN), 3000);
-      probe.src = src;
+      made.src = src;
     } catch {
       finish(Number.NaN);
     }
@@ -78,7 +82,7 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
     // Той самий файл можна вибрати ще раз після помилки.
     event.target.value = '';
     if (file === undefined) return;
-    if (!isAllowed(file.type)) return setError(errorText('bad_audio'));
+    if (!isAllowed(file)) return setError(errorText('bad_audio'));
     if (file.size > AUDIO_LIMITS.maxBytes) return setError(errorText('audio_too_large'));
     setError(null);
     setBusy(true);
@@ -93,15 +97,20 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
   const preview = () => {
     if (audio?.source !== 'file') return;
     if (playing) return stop();
-    const clip = new Audio(audio.url);
+    const clip = new Audio();
     player.current = clip;
     setPlaying(true);
     clip.onended = stop;
     const begin = Number.isFinite(audio.start) ? audio.start : 0;
     const seconds = Number.isFinite(audio.duration) ? audio.duration : LIMITS.defaultAudioSeconds;
-    clip.currentTime = begin;
-    void Promise.resolve(clip.play()).catch(stop);
-    stopTimer.current = setTimeout(stop, seconds * 1000);
+    // Позицію можна ставити, лише коли метадані вже відомі.
+    clip.onloadedmetadata = () => {
+      clip.currentTime = begin;
+      void Promise.resolve(clip.play()).catch(stop);
+      stopTimer.current = setTimeout(stop, seconds * 1000);
+    };
+    clip.onerror = stop;
+    clip.src = audio.url;
   };
 
   const hint =
@@ -140,7 +149,7 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
         <NumberField label={t('audioDuration')} value={audio.duration} onChange={setDuration} />
         <label className="check">
           <input type="checkbox" checked onChange={() => onToVideo({ id: audio.id, start: audio.start })} />
-          <span>{t('audioOnly')}</span>
+          <span>{t('audioOnlyOn')}</span>
         </label>
         <p className="meta">{hint}</p>
       </div>

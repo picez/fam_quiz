@@ -1117,8 +1117,8 @@ describe('slider, audio and revealing picture drafts (10b)', () => {
     expect(problemsOf(quizWith(slider({ step: 0 })))).toHaveLength(1);
     expect(problemsOf(quizWith(slider({ step: 0.3 })))).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
     expect(problemsOf(quizWith(slider({ min: Number.NaN })))).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
-    expect(problemsOf(quizWith(slider({ correct: 200 })))).toEqual(['Запитання 1: правильне значення має бути між мінімумом і максимумом.']);
-    expect(problemsOf(quizWith(slider({ tolerance: -1 })))).toEqual(['Запитання 1: правильне значення має бути між мінімумом і максимумом.']);
+    expect(problemsOf(quizWith(slider({ correct: 200 })))).toEqual(['Запитання 1: перевірте правильне значення й допуск: значення між мінімумом і максимумом, допуск не менше 0.']);
+    expect(problemsOf(quizWith(slider({ tolerance: -1 })))).toEqual(['Запитання 1: перевірте правильне значення й допуск: значення між мінімумом і максимумом, допуск не менше 0.']);
     expect(problemsOf(quizWith(slider({ zeroBeyond: 1, tolerance: 2 })))).toEqual(['Запитання 1: межа «нуль балів» має бути більшою за допуск.']);
   });
 
@@ -1161,7 +1161,7 @@ describe('slider, audio and revealing picture drafts (10b)', () => {
 
   it('cleaned drops an empty unit, an empty zero line and a mode without a picture', () => {
     const quiz = quizWith(
-      slider({ unit: '  ', zeroBeyond: Number.NaN, reveal: 'pixels', imageUrl: null }),
+      slider({ unit: '  ', reveal: 'pixels', imageUrl: null }),
       { ...filled(newQuestion('single')), imageUrl: IMAGE, reveal: 'blur' } as Question,
       slider({ unit: ' км ', zeroBeyond: 5 }),
     );
@@ -1179,10 +1179,19 @@ describe('slider, audio and revealing picture drafts (10b)', () => {
     const back = roundQuestions(loadDraft('slider-draft')!.rounds[0])[0];
     if (back.type !== 'slider') throw new Error('slider');
     expect(back.min).toBeNaN();
-    expect('zeroBeyond' in back).toBe(false);
+    expect(back.zeroBeyond).toBeNaN();
     expect('audio' in back).toBe(false);
     expect('reveal' in back).toBe(false);
     expect(problemsOf(loadDraft('slider-draft')!)).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
+  });
+
+  it('junk in the zero line stays a problem instead of being dropped; a video drops reveal and audio', () => {
+    expect(problemsOf(quizWith(slider({ zeroBeyond: Number.NaN })))).toEqual(['Запитання 1: межа «нуль балів» має бути більшою за допуск.']);
+    const withVideo = { ...filled(newQuestion('single')), imageUrl: IMAGE, reveal: 'pixels', video: { id: 'dQw4w9WgXcQ', start: 0 } } as Question;
+    expect('reveal' in roundQuestions(cleaned(quizWith(withVideo)).rounds[0])[0]).toBe(false);
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 10 };
+    saveDraft('both', quizWith({ ...filled(newQuestion('boolean')), video: { id: 'dQw4w9WgXcQ', start: 0 }, audio } as Question));
+    expect('audio' in roundQuestions(loadDraft('both')!.rounds[0])[0]).toBe(false);
   });
 
   it('a good audio, mode and unit survive the draft; empty audio numbers stay empty', () => {

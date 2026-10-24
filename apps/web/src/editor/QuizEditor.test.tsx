@@ -1803,3 +1803,48 @@ describe('QuizEditor: slider, audio, revealing picture (10b)', () => {
     expect(section.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
   });
 });
+
+describe('QuizEditor: reveal, video and audio together (10b)', () => {
+  const IMAGE = '/uploads/0123456789abcdef0123456789abcdef.png';
+  const startWith = (extra: Record<string, unknown>) => {
+    const quiz = newQuiz();
+    const [round] = quiz.rounds;
+    if (round.type === 'board') throw new Error('unexpected');
+    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...round.questions[0], text: 'Число?', type: 'numeric', correct: 1, tolerance: 0, ...extra }] }] } as Quiz;
+  };
+
+  it('adding a video link drops the reveal mode, and the quiz still saves', async () => {
+    const { onSave } = open(startWith({ imageUrl: IMAGE, reveal: 'pixels' }));
+    fill('Відео з YouTube', 'https://youtu.be/dQw4w9WgXcQ');
+    expect(screen.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question.video).not.toBeNull();
+    expect('reveal' in question).toBe(false);
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('an audio upload refused by the server shows its message and changes nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'audio_too_large' }), { status: 413 })));
+    const probe = { preload: '', duration: 10, onloadedmetadata: null as null | (() => void), onerror: null, removeAttribute() {}, set src(_v: string) { queueMicrotask(() => this.onloadedmetadata?.()); } };
+    vi.stubGlobal('Audio', function () { return probe; });
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    open(startWith({}));
+    fireEvent.change(screen.getByLabelText('Додати аудіо'), { target: { files: [new File([new Uint8Array(4)], 'a.mp3', { type: 'audio/mpeg' })] } });
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Аудіо завелике: дозволено до 5 МБ.'));
+    expect(screen.getByLabelText('Додати аудіо')).toBeTruthy();
+  });
+
+  it('junk in the zero line is flagged and blocks saving', () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Скільки?');
+    fireEvent.click(screen.getByRole('button', { name: 'повзунок' }));
+    fill('Нуль балів далі ніж ±', 'abc');
+    expect(screen.getByText('Впишіть число або залиште поле порожнім.')).toBeTruthy();
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});

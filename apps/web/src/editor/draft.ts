@@ -379,7 +379,7 @@ export function cleaned(quiz: Quiz): Quiz {
           ...rest,
           text,
           ...(trimmedUnit === '' ? {} : { unit: trimmedUnit }),
-          ...(zeroBeyond === undefined || Number.isNaN(zeroBeyond) ? {} : { zeroBeyond }),
+          ...(zeroBeyond === undefined ? {} : { zeroBeyond }),
         };
       }
       default:
@@ -391,7 +391,7 @@ export function cleaned(quiz: Quiz): Quiz {
     const { hint, reveal, ...rest } = cleanBody(question);
     const trimmed = hint?.trim() ?? '';
     // Режим проявлення без картинки (її прибрали) зникає тихо.
-    const kept = reveal !== undefined && rest.imageUrl !== null ? { ...rest, reveal } : rest;
+    const kept = reveal !== undefined && rest.imageUrl !== null && rest.video === null ? { ...rest, reveal } : rest;
     return (trimmed === '' ? kept : { ...kept, hint: trimmed }) as Question;
   };
   // У фіналі бали — ставки, поля балів за слово немає: прихована ціна не має блокувати збереження.
