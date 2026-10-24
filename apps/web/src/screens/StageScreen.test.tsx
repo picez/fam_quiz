@@ -1545,3 +1545,46 @@ describe('StageScreen: survey (10e)', () => {
     expect(screen.getByText('Дошка з ваших відповідей у хмарі слів')).toBeTruthy();
   });
 });
+
+describe('StageScreen: bluff (10f)', () => {
+  const bluffQuestion = { ...question, type: 'bluff' as const, text: 'Вежу хотіли поставити в …', choices: [] };
+  const bluffFull = { id: 'bl1', type: 'bluff', text: bluffQuestion.text, imageUrl: null, video: null, timeLimit: 60, points: 1000, accepted: ['Барселона'], lies: ['Мілан', 'Лісабон'], choiceTime: 30 } as unknown as Question;
+  const texts = ['Рим', 'Мілан', 'Париж', 'Барселона', 'Лісабон'];
+  const info = (stage: 'lies' | 'choice' | 'reveal', shown = 0) => ({
+    stage,
+    written: 1,
+    picked: 0,
+    options:
+      stage === 'lies'
+        ? []
+        : texts.map((text, at) => {
+            const open = stage === 'reveal' && at < shown;
+            return { id: `b${at + 1}`, text, open, kind: open ? (text === 'Барселона' ? ('truth' as const) : ('lie' as const)) : null, authors: open ? (text === 'Барселона' ? [] : ['Олена']) : null, pickedBy: open ? [] : null, removed: false };
+          }),
+    shown,
+    total: stage === 'lies' ? 0 : 5,
+    lastOpenedId: null,
+    lies: null,
+  });
+
+  it('lies phase: the prompt and how many wrote', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: bluffQuestion, endsAt: Date.now() + 60_000, bluff: info('lies'), playerCount: 3 }));
+    expect(screen.getByText('Вигадайте відповідь на телефоні')).toBeTruthy();
+    expect(screen.getByText('Вигадали 1 з 3')).toBeTruthy();
+  });
+
+  it('choice phase: five plain tiles with no truth or lie marks', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: bluffQuestion, endsAt: Date.now() + 30_000, bluff: info('choice'), playerCount: 3 }));
+    expect(document.querySelectorAll('.bluff-row')).toHaveLength(5);
+    expect(screen.getByText('Що з цього правда?')).toBeTruthy();
+    expect(screen.queryByText('Правда')).toBeNull();
+    expect(screen.queryByText(/Вигадка/)).toBeNull();
+  });
+
+  it('reveal with shown 2: two opened, no correct answer line', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: bluffQuestion, reveal: bluffFull, bluff: info('reveal', 2) }));
+    expect(screen.getAllByText('Вигадка: Олена')).toHaveLength(2);
+    expect(document.querySelectorAll('.bluff-row.is-closed')).toHaveLength(3);
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+  });
+});

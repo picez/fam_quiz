@@ -7,6 +7,7 @@ import { WallReveal } from './WallReveal';
 import { WallTable } from './WallTable';
 import { PollBars } from './PollBars';
 import { HostCloud } from './HostCloud';
+import { HostBluff } from './HostBluff';
 import { SurveyBoard } from './SurveyBoard';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
@@ -232,6 +233,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const board = view.board;
   // «100 до 1» на розкритті: головна кнопка спершу відкриває рядки по одному.
   const surveyStep = phase === 'reveal' && view.question?.type === 'survey' && view.survey !== null && view.survey.shown < view.survey.total;
+  // Блеф: на розкритті головна кнопка спершу відкриває варіанти по одному; у фазах вигадок і вибору вона перемикає фазу.
+  const bluff = view.question?.type === 'bluff' ? view.bluff : null;
+  const bluffStep = phase === 'reveal' && bluff !== null && bluff.shown < bluff.total;
+  const bluffLabel = phase === 'question' && bluff !== null ? (bluff.stage === 'lies' ? ('bluffToChoice' as const) : bluff.stage === 'choice' ? ('bluffCloseChoice' as const) : null) : null;
   const chooserId = board?.turn?.playerId ?? null;
   // Тип запитання, на яке відповідав гравець: після «Заміни запитання» це запасне, і відповідь його видає.
   const answeredType = view.spotlight?.answer?.type ?? view.question?.type ?? null;
@@ -571,7 +576,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               />
             </div>
           )}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
@@ -908,6 +913,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {bluff !== null && (
+        <section className="panel host-bluff">
+          <h2>{t('hostBluffTitle')}</h2>
+          <HostBluff info={bluff} act={act} />
+        </section>
+      )}
+
       {correct?.type === 'poll' && view.question !== null && (
         <section className="panel host-poll">
           <h2>
@@ -1100,6 +1112,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           >
             {surveyStep && view.survey !== null
               ? t('surveyNextRow', { shown: view.survey.shown + 1, total: view.survey.total })
+              : bluffStep && bluff !== null
+              ? t('bluffNextRow', { shown: bluff.shown + 1, total: bluff.total })
+              : bluffLabel !== null
+              ? t(bluffLabel)
               : t(main.label === 'lock' && blitz !== null && board !== null ? 'closeCell' : main.label === 'lock' && noWait ? 'noWait' : main.label)}
           </button>
         )}

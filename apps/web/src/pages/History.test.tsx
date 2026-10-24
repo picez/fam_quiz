@@ -668,3 +668,45 @@ describe('GameHistory survey (10e)', () => {
     for (const board of document.querySelectorAll('.history-survey')) expect(board.textContent).not.toContain('Запасний');
   });
 });
+
+describe('GameHistory bluff (10f)', () => {
+  it('shows the bluff board with kinds, authors, buyers and the removed lie, and the answers', async () => {
+    const bluffQ = { ...base, id: 'b1', type: 'bluff', text: 'Ейфелеву вежу хотіли поставити в …', accepted: ['Барселона'], lies: ['Мілан', 'Лісабон'], choiceTime: 30 } as unknown as Question;
+    const answer = { type: 'bluff', lie: 'Рим', pick: 'Мілан', fooled: 1 };
+    const responses = [{ nickname: 'Віра', answer, accepted: false, buff: null, spare: null }];
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        questions: [
+          {
+            index: 0,
+            roundIndex: 0,
+            text: bluffQ.text,
+            type: 'bluff',
+            answered: 1,
+            accepted: 0,
+            cell: null,
+            question: bluffQ,
+            responses,
+            final: null,
+            bluff: {
+              options: [
+                { text: 'Мілан', kind: 'spare', authors: [], pickedBy: ['Віра'], removed: false },
+                { text: 'Рим', kind: 'lie', authors: ['Оля', 'Петро'], pickedBy: ['Віра'], removed: false },
+                { text: 'Барселона', kind: 'truth', authors: [], pickedBy: [], removed: false },
+                { text: 'Дурня', kind: 'lie', authors: ['Іван'], pickedBy: [], removed: true },
+              ],
+            },
+          },
+        ],
+      },
+    } as never);
+    open('/history/g1');
+    expect(await screen.findByText('Вигадка: Оля, Петро')).toBeTruthy();
+    expect(screen.getByText('Правда')).toBeTruthy();
+    expect(screen.getAllByText('Купилися: Віра').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Прибрано')).toBeTruthy();
+    expect(screen.getByText('вигадка «Рим» · вибір «Мілан» ✗ · купилися: 1')).toBeTruthy();
+  });
+});

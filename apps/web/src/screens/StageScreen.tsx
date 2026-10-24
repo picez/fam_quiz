@@ -34,6 +34,7 @@ import { WallReveal } from './WallReveal';
 import { WallTable } from './WallTable';
 import { PollBars } from './PollBars';
 import { WordCloud } from './WordCloud';
+import { BluffBoard } from './BluffBoard';
 import { SurveyBoard } from './SurveyBoard';
 
 interface Props {
@@ -275,6 +276,21 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
             <WallGrid wall={question.wall} found={(view.wall?.rows[0]?.tiles ?? []).map((tiles, color) => ({ tiles, color }))} big />
           )}
         </div>
+      ) : question.type === 'bluff' && view.bluff !== null ? (
+        <div className="stage-fit stage-bluff">
+          {view.bluff.stage === 'lies' ? (
+            <>
+              <p className="lead">{t('bluffStageOnPhone')}</p>
+              <p className="meta">{t('bluffWritten', { n: view.bluff.written, total: view.playerCount })}</p>
+            </>
+          ) : (
+            <>
+              {view.bluff.stage === 'choice' && <p className="lead">{t('bluffChoiceHint')}</p>}
+              <BluffBoard info={view.bluff} big />
+              {view.bluff.stage === 'choice' && <p className="meta">{t('bluffPickedCount', { n: view.bluff.picked, total: view.playerCount })}</p>}
+            </>
+          )}
+        </div>
       ) : question.type === 'survey' && view.survey !== null ? (
         <div className="stage-fit stage-survey">
           <SurveyBoard info={view.survey} big />
@@ -342,7 +358,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
         // Підказка сортування лишає своє місце й на розкритті: сцена не зсувається.
         <p className="lead sort-line">{reveal === null ? hint : ''}</p>
       ) : (
-        reveal === null && hint !== null && question.type !== 'survey' && <p className="lead">{hint}</p>
+        reveal === null && hint !== null && question.type !== 'survey' && question.type !== 'bluff' && <p className="lead">{hint}</p>
       )}
       {scale !== null && (
         <SliderScale slider={scale.slider} correct={scale.correct.correct} tolerance={scale.correct.tolerance} zeroBeyond={scale.correct.zeroBeyond} marks={scale.marks} highlight={scale.marks[0]?.playerId} />
@@ -365,7 +381,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           )}
         </div>
       )}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
 }

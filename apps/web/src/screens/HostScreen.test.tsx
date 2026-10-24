@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, emptyBrief, type Answer, type HostDuel, type HostView, Question, RoundInfo } from '@quiz/shared';
+import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOptionView, type HostDuel, type HostView, Question, RoundInfo } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -2026,5 +2026,49 @@ describe('HostScreen: survey (10e)', () => {
   it('warns about a skipped survey', () => {
     show(view({ phase: 'intro', surveySkipped: ['Що ви назвали про Київ?'] }));
     expect(screen.getByText('Запитання «Що ви назвали про Київ?» пропущено: хмара не дала слів, а запасних рядків немає.')).toBeTruthy();
+  });
+});
+
+describe('HostScreen: bluff (10f)', () => {
+  const bluffQ = { id: 'bl1', type: 'bluff', text: 'Вежу хотіли поставити в …', imageUrl: null, video: null, timeLimit: 60, points: 1000, accepted: ['Барселона'], lies: ['Мілан', 'Лісабон'], choiceTime: 30 } as unknown as Question;
+  const opt = (id: string, text: string, over: Partial<BluffOptionView> = {}): BluffOptionView => ({ id, text, open: false, kind: 'lie', authors: ['Олена'], pickedBy: [], removed: false, ...over });
+  const bluff = (over: Partial<BluffInfo> = {}): BluffInfo => ({ stage: 'lies', written: 1, picked: 0, options: [], shown: 0, total: 0, lastOpenedId: null, lies: [{ nickname: 'Олена', text: 'Рим' }], ...over });
+  const five = [opt('b1', 'Рим'), opt('b2', 'Мілан', { kind: 'spare', authors: [] }), opt('b3', 'Париж'), opt('b4', 'Барселона', { kind: 'truth', authors: [] }), opt('b5', 'Лісабон', { kind: 'spare', authors: [] })];
+  const bluffView = (phase: HostView['phase'], info: BluffInfo, over: Partial<HostView> = {}) => during(phase, bluffQ, { bluff: info, ...over });
+
+  it('lies phase: live lies with authors, the main button goes to the choice', () => {
+    const send = show(bluffView('question', bluff()));
+    expect(screen.getByText('Олена: Рим')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    fireEvent.click(button('До вибору'));
+    expect(send).toHaveBeenCalledWith('host:lock', undefined);
+  });
+
+  it('choice phase: «Закрити вибір», and «Прибрати» only next to players lies, after confirming', () => {
+    const send = show(bluffView('question', bluff({ stage: 'choice', options: five, total: 5, lies: null })));
+    expect(button('Закрити вибір')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Прибрати' })).toHaveLength(2);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Прибрати' })[0]);
+    expect(confirm).toHaveBeenCalledWith('Прибрати «Рим»? Автори нічого за неї не отримають.');
+    expect(send).toHaveBeenCalledWith('host:bluff-remove', { optionId: 'b1' });
+    confirm.mockRestore();
+  });
+
+  it('reveal: «Відкрити варіант 2 з 5» steps, «Відкрити всі» opens all, and when all are open it is «Далі»', () => {
+    const info = (n: number) => bluff({ stage: 'reveal', options: five.map((o, at) => ({ ...o, open: at < n })), shown: n, total: 5, lies: null });
+    const send = show(bluffView('reveal', info(1)));
+    fireEvent.click(button('Відкрити варіант 2 з 5'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+    cleanup();
+    const sendAll = show(bluffView('reveal', info(1)));
+    fireEvent.click(button('Відкрити всі'));
+    expect(sendAll).toHaveBeenCalledWith('host:bluff-all', undefined);
+    cleanup();
+    show(bluffView('reveal', info(5)));
+    expect(button('Далі')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Правильно' })).toBeNull();
   });
 });
