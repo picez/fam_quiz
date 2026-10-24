@@ -257,6 +257,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         accepted: distinct(main.filter((a) => a.accepted).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question,
+        ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
         responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },

@@ -1885,9 +1885,9 @@ describe('HostScreen: wall, poll and word cloud (10d)', () => {
       }),
     );
     expect(screen.getByText('Торкніться слова, щоб сховати його з екрана. Ще дотик — повернути.')).toBeTruthy();
-    fireEvent.click(button('Сховати «каштани»'));
+    fireEvent.click(button('каштани'));
     expect(send).toHaveBeenCalledWith('host:cloud-hide', { key: 'каштани', hidden: true });
-    fireEvent.click(button('Повернути «борщ»'));
+    fireEvent.click(button('борщ'));
     expect(send).toHaveBeenCalledWith('host:cloud-hide', { key: 'борщ', hidden: false });
   });
 });

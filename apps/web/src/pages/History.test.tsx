@@ -614,4 +614,27 @@ describe('GameHistory wall, poll and word cloud (10d)', () => {
     expect(screen.getByText('Дніпро · 1')).toBeTruthy();
     expect(screen.getAllByText(/правильно/)).toHaveLength(1);
   });
+
+  it('words the host hid show as приховано in the cloud list and in the answers, and the most frequent spelling is used', async () => {
+    const cloudQ: Question = { ...base, id: 'c1', type: 'wordcloud', text: 'Київ — це?', points: 0, words: 3 };
+    const vote = (nickname: string, words: string[]) => ({ nickname, answer: { type: 'wordcloud', words }, accepted: false, buff: null, spare: null });
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        questions: [
+          {
+            index: 0, roundIndex: 0, text: cloudQ.text, type: 'wordcloud', answered: 3, accepted: 0, cell: null, question: cloudQ, cloudHidden: ['лайка'],
+            responses: [vote('Олена', ['Каштани', 'Лайка']), vote('Тарас', ['каштани']), vote('Віра', ['каштани', 'ЛАЙКА'])],
+            final: null,
+          },
+        ],
+      },
+    } as never);
+    open('/history/g1');
+    expect(await screen.findByText('каштани · 3')).toBeTruthy();
+    expect(screen.getByText('приховано · 2')).toBeTruthy();
+    expect(screen.queryByText(/лайка/i)).toBeNull();
+    expect(screen.getAllByText('каштани, приховано').length + screen.getAllByText('Каштани, приховано').length).toBeGreaterThan(0);
+  });
 });

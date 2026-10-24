@@ -1,9 +1,11 @@
 import type { CloudWord } from '@quiz/shared';
 
-const MIN_REM = 1;
+/** Найменше слово читається з кінця зали: нижче цього шрифт не опускається. */
+const MIN_REM = 1.25;
 const MAX_REM = 4.5;
-/** Після цього числа слів шрифт зменшується, щоб хмара вмістилася на сцені. */
+/** Коли слів багато, найбільше слово менше, а найменше лишається читабельним. */
 const DENSE_FROM = 25;
+const DENSE_MAX_REM = 3;
 const COLORS = 5;
 
 /** Стабільний хеш ключа: однаковий порядок і колір між перемальовуваннями. */
@@ -25,17 +27,17 @@ export function cloudOrder(words: CloudWord[]): CloudWord[] {
   return line;
 }
 
-/** Хмара: слова розміром за count (1 rem … 4,5 rem лінійно між найменшим і найбільшим). */
+/** Хмара: слова розміром за count (1,25 rem … 4,5 rem лінійно; при щільній хмарі до 3 rem). */
 export function WordCloud({ words }: { words: CloudWord[] }) {
   const counts = words.map((word) => word.count);
   const min = Math.min(...counts);
   const max = Math.max(...counts);
-  const scale = words.length > DENSE_FROM ? 0.7 : 1;
+  const top = words.length > DENSE_FROM ? DENSE_MAX_REM : MAX_REM;
   return (
     <ul className={words.length > DENSE_FROM ? 'word-cloud is-dense' : 'word-cloud'}>
       {cloudOrder(words).map((word) => {
         const share = max === min ? 0.5 : (word.count - min) / (max - min);
-        const size = (MIN_REM + share * (MAX_REM - MIN_REM)) * scale;
+        const size = MIN_REM + share * (top - MIN_REM);
         return (
           <li key={word.key} className={`word word-color-${hashOf(word.key) % COLORS}`} style={{ fontSize: `${size.toFixed(2)}rem` }}>
             {word.text}

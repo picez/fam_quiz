@@ -18,11 +18,11 @@ const size = (container: HTMLElement, text: string) => {
 };
 
 describe('WordCloud', () => {
-  it('a more frequent word is bigger, between 1 and 4.5 rem', () => {
+  it('a more frequent word is bigger, between 1.25 and 4.5 rem', () => {
     const { container } = render(<WordCloud words={words} />);
     expect(size(container, 'Київ')).toBeGreaterThan(size(container, 'каштани'));
     expect(size(container, 'Київ')).toBeCloseTo(4.5);
-    expect(size(container, 'каштани')).toBeCloseTo(1);
+    expect(size(container, 'каштани')).toBeCloseTo(1.25);
   });
 
   it('the order is the same between two renders', () => {
@@ -47,5 +47,7 @@ describe('WordCloud', () => {
     const { container } = render(<WordCloud words={many} />);
     expect(container.querySelector('.word-cloud.is-dense')).not.toBeNull();
     expect(size(container, 'слово0')).toBeLessThan(4.5);
+    // Найменше слово лишається читабельним на проєкторі.
+    expect(size(container, 'слово1')).toBeGreaterThanOrEqual(1.25);
   });
 });

@@ -38,7 +38,9 @@ function signature(state: GameState): string {
   });
   const scores = state.players.map((p) => [p.id, p.score]);
   // Коригування не змінюють фазу, а рахунок можуть лишити тим самим (+50 і −50): рахуємо їх окремо.
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq]);
+  // Сховані слова хмари останнього закритого запитання теж варті запису.
+  const hidden = last < 0 ? null : (state.plays[last].cloudHidden ?? null);
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden]);
 }
 
 interface AnswerRow {
@@ -111,6 +113,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       roundIndex: play.roundIndex,
       questionId: play.question.id,
       ...(play.board === undefined ? {} : { cell: { cellId: play.board.cellId, chooserId: play.board.chooserId } }),
+      ...(play.cloudHidden === undefined || play.cloudHidden.length === 0 ? {} : { cloudHidden: play.cloudHidden }),
     })),
     finishedAt: finished ? new Date() : null,
   };

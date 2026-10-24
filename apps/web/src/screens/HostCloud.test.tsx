@@ -14,9 +14,9 @@ describe('HostCloud', () => {
   it('a tap hides a shown word', () => {
     const onHide = vi.fn();
     render(<HostCloud words={words} onHide={onHide} />);
-    const button = screen.getByRole('button', { name: 'Сховати «каштани»' });
+    const button = screen.getByRole('button', { name: 'каштани' });
     expect(button.getAttribute('aria-pressed')).toBe('false');
-    expect(button.getAttribute('title')).toBe('Олена, Тарас');
+    expect(screen.getByText('Олена, Тарас')).toBeTruthy();
     fireEvent.click(button);
     expect(onHide).toHaveBeenCalledWith('каштани', true);
   });
@@ -24,7 +24,7 @@ describe('HostCloud', () => {
   it('a hidden word is pressed and a second tap brings it back', () => {
     const onHide = vi.fn();
     render(<HostCloud words={words} onHide={onHide} />);
-    const button = screen.getByRole('button', { name: 'Повернути «борщ»' });
+    const button = screen.getByRole('button', { name: 'борщ' });
     expect(button.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(button);
     expect(onHide).toHaveBeenCalledWith('борщ', false);

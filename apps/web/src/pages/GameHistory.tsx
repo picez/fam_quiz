@@ -45,19 +45,34 @@ export function historyPollCounts(question: GameQuestionResult): Record<string, 
   return counts;
 }
 
-/** Слова хмари з відповідей: зведені через cloudKey, найчастіші першими; текст — перше написання. */
-export function historyCloudWords(question: GameQuestionResult): { key: string; text: string; count: number }[] {
-  const words = new Map<string, { key: string; text: string; count: number }>();
+/** Слова хмари з відповідей: зведені через cloudKey, найчастіші першими; текст — найчастіше написання (за рівності — перше). Сховані ведучим — з позначкою. */
+export function historyCloudWords(question: GameQuestionResult): { key: string; text: string; count: number; hidden: boolean }[] {
+  const hidden = new Set(question.cloudHidden ?? []);
+  const words = new Map<string, { count: number; spellings: Map<string, number> }>();
   for (const response of question.responses) {
     if (response.spare !== null || response.answer?.type !== 'wordcloud') continue;
     for (const word of response.answer.words) {
       const key = cloudKey(word);
-      const entry = words.get(key);
-      if (entry === undefined) words.set(key, { key, text: word, count: 1 });
-      else entry.count++;
+      const entry = words.get(key) ?? { count: 0, spellings: new Map<string, number>() };
+      entry.count++;
+      entry.spellings.set(word, (entry.spellings.get(word) ?? 0) + 1);
+      words.set(key, entry);
     }
   }
-  return [...words.values()].sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, 'uk'));
+  return [...words.entries()]
+    .map(([key, { count, spellings }]) => {
+      let text = '';
+      let best = 0;
+      for (const [spelling, times] of spellings) if (times > best) [text, best] = [spelling, times];
+      return { key, text, count, hidden: hidden.has(key) };
+    })
+    .sort((x, y) => y.count - x.count || x.text.localeCompare(y.text, 'uk'));
+}
+
+/** Слова однієї відповіді хмари; сховані ведучим замінені на «приховано». */
+function cloudAnswerText(words: string[], hidden: string[] | undefined): string {
+  const set = new Set(hidden ?? []);
+  return words.map((word) => (set.has(cloudKey(word)) ? t('cloudHiddenWord') : word)).join(', ');
 }
 
 /** Рядки дуелей: пари 'duel' з сусідніми seq (+N і −N) — один рядок; непарне — окремо. */
@@ -211,7 +226,7 @@ export function GameHistory() {
                         {question.question.type === 'wordcloud' && (
                           <ul className="history-cloud">
                             {historyCloudWords(question).map((word) => (
-                              <li key={word.key}>{`${word.text} · ${word.count}`}</li>
+                              <li key={word.key} className={word.hidden ? 'is-hidden' : undefined}>{`${word.hidden ? t('cloudHiddenWord') : word.text} · ${word.count}`}</li>
                             ))}
                           </ul>
                         )}
@@ -230,7 +245,11 @@ export function GameHistory() {
                                   {response.answer?.type === 'match' ? (
                                     <PairList pairs={pairTexts(response.answer.links, choicesOf(question.question))} tone="" />
                                   ) : (
-                                    <span className="responses-answer">{answerText(response.answer, response.spare ?? question.question)}</span>
+                                    <span className="responses-answer">
+                                      {response.answer?.type === 'wordcloud' && response.spare === null
+                                        ? cloudAnswerText(response.answer.words, question.cloudHidden)
+                                        : answerText(response.answer, response.spare ?? question.question)}
+                                    </span>
                                   )}
                                 </li>
                               ))}

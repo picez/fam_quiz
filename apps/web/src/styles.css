@@ -7601,3 +7601,35 @@ button.wall-tile:disabled {
   color: var(--paper);
   box-shadow: inset 0 0 0 2px var(--line);
 }
+
+/* Таблиця стіни на сцені: багато гравців не обрізаються мовчки. */
+.wall-table.is-compact th,
+.wall-table.is-compact td {
+  padding: 0.1875rem 0.5rem;
+  font-size: 1.125rem;
+}
+
+.wall-table.is-tight th,
+.wall-table.is-tight td {
+  padding: 0.0625rem 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.wall-table-more td {
+  color: var(--dim);
+  font-style: italic;
+}
+
+.host-cloud-by {
+  max-width: 10rem;
+  color: var(--dim);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-cloud .is-hidden {
+  color: var(--dim);
+  font-style: italic;
+}

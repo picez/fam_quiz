@@ -56,6 +56,29 @@ describe('WallTable', () => {
     expect(screen.getByRole('columnheader', { name: 'Бали' })).toBeTruthy();
   });
 
+  it('the player column has a visually hidden header', () => {
+    const { container } = render(<WallTable info={{ groupCount: 3, rows: [] }} />);
+    expect(container.querySelector('th .sr-only')?.textContent).toBe('Гравець');
+  });
+
+  it('on the stage 30 players show the best rows and a +K ще line instead of clipping silently', () => {
+    const rows = Array.from({ length: 30 }, (_, n) => ({ playerId: `p${n}`, nickname: `Гравець${n}`, found: 3, mistakes: n, locked: false, solved: false, points: 750, tiles: null }));
+    const { container } = render(<WallTable info={{ groupCount: 4, rows }} compact />);
+    expect(container.querySelectorAll('tbody tr:not(.wall-table-more)')).toHaveLength(14);
+    expect(screen.getByText('Гравець0')).toBeTruthy();
+    expect(screen.queryByText('Гравець14')).toBeNull();
+    expect(screen.getByText('+16 ще')).toBeTruthy();
+    expect(container.querySelector('.wall-table.is-compact.is-tight')).not.toBeNull();
+  });
+
+  it('on the stage a few players are all shown without the remainder line', () => {
+    const rows = Array.from({ length: 5 }, (_, n) => ({ playerId: `p${n}`, nickname: `Гравець${n}`, found: 1, mistakes: 0, locked: false, solved: false, points: null, tiles: null }));
+    const { container } = render(<WallTable info={{ groupCount: 4, rows }} compact />);
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(5);
+    expect(container.querySelector('.is-tight')).toBeNull();
+    expect(screen.queryByText(/ще$/)).toBeNull();
+  });
+
   it('has no points column while the points are unknown', () => {
     render(<WallTable info={{ groupCount: 3, rows: [{ playerId: 'p1', nickname: 'Олена', found: 1, mistakes: 0, locked: false, solved: false, points: null, tiles: null }] }} />);
     expect(screen.queryByRole('columnheader', { name: 'Бали' })).toBeNull();

@@ -268,7 +268,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           {reveal?.type === 'wall' ? (
             <>
               <WallReveal question={reveal} big />
-              {view.wall !== null && <WallTable info={view.wall} />}
+              {view.wall !== null && <WallTable info={view.wall} compact />}
             </>
           ) : (
             <WallGrid wall={question.wall} found={(view.wall?.rows[0]?.tiles ?? []).map((tiles, color) => ({ tiles, color }))} big />

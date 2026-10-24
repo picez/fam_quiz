@@ -1032,4 +1032,26 @@ describe('recorder: votes and walls (10d)', () => {
     expect(VOTE_ATTEMPT).toBe(-3);
     expect([poll, cloud, wall].map(isUnscored)).toEqual([true, true, false]);
   });
+
+  it('hidden cloud words are kept in the plays journal, also when hidden after the reveal', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db, (error) => {
+      throw error;
+    });
+    const room = manager.create(makeQuiz([cloud], { speedBonus: false }), HOST, null);
+    const joined = manager.join(room.code, 'Олена', null);
+    if (!joined.ok) throw new Error(joined.error);
+    manager.connect(room, { role: 'player', playerId: joined.playerId });
+    const host = (type: 'start' | 'lock' | 'next') => expect(manager.host(room, { type })).toEqual({ ok: true });
+    host('start');
+    for (let i = 0; i < 4 && room.state.phase !== 'question'; i += 1) host('next');
+    expect(manager.answer(room, joined.playerId, { type: 'wordcloud', words: ['каштани', 'Дніпро'] })).toEqual({ ok: true });
+    for (let i = 0; i < 4 && room.state.phase !== 'reveal'; i += 1) host(room.state.phase === 'question' ? 'lock' : 'next');
+    expect(manager.host(room, { type: 'cloud-hide', key: 'каштани', hidden: true })).toEqual({ ok: true });
+    await recorder.idle();
+    const [saved] = await db.select().from(game);
+    expect(saved.plays).toEqual([{ roundIndex: 0, questionId: cloud.id, cloudHidden: ['каштани'] }]);
+  });
 });
