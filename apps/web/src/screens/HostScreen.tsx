@@ -1082,7 +1082,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
         {surveyStep && !view.paused && (
-          <button type="button" className="btn" disabled={stepping} onClick={() => void act('host:survey-all')}>
+          <button type="button" className="btn" disabled={stepping} onClick={() => step('host:survey-all')}>
             {t('surveyAllRows')}
           </button>
         )}

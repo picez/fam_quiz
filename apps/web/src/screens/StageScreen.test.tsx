@@ -1522,6 +1522,14 @@ describe('StageScreen: survey (10e)', () => {
     expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
   });
 
+  it('closed rows carry no popularity or authors, and the hint is only while answering', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: surveyQuestion, endsAt: Date.now() + 45_000, survey: board(0) }));
+    expect(document.querySelectorAll('.survey-pop, .survey-by')).toHaveLength(0);
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: surveyQuestion, survey: board(0) }));
+    expect(screen.queryByText('Пишіть до 3 відповідей на телефоні')).toBeNull();
+  });
+
   it('at the reveal only the opened bottom rows have text', () => {
     show(view({ phase: 'reveal', questionIndex: 0, question: surveyQuestion, reveal: surveyFull, survey: board(2) }));
     expect(screen.getByText('Груша')).toBeTruthy();

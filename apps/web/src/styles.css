@@ -7814,7 +7814,7 @@ button.wall-tile:disabled {
   margin: 0.5rem 0;
 }
 
-/* Табло на сцені: 8 рядків рівно в решту висоти (1280 × 720), рядки стискаються разом із шрифтом. */
+/* Табло на сцені: 8 рядків рівно в решту висоти (1280 × 720); довгі тексти — в один рядок, нікнейми — «+N». */
 .stage-survey {
   align-items: center;
 }
@@ -7827,13 +7827,21 @@ button.wall-tile:disabled {
 
 .stage-survey .survey-board .survey-row {
   flex: 1 1 0;
-  min-height: 0;
+  min-height: 2.75rem;
   max-height: 4rem;
   overflow: hidden;
 }
 
 .stage-survey .survey-board .survey-row.is-closed {
-  min-height: 0;
+  min-height: 2.75rem;
+}
+
+.stage-survey .survey-board .survey-text,
+.stage-survey .survey-board .survey-by {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
 }
 
 .stage-survey .survey-board .survey-by {
@@ -7843,6 +7851,15 @@ button.wall-tile:disabled {
 
 .stage-survey .survey-board .survey-text {
   line-height: 1.15;
+}
+
+.stage-survey .survey-board.is-dense {
+  gap: 0.1875rem;
+}
+
+.stage-survey .survey-board.is-dense .survey-row {
+  font-size: 1.25rem;
+  padding: 0.125rem 0.875rem;
 }
 
 .stage-survey .lead,

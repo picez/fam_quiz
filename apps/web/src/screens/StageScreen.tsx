@@ -278,7 +278,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
       ) : question.type === 'survey' && view.survey !== null ? (
         <div className="stage-fit stage-survey">
           <SurveyBoard info={view.survey} big />
-          {reveal === null && <p className="lead">{hint}</p>}
+          {view.phase === 'question' && hint !== null && hint !== '' && <p className="lead">{hint}</p>}
           {reveal === null && view.survey.source === 'cloud' && <p className="meta">{t('surveyFromCloud')}</p>}
         </div>
       ) : question.type === 'poll' && reveal?.type === 'poll' && stats !== null ? (

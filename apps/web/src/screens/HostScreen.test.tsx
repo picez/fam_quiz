@@ -1976,6 +1976,12 @@ describe('HostScreen: survey (10e)', () => {
     expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
   });
 
+  it('while paused there are no row buttons', () => {
+    show(surveyView('reveal', 1, { paused: true }));
+    expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Відкрити рядок/ })).toBeNull();
+  });
+
   it('warns about a skipped survey', () => {
     show(view({ phase: 'intro', surveySkipped: ['Що ви назвали про Київ?'] }));
     expect(screen.getByText('Запитання «Що ви назвали про Київ?» пропущено: хмара не дала слів, а запасних рядків немає.')).toBeTruthy();

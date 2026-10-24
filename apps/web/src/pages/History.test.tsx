@@ -648,7 +648,8 @@ describe('GameHistory survey (10e)', () => {
     const hostQ = { ...base, id: 's1', type: 'survey', text: 'Назвіть фрукт', answers: 3, rows } as unknown as Question;
     const cloudQ = { ...base, id: 's2', type: 'survey', text: 'Що ви назвали?', answers: 3, cloudId: 'c1', rows } as unknown as Question;
     const vote = (nickname: string, values: string[], hits: (string | null)[]) => ({ nickname, answer: { type: 'survey', values, rows: hits }, accepted: true, buff: null, spare: null });
-    const responses = [vote('Олена', ['яблучко', 'ананас'], ['r1', null]), vote('Тарас', ['Банан'], ['r2'])];
+    const spare = { nickname: 'Запасний', answer: { type: 'survey', values: ['Банан'], rows: ['r2'] }, accepted: true, buff: null, spare: { text: 'Інше', type: 'text' } };
+    const responses = [spare, vote('Олена', ['яблучко', 'ананас'], ['r1', null]), vote('Тарас', ['Банан'], ['r2'])];
     vi.mocked(getGame).mockResolvedValue({
       ok: true,
       data: {
@@ -664,5 +665,6 @@ describe('GameHistory survey (10e)', () => {
     expect(screen.getAllByText('Олена').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('Дошка з хмари слів')).toHaveLength(1);
     expect(screen.getAllByText('яблучко ✓, ананас ✗')).toHaveLength(2);
+    for (const board of document.querySelectorAll('.history-survey')) expect(board.textContent).not.toContain('Запасний');
   });
 });
