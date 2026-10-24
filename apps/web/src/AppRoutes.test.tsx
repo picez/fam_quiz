@@ -9,6 +9,7 @@ vi.mock('./api', () => ({ me: vi.fn() }));
 vi.mock('./pages/EditQuiz', () => ({ EditQuiz: () => <p>EditQuiz</p> }));
 vi.mock('./pages/GameHistory', () => ({ GameHistory: () => <p>GameHistory</p> }));
 vi.mock('./pages/History', () => ({ History: () => <p>History</p> }));
+vi.mock('./pages/HostHelp', () => ({ HostHelp: () => <p>HostHelp</p> }));
 vi.mock('./pages/Home', () => ({ Home: () => <p>Home</p> }));
 vi.mock('./pages/Host', () => ({ Host: () => <p>Host</p> }));
 vi.mock('./pages/Login', () => ({ Login: () => <p>Login</p> }));
@@ -39,9 +40,15 @@ describe('AppRoutes', () => {
     expect(screen.queryByRole('navigation', { name: 'Меню' })).toBeNull();
   });
 
-  it.each(['/', '/login', '/quizzes', '/quizzes/new', '/history', '/history/g1', '/me', '/profile'])('the page %s has the menu', async (path) => {
+  it.each(['/', '/login', '/quizzes', '/quizzes/new', '/history', '/history/g1', '/me', '/profile', '/help'])('the page %s has the menu', async (path) => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);
     expect(await screen.findByRole('navigation', { name: 'Меню' })).toBeTruthy();
+  });
+
+  it('the reference /help opens without an account', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    open('/help');
+    expect(await screen.findByText('HostHelp')).toBeTruthy();
   });
 });

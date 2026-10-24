@@ -6372,3 +6372,34 @@ label.powers-price {
   text-align: center;
   font-size: 0.8125rem;
 }
+
+.host-help section + section {
+  margin-top: 2rem;
+}
+
+.help-entry {
+  margin-top: 0.75rem;
+  scroll-margin-top: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.help-entry h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.95rem;
+  color: var(--dim);
+}
+
+.help-entry p {
+  margin: 0;
+}
+
+.help-entry ul {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+  list-style: disc;
+}
+
+.help-entry.is-target {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
