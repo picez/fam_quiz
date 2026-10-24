@@ -1774,6 +1774,17 @@ describe('QuizEditor: slider, audio, revealing picture (10b)', () => {
     expect('reveal' in roundQuestions(saved(onSave).rounds[0])[0]).toBe(false);
   });
 
+  it('ⓘ next to the audio and the picture mode open help; the quiz does not become changed', () => {
+    open(withQuestion({ imageUrl: IMAGE }));
+    fireEvent.click(screen.getByRole('button', { name: 'число' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Аудіо до запитання' }));
+    screen.getByRole('dialog', { name: 'Аудіо до запитання' });
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Картинка, що проявляється' }));
+    screen.getByRole('dialog', { name: 'Картинка, що проявляється' });
+    expect(screen.queryByText('Зберегти зміни?')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Картинка, що проявляється' })).toBeTruthy();
+  });
+
   it('a final round has no picture mode', () => {
     open(withQuestion({ imageUrl: IMAGE }));
     addRound('Фінал');

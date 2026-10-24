@@ -64,16 +64,30 @@ const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: Ho
 const IN_ROUND: HostView['phase'][] = ['duel', 'intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
 /** Рядок контексту: поточний раунд і (за потреби) тип запитання, кожне з «ⓘ». */
-function HostContext({ round, questionType }: { round: NonNullable<HostView['round']>; questionType?: NonNullable<HostView['question']>['type'] }) {
+function HostContext({ round, question }: { round: NonNullable<HostView['round']>; question?: NonNullable<HostView['question']> }) {
   return (
     <p className="meta host-context">
       <span>{roundLabel(round.title, round.index, round.type)}</span>
       <HelpButton id={`round.${round.type}`} />
-      {questionType !== undefined && (
+      {question !== undefined && (
         <>
           <span aria-hidden="true"> · </span>
-          <span>{t(`type_${questionType}`)}</span>
-          <HelpButton id={`question.${questionType}`} />
+          <span>{t(`type_${question.type}`)}</span>
+          <HelpButton id={`question.${question.type}`} />
+          {question.audio != null && (
+            <>
+              <span aria-hidden="true"> · </span>
+              <span aria-hidden="true">🎵</span>
+              <HelpButton id="setting.audio" />
+            </>
+          )}
+          {question.reveal != null && (
+            <>
+              <span aria-hidden="true"> · </span>
+              <span>{t(question.reveal === 'pixels' ? 'revealTag_pixels' : 'revealTag_blur')}</span>
+              <HelpButton id="setting.reveal" />
+            </>
+          )}
         </>
       )}
     </p>
@@ -420,7 +434,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
-          {round !== null && <HostContext round={round} questionType={view.question.type} />}
+          {round !== null && <HostContext round={round} question={view.question} />}
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}

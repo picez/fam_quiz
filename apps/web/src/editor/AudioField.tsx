@@ -2,6 +2,7 @@ import { AUDIO_LIMITS, LIMITS, videoLink, type QuestionAudio, type Video } from 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { uploadAudio } from '../api';
 import { errorText, t } from '../i18n';
+import { HelpButton } from '../help/HelpButton';
 import { NumberField } from './QuestionEditor';
 
 interface Props {
@@ -145,9 +146,17 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
     </p>
   );
 
+  const title = (
+    <div className="with-help">
+      <span className="meta">{t('audioLabel')}</span>
+      <HelpButton id="setting.audio" />
+    </div>
+  );
+
   if (audio === undefined) {
     return (
       <div className="audio-field">
+        {title}
         <div className="toolbar">{picker('addAudio')}</div>
         {errorLine}
       </div>
@@ -159,6 +168,7 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
   if (audio.source === 'youtube') {
     return (
       <div className="audio-field">
+        {title}
         <p className="meta">{t('audioYoutube', { link: videoLink({ id: audio.id, start: Number.isFinite(audio.start) ? audio.start : 0 }) })}</p>
         <NumberField label={t('audioDuration')} value={audio.duration} onChange={setDuration} />
         <label className="check">
@@ -172,6 +182,7 @@ export function AudioField({ audio, timeLimit, onChange, onToVideo }: Props) {
 
   return (
     <div className="audio-field">
+      {title}
       <p className="meta">{t('audioFile')}</p>
       <div className="toolbar">
         <button type="button" className="btn btn-small" aria-pressed={playing} onClick={preview}>

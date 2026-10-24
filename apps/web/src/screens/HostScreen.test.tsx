@@ -1686,7 +1686,18 @@ describe('HostScreen media (10b)', () => {
     show(during('question', single, { question: revealing }));
     expect(document.querySelector('img.question-image')).not.toBeNull();
     expect(document.querySelector('canvas')).toBeNull();
-    expect(screen.getByText(/Проявляється з пікселів/)).toBeTruthy();
+    expect(document.querySelector('.reveal-tag')?.textContent).toContain('Проявляється з пікселів');
+  });
+
+  it('the context line has ⓘ for the audio and the revealing picture; pressing them sends nothing', () => {
+    const both = { ...publicOf(single), imageUrl: '/uploads/a.png', reveal: 'blur' as const, audio: { duration: 10, clip } };
+    const send = show(during('question', single, { question: both, round: { index: 0, total: 1, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null } }));
+    const context = document.querySelector('.host-context') as HTMLElement;
+    fireEvent.click(within(context).getByRole('button', { name: 'Довідка: Аудіо до запитання' }));
+    screen.getByRole('dialog', { name: 'Аудіо до запитання' });
+    fireEvent.click(within(context).getByRole('button', { name: 'Довідка: Картинка, що проявляється' }));
+    screen.getByRole('dialog', { name: 'Картинка, що проявляється' });
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('shows the slider scale during the question', () => {

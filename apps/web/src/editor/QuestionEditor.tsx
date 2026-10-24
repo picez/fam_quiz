@@ -649,18 +649,21 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
           }}
         />
         {showReveal && question.imageUrl !== null && question.video === null && (REVEAL_TYPES as readonly string[]).includes(question.type) && (
-          <div className="reveal-modes" role="group" aria-label={t('revealLabel')}>
-            {([undefined, 'pixels', 'blur'] as const).map((mode) => (
-              <button
-                type="button"
-                key={mode ?? 'none'}
-                className={question.reveal === mode ? 'chip is-on' : 'chip'}
-                aria-pressed={question.reveal === mode}
-                onClick={() => setReveal(question, onChange, mode)}
-              >
-                {t(mode === undefined ? 'revealNone' : mode === 'pixels' ? 'revealPixels' : 'revealBlur')}
-              </button>
-            ))}
+          <div className="with-help">
+            <div className="reveal-modes" role="group" aria-label={t('revealLabel')}>
+              {([undefined, 'pixels', 'blur'] as const).map((mode) => (
+                <button
+                  type="button"
+                  key={mode ?? 'none'}
+                  className={question.reveal === mode ? 'chip is-on' : 'chip'}
+                  aria-pressed={question.reveal === mode}
+                  onClick={() => setReveal(question, onChange, mode)}
+                >
+                  {t(mode === undefined ? 'revealNone' : mode === 'pixels' ? 'revealPixels' : 'revealBlur')}
+                </button>
+              ))}
+            </div>
+            <HelpButton id="setting.reveal" />
           </div>
         )}
         {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && (
