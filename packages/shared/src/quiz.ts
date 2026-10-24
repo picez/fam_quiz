@@ -397,6 +397,11 @@ export const roundSchema = z.discriminatedUnion('type', [
 
 export type Round = z.infer<typeof roundSchema>;
 
+/** Типи-перевірки: списки ROUND_TYPES і QUESTION_TYPES мають збігатися зі схемами (помилка типів, якщо ні). */
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
+export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
+
 /** Правила балів раунду; у фіналі правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1). */
 export function rulesOf(round: Round): RoundRules {
   return round.type === 'final' ? DEFAULT_RULES : round.rules;

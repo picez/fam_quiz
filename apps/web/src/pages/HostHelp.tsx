@@ -51,7 +51,7 @@ export function HostHelp() {
         <span>{t('helpSearch')}</span>
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} />
       </label>
-      {found.length === 0 && <p className="meta">{t('helpNothing')}</p>}
+      {found.length === 0 && <p className="meta" role="status">{t('helpNothing')}</p>}
       {HELP_TOPICS.map((topic) => {
         const ids = found.filter((id) => helpTopic(id) === topic);
         if (ids.length === 0) return null;

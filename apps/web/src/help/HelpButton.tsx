@@ -48,6 +48,10 @@ export function HelpButton({ id, className }: { id: HelpId; className?: string }
   const headingRef = useRef<HTMLHeadingElement | null>(null);
 
   useEffect(() => {
+    setOpen(false);
+  }, [id]);
+
+  useEffect(() => {
     if (open) headingRef.current?.focus();
   }, [open]);
 

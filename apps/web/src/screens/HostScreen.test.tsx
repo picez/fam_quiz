@@ -1609,6 +1609,17 @@ describe('host help', () => {
     cleanup();
     show(during('question', single, { round: boardRound, board: boardWith(cellOf({ answerMode: 'voice' })) }));
     button('Довідка: Відповідь уголос');
+    cleanup();
+    show(during('question', single, { round: boardRound, board: boardWith(cellOf({ mark: 'x2' })) }));
+    button('Довідка: ×2 і ×3');
+  });
+
+  it('on the board the context line has only the round, without a question type', () => {
+    show(view({ phase: 'board', round: boardRound, board: boardWith(cellOf({})) }));
+    const line = document.querySelector('.host-context') as HTMLElement;
+    expect(line.textContent).toContain('Поле');
+    within(line).getByRole('button', { name: 'Довідка: Ігрове поле' });
+    expect(within(line).getAllByRole('button')).toHaveLength(1);
   });
 
   it('links to the host reference in a new tab', () => {

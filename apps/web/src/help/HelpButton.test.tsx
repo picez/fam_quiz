@@ -55,6 +55,15 @@ describe('HelpButton', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
+  it('closes when its entry changes', () => {
+    const { rerender } = render(<HelpButton id="round.board" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Ігрове поле' }));
+    screen.getByRole('dialog', { name: 'Ігрове поле' });
+    rerender(<HelpButton id="round.classic" />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    screen.getByRole('button', { name: 'Довідка: Класичний' });
+  });
+
   it('only one dialog is open at a time', () => {
     render(
       <>

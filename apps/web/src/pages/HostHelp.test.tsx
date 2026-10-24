@@ -42,7 +42,7 @@ describe('HostHelp', () => {
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent?.trim())).toEqual(['🛡 Щит']);
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Бафи']);
     fireEvent.change(screen.getByLabelText('Пошук за назвою'), { target: { value: 'зззз' } });
-    screen.getByText('Нічого не знайдено.');
+    expect(screen.getByText('Нічого не знайдено.').getAttribute('role')).toBe('status');
     expect(screen.queryAllByRole('heading', { level: 2 })).toEqual([]);
   });
 
