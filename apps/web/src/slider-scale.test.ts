@@ -18,6 +18,14 @@ describe('slider scale', () => {
     expect(rows.map((mark) => mark.pct)).toEqual([0, 100]);
   });
 
+  it('places the priority mark first so it keeps a row, and checks every taken position', () => {
+    const marks = Array.from({ length: 12 }, (_, index) => ({ id: index, value: 50 + index * 0.1 }));
+    const laid = layoutMarks(marks, 0, 100, 8, 2, (mark) => mark.id === 11);
+    expect(laid.find((mark) => mark.id === 11)?.row).toBe(0);
+    const taken = laid.filter((mark) => mark.row !== null);
+    for (const a of taken) for (const b of taken) if (a !== b && a.row === b.row) expect(Math.abs(a.pct - b.pct)).toBeGreaterThanOrEqual(8);
+  });
+
   it('caps the rows and leaves the rest without a label', () => {
     const marks = Array.from({ length: 20 }, (_, index) => ({ value: 50 + index * 0.1 }));
     const laid = layoutMarks(marks, 0, 100, 8, 3);

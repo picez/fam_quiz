@@ -482,7 +482,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               ready={phase === 'question' && !underSplash && !view.paused}
               paused={view.paused}
               command={audioCommand}
-              elapsedMs={questionElapsedMs(view, Date.now() + offsetMs)}
+              elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
               splash={underSplash}
             />
           )}

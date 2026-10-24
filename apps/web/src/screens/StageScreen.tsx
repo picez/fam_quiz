@@ -230,7 +230,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           ready={view.phase === 'question' && !busy && !view.paused}
           paused={view.paused}
           command={audioCommand}
-          elapsedMs={questionElapsedMs(view, Date.now() + offsetMs)}
+          elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
           splash={busy}
         />
       )}

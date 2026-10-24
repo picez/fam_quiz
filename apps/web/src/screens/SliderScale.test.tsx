@@ -32,6 +32,12 @@ describe('SliderScale', () => {
     expect(zero?.style.width).toBe('20%');
   });
 
+  it('keeps the highlighted player named even inside a crowd', () => {
+    const crowd = Array.from({ length: 20 }, (_, index) => ({ playerId: `p${index}`, nickname: `Гравець ${index}`, value: 50 + index * 0.1 }));
+    const { container } = render(<SliderScale slider={{ ...slider, step: 0.1 }} correct={50} tolerance={2} marks={crowd} maxRows={3} highlight="p19" />);
+    expect(container.querySelector('.scale-mark.is-near .scale-name')?.textContent).toBe('Гравець 19');
+  });
+
   it('shows only the first rows of names for a crowd and counts the rest', () => {
     const crowd = Array.from({ length: 20 }, (_, index) => ({ playerId: `p${index}`, nickname: `Гравець ${index}`, value: 50 + index * 0.1 }));
     const { container } = render(<SliderScale slider={{ ...slider, step: 0.1 }} correct={50} tolerance={2} marks={crowd} maxRows={3} />);

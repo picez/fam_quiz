@@ -13,7 +13,7 @@ interface Props {
   paused: boolean;
   command: AudioCommand | null;
   /** Скільки мс запитання вже минуло в мить автостарту: фрагмент грає лише залишок, а повністю минулий не грає. */
-  elapsedMs?: number;
+  elapsedMs?: number | (() => number);
   /** Іде заставка: команди «ще раз» у цей час ігноруються. */
   splash?: boolean;
 }
@@ -21,6 +21,8 @@ interface Props {
 type PlayState = 'idle' | 'playing' | 'stopped' | 'blocked' | 'failed';
 
 const LISTEN_INTERVAL_MS = 250;
+/** Скільки разів повторюємо «listening» (≈10 с), поки плеєр не відгукнеться. */
+const LISTEN_MAX_TICKS = 40;
 /** Скільки чекаємо, поки YouTube підтвердить, що грає, перш ніж вважати звук заблокованим. */
 export const YOUTUBE_BLOCK_MS = 2000;
 
@@ -60,10 +62,16 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
   clipRef.current = clip;
   const elapsedRef = useRef(elapsedMs);
   elapsedRef.current = elapsedMs;
+  // Свіжий час запитання: пропс (число з останнього рендера) або функція, що читає годинник у мить виклику.
+  const elapsedNow = () => Math.max(0, typeof elapsedRef.current === 'function' ? elapsedRef.current() : elapsedRef.current);
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
+  // Звук заблокований після автостарту: дотик має продовжити з поточного часу запитання, а не з початку фрагмента.
+  const fromAuto = useRef(false);
   const splashRef = useRef(splash);
   splashRef.current = splash;
   // YouTube: плеєр відповів, черга команд до цього, чи підтвердив він «грає», таймер перевірки.
-  const yt = useRef({ ready: false, queue: [] as Command[], playing: false, block: null as ReturnType<typeof setTimeout> | null, poll: null as ReturnType<typeof setInterval> | null });
+  const yt = useRef({ ready: false, queue: [] as Command[], state: -1, block: null as ReturnType<typeof setTimeout> | null, poll: null as ReturnType<typeof setInterval> | null });
   // Таймер блокування звертається до halt, оголошеного нижче.
   const haltRef = useRef<(next: PlayState | null) => void>(() => {});
 
@@ -86,7 +94,8 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       if (yt.current.block !== null) clearTimeout(yt.current.block);
       yt.current.block = setTimeout(() => {
         yt.current.block = null;
-        if (run.current.active && run.current.running && !yt.current.playing) haltRef.current('blocked');
+        // Буферизація (3) — теж живий звук; заблокований звук лишається в -1 (не почато), 2 (пауза) чи 5 (у черзі).
+        if (run.current.active && run.current.running && yt.current.state !== 1 && yt.current.state !== 3) haltRef.current('blocked');
       }, YOUTUBE_BLOCK_MS);
     }
   }, []);
@@ -109,7 +118,7 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       r.held = false;
       clearTimer();
       clearBlock();
-      yt.current.playing = false;
+      yt.current.state = 2;
       lastMedia.current?.pause();
       if (clipRef.current.source === 'youtube') {
         // Плеєр, що ще не відгукнувся, нічого не грає: команди до нього не потрібні.
@@ -133,7 +142,7 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
         r.active = true;
         r.held = false;
         r.seek = true;
-        r.seekPos = current.start + Math.floor(offsetMs / 1000);
+        r.seekPos = current.start + offsetMs / 1000;
         yt.current.queue = [];
         setPlays((count) => count + 1);
       }
@@ -147,7 +156,6 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       const token = r.token;
       r.running = true;
       r.since = Date.now();
-      yt.current.playing = false;
       clearTimer();
       timer.current = setTimeout(() => halt('stopped'), Math.max(0, r.remaining));
       setState('playing');
@@ -166,6 +174,8 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
           halt('failed');
         }
       } else {
+        // На iOS Safari відео в чужій (cross-origin) рамці без дотику до самої рамки може не заграти навіть після
+        // дотику до сторінки: тоді за YOUTUBE_BLOCK_MS показується «Увімкнути звук», а надійно грає файл.
         if (seek) youtube('seekTo', [r.seekPos, true]);
         youtube('playVideo');
       }
@@ -182,7 +192,7 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
     r.held = true;
     clearTimer();
     clearBlock();
-    yt.current.playing = false;
+    yt.current.state = 2;
     lastMedia.current?.pause();
     if (clipRef.current.source === 'youtube') {
       yt.current.queue = [];
@@ -228,10 +238,11 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
             ? (data.info as { playerState?: unknown }).playerState
             : undefined;
       if (data.event === 'onError') haltRef.current('failed');
-      else if (playerState === 1) {
-        state.playing = true;
-        clearBlock();
-      } else if (playerState === 0 && run.current.active) haltRef.current('stopped');
+      else if (typeof playerState === 'number') {
+        state.state = playerState;
+        if (playerState === 1 || playerState === 3) clearBlock();
+        else if (playerState === 0 && run.current.active) haltRef.current('stopped');
+      }
     };
     window.addEventListener('message', onMessage);
     return () => {
@@ -245,7 +256,15 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
   const onFrameLoad = () => {
     const state = yt.current;
     if (state.ready || state.poll !== null) return;
+    let ticks = 0;
     const tick = () => {
+      // Плеєр не відгукується (немає мережі, YouTube недоступний): довго не чекаємо.
+      if (++ticks > LISTEN_MAX_TICKS) {
+        if (state.poll !== null) clearInterval(state.poll);
+        state.poll = null;
+        haltRef.current('failed');
+        return;
+      }
       post({ event: 'listening' });
       post({ event: 'command', func: 'addEventListener', args: ['onStateChange'] });
       post({ event: 'command', func: 'addEventListener', args: ['onError'] });
@@ -259,7 +278,8 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
     if (!ready || startedKey.current === questionKey) return;
     startedKey.current = questionKey;
     setPlays(0);
-    const offset = Math.max(0, elapsedRef.current);
+    const offset = elapsedNow();
+    fromAuto.current = true;
     if (offset >= clipRef.current.duration * 1000) {
       run.current.active = false;
       setState('stopped');
@@ -277,11 +297,15 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
   useEffect(() => {
     if (command === null || command.seq === lastSeq.current) return;
     lastSeq.current = command.seq;
-    if (command.action === 'stop') halt('stopped');
-    else if (splashRef.current) return;
+    fromAuto.current = false;
+    if (command.action === 'stop') {
+      // «Стоп» під час заставки: після неї автостарт уже не має вмикати звук.
+      startedKey.current = questionKey;
+      halt('stopped');
+    } else if (splashRef.current) return;
     else if (needsTouch()) halt('blocked');
     else begin(true);
-  }, [command, begin, halt]);
+  }, [command, begin, halt, questionKey]);
 
   // Пауза гри.
   useEffect(() => {
@@ -292,6 +316,12 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       begin(false);
     }
   }, [paused, suspend, begin]);
+
+  const unlock = () => {
+    const offset = fromAuto.current && readyRef.current ? elapsedNow() : 0;
+    if (offset >= clipRef.current.duration * 1000) halt('stopped');
+    else begin(true, offset);
+  };
 
   const playing = state === 'playing';
   const quiet = state === 'idle' || state === 'stopped';
@@ -325,7 +355,7 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       )}
       {playing && <span className="audio-listen">{t('audioListen')}</span>}
       {state === 'blocked' && (
-        <button type="button" className="btn btn-primary" onClick={() => begin(true)}>
+        <button type="button" className="btn btn-primary" onClick={unlock}>
           {t('audioUnlock')}
         </button>
       )}

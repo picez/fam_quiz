@@ -27,7 +27,7 @@ export function SliderScale({ slider, correct, tolerance, zeroBeyond, marks, hig
   const toleranceRight = scalePct(correct + tolerance, min, max);
   const zeroLeft = zeroBeyond === undefined ? 0 : scalePct(correct - zeroBeyond, min, max);
   const zeroRight = zeroBeyond === undefined ? 0 : scalePct(correct + zeroBeyond, min, max);
-  const laid = layoutMarks(marks, min, max, undefined, maxRows);
+  const laid = layoutMarks(marks, min, max, undefined, maxRows, (mark) => mark.playerId === highlight);
   const named = laid.filter((mark) => mark.row !== null);
   const extra = laid.filter((mark) => mark.row === null);
   const rows = named.reduce((most, mark) => Math.max(most, (mark.row ?? 0) + 1), 0);
@@ -38,7 +38,7 @@ export function SliderScale({ slider, correct, tolerance, zeroBeyond, marks, hig
         {zeroBeyond !== undefined && <span className="scale-zero" style={{ left: `${zeroLeft}%`, width: `${zeroRight - zeroLeft}%` }} />}
         <span className="scale-tolerance" style={{ left: `${toleranceLeft}%`, width: `${toleranceRight - toleranceLeft}%` }} />
         {extra.map((mark) => (
-          <span key={mark.playerId} className="scale-dot" style={{ left: `${mark.pct}%` }} role="img" aria-label={`${mark.nickname}: ${sliderValueText(mark.value, slider)}`} />
+          <span key={mark.playerId} className={mark.playerId === highlight ? 'scale-dot is-near' : 'scale-dot'} style={{ left: `${mark.pct}%` }} role="img" aria-label={`${mark.nickname}: ${sliderValueText(mark.value, slider)}`} />
         ))}
         <span className="scale-correct" style={{ left: `${correctPct}%` }}>
           <span className="scale-correct-label" style={{ transform: `translateX(-${correctPct}%)` }}>{sliderValueText(correct, slider)}</span>

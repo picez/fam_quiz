@@ -149,6 +149,30 @@ describe('QuestionAudio', () => {
     expect(card().dataset.state).toBe('stopped');
   });
 
+  it('a touch after a blocked autostart resumes from the current question time', async () => {
+    let elapsed = 0;
+    play.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' })));
+    mount({ elapsedMs: () => elapsed });
+    await flush();
+    expect(card().dataset.state).toBe('blocked');
+    elapsed = 6000;
+    fireEvent.click(screen.getByRole('button', { name: '🔊 Увімкнути звук' }));
+    await flush();
+    expect(document.querySelector('audio')?.currentTime).toBe(18);
+    act(() => void vi.advanceTimersByTime(3900));
+    expect(card().dataset.state).toBe('playing');
+    act(() => void vi.advanceTimersByTime(200));
+    expect(card().dataset.state).toBe('stopped');
+  });
+
+  it('a stop during the splash keeps the autostart away', async () => {
+    const view = mount({ ready: false, splash: true });
+    view.again({ command: { action: 'stop', seq: 1 } });
+    view.again({ ready: true, splash: false, command: { action: 'stop', seq: 1 } });
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+  });
+
   it('does not start a clip that has already finished', async () => {
     mount({ elapsedMs: 10_000 });
     await flush();
@@ -220,6 +244,28 @@ describe('QuestionAudio on YouTube', () => {
     act(() => void vi.advanceTimersByTime(2100));
     expect(card().dataset.state).toBe('blocked');
     expect(screen.getByRole('button', { name: '🔊 Увімкнути звук' })).toBeTruthy();
+  });
+
+  it('buffering counts as alive, and a replay while playing does not end as blocked', async () => {
+    const view = mount({ clip: tube });
+    fireEvent.load(frame());
+    reply({ event: 'initialDelivery' });
+    reply({ event: 'onStateChange', info: 3 });
+    act(() => void vi.advanceTimersByTime(2500));
+    expect(card().dataset.state).toBe('playing');
+    reply({ event: 'infoDelivery', info: { playerState: 1 } });
+    view.again({ command: { action: 'replay', seq: 1 } });
+    await flush();
+    act(() => void vi.advanceTimersByTime(2500));
+    expect(card().dataset.state).toBe('playing');
+    expect(card().dataset.plays).toBe('2');
+  });
+
+  it('gives up with failed when the player never answers', async () => {
+    mount({ clip: tube });
+    fireEvent.load(frame());
+    act(() => void vi.advanceTimersByTime(10_500));
+    expect(card().dataset.state).toBe('failed');
   });
 
   it('reports a player error and a finished video', async () => {

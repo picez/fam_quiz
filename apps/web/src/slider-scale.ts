@@ -8,8 +8,10 @@ export function scalePct(value: number, min: number, max: number): number {
 export const MARK_GAP_PCT = 8;
 
 /**
- * Рядки підписів: позначки за значенням; кожна йде в перший рядок, де від попередньої не менше gapPct.
+ * Рядки підписів: позначка йде в перший рядок, де від усіх уже поставлених не менше gapPct.
+ * Позначка, яку впізнає first, розставляється першою, тож завжди має ім'я; решта — за значенням.
  * З maxRows позначка, якій не знайшлося рядка серед перших maxRows, лишається без підпису: row === null.
+ * Результат — за значенням.
  */
 export function layoutMarks<T extends { value: number }>(
   marks: T[],
@@ -17,15 +19,18 @@ export function layoutMarks<T extends { value: number }>(
   max: number,
   gapPct = MARK_GAP_PCT,
   maxRows = Infinity,
+  first?: (mark: T) => boolean,
 ): (T & { pct: number; row: number | null })[] {
-  const lastInRow: number[] = [];
-  return [...marks]
-    .sort((a, b) => a.value - b.value)
-    .map((mark) => {
-      const pct = scalePct(mark.value, min, max);
-      let row: number | null = lastInRow.findIndex((last) => pct - last >= gapPct);
-      if (row === -1) row = lastInRow.length < maxRows ? lastInRow.length : null;
-      if (row !== null) lastInRow[row] = pct;
-      return { ...mark, pct, row };
-    });
+  const sorted = [...marks].sort((a, b) => a.value - b.value);
+  const order = first === undefined ? sorted : [...sorted.filter(first), ...sorted.filter((mark) => !first(mark))];
+  const rows: number[][] = [];
+  const placed = new Map<T, { pct: number; row: number | null }>();
+  for (const mark of order) {
+    const pct = scalePct(mark.value, min, max);
+    let row: number | null = rows.findIndex((taken) => taken.every((other) => Math.abs(pct - other) >= gapPct));
+    if (row === -1) row = rows.length < maxRows ? rows.length : null;
+    if (row !== null) (rows[row] ??= []).push(pct);
+    placed.set(mark, { pct, row });
+  }
+  return sorted.map((mark) => ({ ...mark, ...(placed.get(mark) as { pct: number; row: number | null }) }));
 }
