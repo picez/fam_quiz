@@ -19,7 +19,7 @@ import { chainOf } from './chain';
 import { cluesAnswered } from './clues';
 import { currentRound, recordOf, type AnswerRecord, type BlitzPlay, type GameState, type Play } from './game';
 import { buffOf, questionFor } from './buffs';
-import { sortOf } from './sort';
+import { sortOf, sortSeq } from './sort';
 import { survivalAlive, survivalPlayOf, trialOpen } from './survival';
 import { wallOf } from './wall';
 import { wipeoutIn } from './wipeout';
@@ -128,7 +128,15 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
     const progress = sortOf(state, id);
     const head = progress.queue[0];
     const card = head === undefined ? null : (question.words.find((w) => w.id === head)?.text ?? null);
-    return { kind: 'sort', card, sorted: progress.sorted.length, total: question.words.length, misses: progress.misses };
+    return {
+      kind: 'sort',
+      card,
+      cardId: card === null ? null : (head ?? null),
+      seq: sortSeq(progress),
+      sorted: progress.sorted.length,
+      total: question.words.length,
+      misses: progress.misses,
+    };
   }
   if (question.type === 'wall') {
     // Ті самі числа, що WallRow у wallInfo.

@@ -235,6 +235,55 @@ export interface SortInfo {
   winner: BlitzPlayer | null;
   /** Клітинка поля: усі слова за абеткою для сцени, пульта й глядачів; тому, хто сортує, і поза полем — null. */
   words: { id: string; text: string }[] | null;
+  /** Живий показ (11d): лише звичайна клітинка поля; тому, хто сортує, — null. */
+  live: SortLive | null;
+}
+
+/** Слово сортування в зрізі. */
+export interface SortWordView {
+  id: string;
+  text: string;
+}
+
+/** Хід, який глядачі бачать польотом (11d): to — id категорії, куди пішла картка. */
+export interface SortMove {
+  wordId: string;
+  text: string;
+  to: string;
+  hit: boolean;
+}
+
+/** Стовпець категорії під час гри (11d): id категорії й розкладені в неї слова в порядку ходів. */
+export interface SortColumn {
+  id: string;
+  words: SortWordView[];
+}
+
+/**
+ * Живе сортування однієї сторони для глядачів (11d): звичайна клітинка поля — сцені, пульту й іншим телефонам;
+ * командна гра — команді (через PlayerSort.live). Ключа categoryId тут немає навмисно: категорії нерозкладених слів не йдуть нікуди.
+ */
+export interface SortLive {
+  /** Id учасника гри: гравця або команди. */
+  sorterId: string;
+  nickname: string;
+  /** Поточна картка; лише на етапі question без запису, інакше null. */
+  card: SortWordView | null;
+  /** Слово останньої помилки (для трусіння під час підвисання). */
+  missed: SortWordView | null;
+  lockedUntil: number | null;
+  lockRemainingMs: number | null;
+  sorted: number;
+  total: number;
+  misses: number;
+  timeMs: number | null;
+  /** Ходів зроблено (sorted + misses): ключ польоту й свіжості нахилу. */
+  seq: number;
+  /** Усі категорії в порядку автора. */
+  columns: SortColumn[];
+  last: SortMove | null;
+  /** Лише на reveal; інакше null. */
+  marks: SortWordMark[] | null;
 }
 
 /** Позначка слова на розкритті сортування (11d): скільки разів помилялися й чи не дійшли до нього. */
@@ -263,6 +312,12 @@ export interface PlayerSort {
   canSort: boolean;
   /** Час повного сортування; null — ще не закінчив. */
   timeMs: number | null;
+  /** Нахил цього гравця бачать інші (11d): телефон шле його лише тоді. */
+  watched: boolean;
+  /** Позначки слів на розкритті (11d); інакше null. */
+  marks: SortWordMark[] | null;
+  /** Командна гра: живий показ власної команди для товаришів (11d); соло — null. */
+  live: SortLive | null;
 }
 
 /** Стіна без груп: лише тексти плиток у порядку показу; гравець надсилає позиції. */
@@ -1122,7 +1177,7 @@ export type LiveVerdict = 'correct' | 'partial' | 'wrong';
 /** Поступ у рядку «Відповідей наживо» для типів, де відповідь — не один вибір (11c). */
 export type LiveProgress =
   | { kind: 'chain'; solved: number; total: number; word: string | null; hints: number }
-  | { kind: 'sort'; card: string | null; sorted: number; total: number; misses: number }
+  | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
   | { kind: 'survey'; ranks: (number | null)[] }

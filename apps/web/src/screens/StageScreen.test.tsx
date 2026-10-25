@@ -899,7 +899,7 @@ describe('StageScreen final', () => {
       { playerId: 'p1', nickname: 'Анна', sorted: 4, misses: 0, timeMs: 8000, points: null },
       { playerId: 'p2', nickname: 'Богдан', sorted: 1, misses: 1, timeMs: null, points: null },
     ];
-    const info = { total: 4, rows, winner: null, words: null };
+    const info = { total: 4, rows, winner: null, words: null, live: null };
 
     it('the stage shows the categories and progress, never the words', () => {
       show(view({ phase: 'question', questionIndex: 0, question: sortQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1, sort: info }));

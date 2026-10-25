@@ -62,6 +62,9 @@ const playerSort: PlayerSort = {
   missed: null,
   canSort: true,
   timeMs: null,
+  watched: false,
+  marks: null,
+  live: null,
 };
 
 function MirrorSort({ send }: { send: Send }) {

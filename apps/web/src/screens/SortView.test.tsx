@@ -58,6 +58,9 @@ const playerSort = (patch: Partial<PlayerSort> = {}): PlayerSort => ({
   missed: null,
   canSort: true,
   timeMs: null,
+  watched: false,
+  marks: null,
+  live: null,
   ...patch,
 });
 
@@ -261,7 +264,7 @@ describe('SortBoard and SortReveal', () => {
     { playerId: 'p1', nickname: 'Анна', sorted: 4, misses: 0, timeMs: 8000, points: null },
     { playerId: 'p2', nickname: 'Богдан', sorted: 1, misses: 1, timeMs: null, points: null },
   ];
-  const info = (over: Partial<SortInfo> = {}): SortInfo => ({ total: 4, rows, winner: null, words: null, ...over });
+  const info = (over: Partial<SortInfo> = {}): SortInfo => ({ total: 4, rows, winner: null, words: null, live: null, ...over });
   const items = () => [...document.querySelectorAll('.sort-board li')].map((li) => li.textContent ?? '');
 
   it('SortBoard keeps rows steady', () => {
@@ -332,7 +335,7 @@ describe('SortBoard and SortReveal', () => {
   it('a watcher on the board sees the categories, all words and who sorts', () => {
     const row = (nickname: string, sorted: number) => ({ playerId: 'p2', nickname, sorted, misses: 0, timeMs: null, points: null });
     const words = (texts: string[]) => texts.map((text, index) => ({ id: `w${index + 1}`, text }));
-    render(<SortWatch question={sortQuestion(4)} info={{ total: 4, rows: [row('Оля', 2)], winner: null, words: words(['Буряк', 'Груша', 'Морква', 'Яблуко']) }} />);
+    render(<SortWatch question={sortQuestion(4)} info={{ total: 4, rows: [row('Оля', 2)], winner: null, words: words(['Буряк', 'Груша', 'Морква', 'Яблуко']), live: null }} />);
     expect(screen.queryAllByRole('button')).toHaveLength(0);
     expect(within(screen.getByRole('list', { name: 'Слова' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Морква', 'Яблуко']);
     expect(document.querySelector('ul.chips.sort-words')).not.toBeNull();
@@ -341,7 +344,7 @@ describe('SortBoard and SortReveal', () => {
   });
 
   it('a watcher without words gets no word list', () => {
-    render(<SortWatch question={sortQuestion(2)} info={{ total: 4, rows: [], winner: null, words: null }} />);
+    render(<SortWatch question={sortQuestion(2)} info={{ total: 4, rows: [], winner: null, words: null, live: null }} />);
     expect(document.querySelector('.sort-words')).toBeNull();
   });
 

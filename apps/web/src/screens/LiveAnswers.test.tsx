@@ -106,7 +106,7 @@ describe('LiveAnswers', () => {
   it('writes the progress of chain, sort, bluff, survey, slider and wager', () => {
     show([
       row({ progress: { kind: 'chain', solved: 1, total: 3, word: 'Океан', hints: 1 } }),
-      row({ id: 'a', nickname: 'А', progress: { kind: 'sort', card: 'Буряк', sorted: 1, total: 4, misses: 0 } }),
+      row({ id: 'a', nickname: 'А', progress: { kind: 'sort', card: 'Буряк', cardId: 'w3', seq: 1, sorted: 1, total: 4, misses: 0 } }),
       row({ id: 'b', nickname: 'Б', progress: { kind: 'bluff', stage: 'lies', lie: 'Лондон-2', pick: null } }),
       row({ id: 'c', nickname: 'В', progress: { kind: 'bluff', stage: 'choice', lie: null, pick: 'Барселона' } }),
       row({ id: 'd', nickname: 'Г', answered: true, answer: { type: 'survey', values: ['Яблуко', 'ананас'] } as never, progress: { kind: 'survey', ranks: [1, null] } }),

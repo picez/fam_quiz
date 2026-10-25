@@ -33,6 +33,7 @@ import {
   type WallInfo,
   type WallRow,
   type SortInfo,
+  type SortLive,
   type SurveyInfo,
   type BluffInfo,
   type BluffOptionView,
@@ -118,7 +119,7 @@ import {
 } from './buffs';
 import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
-import { sortOf, sortsHere } from './sort';
+import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
 import { cloudTally, cloudVoters } from './votes';
 import { bluffOrder, bluffShown } from './bluff';
@@ -836,7 +837,58 @@ function sortInfo(state: GameState): SortInfo | null {
     play.board === undefined
       ? null
       : open.question.words.map(({ id, text }) => ({ id, text })).sort((a, b) => a.text.localeCompare(b.text, 'uk'));
-  return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id), words };
+  // Живий показ — лише там, де сортує одна сторона на очах у всіх: звичайна клітинка поля.
+  const chooserId = play.board?.chooserId;
+  const live =
+    sortAudience(state, play) === 'all' && chooserId !== undefined && state.players.some((p) => p.id === chooserId) ? sortLive(state, open, chooserId) : null;
+  return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id), words, live };
+}
+
+/** Слово запитання як { id, text }; null — немає такого. */
+function sortWordView(question: Extract<Question, { type: 'sort' }>, id: string | null | undefined) {
+  const found = id === null || id === undefined ? undefined : question.words.find((w) => w.id === id);
+  return found === undefined ? null : { id: found.id, text: found.text };
+}
+
+/** Підвисання для зрізу: на паузі — залишок, інакше кінець. */
+function sortLock(state: GameState, lockedUntil: number | null) {
+  const paused = state.paused && state.pausedAt !== null;
+  return {
+    lockedUntil: paused ? null : lockedUntil,
+    lockRemainingMs: paused && lockedUntil !== null && state.pausedAt !== null ? Math.max(0, lockedUntil - state.pausedAt) : null,
+  };
+}
+
+/**
+ * Живий показ поступу sorterId для глядачів (11d): поточна картка, стовпці лише з правильно розкладеними словами,
+ * останній хід і підвисання; позначки — на reveal. Категорій нерозкладених слів тут немає.
+ */
+function sortLive(state: GameState, open: NonNullable<ReturnType<typeof currentSort>>, sorterId: string): SortLive {
+  const { question } = open;
+  const progress = sortOf(state, sorterId);
+  const record = recordOf(state, state.questionIndex, sorterId);
+  const last = lastSortMove(question, progress);
+  return {
+    sorterId,
+    nickname: state.players.find((p) => p.id === sorterId)?.nickname ?? '',
+    card: state.phase === 'question' && record === undefined ? sortWordView(question, progress.queue[0]) : null,
+    missed: sortWordView(question, progress.missed),
+    ...sortLock(state, progress.lockedUntil),
+    sorted: progress.sorted.length,
+    total: question.words.length,
+    misses: progress.misses,
+    timeMs: record?.accepted ? record.timeMs : null,
+    seq: sortSeq(progress),
+    columns: question.categories.map((c) => ({
+      id: c.id,
+      words: progress.sorted.flatMap((id) => {
+        const word = question.words.find((w) => w.id === id);
+        return word?.categoryId === c.id ? [{ id: word.id, text: word.text }] : [];
+      }),
+    })),
+    last: last === null ? null : { ...last, text: sortWordView(question, last.wordId)?.text ?? '' },
+    marks: state.phase === 'reveal' ? sortMarks(question, progress, record?.accepted === true) : null,
+  };
 }
 
 /** Власна поточна картка й стан гравця; чужих слів і правильних категорій тут немає. */
@@ -845,22 +897,19 @@ function playerSort(state: GameState, playerId: string): PlayerSort | null {
   if (open === null || !sortsHere(state, open.play, playerId)) return null;
   const progress = sortOf(state, playerId);
   const record = recordOf(state, state.questionIndex, playerId);
-  const word = (id: string | null | undefined) => {
-    const found = id === null || id === undefined ? undefined : open.question.words.find((w) => w.id === id);
-    return found === undefined ? null : { id: found.id, text: found.text };
-  };
-  const paused = state.paused && state.pausedAt !== null;
-  const lock = progress.lockedUntil;
   return {
-    card: record === undefined ? word(progress.queue[0]) : null,
+    card: record === undefined ? sortWordView(open.question, progress.queue[0]) : null,
     sorted: progress.sorted.length,
     total: open.question.words.length,
     misses: progress.misses,
-    lockedUntil: paused ? null : lock,
-    lockRemainingMs: paused && lock !== null && state.pausedAt !== null ? Math.max(0, lock - state.pausedAt) : null,
-    missed: word(progress.missed),
+    ...sortLock(state, progress.lockedUntil),
+    missed: sortWordView(open.question, progress.missed),
     canSort: state.phase === 'question' && !state.paused && record === undefined,
     timeMs: record?.accepted ? record.timeMs : null,
+    watched: sortAudience(state, open.play) !== null,
+    marks: state.phase === 'reveal' ? sortMarks(open.question, progress, record?.accepted === true) : null,
+    // Командна гра: товариші капітана бачать його рух; соло власні розкладені слова гравцеві не потрібні.
+    live: teamsOn(state) ? sortLive(state, open, playerId) : null,
   };
 }
 
@@ -1928,8 +1977,10 @@ function ownView(state: GameState, playerId: string): Omit<PlayerView, 'team'> |
     ...(shared.survival !== null && shared.survival.trial !== null && shared.survival.trial.question !== null && shared.survival.rows.find((row) => row.playerId === playerId)?.status !== 'edge'
       ? { survival: { ...shared.survival, trial: { ...shared.survival.trial, question: null } } }
       : {}),
-    // Слова клітинки сортування — для глядачів; той, хто сортує, бачить лише власну поточну картку.
-    ...(shared.sort !== null && shared.sort.words !== null && open?.board.chooserId === playerId ? { sort: { ...shared.sort, words: null } } : {}),
+    // Слова й живий показ клітинки сортування — для глядачів; той, хто сортує, бачить лише власну поточну картку.
+    ...(shared.sort !== null && (shared.sort.words !== null || shared.sort.live !== null) && open?.board.chooserId === playerId
+      ? { sort: { ...shared.sort, words: null, live: null } }
+      : {}),
     role: 'player',
     me: {
       id: player.id,
