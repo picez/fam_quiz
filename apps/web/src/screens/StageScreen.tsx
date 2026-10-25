@@ -431,12 +431,18 @@ function Intro({ view }: { view: StageView }) {
   if (view.round === null) return null;
   if (view.round.type === 'final') return <FinalStage view={view} />;
   if (view.round.type === 'ladder' && view.ladder !== null) return <LadderIntro view={view} info={view.ladder} />;
-  return (
-    <div className={view.board !== null ? 'stage-board is-board-intro' : view.round.type === 'survival' ? 'stage-board stage-survival is-intro' : 'stage-board'}>
+  const head = (
+    <>
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} fit />
+    </>
+  );
+  return (
+    <div className={view.board !== null ? 'stage-board is-board-intro' : view.round.type === 'survival' ? 'stage-board stage-survival is-intro' : 'stage-board'}>
+      {/* Поле з описом: на широкому екрані опис і правила ліворуч, кидки й розклад праворуч (як у «Мільйонері»). */}
+      {view.board !== null ? <div className="board-intro-main">{head}</div> : head}
       {view.round.type === 'wipeout' && view.wipeout !== null && <WipeoutLadder info={view.wipeout} size="stage" players={false} />}
       {view.round.type === 'survival' && view.survival !== null && (
         <>
@@ -446,7 +452,7 @@ function Intro({ view }: { view: StageView }) {
           <SurvivalBoard info={view.survival} size="stage" />
         </>
       )}
-      {/* Обгортка сцени: на широкому екрані розклад стає поруч із кидками, а не під ними. */}
+      {/* Обгортка сцени: без опису розклад поруч із кидками; з описом — друга колонка заставки, кидки над розкладом. */}
       {view.board !== null && (
         <div className="stage-dice">
           <BoardIntro board={view.board} />

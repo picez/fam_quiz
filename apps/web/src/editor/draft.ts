@@ -730,19 +730,21 @@ interface Place {
   voice: boolean;
   /** Сортування: класика, фінал, бліц і звичайна клітинка з телефона. */
   sort: boolean;
+  /** Ланцюжок слів: усюди, крім бліцу й поля (правило chain_round схеми). */
+  chain: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz' };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -750,11 +752,22 @@ export function cellIssue(round: BoardRound, cell: BoardCell): TextKey | null {
   return problemKey(cell.question, cellPlace(round, cell));
 }
 
+/** Ключі без вписаного автором: ідентифікатори, тип, вибір правильного й типова мапа. */
+const NOT_CONTENT = new Set(['id', 'type', 'correctId', 'correctIds', 'categoryId', 'map']);
+/** Чи автор щось вписав чи додав: будь-який непорожній рядок (текст, варіант, картинка, відео, аудіо, підказка) поза службовими ключами. */
+function hasContent(value: unknown, key = ''): boolean {
+  if (NOT_CONTENT.has(key)) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (Array.isArray(value)) return value.some((item) => hasContent(item));
+  if (value !== null && typeof value === 'object') return Object.entries(value).some(([name, item]) => hasContent(item, name));
+  return false;
+}
+
 export type CellState = 'empty' | 'incomplete' | 'ready';
-/** Стан клітинки в редакторі: порожня (немає тексту), не заповнена (cellIssue ≠ null) чи готова. */
+/** Стан клітинки в редакторі: порожня (нічого не вписано), не заповнена (cellIssue ≠ null) чи готова. */
 export function cellState(round: BoardRound, cell: BoardCell): CellState {
   const question = cleanedQuestion(cell.question);
-  if (question.text === '') return 'empty';
+  if (!hasContent(question)) return 'empty';
   return cellIssue(round, { ...cell, question }) !== null ? 'incomplete' : 'ready';
 }
 
@@ -933,6 +946,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.reveal !== undefined && !place.reveal) return 'problemRevealPlace';
   if (question.type === 'clues' && !place.clues) return 'problemCluesPlace';
   if (question.type === 'sort' && !place.sort) return 'problemSortPlace';
+  if (question.type === 'chain' && !place.chain) return 'problemChainPlace';
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
   if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
   if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';

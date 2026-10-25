@@ -258,7 +258,7 @@ describe('BoardEditor readiness (11a)', () => {
       })),
     };
   };
-  const legend = () => screen.getByLabelText('Стан клітинок').textContent ?? '';
+  const legend = () => screen.getByRole('group', { name: 'Стан клітинок' }).textContent ?? '';
 
   it('shows nine empty cells, 0 / 3 per column and a legend with the count', () => {
     render(<BoardEditor round={boardWith(0)} onChange={vi.fn()} />);

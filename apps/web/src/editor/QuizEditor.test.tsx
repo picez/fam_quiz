@@ -2595,4 +2595,17 @@ describe('QuizEditor board tab badge (11a)', () => {
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Тепер є' } });
     expect(screen.getByRole('button', { name: 'Ігрове поле' }).getAttribute('aria-describedby')).toBeNull();
   });
+
+  it('with a long round name only the name is clipped: the badge sits outside the name', () => {
+    const quiz = board();
+    const long = 'Річки, гори й острови Європи та Азії для найсміливіших гравців вечора';
+    quiz.rounds[0] = { ...quiz.rounds[0], title: long };
+    open(quiz);
+    const tab = screen.getByRole('button', { name: long });
+    expect(tab.querySelector('.round-tab-name')?.textContent).toBe(long);
+    const badge = tab.querySelector('.round-tab-badge');
+    expect(badge?.textContent).toBe('1 не готова');
+    expect(badge?.closest('.round-tab-name')).toBeNull();
+    expect(badge?.parentElement).toBe(tab);
+  });
 });

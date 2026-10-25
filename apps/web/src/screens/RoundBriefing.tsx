@@ -8,7 +8,9 @@ import { roundSummary } from '../round-summary';
 /** Опис, довший за це, на сцені ширший і з тіснішим інтервалом (11a). */
 export const LONG_NOTE = 250;
 /** Межі обрізання опису на сцені, рядків. */
-export const STAGE_NOTE_LINES = { max: 12, min: 2 } as const;
+export const STAGE_NOTE_LINES = { max: 12, min: 4 } as const;
+/** Скільки рядків довгого опису ще читається; менше — сцена лишає з правил лише перший рядок (телефони й пульт показують усі). */
+export const READABLE_NOTE_LINES = 5;
 
 /**
  * Скільки рядків опису лишити: null — обмеження не треба (без нього не переповнено);
@@ -23,6 +25,16 @@ export function fitLines(overflows: (lines: number | null) => boolean, max: numb
   return min;
 }
 
+/**
+ * Два кроки: спершу з усіма правилами; якщо довгий опис тоді вміщається менше ніж у READABLE_NOTE_LINES рядків —
+ * з самим першим рядком правил (short) і ще раз. overflows(lines, short) застосовує обидва й каже, чи сцена прокручується.
+ */
+export function fitBrief(overflows: (lines: number | null, short: boolean) => boolean, long: boolean): { lines: number | null; short: boolean } {
+  const full = fitLines((lines) => overflows(lines, false));
+  if (!long || full === null || full >= READABLE_NOTE_LINES) return { lines: full, short: false };
+  return { lines: fitLines((lines) => overflows(lines, true)), short: true };
+}
+
 /** Сцена прокручується: сторінка вища за вікно або замкнений `.app` вищий за себе. */
 function scrolls(note: HTMLElement): boolean {
   if (document.documentElement.scrollHeight > window.innerHeight + 1) return true;
@@ -35,16 +47,23 @@ function useStageFit(ref: RefObject<HTMLElement | null>, enabled: boolean, deps:
   useLayoutEffect(() => {
     const note = ref.current;
     if (!enabled || note === null) return;
-    const apply = (lines: number | null) => {
+    const brief = note.parentElement;
+    const apply = (lines: number | null, short: boolean) => {
       const value = lines === null ? 'none' : String(lines);
       note.style.setProperty('--note-lines', value);
       note.dataset.lines = value;
+      if (brief === null) return;
+      if (short) brief.dataset.rules = 'short';
+      else delete brief.dataset.rules;
     };
-    const overflows = (lines: number | null) => {
-      apply(lines);
+    const overflows = (lines: number | null, short: boolean) => {
+      apply(lines, short);
       return scrolls(note);
     };
-    const refit = () => apply(fitLines(overflows));
+    const refit = () => {
+      const fit = fitBrief(overflows, brief?.classList.contains('is-long') ?? false);
+      apply(fit.lines, fit.short);
+    };
     refit();
     let frame = 0;
     const later = () => {
@@ -52,9 +71,9 @@ function useStageFit(ref: RefObject<HTMLElement | null>, enabled: boolean, deps:
       frame = requestAnimationFrame(refit);
     };
     window.addEventListener('resize', later);
-    const app = note.closest('.app');
-    const observer = typeof ResizeObserver === 'undefined' || app === null ? null : new ResizeObserver(later);
-    if (app !== null) observer?.observe(app);
+    // .app ловить ріст вмісту; батько опису й сцена (.stage-board) — ще й коли вміст поруч меншає, бо .app не нижчий за вікно і тоді не змінюється.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(later);
+    for (const target of new Set([note.closest('.app'), note.parentElement, note.closest('.stage-board')])) if (target !== null) observer?.observe(target);
     return () => {
       observer?.disconnect();
       window.removeEventListener('resize', later);
@@ -64,7 +83,7 @@ function useStageFit(ref: RefObject<HTMLElement | null>, enabled: boolean, deps:
   }, [enabled, ...deps]);
 }
 
-/** Опис автора (якщо є) і пояснення правил раунду; для заставки й попереднього перегляду в редакторі. `fit` — сцена: опис обрізається, щоб вона не прокручувалась. */
+/** Опис автора (якщо є) і пояснення правил раунду; для заставки й попереднього перегляду в редакторі. `fit` — сцена: опис обрізається, щоб вона не прокручувалась, а довгому опису, якому лишилось менше п’яти рядків, поступаються правила (лише перший рядок). */
 export function RoundBriefing({ brief, description, newcomers = false, fit = false }: { brief: RoundBrief; description: string; newcomers?: boolean; fit?: boolean }) {
   const noteRef = useRef<HTMLParagraphElement>(null);
   const hasNote = description.trim() !== '';

@@ -47,7 +47,7 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
                 aria-describedby={notReady > 0 ? badgeId : undefined}
                 onClick={() => onSelect(index)}
               >
-                {nameOf(round, index)}
+                <span className="round-tab-name">{nameOf(round, index)}</span>
                 {notReady > 0 && (
                   <span id={badgeId} className="round-tab-badge">
                     {countText('boardNotReady', notReady, { count: notReady })}

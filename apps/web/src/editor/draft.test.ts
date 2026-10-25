@@ -2128,6 +2128,34 @@ describe('board readiness (11a)', () => {
       const problems = problemsOf(quizOf(titled(voice, ['А', 'Б', 'В'])));
       expect(problems.some((problem) => problem.includes('сортування діє лише на звичайній клітинці поля з телефона'))).toBe(true);
     });
+
+    it('incomplete, not empty, when the text is missing but options or a picture are filled', () => {
+      const options = withCell(newBoardRound(), 0, 0, { question: filledSingle('') });
+      expect(cellState(options, cellOf(options))).toBe('incomplete');
+      const picture = withCell(newBoardRound(), 0, 0, { question: { ...newQuestion('single'), imageUrl: 'https://example.com/hoverla.png' } });
+      expect(cellState(picture, cellOf(picture))).toBe('incomplete');
+      const fresh = newBoardRound();
+      const otherType = withCell(fresh, 0, 0, { question: { ...newQuestion('text'), points: 100 } });
+      expect(cellState(otherType, cellOf(otherType)), 'a changed type alone is not content').toBe('empty');
+    });
+
+    it('ready when only the cleaning removes blank answers and options', () => {
+      const text = { ...(newQuestion('text') as Extract<Question, { type: 'text' }>), text: 'Найвища гора України?', accepted: ['Говерла', ''] } as Question;
+      const accepted = withCell(newBoardRound(), 0, 0, { question: text });
+      expect(cellState(accepted, cellOf(accepted))).toBe('ready');
+      const base = filledSingle('Столиця Норвегії?');
+      const third = { ...base, options: [...(base as Extract<Question, { type: 'single' }>).options, { id: 'blank-third', text: '  ' }] } as Question;
+      const options = withCell(newBoardRound(), 0, 0, { question: third });
+      expect(cellState(options, cellOf(options))).toBe('ready');
+    });
+
+    it('a chain question on a board cell is incomplete and named on save', () => {
+      const chain = { ...(newQuestion('chain') as Extract<Question, { type: 'chain' }>), text: 'Ланцюжок рік', words: ['Дніпро', 'Дунай', 'Рейн'] } as Question;
+      const round = withCell(newBoardRound(), 0, 0, { question: chain });
+      expect(cellState(round, cellOf(round))).toBe('incomplete');
+      const problems = problemsOf(quizOf(titled(round, ['А', 'Б', 'В'])));
+      expect(problems.some((problem) => problem.includes('ланцюжок слів не діє в бліці й на полі'))).toBe(true);
+    });
   });
 
   describe('boardReadiness', () => {

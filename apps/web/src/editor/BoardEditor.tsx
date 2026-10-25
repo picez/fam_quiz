@@ -187,7 +187,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           )}
         </div>
       </div>
-      <p className="meta board-legend" aria-label={t('boardLegendLabel')}>
+      <p className="meta board-legend" role="group" aria-label={t('boardLegendLabel')}>
         <span className="board-legend-item">
           <span className="board-legend-swatch is-empty" aria-hidden="true" />
           {t('boardCellState_empty')}

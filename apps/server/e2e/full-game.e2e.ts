@@ -10327,8 +10327,15 @@ const LONG_NOTE_TEXT = `${NOTE_BODY.repeat(4)
   .slice(0, 600 - NOTE_TAIL.length - 1)
   .trimEnd()
   .padEnd(600 - NOTE_TAIL.length - 1, '.')} ${NOTE_TAIL}`;
+/** Скільки рядків опису видно на сцені: обмеження з data-lines або, без нього, висота ÷ інтервал. */
+const VISIBLE_NOTE_LINES = `(() => {
+  const note = document.querySelector('.round-brief-note');
+  if (note === null) return 0;
+  const lines = note.dataset.lines;
+  return lines === undefined || lines === 'none' ? Math.round(note.clientHeight / parseFloat(getComputedStyle(note).lineHeight)) : Number(lines);
+})()`;
 
-it('part 11a: editor — a 600-character round description with a counter, clipped with an ellipsis on the 1280 × 720 stage next to the newcomers note and the longest board rules (before and after the dice) but whole on the phone and the host; board cells marked empty, incomplete and ready by the same check as saving, per-category counts, a legend and a round tab badge (375 px too)', async () => {
+it('part 11a: editor — a 600-character round description with a counter, readable on the 1280 × 720 stage (at least five lines, clipped with an ellipsis; the board intro in two columns keeps the first rule line before and after the dice; final, ladder, survival and wipeout intros too) next to the newcomers note but whole on the phone and the host; board cells marked empty, incomplete and ready by the same check as saving, per-category counts, a legend and a round tab badge (375 px too)', async () => {
   try {
     await editorGame11a();
   } catch (error) {
@@ -10431,7 +10438,7 @@ async function editorGame11a() {
   expect(await host.locator('.round-tab-badge').count()).toBe(0);
   await cells(/^Категорія 1, клітинка 1: 100/).click();
   await questionText(host).fill('');
-  await host.getByRole('button', { name: 'Категорія 1, клітинка 1: 100, порожня', ...exact }).waitFor();
+  await host.getByRole('button', { name: 'Категорія 1, клітинка 1: 100, не заповнена', ...exact }).waitFor();
   await cells(/^Категорія 2, клітинка 3: 300/).click();
   await field(host, 'Варіант 2').fill('');
   await host.getByRole('button', { name: 'Категорія 2, клітинка 3: 300 ×3, не заповнена', ...exact }).waitFor();
@@ -10495,15 +10502,19 @@ async function editorGame11a() {
   await click(host, 'До гри');
   await afterSplash(stage, olya, petro);
 
-  // 4. Заставка поля на сцені: опис обрізано, решта на місці, до кубиків і після.
+  // 4. Заставка поля на сцені у дві колонки: опис обрізано, але не менше п’яти рядків — правила поступаються (лише перший рядок), до кубиків і після.
   await stage.locator('.round-brief.is-long').waitFor();
   await stage.locator('.round-brief-how').waitFor();
-  expect(await stage.locator('.round-brief-lines li').count(), 'four rule lines').toBe(4);
+  expect(await stage.locator('.round-brief-lines li').count(), 'four rule lines in the DOM').toBe(4);
+  await expect.poll(() => stage.locator('.round-brief-lines li:visible').count(), POLL).toBe(1);
+  const columns = await stage.evaluate(`[document.querySelector('.board-intro-main').getBoundingClientRect().right, document.querySelector('.stage-dice').getBoundingClientRect().left]`) as number[];
+  expect(columns[0], 'the schedule stands beside the description').toBeLessThan(columns[1]);
   const note = stage.locator('.round-brief-note');
   expect(await note.textContent()).toBe(LONG_NOTE_TEXT);
   const lines = async () => Number(await stage.evaluate("document.querySelector('.round-brief-note').dataset.lines"));
-  await expect.poll(lines, POLL).toBeGreaterThanOrEqual(2);
+  await expect.poll(lines, POLL).toBeGreaterThanOrEqual(5);
   const before = await lines();
+  console.log(`p11a-stage-intro: ${before} description lines visible`);
   expect(before).toBeLessThanOrEqual(12);
   expect(await note.evaluate((el) => el.scrollHeight > el.clientHeight + 1), 'the description is clipped').toBe(true);
   await expectStageInView(stage, 'p11a-stage-intro');
@@ -10516,6 +10527,8 @@ async function editorGame11a() {
   await expect.poll(async () => (await lines()) <= before, POLL).toBe(true);
   await expectStageInView(stage, 'p11a-stage-dice');
   expect(await lines()).toBeLessThanOrEqual(before);
+  expect(await stage.evaluate(VISIBLE_NOTE_LINES), 'the description stays readable after the dice').toBeGreaterThanOrEqual(5);
+  console.log(`p11a-stage-dice: ${await lines()} description lines visible`);
   await shot(stage, 'p11a-stage-dice');
 
   // 5. Телефон: опис повністю.
@@ -10524,6 +10537,7 @@ async function editorGame11a() {
   expect(await phoneNote.getAttribute('class')).not.toContain('is-fit');
   expect(await phoneNote.evaluate((el) => el.scrollHeight <= el.clientHeight + 1), 'the phone shows it whole').toBe(true);
   expect(await phoneNote.textContent()).toContain(NOTE_TAIL);
+  expect(await olya.locator('.round-brief-lines li:visible').count(), 'the phone shows every rule line').toBe(4);
   await expectNoSideScroll(olya, 'p11a-phone-intro');
 
   // 6. Пульт: опис повністю.
@@ -10531,9 +10545,74 @@ async function editorGame11a() {
   expect(await hostNote.textContent()).toBe(LONG_NOTE_TEXT);
   expect(await hostNote.getAttribute('class')).not.toContain('is-fit');
   expect(await hostNote.evaluate((el) => el.scrollHeight <= el.clientHeight + 1), 'the host shows it whole').toBe(true);
+  expect(await host.locator('.round-brief').first().getAttribute('data-rules'), 'the host keeps every rule line').toBeNull();
   await shot(host, 'p11a-host-intro');
   await host.setViewportSize({ width: 375, height: 812 });
   await expectNoSideScroll(host, 'p11a-host-intro-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  // 7. Заставки інших раундів на сцені: 600 символів опису й пам’ятка для новачків — без прокрутки, і опис читається (щонайменше п’ять рядків).
+  const four = (id: string, text: string, options: string[]) => ({
+    id,
+    type: 'single' as const,
+    text,
+    imageUrl: null,
+    video: null,
+    timeLimit: 30,
+    points: 0,
+    options: options.map((option, i) => ({ id: `${id}-${i}`, text: option })),
+    correctId: `${id}-0`,
+  });
+  const steps = [
+    q('i1', 'Столиця Канади?', 'Оттава', 'Торонто', 100),
+    q('i2', 'Найбільша планета Сонячної системи?', 'Юпітер', 'Сатурн', 200),
+    q('i3', 'Столиця Туреччини?', 'Анкара', 'Стамбул', 300),
+    q('i4', 'Найбільший океан?', 'Тихий', 'Індійський', 400),
+    q('i5', 'Столиця Австралії?', 'Канберра', 'Сідней', 500),
+  ];
+  const ladderSteps = [
+    four('l1', 'Столиця Австралії?', ['Канберра', 'Сідней', 'Мельбурн', 'Перт']),
+    four('l2', 'Хімічний символ золота?', ['Au', 'Ag', 'Gd', 'Go']),
+    four('l3', 'Найбільший океан?', ['Тихий', 'Атлантичний', 'Індійський', 'Північний Льодовитий']),
+    four('l4', 'Скільки хвилин у годині?', ['60', '30', '90', '100']),
+    four('l5', 'Скільки сторін у трикутника?', ['3', '2', '4', '5']),
+  ];
+  const intros: { name: string; title: string; round: object; ready: string }[] = [
+    { name: 'final', title: 'Фінал 11a', round: finalRound('rf11a', q('f1', 'Найвища гора світу?', 'Еверест', 'Кіліманджаро', 1000), { title: 'Гори світу' }), ready: '.wager-theme' },
+    { name: 'ladder', title: 'Мільйонер 11a', round: ladderRound('rl11a', ladderSteps as never, { title: 'Драбина 11a', pick: 'host', timer: false, safe: [2] }), ready: '.ladder-stage-intro' },
+    {
+      name: 'survival',
+      title: 'Вибування 11a',
+      round: survivalRound('rs11a', steps.map((step) => ({ ...step, points: 100 })) as never, [{ ...q('t1', 'Сонце — зірка?', 'Так', 'Ні', 100), timeLimit: 15 }] as never, { title: 'Хто лишиться' }),
+      ready: '.survival-board',
+    },
+    { name: 'wipeout', title: 'Ва-банк 11a', round: wipeoutRound('rw11a', steps as never, { title: 'Драбина ва-банк' }), ready: '.wipeout-ladder' },
+  ];
+  for (const intro of intros) {
+    const quiz = { ...makeRoundsQuiz([{ ...intro.round, description: LONG_NOTE_TEXT } as never], { leaderboard: 'each', newcomers: true }), title: intro.title };
+    const stored = await host.request.post(`${base}/api/quizzes`, { data: quiz });
+    expect(stored.ok(), await stored.text()).toBe(true);
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: intro.title }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.waitForURL(/\/host\/\d{6}$/);
+    const introCode = host.url().slice(-6);
+    const introStage = await open(`stage11a-${intro.name}`, 1280, 720);
+    await introStage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+    const phones = [await open(`ira11a-${intro.name}`, 375, 812), await open(`maks11a-${intro.name}`, 375, 812)];
+    await join(phones[0], introCode, 'Іра', false);
+    await join(phones[1], introCode, 'Макс', false);
+    await click(host, 'Почати гру');
+    await click(host, 'До гри');
+    await afterSplash(introStage, ...phones);
+    await introStage.locator(intro.ready).first().waitFor();
+    await introStage.locator('.round-brief-how').waitFor();
+    expect(await introStage.locator('.round-brief-note').textContent()).toBe(LONG_NOTE_TEXT);
+    const visible = () => introStage.evaluate(VISIBLE_NOTE_LINES) as Promise<number>;
+    await expect.poll(visible, POLL).toBeGreaterThanOrEqual(5);
+    console.log(`p11a-stage-${intro.name}: ${await visible()} description lines visible (data-lines ${await introStage.evaluate("document.querySelector('.round-brief-note').dataset.lines")})`);
+    await expectStageInView(introStage, `p11a-stage-${intro.name}`);
+    await shot(introStage, `p11a-stage-${intro.name}`);
+  }
 
   expect(problems).toEqual([]);
 }

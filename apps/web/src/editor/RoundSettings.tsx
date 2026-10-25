@@ -70,7 +70,10 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
         />
       </label>
       <div className="field">
-        <label htmlFor={fieldId}>{t('roundDescriptionLabel')}</label>
+        <span className="with-help">
+          <label htmlFor={fieldId}>{t('roundDescriptionLabel')}</label>
+          <HelpButton id="setting.description" />
+        </span>
         <textarea
           id={fieldId}
           rows={4}

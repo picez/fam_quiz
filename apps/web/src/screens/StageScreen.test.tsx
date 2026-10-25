@@ -386,6 +386,10 @@ describe('StageScreen: blitz', () => {
     it('the board intro clips a long description to fit the stage', () => {
       show(view({ phase: 'intro', round: { ...round, description: 'а'.repeat(600) }, board: boardOf({ turn: null }) }));
       expect(document.querySelector('.round-brief.is-long .round-brief-note.is-fit')).not.toBeNull();
+      // Дві колонки: опис і правила в лівій, кидки й розклад — окремо в правій.
+      expect(document.querySelector('.stage-board.is-board-intro > .board-intro-main .round-brief')).not.toBeNull();
+      expect(document.querySelector('.stage-board.is-board-intro > .stage-dice')).not.toBeNull();
+      expect(document.querySelector('.board-intro-main .stage-dice')).toBeNull();
     });
 
     it("the board intro shows every player's die and the result next to the name", () => {
