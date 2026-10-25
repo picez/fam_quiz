@@ -10317,3 +10317,223 @@ async function fullLobby() {
 
   expect(problems).toEqual([]);
 }
+
+const NOTE_TAIL = 'Удачі на полі!';
+const NOTE_BODY =
+  'Це поле — про річки, гори й острови світу. Кожен по черзі вибирає клітинку, а відповідає той, хто вибрав. ' +
+  'Дешеві клітинки вгорі, дорогі внизу; дві клітинки приховують ×2, одна — бліц, де відповідає найшвидший. ' +
+  'На усній клітинці відповідайте вголос, ведучий позначить результат. ';
+const LONG_NOTE_TEXT = `${NOTE_BODY.repeat(4)
+  .slice(0, 600 - NOTE_TAIL.length - 1)
+  .trimEnd()
+  .padEnd(600 - NOTE_TAIL.length - 1, '.')} ${NOTE_TAIL}`;
+
+it('part 11a: editor — a 600-character round description with a counter, clipped with an ellipsis on the 1280 × 720 stage next to the newcomers note and the longest board rules (before and after the dice) but whole on the phone and the host; board cells marked empty, incomplete and ready by the same check as saving, per-category counts, a legend and a round tab badge (375 px too)', async () => {
+  try {
+    await editorGame11a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function editorGame11a() {
+  expect(LONG_NOTE_TEXT.length).toBe(600);
+  const host = await open('host11a', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host11a@example.com');
+
+  const q = (id: string, text: string, a: string, b: string, points: number) => ({
+    id,
+    type: 'single' as const,
+    text,
+    imageUrl: null,
+    video: null,
+    timeLimit: 30,
+    points,
+    options: [
+      { id: `${id}-a`, text: a },
+      { id: `${id}-b`, text: b },
+    ],
+    correctId: `${id}-a`,
+  });
+  const rb11a = boardRound(
+    'rb11a',
+    [
+      {
+        title: 'Річки',
+        cells: [
+          q('r1', 'Яка річка тече через Відень?', 'Дунай', 'Рейн', 100),
+          { question: q('r2', 'Через яке місто тече Темза?', 'Лондон', 'Париж', 200), mark: 'x2' },
+          { question: q('r3', 'Яка річка найдовша в Україні?', 'Дніпро', 'Дністер', 300), kind: 'blitz', penalty: 'all' },
+        ],
+      },
+      {
+        title: 'Гори',
+        cells: [
+          q('g1', 'Найвища гора України?', 'Говерла', 'Петрос', 100),
+          { question: q('g2', 'Монблан стоїть на кордоні Франції та…', 'Італії', 'Іспанії', 200), answerMode: 'voice' },
+          { question: q('g3', 'Найвища гора світу?', 'Еверест', 'Кіліманджаро', 300), mark: 'x3' },
+        ],
+      },
+      {
+        title: 'Острови',
+        cells: [
+          q('o1', 'Найбільший острів світу?', 'Гренландія', 'Мадагаскар', 100),
+          q('o2', 'На якому острові стоїть Палермо?', 'Сицилія', 'Сардинія', 200),
+          q('o3', 'Хортиця — острів на якій річці?', 'Дніпро', 'Дунай', 300),
+        ],
+      },
+    ],
+    {
+      title: 'Поле 11a',
+      description: LONG_NOTE_TEXT,
+      answerMode: 'phone',
+      check: 'auto',
+      rules: { penalty: 'minus', partial: null, streak: { length: 3, bonus: { kind: 'percent', value: 50 } }, multiplier: 2 },
+    },
+  );
+  const rc11a = {
+    ...classicRound('rc11a', [q('c1', 'Скільки континентів на Землі за найпоширенішою моделлю?', '7', '6', 100)], {
+      title: 'Розминка',
+      speedBonus: false,
+    }),
+    description: 'Коротко: одне запитання для розгону.',
+  };
+  const data = { ...makeRoundsQuiz([rb11a, rc11a], { leaderboard: 'each', newcomers: true }), title: 'Редактор 11a' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Опис у редакторі.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Редактор 11a' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  const settings = host.locator('details', { has: host.locator('summary', { hasText: 'Налаштування раунду' }) }).first();
+  if (!(await field(host, 'Опис раунду для гравців').isVisible())) await settings.locator('summary').click();
+  const description = field(host, 'Опис раунду для гравців');
+  expect((await description.inputValue()).length).toBe(600);
+  const count = host.locator('.field-count').first();
+  expect((await count.textContent())?.trim()).toBe('600 / 600');
+  expect(await count.getAttribute('class')).toContain('is-near');
+  const tall = (await description.boundingBox())!.height;
+  await description.fill('Коротко');
+  expect((await count.textContent())?.trim()).toBe('7 / 600');
+  expect(await count.getAttribute('class')).not.toContain('is-near');
+  expect((await description.boundingBox())!.height, 'the field grows with the text').toBeLessThan(tall);
+  await description.fill(LONG_NOTE_TEXT);
+  expect((await description.boundingBox())!.height).toBeCloseTo(tall, 0);
+  await description.scrollIntoViewIfNeeded();
+  await shot(host, 'p11a-editor-description');
+
+  // 2. Поле в редакторі: стани клітинок.
+  const cells = (name: RegExp) => host.getByRole('button', { name });
+  expect(await cells(/^Категорія \d, клітинка \d: .*, готова$/).count(), 'all nine cells are ready').toBe(9);
+  expect(await host.locator('.board-edit-ready').allTextContents()).toEqual(['3 / 3 готово', '3 / 3 готово', '3 / 3 готово']);
+  expect(await host.locator('.round-tab-badge').count()).toBe(0);
+  await cells(/^Категорія 1, клітинка 1: 100/).click();
+  await questionText(host).fill('');
+  await host.getByRole('button', { name: 'Категорія 1, клітинка 1: 100, порожня', ...exact }).waitFor();
+  await cells(/^Категорія 2, клітинка 3: 300/).click();
+  await field(host, 'Варіант 2').fill('');
+  await host.getByRole('button', { name: 'Категорія 2, клітинка 3: 300 ×3, не заповнена', ...exact }).waitFor();
+  await field(host, 'Назва категорії 3').fill('');
+  expect(await field(host, 'Назва категорії 3').getAttribute('class')).toContain('is-incomplete');
+  expect((await host.locator('.board-edit-ready').allTextContents()).map((text) => text.trim())).toEqual([
+    '2 / 3 готово',
+    '2 / 3 готово',
+    '! 3 / 3 готово',
+  ]);
+  expect(await host.locator('.board-legend').textContent()).toContain('2 не готові');
+  const tab = host.locator('.round-tabs').getByRole('button', { name: 'Поле 11a', ...exact });
+  expect((await tab.locator('.round-tab-badge').textContent())?.trim()).toBe('2 не готові');
+  const picked = host.getByRole('button', { name: 'Категорія 2, клітинка 3: 300 ×3, не заповнена', ...exact });
+  const pickedClass = (await picked.getAttribute('class')) ?? '';
+  expect(pickedClass).toContain('is-on');
+  expect(pickedClass).toContain('is-incomplete');
+  expect(await host.evaluate("getComputedStyle(document.querySelector('.board-edit-cell.is-on')).outlineStyle")).toBe('solid');
+  await host.locator('.board-frame').scrollIntoViewIfNeeded();
+  await shot(host, 'p11a-editor-board');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.locator('.board-frame').scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p11a-editor-board-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  await click(host, 'Зберегти');
+  const list = host.locator('ul.problems');
+  await list.waitFor();
+  const listed = await list.locator('li').allTextContents();
+  expect(listed.length, listed.join(' | ')).toBe(3);
+  const all = listed.join('\n');
+  expect(all).toContain('Категорія 3: немає назви.');
+  expect(all).toContain('Категорія 1, запитання 1: впишіть текст запитання.');
+  expect(all).toContain('Категорія 2, запитання 3: заповніть усі варіанти');
+  expect(host.url()).toMatch(/\/quizzes\/.+/);
+  await shot(host, 'p11a-editor-problems');
+
+  await cells(/^Категорія 1, клітинка 1: 100/).click();
+  await questionText(host).fill('Яка річка тече через Відень?');
+  await cells(/^Категорія 2, клітинка 3: 300/).click();
+  await field(host, 'Варіант 2').fill('Кіліманджаро');
+  await field(host, 'Назва категорії 3').fill('Острови');
+  expect(await cells(/^Категорія \d, клітинка \d: .*, готова$/).count(), 'all nine cells are ready again').toBe(9);
+  expect(await host.locator('.round-tab-badge').count()).toBe(0);
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // 3. Гра.
+  await host.locator('.quiz-list li', { hasText: 'Редактор 11a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11a', 1280, 720);
+  await stage.goto(stageUrl);
+  const olya = await open('olya11a', 375, 812);
+  const petro = await open('petro11a', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await click(host, 'Почати гру');
+  await guideOn(stage, 'Відповідайте з телефона');
+  await click(host, 'До гри');
+  await afterSplash(stage, olya, petro);
+
+  // 4. Заставка поля на сцені: опис обрізано, решта на місці, до кубиків і після.
+  await stage.locator('.round-brief.is-long').waitFor();
+  await stage.locator('.round-brief-how').waitFor();
+  expect(await stage.locator('.round-brief-lines li').count(), 'four rule lines').toBe(4);
+  const note = stage.locator('.round-brief-note');
+  expect(await note.textContent()).toBe(LONG_NOTE_TEXT);
+  const lines = async () => Number(await stage.evaluate("document.querySelector('.round-brief-note').dataset.lines"));
+  await expect.poll(lines, POLL).toBeGreaterThanOrEqual(2);
+  const before = await lines();
+  expect(before).toBeLessThanOrEqual(12);
+  expect(await note.evaluate((el) => el.scrollHeight > el.clientHeight + 1), 'the description is clipped').toBe(true);
+  await expectStageInView(stage, 'p11a-stage-intro');
+  await shot(stage, 'p11a-stage-intro');
+  rigged.push(4, 2);
+  await click(host, 'Кидати кубики');
+  await click(host, 'Кинути за тих, хто лишився');
+  await stage.locator('.dice-rows .die').first().waitFor();
+  await stage.getByText('Порядок визначено').waitFor();
+  await expect.poll(async () => (await lines()) <= before, POLL).toBe(true);
+  await expectStageInView(stage, 'p11a-stage-dice');
+  expect(await lines()).toBeLessThanOrEqual(before);
+  await shot(stage, 'p11a-stage-dice');
+
+  // 5. Телефон: опис повністю.
+  const phoneNote = olya.locator('.round-brief-note');
+  expect(await phoneNote.textContent()).toBe(LONG_NOTE_TEXT);
+  expect(await phoneNote.getAttribute('class')).not.toContain('is-fit');
+  expect(await phoneNote.evaluate((el) => el.scrollHeight <= el.clientHeight + 1), 'the phone shows it whole').toBe(true);
+  expect(await phoneNote.textContent()).toContain(NOTE_TAIL);
+  await expectNoSideScroll(olya, 'p11a-phone-intro');
+
+  // 6. Пульт: опис повністю.
+  const hostNote = host.locator('.round-brief-note').first();
+  expect(await hostNote.textContent()).toBe(LONG_NOTE_TEXT);
+  expect(await hostNote.getAttribute('class')).not.toContain('is-fit');
+  expect(await hostNote.evaluate((el) => el.scrollHeight <= el.clientHeight + 1), 'the host shows it whole').toBe(true);
+  await shot(host, 'p11a-host-intro');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectNoSideScroll(host, 'p11a-host-intro-375');
+
+  expect(problems).toEqual([]);
+}
