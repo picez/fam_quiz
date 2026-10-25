@@ -403,6 +403,29 @@ export function newLadderRound(): LadderRound {
   };
 }
 
+/**
+ * Змінює кількість сходинок «Мільйонера» до `count`. Рівні й неспалимі за пресетом переходять на пресет нової довжини;
+ * змінені автором — додають зверху `last + 1000` (не більше максимуму) або втрачають верхній рівень. Неспалимих на верхній сходинці й вище не лишається.
+ */
+export function resizeLadder(round: LadderRound, count: number): LadderRound {
+  const old = round.levels.length;
+  const preset = LADDER_PRESETS[old];
+  const presetSafe = ladderPresetSafe(round.levels);
+  const isPreset =
+    preset !== undefined &&
+    round.levels.every((level, i) => level === preset[i]) &&
+    round.safe.length === presetSafe.length &&
+    presetSafe.every((s) => round.safe.includes(s));
+  const target = LADDER_PRESETS[count];
+  if (isPreset && target !== undefined) {
+    const levels = [...target];
+    return { ...round, levels, safe: ladderPresetSafe(levels) };
+  }
+  let levels = round.levels.slice(0, count);
+  while (levels.length < count) levels = [...levels, Math.min(LIMITS.maxLadderLevel, (levels[levels.length - 1] ?? 0) + 1000)];
+  return { ...round, levels, safe: round.safe.filter((s) => s < count - 1) };
+}
+
 /** Новий раунд «Фінал»: одне запитання, автоматична перевірка, класичні ставки; правил балів у ньому немає. */
 export function newFinalRound(): FinalRound {
   return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', questions: [newQuestion('single')] };
@@ -1083,6 +1106,20 @@ export function problemsOf(quiz: Quiz): string[] {
         problems.push(where(t('problemSurvivalTrial', { index: index + 1, problem })));
       });
     }
+    if (round.type === 'ladder') {
+      if (round.questions.length < LIMITS.minLadderQuestions) problems.push(where(t('problemLadderFew', { min: LIMITS.minLadderQuestions })));
+      if (round.questions.length > LIMITS.maxLadderQuestions) problems.push(where(t('problemLadderMany', { max: LIMITS.maxLadderQuestions })));
+      if (round.questions.some((question) => question.type !== 'single' || question.options.length !== LIMITS.ladderOptions)) {
+        problems.push(where(t('problemLadderType')));
+      }
+      const levelsBad =
+        round.levels.length !== round.questions.length ||
+        round.levels.some((level, i) => !Number.isInteger(level) || level < 1 || level > LIMITS.maxLadderLevel || (i > 0 && level <= round.levels[i - 1]));
+      if (levelsBad) problems.push(where(t('problemLadderLevels', { max: LIMITS.maxLadderLevel })));
+      if (new Set(round.safe).size !== round.safe.length || round.safe.some((s) => s >= round.questions.length - 1)) {
+        problems.push(where(t('problemLadderSafe')));
+      }
+    }
     round.questions.forEach((question, index) => {
       const key = problemKey(question, roundPlace(draft, roundIndex, index));
       if (key !== null) problems.push(where(problemText(key, index + 1, question)));
@@ -1109,6 +1146,9 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('too_many_questions')) problems.push(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
       if (messages.includes('duplicate_question_ids') || messages.includes('duplicate_round_ids')) problems.push(t('problemDuplicateIds'));
       if (messages.includes('survival_type')) problems.push(t('problemSurvivalType'));
+      if (messages.includes('ladder_type') || messages.includes('ladder_lifelines')) problems.push(t('problemLadderType'));
+      if (messages.includes('ladder_levels')) problems.push(t('problemLadderLevels', { max: LIMITS.maxLadderLevel }));
+      if (messages.includes('ladder_safe')) problems.push(t('problemLadderSafe'));
       if (messages.includes('survival_trials')) problems.push(t('problemSurvivalTrials'));
       if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));

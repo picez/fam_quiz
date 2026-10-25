@@ -8776,6 +8776,42 @@ button.wall-tile:disabled {
   flex: none;
 }
 
+/* ---------- Мільйонер: редактор ---------- */
+
+.ladder-levels {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ladder-level-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+}
+
+.ladder-level-row input[type='number'] {
+  width: 7rem;
+  min-width: 0;
+  min-height: 2.75rem;
+}
+
+.ladder-level-n {
+  width: 1.75rem;
+  text-align: right;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.ladder-settings .check input {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+}
+
 /* ---------- Мільйонер ---------- */
 
 .ladder-board {

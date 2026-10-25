@@ -12,7 +12,9 @@ import {
   newFinalRound,
   newWipeoutQuestion,
   newWipeoutRound,
+  newLadderQuestion,
   newLadderRound,
+  resizeLadder,
   newSurvivalRound,
   newClassicRound,
   newQuestion,
@@ -94,7 +96,13 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const gaps = swapGaps(quiz);
   const roomForMore =
     questions.length <
-      (round.type === 'wipeout' ? LIMITS.maxWipeoutQuestions : round.type === 'survival' ? LIMITS.maxSurvivalQuestions : LIMITS.maxQuestions) &&
+      (round.type === 'wipeout'
+        ? LIMITS.maxWipeoutQuestions
+        : round.type === 'survival'
+          ? LIMITS.maxSurvivalQuestions
+          : round.type === 'ladder'
+            ? LIMITS.maxLadderQuestions
+            : LIMITS.maxQuestions) &&
     total < LIMITS.maxQuizQuestions;
   const setNewcomers = (on: boolean) => {
     const { newcomers: _off, ...rest } = settings;
@@ -119,11 +127,18 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const remove = () => {
     const hasText = current.text.trim() !== '';
     if (hasText && !window.confirm(t('removeQuestionConfirm', { index: selected + 1 }))) return;
-    setQuestions(questions.filter((_, index) => index !== selected));
+    const rest = questions.filter((_, index) => index !== selected);
+    if (round.type === 'ladder') setRound(resizeLadder({ ...round, questions: rest }, rest.length));
+    else setQuestions(rest);
     setSelected(Math.max(0, selected === last ? selected - 1 : selected));
   };
 
   const add = () => {
+    if (round.type === 'ladder') {
+      setRound(resizeLadder({ ...round, questions: [...questions, newLadderQuestion()] }, questions.length + 1));
+      select(questions.length);
+      return;
+    }
     setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : round.type === 'survival' ? { ...newQuestion('single'), points: 100 } : newQuestion('single')]);
     select(questions.length);
   };
@@ -187,6 +202,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       // Помилка в питанні на виживання лежить у налаштуваннях раунду: відкриваємо їх.
       const trialPrefix = t('problemSurvivalTrial', { index: 0, problem: '' }).split('0')[0];
       if (found.some((problem) => problem.includes(trialPrefix) || problem.includes(t('problemSurvivalTrials')))) setSettingsOpen(true);
+      // Суми рівнів і неспалимі лежать у налаштуваннях раунду.
+      if (found.some((problem) => problem.includes(t('problemLadderLevels', { max: LIMITS.maxLadderLevel })) || problem.includes(t('problemLadderSafe')))) setSettingsOpen(true);
       const sparePrefixes = [t('sparesTitle'), t('problemSparesEmpty'), t('spareN', { index: '' }).trim()];
       if (found.some((problem) => sparePrefixes.some((prefix) => problem.startsWith(prefix)))) setSparesOpen(true);
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
@@ -376,6 +393,12 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                         <span className="letter">{index + 1}</span>
                         <span className="question-item-text">{text}</span>
                         {round.type === 'wipeout' && <span className="question-item-price">{question.points}</span>}
+                        {round.type === 'ladder' && (
+                          <span className="question-item-price">
+                            {round.safe.includes(index) && <span aria-label={t('ladderSafeMark')}>🛡 </span>}
+                            {round.levels[index]}
+                          </span>
+                        )}
                         <span className="question-item-type">{t(`typeShort_${question.type}`)}</span>
                       </button>
                     </li>
@@ -408,8 +431,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <QuestionEditor
               key={current.id}
               question={current}
-              showPoints={round.type !== 'final'}
+              showPoints={round.type !== 'final' && round.type !== 'ladder'}
               showReveal={round.type === 'classic'}
+              showTime={round.type !== 'ladder' || round.timer}
+              fixedOptions={round.type === 'ladder' ? LIMITS.ladderOptions : undefined}
               types={questionTypesFor(round.type)}
               clouds={cloudSources(quiz, ri, Math.min(selected, questions.length - 1))}
               allowCloud={round.type === 'classic'}
@@ -442,13 +467,15 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 type="button"
                 className="btn btn-small btn-danger"
                 aria-label={t('removeQuestion', { index: selected + 1 })}
-                disabled={questions.length === 1 || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions) || (round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions)}
+                disabled={questions.length === 1 || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions) || (round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions) || (round.type === 'ladder' && questions.length <= LIMITS.minLadderQuestions)}
                 title={
                   round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions
                     ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions })
                     : round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions
                       ? t('survivalMinHint', { min: LIMITS.minSurvivalQuestions })
-                      : undefined
+                      : round.type === 'ladder' && questions.length <= LIMITS.minLadderQuestions
+                        ? t('ladderMinHint', { min: LIMITS.minLadderQuestions })
+                        : undefined
                 }
                 onClick={remove}
               >

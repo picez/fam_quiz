@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LIMITS, SURVIVAL_TYPES, boardCells, cellAnswerMode, roundBrief, rulesOf, type Round, type RoundRules } from '@quiz/shared';
+import { LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type Round, type RoundRules } from '@quiz/shared';
 import { ROUND_NAMES } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
 import { t } from '../i18n';
@@ -195,6 +195,94 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           <span>{t('wipeoutSettingsNote')}</span>
           <HelpButton id="round.wipeout" />
         </p>
+      )}
+      {round.type === 'ladder' && (
+        <>
+          <p className="meta">{t('ladderSettingsNote')}</p>
+          <fieldset className="survival-settings ladder-settings">
+            <legend className="with-help">
+              <span>{t('ladderLabel')}</span>
+              <HelpButton id="round.ladder" />
+            </legend>
+            <div role="radiogroup" aria-label={t('ladderPickTitle')}>
+              <p className="meta">{t('ladderPickTitle')}</p>
+              {LADDER_PICKS.map((pick) => (
+                <label className="check" key={pick}>
+                  <input type="radio" name={`ladder-pick-${round.id}`} checked={round.pick === pick} onChange={() => onChange({ ...round, pick })} />
+                  <span>{t(`ladderPick_${pick}`)}</span>
+                </label>
+              ))}
+            </div>
+            <div role="group" aria-label={t('ladderLifelinesTitle')}>
+              <p className="meta">{t('ladderLifelinesTitle')}</p>
+              {LIFELINES.map((kind) => (
+                <label className="check" key={kind}>
+                  <input
+                    type="checkbox"
+                    checked={round.lifelines.includes(kind)}
+                    onChange={(event) =>
+                      onChange({ ...round, lifelines: LIFELINES.filter((k) => (k === kind ? event.target.checked : round.lifelines.includes(k))) })
+                    }
+                  />
+                  <span>{t(`ladderLifeline_${kind}`)}</span>
+                </label>
+              ))}
+            </div>
+            <label className="check">
+              <input type="checkbox" checked={round.timer} onChange={(event) => onChange({ ...round, timer: event.target.checked })} />
+              <span>{t('ladderTimer')}</span>
+            </label>
+            <p className="meta">{t('ladderTimerNote')}</p>
+            <p className="meta">{t('ladderLevelsTitle')}</p>
+            <ol className="ladder-levels">
+              {round.levels
+                .map((level, step) => ({ level, step }))
+                .reverse()
+                .map(({ level, step }) => {
+                  const top = step === round.levels.length - 1;
+                  return (
+                    <li className="ladder-level-row" key={step}>
+                      <span className="ladder-level-n">{step + 1}</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={LIMITS.maxLadderLevel}
+                        step={50}
+                        aria-label={t('ladderLevel', { n: step + 1 })}
+                        value={Number.isNaN(level) ? '' : level}
+                        onChange={(event) => onChange({ ...round, levels: round.levels.map((l, i) => (i === step ? toNumber(event.target.value) : l)) })}
+                      />
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          aria-label={`${t('ladderSafeMark')} ${step + 1}`}
+                          disabled={top}
+                          checked={round.safe.includes(step)}
+                          onChange={(event) =>
+                            onChange({ ...round, safe: event.target.checked ? [...round.safe, step].sort((a, b) => a - b) : round.safe.filter((s) => s !== step) })
+                          }
+                        />
+                        <span>{t('ladderSafeMark')}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+            </ol>
+            {LADDER_PRESETS[round.levels.length] !== undefined && (
+              <button
+                type="button"
+                className="btn btn-small"
+                onClick={() => {
+                  const levels = [...LADDER_PRESETS[round.levels.length]];
+                  onChange({ ...round, levels, safe: ladderPresetSafe(levels) });
+                }}
+              >
+                {t('ladderUsePreset')}
+              </button>
+            )}
+          </fieldset>
+        </>
       )}
       {round.type === 'survival' && (
         <fieldset className="survival-settings">
