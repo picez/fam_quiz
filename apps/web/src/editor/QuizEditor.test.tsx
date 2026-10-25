@@ -2532,7 +2532,7 @@ describe('QuizEditor: team play', () => {
     expect((screen.getByLabelText('Назва команди 2') as HTMLInputElement).value).toBe('Сині');
   });
 
-  it('name fields sit in the shrinking grid so they stay inside 375 px', () => {
+  it('name fields are rendered in the shrinking name grid (the class that keeps them inside 375 px)', () => {
     open();
     fireEvent.click(screen.getByLabelText('Грати командами'));
     const grid = screen.getByLabelText('Назва команди 1').closest('.teams-names');

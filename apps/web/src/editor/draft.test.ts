@@ -2061,6 +2061,16 @@ describe('problemsOf: team names', () => {
   it('a names count that differs from the team count gives the same message via the schema code', () => {
     const quiz = withTeams(['А', 'Б']);
     quiz.settings.teams = { count: 3, names: ['А', 'Б'] };
-    expect(problemsOf(quiz)).toEqual([t('problemTeamNames')]);
+    expect(problemsOf(quiz)).toEqual([t('problemTeamCount')]);
+  });
+  it('a name with a NUL is flagged as unusable, not as a generic question problem', () => {
+    expect(problemsOf(withTeams(['А ', 'Б']))).toEqual([t('problemTeamUnstorable')]);
+  });
+  it('a corrupt stored teams setting is dropped on load; a valid one stays', () => {
+    const base = withTeams(['А', 'Б']);
+    saveDraft('teams-ok', base);
+    expect(loadDraft('teams-ok')!.settings.teams).toEqual({ count: 2, names: ['А', 'Б'] });
+    saveDraft('teams-bad', { ...base, settings: { ...base.settings, teams: { count: 'x', names: 5 } as never } });
+    expect('teams' in loadDraft('teams-bad')!.settings).toBe(false);
   });
 });

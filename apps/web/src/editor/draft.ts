@@ -37,6 +37,7 @@ import {
   cellAnswerMode,
   QUESTION_TYPES,
   answerKey,
+  isStorable,
   cloudKey,
   roundQuestions,
   REVEAL_TYPES,
@@ -1142,8 +1143,11 @@ export function problemsOf(quiz: Quiz): string[] {
   if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));
   if (draft.spares !== undefined) problems.push(...spareProblems(draft.spares));
   if (draft.settings.buffs?.includes('swap') && draft.spares === undefined && categorySparesOf(draft).length === 0) problems.push(t('problemSparesEmpty'));
-  const teamNames = draft.settings.teams?.names ?? [];
+  const teams = draft.settings.teams;
+  const teamNames = teams?.names ?? [];
   if (teamNames.some((name) => name.trim() === '')) problems.push(t('problemTeamName'));
+  else if (teamNames.some((name) => !isStorable(name))) problems.push(t('problemTeamUnstorable'));
+  else if (teams && teamNames.length !== teams.count) problems.push(t('problemTeamCount'));
   else if (new Set(teamNames.map(answerKey)).size < teamNames.length) problems.push(t('problemTeamNames'));
   const prices = Object.values(draft.settings.debuffPrices ?? {});
   if (prices.some((price) => !Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice)) {
@@ -1173,7 +1177,7 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));
       if (messages.includes('spares_empty')) problems.push(t('problemSparesEmpty'));
-      if (messages.includes('team_names')) problems.push(t('problemTeamNames'));
+      if (messages.includes('team_names')) problems.push(t('problemTeamCount'));
       if (messages.includes('buff_unavailable') || messages.includes('duplicate_powers')) problems.push(t('problemPowers'));
       if (problems.length === 0) problems.push(t('problemGeneric', { index: 1 }));
     }
