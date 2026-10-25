@@ -2496,6 +2496,18 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       );
       expect(screen.getByText('Помилка — Олена отримує 1000')).toBeTruthy();
       expect(document.querySelector('.ladder-state')!.textContent).not.toContain('3000');
+      cleanup();
+      // Учасник вийшов — рядок без порожнього імені.
+      show(
+        view({
+          phase: 'leaderboard',
+          round: ladderRound,
+          ladder: info({ contestant: null, outcome: { kind: 'stopped', passed: 1, points: 0 } }),
+          me: own({ role: 'hall' }),
+          standings: null,
+        }),
+      );
+      expect(document.querySelector('.ladder-state')!.textContent).toBe('Драбину зупинено: учасник вийшов');
     });
 
     it('play on shows the keep-going line', () => {

@@ -1038,9 +1038,10 @@ describe('ladder over sockets (10i)', () => {
     expect(await send(olena, 'player:lifeline', { kind: 'double' })).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(olena, 'player:lifeline')).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(taras, 'player:lifeline', { kind: 'fifty' })).toEqual({ ok: false, error: 'not_allowed' });
-    // Заставка запитання ще йде: підказка чекає.
-    const taken = await send(olena, 'player:lifeline', { kind: 'fifty' });
-    expect([{ ok: true }, { ok: false, error: 'not_started' }]).toContainEqual(taken);
+    // Без заставок (transitions вимкнено) запитання починається одразу — підказка береться.
+    expect(await send(olena, 'player:lifeline', { kind: 'fifty' })).toEqual({ ok: true });
+    const view = await until(olena, (v) => (v.ladder?.fifty?.length ?? 0) === 2);
+    expect(view.ladder?.lifelines.find((l) => l.kind === 'fifty')?.state).toBe('active');
   });
 
   it('player:ladder and host:ladder-decide take the decision; a spectator cannot', async () => {

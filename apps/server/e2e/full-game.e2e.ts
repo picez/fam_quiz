@@ -7897,6 +7897,16 @@ async function expectStageFits(stage: Page, name: string) {
   expect(height, `${name}: the stage scrolls (${height}px)`).toBeLessThanOrEqual(720);
 }
 
+/** Сцена без прокрутки й без обрізання: кожен блок сцени (і його прямі нащадки) в межах вікна — зверху теж. */
+async function expectStageInView(stage: Page, name: string) {
+  await expectStageFits(stage, name);
+  const clipped = (await stage.evaluate(`[...document.querySelectorAll('.stage-board, .stage-board > *, .stage-board > * > *, .stage-question > *')]
+    .map((el) => ({ el, r: el.getBoundingClientRect() }))
+    .filter(({ r }) => r.height > 0 && (r.top < -1 || r.bottom > innerHeight + 1))
+    .map(({ el, r }) => el.className + ' ' + Math.round(r.top) + '..' + Math.round(r.bottom))`)) as string[];
+  expect(clipped, `${name}: clipped by the screen edge`).toEqual([]);
+}
+
 it('part 10d: wall, poll and word cloud — the editor builds a wall (375 px too), wall groups never leak to phones or the stage, the phone finds groups and locks at the limit, the stage reveals groups with names, poll bars and a word cloud on the reveal, the host hides a word', async () => {
   try {
     await wallPollCloudGame();
@@ -9635,7 +9645,7 @@ async function ladderGame() {
   await stage.getByText('Хто піде на драбину?', exact).waitFor();
   expect(await stage.locator('.ladder-step').count()).toBe(5);
   expect(await stage.locator('.ladder-step.is-safe').count(), 'one safe step').toBe(1);
-  await expectStageFits(stage, 'p10i-stage-intro');
+  await expectStageInView(stage, 'p10i-stage-intro');
   await shot(stage, 'p10i-stage-intro');
   const pickFirst = host.getByRole('button', { name: 'Виберіть учасника', ...exact });
   await pickFirst.waitFor();
@@ -9667,7 +9677,7 @@ async function ladderGame() {
     for (const gone of ['Сідней', 'Мельбурн']) expect(await page.locator('.choice.is-removed', { hasText: gone }).count(), `${gone} is removed`).toBe(1);
   }
   await expect.poll(() => stage.locator('.stage-ladder .choice:not(.is-removed)').count(), POLL).toBe(2);
-  await expectStageFits(stage, 'p10i-stage-fifty');
+  await expectStageInView(stage, 'p10i-stage-fifty');
   await shot(stage, 'p10i-stage-fifty');
   await pickOption(petro, 'Канберра');
   await pickOption(vira, 'Перт');
@@ -9681,7 +9691,7 @@ async function ladderGame() {
   for (const frame of openStage) expect(frame, 'the stage sees the pick of the contestant while the question is open').toContain('"contestantPick":null');
   await click(host, 'Показати відповідь');
   await stage.getByText('Зал: 1 з 2 відгадали — по +10', exact).waitFor();
-  await expectStageFits(stage, 'p10i-stage-reveal');
+  await expectStageInView(stage, 'p10i-stage-reveal');
   await shot(stage, 'p10i-stage-reveal');
   await petro.locator('.earned', { hasText: '+10' }).waitFor();
   await olya.getByText('Правильно! 100 у кишені.', exact).waitFor();
@@ -9691,7 +9701,7 @@ async function ladderGame() {
   const waiting = host.getByRole('button', { name: 'Учасник вирішує…', ...exact });
   await waiting.waitFor();
   expect(await waiting.isDisabled(), 'the host waits for the contestant').toBe(true);
-  await expectStageFits(stage, 'p10i-stage-deciding');
+  await expectStageInView(stage, 'p10i-stage-deciding');
   await shot(stage, 'p10i-stage-deciding');
   await olya.getByRole('button', { name: 'Забрати 100', ...exact }).waitFor();
   await expectNoSideScroll(olya, 'p10i-phone-decision');
@@ -9717,7 +9727,7 @@ async function ladderGame() {
   await tally.waitFor();
   expect(await tally.innerText()).toContain('7');
   await olya.locator('.ladder-lifeline-info .vote-row', { hasText: '100 %' }).waitFor();
-  await expectStageFits(stage, 'p10i-stage-hall-tally');
+  await expectStageInView(stage, 'p10i-stage-hall-tally');
   await shot(stage, 'p10i-stage-hall-tally');
   await expectNoSideScroll(olya, 'p10i-phone-hall-tally');
   for (const [who, frames] of [['stage', stageFrames], ['olya', olyaFrames]] as const) {
@@ -9752,7 +9762,7 @@ async function ladderGame() {
   await stage.getByText(/Оля забирає 1000/).waitFor();
   expect(await stage.locator('.ladder-step.is-passed').count(), 'three steps are passed').toBe(3);
   expect(await stage.locator('.ladder-step.is-passed.is-safe').count(), 'the safe step is among them').toBe(1);
-  await expectStageFits(stage, 'p10i-stage-took');
+  await expectStageInView(stage, 'p10i-stage-took');
   await shot(stage, 'p10i-stage-took');
   const toResults = host.getByRole('button', { name: 'Підсумки раунду', ...exact });
   await toResults.waitFor();
@@ -9769,7 +9779,7 @@ async function ladderGame() {
   await click(host, 'Вибрати учасника');
   await stage.locator('.ladder-contestant-name', { hasText: 'Віра' }).waitFor();
   await stage.getByText('найменше балів', exact).waitFor();
-  await expectStageFits(stage, 'p10i-stage-drawn');
+  await expectStageInView(stage, 'p10i-stage-drawn');
   await shot(stage, 'p10i-stage-drawn');
   await click(host, 'Почати драбину');
   await afterSplash(...all);
@@ -9816,7 +9826,7 @@ async function ladderGame() {
   await click(host, 'Показати відповідь');
   await click(host, 'Далі');
   await stage.getByText('Помилка — Віра отримує 100', exact).waitFor();
-  await expectStageFits(stage, 'p10i-stage-wrong');
+  await expectStageInView(stage, 'p10i-stage-wrong');
   await shot(stage, 'p10i-stage-wrong');
   await click(host, 'Далі');
   await afterSplash(...all);

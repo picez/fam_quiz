@@ -8,7 +8,7 @@ import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { playToEnd } from './testing/final-game';
-import { playLadderQuestion } from './testing/ladder-game';
+import { LADDER_RIGHT, playLadderQuestion } from './testing/ladder-game';
 import { TRIAL_WRONG, playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { createTestDb } from './testing/test-db';
@@ -1356,5 +1356,33 @@ describe('recorder: ladder (10i)', () => {
     const [olena] = await db.select().from(participant).where(eq(participant.id, p1));
     expect(mine.reduce((sum, r) => sum + r.points, 0) + 1000).toBe(olena.score);
     expect(olena.score).toBe(1000);
+  });
+
+  it('an open hall vote is not in game.plays; ending the game mid-vote closes it into the history', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const room = manager.create(makeRoundsQuiz([ladderRound('rl')]), HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const [p1, p2] = [enter('Олена'), enter('Тарас'), enter('Віра')];
+    manager.host(room, { type: 'start' });
+    expect(manager.hostLadderPick(room, p1)).toEqual({ ok: true });
+    for (let guard = 0; guard < 6 && room.state.phase !== 'question'; guard++) manager.host(room, { type: 'next' });
+    expect(manager.lifeline(room, p1, 'audience')).toEqual({ ok: true });
+    // Тарас голосує, Віра ще ні — голосування відкрите.
+    manager.answer(room, p2, LADDER_RIGHT[0]);
+    await recorder.idle();
+    expect((await db.select().from(game))[0].plays).toEqual([]);
+    manager.host(room, { type: 'end' });
+    await recorder.idle();
+    const saved = (await db.select().from(game))[0].plays[0].ladder;
+    expect(saved?.contestant).toBe(p1);
+    expect(saved?.lifelines?.audience).toEqual({ cast: 1, counts: { b: 1 } });
   });
 });

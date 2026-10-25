@@ -1738,9 +1738,10 @@ describe('StageScreen: bluff (10f)', () => {
     const lRound: RoundInfo = { index: 0, total: 1, title: '', type: 'ladder', partial: false, description: '', brief: emptyBrief('ladder'), times: null };
     const flat = (el: Element) => (el.textContent ?? '').replace(/\s/g, ' ');
 
-    it('intro: the ladder under the briefing; «Хто піде на драбину?» until picked, then the nickname and how', () => {
+    it('intro: the ladder beside the briefing; «Хто піде на драбину?» until picked, then the nickname and how', () => {
       show(view({ phase: 'intro', round: lRound, ladder: ladderInfo({ contestant: null, current: -1 }) }));
-      expect(document.querySelector('.ladder-board.is-stage')).not.toBeNull();
+      expect(document.querySelector('.ladder-stage-intro > .ladder-board.is-stage')).not.toBeNull();
+      expect(document.querySelector('.ladder-intro-main .round-brief')).not.toBeNull();
       expect(screen.getByText('Хто піде на драбину?')).toBeTruthy();
       cleanup();
       show(view({ phase: 'intro', round: lRound, ladder: ladderInfo({ pick: 'random', drawn: true, current: -1 }) }));
@@ -1749,7 +1750,7 @@ describe('StageScreen: bluff (10f)', () => {
       expect(screen.getByText('за жеребом')).toBeTruthy();
     });
 
-    it('question: the question beside the ladder, the removed options empty, the hall voting', () => {
+    it('question: the question beside the ladder, the removed options dimmed in place, the hall voting', () => {
       show(
         view({
           phase: 'question',
@@ -1768,9 +1769,14 @@ describe('StageScreen: bluff (10f)', () => {
       );
       expect(document.querySelector('.ladder-board.is-stage')).not.toBeNull();
       expect(screen.getByText('Столиця України?')).toBeTruthy();
-      expect(screen.queryByText('Львів')).toBeNull();
       expect(screen.getByText('Київ')).toBeTruthy();
-      expect(document.querySelectorAll('.choice.is-removed')).toHaveLength(1);
+      const removed = document.querySelectorAll('.choice.is-removed');
+      expect(removed).toHaveLength(1);
+      // Прибраний варіант на своєму місці з літерою й позначкою «прибрано».
+      expect(removed[0]).toBe(document.querySelector('.choices > :first-child'));
+      expect(removed[0].textContent).toContain('Львів');
+      expect(removed[0].getAttribute('aria-label')).toBe('Львів — прибрано');
+      expect(within(removed[0] as HTMLElement).getByText('прибрано')).toBeTruthy();
       expect(screen.getByText('Зал голосує: 1 з 2')).toBeTruthy();
       expect(screen.getByText('Зал відповів: 0 з 2')).toBeTruthy();
     });
@@ -1832,6 +1838,9 @@ describe('StageScreen: bluff (10f)', () => {
       cleanup();
       show(view({ phase: 'leaderboard', round: lRound, ladder: ladderInfo({ decision: null, banked: 300, guaranteed: 100, outcome: { kind: 'wrong', passed: 2, points: 100 } }) }));
       expect(screen.getByRole('status').textContent).toBe('Помилка — Олена отримує 100');
+      cleanup();
+      show(view({ phase: 'leaderboard', round: lRound, ladder: ladderInfo({ contestant: null, decision: null, outcome: { kind: 'stopped', passed: 1, points: 0 } }) }));
+      expect(screen.getByRole('status').textContent).toBe('Драбину зупинено: учасник вийшов');
     });
 
     it('round_end: the usual standings table', () => {

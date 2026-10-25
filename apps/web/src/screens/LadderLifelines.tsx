@@ -4,6 +4,7 @@ import { t, type TextKey } from '../i18n';
 import { useSplash } from '../live/Splash';
 import { useTimeOver } from '../live/Timer';
 import { VoteResults } from './Buffs';
+import { withoutRemoved } from './LadderStatus';
 
 /** Три кнопки підказок учасника (лише ввімкнені), під ними — підсумок залу й підказка ведучого. */
 export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; offsetMs: number; onUse: (kind: LifelineKind) => void }) {
@@ -46,7 +47,7 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
               <h3 className="meta">{t('ladderHallResult')}</h3>
               <VoteResults
                 votes={{ endsAt: null, remainingMs: null, closed: true, cast: audience.tally.cast, counts: audience.tally.counts, guesses: [] }}
-                question={view.question}
+                question={withoutRemoved(info, view.question)}
                 offsetMs={offsetMs}
               />
             </>

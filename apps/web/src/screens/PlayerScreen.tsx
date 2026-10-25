@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
-import { countText, errorText, t, type TextKey } from '../i18n';
+import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
@@ -46,6 +46,7 @@ import { LadderBoard } from './LadderBoard';
 import { LadderDecision } from './LadderDecision';
 import { LadderHall } from './LadderHall';
 import { LadderLifelines } from './LadderLifelines';
+import { ladderOutcomeText } from './LadderStatus';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 
 interface Props {
@@ -996,9 +997,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               onDecide={(take) => void decideGuard.run('player:ladder', { take })}
             />
           ) : view.ladder.outcome !== null ? (
-            <p className="lead ladder-state">
-              {t(`ladderOutcome_${view.ladder.outcome.kind}` as TextKey, { name: view.ladder.contestant?.nickname ?? '', points: num(view.ladder.outcome.points) })}
-            </p>
+            <p className="lead ladder-state">{ladderOutcomeText(view.ladder)}</p>
           ) : view.ladder.decision === 'pending' ? (
             <p className="lead ladder-state">{view.ladder.contestant === null ? t('ladderDecidingWait') : t('ladderDeciding', { name: view.ladder.contestant.nickname })}</p>
           ) : (

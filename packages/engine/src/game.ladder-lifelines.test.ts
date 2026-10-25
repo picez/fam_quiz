@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Answer, Question, QuizSettings, Round } from '@quiz/shared';
 import { AUDIENCE_MS, buffsUsed, giveHint, takeBuff, voteTally } from './buffs';
 import { nextDeadline } from './blitz';
-import { lock, next, pause, resume, setConnected, start, submitAnswer, tick, type GameState, type Rng } from './game';
+import { end, lock, next, pause, resume, setConnected, start, submitAnswer, tick, type GameState, type Rng } from './game';
 import { decideLadder, ladderPlayOf, lifelinesUsed, pickContestant, useLifeline } from './ladder';
 import { suspend } from './restore';
 import { hostView } from './views';
@@ -126,11 +126,24 @@ describe('ladder lifelines: ask the hall', () => {
     expect(submitAnswer(s, 'p2', LADDER_RIGHT[0], endsAt + 500).ok).toBe(true);
   });
 
+  it('after the vote closes on time only the contestant is awaited', () => {
+    let s = must(submitAnswer(climb(), 'p1', opt('b'), T + 500));
+    s = must(useLifeline(s, 'p2', 'audience', T + 1000, rng));
+    const endsAt = T + 1000 + AUDIENCE_MS;
+    s = tick(s, endsAt + 1);
+    expect(lifelines(s)?.audience?.closed).toBe(true);
+    // Віра (p3) мовчить і вже не може відповісти — запитання закривається відповіддю учасника.
+    s = must(submitAnswer(s, 'p2', LADDER_RIGHT[0], endsAt + 500));
+    expect(s.phase).toBe('locked');
+  });
+
   it('the contestant answering closes the vote', () => {
     let s = must(useLifeline(climb(), 'p2', 'audience', T + 1000, rng));
     s = must(submitAnswer(s, 'p2', LADDER_RIGHT[0], T + 2000));
     expect(lifelines(s)?.audience).toMatchObject({ closed: true, ballots: {} });
-    expect(submitAnswer(s, 'p1', opt('b'), T + 2500)).toEqual({ ok: false, error: 'vote_closed' });
+    // Глядачі вже не відповідять — запитання закривається одразу.
+    expect(s.phase).toBe('locked');
+    expect(submitAnswer(s, 'p1', opt('b'), T + 2500)).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('closing the question closes the vote', () => {
@@ -138,6 +151,14 @@ describe('ladder lifelines: ask the hall', () => {
     s = must(submitAnswer(s, 'p1', opt('a'), T + 1500));
     s = must(lock(s));
     expect(lifelines(s)?.audience).toMatchObject({ closed: true, ballots: { p1: opt('a') } });
+  });
+
+  it('ending the game closes an open vote', () => {
+    let s = must(submitAnswer(climb(), 'p1', opt('b'), T + 500));
+    s = must(useLifeline(s, 'p2', 'audience', T + 1000, rng));
+    s = must(end(s, T + 2000));
+    expect(s.phase).toBe('finished');
+    expect(s.plays.find((p) => p.ladder !== undefined)?.ladder?.lifelines.audience).toMatchObject({ closed: true, ballots: { p1: opt('b') } });
   });
 
   it('a timed vote closes at once when the whole hall already answered', () => {

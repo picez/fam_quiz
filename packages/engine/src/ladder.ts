@@ -142,12 +142,16 @@ export function submitLadderAnswer(state: GameState, playerId: string, answer: A
   return ok(autoLock(settleAudience(isContestant ? closeAudience(recorded) : recorded), now));
 }
 
-/** Учасник відповів і відповіли всі присутні глядачі; учасника немає серед присутніх — false (закриє ведучий чи таймер). */
+/**
+ * Учасник відповів і відповіли всі присутні глядачі (голосування залу закрите — лише учасник: глядачі вже не відповідять);
+ * учасника немає серед присутніх — false (закриє ведучий чи таймер).
+ */
 export function ladderAnswered(state: GameState): boolean {
   const play = ladderPlayOf(state);
   if (play === null) return false;
   const present = presentPlayers(state).map((p) => p.id);
   if (!present.includes(play.ladder.contestantId)) return false;
+  if (play.ladder.lifelines.audience?.closed === true) return recordOf(state, state.questionIndex, play.ladder.contestantId) !== undefined;
   return present.every((id) => recordOf(state, state.questionIndex, id) !== undefined);
 }
 
@@ -228,7 +232,7 @@ export function awardLadder(state: GameState, outcome: LadderOutcome, now: numbe
 
 /**
  * Ведучий завершує раунд чи гру: підсумок, якщо його ще немає. Відкрите запитання для учасника не рахується (stopped);
- * закрите чи розкрите — як після розкриття (правильна й не остання — stopped з цією сходинкою); рішення відкрите — took.
+ * відкрите голосування залу закривається; закрите чи розкрите — як після розкриття (правильна й не остання — stopped з цією сходинкою); рішення відкрите — took.
  * Поза драбиною (зокрема на intro) — стан без змін.
  */
 export function stopLadder(state: GameState, now: number): GameState {
@@ -236,7 +240,8 @@ export function stopLadder(state: GameState, now: number): GameState {
   const play = ladderPlayOf(state);
   if (round === null || play === null || play.ladder.outcome !== null) return state;
   const { step } = play.ladder;
-  if (state.phase === 'question') return awardLadder(state, outcomeOf(round, 'stopped', passedSteps(state, false)), now);
+  // Відкрите голосування залу закривається, щоб потрапити в історію.
+  if (state.phase === 'question') return awardLadder(closeAudience(state), outcomeOf(round, 'stopped', passedSteps(state, false)), now);
   if (state.phase === 'locked' || state.phase === 'reveal') {
     return awardLadder(state, revealedOutcome(state, round, play) ?? outcomeOf(round, 'stopped', step + 1), now);
   }

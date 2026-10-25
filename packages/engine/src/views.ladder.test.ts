@@ -157,7 +157,9 @@ describe('ladder views', () => {
     expect(phone(s, 'p1').me.ladder).toMatchObject({ role: 'hall', canLifeline: false, hallPoints: 10, hallClosed: false, won: null });
     s = must(submitAnswer(s, 'p2', LADDER_RIGHT[0], T + 2000));
     expect(phone(s, 'p1').me.ladder?.hallClosed).toBe(true);
-    s = must(next(must(lock(s)), T + 5000, rng));
+    // Голосування закрите — зал уже не відповідає, запитання закрилося відповіддю учасника.
+    expect(s.phase).toBe('locked');
+    s = must(next(s, T + 5000, rng));
     s = must(next(s, T + 6000, rng));
     s = must(decideLadder(s, 'p2', true, T + 7000));
     s = must(next(s, T + 8000, rng));

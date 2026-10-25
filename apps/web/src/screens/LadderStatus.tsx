@@ -1,5 +1,6 @@
 import type { LadderInfo, PublicQuestion } from '@quiz/shared';
 import { BUFF_ICONS } from '../buff-meta';
+import { num } from '../format';
 import { t, type TextKey } from '../i18n';
 import { VoteResults } from './Buffs';
 
@@ -18,13 +19,25 @@ export function LadderLifelineBadges({ info }: { info: LadderInfo }) {
   );
 }
 
+/** Запитання без варіантів, прибраних 50/50, — для підсумку залу. */
+export function withoutRemoved(info: LadderInfo, question: PublicQuestion): PublicQuestion {
+  return info.fifty === null ? question : { ...question, choices: question.choices.filter((choice) => !info.fifty?.includes(choice.id)) };
+}
+
+/** Рядок підсумку драбини; учасник вийшов — окремий рядок без імені. */
+export function ladderOutcomeText(info: LadderInfo): string {
+  if (info.outcome === null) return '';
+  if (info.contestant === null) return t('ladderOutcomeGone');
+  return t(`ladderOutcome_${info.outcome.kind}` as TextKey, { name: info.contestant.nickname, points: num(info.outcome.points) });
+}
+
 /** Голосування залу: до закриття — скільки проголосували, після — підсумок усім. */
 export function LadderAudience({ info, question, offsetMs }: { info: LadderInfo; question: PublicQuestion; offsetMs: number }) {
   const audience = info.audience;
   if (audience === null) return null;
   if (audience.state === 'closed' && audience.tally !== null) {
     // Варіанти, прибрані 50/50, у підсумку залу не показуємо.
-    const shown = info.fifty === null ? question : { ...question, choices: question.choices.filter((choice) => !info.fifty?.includes(choice.id)) };
+    const shown = withoutRemoved(info, question);
     return (
       <div className="ladder-audience">
         <VoteResults

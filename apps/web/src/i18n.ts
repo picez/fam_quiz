@@ -474,6 +474,7 @@ const uk = {
   ladderOutcome_wrong: 'Помилка — {name} отримує {points}',
   ladderOutcome_top: '{name} пройшов(-ла) драбину: {points}!',
   ladderOutcome_stopped: 'Драбину зупинено: {name} отримує {points}',
+  ladderOutcomeGone: 'Драбину зупинено: учасник вийшов',
   ladderWon: 'Твій виграш: {points}',
   ladderSafe: 'неспалима',
   ladderFailed: 'помилка',

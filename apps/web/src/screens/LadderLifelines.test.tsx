@@ -78,6 +78,14 @@ describe('LadderLifelines', () => {
     expect(screen.getByText('75 %')).toBeTruthy();
   });
 
+  it('the hall tally leaves out the options removed by 50/50', () => {
+    const closed = { state: 'closed' as const, endsAt: null, remainingMs: null, voted: 2, total: 2, tally: { cast: 2, counts: { b: 1, d: 1 } } };
+    render(<LadderLifelines view={lifelineView({ fifty: ['a', 'c'], audience: closed })} offsetMs={0} onUse={vi.fn()} />);
+    expect(document.querySelectorAll('.vote-row')).toHaveLength(2);
+    expect(screen.queryByText('Львів')).toBeNull();
+    expect(screen.queryByText('Одеса')).toBeNull();
+  });
+
   it('shows the host hint in its three states', () => {
     render(<LadderLifelines view={lifelineView({}, { hint: { state: 'waiting', text: null } })} offsetMs={0} onUse={vi.fn()} />);
     expect(screen.getByText('Ведучий думає…')).toBeTruthy();

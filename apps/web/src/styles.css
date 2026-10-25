@@ -9070,7 +9070,7 @@ button.wall-tile:disabled {
 }
 
 .stage .choice.is-removed {
-  visibility: hidden;
+  border-color: var(--line);
 }
 
 .stage .choice.is-picked {
@@ -9085,24 +9085,40 @@ button.wall-tile:disabled {
   margin-left: auto;
 }
 
+/* Між запитаннями: рядок рішення чи підсумку зліва, велика драбина справа. */
 .stage-ladder-between {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: 1.5vh;
-  min-height: 0;
-  width: min(100%, 40rem);
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
+  gap: 4vw;
+  align-items: center;
+  width: min(100%, 76rem);
 }
 
+.ladder-between-line {
+  font-size: clamp(2rem, 4.2vw, 4rem);
+}
+
+/* Сходинки якомога більші, але всі (до 15) вміщаються у висоту екрана. */
+.stage-ladder-between .ladder-board.is-stage .ladder-step {
+  padding: min(0.8vh, calc(6vh / var(--ladder-steps, 5))) 1.25rem;
+  font-size: clamp(1rem, min(4vh, calc(52vh / var(--ladder-steps, 5))), 2.25rem);
+}
+
+/* Заставка: розклад і учасник зліва, драбина справа — без обрізання на 1280 × 720. */
 .ladder-stage-intro {
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 18rem);
+  gap: 4vw;
+  align-items: center;
+  width: min(100%, 76rem);
+}
+
+.ladder-intro-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(10rem, 16rem);
-  gap: 2vw;
-  align-items: start;
+  gap: 2vh;
+  min-width: 0;
 }
 
 .ladder-contestant-name {
-  font-size: clamp(2rem, 5vw, 4rem);
+  font-size: clamp(2rem, 4.5vw, 3.75rem);
 }
 
 .host-ladder-players li {

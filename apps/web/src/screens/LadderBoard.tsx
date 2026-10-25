@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { LadderInfo, LadderStep } from '@quiz/shared';
 import { num } from '../format';
 import { t } from '../i18n';
@@ -27,7 +28,7 @@ function stepLabel(step: LadderStep): string {
 export function LadderBoard({ info, size }: { info: LadderInfo; size: Size }) {
   const rows = (size === 'phone' ? phoneWindow(info) : info.steps.map((step, index) => ({ step, index }))).reverse();
   return (
-    <section className={`ladder-board is-${size}`} aria-label={t('ladderTitle')}>
+    <section className={`ladder-board is-${size}`} aria-label={t('ladderTitle')} style={{ '--ladder-steps': rows.length } as CSSProperties}>
       <ol className="ladder-steps">
         {rows.map(({ step, index }) => (
           <li
