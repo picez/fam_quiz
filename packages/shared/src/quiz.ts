@@ -41,6 +41,11 @@ export const LIMITS = {
   maxSurvivalTrials: 10,
   maxSurvivors: 10,
   survivalLuckSeconds: 10,
+  /** «Мільйонер»: запитань у драбині, найбільша сума рівня (власний ліміт, 14a), варіантів у запитанні. */
+  minLadderQuestions: 5,
+  maxLadderQuestions: 15,
+  maxLadderLevel: 10_000,
+  ladderOptions: 4,
   /** Ціна дебафу для гравців (9c), балів. */
   minDebuffPrice: 50,
   maxDebuffPrice: 5000,
@@ -839,8 +844,38 @@ export const survivalRoundSchema = z.object({
 export type SurvivalRound = z.infer<typeof survivalRoundSchema>;
 export type TrialKind = (typeof TRIAL_KINDS)[number];
 
+/** Як вибирається учасник драбини: ведучий сам, жереб, найменші бали на початку раунду. */
+export const LADDER_PICKS = ['host', 'random', 'lowest'] as const;
+export type LadderPick = (typeof LADDER_PICKS)[number];
+
+/** Підказки драбини: ті самі назви, що в бафів 8b, але раз за драбину й незалежно від бафів вікторини. */
+export const LIFELINES = ['fifty', 'audience', 'hint'] as const satisfies readonly BuffKind[];
+export type LifelineKind = (typeof LIFELINES)[number];
+
+/** «Мільйонер»: один учасник іде драбиною запитань «один варіант» (по 4 варіанти); виграє суму рівня. Правил балів немає. */
+export const ladderRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('ladder'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  shuffleOptions: z.boolean(),
+  /** Запитання в порядку сходинок; ціна (points) не важить. */
+  questions: z.array(questionSchema).min(LIMITS.minLadderQuestions).max(LIMITS.maxLadderQuestions),
+  /** Сума рівня кожної сходинки; належить позиції, а не запитанню. */
+  levels: z.array(z.number().int().min(1).max(LIMITS.maxLadderLevel)).min(LIMITS.minLadderQuestions).max(LIMITS.maxLadderQuestions),
+  /** Неспалимі сходинки (0-базові). */
+  safe: z.array(z.number().int().min(0)).max(LIMITS.maxLadderQuestions),
+  pick: z.enum(LADDER_PICKS),
+  lifelines: z.array(z.enum(LIFELINES)).max(LIFELINES.length),
+  /** true — таймер на запитання (timeLimit кожного); false — без таймера. */
+  timer: z.boolean(),
+});
+
+export type LadderRound = z.infer<typeof ladderRoundSchema>;
+
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'wipeout', 'survival'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'wipeout', 'survival', 'ladder'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -850,6 +885,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   finalRoundSchema,
   wipeoutRoundSchema,
   survivalRoundSchema,
+  ladderRoundSchema,
 ]);
 
 export type Round = z.infer<typeof roundSchema>;
@@ -859,9 +895,9 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі й «Ва-банк» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
+/** Правила балів раунду; у фіналі, «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
 export function rulesOf(round: Round): RoundRules {
-  return round.type === 'final' || round.type === 'wipeout' ? DEFAULT_RULES : round.rules;
+  return round.type === 'final' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
 }
 
 /** Запитання дуелі: текстова відповідь, як у типі text; без картинки й відео. */
@@ -995,6 +1031,19 @@ export const quizSchema = z
         if (round.trials.some((q) => q.video !== null || q.audio !== undefined || q.reveal !== undefined)) {
           ctx.addIssue({ code: 'custom', message: 'survival_trial_media' });
         }
+      }
+      // «Мільйонер»: лише «один варіант» рівно з чотирма варіантами; рівні зростають, неспалимі — не верхня й без повторів, підказки без повторів.
+      if (round.type === 'ladder') {
+        if (round.questions.some((q) => q.type !== 'single' || q.options.length !== LIMITS.ladderOptions)) {
+          ctx.addIssue({ code: 'custom', message: 'ladder_type' });
+        }
+        if (round.levels.length !== round.questions.length || round.levels.some((l, i) => i > 0 && l <= round.levels[i - 1])) {
+          ctx.addIssue({ code: 'custom', message: 'ladder_levels' });
+        }
+        if (new Set(round.safe).size !== round.safe.length || round.safe.some((s) => s >= round.questions.length - 1)) {
+          ctx.addIssue({ code: 'custom', message: 'ladder_safe' });
+        }
+        if (new Set(round.lifelines).size !== round.lifelines.length) ctx.addIssue({ code: 'custom', message: 'ladder_lifelines' });
       }
       // Дошка з хмари — лише в класиці.
       if (round.type === 'board' && boardCells(round).some(({ cell }) => cell.question.type === 'survey' && cell.question.cloudId !== undefined)) {

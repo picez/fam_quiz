@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyBrief, type AnswerMode } from '@quiz/shared';
+import { buffName } from './buff-meta';
 import { roundSummary } from './round-summary';
 import { t } from './i18n';
 
@@ -81,5 +82,20 @@ describe('roundSummary', () => {
     ]);
     const none = { ...brief, penalty: false, survival: { trial: 'question' as const, survivors: 1, bonus: 0 } };
     expect(roundSummary(none)).toEqual([t('summarySurvival'), t('summarySurvivalTrial_question')]);
+  });
+  it('a ladder round explains the contestant, the pick, the hall and the lifelines, with no modifiers', () => {
+    const ladder = { pick: 'lowest' as const, lifelines: ['fifty' as const, 'audience' as const], top: 10000, timer: false };
+    const brief = { ...emptyBrief('ladder'), ladder };
+    expect(roundSummary(brief)).toEqual([
+      t('summaryLadderContestant', { top: 10000 }),
+      t('summaryLadderPick_lowest'),
+      t('summaryLadderHall'),
+      t('summaryLadderLifelines', { list: `${buffName('fifty')}, ${buffName('audience')}` }),
+    ]);
+    expect(roundSummary({ ...brief, ladder: { ...ladder, lifelines: [] } })).toEqual([
+      t('summaryLadderContestant', { top: 10000 }),
+      t('summaryLadderPick_lowest'),
+      t('summaryLadderHall'),
+    ]);
   });
 });

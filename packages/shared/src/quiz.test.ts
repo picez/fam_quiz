@@ -1753,6 +1753,39 @@ describe('survival round (10h)', () => {
   });
 });
 
+describe('ladder round (10i)', () => {
+  const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+  const qs = [1, 2, 3, 4, 5].map((i) => four(`l${i}`));
+  const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: qs,
+    levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty', 'audience', 'hint'], timer: false } as const;
+  const issues = (patch: object) => {
+    const result = quizSchema.safeParse({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds: [{ ...ladder, ...patch }] });
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  it('a ladder round has 5–15 four-option questions, rising levels up to 10 000, safe steps, a pick mode, lifelines and a timer flag', () => {
+    expect(ROUND_TYPES).toContain('ladder');
+    expect(valid(roundSchema, ladder)).toBe(true);
+    expect(valid(roundSchema, { ...ladder, questions: qs.slice(0, 4), levels: [100, 300, 1000, 3000] })).toBe(false);
+    expect(valid(roundSchema, { ...ladder, levels: [100, 300, 1000, 3000, 10001] })).toBe(false);
+    expect(valid(roundSchema, { ...ladder, pick: 'oldest' })).toBe(false);
+    expect(valid(roundSchema, { ...ladder, lifelines: ['double'] })).toBe(false);
+    expect(rulesOf(roundSchema.parse(ladder))).toEqual(DEFAULT_RULES);
+    expect(issues({})).toEqual([]);
+  });
+  it('refuses other types, other option counts, broken levels, safe steps and repeated lifelines', () => {
+    const multi = { ...single, id: 'm1', type: 'multi', correctIds: ['b'], correctId: undefined };
+    const bool = { id: 'b1', type: 'boolean', text: 'Говерла найвища гора України', imageUrl: null, video: null, timeLimit: 20, points: 0, correct: true };
+    expect(issues({ questions: [...qs.slice(0, 4), multi] })).toContain('ladder_type');
+    expect(issues({ questions: [...qs.slice(0, 4), bool] })).toContain('ladder_type');
+    expect(issues({ questions: [...qs.slice(0, 4), { ...single, id: 'three' }] })).toContain('ladder_type');
+    expect(issues({ levels: [100, 300, 300, 3000, 10000] })).toContain('ladder_levels');
+    expect(issues({ levels: [100, 300, 1000, 3000, 5000, 10000] })).toContain('ladder_levels');
+    expect(issues({ safe: [4] })).toContain('ladder_safe');
+    expect(issues({ safe: [1, 1] })).toContain('ladder_safe');
+    expect(issues({ lifelines: ['fifty', 'fifty'] })).toContain('ladder_lifelines');
+  });
+});
+
 describe('type lists', () => {
   it('ROUND_TYPES and QUESTION_TYPES list every schema discriminator in editor order', () => {
     expect(roundSchema.options.map((o) => o.shape.type.value)).toEqual([...ROUND_TYPES]);

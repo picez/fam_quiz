@@ -1,6 +1,7 @@
 export * from './quiz';
 export * from './wipeout';
 export * from './survival';
+export * from './ladder';
 export * from './round-brief';
 export * from './upgrade';
 export * from './answer';

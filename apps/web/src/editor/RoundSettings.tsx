@@ -39,8 +39,8 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
   const { streak } = rules;
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
   const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) => {
-    // У фіналі й «Ва-банк» правил немає: їхніх елементів керування там не показано.
-    if (round.type === 'final' || round.type === 'wipeout') return;
+    // У фіналі, «Ва-банк» і «Мільйонері» правил немає: їхніх елементів керування там не показано.
+    if (round.type === 'final' || round.type === 'wipeout' || round.type === 'ladder') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
   const setPartial = (partial: number | null) => {
@@ -251,7 +251,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           />
         </fieldset>
       )}
-      {round.type !== 'final' && round.type !== 'wipeout' && (
+      {round.type !== 'final' && round.type !== 'wipeout' && round.type !== 'ladder' && (
         <>
       <div className="with-help">
         <label className="check">

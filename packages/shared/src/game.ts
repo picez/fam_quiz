@@ -7,7 +7,9 @@ export type DuelStage = 'declared' | 'category' | 'question' | 'answer' | 'resul
 export type Grade = 'correct' | 'partial' | 'wrong';
 
 /** Звідки коригування рахунку поза відповідями: бали від ведучого, дуель або купівля дебафу (9c). */
-export type AdjustmentSource = 'host' | 'duel' | 'debuff' | 'survival';
+export type AdjustmentSource = 'host' | 'duel' | 'debuff' | 'survival'
+  /** Виграш драбини (10i). */
+  | 'ladder';
 
 /** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. */
 export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;
@@ -41,7 +43,9 @@ export type BuffBlock =
   /** «Ва-банк»: бафів немає (10g). */
   | 'off_wipeout'
   /** «Вибування»: бафів немає (10h). */
-  | 'off_survival';
+  | 'off_survival'
+  /** «Мільйонер»: бафів немає, свої підказки (10i). */
+  | 'off_ladder';
 
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium' | 'trial';
@@ -64,6 +68,8 @@ export type ErrorCode =
   | 'paused'
   | 'not_found'
   | 'no_players'
+  /** «Мільйонер»: ведучий ще не вибрав учасника (10i). */
+  | 'ladder_pick'
   | 'room_full'
   | 'nickname_invalid'
   | 'nickname_taken'

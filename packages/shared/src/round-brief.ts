@@ -1,4 +1,4 @@
-import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type Round, type RoundRules, type TrialKind, type WagerMode } from './quiz';
+import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type LadderPick, type LifelineKind, type Round, type RoundRules, type TrialKind, type WagerMode } from './quiz';
 
 /** Налаштування раунду, від яких залежать бали; з цього клієнт складає пояснення для гравців. */
 export interface RoundBrief {
@@ -27,9 +27,11 @@ export interface RoundBrief {
   wagerMode: WagerMode | null;
   /** «Вибування»: вид випробування, скільки має лишитися, бонус; null поза ним. */
   survival: { trial: TrialKind; survivors: number; bonus: number } | null;
+  /** «Мільйонер»: як вибирається учасник, підказки, верхній рівень, чи є таймер; null поза ним. */
+  ladder: { pick: LadderPick; lifelines: LifelineKind[]; top: number; timer: boolean } | null;
 }
 
-/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, wagerMode і survival null, answerModes []. */
+/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, wagerMode, survival і ladder null, answerModes []. */
 export function emptyBrief(type: Round['type']): RoundBrief {
   return {
     type,
@@ -46,6 +48,7 @@ export function emptyBrief(type: Round['type']): RoundBrief {
     answerModes: [],
     wagerMode: null,
     survival: null,
+    ladder: null,
   };
 }
 
@@ -53,6 +56,7 @@ export function roundBrief(round: Round): RoundBrief {
   const base = emptyBrief(round.type);
   if (round.type === 'final') return { ...base, wagerMode: round.wagerMode };
   if (round.type === 'wipeout') return base;
+  if (round.type === 'ladder') return { ...base, ladder: { pick: round.pick, lifelines: [...round.lifelines], top: round.levels.at(-1) ?? 0, timer: round.timer } };
   const rules = rulesOf(round);
   const withRules = { ...base, penalty: rules.penalty === 'minus', streak: rules.streak, multiplier: rules.multiplier };
   if (round.type === 'classic') return { ...withRules, speedBonus: round.speedBonus };

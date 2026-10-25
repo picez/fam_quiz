@@ -54,4 +54,16 @@ describe('roundBrief', () => {
     expect(emptyBrief('classic').survival).toBeNull();
     expect(roundBrief(classicRound('r1', [single])).survival).toBeNull();
   });
+
+  it('describes a ladder round without rules: pick, lifelines, top level and timer', () => {
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o })) });
+    const round = {
+      id: 'ld', type: 'ladder' as const, title: '', shuffleOptions: false, questions: [1, 2, 3, 4, 5].map((i) => four(`l${i}`)),
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host' as const, lifelines: ['fifty' as const, 'hint' as const], timer: false,
+    };
+    expect(roundBrief(round)).toEqual({ ...emptyBrief('ladder'), ladder: { pick: 'host', lifelines: ['fifty', 'hint'], top: 10000, timer: false } });
+    expect(roundBrief(round).penalty).toBe(false);
+    expect(roundBrief(round).multiplier).toBe(1);
+    expect(emptyBrief('classic').ladder).toBeNull();
+  });
 });

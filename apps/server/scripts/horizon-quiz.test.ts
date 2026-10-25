@@ -22,7 +22,7 @@ import { horizonQuiz } from './horizon-quiz';
 
 /** Типи, що з'явилися після цієї вікторини (10e і далі): її ще не оновлено під них. */
 const LATER_TYPES = new Set<string>(['survey', 'bluff']);
-const LATER_ROUND_TYPES = new Set<string>(['wipeout', 'survival']);
+const LATER_ROUND_TYPES = new Set<string>(['wipeout', 'survival', 'ladder']);
 
 /** Тексти всіх запитань вікторини: раунди, загальні запасні, запасні категорій і дуелі. */
 const texts = (quiz: Quiz) => [

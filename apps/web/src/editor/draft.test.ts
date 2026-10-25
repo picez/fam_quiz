@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newLadderRound, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -1967,5 +1967,24 @@ describe('survival round (10h)', () => {
     };
     expect(questionsOf(quiz).length).toBe(198);
     expect(problemsOf(quiz)).toContain(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
+  });
+});
+
+describe('ladder round (10i)', () => {
+  it('a new ladder round has five four-option questions of 0, the preset levels, a safe 1000, a host pick, three lifelines and no timer', () => {
+    const round = newLadderRound();
+    expect(round.type).toBe('ladder');
+    expect(round.questions).toHaveLength(5);
+    expect(round.questions.every((q) => q.type === 'single' && q.options.length === 4 && q.points === 0)).toBe(true);
+    expect(round.levels).toEqual([...LADDER_PRESETS[5]]);
+    expect(round.safe).toEqual([2]);
+    expect([round.pick, round.timer]).toEqual(['host', false]);
+    expect(round.lifelines).toEqual([...LIFELINES]);
+    const fill = (question: Question): Question =>
+      question.type === 'single' ? { ...question, text: 'Запитання', options: question.options.map((o, i) => ({ ...o, text: `Варіант ${i + 1}` })), correctId: question.options[0].id } : question;
+    expect(roundSchema.safeParse({ ...round, questions: round.questions.map(fill) }).success).toBe(true);
+  });
+  it('a ladder round offers only the single type', () => {
+    expect(questionTypesFor('ladder')).toEqual(['single']);
   });
 });

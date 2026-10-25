@@ -23,6 +23,10 @@ import {
   type SurvivalRound,
   WIPEOUT_TYPES,
   SURVIVAL_TYPES,
+  LADDER_PRESETS,
+  LIFELINES,
+  ladderPresetSafe,
+  type LadderRound,
   type Round,
   type Question,
   type Quiz,
@@ -50,6 +54,7 @@ export { QUESTION_TYPES, type QuestionType };
  * Блеф — лише класика (поле, бліц і фінал його не мають).
  * «Ва-банк» — лише WIPEOUT_TYPES: один варіант, так/ні, число, текст, повзунок.
  * «Вибування» (основні запитання й питання на виживання) — лише SURVIVAL_TYPES, ті самі п'ять.
+ * «Мільйонер» — лише «один варіант» (рівно з чотирма варіантами).
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
@@ -63,6 +68,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
   }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
   if (roundType === 'survival') return SURVIVAL_TYPES;
+  if (roundType === 'ladder') return ['single'];
   return QUESTION_TYPES;
 }
 
@@ -371,6 +377,29 @@ export function newSurvivalRound(): SurvivalRound {
     trial: 'question',
     survivors: 1,
     bonus: 500,
+  };
+}
+
+/** Нове запитання драбини «Мільйонер»: «один варіант» з рівно 4 порожніми варіантами; ціни немає (сума рівня — у сходинці). */
+export function newLadderQuestion(): Question {
+  const options = blanks(LIMITS.ladderOptions);
+  return { ...newQuestion('single'), points: 0, type: 'single', options, correctId: options[0].id };
+}
+
+/** Новий «Мільйонер»: п'ять запитань по 4 варіанти, рівні з пресету, неспалимий — 1000, учасника вибирає ведучий, усі три підказки, без таймера. */
+export function newLadderRound(): LadderRound {
+  const levels = [...LADDER_PRESETS[LIMITS.minLadderQuestions]];
+  return {
+    id: newId(),
+    type: 'ladder',
+    title: '',
+    shuffleOptions: false,
+    questions: Array.from({ length: LIMITS.minLadderQuestions }, newLadderQuestion),
+    levels,
+    safe: ladderPresetSafe(levels),
+    pick: 'host',
+    lifelines: [...LIFELINES],
+    timer: false,
   };
 }
 

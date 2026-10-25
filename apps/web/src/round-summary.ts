@@ -1,4 +1,5 @@
 import type { RoundBrief } from '@quiz/shared';
+import { buffName } from './buff-meta';
 import { t } from './i18n';
 
 function modifiers(brief: RoundBrief, lead: string[], penaltyKey: 'summaryPenalty' | 'summaryPenaltyCells' = 'summaryPenalty'): string {
@@ -21,6 +22,12 @@ export function roundSummary(brief: RoundBrief): string[] {
   }
   if (brief.type === 'wipeout') {
     lines.push(t('summaryWipeout'), t('summaryWipeoutTake'));
+    return lines;
+  }
+  if (brief.type === 'ladder' && brief.ladder !== null) {
+    const { top, pick, lifelines } = brief.ladder;
+    lines.push(t('summaryLadderContestant', { top }), t(`summaryLadderPick_${pick}`), t('summaryLadderHall'));
+    if (lifelines.length > 0) lines.push(t('summaryLadderLifelines', { list: lifelines.map(buffName).join(', ') }));
     return lines;
   }
   if (brief.type === 'survival' && brief.survival !== null) {
