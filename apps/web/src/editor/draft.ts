@@ -1034,12 +1034,18 @@ export function problemsOf(quiz: Quiz): string[] {
       if (round.questions.length > LIMITS.maxSurvivalQuestions) problems.push(where(t('problemSurvivalMany', { max: LIMITS.maxSurvivalQuestions })));
       const allowed: readonly string[] = SURVIVAL_TYPES;
       if ([...round.questions, ...round.trials].some((question) => !allowed.includes(question.type))) problems.push(where(t('problemSurvivalType')));
+      if (!Number.isInteger(round.survivors) || round.survivors < 1 || round.survivors > LIMITS.maxSurvivors) {
+        problems.push(where(t('problemSurvivors', { max: LIMITS.maxSurvivors })));
+      }
+      if (!Number.isInteger(round.bonus) || round.bonus < 0 || round.bonus > LIMITS.maxPoints) {
+        problems.push(where(t('problemSurvivalBonus', { max: LIMITS.maxPoints })));
+      }
       if (round.trial === 'question' && round.trials.length === 0) problems.push(where(t('problemSurvivalTrials')));
       round.trials.forEach((trial, index) => {
         const key = problemKey(trial, roundPlace(draft, roundIndex, 0));
         if (key === null) return;
         // «Запитання N: текст» → «Питання на виживання N: текст».
-        const problem = problemText(key, index + 1, trial).replace(/^[^:]*:\s*/, '');
+        const problem = problemText(key, index + 1, trial).replace(/^Запитання \d+:\s*/, '');
         problems.push(where(t('problemSurvivalTrial', { index: index + 1, problem })));
       });
     }
@@ -1066,6 +1072,8 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
       if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
       if (messages.includes('wipeout_type')) problems.push(t('problemWipeoutType'));
+      if (messages.includes('too_many_questions')) problems.push(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
+      if (messages.includes('duplicate_question_ids') || messages.includes('duplicate_round_ids')) problems.push(t('problemDuplicateIds'));
       if (messages.includes('survival_type')) problems.push(t('problemSurvivalType'));
       if (messages.includes('survival_trials')) problems.push(t('problemSurvivalTrials'));
       if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));

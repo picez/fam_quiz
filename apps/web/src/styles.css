@@ -8732,3 +8732,25 @@ button.wall-tile:disabled {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+.survival-settings {
+  border: 0;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  min-width: 0;
+}
+
+.survival-settings legend {
+  max-width: 100%;
+  padding: 0;
+}
+
+.survival-settings .check {
+  min-height: 2.75rem;
+}
+
+.survival-settings .check input[type='radio'] {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+}

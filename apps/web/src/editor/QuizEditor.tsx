@@ -298,7 +298,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         onMove={moveRound}
         onRemove={removeRound}
       />
-      <RoundSettings round={round} index={ri + 1} onChange={setRound} />
+      <RoundSettings round={round} index={ri + 1} total={total} onChange={setRound} />
 
       <div className="editor-grid">
         <aside className="editor-side">

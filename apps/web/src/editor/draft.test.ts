@@ -1940,12 +1940,32 @@ describe('survival round (10h)', () => {
     expect(problemsOf(survivalQuiz({ trial: 'question', trials: [] }))).toContain(t('problemSurvivalTrials'));
     expect(problemsOf(survivalQuiz({ trial: 'luck', trials: [] }))).toEqual([]);
   });
-  it('problemsOf checks the trial questions too and names them', () => {
+  it('problemsOf checks the trial questions too and names them with the trial prefix', () => {
     const problems = problemsOf(survivalQuiz({ trials: [newQuestion('single')] }));
     expect(problems.some((p) => p.startsWith('Питання на виживання 1:'))).toBe(true);
   });
   it('problemsOf explains the media a trial question must not have', () => {
     const withVideo = { ...filled(newQuestion('single')), video: { id: 'dQw4w9WgXcQ', start: 0 } };
     expect(problemsOf(survivalQuiz({ trials: [withVideo] }))).toContain(t('problemSurvivalTrialMedia'));
+  });
+  it('problemsOf checks survivors and the bonus', () => {
+    const has = (patch: Partial<ReturnType<typeof newSurvivalRound>>, text: string) => problemsOf(survivalQuiz(patch)).includes(text);
+    const bad = t('problemSurvivors', { max: LIMITS.maxSurvivors });
+    for (const survivors of [Number.NaN, 0, 11, 1.5]) expect(has({ survivors }, bad)).toBe(true);
+    expect(has({ survivors: 10 }, bad)).toBe(false);
+    const badBonus = t('problemSurvivalBonus', { max: LIMITS.maxPoints });
+    for (const bonus of [Number.NaN, -1, LIMITS.maxPoints + 1, 1.5]) expect(has({ bonus }, badBonus)).toBe(true);
+    expect(has({ bonus: 0 }, badBonus)).toBe(false);
+  });
+  it('the quiz question cap counts the survival questions', () => {
+    const base = newSurvivalRound();
+    const classicOf = (from: number) => ({ ...newClassicRound(), questions: Array.from({ length: 65 }, (_, i) => ({ ...filled(newQuestion('single')), id: `c${from + i}` })) });
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: 'Т',
+      rounds: [classicOf(0), classicOf(65), classicOf(130), { ...base, questions: base.questions.map(filled), trials: [...base.trials, newQuestion('single')].map(filled) }],
+    };
+    expect(questionsOf(quiz).length).toBe(198);
+    expect(problemsOf(quiz)).toContain(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
   });
 });

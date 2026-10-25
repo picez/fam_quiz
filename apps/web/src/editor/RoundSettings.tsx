@@ -11,6 +11,8 @@ interface Props {
   round: Round;
   /** Номер раунду (з одиниці) для підказки в полі назви. */
   index: number;
+  /** Запитань у всій вікторині разом з питаннями на виживання (ліміт 200). */
+  total?: number;
   onChange: (next: Round) => void;
 }
 
@@ -27,7 +29,7 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
  * Налаштування одного раунду: назва, опис для гравців, перемішування варіантів і правила підрахунку (штраф, серії, множник);
  * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». В кінці — попередній перегляд заставки з поясненням правил. Згорнуті, доки їх не відкриють.
  */
-export function RoundSettings({ round, index, onChange }: Props) {
+export function RoundSettings({ round, index, total = 0, onChange }: Props) {
   const [seconds, setSeconds] = useState<number>(LIMITS.defaultTime);
   const secondsValid = Number.isInteger(seconds) && seconds >= LIMITS.minTime && seconds <= LIMITS.maxTime;
   const rules = rulesOf(round);
@@ -238,7 +240,7 @@ export function RoundSettings({ round, index, onChange }: Props) {
             onChange={(next) => onChange({ ...round, trials: next ?? [] })}
             types={SURVIVAL_TYPES}
             showTime
-            max={LIMITS.maxSurvivalTrials}
+            max={Math.min(LIMITS.maxSurvivalTrials, LIMITS.maxQuizQuestions - (total - round.trials.length))}
             hint={t('survivalTrialsHint')}
             chipLabel={(i) => t('trialN', { index: i + 1 })}
             addLabel={t('addTrial')}
