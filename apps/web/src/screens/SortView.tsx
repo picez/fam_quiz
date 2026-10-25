@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from 'react';
-import { SORT_TILT_MS, type Choice, PlayerSort, PublicQuestion, Question, SortInfo } from '@quiz/shared';
+import { SORT_TILT_MS, type Choice, PlayerSort, PublicQuestion, Question, SortColumn, SortInfo, SortLive, SortTilt, SortWordMark } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { secondsLeft } from '../clock';
@@ -16,6 +16,10 @@ export const TILT_FULL_PX = 120;
 /** Менший рух ще не нахил: картка в центрі, px. */
 const TILT_MIN_PX = 12;
 const SHAKE_MS = 400;
+/** Політ картки глядача після ходу, мс. */
+export const FLY_MS = 450;
+/** Скільки щойно влучене слово лишається позначеним, мс. */
+export const LANDED_MS = 1500;
 /** Відповідь на хід може не прийти (send без тайм-ауту): картка не лишається заблокованою назавжди. */
 const PENDING_FALLBACK_MS = 3000;
 const ARROWS: Record<string, ZonePosition> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'top', ArrowDown: 'bottom' };
@@ -351,24 +355,274 @@ export function SortPlay({
   );
 }
 
-/** Поле, глядач: категорії без кнопок, прогрес того, хто сортує, і всі слова за абеткою; картки немає. */
-export function SortWatch({ question, info }: { question: PublicQuestion; info: SortInfo }) {
-  const row = info.rows[0];
+/** Нахил, що діє зараз (11d): той самий хід і слово, не пауза, є напрям; інакше null. */
+export function liveTilt(live: SortLive, tilts: Record<string, SortTilt>, paused: boolean): SortTilt | null {
+  const tilt = tilts[live.sorterId];
+  if (tilt === undefined || paused || tilt.toward === null) return null;
+  return tilt.seq === live.seq && live.card !== null && tilt.wordId === live.card.id ? tilt : null;
+}
+
+/** Зміщення картки до зони телефона-глядача. */
+export function zoneOffset(pos: ZonePosition): { x: number; y: number } {
+  if (pos === 'left') return { x: -1, y: 0 };
+  if (pos === 'right') return { x: 1, y: 0 };
+  if (pos === 'top') return { x: 0, y: -1 };
+  return { x: 0, y: 1 };
+}
+
+/** Зміщення картки до стовпця сцени: стовпці стоять в ряд під карткою. */
+export function columnOffset(index: number, count: number): { x: number; y: number } {
+  return { x: ((index + 0.5) / Math.max(1, count) - 0.5) * 2, y: 1 };
+}
+
+/** CSS-змінні нахилу картки глядача. */
+export function tiltVars(offset: { x: number; y: number }, amount: number): CSSProperties {
+  return { '--tilt-x': offset.x, '--tilt-y': offset.y, '--tilt': amount } as CSSProperties;
+}
+
+type Flight = { wordId: string; to: string; hit: boolean };
+
+/** Політ після ходу й щойно влучене слово: перший рендер не анімує; на reduced-motion — лише позначка влучання. */
+export function useSortFlight(live: SortLive): { flight: Flight | null; landed: string | null } {
+  const [flight, setFlight] = useState<Flight | null>(null);
+  const [landed, setLanded] = useState<string | null>(null);
+  const prevSeq = useRef(live.seq);
+  const flightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const landedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const grew = live.seq > prevSeq.current;
+    prevSeq.current = live.seq;
+    const last = live.last;
+    if (!grew || last === null) return;
+    // Помилка без картки (час скінчився): трусити нічого.
+    if (!last.hit && live.card === null) return;
+    if (!reducedMotion()) {
+      if (flightTimer.current !== null) clearTimeout(flightTimer.current);
+      setFlight({ wordId: last.wordId, to: last.to, hit: last.hit });
+      flightTimer.current = setTimeout(() => setFlight(null), FLY_MS);
+    }
+    if (last.hit) {
+      if (landedTimer.current !== null) clearTimeout(landedTimer.current);
+      setLanded(last.wordId);
+      landedTimer.current = setTimeout(() => setLanded(null), LANDED_MS);
+    }
+  }, [live.seq, live.last, live.card]);
+  useEffect(
+    () => () => {
+      if (flightTimer.current !== null) clearTimeout(flightTimer.current);
+      if (landedTimer.current !== null) clearTimeout(landedTimer.current);
+    },
+    [],
+  );
+  return { flight, landed };
+}
+
+/** Картка глядача: поточне слово (під підвисання — помилкове), нахил, політ, трусіння й відлік підвисання. */
+export function SortLiveCard({
+  live,
+  categories,
+  tilt,
+  flight,
+  paused,
+  offsetMs,
+  layout,
+}: {
+  live: SortLive;
+  categories: Choice[];
+  tilt: SortTilt | null;
+  flight: Flight | null;
+  paused: boolean;
+  offsetMs: number;
+  layout: 'phone' | 'stage';
+}) {
+  const [, setTick] = useState(0);
+  // Підвисання й трусіння лише на запитанні з карткою: card === null — locked чи reveal, там застарілий відлік не показуємо.
+  const active = live.card !== null;
+  const nowMs = Date.now();
+  const lockSeconds = active
+    ? (secondsLeft({ endsAt: live.lockedUntil, remainingMs: paused ? (live.lockRemainingMs ?? 0) : live.lockRemainingMs }, offsetMs, nowMs) ?? 0)
+    : 0;
+  const locked = lockSeconds > 0;
+  const ticking = locked && !paused && live.lockRemainingMs === null && live.lockedUntil !== null;
+  useEffect(() => {
+    if (!ticking || live.lockedUntil === null) return;
+    const left = live.lockedUntil - (Date.now() + offsetMs);
+    const id = setTimeout(() => setTick((n) => n + 1), ((Math.max(1, left) - 1) % 1000) + 1);
+    return () => clearTimeout(id);
+  });
+
+  const flyingHit = flight !== null && flight.hit && live.last !== null && live.last.wordId === flight.wordId ? live.last : null;
+  const flyingMiss = flight !== null && !flight.hit && active;
+  const word = flyingHit !== null ? { id: flyingHit.wordId, text: flyingHit.text } : locked && live.missed !== null ? live.missed : live.card;
+  if (word === null) return null;
+
+  const toward = flight !== null ? flight.to : (tilt?.toward ?? null);
+  const index = toward === null ? -1 : categories.findIndex((category) => category.id === toward);
+  const offset =
+    index < 0 ? { x: 0, y: 0 } : layout === 'stage' ? columnOffset(index, categories.length) : zoneOffset(zonePositions(categories.length)[index] ?? 'left');
+  const amount = flight !== null ? 1 : (tilt?.amount ?? 0);
+  const className = [
+    'sort-live-card',
+    layout === 'stage' && 'is-stage',
+    flight === null && tilt !== null && 'is-tilting',
+    flight !== null && 'is-flying',
+    flyingHit !== null && 'is-hit',
+    flyingMiss && 'is-miss',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return (
+    <>
+      <div
+        className={className}
+        role="img"
+        aria-label={t('sortLiveCard', { word: word.text })}
+        data-toward={toward ?? undefined}
+        data-to={flight?.to}
+        style={tiltVars(offset, amount)}
+      >
+        {word.text}
+      </div>
+      {locked && (
+        <p className="sort-lock" role="status">
+          <span className="sort-lock-text">{t('sortLocked', { seconds: lockSeconds })}</span>
+        </p>
+      )}
+    </>
+  );
+}
+
+/** Поле, глядач: категорії без кнопок; з live — картка того, хто сортує, стовпці розкладених слів і чипи решти. */
+export function SortWatch({
+  question,
+  info,
+  live: liveProp,
+  tilts = {},
+  paused = false,
+  offsetMs = 0,
+  team = false,
+}: {
+  question: PublicQuestion;
+  info: SortInfo;
+  live?: SortLive | null;
+  tilts?: Record<string, SortTilt>;
+  paused?: boolean;
+  offsetMs?: number;
+  team?: boolean;
+}) {
+  const live = liveProp === undefined ? info.live : liveProp;
+  const categories = question.sort?.categories ?? [];
+  if (live === null) {
+    const row = info.rows[0];
+    return (
+      <section className="sort-play is-watching">
+        <Arena
+          categories={categories}
+          zone={(category, pos) => (
+            <div key={pos} className="sort-zone" data-pos={pos}>
+              {category.text}
+            </div>
+          )}
+        >
+          {row !== undefined && <p className="sort-watching">{t('sortWatching', { name: row.nickname })}</p>}
+        </Arena>
+        <p className="sort-progress">{t('sortProgress', { sorted: row?.sorted ?? 0, total: info.total })}</p>
+        {info.words !== null && <SortWords words={info.words} />}
+      </section>
+    );
+  }
+  return <SortWatchLive question={question} info={info} live={live} tilts={tilts} paused={paused} offsetMs={offsetMs} team={team} />;
+}
+
+function SortWatchLive({
+  question,
+  info,
+  live,
+  tilts,
+  paused,
+  offsetMs,
+  team,
+}: {
+  question: PublicQuestion;
+  info: SortInfo;
+  live: SortLive;
+  tilts: Record<string, SortTilt>;
+  paused: boolean;
+  offsetMs: number;
+  team: boolean;
+}) {
+  const categories = question.sort?.categories ?? [];
+  const { flight, landed } = useSortFlight(live);
+  const tilt = liveTilt(live, tilts, paused);
+  const toward = flight !== null ? flight.to : (tilt?.toward ?? null);
   return (
     <section className="sort-play is-watching">
+      <p className="sort-watching">{t(team ? 'sortWatchingTeam' : 'sortWatching', { name: live.nickname })}</p>
       <Arena
-        categories={question.sort?.categories ?? []}
+        categories={categories}
         zone={(category, pos) => (
-          <div key={pos} className="sort-zone" data-pos={pos}>
+          <div key={pos} className={category.id === toward ? 'sort-zone is-toward' : 'sort-zone'} data-pos={pos}>
             {category.text}
           </div>
         )}
       >
-        {row !== undefined && <p className="sort-watching">{t('sortWatching', { name: row.nickname })}</p>}
+        <SortLiveCard live={live} categories={categories} tilt={tilt} flight={flight} paused={paused} offsetMs={offsetMs} layout="phone" />
       </Arena>
-      <p className="sort-progress">{t('sortProgress', { sorted: row?.sorted ?? 0, total: info.total })}</p>
-      {info.words !== null && <SortWords words={info.words} />}
+      <p className="sort-progress">{t('sortProgress', { sorted: live.sorted, total: live.total })}</p>
+      <SortReveal categories={categories} question={null} total={live.total} placed={live.columns} landed={landed} />
+      {info.words !== null && <SortWords words={unplaced(info.words, live.columns)} />}
     </section>
+  );
+}
+
+/** Слова, що ще не лежать у стовпцях. */
+function unplaced(words: { id: string; text: string }[], columns: SortColumn[]): { id: string; text: string }[] {
+  const placed = new Set(columns.flatMap((column) => column.words.map((word) => word.id)));
+  return words.filter((word) => !placed.has(word.id));
+}
+
+/** Сцена, звичайна клітинка поля (11d): смуга з карткою, стовпці й чипи нерозкладених; на розкритті — стовпці з позначками. */
+export function SortStage({
+  question,
+  info,
+  live,
+  reveal,
+  tilts,
+  paused,
+  offsetMs,
+  team = false,
+}: {
+  question: PublicQuestion;
+  info: SortInfo;
+  live: SortLive;
+  reveal: Extract<Question, { type: 'sort' }> | null;
+  tilts: Record<string, SortTilt>;
+  paused: boolean;
+  offsetMs: number;
+  team?: boolean;
+}) {
+  const categories = question.sort?.categories ?? [];
+  const { flight, landed } = useSortFlight(live);
+  if (reveal !== null) {
+    return (
+      <div className="stage-sort-live">
+        <SortReveal categories={categories} question={reveal} total={live.total} marks={live.marks} />
+      </div>
+    );
+  }
+  const tilt = liveTilt(live, tilts, paused);
+  const toward = flight !== null ? flight.to : (tilt?.toward ?? null);
+  return (
+    <div className="stage-sort-live">
+      <div className="sort-live-strip">
+        <p className="sort-watching">{t(team ? 'sortWatchingTeam' : 'sortWatching', { name: live.nickname })}</p>
+        <div className="sort-live-slot">
+          <SortLiveCard live={live} categories={categories} tilt={tilt} flight={flight} paused={paused} offsetMs={offsetMs} layout="stage" />
+        </div>
+      </div>
+      <SortReveal categories={categories} question={null} total={live.total} placed={live.columns} toward={toward} landed={landed} />
+      {info.words !== null && <SortWords words={unplaced(info.words, live.columns)} />}
+    </div>
   );
 }
 
@@ -410,32 +664,66 @@ export function SortBoard({ sort, reveal }: { sort: SortInfo; reveal: boolean })
 }
 
 /**
- * Категорії стовпцями; зі словами — розкриття, без question — лише назви.
+ * Категорії стовпцями; зі словами — розкриття, без question — назви (з placed — розкладені під час гри, 11d).
  * total (слів у запитанні) резервує висоту стовпців: блок не росте, коли слова з'являються.
  */
 export function SortReveal({
   categories,
   question,
   total = 0,
+  placed,
+  toward = null,
+  landed = null,
+  marks = null,
 }: {
   categories: Choice[];
   question: Extract<Question, { type: 'sort' }> | null;
   total?: number;
+  placed?: SortColumn[];
+  toward?: string | null;
+  landed?: string | null;
+  marks?: SortWordMark[] | null;
 }) {
   const biggest = question === null ? 0 : Math.max(0, ...categories.map((category) => question.words.filter((word) => word.categoryId === category.id).length));
   const rows = Math.max(biggest, Math.ceil(total / Math.max(1, categories.length)));
   const style = { '--sort-rows': rows } as CSSProperties;
+  const markOf = (wordId: string) => marks?.find((mark) => mark.wordId === wordId);
+  const className = question !== null ? 'sort-reveal is-open' : placed !== undefined ? 'sort-reveal is-live' : 'sort-reveal';
   return (
-    <div className={question === null ? 'sort-reveal' : 'sort-reveal is-open'} data-cols={categories.length} style={style}>
+    <div className={className} data-cols={categories.length} style={style}>
       {categories.map((category) => (
-        <section key={category.id} className="sort-reveal-col">
+        <section key={category.id} className={category.id === toward ? 'sort-reveal-col is-toward' : 'sort-reveal-col'}>
           <h3>{category.text}</h3>
           <ul>
-            {question?.words
-              .filter((word) => word.categoryId === category.id)
-              .map((word) => (
-                <li key={word.id}>{word.text}</li>
-              ))}
+            {question !== null
+              ? question.words
+                  .filter((word) => word.categoryId === category.id)
+                  .map((word) => {
+                    const mark = markOf(word.id);
+                    return (
+                      <li key={word.id} className={mark?.late ? 'is-late' : undefined}>
+                        {word.text}
+                        {mark !== undefined && mark.misses > 0 && (
+                          <span className="sort-mark" aria-label={t('sortMarkLabel', { n: mark.misses })}>
+                            {t('sortMarkMisses', { n: mark.misses })}
+                          </span>
+                        )}
+                        {mark?.late === true && <span className="sort-late">{t('sortLate')}</span>}
+                      </li>
+                    );
+                  })
+              : placed
+                  ?.find((column) => column.id === category.id)
+                  ?.words.map((word) => (
+                    <li key={word.id} className={word.id === landed ? 'is-landed' : undefined}>
+                      {word.text}
+                      {word.id === landed && (
+                        <span className="sort-landed" aria-hidden="true">
+                          ✓
+                        </span>
+                      )}
+                    </li>
+                  ))}
           </ul>
         </section>
       ))}

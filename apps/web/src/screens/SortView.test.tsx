@@ -4,9 +4,9 @@ import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@te
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerSort, PublicQuestion, Question, SortInfo } from '@quiz/shared';
+import type { PlayerSort, PublicQuestion, Question, SortInfo, SortLive, SortTilt } from '@quiz/shared';
 import type { Send } from '../live/types';
-import { SortBoard, SortPlay, SortReveal, SortWatch, swipeTarget, tiltOf, useTiltSender, zonePositions } from './SortView';
+import { SortBoard, SortPlay, SortReveal, SortStage, SortWatch, columnOffset, liveTilt, swipeTarget, tiltOf, tiltVars, useTiltSender, zoneOffset, zonePositions } from './SortView';
 
 const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
 const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
@@ -471,5 +471,266 @@ describe('tilt sending (11d)', () => {
       });
       expect(send).not.toHaveBeenCalledWith('player:sort-tilt', expect.anything());
     });
+  });
+});
+
+describe('watching a live sort (11d)', () => {
+  const WORDS = [
+    { id: 'w1', text: 'Морква' },
+    { id: 'w2', text: 'Яблуко' },
+    { id: 'w3', text: 'Буряк' },
+    { id: 'w4', text: 'Груша' },
+  ];
+  const liveOf = (over: Partial<SortLive> = {}): SortLive => ({
+    sorterId: 'p1',
+    nickname: 'Анна',
+    card: { id: 'w3', text: 'Буряк' },
+    missed: null,
+    lockedUntil: null,
+    lockRemainingMs: null,
+    sorted: 0,
+    total: 4,
+    misses: 0,
+    timeMs: null,
+    seq: 1,
+    columns: [
+      { id: 'c1', words: [] },
+      { id: 'c2', words: [] },
+    ],
+    last: null,
+    marks: null,
+    ...over,
+  });
+  const infoOf = (live: SortLive | null): SortInfo => ({
+    total: 4,
+    rows: [{ playerId: 'p1', nickname: 'Анна', sorted: live?.sorted ?? 0, total: 4, misses: 0, timeMs: null, points: null } as SortInfo['rows'][number]],
+    winner: null,
+    words: [...WORDS].sort((a, b) => a.text.localeCompare(b.text, 'uk')),
+    live,
+  });
+  const tiltOfs = (over: Partial<SortTilt> = {}): Record<string, SortTilt> => ({
+    p1: { sorterId: 'p1', wordId: 'w3', toward: 'c2', amount: 0.6, seq: 1, ...over },
+  });
+  const watch = (live: SortLive, tilts: Record<string, SortTilt> = {}, paused = false) => (
+    <SortWatch question={sortQuestion(2)} info={infoOf(live)} live={live} tilts={tilts} paused={paused} offsetMs={0} />
+  );
+  const liveCard = () => document.querySelector<HTMLElement>('.sort-live-card');
+  const zoneByText = (text: string) => [...document.querySelectorAll('.sort-zone')].find((el) => el.textContent === text)!;
+  const colByText = (text: string) => [...document.querySelectorAll('.sort-reveal-col')].find((el) => el.querySelector('h3')?.textContent === text)!;
+
+  it('liveTilt gives the tilt only for the same move and word', () => {
+    const live = liveOf();
+    expect(liveTilt(live, tiltOfs(), false)?.toward).toBe('c2');
+    expect(liveTilt(live, tiltOfs({ seq: 0 }), false)).toBeNull();
+    expect(liveTilt(live, tiltOfs({ wordId: 'w1' }), false)).toBeNull();
+    expect(liveTilt(live, tiltOfs(), true)).toBeNull();
+    expect(liveTilt(live, tiltOfs({ toward: null }), false)).toBeNull();
+    expect(liveTilt(live, {}, false)).toBeNull();
+  });
+
+  it('tiltVars, zoneOffset and columnOffset', () => {
+    expect(tiltVars(zoneOffset('left'), 0.5)).toEqual({ '--tilt-x': -1, '--tilt-y': 0, '--tilt': 0.5 });
+    expect(zoneOffset('bottom')).toEqual({ x: 0, y: 1 });
+    expect(columnOffset(0, 4)).toEqual({ x: -0.75, y: 1 });
+    expect(columnOffset(3, 4)).toEqual({ x: 0.75, y: 1 });
+  });
+
+  it('a watcher sees the card, not an interactive one', () => {
+    render(watch(liveOf()));
+    expect(liveCard()?.textContent).toBe('Буряк');
+    expect(liveCard()?.getAttribute('aria-label')).toBe('Зараз на картці: Буряк');
+    expect(document.querySelector('.sort-card')).toBeNull();
+    expect(document.querySelectorAll('button.sort-zone')).toHaveLength(0);
+    expect(screen.getByText('Анна сортує слова')).toBeTruthy();
+  });
+
+  it('the team line names the team', () => {
+    render(<SortWatch question={sortQuestion(2)} info={infoOf(liveOf({ nickname: 'Червоні' }))} team />);
+    expect(screen.getByText('Команда «Червоні» сортує слова')).toBeTruthy();
+  });
+
+  it('the tilt highlights the zone and sets the variables; a stale one does not', () => {
+    const { rerender } = render(watch(liveOf(), tiltOfs()));
+    expect(zoneByText('Фрукти').classList.contains('is-toward')).toBe(true);
+    expect(zoneByText('Овочі').classList.contains('is-toward')).toBe(false);
+    expect(liveCard()?.getAttribute('data-toward')).toBe('c2');
+    expect(liveCard()?.getAttribute('style')).toContain('--tilt: 0.6');
+    expect(liveCard()?.classList.contains('is-tilting')).toBe(true);
+    rerender(watch(liveOf(), tiltOfs({ seq: 0 })));
+    expect(zoneByText('Фрукти').classList.contains('is-toward')).toBe(false);
+  });
+
+  it('columns fill during the play and the chips lose placed words', () => {
+    const live = liveOf({
+      sorted: 1,
+      columns: [
+        { id: 'c1', words: [{ id: 'w1', text: 'Морква' }] },
+        { id: 'c2', words: [] },
+      ],
+    });
+    render(watch(live));
+    expect(document.querySelector('.sort-reveal.is-open')).toBeNull();
+    expect([...colByText('Овочі').querySelectorAll('li')].map((li) => li.textContent)).toEqual(['Морква']);
+    expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Яблуко']);
+  });
+
+  it('a hit flies into its column and lands with a tick', () => {
+    const { rerender } = render(watch(liveOf({ seq: 1, last: { wordId: 'w1', text: 'Морква', to: 'c1', hit: true } })));
+    expect(liveCard()?.classList.contains('is-flying')).toBe(false);
+    expect(document.querySelector('li.is-landed')).toBeNull();
+    rerender(
+      watch(
+        liveOf({
+          seq: 2,
+          sorted: 1,
+          last: { wordId: 'w3', text: 'Буряк', to: 'c1', hit: true },
+          card: { id: 'w2', text: 'Яблуко' },
+          columns: [
+            { id: 'c1', words: [{ id: 'w3', text: 'Буряк' }] },
+            { id: 'c2', words: [] },
+          ],
+        }),
+      ),
+    );
+    expect(liveCard()?.classList.contains('is-flying')).toBe(true);
+    expect(liveCard()?.getAttribute('data-to')).toBe('c1');
+    expect(liveCard()?.textContent).toBe('Буряк');
+    expect(colByText('Овочі').querySelector('li.is-landed')?.textContent).toContain('Буряк');
+    act(() => {
+      vi.advanceTimersByTime(450);
+    });
+    expect(liveCard()?.classList.contains('is-flying')).toBe(false);
+    expect(liveCard()?.textContent).toBe('Яблуко');
+    expect(document.querySelector('li.is-landed')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1050);
+    });
+    expect(document.querySelector('li.is-landed')).toBeNull();
+  });
+
+  it('a miss shakes red, lights the zone and shows the lock countdown', () => {
+    const { rerender } = render(watch(liveOf({ seq: 1 })));
+    rerender(
+      watch(
+        liveOf({
+          seq: 2,
+          misses: 1,
+          missed: { id: 'w3', text: 'Буряк' },
+          lockedUntil: Date.now() + 3000,
+          last: { wordId: 'w3', text: 'Буряк', to: 'c2', hit: false },
+        }),
+      ),
+    );
+    expect(liveCard()?.classList.contains('is-miss')).toBe(true);
+    expect(zoneByText('Фрукти').classList.contains('is-toward')).toBe(true);
+    expect(document.querySelector('.sort-lock')?.textContent).toBe('Помилка! Підвисання: 3 с');
+    act(() => {
+      vi.advanceTimersByTime(450);
+    });
+    expect(liveCard()?.classList.contains('is-miss')).toBe(false);
+    expect(document.querySelector('.sort-lock')).not.toBeNull();
+  });
+
+  it('no stale lock or shake once the card is gone', () => {
+    const { rerender } = render(watch(liveOf({ seq: 1 })));
+    rerender(
+      watch(
+        liveOf({
+          seq: 2,
+          card: null,
+          misses: 1,
+          missed: { id: 'w3', text: 'Буряк' },
+          lockedUntil: Date.now() + 3000,
+          last: { wordId: 'w3', text: 'Буряк', to: 'c2', hit: false },
+        }),
+      ),
+    );
+    expect(liveCard()).toBeNull();
+    expect(document.querySelector('.sort-lock')).toBeNull();
+  });
+
+  it('reduced motion: no flight, the landed mark stays', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)', media: query }));
+    const { rerender } = render(watch(liveOf({ seq: 1 })));
+    rerender(
+      watch(
+        liveOf({
+          seq: 2,
+          last: { wordId: 'w3', text: 'Буряк', to: 'c1', hit: true },
+          columns: [
+            { id: 'c1', words: [{ id: 'w3', text: 'Буряк' }] },
+            { id: 'c2', words: [] },
+          ],
+        }),
+      ),
+    );
+    expect(liveCard()?.classList.contains('is-flying')).toBe(false);
+    expect(document.querySelector('li.is-landed')).not.toBeNull();
+  });
+
+  it('the reveal marks wrong tries and words left undone', () => {
+    const reveal = {
+      type: 'sort',
+      words: [
+        { id: 'w1', text: 'Морква', categoryId: 'c1' },
+        { id: 'w4', text: 'Груша', categoryId: 'c2' },
+        { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+      ],
+    } as unknown as Extract<Question, { type: 'sort' }>;
+    render(
+      <SortReveal
+        categories={CATEGORIES.slice(0, 2)}
+        question={reveal}
+        marks={[
+          { wordId: 'w1', misses: 2, late: false },
+          { wordId: 'w4', misses: 0, late: true },
+        ]}
+      />,
+    );
+    const carrot = [...document.querySelectorAll('li')].find((li) => li.textContent?.startsWith('Морква'))!;
+    const mark = carrot.querySelector('.sort-mark')!;
+    expect(mark.textContent).toBe('✗2');
+    expect(mark.getAttribute('aria-label')).toBe('Помилок на слові: 2');
+    const pear = [...document.querySelectorAll('li')].find((li) => li.textContent?.startsWith('Груша'))!;
+    expect(pear.classList.contains('is-late')).toBe(true);
+    expect(pear.textContent).toContain('не встиг');
+    const beet = [...document.querySelectorAll('li')].find((li) => li.textContent === 'Буряк')!;
+    expect(beet.querySelector('.sort-mark, .sort-late')).toBeNull();
+  });
+
+  describe('SortStage', () => {
+    const stage = (live: SortLive, reveal: Extract<Question, { type: 'sort' }> | null = null, tilts: Record<string, SortTilt> = {}) => (
+      <SortStage question={sortQuestion(2)} info={infoOf(live)} live={live} reveal={reveal} tilts={tilts} paused={false} offsetMs={0} />
+    );
+
+    it('shows the card, filling columns and the chips while playing', () => {
+      render(stage(liveOf({ sorted: 1, columns: [{ id: 'c1', words: [{ id: 'w1', text: 'Морква' }] }, { id: 'c2', words: [] }] })));
+      const root = document.querySelector('.stage-sort-live')!;
+      expect(root.querySelector('.sort-live-card')?.textContent).toBe('Буряк');
+      expect(root.querySelector('.sort-reveal.is-live')).not.toBeNull();
+      expect(root.querySelector('.sort-reveal.is-open')).toBeNull();
+      expect([...root.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Яблуко']);
+    });
+
+    it('a tilt toward a column highlights it and sets the column offset', () => {
+      render(stage(liveOf(), undefined, tiltOfs()));
+      expect(colByText('Фрукти').classList.contains('is-toward')).toBe(true);
+      expect(liveCard()?.getAttribute('style')).toContain('--tilt-x: 0.5');
+    });
+
+    it('the reveal shows the open columns with marks, no card and no chips', () => {
+      const reveal = { type: 'sort', words: [{ id: 'w1', text: 'Морква', categoryId: 'c1' }] } as unknown as Extract<Question, { type: 'sort' }>;
+      render(stage(liveOf({ card: null, marks: [{ wordId: 'w1', misses: 1, late: false }] }), reveal));
+      expect(document.querySelector('.sort-reveal.is-open .sort-mark')?.textContent).toBe('✗1');
+      expect(liveCard()).toBeNull();
+      expect(document.querySelector('.sort-words')).toBeNull();
+    });
+  });
+
+  it('without live the watcher is as before', () => {
+    render(<SortWatch question={sortQuestion(2)} info={infoOf(null)} />);
+    expect(document.querySelector('.sort-live-card')).toBeNull();
+    expect(document.querySelector('.sort-reveal.is-live')).toBeNull();
+    expect(document.querySelectorAll('.sort-words li')).toHaveLength(4);
   });
 });
