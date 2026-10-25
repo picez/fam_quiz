@@ -162,9 +162,12 @@ export function attachSockets(
       return;
     }
     if (event.type === 'draft') {
-      // Чернетка капітана — лише учасникам його команди: ні сцені, ні пульту, ні іншим командам.
+      // Чернетка — лише решті команди автора: ні йому самому, ні сцені, ні пульту, ні іншим командам.
       members
-        .filter((socket) => socket.data.identity.role === 'player' && socket.data.identity.playerId !== null && teamOf(room.state, socket.data.identity.playerId) === event.teamId)
+        .filter((socket) => {
+          const { role, playerId } = socket.data.identity;
+          return role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.teamId;
+        })
         .forEach(push);
       return;
     }

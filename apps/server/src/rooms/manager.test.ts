@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { defaultTeams } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
@@ -1266,7 +1266,7 @@ describe('teams (10j)', () => {
     const before = room.state;
     events.length = 0;
     expect(manager.draft(room, olena.playerId, draft)).toEqual({ ok: true });
-    expect(events).toEqual([{ type: 'draft', teamId: red }]);
+    expect(events).toEqual([{ type: 'draft', teamId: red, by: olena.playerId }]);
     expect(room.state).toBe(before);
 
     const teammate = manager.view(room, taras.identity);
@@ -1302,5 +1302,77 @@ describe('teams (10j)', () => {
 
     const solo = playing();
     expect(solo.manager.draft(solo.room, solo.olena.playerId, correct)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('the host removes people: a team id is not found and strands nobody', () => {
+    const { manager, room, ira, red } = teamPlaying([classicRound('r1', [single])]);
+    expect(manager.host(room, { type: 'kick', playerId: red })).toEqual({ ok: false, error: 'not_found' });
+    expect(room.state.players).toHaveLength(2);
+    expect(manager.identify(room.code, 'player', ira.token)?.identity.playerId).toBe(ira.playerId);
+  });
+
+  it('a draft goes stale when its author no longer answers for the team, and comes back with them', () => {
+    const { manager, room, olena, taras } = teamPlaying([classicRound('r1', [text])]);
+    const draft = { type: 'text', value: 'Чернетка-Рівне' } as const;
+    expect(manager.draft(room, olena.playerId, draft)).toEqual({ ok: true });
+    const seen = () => {
+      const view = manager.view(room, taras.identity);
+      return view?.role === 'player' ? view.team?.draft : undefined;
+    };
+    expect(seen()).toEqual(draft);
+    manager.disconnect(room, olena.identity);
+    expect(seen()).toBeNull();
+    manager.connect(room, olena.identity);
+    expect(seen()).toEqual(draft);
+  });
+
+  it('no drafts on a poll or a word cloud: everyone answers for themselves', () => {
+    const { manager, room, olena } = teamPlaying([classicRound('r1', [poll])]);
+    expect(manager.draft(room, olena.playerId, { type: 'poll', optionId: 'a' } as never)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('blitz: the one who buzzed drafts and the captain sees it; the author never sees their own draft', () => {
+    const { manager, room, events, olena, taras, red } = teamPlaying([blitzRound('b1', [text], { check: 'manual' })]);
+    expect(manager.buzz(room, taras.playerId)).toEqual({ ok: true });
+    const draft = { type: 'text', value: 'Чернетка-Ужгород' } as const;
+    events.length = 0;
+    expect(manager.draft(room, olena.playerId, draft)).toEqual({ ok: false, error: 'not_in_queue' });
+    expect(manager.draft(room, taras.playerId, draft)).toEqual({ ok: true });
+    expect(events).toEqual([{ type: 'draft', teamId: red, by: taras.playerId }]);
+    const captain = manager.view(room, olena.identity);
+    expect(captain?.role === 'player' && captain.team?.draft).toEqual(draft);
+    expect(JSON.stringify(manager.view(room, taras.identity))).not.toContain('Чернетка-Ужгород');
+  });
+
+  it('an unchanged draft is not sent again, and drafts closer than 100 ms are ignored', () => {
+    const { scheduler, manager, room, events, olena, taras } = teamPlaying([classicRound('r1', [text])]);
+    const seen = () => {
+      const view = manager.view(room, taras.identity);
+      return view?.role === 'player' ? view.team?.draft : undefined;
+    };
+    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Ки' })).toEqual({ ok: true });
+    events.length = 0;
+    scheduler.advance(200);
+    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Ки' })).toEqual({ ok: true });
+    expect(events).toEqual([]);
+    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Киї' })).toEqual({ ok: true });
+    expect(events).toHaveLength(1);
+    scheduler.advance(50);
+    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: true });
+    expect(events).toHaveLength(1);
+    expect(seen()).toEqual({ type: 'text', value: 'Киї' });
+    scheduler.advance(50);
+    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: true });
+    expect(events).toHaveLength(2);
+    expect(seen()).toEqual({ type: 'text', value: 'Київ' });
+  });
+
+  it('a draft clears once the team answer for the question changes', () => {
+    const { manager, room, olena, taras } = teamPlaying([classicRound('r1', [text])]);
+    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: true });
+    expect(manager.answer(room, olena.playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    const view = manager.view(room, taras.identity);
+    expect(view?.role === 'player' && view.team?.draft).toBeNull();
   });
 });

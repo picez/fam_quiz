@@ -1193,7 +1193,7 @@ describe('teams over sockets (10j)', () => {
     expect(await send(host, 'host:start')).toEqual({ ok: true });
     expect(await send(host, 'host:next')).toEqual({ ok: true });
     for (const who of [olena, taras, ira, marko, stage, host]) await until(who, inPhase('question'));
-    const counts = () => [ira, marko, stage, host].map((who) => who.states);
+    const counts = () => [olena, ira, marko, stage, host].map((who) => who.states);
     const before = counts();
 
     expect(await send(olena, 'player:draft', { draft: { type: 'text', value: 'Чернетка-Львів' } })).toEqual({ ok: true });
