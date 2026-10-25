@@ -27,6 +27,8 @@ export interface GameStanding {
   rank: number | null;
   /** Скільки відповідей зараховано. */
   correct: number;
+  /** Командна гра: нікнейми людей команди; немає — соло. */
+  members?: string[];
 }
 
 /** Відповідь одного гравця на запитання в історії. */
@@ -132,6 +134,8 @@ export interface GameDetail extends Omit<GameSummary, 'playerCount'> {
   questions: GameQuestionResult[];
   /** Коригування рахунку за seq; [] у старих іграх. */
   adjustments: GameAdjustment[];
+  /** Командна гра (10j): таблиця — команди, голоси без балів — від людей. */
+  teams: boolean;
 }
 
 /** Коригування рахунку учасника поза відповідями в історії гри. */
@@ -158,8 +162,11 @@ export interface PlayedGame {
   nickname: string;
   score: number;
   rank: number | null;
+  /** Командна гра — кількість команд (місце — місце команди). */
   playerCount: number;
   correct: number;
   answered: number;
   questionsPlayed: number;
+  /** Командна гра: назва команди людини; null — соло. */
+  team: string | null;
 }

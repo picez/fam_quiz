@@ -1,7 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, isUnscored, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, isUnscored, type Question } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
@@ -12,6 +12,7 @@ import { LADDER_RIGHT, playLadderQuestion } from './testing/ladder-game';
 import { TRIAL_WRONG, playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { createTestDb } from './testing/test-db';
+import { recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
 
 const HOST = 'host-user';
 const correct = { type: 'single', optionId: 'b' } as const;
@@ -1384,5 +1385,88 @@ describe('recorder: ladder (10i)', () => {
     const saved = (await db.select().from(game))[0].plays[0].ladder;
     expect(saved?.contestant).toBe(p1);
     expect(saved?.lifelines?.audience).toEqual({ cast: 1, counts: { b: 1 } });
+  });
+});
+
+describe('recorder: teams (10j)', () => {
+  /** Червоні (капітан Оля) відповідають правильно, Сині (капітан Віра) — ні; далі хмара. */
+  async function teamGame() {
+    const ctx = await recordedTeamGame(makeRoundsQuiz([classicRound('r1', [single, cloud], { speedBonus: false })], { teams: defaultTeams(2) }));
+    const { manager, room, members } = ctx;
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Оля'], correct)).toEqual({ ok: true });
+    expect(manager.answer(room, members['Віра'], wrong)).toEqual({ ok: true });
+    const saved = async () => {
+      await ctx.recorder.idle();
+      return {
+        // За абеткою: порядок бази (collation C) ставить «І» перед «В».
+        participants: (await ctx.db.select().from(participant)).sort((x, y) => x.nickname.localeCompare(y.nickname, 'uk')),
+        answers: await ctx.db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.points)),
+      };
+    };
+    return { ...ctx, saved, red: ctx.teams[0], blue: ctx.teams[1] };
+  }
+
+  it('a team row carries the answers and the score, a member row points to its team, copies the score and has no answers', async () => {
+    const ctx = await teamGame();
+    const { participants, answers } = await ctx.saved();
+    expect(participants.map((p) => [p.nickname, p.isTeam, p.teamId, p.userId, p.score])).toEqual([
+      ['Віра', false, ctx.blue, 'vira-user', 0],
+      ['Ігор', false, ctx.blue, null, 0],
+      ['Оля', false, ctx.red, 'olya-user', 1000],
+      ['Петро', false, ctx.red, null, 1000],
+      ['Сині', true, null, null, 0],
+      ['Червоні', true, null, null, 1000],
+    ]);
+    expect(participants.find((p) => p.nickname === 'Червоні')?.id).toBe(ctx.red);
+    expect(answers.map((a) => [a.participantId, a.questionIndex, a.accepted, a.points, a.payload])).toEqual([
+      [ctx.blue, 0, false, 0, wrong],
+      [ctx.red, 0, true, 1000, correct],
+    ]);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('every member has their own cloud vote row; the teams have none', async () => {
+    const ctx = await teamGame();
+    toQuestion(ctx.manager, ctx.room);
+    const words: Record<string, string[]> = { Оля: ['каштани'], Петро: ['Дніпро'], Віра: ['Лавра'], Ігор: ['каштани', 'метро'] };
+    for (const [name, list] of Object.entries(words)) expect(ctx.manager.answer(ctx.room, ctx.members[name], { type: 'wordcloud', words: list })).toEqual({ ok: true });
+    toQuestion(ctx.manager, ctx.room);
+    const { answers } = await ctx.saved();
+    const votes = answers.filter((a) => a.questionIndex === 1);
+    expect(votes.every((a) => a.attempt === VOTE_ATTEMPT && a.points === 0)).toBe(true);
+    expect(new Map(votes.map((a) => [a.participantId, a.payload]))).toEqual(
+      new Map(Object.entries(words).map(([name, list]) => [ctx.members[name], { type: 'wordcloud', words: list }])),
+    );
+  });
+
+  it('a host adjustment of a team lands on the team row; at the finish the members get the rank of their team', async () => {
+    const ctx = await teamGame();
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.blue, points: 2500 })).toEqual({ ok: true });
+    toEnd(ctx.manager, ctx.room);
+    const { participants } = await ctx.saved();
+    const adjustments = await ctx.db.select().from(scoreAdjustment);
+    expect(adjustments.map((a) => [a.participantId, a.points, a.source])).toEqual([[ctx.blue, 2500, 'host']]);
+    expect(participants.map((p) => [p.nickname, p.score, p.rank])).toEqual([
+      ['Віра', 2500, 1],
+      ['Ігор', 2500, 1],
+      ['Оля', 1000, 2],
+      ['Петро', 1000, 2],
+      ['Сині', 2500, 1],
+      ['Червоні', 1000, 2],
+    ]);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('kicking a member drops their row; kicking the last members of a team drops the team row with all its member rows', async () => {
+    const ctx = await teamGame();
+    expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.members['Петро'] })).toEqual({ ok: true });
+    expect((await ctx.saved()).participants.map((p) => p.nickname)).toEqual(['Віра', 'Ігор', 'Оля', 'Сині', 'Червоні']);
+    expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.members['Віра'] })).toEqual({ ok: true });
+    expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.members['Ігор'] })).toEqual({ ok: true });
+    const { participants, answers } = await ctx.saved();
+    expect(participants.map((p) => p.nickname)).toEqual(['Оля', 'Червоні']);
+    expect(answers.map((a) => a.participantId)).toEqual([ctx.red]);
+    expect(ctx.errors).toEqual([]);
   });
 });

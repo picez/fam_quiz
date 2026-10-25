@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LADDER_PRESETS, LIMITS, READY_BUFFS, SURVIVAL_TYPES, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
+import { LADDER_PRESETS, LIMITS, READY_BUFFS, SURVIVAL_TYPES, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema, type Quiz } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
@@ -9,6 +9,9 @@ import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
 import { schoolQuiz } from './school-quiz';
 import { mosaicQuiz } from './mosaic-quiz';
+import { compassQuiz } from './compass-quiz';
+import { horizonQuiz } from './horizon-quiz';
+import { teamsQuiz } from './teams-quiz';
 
 describe('order labels in the demo quizzes', () => {
   it('ocean and film-year orders carry labels', () => {
@@ -457,5 +460,57 @@ describe('the ladder round in the party quiz (10i)', () => {
     if (round === undefined || round.type !== 'ladder') throw new Error('no ladder round');
     const answers = round.questions.map((question) => (question.type === 'single' ? question.options.find((o) => o.id === question.correctId)?.text : undefined));
     expect(answers).toEqual(['Синій кит', 'Страус', 'Байкал', 'Анхель', 'Анди', 'Швеція', 'Стремінце']);
+  });
+});
+
+describe('the team party quiz (10j)', () => {
+  it('is valid, plays in three teams with the default names and has the buffs and the debuff shop', () => {
+    const result = quizSchema.safeParse(teamsQuiz());
+    expect(result.success ? [] : result.error.issues).toEqual([]);
+    const { settings } = teamsQuiz();
+    expect(settings.teams).toEqual({ count: 3, names: ['Червоні', 'Сині', 'Зелені'] });
+    expect(settings).toMatchObject({ buffs: ['audience', 'double', 'retry'], debuffs: ['fog', 'shake'], debuffShop: true, newcomers: true, leaderboard: 'each' });
+  });
+
+  it('has a classic round with a poll and a cloud, a blitz with the button, a 3×3 board with a voice and a blitz cell, and a classic final', () => {
+    const quiz = teamsQuiz();
+    expect(quiz.rounds.map((r) => r.type)).toEqual(['classic', 'blitz', 'board', 'final']);
+    const [classic, blitz, board, final] = quiz.rounds;
+    expect(classic.type === 'classic' && classic.questions.map((q) => q.type)).toEqual(['poll', 'wordcloud', 'single', 'text', 'numeric']);
+    expect(blitz.type === 'blitz' && [blitz.check, blitz.questions.map((q) => q.type)]).toEqual(['manual', ['text', 'text', 'text', 'text']]);
+    if (board.type !== 'board') throw new Error('no board');
+    expect(board.categories.map((c) => [c.title, c.cells.length])).toEqual([
+      ['Кухні світу', 3],
+      ['Спорт', 3],
+      ['Музика', 3],
+    ]);
+    const cells = board.categories.flatMap((c) => c.cells);
+    expect(cells.filter((c) => c.answerMode === 'voice')).toHaveLength(1);
+    expect(cells.filter((c) => c.kind === 'blitz')).toHaveLength(1);
+    expect(final.type === 'final' && final.wagerMode).toBe('classic');
+  });
+
+  it('has the right answers: the Dnipro, six volleyball players and the Kyiv metro opened in 1960', () => {
+    const questions = questionsOf(teamsQuiz());
+    const find = (text: string) => questions.find((q) => q.text.startsWith(text));
+    const river = find('Яка річка найдовша');
+    expect(river?.type === 'single' && river.options.find((o) => o.id === river.correctId)?.text).toBe('Дніпро');
+    const volleyball = find('Скільки гравців однієї команди');
+    expect(volleyball?.type === 'numeric' && volleyball.correct).toBe(6);
+    const metro = find('У якому році відкрили Київське метро');
+    expect(metro?.type === 'numeric' && metro.correct).toBe(1960);
+  });
+
+  it('repeats no question text of the other demo quizzes', () => {
+    const norm = (text: string) => text.trim().toLocaleLowerCase('uk');
+    const texts = (quiz: Quiz) => [
+      ...questionsOf(quiz).map((q) => q.text),
+      ...(quiz.spares ?? []).map((q) => q.text),
+      ...(quiz.duels?.categories ?? []).flatMap((c) => c.questions.map((q) => q.text)),
+    ];
+    const others = new Set([demoQuiz, partyQuiz(), movieQuiz, eruditeQuiz, schoolQuiz, mosaicQuiz, compassQuiz, horizonQuiz].flatMap(texts).map(norm));
+    const own = texts(teamsQuiz()).map(norm);
+    expect(own.filter((text) => others.has(text))).toEqual([]);
+    expect(new Set(own).size).toBe(own.length);
   });
 });

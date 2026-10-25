@@ -262,3 +262,45 @@ describe('live rooms schema', () => {
     expect(await db.select().from(liveRoom)).toEqual([]);
   });
 });
+
+describe('teams schema (migration 0012)', () => {
+  const gameId = '11111111-1111-4111-8111-111111111111';
+  const teamId = '22222222-2222-4222-8222-222222222222';
+  const memberId = '33333333-3333-4333-8333-333333333333';
+
+  it('migration 0012 keeps old participants as solo rows: not a team, no team', async () => {
+    const { participant } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0011_debuff_purchases');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.execute(sql`
+      INSERT INTO "game" ("id", "host_id", "code", "status", "title", "quiz_snapshot", "questions_played", "started_at")
+      VALUES (${gameId}, 'u1', '123456', 'finished', 'Гра', ${JSON.stringify(makeQuiz([single]))}::jsonb, 1, now())`);
+    await db.execute(sql`
+      INSERT INTO "participant" ("id", "game_id", "nickname", "score", "total_time_ms", "rank")
+      VALUES (${memberId}, ${gameId}, 'Тарас', 900, 3000, 1)`);
+
+    await migrateRest();
+
+    expect(await db.select().from(participant)).toEqual([
+      { id: memberId, gameId, nickname: 'Тарас', userId: null, score: 900, totalTimeMs: 3000, rank: 1, isTeam: false, teamId: null },
+    ]);
+  });
+
+  it('removing a team row removes the rows of its members', async () => {
+    const { game, participant } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.insert(game).values({ id: gameId, hostId: 'u1', code: '123456', status: 'running', title: 'Гра', quizSnapshot: makeQuiz([single]), startedAt: new Date() });
+    await db.insert(participant).values({ id: teamId, gameId, nickname: 'Червоні', score: 0, totalTimeMs: 0, isTeam: true });
+    await db.insert(participant).values({ id: memberId, gameId, nickname: 'Олена', userId: 'u1', score: 0, totalTimeMs: 0, teamId });
+    expect((await db.select().from(participant)).map((p) => [p.nickname, p.isTeam, p.teamId])).toEqual(
+      expect.arrayContaining([
+        ['Червоні', true, null],
+        ['Олена', false, teamId],
+      ]),
+    );
+
+    await db.delete(participant).where(eq(participant.id, teamId));
+    expect(await db.select().from(participant)).toEqual([]);
+  });
+});

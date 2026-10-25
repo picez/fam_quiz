@@ -20,6 +20,7 @@ const played = (over: Partial<PlayedGame>): PlayedGame => ({
   correct: 4,
   answered: 5,
   questionsPlayed: 5,
+  team: null,
   ...over,
 });
 

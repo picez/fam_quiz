@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import type { Answer, Question } from '@quiz/shared';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { defaultTeams, type Answer, type Question } from '@quiz/shared';
+import { LADDER_RIGHT, LADDER_WRONG, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame, playerGames } from './history';
@@ -15,6 +15,7 @@ import { playWipeout } from './testing/wipeout-game';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { seedGame } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
+import { TEAM_HOST, recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
 
 let ctx: Awaited<ReturnType<typeof buildApp>>;
 let db: Db;
@@ -362,6 +363,7 @@ describe('gameTables', () => {
       {
         participantId: p.a,
         userId: account.id,
+        memberUserIds: [],
         score: 30,
         rank: 1,
         rows: expect.arrayContaining([
@@ -369,10 +371,10 @@ describe('gameTables', () => {
           { roundIndex: 1, attempt: 0, accepted: true, points: 10, wager: null },
         ]),
       },
-      { participantId: p.b, userId: null, score: 10, rank: 2, rows: [{ roundIndex: 1, attempt: 1, accepted: false, points: 10, wager: null }] },
+      { participantId: p.b, userId: null, memberUserIds: [], score: 10, rank: 2, rows: [{ roundIndex: 1, attempt: 1, accepted: false, points: 10, wager: null }] },
     ]);
     expect(players[0].rows).toHaveLength(2);
-    expect(byId.get(ids.old)!.players).toEqual([{ participantId: p.c, userId: null, score: 0, rank: null, rows: [] }]);
+    expect(byId.get(ids.old)!.players).toEqual([{ participantId: p.c, userId: null, memberUserIds: [], score: 0, rank: null, rows: [] }]);
   });
 });
 
@@ -1662,5 +1664,74 @@ describe('history: ladder (10i)', () => {
     expect(detail.adjustments).toMatchObject([{ nickname: 'Оля', points: 1000, source: 'ladder' }]);
     expect(detail.standings.find((s) => s.nickname === 'Оля')?.score).toBe(1000);
     await local.app.close();
+  });
+});
+
+describe('history: teams (10j)', () => {
+  it('the table is the teams with their members; scored answers come from the teams, cloud votes from the people', async () => {
+    const t = await recordedTeamGame(
+      makeRoundsQuiz([classicRound('r1', [single, cloud], { speedBonus: false }), blitzRound('b1', [text], { check: 'manual' })], { teams: defaultTeams(2) }),
+    );
+    const { manager, room, members } = t;
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Оля'], { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(manager.answer(room, members['Віра'], { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    toQuestion(manager, room);
+    for (const [name, word] of [['Оля', 'каштани'], ['Петро', 'Дніпро'], ['Віра', 'Лавра'], ['Ігор', 'метро']]) {
+      expect(manager.answer(room, members[name], { type: 'wordcloud', words: [word] })).toEqual({ ok: true });
+    }
+    toQuestion(manager, room);
+    // Бліц: натискає Петро (не капітан) — і відповідає він; ведучий оцінює Червоних.
+    expect(manager.buzz(room, members['Петро'])).toEqual({ ok: true });
+    expect(manager.answer(room, members['Петро'], { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'judge', playerId: t.teams[0], correct: true })).toEqual({ ok: true });
+    toEnd(manager, room);
+    await t.recorder.idle();
+    expect(t.errors).toEqual([]);
+
+    const detail = await hostGame(t.db, TEAM_HOST, room.id);
+    expect(detail?.teams).toBe(true);
+    expect(detail?.standings.map((s) => [s.nickname, s.members, s.rank, s.correct])).toEqual([
+      ['Червоні', ['Оля', 'Петро'], 1, 2],
+      ['Сині', ['Віра', 'Ігор'], 2, 0],
+    ]);
+    const [classic, votes, blitz] = detail?.questions ?? [];
+    expect(classic.responses.map((r) => [r.nickname, r.accepted])).toEqual([
+      ['Червоні', true],
+      ['Сині', false],
+    ]);
+    expect([classic.answered, classic.accepted]).toEqual([2, 1]);
+    expect(votes.responses.map((r) => [r.nickname, r.answer])).toEqual([
+      ['Оля', { type: 'wordcloud', words: ['каштани'] }],
+      ['Петро', { type: 'wordcloud', words: ['Дніпро'] }],
+      ['Віра', { type: 'wordcloud', words: ['Лавра'] }],
+      ['Ігор', { type: 'wordcloud', words: ['метро'] }],
+    ]);
+    expect(votes.answered).toBe(4);
+    expect(blitz.responses.map((r) => [r.nickname, r.accepted])).toEqual([['Червоні', true]]);
+  });
+
+  it('a team is the ladder contestant: the contestant is the team name, the other team is the hall', async () => {
+    const t = await recordedTeamGame(makeRoundsQuiz([ladderRound('rl')], { teams: defaultTeams(2) }));
+    const { manager, room, members, teams } = t;
+    expect(manager.hostLadderPick(room, teams[0])).toEqual({ ok: true });
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Віра'], LADDER_WRONG[0])).toEqual({ ok: true });
+    expect(manager.answer(room, members['Оля'], LADDER_RIGHT[0])).toEqual({ ok: true });
+    if (room.state.phase === 'question') manager.host(room, { type: 'lock' });
+    manager.host(room, { type: 'end' });
+    await t.recorder.idle();
+    expect(t.errors).toEqual([]);
+
+    const detail = await hostGame(t.db, TEAM_HOST, room.id);
+    expect(detail?.questions[0].ladder).toMatchObject({ contestant: 'Червоні', step: 0, hall: { answered: 1, right: 0 } });
+  });
+
+  it('a solo game is not a team game and its table has no members', async () => {
+    const [account] = await db.insert(user).values({ id: 'solo-teams-host', name: 'Ведуча', email: 'solo-teams-host@example.com' }).returning();
+    const { gameId } = await seedGame(db, { hostId: account.id, startedAt: new Date(), players: [{ userId: null, nickname: 'Тарас', score: 0, rank: 1 }] });
+    const detail = await hostGame(db, account.id, gameId);
+    expect(detail?.teams).toBe(false);
+    expect(detail?.standings).toEqual([{ participantId: expect.any(String), nickname: 'Тарас', score: 0, rank: 1, correct: 0 }]);
   });
 });

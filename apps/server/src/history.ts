@@ -26,7 +26,7 @@ import {
   type Round,
 } from '@quiz/shared';
 import { orderBluffOptions } from '@quiz/engine';
-import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 
@@ -287,13 +287,24 @@ function ladderResult(
 /** Кількість різних значень: у бліці гравець може мати кілька рядків-спроб на одне запитання. */
 const distinct = (values: unknown[]) => new Set(values).size;
 
-/** Кількість учасників у кожній із заданих ігор. */
+/** Кількість людей (соло-гравців або людей команд, без рядків команд) у кожній із заданих ігор. */
 async function playerCounts(db: Db, gameIds: string[]): Promise<Map<string, number>> {
   if (gameIds.length === 0) return new Map();
   const rows = await db
     .select({ gameId: participant.gameId, players: count() })
     .from(participant)
-    .where(inArray(participant.gameId, gameIds))
+    .where(and(inArray(participant.gameId, gameIds), eq(participant.isTeam, false)))
+    .groupBy(participant.gameId);
+  return new Map(rows.map((row) => [row.gameId, row.players]));
+}
+
+/** Серед скількох рахується місце в кожній із заданих ігор: соло — гравці, командна гра — команди (рядки без team_id). */
+async function rivalCounts(db: Db, gameIds: string[]): Promise<Map<string, number>> {
+  if (gameIds.length === 0) return new Map();
+  const rows = await db
+    .select({ gameId: participant.gameId, players: count() })
+    .from(participant)
+    .where(and(inArray(participant.gameId, gameIds), isNull(participant.teamId)))
     .groupBy(participant.gameId);
   return new Map(rows.map((row) => [row.gameId, row.players]));
 }
@@ -363,18 +374,30 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
           )
           .orderBy(asc(scoreAdjustment.seq));
 
+  // Командна гра (10j): таблиця — рядки команд, люди — склад під назвою (за нікнеймом).
+  const teams = participants.some((p) => p.isTeam);
+  const membersOf = (teamId: string) =>
+    participants
+      .filter((p) => p.teamId === teamId)
+      .map((p) => ({ participantId: p.id, nickname: p.nickname }))
+      .sort((a, b) => a.nickname.localeCompare(b.nickname));
   const standings = participants
+    .filter((p) => p.teamId === null)
     .map((p) => ({
       participantId: p.id,
       nickname: p.nickname,
       score: p.score,
       rank: p.rank,
       correct: distinct(answers.filter((a) => a.participantId === p.id && a.accepted).map((a) => a.questionIndex)),
+      ...(p.isTeam ? { members: membersOf(p.id).map((m) => m.nickname) } : {}),
     }))
     // Спершу за місцем; до фінішу місць немає, тоді за балами.
     .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || b.score - a.score || a.nickname.localeCompare(b.nickname));
+  // Голоси без балів у командній грі подають люди: їхні рядки йдуть командами за таблицею.
+  const voters = teams ? standings.flatMap((s) => membersOf(s.participantId)) : standings;
 
   const quiz = snapshotOf(row.quizSnapshot);
+  // Усі рядки, і людей теж: голоси опитувань і хмари стоять на рядках людей.
   const nicknames = new Map(participants.map((p) => [p.id, p.nickname]));
   // Зіпсований знімок не валить деталі: турнірна таблиця є, запитань і раундів немає.
   const questions = (quiz === null ? [] : playedQuestions(quiz, row.plays, row.questionsPlayed)).flatMap(({ roundIndex, question, ref }, index) => {
@@ -398,7 +421,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         ...(cloudRows === undefined ? {} : { surveyFromCloud: true as const }),
         ...(ref?.bluff === undefined ? {} : { bluff: bluffResult(ref, nicknames) }),
         ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
-        responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
+        responses: responsesOf(given, isUnscored(question) ? voters : standings, quiz === null ? [] : allSpares(quiz)),
         ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),
         ...(round?.type === 'survival' && quiz !== null ? { survival: survivalResult(quiz, row.plays, index, standings) } : {}),
         ...(round?.type === 'ladder' && quiz !== null ? { ladder: ladderResult(quiz, row.plays, index, nicknames, given) } : {}),
@@ -419,6 +442,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
     questions,
+    teams,
     adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname }) => ({
       seq,
       roundIndex,
@@ -530,23 +554,29 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
   const rows = limit === null ? await query : await query.limit(limit);
   if (rows.length === 0) return [];
 
-  const players = await playerCounts(
+  // Місце рахується серед команд (командна гра) чи гравців (соло).
+  const players = await rivalCounts(
     db,
     rows.map((row) => row.game.id),
+  );
+  // Людина командної гри: відповіді, місце й перемога — її команди; її власні рядки — лише голоси.
+  const teamIds = [...new Set(rows.flatMap((row) => (row.participant.teamId === null ? [] : [row.participant.teamId])))];
+  const teamNames = new Map(
+    teamIds.length === 0
+      ? []
+      : (await db.select({ id: participant.id, nickname: participant.nickname }).from(participant).where(inArray(participant.id, teamIds))).map((t) => [t.id, t.nickname]),
   );
   const answers = await db
     .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted, attempt: answer.attempt })
     .from(answer)
-    .where(
-      inArray(
-        answer.participantId,
-        rows.map((row) => row.participant.id),
-      ),
-    );
+    .where(inArray(answer.participantId, [...rows.map((row) => row.participant.id), ...teamIds]));
 
   const byParticipant = groupBy(answers, (a) => a.participantId);
   return rows.map((row) => {
-    const mine = byParticipant.get(row.participant.id) ?? [];
+    const { teamId } = row.participant;
+    // Рядок, що грав: команда людини або сам гравець.
+    const playing = teamId ?? row.participant.id;
+    const mine = [...(teamId === null ? [] : (byParticipant.get(teamId) ?? [])), ...(byParticipant.get(row.participant.id) ?? [])];
     return {
       played: {
         gameId: row.game.id,
@@ -566,17 +596,18 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
             row.game.quizSnapshot,
             row.game.plays,
             row.game.questionsPlayed,
-            row.participant.id,
+            playing,
             new Set(mine.filter((a) => a.accepted && a.attempt === 0).map((a) => a.questionIndex)),
           ) -
-          unplayedSurvival(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed, row.participant.id) -
+          unplayedSurvival(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed, playing) -
           unplayedLadder(
             row.game.quizSnapshot,
             row.game.plays,
             row.game.questionsPlayed,
-            row.participant.id,
+            playing,
             new Set(mine.filter((a) => isAnswerRow(a.attempt)).map((a) => a.questionIndex)),
           ),
+        team: teamId === null ? null : (teamNames.get(teamId) ?? null),
       },
       marks: mine.filter((a) => isAnswerRow(a.attempt)).map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
     };
@@ -602,6 +633,8 @@ export interface TableRow {
 export interface TablePlayer {
   participantId: string;
   userId: string | null;
+  /** Командна гра: акаунти людей команди; соло — []. */
+  memberUserIds: string[];
   score: number;
   rank: number | null;
   rows: TableRow[];
@@ -662,9 +695,16 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
   }
 
   const participants = await db
-    .select({ id: participant.id, gameId: participant.gameId, userId: participant.userId, score: participant.score, rank: participant.rank })
+    .select({ id: participant.id, gameId: participant.gameId, userId: participant.userId, score: participant.score, rank: participant.rank, teamId: participant.teamId })
     .from(participant)
     .where(inArray(participant.gameId, gameIds));
+  // Рядки людей командної гри не грають самі: їхні акаунти йдуть у memberUserIds команди, а голоси таблиця й так відкидає.
+  const memberUsers = new Map<string, string[]>();
+  for (const p of participants) {
+    if (p.teamId === null || p.userId === null) continue;
+    memberUsers.set(p.teamId, [...(memberUsers.get(p.teamId) ?? []), p.userId]);
+  }
+  const players = participants.filter((p) => p.teamId === null);
   const answers =
     participants.length === 0
       ? []
@@ -675,7 +715,7 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
             and(
               inArray(
                 answer.participantId,
-                participants.map((p) => p.id),
+                players.map((p) => p.id),
               ),
               // Голоси опитувань і хмари не бувають спробами: таблиця рахує лише відповіді й штрафи.
               ne(answer.attempt, VOTE_ATTEMPT),
@@ -709,7 +749,7 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
     wager: null,
     source,
   }));
-  const playersByGame = groupBy(participants, (p) => p.gameId);
+  const playersByGame = groupBy(players, (p) => p.gameId);
   const rowsByParticipant = groupBy<TableRow & { participantId: string }>([...answers, ...adjustmentRows], (a) => a.participantId);
   return games.map((row) => ({
     gameId: row.id,
@@ -719,6 +759,7 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
     players: (playersByGame.get(row.id) ?? []).map((p) => ({
       participantId: p.id,
       userId: p.userId,
+      memberUserIds: memberUsers.get(p.id) ?? [],
       score: p.score,
       rank: p.rank,
       rows: (rowsByParticipant.get(p.id) ?? []).map(({ roundIndex, attempt, accepted, points, wager, source }) => ({
