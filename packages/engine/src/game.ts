@@ -18,7 +18,9 @@ import {
   type FinalRound,
   type LadderOutcomeKind,
   type Round,
+  type TeamForm,
   type TrialKind,
+  DEFAULT_TEAM_FORM,
   guidePages,
   newcomersOn,
   rulesOf,
@@ -89,6 +91,7 @@ import {
   stopLadder,
   submitLadderAnswer,
 } from './ladder';
+import { addMember, dropMember, formTeams, memberConnected, memberOf, teamsOn, withoutTeam } from './teams';
 import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
@@ -183,6 +186,34 @@ export interface Play {
   survival?: SurvivalPlay;
   /** «Мільйонер»: учасник, сходинка, підказки, рішення й підсумок драбини (10i). */
   ladder?: LadderPlay;
+  /** Бліц у командній грі: хто з учасників команди натиснув останнім; ключ — id команди (10j). */
+  buzzers?: Record<string, string>;
+}
+
+/** Учасник командної гри (людина); у state.players після старту — команди. */
+export interface TeamMember {
+  /** Id гравця кімнати (токен веде до нього). */
+  id: string;
+  nickname: string;
+  connected: boolean;
+  /** null — ще без команди (лише в лобі). */
+  teamId: string | null;
+}
+
+/** Командна гра (10j). */
+export interface TeamsState {
+  /** Спосіб формування команд у лобі. */
+  form: TeamForm;
+  /** Команди в порядку налаштувань; color — позиція в налаштуваннях (0…5), не змінюється після старту. */
+  list: { id: string; name: string; color: number }[];
+  /** Учасники в порядку приходу; порядок у команді — цей самий. */
+  members: TeamMember[];
+  /** Капітан, якого вибрав ведучий; немає ключа — перший за порядком. */
+  captains: Record<string, string>;
+  /** Кидки кубиків у лобі; null — кидків не було або їх скасовано. */
+  dice: DiceState | null;
+  /** Дуелянт команди в поточній дуелі; немає ключа — капітан. Очищується, коли дуелі немає. */
+  duelists: Record<string, string>;
 }
 
 /** «Мільйонер»: учасник драбини поточного раунду. */
@@ -557,11 +588,15 @@ export interface GameState {
   awaiting: string[];
   /** «Мільйонер»: учасник драбини; ключ є лише в раунді «Мільйонер» (від intro до round_end) (10i). */
   ladder?: LadderState;
+  /** Командна гра: спосіб формування, команди, учасники, капітани, кубики лобі, дуелянти; ключ є лише в командній грі (10j). */
+  teams?: TeamsState;
 }
 
 export interface GameOptions {
   /** Заставки переходів (8c); вимкнено — час іде як до 8c (тести рушія й сервера). */
   transitions?: boolean;
+  /** Id команд у порядку налаштувань (сервер дає uuid); без поля — t1…t6. Ігнорується без settings.teams. */
+  teamIds?: string[];
 }
 
 export type Result = { ok: true; state: GameState } | { ok: false; error: ErrorCode };
@@ -570,6 +605,7 @@ export const ok = (state: GameState): Result => ({ ok: true, state });
 export const fail = (error: ErrorCode): Result => ({ ok: false, error });
 
 export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
+  const teams = quiz.settings.teams;
   return {
     quiz,
     phase: 'lobby',
@@ -598,6 +634,18 @@ export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
     splash: null,
     guidePage: 0,
     awaiting: [],
+    ...(teams === undefined
+      ? {}
+      : {
+          teams: {
+            form: DEFAULT_TEAM_FORM,
+            list: teams.names.map((name, i) => ({ id: options.teamIds?.[i] ?? `t${i + 1}`, name, color: i })),
+            members: [],
+            captains: {},
+            dice: null,
+            duelists: {},
+          },
+        }),
   };
 }
 
@@ -631,6 +679,8 @@ export function addPlayer(state: GameState, player: { id: string; nickname: stri
   if (state.phase !== 'lobby') return fail('wrong_phase');
   const nickname = player.nickname.replace(/\s+/g, ' ').trim();
   if (nickname.length < LIMITS.nicknameMin || nickname.length > LIMITS.nicknameMax) return fail('nickname_invalid');
+  // Командна гра: люди — учасники, а не гравці рушія.
+  if (teamsOn(state)) return addMember(state, { id: player.id, nickname });
   if (state.players.length >= LIMITS.maxPlayers) return fail('room_full');
   const key = normalizeText(nickname);
   if (state.players.some((p) => normalizeText(p.nickname) === key)) return fail('nickname_taken');
@@ -638,7 +688,19 @@ export function addPlayer(state: GameState, player: { id: string; nickname: stri
   return ok({ ...state, players: [...state.players, added] });
 }
 
+/**
+ * Вилучення гравця. Командна гра: id людини — dropMember (остання людина забирає команду);
+ * id команди — команда зникає разом зі своїми людьми, а далі як гравець.
+ */
 export function removePlayer(state: GameState, playerId: string): Result {
+  if (teamsOn(state)) {
+    if (memberOf(state, playerId) !== undefined) return dropMember(state, playerId);
+    if (state.players.some((p) => p.id === playerId)) return removeFromGame(withoutTeam(state, playerId), playerId);
+  }
+  return removeFromGame(state, playerId);
+}
+
+function removeFromGame(state: GameState, playerId: string): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   // «Мільйонер»: учасник, вилучений посеред драбини, зупиняє її без виграшу; запитання, що йде, зал дограє.
   const ladderPlay = ladderPlayOf(state);
@@ -764,6 +826,8 @@ function dropFromFinal(final: FinalState, playerId: string): FinalState {
 }
 
 export function setConnected(state: GameState, playerId: string, connected: boolean, now: number): Result {
+  // Командна гра: зв'язок людини; команда міняє зв'язок, лише коли змінилося «хтось із команди на зв'язку».
+  if (teamsOn(state) && memberOf(state, playerId) !== undefined) return memberConnected(state, playerId, connected, now);
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   const players = state.players.map((p) => (p.id === playerId ? { ...p, connected } : p));
   // Гравець повернувся після перезапуску (або вийшов знову): далі як звичайний гравець.
@@ -1267,8 +1331,15 @@ function enterFirstRound(state: GameState, now?: number): GameState {
  */
 export function start(state: GameState, now?: number): Result {
   if (state.phase !== 'lobby') return fail('wrong_phase');
-  if (state.players.length === 0) return fail('no_players');
-  const ready = enterRound({ ...state, roundIndex: 0 });
+  // Командна гра: склад команд стає гравцями рушія (або teams_few).
+  let formed = state;
+  if (teamsOn(state)) {
+    const teamed = formTeams(state);
+    if (!teamed.ok) return teamed;
+    formed = teamed.state;
+  }
+  if (formed.players.length === 0) return fail('no_players');
+  const ready = enterRound({ ...formed, roundIndex: 0 });
   return ok(newcomersOn(state.quiz) ? { ...ready, phase: 'guide', guidePage: 0 } : enterFirstRound(ready, now));
 }
 

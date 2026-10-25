@@ -9,8 +9,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 7 — 10g: Play.wipeout (рішення «Ва-банк» і кінець раунду).
  * 8 — 10h: Play.survival (привиди, «на межі», випробування й кінець «Вибування»).
  * 9 — 10i: GameState.ladder (учасник драбини), Play.ladder (сходинка, підказки, рішення й підсумок «Мільйонера»).
+ * 10 — 10j: GameState.teams (команди, учасники, капітани, кубики лобі, дуелянти), Play.buzzers (хто з команди натиснув у бліці).
  */
-export const GAME_STATE_VERSION = 9;
+export const GAME_STATE_VERSION = 10;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -28,8 +29,10 @@ export const GAME_STATE_VERSION = 9;
  * не може містити «Вибування»: тож кімната, збережена до розгортання 10h, теж відновлюється.
  * 8 → 9 лише додала необов'язкові GameState.ladder і Play.ladder (і значення AdjustmentSource 'ladder'), а стан версій 2–8
  * не може містити «Мільйонера»: тож кімната, збережена до розгортання 10i, теж відновлюється.
+ * 9 → 10 лише додала необов'язкові GameState.teams і Play.buzzers, а стан версій 2–9 не може містити командної гри
+ * (без teams — соло): тож кімната, збережена до розгортання 10j, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті
@@ -51,5 +54,7 @@ export function suspend(state: GameState, at: number): GameState {
     const off = setConnected(s, p.id, false, at);
     if (off.ok) s = off.state;
   }
+  // Командна гра: люди теж поза зв'язком; awaiting — id команд, що були на зв'язку.
+  if (s.teams !== undefined) s = { ...s, teams: { ...s.teams, members: s.teams.members.map((m) => ({ ...m, connected: false })) } };
   return { ...s, awaiting };
 }

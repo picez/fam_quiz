@@ -28,24 +28,27 @@ export function dicePending(board: BoardState | null): boolean {
   return board?.dice != null && board.dice.tour.length > 0;
 }
 
-/** Тур закрито, коли всі кинули або в ньому менше двох гравців; нічия дає новий тур, інакше — порядок. */
-function settle(board: BoardState, playerIds: string[]): BoardState {
-  const dice = board.dice;
-  if (dice === null) return board;
-  const known = new Set(playerIds);
+/**
+ * Закриття туру над голим DiceState: тур триває (є waiting і ≥ 2 у турі) → { dice, order: null };
+ * нічия → новий тур із тими, хто зрівнявся (order: null); інакше → { dice з порожнім туром, order: diceOrder(ids, throws) }.
+ * Спільне для кубиків поля й кубиків команд у лобі (10j).
+ */
+export function settleDice(dice: DiceState, ids: string[]): { dice: DiceState; order: string[] | null } {
+  const known = new Set(ids);
   const tour = dice.tour.filter((id) => known.has(id));
   const waiting = dice.waiting.filter((id) => known.has(id));
-  if (waiting.length > 0 && tour.length >= 2) return { ...board, dice: { ...dice, tour, waiting } };
+  if (waiting.length > 0 && tour.length >= 2) return { dice: { ...dice, tour, waiting }, order: null };
   const seqOf = (id: string) => dice.throws[id] ?? [];
-  const tied = playerIds.filter((id) => playerIds.some((other) => other !== id && sameThrows(seqOf(id), seqOf(other))));
-  if (tied.length > 0) return { ...board, dice: { ...dice, tour: tied, waiting: [...tied], tourNo: dice.tourNo + 1 } };
-  return {
-    ...board,
-    circle: diceOrder(playerIds, dice.throws),
-    done: 0,
-    circleNo: 1,
-    dice: { ...dice, tour: [], waiting: [] },
-  };
+  const tied = ids.filter((id) => ids.some((other) => other !== id && sameThrows(seqOf(id), seqOf(other))));
+  if (tied.length > 0) return { dice: { ...dice, tour: tied, waiting: [...tied], tourNo: dice.tourNo + 1 }, order: null };
+  return { dice: { ...dice, tour: [], waiting: [] }, order: diceOrder(ids, dice.throws) };
+}
+
+/** Тур закрито, коли всі кинули або в ньому менше двох гравців; нічия дає новий тур, інакше — порядок. */
+function settle(board: BoardState, playerIds: string[]): BoardState {
+  if (board.dice === null) return board;
+  const { dice, order } = settleDice(board.dice, playerIds);
+  return order === null ? { ...board, dice } : { ...board, circle: order, done: 0, circleNo: 1, dice };
 }
 
 const idsOf = (state: GameState) => state.players.map((p) => p.id);
@@ -60,7 +63,8 @@ export function startDice(state: GameState): Result {
   return ok({ ...state, board: settle({ ...state.board, dice }, ids) });
 }
 
-function throwFor(dice: DiceState, playerId: string, rng: Rng): DiceState {
+/** Один кидок: грань 1…6 від rng; гравець виходить з waiting. Спільне з кубиками команд (10j). */
+export function throwFor(dice: DiceState, playerId: string, rng: Rng): DiceState {
   const face = Math.floor(rng() * 6) + 1;
   return {
     ...dice,
