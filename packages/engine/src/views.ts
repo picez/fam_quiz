@@ -44,6 +44,12 @@ import {
   type SurvivalRow,
   type SurvivalStatus,
   type WipeoutInfo,
+  type LadderInfo,
+  type LadderRound,
+  type LadderStep,
+  hallPoints,
+  ladderPrize,
+  LIFELINES,
   type WipeoutRow,
   type FinalEntry,
   type FinalInfo,
@@ -87,10 +93,11 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type Play, type PlayerState } from './game';
+import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
+import { contestantOf, decisionPending, inLadderRound, lifelinesUsed } from './ladder';
 import { decisionOpen, inWipeoutRound, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
 import {
   answerLimitMs,
@@ -326,6 +333,8 @@ function pinMarks(state: GameState, forHost: boolean): PinMark[] | null {
 
 /** Найменший і найбільший час запитань раунду з таймером; null — таймера немає в жодного. */
 function timesOf(round: Round): { min: number; max: number } | null {
+  // «Мільйонер» без таймера: час запитань не діє.
+  if (round.type === 'ladder' && !round.timer) return null;
   const limits = roundQuestions(round).flatMap((q) => (isTimed(q) ? [q.timeLimit] : []));
   return limits.length === 0 ? null : { min: Math.min(...limits), max: Math.max(...limits) };
 }
@@ -1224,6 +1233,128 @@ function playerWipeout(state: GameState, playerId: string): PlayerView['me']['wi
   return { status: own.status, bank: own.bank, decision, canDecide: windowOpen && wasIn && decision === null && !state.paused };
 }
 
+const LADDER_PHASES: Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard', 'round_end', 'finished'];
+const LADDER_QUESTION_PHASES: Phase[] = ['question', 'locked', 'reveal'];
+
+/** Останнє запитання «Мільйонера» поточного раунду з його драбиною; null — драбина ще не почалася. */
+function ladderLast(state: GameState): (Play & { ladder: LadderPlay }) | null {
+  const plays = state.plays.filter((p) => p.roundIndex === state.roundIndex && p.ladder !== undefined);
+  const last = plays.at(-1);
+  return last?.ladder === undefined ? null : { ...last, ladder: last.ladder };
+}
+
+/** Глядачі «Мільйонера»: усі, крім учасника, хто на зв'язку чи вже відповів. */
+function ladderHall(state: GameState, play: Play & { ladder: LadderPlay }): string[] {
+  return state.players
+    .filter((p) => p.id !== play.ladder.contestantId && (p.connected || state.awaiting.includes(p.id) || Object.hasOwn(play.answers, p.id)))
+    .map((p) => p.id);
+}
+
+/** Сходинки: пройдені, поточна й помилка — лише те, що вже розкрито. */
+function ladderSteps(state: GameState, round: LadderRound, last: (Play & { ladder: LadderPlay }) | null): LadderStep[] {
+  const stateOf = (i: number): LadderStep['state'] => {
+    if (last === null || state.phase === 'intro') return 'ahead';
+    const { step, outcome, contestantId } = last.ladder;
+    if (state.phase === 'question' || state.phase === 'locked') return i < step ? 'passed' : i === step ? 'current' : 'ahead';
+    if (state.phase === 'reveal') {
+      if (i !== step) return i < step ? 'passed' : 'ahead';
+      const right = last.answers[contestantId]?.grade === 'correct';
+      return right || !state.players.some((p) => p.id === contestantId) ? 'current' : 'failed';
+    }
+    // leaderboard і далі: підсумок, якщо він є; інакше учасник правильно відповів і вирішує.
+    if (outcome === null) return i <= step ? 'passed' : 'ahead';
+    if (i < outcome.passed) return 'passed';
+    return outcome.kind === 'wrong' && i === step ? 'failed' : 'ahead';
+  };
+  return round.levels.map((level, i) => ({ level, safe: round.safe.includes(i), state: stateOf(i) }));
+}
+
+/**
+ * «Мільйонер»: драбина, учасник, підказки й зал. Нічого раніше розкриття: правильності залу немає до reveal,
+ * підсумку драбини до leaderboard, вибору учасника до locked (пульт бачить наживо), підсумку залу до закриття голосування.
+ */
+function ladderInfo(state: GameState, forHost: boolean): LadderInfo | null {
+  const round = currentRound(state);
+  if (round?.type !== 'ladder' || !LADDER_PHASES.includes(state.phase)) return null;
+  const last = ladderLast(state);
+  const steps = ladderSteps(state, round, last);
+  const passed = steps.filter((step) => step.state === 'passed').length;
+  const open = last !== null && LADDER_QUESTION_PHASES.includes(state.phase);
+  const contestantId = last?.ladder.contestantId ?? contestantOf(state);
+  const lifelines = last?.ladder.lifelines ?? {};
+  const used = lifelinesUsed(state);
+  const audience = open ? lifelines.audience : undefined;
+  const hall = last === null ? [] : ladderHall(state, last);
+  const answered = last === null ? 0 : hall.filter((id) => Object.hasOwn(last.answers, id)).length;
+  const seesPick = forHost ? open : state.phase === 'locked' || state.phase === 'reveal';
+  const pick = last !== null && contestantId !== null && seesPick ? last.answers[contestantId]?.answer : null;
+  const showHall = state.phase === 'reveal' || state.phase === 'leaderboard';
+  const shownOutcome = state.phase === 'leaderboard' || state.phase === 'round_end' || state.phase === 'finished';
+  const decision = state.phase === 'leaderboard' && last !== null ? (last.ladder.decision ?? (last.ladder.outcome === null ? 'pending' : null)) : null;
+  return {
+    contestant: contestantId !== null && state.players.some((p) => p.id === contestantId) ? blitzPlayer(state, contestantId) : null,
+    pick: round.pick,
+    drawn: state.ladder?.drawn ?? false,
+    steps,
+    current: last === null ? -1 : last.ladder.step,
+    timer: round.timer,
+    lifelines: LIFELINES.filter((kind) => round.lifelines.includes(kind)).map((kind) => ({
+      kind,
+      state: lifelines[kind] !== undefined ? ('active' as const) : used.includes(kind) ? ('used' as const) : ('ready' as const),
+    })),
+    fifty: open && lifelines.fifty !== undefined ? lifelines.fifty.removed : null,
+    audience:
+      audience === undefined || last === null
+        ? null
+        : {
+            state: audience.closed ? 'closed' : 'voting',
+            ...(audience.closed ? { endsAt: null, remainingMs: null } : voteClock(state, audience.endsAt)),
+            voted: audience.closed ? Object.keys(audience.ballots).length : answered,
+            total: hall.length,
+            tally: audience.closed ? tallyOf(voteTally(last.question, audience.ballots)) : null,
+          },
+    hint: open && lifelines.hint !== undefined ? (lifelines.hint.text !== null ? 'text' : lifelines.hint.aloud ? 'aloud' : 'waiting') : null,
+    contestantPick: pick?.type === 'single' ? pick.optionId : null,
+    hall: {
+      answered,
+      total: hall.length,
+      right: showHall && last !== null ? hall.filter((id) => last.answers[id]?.grade === 'correct').length : null,
+    },
+    decision,
+    outcome: shownOutcome && last?.ladder.outcome != null ? { ...last.ladder.outcome } : null,
+    banked: passed > 0 ? round.levels[passed - 1] : 0,
+    guaranteed: ladderPrize(round.levels, round.safe, passed, 'wrong'),
+  };
+}
+
+/** Підсумок залу без вільних відповідей: лише скільки й за які варіанти. */
+function tallyOf(tally: ReturnType<typeof voteTally>): { cast: number; counts: Record<string, number> } {
+  return { cast: tally.cast, counts: tally.counts };
+}
+
+/** Власний стан гравця в «Мільйонері»; null поза раундом. */
+function playerLadder(state: GameState, playerId: string): PlayerView['me']['ladder'] {
+  const info = ladderInfo(state, false);
+  if (info === null) return null;
+  const last = ladderLast(state);
+  const contestant = info.contestant?.playerId === playerId;
+  const open = last !== null && LADDER_QUESTION_PHASES.includes(state.phase);
+  const hint = contestant && open ? last.ladder.lifelines.hint : undefined;
+  const ended = state.phase === 'round_end' || state.phase === 'finished';
+  return {
+    role: contestant ? 'contestant' : 'hall',
+    canLifeline: contestant && state.phase === 'question' && !state.paused && last !== null && !Object.hasOwn(last.answers, playerId),
+    hint: hint === undefined ? null : playerHint(hint),
+    canDecide: contestant && decisionPending(state) && !state.paused,
+    hallClosed: !contestant && open && last.ladder.lifelines.audience?.closed === true,
+    hallPoints: !contestant && open ? hallPoints(last.ladder.level) : null,
+    won:
+      contestant && ended
+        ? state.adjustments.filter((a) => a.source === 'ladder' && a.roundIndex === state.roundIndex && a.playerId === playerId).reduce((sum, a) => sum + a.points, 0)
+        : null,
+  };
+}
+
 const SURVIVAL_PHASES: Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard', 'round_end', 'finished'];
 
 /** Номер запитання раунду (з 1), після якого гравець вибув; null — не вибув. */
@@ -1384,6 +1515,7 @@ function base(state: GameState, forHost: boolean) {
     final: finalInfo(state),
     wipeout: wipeoutInfo(state, forHost),
     survival: survivalInfo(state, forHost),
+    ladder: ladderInfo(state, forHost),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
@@ -1556,7 +1688,7 @@ function isRevealed(state: GameState): boolean {
 
 function publicStandings(state: GameState): Standing[] | null {
   // У «Ва-банк» між запитаннями замість таблиці драбина.
-  if (state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || inSurvivalRound(state))) return null;
+  if (state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || currentRound(state)?.type === 'ladder' || inSurvivalRound(state))) return null;
   return WITH_STANDINGS.includes(state.phase) ? rankPlayers(state.players) : null;
 }
 
@@ -1678,6 +1810,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
       final: playerFinal(state, playerId),
       wipeout: playerWipeout(state, playerId),
       survival: playerSurvival(state, playerId),
+      ladder: playerLadder(state, playerId),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),
@@ -1720,7 +1853,7 @@ function liveTable(state: GameState, playerId: string): PlayerTable | null {
   if (state.phase === 'lobby') return null;
   const rows = rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hiddenPoints(state, p.id) - (p.id === playerId ? 0 : windowCash(state, p.id)) })));
   // У вікні рішення «Ва-банк» етап leaderboard — не підсумки: повна таблиця лише з leaderboard 'each'.
-  const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && (inWipeoutRound(state) || inSurvivalRound(state))));
+  const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && (inWipeoutRound(state) || inSurvivalRound(state) || inLadderRound(state))));
   return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
 }
 
