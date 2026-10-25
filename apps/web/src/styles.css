@@ -9369,6 +9369,38 @@ button.wall-tile:disabled {
   font-size: clamp(1rem, 2.2vh, 1.5rem);
 }
 
+/* Лобі команд на сцені: шапка з кодом стискається, а кубики стають у дві колонки, щоб усе вміщалося на 720p. */
+.stage-lobby:has(.stage-teams) {
+  gap: 2vh 4vw;
+}
+
+.stage-lobby:has(.stage-teams) .invite .address {
+  font-size: clamp(1.25rem, 4.5vh, 2.5rem);
+}
+
+.stage-lobby:has(.stage-teams) .invite .code {
+  font-size: clamp(2.5rem, 10vh, 6.5rem);
+}
+
+.stage-lobby:has(.stage-teams) .qr svg {
+  width: min(20vw, 28vh);
+}
+
+.stage-teams .dice-rows:not(.is-many) {
+  grid-template-columns: repeat(2, minmax(0, 15em));
+  column-gap: 2em;
+}
+
+.stage-teams .dice-rows li {
+  height: clamp(2rem, 5vh, 3rem);
+}
+
+.stage-teams .die {
+  width: clamp(2rem, 4.6vh, 3rem);
+  height: clamp(2rem, 4.6vh, 3rem);
+  font-size: clamp(1.8rem, 4.2vh, 2.6rem);
+}
+
 /* Пульт у лобі команд: колонки переносяться на вузькому екрані, ціль перетягування підсвічується. */
 .host-teams {
   display: grid;

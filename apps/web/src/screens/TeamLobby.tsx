@@ -12,7 +12,7 @@ function TeamDice({ view, send, onError }: { view: PlayerView; send: Send; onErr
   const team = view.team;
   if (team === null) return null;
   const mine = dice?.rows.find((row) => row.playerId === team.memberId);
-  const tied = dice?.tieBreak === true && (mine?.throws.length ?? 0) > 1;
+  const tied = dice?.tieBreak === true && (mine?.throws.length ?? 0) > 0;
   return (
     <section className="team-dice">
       <p className="lead">{t('teamDiceTitle')}</p>
@@ -66,7 +66,8 @@ export function TeamLobby({ view, send, onError }: { view: PlayerView; send: Sen
     );
   }
 
-  if (teams.form === 'dice' && own === null && teams.dice !== null) {
+  // Тур кубиків відкритий: кидають і ті, хто вже в команді (ведучий міг змінити спосіб після вибору).
+  if (teams.form === 'dice' && teams.dice !== null && (own === null || !teams.dice.done)) {
     return (
       <section className="team-lobby">
         <TeamDice view={view} send={send} onError={onError} />

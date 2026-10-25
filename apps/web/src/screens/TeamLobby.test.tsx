@@ -59,6 +59,18 @@ describe('TeamLobby', () => {
     expect(screen.queryByRole('button', { name: 'Кинути кубик' })).toBeNull();
   });
 
+  it('dice: a member who already picked a team still rolls while the round is open', () => {
+    const dice = { rows: [{ playerId: 'u2', nickname: 'Оля', throws: [], waiting: true }], tieBreak: false, done: false };
+    show(teamPlayerView({ teams: teamsView({ form: 'dice', dice }) }, { canRoll: true }));
+    expect(screen.getByRole('button', { name: 'Кинути кубик' })).toBeTruthy();
+  });
+
+  it('dice: a tied member who rolls again is told so', () => {
+    const dice = { rows: [{ playerId: 'u2', nickname: 'Оля', throws: [2], waiting: true }], tieBreak: true, done: false };
+    show(teamPlayerView({ teams: teamsView({ form: 'dice', dice }) }, { canRoll: true }));
+    expect(screen.getByText('Нічия — кидай ще раз')).toBeTruthy();
+  });
+
   it('dice form before any throw waits for the host', () => {
     show(teamPlayerView({ teams: teamsView({ form: 'dice', dice: null }) }, { teamId: null, captainId: null, captain: false }));
     expect(screen.getByText('Ведучий розподіляє команди…')).toBeTruthy();
