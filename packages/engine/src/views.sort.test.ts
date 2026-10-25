@@ -5,9 +5,9 @@ import { guessWord } from './chain';
 import { placeWager } from './final';
 import { lock, next, pause, resume, start, type GameState } from './game';
 import { sortMarks, sortOf, sortWord } from './sort';
-import { blitzRound, boardRound, chain, finalRound, makeRoundsQuiz, single, sortQ, withId, withPoints } from './testing/fixtures';
+import { blitzRound, boardRound, chain, finalRound, makeRoundsQuiz, single, sortQ } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
-import { head, right, sortAll, toSort, wrong } from './testing/sort';
+import { head, right, sortAll, toBoardSort, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
 
 const rng = () => 0;
@@ -17,19 +17,7 @@ const wordOf = (id: string) => {
 };
 const toReveal = (s: GameState, now: number) => must(next(must(lock(s)), now, rng));
 
-/** Поле з p1 «Анна» і p2 «Богдан»: p1 вибрав клітинку ×2 із сортуванням о 1000. */
-function onBoardSort(): GameState {
-  const round = boardRound(
-    'g1',
-    [
-      { title: 'Сортування', cells: [{ mark: 'x2', answerMode: 'phone', question: sortQ }] },
-      { title: 'Інше', cells: [withPoints(withId(single, 's1'), 300)] },
-    ],
-    { rules: DEFAULT_RULES },
-  );
-  const board = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Анна', 'Богдан'))), 0));
-  return must(pickCell(board, 'p1', 'q9', 1000, rng));
-}
+const onBoardSort = toBoardSort;
 
 /** Фінал-раунд з одним запитанням; ставки 0, запитання відкрито о 2000. */
 function inFinal(question: Question, check: 'auto' | 'manual' = 'auto'): GameState {

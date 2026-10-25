@@ -18,6 +18,7 @@ import {
   wagerSchema,
   socketAuthSchema,
   sortSchema,
+  sortTiltSchema,
   wallSchema,
   lieSchema,
   bluffOptionSchema,
@@ -171,6 +172,18 @@ export function attachSockets(
         .forEach(push);
       return;
     }
+    if (event.type === 'tilt') {
+      // Нахил — лише там, де сортує одна сторона: на полі — усім, крім автора; у команді — його команді й пульту.
+      members
+        .filter((socket) => {
+          const { role, playerId } = socket.data.identity;
+          if (playerId !== null && playerId === event.by) return false;
+          if (event.audience === 'all') return true;
+          return role === 'host' || (role === 'player' && playerId !== null && teamOf(room.state, playerId) === event.tilt.sorterId);
+        })
+        .forEach((socket) => socket.emit('sort:tilt', event.tilt));
+      return;
+    }
     if (event.type === 'audio') {
       // Звук знає лише сцена й пульт: телефони не отримують ні команди, ні джерела.
       members
@@ -237,6 +250,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = sortSchema.safeParse(payloadOf(args));
       return payload.success ? manager.sort(room, identity.playerId, payload.data.wordId, payload.data.categoryId) : INVALID;
+    });
+
+    on('player:sort-tilt', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = sortTiltSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.tilt(room, identity.playerId, payload.data) : INVALID;
     });
 
     on('player:wall', (args) => {

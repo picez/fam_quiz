@@ -3,10 +3,10 @@ import { DEFAULT_RULES, type BoardCell, type Question } from '@quiz/shared';
 import { pickCell } from './board';
 import { placeWager } from './final';
 import { end, lock, next, override, pause, recordOf, removePlayer, resume, start, submitAnswer, type GameState } from './game';
-import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortWord } from './sort';
+import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortWord, tiltRefusal } from './sort';
 import { blitzRound, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
-import { head, right, sortAll, toSort, wrong } from './testing/sort';
+import { head, right, sortAll, toBoardSort, toSort, wrong } from './testing/sort';
 import { teamGame, teamQuiz } from './testing/teams';
 
 const rng = () => 0;
@@ -313,5 +313,49 @@ describe('sort per-word misses (11d)', () => {
     let teamBoard = teamGame(teamQuiz([boardRound('g1', [{ title: 'Сортування', cells: [{ answerMode: 'phone', question: sortQ }] }])]), layout);
     teamBoard = must(pickCell(must(next(teamBoard, 0, rng)), 't1', 'q9', 1000, rng));
     expect(sortAudience(teamBoard, playOf(teamBoard))).toBe('all');
+  });
+});
+
+describe('tilt rules (11d)', () => {
+  it('classic: everyone sorts at once, so nobody may tilt', () => {
+    const s = toSort();
+    expect(tiltRefusal(s, 'p1', head(s, 'p1'), 'c1', 2000)).toBe('wrong_phase');
+  });
+
+  it('a board cell: the chooser tilts the head card toward a category or releases it', () => {
+    const s = toBoardSort();
+    const w = head(s, 'p1');
+    expect(tiltRefusal(s, 'p1', w, 'c1', 2000)).toBeNull();
+    expect(tiltRefusal(s, 'p1', w, null, 2000)).toBeNull();
+    expect(tiltRefusal(s, 'p1', sortOf(s, 'p1').queue[1], 'c1', 2000)).toBe('sort_stale');
+    expect(tiltRefusal(s, 'p1', w, 'nope', 2000)).toBe('not_found');
+    expect(tiltRefusal(s, 'p2', w, 'c1', 2000)).toBe('not_your_turn');
+    expect(tiltRefusal(must(pause(s, 1500)), 'p1', w, 'c1', 2000)).toBe('paused');
+    expect(tiltRefusal(must(lock(s)), 'p1', w, 'c1', 2000)).toBe('wrong_phase');
+  });
+
+  it('a board cell: refused during the lock and after the record', () => {
+    const s = toBoardSort();
+    const w = head(s, 'p1');
+    const missed = must(sortWord(s, 'p1', w, wrong(w), 2000));
+    expect(tiltRefusal(missed, 'p1', head(missed, 'p1'), 'c1', 2100)).toBe('sort_locked');
+    const done = sortAll(s, 'p1', 2000);
+    expect(record(done, 'p1')?.accepted).toBe(true);
+    // Останнє слово на полі одразу розкриває оцінку; запис перевіряємо на етапі question до розкриття.
+    const play = s.plays[s.questionIndex];
+    const recorded: GameState = {
+      ...s,
+      plays: s.plays.map((p, i) => (i === s.questionIndex ? { ...play, answers: { ...play.answers, p1: done.plays[done.questionIndex].answers.p1 } } : p)),
+    };
+    expect(tiltRefusal(recorded, 'p1', w, 'c1', 2000)).toBe('already_answered');
+  });
+
+  it('team play: the team sorts in a classic round and may tilt', () => {
+    let team = teamGame(teamQuiz([classicRound('r1', [sortQ])]), [
+      ['Оля', 'Петро'],
+      ['Іра', 'Марко'],
+    ]);
+    while (team.phase !== 'question') team = must(next(team, 1000, rng));
+    expect(tiltRefusal(team, 't1', head(team, 't1'), 'c1', 2000)).toBeNull();
   });
 });

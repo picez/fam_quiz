@@ -678,6 +678,90 @@ describe('accounts behind a room', () => {
   });
 });
 
+describe('sort tilt (11d)', () => {
+  /** Поле з однією клітинкою сортування: Анна вибрала її. */
+  function boardSort() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([boardRound('g1', [{ title: 'Сортування', cells: [{ answerMode: 'phone', question: sortQ }] }])]));
+    manager.connect(room, HOST);
+    const anna = enter(manager, room, 'Анна');
+    enter(manager, room, 'Богдан');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.pick(room, anna.playerId, 'q9')).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    return { scheduler, manager, room, anna, events };
+  }
+
+  it('a board cell: relayed to all, rounded, throttled, never in the game state or the snapshot', () => {
+    const { scheduler, manager, room, anna, events } = boardSort();
+    const chooser = anna.playerId;
+    const head = sortOf(room.state, chooser).queue[0];
+    const state = room.state;
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 0.62 })).toEqual({ ok: true });
+    expect(events).toEqual([{ type: 'tilt', tilt: { sorterId: chooser, wordId: head, toward: 'c1', amount: 0.6, seq: 0 }, by: chooser, audience: 'all' }]);
+    expect(room.state).toBe(state);
+    expect(events.some((event) => event.type === 'changed')).toBe(false);
+
+    scheduler.advance(50);
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 0.8 })).toEqual({ ok: true });
+    expect(events).toHaveLength(1);
+    scheduler.advance(50);
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 0.8 })).toEqual({ ok: true });
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({ type: 'tilt', tilt: { toward: 'c1', amount: 0.8 } });
+
+    scheduler.advance(200);
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 0.8 })).toEqual({ ok: true });
+    expect(events).toHaveLength(2);
+
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: null, amount: 0.3 })).toEqual({ ok: true });
+    expect(events).toHaveLength(3);
+    expect(events[2]).toEqual({ type: 'tilt', tilt: { sorterId: chooser, wordId: head, toward: null, amount: 0, seq: 0 }, by: chooser, audience: 'all' });
+
+    const saved = JSON.stringify(manager.snapshot(room));
+    expect(saved).not.toContain('tilts');
+    expect(saved).not.toContain('toward');
+  });
+
+  it('a move and a pause clear the tilt', () => {
+    const { scheduler, manager, room, anna } = boardSort();
+    const chooser = anna.playerId;
+    const head = sortOf(room.state, chooser).queue[0];
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 1 })).toEqual({ ok: true });
+    expect(room.tilts.has(chooser)).toBe(true);
+    const word = sortQ.words.find((w) => w.id === head);
+    expect(manager.sort(room, chooser, head, word?.categoryId ?? '')).toEqual({ ok: true });
+    expect(room.tilts.has(chooser)).toBe(false);
+
+    scheduler.advance(1000);
+    const next = sortOf(room.state, chooser).queue[0];
+    expect(manager.tilt(room, chooser, { wordId: next, categoryId: 'c2', amount: 1 })).toEqual({ ok: true });
+    expect(room.tilts.size).toBe(1);
+    expect(manager.host(room, { type: 'pause' })).toEqual({ ok: true });
+    expect(room.tilts.size).toBe(0);
+  });
+
+  it('classic: refused, nothing relayed', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const room = manager.create(makeQuiz([sortQ]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    const head = sortOf(room.state, olena.playerId).queue[0];
+    expect(manager.tilt(room, olena.playerId, { wordId: head, categoryId: 'c1', amount: 1 })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(events).toEqual([]);
+    expect(room.tilts.size).toBe(0);
+  });
+});
+
 describe('board rounds', () => {
   const cell = (id: string, points: number) => ({ ...withId(single, id), points });
   const field = () =>
@@ -1405,6 +1489,15 @@ describe('teams (10j)', () => {
     expect(room.state.phase).toBe('question');
     const view = manager.view(room, taras.identity);
     expect(view?.role === 'player' && view.team?.draft).toBeNull();
+  });
+
+  it('sort tilt (11d): the captain tilts for the team, seen by the team and the host; a teammate may not', () => {
+    const { manager, room, events, olena, taras, red } = teamPlaying([classicRound('r1', [sortQ])]);
+    events.length = 0;
+    const head = sortOf(room.state, red).queue[0];
+    expect(manager.tilt(room, olena.playerId, { wordId: head, categoryId: 'c1', amount: 0.5 })).toEqual({ ok: true });
+    expect(events).toEqual([{ type: 'tilt', tilt: { sorterId: red, wordId: head, toward: 'c1', amount: 0.5, seq: 0 }, by: olena.playerId, audience: 'team' }]);
+    expect(manager.tilt(room, taras.playerId, { wordId: head, categoryId: 'c2', amount: 0.5 })).toEqual({ ok: false, error: 'not_captain' });
   });
 });
 

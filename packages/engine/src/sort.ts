@@ -1,4 +1,4 @@
-import { rulesOf, type Question, type SortWordMark } from '@quiz/shared';
+import { rulesOf, type ErrorCode, type Question, type SortWordMark } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { autoLock, fail, lockNow, ok, recordOf, revealNow, withFinalPoints, type AnswerRecord, type GameState, type Play, type Result, type SortProgress } from './game';
@@ -202,4 +202,26 @@ export function sortMarks(question: SortQuestion, progress: SortProgress, finish
 export function sortAudience(state: GameState, play: Play): 'all' | 'team' | null {
   if (play.board?.kind === 'normal') return 'all';
   return teamsOn(state) ? 'team' : null;
+}
+
+/**
+ * Чи можна зараз слати нахил (11d): ті самі умови й порядок, що й у sortWord (categoryId null — «відпустив без ходу»),
+ * а наприкінці — чи дозволено живий показ (sortAudience); null — можна.
+ */
+export function tiltRefusal(state: GameState, sorterId: string, wordId: string, categoryId: string | null, now: number): ErrorCode | null {
+  if (state.phase !== 'question') return 'wrong_phase';
+  if (state.paused) return 'paused';
+  if (notStarted(state, now)) return 'not_started';
+  if (!state.players.some((p) => p.id === sorterId)) return 'not_found';
+  const play = sortPlay(state);
+  if (play === null) return 'type_mismatch';
+  if (!sortsHere(state, play, sorterId)) return 'not_your_turn';
+  if (recordOf(state, state.questionIndex, sorterId) !== undefined) return 'already_answered';
+  if (state.startedAt === null || timeOver(state, play, now)) return 'time_over';
+  const progress = sortOf(state, sorterId);
+  if (progress.lockedUntil !== null && now < progress.lockedUntil) return 'sort_locked';
+  if (wordId !== progress.queue[0]) return 'sort_stale';
+  if (categoryId !== null && !play.question.categories.some((c) => c.id === categoryId)) return 'not_found';
+  if (sortAudience(state, play) === null) return 'wrong_phase';
+  return null;
 }
