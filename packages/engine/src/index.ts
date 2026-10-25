@@ -12,6 +12,7 @@ export * from './timing';
 export * from './hold';
 export * from './blitz';
 export * from './views';
+export * from './live';
 export * from './board';
 export * from './board-turns';
 export * from './board-dice';

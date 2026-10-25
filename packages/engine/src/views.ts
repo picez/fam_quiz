@@ -1,5 +1,4 @@
 import {
-  allSpares,
   allowedBuffs,
   allowedDebuffs,
   debuffPrice,
@@ -126,8 +125,9 @@ import { bluffOrder, bluffShown } from './bluff';
 import { skippedSurveys, surveyShown } from './survey';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
-import { cluesAnswered, cluesByHost, cluesOpen, nextClueAt } from './clues';
+import { cluesByHost, cluesOpen, nextClueAt } from './clues';
 import { pendingOf } from './hold';
+import { hostLive, responseClue, spareOf } from './live';
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
 import { actorOf, voterList } from './team-act';
@@ -2030,18 +2030,6 @@ function playerShop(state: GameState, playerId: string): PlayerShop | null {
   return { items, targets, block: shopBlock(state, playerId) };
 }
 
-/** Запасне запитання за id із запису (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. */
-function spareOf(state: GameState, id: string | undefined): Question | null {
-  return id === undefined ? null : (allSpares(state.quiz).find((q) => q.id === id) ?? null);
-}
-
-/** Номер підказки, на якій дано відповідь; null — не «Хто я?», бліц і фінал. */
-function responseClue(state: GameState, playerId: string, timeMs: number): number | null {
-  const play = state.plays[state.questionIndex];
-  if (play === undefined || play.blitz !== undefined || inFinalRound(state)) return null;
-  return cluesAnswered(play, questionFor(state, play, playerId), timeMs);
-}
-
 export function hostView(state: GameState): HostView {
   const current = state.plays[state.questionIndex]?.question;
   const unscored = current !== undefined && isUnscored(current);
@@ -2095,5 +2083,6 @@ export function hostView(state: GameState): HostView {
     cloud: hostCloud(state),
     surveySkipped: skippedSurveys(state).map((q) => q.text),
     pace: hostPace(state),
+    live: hostLive(state),
   };
 }
