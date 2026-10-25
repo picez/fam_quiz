@@ -216,7 +216,7 @@ describe('a team room restored after a restart (10j)', () => {
     expect(manager.teamRoll(room, people[0].playerId)).toEqual({ ok: true });
     const saved = viaJson(manager.snapshot(room));
     manager.freeze();
-    expect(saved.stateVersion).toBe(10);
+    expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
     expect(isSavedRoom(saved)).toBe(true);
 
     const next = new RoomManager(scheduler, () => 0.5);
@@ -240,7 +240,7 @@ describe('a team room restored after a restart (10j)', () => {
     expect(manager.buzz(room, taras.playerId)).toEqual({ ok: true });
     const saved = viaJson(manager.snapshot(room));
     manager.freeze();
-    expect(saved.stateVersion).toBe(10);
+    expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
 
     const next = new RoomManager(scheduler, () => 0.5);
     const back = next.restore(saved) as Room;

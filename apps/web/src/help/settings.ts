@@ -1,8 +1,10 @@
-import { AUDIO_LIMITS, LIMITS, REVEAL_MIN_SHARE } from '@quiz/shared';
+import { AUDIO_LIMITS, LIMITS, PACE_MS, REVEAL_MIN_SHARE } from '@quiz/shared';
 import type { HelpEntry } from './types';
 
+const s = (ms: number) => `${ms / 1000} с`;
+
 /** Налаштування з довідкою в порядку довідника. */
-export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'description', 'speedBonus', 'spares', 'debuffShop', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal'] as const;
+export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'pacing', 'description', 'speedBonus', 'spares', 'debuffShop', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal'] as const;
 export type SettingHelpKey = (typeof SETTING_HELP_KEYS)[number];
 
 export const SETTING_HELP: Record<SettingHelpKey, HelpEntry> = {
@@ -26,6 +28,19 @@ export const SETTING_HELP: Record<SettingHelpKey, HelpEntry> = {
     ],
     points: ['На бали не впливає.'],
     tip: ['Вмикайте для нової компанії; для постійних гравців можна вимкнути.'],
+  },
+  pacing: {
+    title: 'Мінімальний час перед «Далі»',
+    what: 'Гра не дає перескочити екран: крок ведучого, що веде гру далі, діє лише після короткого мінімального часу, щоб усі встигли побачити розкриття й таблицю.',
+    how: [
+      `«Далі» з розкриття, таблиці, підсумків раунду й кожної сторінки «Як грати» — не раніше ніж через ${s(PACE_MS.step)}; кожен наступний рядок «100 до 1» і варіант блефу — через ${s(PACE_MS.row)}.`,
+      `«Почати раунд» — через ${s(PACE_MS.intro)} після заставки раунду; «Закрити» запитання достроково — через ${s(PACE_MS.lock)} після його старту; «Пропустити хід» на полі й «Продовжити гру» після дуелі — через ${s(PACE_MS.step)}.`,
+      `«Закрити випробування» у «Вибуванні» — через ${s(PACE_MS.lock)} після його старту; «Почати драбину» в «Мільйонері» — через ${s(PACE_MS.intro)} після того, як учасника вибрано (жеребом чи вами).`,
+      'Поки цей час не минув, кнопка неактивна й заповнюється, як смужка, а підказка на ній — «Ще мить: гравці мають побачити екран». Подвійний дотик нічого не пропускає.',
+      'Кнопка «Пауза», «Завершити раунд», «Завершити гру», вилучення гравця, оцінка відповідей, коригування балів, дебафи, підказки й кубики діють одразу.',
+    ],
+    points: ['На бали не впливає.'],
+    tip: ['Натискайте спокійно: кнопка сама покаже, коли можна далі.'],
   },
   description: {
     title: 'Опис раунду для гравців',

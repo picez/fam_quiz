@@ -1113,6 +1113,11 @@ export interface HostPlayer extends LobbyPlayer {
   debuff: { kind: DebuffKind; fired: boolean; by: string | null } | null;
 }
 
+/** Вікно мінімального часу перед кроком ведучого (11b): миті сервера; раніше за until крок не діє. */
+export interface PaceWindow { from: number; until: number }
+/** Вікна кроків ведучого: «Далі» (і «Відкрити всі»), «Закрити», «Пропустити хід»; null — без очікування. */
+export interface HostPace { next: PaceWindow | null; lock: PaceWindow | null; skip: PaceWindow | null }
+
 export interface HostView extends BaseView {
   role: 'host';
   players: HostPlayer[];
@@ -1141,6 +1146,8 @@ export interface HostView extends BaseView {
   cloud: HostCloudWord[] | null;
   /** Тексти «100 до 1» поточного раунду, які пропущено (хмара без слів, запасних рядків немає). */
   surveySkipped: string[];
+  /** Мінімальний час кроків (11b); лише пульт. */
+  pace: HostPace;
 }
 
 export type GameView = StageView | PlayerView | HostView;

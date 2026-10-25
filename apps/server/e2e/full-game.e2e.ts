@@ -5,7 +5,7 @@ import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { DEFAULT_RULES } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { TEST_AUTH } from '../src/testing/accounts';
@@ -166,7 +166,7 @@ beforeAll(async () => {
   base = `http://localhost:${port}`;
   db = await createTestDb();
   // Кімнати пишуться в базу, як у main.ts: усі сценарії йдуть із записом.
-  ctx = await buildApp({ db, auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng, transitions: true, persist: { instanceId: 'e2e-1' } });
+  ctx = await buildApp({ db, auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng, transitions: true, pacing: true, persist: { instanceId: 'e2e-1' } });
   await ctx.app.listen({ port, host: '127.0.0.1' });
   browser = await chromium.launch({ channel: process.env.E2E_CHANNEL ?? 'chrome', headless: true });
 });
@@ -194,6 +194,7 @@ async function relisten() {
     webRoot: WEB,
     rng,
     transitions: true,
+    pacing: true,
     persist: { instanceId: `e2e-${Date.now()}` },
   });
   await ctx.app.listen({ port, host: '127.0.0.1' });
@@ -252,6 +253,17 @@ async function open(name: string, width: number, height: number, options: { redu
 }
 
 const click = (page: Page, name: string) => page.getByRole('button', { name, ...exact }).click();
+/** Скільки мс кнопка була неактивною від цієї миті (11b): чекає, доки вона стане активною. */
+async function enabledAfter(button: Locator, timeout = 8000): Promise<number> {
+  const from = Date.now();
+  await expect.poll(() => button.isDisabled(), { timeout }).toBe(false);
+  return Date.now() - from;
+}
+/** Заповнення кнопки, що чекає (11b), дійшло до частки `share` (або вікно вже скінчилося): для кадрів зі смужкою посередині. */
+async function paceAt(button: Locator, share: number): Promise<void> {
+  const pace = async () => Number((await button.getAttribute('style'))?.match(/--pace:\s*([\d.]+)/)?.[1] ?? 1);
+  await expect.poll(pace, { timeout: 4000 }).toBeGreaterThanOrEqual(share);
+}
 const field = (page: Page, label: string) => page.getByLabel(label, exact);
 const questionText = (page: Page) => page.locator('.question-field textarea');
 
@@ -5473,7 +5485,10 @@ async function transitionsGame() {
   expect(await noSideScroll(olya), 'transition8c-round-375: horizontal scroll').toBe(true);
   expect(await host.locator('.splash').count(), 'the host console is covered').toBe(0);
   await host.getByText('На екрані заставка', exact).waitFor();
-  expect(await host.getByRole('button', { name: 'Почати раунд', ...exact }).isEnabled()).toBe(true);
+  // 11b: «Почати раунд» на місці, але чекає 3 с після кінця заставки — неактивна й заповнюється.
+  const startRound = host.getByRole('button', { name: 'Почати раунд', ...exact });
+  expect(await startRound.isDisabled()).toBe(true);
+  expect(await startRound.getAttribute('class')).toContain('is-pacing');
   await Promise.all([shot(stage, 'transition8c-round-stage', { splash: true }), shot(olya, 'transition8c-round-375', { splash: true })]);
   await afterSplash(stage, olya);
   await stage.locator('.round-facts', { hasText: '3 запитання · 20 с' }).waitFor();
@@ -10614,5 +10629,223 @@ async function editorGame11a() {
     await shot(introStage, `p11a-stage-${intro.name}`);
   }
 
+  expect(problems).toEqual([]);
+}
+
+it('part 11b: pacing — the host button stays disabled and fills while the minimum time runs (guide page 2 s, round intro 3 s after the longer splash, early close 3 s after the start, reveal and leaderboard 2 s, survey rows 1 s after the first), a double tap stops on the reveal without an error, «До гри», pause and end round never wait (375 px too)', async () => {
+  try {
+    await pacingGame11b();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function pacingGame11b() {
+  const host = await open('host11b', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host11b@example.com');
+
+  const q = (id: string, text: string, right: string, wrong: string) => ({
+    id,
+    type: 'single' as const,
+    text,
+    imageUrl: null,
+    video: null,
+    timeLimit: 30,
+    points: 100,
+    options: [
+      { id: `${id}-a`, text: right },
+      { id: `${id}-b`, text: wrong },
+    ],
+    correctId: `${id}-a`,
+  });
+  const fruit = (id: string, text: string, popularity: number) => ({ id, text, popularity, accepted: [] });
+  const s1 = {
+    id: 's1',
+    type: 'survey' as const,
+    text: 'Назвіть фрукт, який люблять діти',
+    imageUrl: null,
+    video: null,
+    points: 1000,
+    timeLimit: 45,
+    answers: 3,
+    rows: [
+      fruit('row-apple', 'Яблуко', 32),
+      fruit('row-banana', 'Банан', 25),
+      fruit('row-straw', 'Полуниця', 15),
+      fruit('row-melon', 'Кавун', 10),
+      fruit('row-pear', 'Груша', 8),
+    ],
+  };
+  const rc11b = classicRound('rc11b', [q('p1', 'Яка планета найбільша в Сонячній системі?', 'Юпітер', 'Сатурн'), q('p2', 'Скільки ніг у павука?', '8', '6')], {
+    title: 'Розминка 11b',
+    speedBonus: false,
+    shuffleOptions: false,
+  });
+  const rs11b = classicRound('rs11b', [s1] as never, { title: 'Сто до одного 11b', speedBonus: false, shuffleOptions: false });
+  const data = { ...makeRoundsQuiz([rc11b, rs11b], { leaderboard: 'each', newcomers: true }), title: 'Темп 11b' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Темп 11b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11b', 1280, 720);
+  await stage.goto(stageUrl);
+  const olya = await open('olya11b', 375, 812);
+  const petro = await open('petro11b', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+
+  const button = (name: string) => host.getByRole('button', { name, ...exact });
+  const next = button('Далі');
+  const noAlert = async () => expect(await host.getByRole('alert').count()).toBe(0);
+
+  // 1. «Як грати»: «Далі» чекає 2 с і заповнюється, «До гри» не чекає.
+  await click(host, 'Почати гру');
+  expect(await next.isDisabled()).toBe(true);
+  expect(await next.getAttribute('class')).toContain('is-pacing');
+  const guideWaiting = enabledAfter(next);
+  await paceAt(next, 0.4);
+  await shot(host, 'p11b-host-guide-pacing');
+  const guideWait = await guideWaiting;
+  console.log(`p11b guide page: «Далі» enabled after ${guideWait} ms`);
+  expect(guideWait).toBeGreaterThanOrEqual(1500);
+  expect(guideWait).toBeLessThanOrEqual(4000);
+  await next.click();
+  // «До гри» звільняється, щойно сервер підтвердив крок, а «Далі» на новій сторінці ще чекає.
+  const toGame = button('До гри');
+  expect(await enabledAfter(toGame)).toBeLessThanOrEqual(1000);
+  expect(await next.isDisabled()).toBe(true);
+  await toGame.click();
+
+  // 2. Заставка раунду (3,5 с), потім «Почати раунд» чекає ще 3 с.
+  expect(await stage.locator('.splash').getAttribute('style')).toContain('--splash-ms: 3500ms');
+  await afterSplash(stage, olya, petro);
+  const startRound = button('Почати раунд');
+  expect(await startRound.isDisabled()).toBe(true);
+  expect(await startRound.getAttribute('class')).toContain('is-pacing');
+  const introWaiting = enabledAfter(startRound);
+  await paceAt(startRound, 0.4);
+  await shot(host, 'p11b-host-intro-pacing');
+  const introWait = await introWaiting;
+  console.log(`p11b intro: «Почати раунд» enabled ${introWait} ms after the splash`);
+  expect(introWait).toBeGreaterThanOrEqual(2300);
+  expect(introWait).toBeLessThanOrEqual(6000);
+  await startRound.click();
+
+  // 3. Запитання 1: дострокове «Закрити запитання» — 3 с після кінця заставки.
+  expect(await stage.locator('.splash').getAttribute('style')).toContain('--splash-ms: 1800ms');
+  await afterSplash(stage, olya, petro);
+  const lock = button('Закрити запитання');
+  expect(await lock.isDisabled()).toBe(true);
+  const lockWait = enabledAfter(lock);
+  await olya.getByRole('button', { name: /Юпітер/ }).click();
+  await olya.getByText('Відповідь прийнято').waitFor();
+  expect(await lock.isDisabled()).toBe(true);
+  const lockMs = await lockWait;
+  console.log(`p11b early close: enabled ${lockMs} ms after the question splash`);
+  expect(lockMs).toBeGreaterThanOrEqual(2300);
+  await lock.click();
+
+  // 4. Подвійний дотик по «Показати відповідь» зупиняється на розкритті без помилки.
+  await button('Показати відповідь').dblclick();
+  await stage.locator('.choice.is-correct', { hasText: 'Юпітер' }).waitFor();
+  expect(await next.isDisabled()).toBe(true);
+  await noAlert();
+  const revealWaiting = enabledAfter(next);
+  await shot(stage, 'p11b-stage-reveal');
+  await paceAt(next, 0.4);
+  await shot(host, 'p11b-host-reveal-pacing');
+  const revealWait = await revealWaiting;
+  console.log(`p11b reveal after a double tap: «Далі» enabled after ${revealWait} ms`);
+  expect(revealWait).toBeGreaterThanOrEqual(1000);
+  // Гра не проскочила: сцена досі на розкритті, пульт не показує таблиці.
+  expect(await stage.locator('.choice.is-correct', { hasText: 'Юпітер' }).count()).toBe(1);
+  expect(await button('Наступне запитання').count()).toBe(0);
+  await noAlert();
+  await next.click();
+  const nextQuestion = button('Наступне запитання');
+  expect(await nextQuestion.isDisabled()).toBe(true);
+  const boardWaiting = enabledAfter(nextQuestion);
+  // Пульт на телефоні, поки кнопка чекає: панель дій не ламається.
+  await host.setViewportSize({ width: 375, height: 812 });
+  await paceAt(nextQuestion, 0.4);
+  expect(await nextQuestion.isDisabled()).toBe(true);
+  await expectNoSideScroll(host, 'p11b-host-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  const boardWait = await boardWaiting;
+  console.log(`p11b leaderboard: «Наступне запитання» enabled after ${boardWait} ms`);
+  expect(boardWait).toBeGreaterThanOrEqual(1500);
+  await nextQuestion.click();
+  await afterSplash(stage, olya, petro);
+
+  // 5. Пауза, продовження й «Завершити раунд» не чекають.
+  const pause = button('Пауза');
+  expect(await pause.isDisabled()).toBe(false);
+  await pause.click();
+  const resume = button('Продовжити');
+  expect(await resume.isDisabled()).toBe(false);
+  await resume.click();
+  await pause.waitFor();
+  const endRound = button('Завершити раунд');
+  expect(await endRound.isDisabled()).toBe(false);
+  await endRound.click();
+  const nextRound = button('Наступний раунд');
+  await nextRound.waitFor();
+  await noAlert();
+
+  // 6. «100 до 1»: перший рядок — 2 с, кожен наступний — 1 с.
+  const roundWait = await enabledAfter(nextRound);
+  console.log(`p11b round end: «Наступний раунд» enabled after ${roundWait} ms`);
+  expect(roundWait).toBeGreaterThanOrEqual(1500);
+  await nextRound.click();
+  await afterSplash(stage, olya, petro);
+  expect(await enabledAfter(startRound)).toBeGreaterThanOrEqual(2300);
+  await startRound.click();
+  await afterSplash(stage, olya, petro);
+  await answerSurvey(olya, ['Яблуко', 'Банан', 'Груша']);
+  await answerSurvey(petro, ['Кавун', 'Полуниця', 'ананас']);
+  await host.getByText('Запитання закрите').first().waitFor();
+  await click(host, 'Показати відповідь');
+  const row1 = button('Відкрити рядок 1 з 5');
+  const allRows = button('Відкрити всі');
+  expect(await row1.isDisabled()).toBe(true);
+  expect(await allRows.isDisabled()).toBe(true);
+  expect(await allRows.getAttribute('class')).toContain('is-pacing');
+  const firstRowWaiting = enabledAfter(row1);
+  await paceAt(allRows, 0.4);
+  await shot(host, 'p11b-host-survey-first');
+  const firstRowWait = await firstRowWaiting;
+  console.log(`p11b survey: row 1 enabled after ${firstRowWait} ms`);
+  expect(firstRowWait).toBeGreaterThanOrEqual(1500);
+  await row1.click();
+  const row2 = button('Відкрити рядок 2 з 5');
+  expect(await row2.isDisabled()).toBe(true);
+  const rowWaiting = enabledAfter(row2);
+  await paceAt(row2, 0.3);
+  await shot(host, 'p11b-host-survey-row');
+  const rowWait = await rowWaiting;
+  console.log(`p11b survey: row 2 enabled after ${rowWait} ms`);
+  expect(rowWait).toBeGreaterThanOrEqual(600);
+  expect(rowWait).toBeLessThanOrEqual(2000);
+  await row2.click();
+  await expect.poll(() => allRows.isDisabled(), POLL).toBe(true);
+  expect(await enabledAfter(allRows)).toBeGreaterThanOrEqual(600);
+  await allRows.click();
+  await expect.poll(() => stage.locator('.survey-row:not(.is-closed)').count(), POLL).toBe(5);
+  expect(await next.isDisabled()).toBe(true);
+  const exitWait = await enabledAfter(next);
+  console.log(`p11b survey: «Далі» after all rows enabled after ${exitWait} ms`);
+  expect(exitWait).toBeGreaterThanOrEqual(1500);
+  await shot(stage, 'p11b-stage-survey');
+
+  // Останнє запитання гри: «Далі» веде до підсумків.
+  await next.click();
+  await host.getByText('Гру завершено').first().waitFor();
+
+  await noAlert();
   expect(problems).toEqual([]);
 }

@@ -33,6 +33,8 @@ export interface AppOptions {
   webRoot?: string;
   /** Заставки переходів; типово вимкнено, справжній сервер (main.ts) вмикає. */
   transitions?: boolean;
+  /** Мінімальний час перед кроками ведучого (11b); типово вимкнено, справжній сервер (main.ts) і наскрізні тести вмикають. */
+  pacing?: boolean;
   /** Зберігати живі кімнати в базі й піднімати їх після перезапуску (9b). main.ts і наскрізні тести вмикають. */
   persist?: { instanceId: string; saveDelayMs?: number };
 }
@@ -41,7 +43,7 @@ const DEFAULT_MAX_ROOMS = 500;
 const BODY_LIMIT = 512 * 1024;
 
 export async function buildApp(options: AppOptions) {
-  const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false });
+  const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false, pacing: options.pacing ?? false });
   const recorder = attachRecorder(manager, options.db);
   const store = options.persist === undefined ? null : new RoomStore(options.db, manager, options.persist);
   if (store !== null) {

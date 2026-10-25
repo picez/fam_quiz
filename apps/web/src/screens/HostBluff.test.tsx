@@ -69,4 +69,23 @@ describe('HostBluff', () => {
     render(<HostBluff info={info({ stage: 'reveal', options: options.map((o) => ({ ...o, open: true })), shown: 2, total: 2, lies: null })} act={act} />);
     expect(screen.queryByRole('button', { name: 'Відкрити всі' })).toBeNull();
   });
+
+  it('reveal: «Відкрити всі» fills like a progress bar while the pace window runs (11b)', () => {
+    const options = [opt('b1', 'Рим', { open: true }), opt('b2', 'Правда', { kind: 'truth', authors: [] })];
+    const reveal = info({ stage: 'reveal', options, shown: 1, total: 2, lies: null });
+    render(<HostBluff info={reveal} act={vi.fn()} pace={0.25} />);
+    const all = screen.getByRole('button', { name: 'Відкрити всі' }) as HTMLButtonElement;
+    expect(all.disabled).toBe(true);
+    expect(all.className).toContain('is-pacing');
+    expect(Number(all.style.getPropertyValue('--pace'))).toBe(0.25);
+    expect(all.title).toBe('Ще мить: гравці мають побачити екран.');
+    expect(all.getAttribute('aria-busy')).toBe('true');
+    cleanup();
+    render(<HostBluff info={reveal} act={vi.fn()} pace={null} />);
+    const free = screen.getByRole('button', { name: 'Відкрити всі' }) as HTMLButtonElement;
+    expect(free.disabled).toBe(false);
+    expect(free.className).not.toContain('is-pacing');
+    expect(free.title).toBe('');
+    expect(free.hasAttribute('aria-busy')).toBe(false);
+  });
 });

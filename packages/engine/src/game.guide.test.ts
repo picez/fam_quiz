@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { guidePages } from '@quiz/shared';
+import { guidePages, SPLASH_MS } from '@quiz/shared';
 import { end, endRound, next, pause, resume, skipGuide, start, submitAnswer, type GameState } from './game';
 import { boardRound, classicRound, finalRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { lobbyWith, lobbyWithGuide, lobbyWithSplash, must } from './testing/helpers';
@@ -30,7 +30,7 @@ describe('the «Як грати» phase', () => {
     }
     s = must(next(s, T0 + 10_000, rng0));
     expect([s.phase, s.guidePage]).toEqual(['intro', 0]);
-    expect(s.splash).toEqual({ kind: 'round', at: T0 + 10_000, until: T0 + 12_500 });
+    expect(s.splash).toEqual({ kind: 'round', at: T0 + 10_000, until: T0 + 10_000 + SPLASH_MS.round });
   });
 
   it('leaving the guide plays the round splash — «Фінал» when the first round is a final; a board round keeps its fresh turn order', () => {

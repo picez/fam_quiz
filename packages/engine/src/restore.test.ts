@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Quiz, QuizSettings } from '@quiz/shared';
+import { SPLASH_MS, type Quiz, type QuizSettings } from '@quiz/shared';
 import { takeBuff, type BuffPlay } from './buffs';
 import { chooserOf } from './board-turns';
 import { adjustScore } from './adjust';
@@ -52,6 +52,7 @@ import {
   type WallProgress,
   type WipeoutPlay,
 } from './game';
+import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
 import type { Splash } from './splash';
 import { writeLie } from './bluff';
@@ -131,12 +132,12 @@ describe('suspend after a restart', () => {
   it('a splash that was playing finishes after the pause, and the timer starts after it', () => {
     const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')])]);
     const open = openAt(lobbyWithSplash(quiz, 'Анна', 'Богдан'), T0);
-    expect(open.splash?.until).toBe(T0 + 1200);
-    // збереження посеред заставки: 700 мс заставки й увесь час запитання ще попереду
+    expect(open.splash?.until).toBe(T0 + SPLASH_MS.question);
+    // збереження посеред заставки: решта заставки й увесь час запитання ще попереду
     const resumed = must(resume(suspend(open, T0 + 500), T0 + 500 + HOUR));
-    expect(resumed.splash?.until).toBe(T0 + 1200 + HOUR);
-    expect(resumed.startedAt).toBe(T0 + 1200 + HOUR);
-    expect(resumed.endsAt).toBe(T0 + 21_200 + HOUR);
+    expect(resumed.splash?.until).toBe(T0 + SPLASH_MS.question + HOUR);
+    expect(resumed.startedAt).toBe(T0 + SPLASH_MS.question + HOUR);
+    expect(resumed.endsAt).toBe(T0 + SPLASH_MS.question + 20_000 + HOUR);
   });
 
   it('keeps a state that was already paused as it was, apart from the connections', () => {
@@ -270,7 +271,7 @@ const STATE_SHAPE: Record<string, string> = {
     [
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
-      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams',
+      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt',
     ],
     true,
   ),
@@ -621,7 +622,54 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  11: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,misses,queue,sorted',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'captains,dice,duelists,form,list,members',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
+
+/** 11b: класика після «Почати гру» через stamp сервера — GameState.stepAt. */
+function stamped(): GameState {
+  const lobby = lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро');
+  return stamp(lobby, must(start(lobby, T0)), T0);
+}
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
 function representative(): GameState[] {
@@ -736,6 +784,7 @@ function representative(): GameState[] {
   return [
     teamDice,
     teamBuzz,
+    stamped(),
     laddered,
     took,
     helped,
@@ -782,6 +831,15 @@ describe('the saved state', () => {
     }
   });
 
+  it('the step moment (stepAt, 11b) survives JSON and suspend', () => {
+    const s = stamped();
+    expect(s.stepAt).toBe(T0);
+    expect(roundTrip(s)).toEqual(s);
+    const suspended = suspend(s, T0 + 1000);
+    expect(suspended.stepAt).toBe(T0);
+    expect(roundTrip(suspended)).toEqual(suspended);
+  });
+
   it('team states (lobby dice mid-tour, a team blitz with a buzzer) survive JSON and suspend', () => {
     const [teamDice, teamBuzz] = representative();
     for (const s of [teamDice, teamBuzz]) {
@@ -809,7 +867,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {

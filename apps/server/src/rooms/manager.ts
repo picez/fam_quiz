@@ -82,7 +82,10 @@ import {
   questionFor,
   GAME_STATE_VERSION,
   READABLE_STATE_VERSIONS,
+  stamp,
+  tooSoon,
   type GameState,
+  type PacedAction,
   type Result,
   type TeamAct,
 } from '@quiz/engine';
@@ -230,7 +233,15 @@ function sameToken(given: string, expected: string): boolean {
 export interface RoomManagerOptions {
   /** Заставки переходів (8c); main.ts і наскрізні тести вмикають, модульні тести сервера — ні. */
   transitions?: boolean;
+  /** Мінімальний час перед кроками ведучого (11b); типово вимкнено, справжній сервер (main.ts) вмикає. */
+  pacing?: boolean;
 }
+
+/** Кроки ведучого з мінімальним часом (11b) і вікно, яке їх стереже. Решта дій не затримується ніколи. */
+const PACED: Partial<Record<HostAction['type'], PacedAction>> = { next: 'next', lock: 'lock', skip: 'skip', 'survey-all': 'next', 'bluff-all': 'next' };
+
+/** Сервер пускає крок до 150 мс раніше кінця вікна: розбіжність годинника пульта в цих межах не «ковтає» натискання (пульт сам чекає +100 мс). */
+export const PACE_GRACE_MS = 150;
 
 interface DraftStage {
   trial: boolean;
@@ -267,6 +278,7 @@ export class RoomManager {
   private readonly scheduler: Scheduler;
   private readonly rng: () => number;
   private readonly transitions: boolean;
+  private readonly pacing: boolean;
   private readonly live = new Map<string, Room>();
   /** Коди кімнат із бази, яких немає в пам'яті. */
   private reserved = new Set<string>();
@@ -277,6 +289,7 @@ export class RoomManager {
     this.scheduler = scheduler;
     this.rng = rng;
     this.transitions = options.transitions ?? false;
+    this.pacing = options.pacing ?? false;
   }
 
   now(): number {
@@ -738,6 +751,9 @@ export class RoomManager {
   host(room: Room, action: HostAction): AckResult {
     if (!this.alive(room)) return this.gone();
     const state = room.state;
+    // На паузі рушій сам відповість paused; затримка — лише поки гра йде.
+    const paced = PACED[action.type];
+    if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now() + PACE_GRACE_MS)) return { ok: false, error: 'too_soon' };
     switch (action.type) {
       case 'start':
         return this.apply(room, start(state, this.now()));
@@ -876,8 +892,9 @@ export class RoomManager {
     return { ok: true };
   }
 
-  private commit(room: Room, state: GameState): void {
-    room.state = state;
+  /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. */
+  private commit(room: Room, state: GameState, at = this.now()): void {
+    room.state = this.pacing ? stamp(room.state, state, at) : state;
     this.reschedule(room);
     this.emit(room, { type: 'changed' });
   }
@@ -897,7 +914,7 @@ export class RoomManager {
         room.tickedTo = Math.max(this.now(), at);
         const ticked = tick(room.state, room.tickedTo);
         // Навіть без змін стану (відповідь у черзі чекає на ведучого) таймер ставиться на наступну мить.
-        if (ticked !== room.state) this.commit(room, ticked);
+        if (ticked !== room.state) this.commit(room, ticked, room.tickedTo);
         else this.reschedule(room);
       }, Math.max(0, at - this.now()));
     }

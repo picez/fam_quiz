@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView } from '@quiz/shared';
 import { secondsLeft } from '../clock';
+import { paceAttrs, usePace } from '../pace';
 import { ChainBoard } from './ChainView';
 import { SortBoard } from './SortView';
 import { WallReveal } from './WallReveal';
@@ -284,6 +285,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
   // Звук без сцени грає тут: починається після заставки запитання, як на сцені.
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  // 11b: поки сервер не дозволяє крок, кнопки ведучого неактивні й заповнюються.
+  const nextPace = usePace(view.pace.next, offsetMs);
+  const lockPace = usePace(view.pace.lock, offsetMs);
+  const skipPace = usePace(view.pace.skip, offsetMs);
+  const mainPace = main?.event === 'host:lock' ? lockPace : main?.event === 'host:next' ? nextPace : null;
   const stageGone = useStageGone(stageOnline);
   const underSplash = phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell');
   // Поступ проявлення потрібен лише запитанню з проявленням: решта не перемальовується щоразу.
@@ -302,7 +308,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
   const act = async (event: HostEvent, payload?: unknown) => {
     const result = await send(event, payload);
-    setError(result.ok ? null : errorText(result.error));
+    setError(result.ok || result.error === 'too_soon' ? null : errorText(result.error));
   };
 
   const blink = useVerdictBlink(view.spotlight);
@@ -548,7 +554,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <BoardLegend board={board} />
           <TurnSchedule board={board} heading={t('turnQueueTitle')} limit={3} />
           <div className="panel-actions">
-            <button type="button" className="btn" onClick={() => void act('host:skip')}>
+            <button
+              type="button"
+              className={skipPace !== null ? 'btn is-pacing' : 'btn'}
+              {...paceAttrs(skipPace)}
+              disabled={skipPace !== null}
+              onClick={() => void act('host:skip')}
+            >
               {t('skipTurn')}
             </button>
           </div>
@@ -958,7 +970,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {bluff !== null && (
         <section className="panel host-bluff">
           {/* Заголовок «Блеф ⓘ» уже в рядку контексту запитання, тут його не повторюємо. */}
-          <HostBluff info={bluff} act={step} busy={stepping} paused={view.paused} canRemove={phase === 'question'} />
+          <HostBluff info={bluff} act={step} busy={stepping || nextPace !== null} pace={nextPace} paused={view.paused} canRemove={phase === 'question'} />
         </section>
       )}
 
@@ -1158,15 +1170,22 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
         {surveyStep && !view.paused && (
-          <button type="button" className="btn" disabled={stepping} onClick={() => step('host:survey-all')}>
+          <button
+            type="button"
+            className={nextPace !== null ? 'btn is-pacing' : 'btn'}
+            {...paceAttrs(nextPace)}
+            disabled={stepping || nextPace !== null}
+            onClick={() => step('host:survey-all')}
+          >
             {t('surveyAllRows')}
           </button>
         )}
         {main !== undefined && !view.paused && (
           <button
             type="button"
-            className="btn btn-primary"
-            disabled={stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding}
+            className={mainPace !== null ? 'btn btn-primary is-pacing' : 'btn btn-primary'}
+            {...paceAttrs(mainPace)}
+            disabled={mainPace !== null || stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding}
             onClick={() => step(main.event)}
           >
             {ladderPickFirst
