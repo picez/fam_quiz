@@ -1,5 +1,5 @@
 import type { BluffOption } from '@quiz/engine';
-import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
+import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -96,6 +96,20 @@ export interface PlayRef {
   bluff?: { options: BluffOption[]; picks: Record<string, string> };
   /** «Ва-банк»: хто забрав банк після цього запитання (id учасників) і чи скінчився на ньому раунд. */
   wipeout?: { took: string[]; end?: true };
+  /** «Мільйонер»: учасник, сходинка, підказки, рішення й підсумок (id учасника). */
+  ladder?: {
+    contestant: string;
+    step: number;
+    level: number;
+    lifelines?: {
+      fifty?: string[];
+      /** Лише закрите голосування залу: скільки глядачів проголосувало й за які варіанти. */
+      audience?: { cast: number; counts: Record<string, number> };
+      hint?: { text: string | null; aloud: boolean };
+    };
+    decision?: 'go' | 'take';
+    outcome?: { kind: LadderOutcomeKind; passed: number; points: number };
+  };
   /** «Вибування»: хто був на межі, випробування, привиди й кінець раунду (id учасників). */
   survival?: {
     /** Хто був на межі; немає — раунд чи гра скінчились на розкритті, до вердикту. */

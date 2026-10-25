@@ -1,5 +1,5 @@
-import { rankPlayers, recordOf, type GameState, type SurvivalPlay } from '@quiz/engine';
-import { isUnscored, type Answer, type BuffKind } from '@quiz/shared';
+import { rankPlayers, recordOf, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
+import { isUnscored, type Answer, type BuffKind, type Question } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
@@ -44,7 +44,9 @@ function signature(state: GameState): string {
   const wipeout = last < 0 ? null : (state.plays[last].wipeout ?? null);
   // Привиди й випробування «Вибування» теж не міняють фазу.
   const survival = last < 0 ? null : (state.plays[last].survival ?? null);
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival]);
+  // Підказки й рішення «Мільйонера» теж не міняють фазу.
+  const ladder = last < 0 ? null : (state.plays[last].ladder ?? null);
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder]);
 }
 
 interface AnswerRow {
@@ -133,6 +135,29 @@ function survivalRef(survival: SurvivalPlay): NonNullable<PlayRef['survival']> {
   };
 }
 
+/** «Мільйонер» для PlayRef: голосування залу — лише закрите, у вигляді підсумку. */
+function ladderRef(ladder: LadderPlay, question: Question): NonNullable<PlayRef['ladder']> {
+  const { fifty, audience, hint } = ladder.lifelines;
+  const taken = {
+    ...(fifty === undefined ? {} : { fifty: fifty.removed }),
+    ...(audience === undefined || !audience.closed
+      ? {}
+      : (() => {
+          const { cast, counts } = voteTally(question, audience.ballots);
+          return { audience: { cast, counts } };
+        })()),
+    ...(hint === undefined ? {} : { hint: { text: hint.text, aloud: hint.aloud } }),
+  };
+  return {
+    contestant: ladder.contestantId,
+    step: ladder.step,
+    level: ladder.level,
+    ...(Object.keys(taken).length === 0 ? {} : { lifelines: taken }),
+    ...(ladder.decision === null ? {} : { decision: ladder.decision }),
+    ...(ladder.outcome === null ? {} : { outcome: { kind: ladder.outcome.kind, passed: ladder.outcome.passed, points: ladder.outcome.points } }),
+  };
+}
+
 async function save(db: Db, snapshot: Snapshot): Promise<void> {
   const { state } = snapshot;
   const finished = state.phase === 'finished';
@@ -152,6 +177,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         : {}),
       ...(play.wipeout === undefined ? {} : { wipeout: { took: play.wipeout.took, ...(play.wipeout.end ? { end: true as const } : {}) } }),
       ...(play.survival === undefined ? {} : { survival: survivalRef(play.survival) }),
+      ...(play.ladder === undefined ? {} : { ladder: ladderRef(play.ladder, play.question) }),
     })),
     finishedAt: finished ? new Date() : null,
   };

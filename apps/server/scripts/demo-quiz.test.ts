@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, READY_BUFFS, SURVIVAL_TYPES, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
+import { LADDER_PRESETS, LIMITS, READY_BUFFS, SURVIVAL_TYPES, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
@@ -429,5 +429,33 @@ describe('the survival round in the demo quiz (10h)', () => {
     for (const question of [...round.questions, ...round.trials]) expect(SURVIVAL_TYPES).toContain(question.type);
     expect(demoQuiz.rounds.at(-2)).toBe(round);
     expect(demoQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
+  });
+});
+
+describe('the ladder round in the party quiz (10i)', () => {
+  it('is valid, has seven single questions with four options, the preset levels and the safe steps', () => {
+    const quiz = partyQuiz();
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    const round = quiz.rounds.find((r) => r.type === 'ladder');
+    if (round === undefined || round.type !== 'ladder') throw new Error('no ladder round');
+    expect(round.questions).toHaveLength(7);
+    for (const question of round.questions) {
+      expect(question.type).toBe('single');
+      if (question.type === 'single') expect(question.options).toHaveLength(4);
+    }
+    expect(round.levels).toEqual(LADDER_PRESETS[7]);
+    expect(round.safe).toEqual([3, 5]);
+    expect(round.lifelines).toEqual(['fifty', 'audience', 'hint']);
+    expect(quiz.rounds.at(-1)?.type).toBe('classic');
+    expect(quiz.rounds.at(-2)).toBe(round);
+    expect(quiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
+    expect(questionsOf(quiz).length).toBeLessThanOrEqual(LIMITS.maxQuizQuestions);
+  });
+
+  it('has the right answers: the blue whale, the ostrich, Baikal, Angel, the Andes, Sweden and the stirrup', () => {
+    const round = partyQuiz().rounds.find((r) => r.type === 'ladder');
+    if (round === undefined || round.type !== 'ladder') throw new Error('no ladder round');
+    const answers = round.questions.map((question) => (question.type === 'single' ? question.options.find((o) => o.id === question.correctId)?.text : undefined));
+    expect(answers).toEqual(['Синій кит', 'Страус', 'Байкал', 'Анхель', 'Анди', 'Швеція', 'Стремінце']);
   });
 });

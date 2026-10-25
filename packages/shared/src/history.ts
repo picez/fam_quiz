@@ -1,6 +1,7 @@
 import type { Answer } from './answer';
 import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
-import type { CellKind, Question, Round, TrialKind, WagerMode } from './quiz';
+import type { LadderOutcomeKind } from './ladder';
+import type { CellKind, LifelineKind, Question, Round, TrialKind, WagerMode } from './quiz';
 import type { WipeoutStatus } from './wipeout';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
@@ -89,6 +90,30 @@ export interface GameQuestionResult {
     alive: string[];
     /** На цьому запитанні раунд скінчився. */
     end: boolean;
+  };
+  /** «Мільйонер»: учасник, сходинка, підказки, рішення, підсумок і зал на цьому запитанні. */
+  ladder?: {
+    /** Нікнейм учасника. */
+    contestant: string;
+    /** Сходинка з 0. */
+    step: number;
+    level: number;
+    /** Сходинка неспалима. */
+    safe: boolean;
+    lifelines: {
+      kind: LifelineKind;
+      /** 50/50: прибрані варіанти; в інших — null. */
+      removed: string[] | null;
+      /** Зал: підсумок закритого голосування; в інших — null. */
+      tally: { cast: number; counts: Record<string, number> } | null;
+      /** Підказка ведучого текстом; null — уголос або не інша підказка. */
+      hint: string | null;
+      aloud: boolean;
+    }[];
+    decision: 'go' | 'take' | null;
+    outcome: { kind: LadderOutcomeKind; passed: number; points: number } | null;
+    /** Скільки глядачів відповіли й відгадали. */
+    hall: { answered: number; right: number };
   };
   /** Відповіді в порядку: учасник за турнірною таблицею, потім номер спроби. */
   responses: GameResponse[];

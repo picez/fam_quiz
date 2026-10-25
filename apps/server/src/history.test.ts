@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Answer, Question } from '@quiz/shared';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, sortOf } from '@quiz/engine';
 import { gameTables, hostGame, playerGames } from './history';
@@ -9,6 +9,7 @@ import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
+import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { FakeScheduler } from './testing/fake-scheduler';
@@ -1588,6 +1589,78 @@ describe('history: survival (10h)', () => {
     // Бонус виживання — коригування живому, рахунок його враховує: 100 + 0 + 100 + 100 + 500.
     expect(detail.adjustments).toMatchObject([{ nickname: 'Гліб', points: 500, source: 'survival' }]);
     expect(detail.standings.find((s) => s.nickname === 'Гліб')?.score).toBe(800);
+    await local.app.close();
+  });
+});
+
+describe('history: ladder (10i)', () => {
+  it('shows the contestant, the step, the safe flag, the lifelines, the decision, the hall and the outcome for every question; the prize is a ladder adjustment', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const quizId = ((await send('/api/quizzes', makeRoundsQuiz([ladderRound('rl')]), host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро', 'Віра']) {
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name }, (await signUp(local.app, name)).cookie)).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    local.manager.host(room, { type: 'start' });
+    expect(local.manager.hostLadderPick(room, ids['Оля'])).toEqual({ ok: true });
+    // l1: 50/50; Петро відгадує, Віра ні. l2: зал; відповідають обоє правильно. l3: Петро відгадує, Віра мовчить; Оля забирає.
+    playLadderQuestion(local.manager, room, { contestant: true, hall: { [ids['Петро']]: true, [ids['Віра']]: false }, lifelines: ['fifty'] });
+    expect(local.manager.ladderDecide(room, ids['Оля'], false)).toEqual({ ok: true });
+    playLadderQuestion(local.manager, room, { contestant: true, hall: { [ids['Петро']]: true, [ids['Віра']]: true }, lifelines: ['audience'] });
+    expect(local.manager.ladderDecide(room, ids['Оля'], false)).toEqual({ ok: true });
+    playLadderQuestion(local.manager, room, { contestant: true, hall: { [ids['Петро']]: true } });
+    expect(local.manager.ladderDecide(room, ids['Оля'], true)).toEqual({ ok: true });
+    for (let guard = 0; guard < 4 && room.state.phase !== 'finished'; guard++) local.manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('finished');
+    await local.recorder.idle();
+
+    const detail = (
+      await local.app.inject({ method: 'GET', url: `/api/games/${created.gameId}`, headers: { cookie: host.cookie } })
+    ).json() as {
+      standings: { nickname: string; score: number }[];
+      adjustments: { nickname: string; points: number; source: string }[];
+      questions: { index: number; ladder?: Record<string, unknown> }[];
+    };
+    expect(detail.questions).toHaveLength(3);
+    const at = (index: number) => detail.questions[index].ladder;
+    expect(at(0)).toMatchObject({
+      contestant: 'Оля',
+      step: 0,
+      level: 100,
+      safe: false,
+      lifelines: [{ kind: 'fifty', removed: [expect.any(String), expect.any(String)], tally: null, hint: null, aloud: false }],
+      decision: 'go',
+      outcome: null,
+      hall: { answered: 2, right: 1 },
+    });
+    expect(at(1)).toMatchObject({
+      step: 1,
+      level: 300,
+      safe: false,
+      lifelines: [{ kind: 'audience', removed: null, tally: { cast: 2, counts: { c: 2 } }, hint: null, aloud: false }],
+      decision: 'go',
+      hall: { answered: 2, right: 2 },
+    });
+    expect(at(2)).toMatchObject({
+      step: 2,
+      level: 1000,
+      safe: true,
+      lifelines: [],
+      decision: 'take',
+      outcome: { kind: 'took', passed: 3, points: 1000 },
+      hall: { answered: 1, right: 1 },
+    });
+    expect(detail.adjustments).toMatchObject([{ nickname: 'Оля', points: 1000, source: 'ladder' }]);
+    expect(detail.standings.find((s) => s.nickname === 'Оля')?.score).toBe(1000);
     await local.app.close();
   });
 });

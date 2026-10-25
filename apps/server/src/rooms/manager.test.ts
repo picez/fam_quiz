@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { TRIAL_RIGHT, playSurvivalQuestion } from '../testing/survival-game';
@@ -1089,5 +1089,65 @@ describe('the survival trial (10h)', () => {
     expect(manager.host(room, { type: 'override', playerId: olena.playerId, grade: 'correct' })).toEqual({ ok: true });
     expect(room.state.plays[0].survival?.trial?.out).toEqual([]);
     expect(manager.trial(room, olena.playerId, TRIAL_RIGHT[0])).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});
+
+describe('the ladder (10i)', () => {
+  function ladder(options: Parameters<typeof ladderRound>[2] = {}) {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([ladderRound('rl', undefined, options)]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    const view = (who: { identity: Identity }) => manager.view(room, who.identity) as unknown as { me: { ladder: { hint: { text: string | null } | null } | null } };
+    return { scheduler, manager, room, olena, taras, view };
+  }
+
+  /** Заставка, вибір учасника (Олена) і перше запитання. */
+  function toQuestion(ctx: ReturnType<typeof ladder>) {
+    expect(ctx.manager.host(ctx.room, { type: 'start' })).toEqual({ ok: true });
+    expect(ctx.manager.hostLadderPick(ctx.room, ctx.olena.playerId)).toEqual({ ok: true });
+    for (let guard = 0; guard < 4 && ctx.room.state.phase !== 'question'; guard++) ctx.manager.host(ctx.room, { type: 'next' });
+    ctx.scheduler.advance(10_000);
+    expect(ctx.room.state.phase).toBe('question');
+  }
+
+  it('host:hint on the contestant request gives them the text', () => {
+    const ctx = ladder();
+    toQuestion(ctx);
+    expect(ctx.manager.lifeline(ctx.room, ctx.olena.playerId, 'hint')).toEqual({ ok: true });
+    expect(ctx.view(ctx.olena).me.ladder?.hint?.text ?? null).toBeNull();
+    expect(ctx.manager.hostHint(ctx.room, ctx.olena.playerId, 'Це друга літера')).toEqual({ ok: true });
+    expect(ctx.view(ctx.olena).me.ladder?.hint?.text).toBe('Це друга літера');
+    expect(JSON.stringify(ctx.view(ctx.taras))).not.toContain('Це друга літера');
+  });
+
+  it('decisions: the contestant, the host instead of them, and nobody else', () => {
+    const ctx = ladder();
+    toQuestion(ctx);
+    ctx.manager.answer(ctx.room, ctx.olena.playerId, { type: 'single', optionId: 'b' });
+    ctx.manager.answer(ctx.room, ctx.taras.playerId, { type: 'single', optionId: 'b' });
+    ctx.manager.host(ctx.room, { type: 'next' });
+    ctx.manager.host(ctx.room, { type: 'next' });
+    expect(ctx.room.state.phase).toBe('leaderboard');
+    expect(ctx.manager.ladderDecide(ctx.room, ctx.taras.playerId, true)).toEqual({ ok: false, error: 'not_allowed' });
+    expect(ctx.manager.hostLadderDecide(ctx.room, true)).toEqual({ ok: true });
+    expect(ctx.room.state.plays[0].ladder?.outcome).toEqual({ kind: 'took', passed: 1, points: 100 });
+  });
+
+  it('the hall vote closes at its own deadline', () => {
+    const ctx = ladder();
+    toQuestion(ctx);
+    expect(ctx.manager.lifeline(ctx.room, ctx.olena.playerId, 'audience')).toEqual({ ok: true });
+    const audience = () => ctx.room.state.plays[0].ladder?.lifelines.audience;
+    expect(audience()?.closed).toBe(false);
+    const remaining = (audience()?.endsAt ?? 0) - ctx.scheduler.now();
+    ctx.scheduler.advance(remaining - 1);
+    expect(audience()?.closed).toBe(false);
+    ctx.scheduler.advance(1);
+    expect(audience()?.closed).toBe(true);
+    expect(ctx.room.state.phase).toBe('question');
+    expect(ctx.manager.answer(ctx.room, ctx.taras.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: false, error: 'vote_closed' });
   });
 });

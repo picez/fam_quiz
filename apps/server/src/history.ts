@@ -1,5 +1,6 @@
 import {
   allSpares,
+  LIFELINES,
   isUnscored,
   questionPrice,
   questionsOf,
@@ -248,6 +249,41 @@ function survivalResult(quiz: Quiz, plays: PlayRef[], index: number, standings: 
   };
 }
 
+/**
+ * «Мільйонер» на запитанні index: учасник, сходинка, підказки, рішення й підсумок зі збереженого журналу; safe — з round.safe знімка.
+ * Зал — рядки-відповіді всіх, крім учасника (мовчання — не рядок).
+ */
+function ladderResult(
+  quiz: Quiz,
+  plays: PlayRef[],
+  index: number,
+  nicknames: Map<string, string>,
+  given: { participantId: string; attempt: number; accepted: boolean }[],
+): GameQuestionResult['ladder'] {
+  const ref = plays[index];
+  const ladder = ref?.ladder;
+  const round = ref === undefined ? undefined : quiz.rounds[ref.roundIndex];
+  if (ref === undefined || ladder === undefined || round?.type !== 'ladder') return undefined;
+  const hall = given.filter((a) => a.participantId !== ladder.contestant && isAnswerRow(a.attempt));
+  const taken = ladder.lifelines ?? {};
+  return {
+    contestant: nicknames.get(ladder.contestant) ?? '',
+    step: ladder.step,
+    level: ladder.level,
+    safe: round.safe.includes(ladder.step),
+    lifelines: LIFELINES.filter((kind) => taken[kind] !== undefined).map((kind) => ({
+      kind,
+      removed: kind === 'fifty' ? (taken.fifty ?? []) : null,
+      tally: kind === 'audience' ? (taken.audience ?? null) : null,
+      hint: kind === 'hint' ? (taken.hint?.text ?? null) : null,
+      aloud: kind === 'hint' && taken.hint?.aloud === true,
+    })),
+    decision: ladder.decision ?? null,
+    outcome: ladder.outcome ?? null,
+    hall: { answered: distinct(hall.map((a) => a.participantId)), right: distinct(hall.filter((a) => a.accepted).map((a) => a.participantId)) },
+  };
+}
+
 /** Кількість різних значень: у бліці гравець може мати кілька рядків-спроб на одне запитання. */
 const distinct = (values: unknown[]) => new Set(values).size;
 
@@ -365,6 +401,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
         responses: responsesOf(given, standings, quiz === null ? [] : allSpares(quiz)),
         ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),
         ...(round?.type === 'survival' && quiz !== null ? { survival: survivalResult(quiz, row.plays, index, standings) } : {}),
+        ...(round?.type === 'ladder' && quiz !== null ? { ladder: ladderResult(quiz, row.plays, index, nicknames, given) } : {}),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
       },
     ];
@@ -466,6 +503,22 @@ function unplayedSurvival(snapshot: unknown, plays: PlayRef[] | null, questionsP
   return unplayed;
 }
 
+/**
+ * Скільки зіграних запитань «Мільйонера» цей гравець не грав: він не був учасником драбини й не відповів «за себе».
+ * Зал відповідає за бажанням, тож мовчання глядача — не помилка; такі запитання не рахуємо його запитаннями.
+ * answered — questionIndex рядків-відповідей гравця.
+ */
+function unplayedLadder(snapshot: unknown, plays: PlayRef[] | null, questionsPlayed: number, participantId: string, answered: Set<number>): number {
+  // Розбір знімка дорогий: для ігор без «Мільйонера» його не робимо.
+  const rounds = typeof snapshot === 'object' && snapshot !== null ? (snapshot as { rounds?: unknown }).rounds : undefined;
+  if (plays === null || !Array.isArray(rounds) || !rounds.some((round: unknown) => (round as { type?: unknown } | null)?.type === 'ladder')) return 0;
+  const quiz = snapshotOf(snapshot);
+  if (quiz === null) return 0;
+  return plays
+    .slice(0, questionsPlayed)
+    .filter((ref, i) => quiz.rounds[ref.roundIndex]?.type === 'ladder' && ref.ladder?.contestant !== participantId && !answered.has(i)).length;
+}
+
 /** Ігри гравця з акаунта, найновіші першими, з рядками його відповідей; limit null — усі. */
 export async function playerGames(db: Db, userId: string, limit: number | null): Promise<{ played: PlayedGame; marks: AnswerMark[] }[]> {
   const query = db
@@ -516,7 +569,14 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
             row.participant.id,
             new Set(mine.filter((a) => a.accepted && a.attempt === 0).map((a) => a.questionIndex)),
           ) -
-          unplayedSurvival(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed, row.participant.id),
+          unplayedSurvival(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed, row.participant.id) -
+          unplayedLadder(
+            row.game.quizSnapshot,
+            row.game.plays,
+            row.game.questionsPlayed,
+            row.participant.id,
+            new Set(mine.filter((a) => isAnswerRow(a.attempt)).map((a) => a.questionIndex)),
+          ),
       },
       marks: mine.filter((a) => isAnswerRow(a.attempt)).map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
     };
