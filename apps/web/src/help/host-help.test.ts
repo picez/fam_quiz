@@ -286,4 +286,10 @@ describe('host help', () => {
     expect(text('round.final')).toContain("Стіна зв'язків");
     expect(text('setting.speedBonus')).toContain('стіні');
   });
+
+  it('describes long round descriptions and the board cell marks (11a)', () => {
+    expect(text('setting.newcomers')).toContain(String(LIMITS.roundDescription));
+    expect(text('setting.newcomers')).toContain('трьома крапками');
+    for (const word of ['✓', 'не заповнена', 'Зберегти']) expect(text('round.board')).toContain(word);
+  });
 });

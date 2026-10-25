@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { LIMITS, ROUND_TYPES, type Round } from '@quiz/shared';
 import { roundLabel } from '../format';
 import { HelpButton } from '../help/HelpButton';
 import { ROUND_NAMES } from '../guide-text';
-import { t } from '../i18n';
+import { countText, t } from '../i18n';
+import { boardReadiness } from './draft';
 
 interface Props {
   rounds: Round[];
@@ -21,6 +22,7 @@ interface Props {
  */
 export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove, onRemove }: Props) {
   const several = rounds.length > 1;
+  const baseId = useId();
   const [choosing, setChoosing] = useState(false);
   const add = (type: Round['type']) => {
     setChoosing(false);
@@ -32,17 +34,28 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
     <div className="round-strip" role="group" aria-label={t('roundsLabel')}>
       {several && (
         <div className="round-tabs">
-          {rounds.map((round, index) => (
-            <button
-              key={round.id}
-              type="button"
-              className={index === selected ? 'btn btn-small round-tab is-on' : 'btn btn-small round-tab'}
-              aria-current={index === selected}
-              onClick={() => onSelect(index)}
-            >
-              {nameOf(round, index)}
-            </button>
-          ))}
+          {rounds.map((round, index) => {
+            const notReady = round.type === 'board' ? boardReadiness(round).notReady : 0;
+            const badgeId = `${baseId}-${index}`;
+            return (
+              <button
+                key={round.id}
+                type="button"
+                className={index === selected ? 'btn btn-small round-tab is-on' : 'btn btn-small round-tab'}
+                aria-current={index === selected}
+                aria-label={notReady > 0 ? nameOf(round, index) : undefined}
+                aria-describedby={notReady > 0 ? badgeId : undefined}
+                onClick={() => onSelect(index)}
+              >
+                {nameOf(round, index)}
+                {notReady > 0 && (
+                  <span id={badgeId} className="round-tab-badge">
+                    {countText('boardNotReady', notReady, { count: notReady })}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
       <div className="toolbar">

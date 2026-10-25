@@ -901,7 +901,7 @@ async function boardGame() {
   // Клітинка «Міста, 200» подвоює бали.
   await host.getByRole('button', { name: /^Категорія 1, клітинка 2: 200/ }).click();
   await host.locator('label.field', { hasText: 'Позначка' }).locator('select').selectOption('x2');
-  await host.getByRole('button', { name: 'Категорія 1, клітинка 2: 200 ×2', ...exact }).waitFor();
+  await host.getByRole('button', { name: /^Категорія 1, клітинка 2: 200 ×2, / }).waitFor();
   await shot(host, 'editor-desktop');
   await host.setViewportSize({ width: 390, height: 844 });
   await shot(host, 'editor-phone');
@@ -3741,7 +3741,7 @@ async function sortGame() {
   await host.setViewportSize({ width: 1280, height: 900 });
   // Клітинка поля з сортуванням: ціна — найбільша сума (4 × 50), без перемикачів типу й способу.
   await host.getByRole('button', { name: 'Поле', ...exact }).click();
-  await host.getByRole('button', { name: 'Категорія 2, клітинка 3: 200 ×2', ...exact }).click();
+  await host.getByRole('button', { name: /^Категорія 2, клітинка 3: 200 ×2, / }).click();
   await host.getByText('Сортує лише той, хто вибрав клітинку, з телефона. Бали — за кожне відсортоване слово.', exact).waitFor();
   expect(await host.locator('label.field', { hasText: 'Тип клітинки' }).count()).toBe(0);
   expect(await host.locator('label.field', { hasText: 'Як відповідати' }).count()).toBe(0);

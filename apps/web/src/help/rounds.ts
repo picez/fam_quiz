@@ -74,6 +74,7 @@ export const ROUND_HELP: Record<RoundType, HelpEntry> = {
       'Ставте дешеві клітинки вгорі, а дорогі внизу — так гравцям легше вибирати ризик.',
       'Одна-дві приховані ×2 і одна бліц-клітинка роблять поле живим.',
       'Для «Заміни запитання» додайте кожній категорії по 1–2 запасні.',
+      'У редакторі клітинка з ✓ готова, з ! — не заповнена, пунктирна — порожня; над стовпцем видно, скільки готово. “Зберегти” перевіряє те саме.',
     ],
     limits: [
       `${LIMITS.minCategories}–${LIMITS.maxCategories} категорій, у кожній ${LIMITS.minCategoryQuestions}–${LIMITS.maxCategoryQuestions} клітинок, до ${LIMITS.maxCategories * LIMITS.maxCategoryQuestions} клітинок на полі.`,

@@ -2569,3 +2569,30 @@ describe('QuizEditor: team play', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
+
+describe('QuizEditor board tab badge (11a)', () => {
+  const board = (): Quiz => {
+    const round = newBoardRound();
+    round.categories.forEach((category, ci) => {
+      category.title = `Тема ${ci + 1}`;
+      category.cells.forEach((cell, i) => {
+        const q = cell.question;
+        if (q.type !== 'single') return;
+        cell.question = { ...q, text: `Питання ${ci}${i}`, options: q.options.map((o, k) => ({ ...o, text: `В${k}` })) };
+      });
+    });
+    round.categories[1].cells[2].question = { ...round.categories[1].cells[2].question, text: '' };
+    return { ...newQuiz(), title: 'Гра', rounds: [round, newClassicRound()] };
+  };
+
+  it('badges the board tab with the not-ready count without changing its name, and drops it when fixed', () => {
+    open(board());
+    const tab = screen.getByRole('button', { name: 'Ігрове поле' });
+    const badge = document.getElementById(tab.getAttribute('aria-describedby') ?? '');
+    expect(badge?.textContent).toBe('1 не готова');
+    expect(screen.getByRole('button', { name: 'Раунд 2' }).getAttribute('aria-describedby')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Категорія 2, клітинка 3:/ }));
+    fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Тепер є' } });
+    expect(screen.getByRole('button', { name: 'Ігрове поле' }).getAttribute('aria-describedby')).toBeNull();
+  });
+});
