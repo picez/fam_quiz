@@ -34,7 +34,7 @@ import { LadderAudience, LadderLifelineBadges, ladderOutcomeText } from './Ladde
 import { SurvivalDoors } from './SurvivalDoors';
 import { MenuLinks } from './MenuLinks';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
-import { SortBoard, SortReveal, SortWords } from './SortView';
+import { SortBoard, SortReveal, SortStage, SortWords } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
 import { WallTable } from './WallTable';
@@ -55,6 +55,8 @@ interface Props {
   /** Останній нахил картки сортування за тим, хто сортує (11d). */
   tilts?: Record<string, SortTilt>;
 }
+
+const NO_TILTS: Record<string, SortTilt> = {};
 
 function hostOf(url: string): string {
   try {
@@ -158,7 +160,7 @@ function FinalReveal({ final, question, presented }: { final: FinalInfo; questio
   );
 }
 
-function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props, 'view' | 'offsetMs'> & { blink: boolean; blinking: ReadonlySet<string>; audioCommand: AudioCommand | null }) {
+function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick<Props, 'view' | 'offsetMs'> & { tilts: Record<string, SortTilt>; blink: boolean; blinking: ReadonlySet<string>; audioCommand: AudioCommand | null }) {
   const { question, reveal, stats } = view;
   // Поки йде заставка запитання чи клітинки, запитання під шаром ще не почалося: aria-busy для читачів екрана.
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
@@ -288,11 +290,24 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           <ChainWords first={question.chain.first} masks={question.chain.masks} />
         )
       ) : question.sort !== null ? (
-        <>
-          <SortReveal categories={question.sort.categories} question={reveal !== null && reveal.type === 'sort' ? reveal : null} total={question.sort.total} />
-          {/* Поле: до розкриття під категоріями — усі слова за абеткою. */}
-          {view.board !== null && reveal === null && view.sort?.words && <SortWords words={view.sort.words} />}
-        </>
+        view.sort?.live ? (
+          <SortStage
+            question={question}
+            info={view.sort}
+            live={view.sort.live}
+            reveal={reveal !== null && reveal.type === 'sort' ? reveal : null}
+            tilts={tilts}
+            paused={view.paused}
+            offsetMs={offsetMs}
+            team={view.teams !== null}
+          />
+        ) : (
+          <>
+            <SortReveal categories={question.sort.categories} question={reveal !== null && reveal.type === 'sort' ? reveal : null} total={question.sort.total} />
+            {/* Поле: до розкриття під категоріями — усі слова за абеткою. */}
+            {view.board !== null && reveal === null && view.sort?.words && <SortWords words={view.sort.words} />}
+          </>
+        )
       ) : question.wall !== null ? (
         <div className={reveal?.type === 'wall' ? 'stage-fit stage-wall is-reveal' : 'stage-fit stage-wall'}>
           {reveal?.type === 'wall' ? (
@@ -707,7 +722,7 @@ function BoardStage({ board }: { board: BoardInfo }) {
   );
 }
 
-export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCommand = null }: Props) {
+export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS }: Props) {
   const { phase, standings } = view;
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
   const blink = useVerdictBlink(view.spotlight);
@@ -736,7 +751,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}

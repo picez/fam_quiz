@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DEBUFF_KINDS, type HostLive, type HostView, type LiveRow, type Question } from '@quiz/shared';
+import { DEBUFF_KINDS, type HostLive, type HostView, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
 import { t } from '../i18n';
 import { LiveAnswers } from './LiveAnswers';
 
@@ -293,5 +293,28 @@ describe('LiveAnswers', () => {
     cleanup();
     show([row({ answered: true, answer: { type: 'pin', x: 0.5, y: 0.5 } as never })]);
     expect(document.querySelector('.live-answer')?.textContent).toBe(t('pinAnswerBare'));
+  });
+});
+
+describe('LiveAnswers: where the card is heading (11d)', () => {
+  const sortView = (over: Partial<HostView> = {}) =>
+    base({ question: { choices: [], sort: { categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }], total: 4, lockSeconds: 3 } } as never, ...over });
+  const sortRow = () => row({ id: 'p1', progress: { kind: 'sort', card: 'Буряк', cardId: 'w3', seq: 1, sorted: 1, total: 4, misses: 0 } });
+  const tilt = (over = {}) => ({ p1: { sorterId: 'p1', wordId: 'w3', toward: 'c1', amount: 0.5, seq: 1, ...over } });
+  const body = (view: HostView, tilts: Record<string, SortTilt>) => {
+    render(<LiveAnswers view={view} live={live([sortRow()])} tilts={tilts} />);
+    return document.querySelector('.live-rows')?.textContent ?? '';
+  };
+
+  it('adds the category the card is dragged toward', () => {
+    expect(body(sortView(), tilt())).toContain('→ «Овочі»');
+  });
+
+  it('adds nothing for a weak, stale or paused tilt', () => {
+    expect(body(sortView(), tilt({ amount: 0.1 }))).not.toContain('→');
+    cleanup();
+    expect(body(sortView(), tilt({ seq: 0 }))).not.toContain('→');
+    cleanup();
+    expect(body(sortView({ paused: true }), tilt())).not.toContain('→');
   });
 });

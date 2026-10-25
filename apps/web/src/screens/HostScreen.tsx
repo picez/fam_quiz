@@ -201,7 +201,7 @@ function useStageGone(stageOnline: boolean): boolean {
   return gone && !stageOnline;
 }
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null }: Props) {
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const inRound = round !== null && IN_ROUND.includes(phase);
@@ -634,7 +634,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {view.ladder !== null && phase !== 'finished' && phase !== 'round_end' && <HostLadder view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
-      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} />}
+      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} tilts={tilts} />}
 
       {view.survival !== null && phase !== 'finished' && phase !== 'round_end' && <HostSurvival view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
@@ -713,7 +713,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </div>
       )}
 
-      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} />}
+      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} />}
 
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">

@@ -1912,3 +1912,81 @@ describe('StageScreen: bluff (10f)', () => {
     });
   });
 });
+
+describe('StageScreen: live sort (11d)', () => {
+  const categories = [
+    { id: 'c1', text: 'Овочі' },
+    { id: 'c2', text: 'Фрукти' },
+  ];
+  const sortQ = { ...question, type: 'sort' as const, choices: [], sort: { categories, total: 4, lockSeconds: 3 } };
+  const fullSort: Question = {
+    id: 'q9',
+    type: 'sort',
+    text: 'Розкладіть',
+    imageUrl: null,
+    video: null,
+    timeLimit: 60,
+    points: 100,
+    lockSeconds: 3,
+    categories,
+    words: [
+      { id: 'w1', text: 'Морква', categoryId: 'c1' },
+      { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+      { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+      { id: 'w4', text: 'Груша', categoryId: 'c2' },
+    ],
+  };
+  const live = (over = {}) => ({
+    sorterId: 'p1',
+    nickname: 'Анна',
+    card: { id: 'w3', text: 'Буряк' },
+    missed: null,
+    lockedUntil: null,
+    lockRemainingMs: null,
+    sorted: 1,
+    total: 4,
+    misses: 0,
+    timeMs: null,
+    seq: 1,
+    columns: [{ id: 'c1', words: [{ id: 'w1', text: 'Морква' }] }, { id: 'c2', words: [] }],
+    last: null,
+    marks: null,
+    ...over,
+  });
+  const words = [{ id: 'w3', text: 'Буряк' }, { id: 'w4', text: 'Груша' }, { id: 'w1', text: 'Морква' }, { id: 'w2', text: 'Яблуко' }];
+  const rows = [{ playerId: 'p1', nickname: 'Анна', sorted: 1, misses: 0, timeMs: null, points: null }];
+  const info = (liveInfo: ReturnType<typeof live> | null) => ({ total: 4, rows, winner: null, words, live: liveInfo }) as never;
+  const board = { cell: { category: 'Сад', price: 400, kind: 'normal', answerMode: 'phone', mark: 'none' }, turn: { playerId: 'p1', nickname: 'Анна' } } as unknown as BoardInfo;
+  const showTilts = (current: StageView, tilts = {}) =>
+    render(<StageScreen view={current} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline tilts={tilts} />);
+
+  it('shows the chooser card, filling columns and chips without placed words', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: sortQ, board, endsAt: Date.now() + 20_000, sort: info(live()) }));
+    expect(document.querySelector('.stage-sort-live .sort-live-card')?.textContent).toBe('Буряк');
+    const col = [...document.querySelectorAll('.sort-reveal-col')].find((el) => el.querySelector('h3')?.textContent === 'Овочі')!;
+    expect(col.textContent).toContain('Морква');
+    expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).not.toContain('Морква');
+  });
+
+  it('a tilt highlights the column', () => {
+    showTilts(
+      view({ phase: 'question', questionIndex: 0, question: sortQ, board, endsAt: Date.now() + 20_000, sort: info(live()) }),
+      { p1: { sorterId: 'p1', wordId: 'w3', toward: 'c2', amount: 0.7, seq: 1 } },
+    );
+    const col = [...document.querySelectorAll('.sort-reveal-col')].find((el) => el.querySelector('h3')?.textContent === 'Фрукти')!;
+    expect(col.classList.contains('is-toward')).toBe(true);
+  });
+
+  it('the reveal shows the marks', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: sortQ, board, reveal: fullSort, sort: info(live({ card: null, marks: [{ wordId: 'w1', misses: 1, late: false }] })) }));
+    expect(document.querySelector('.sort-mark')?.textContent).toBe('✗1');
+  });
+
+  it('a classic sort has no marks and no live card', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: sortQ, reveal: fullSort, sort: info(null) }));
+    expect(document.querySelector('.sort-mark')).toBeNull();
+    expect(document.querySelector('.sort-late')).toBeNull();
+    expect(document.querySelector('.stage-sort-live')).toBeNull();
+    expect(document.querySelector('.sort-reveal.is-open')).not.toBeNull();
+  });
+});

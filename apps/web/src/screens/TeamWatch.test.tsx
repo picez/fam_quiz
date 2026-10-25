@@ -132,3 +132,33 @@ describe('useDraftSender', () => {
     expect(send).not.toHaveBeenCalled();
   });
 });
+
+describe('TeamWatch: live sort (11d)', () => {
+  it('a teammate watches the captain sort: card and tilt', () => {
+    const sortQ = { ...publicQuestion, type: 'sort' as const, choices: [], sort: { categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }], total: 4, lockSeconds: 3 } };
+    const live = {
+      sorterId: 'team-b',
+      nickname: 'Сині',
+      card: { id: 'w4', text: 'Груша' },
+      missed: null,
+      lockedUntil: null,
+      lockRemainingMs: null,
+      sorted: 0,
+      total: 4,
+      misses: 0,
+      timeMs: null,
+      seq: 0,
+      columns: [{ id: 'c1', words: [] }, { id: 'c2', words: [] }],
+      last: null,
+      marks: null,
+    };
+    const sort = { total: 4, rows: [], winner: null, words: null, live: null };
+    const sortMe = { canSort: false, card: null, sorted: 0, total: 4, misses: 0, lockedUntil: null, lockRemainingMs: null, missed: null, timeMs: null, watched: true, marks: null, live };
+    const view = watching(null, { question: sortQ, sort, me: { ...baseMe, sort: sortMe } });
+    const tilts = { 'team-b': { sorterId: 'team-b', wordId: 'w4', toward: 'c2', amount: 0.8, seq: 0 } };
+    render(<TeamWatch view={view} tilts={tilts} />);
+    expect(document.querySelector('.sort-live-card')?.textContent).toBe('Груша');
+    const zone = [...document.querySelectorAll('.sort-zone')].find((el) => el.textContent === 'Фрукти')!;
+    expect(zone.classList.contains('is-toward')).toBe(true);
+  });
+});

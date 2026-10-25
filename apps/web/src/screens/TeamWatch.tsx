@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { Answer, PlayerView, PublicQuestion } from '@quiz/shared';
+import type { Answer, PlayerView, PublicQuestion, SortTilt } from '@quiz/shared';
 import { LETTERS, pickedText, shownChoices } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
@@ -105,7 +105,7 @@ function DraftBoolean({ draft, mark }: { draft: Answer | null; mark: string }) {
 }
 
 /** Режим перегляду некапітана: чернетка капітана наживо або відповідь команди, коли її подано. */
-export function TeamWatch({ view }: { view: PlayerView }) {
+export function TeamWatch({ view, tilts = {}, offsetMs = 0 }: { view: PlayerView; tilts?: Record<string, SortTilt>; offsetMs?: number }) {
   const { question, me, team } = view;
   if (question === null || team === null) return <></>;
   // У бліці з кнопкою відповідає той, хто натиснув.
@@ -137,7 +137,9 @@ export function TeamWatch({ view }: { view: PlayerView }) {
         </p>
       )}
       {/* Сортування, стіна й ланцюжок ідуть хід за ходом: поступ команди видно зі стану, чернетки немає. */}
-      {question.type === 'sort' && view.sort !== null && <SortWatch question={question} info={view.sort} />}
+      {question.type === 'sort' && view.sort !== null && (
+        <SortWatch question={question} info={view.sort} live={me.sort?.live ?? null} tilts={tilts} paused={view.paused} offsetMs={offsetMs} team />
+      )}
       {question.type === 'wall' && question.wall !== null && <WallGrid wall={question.wall} found={me.wall?.found ?? []} />}
       {question.type === 'chain' && question.chain !== null && me.chain !== null && <ChainWords first={question.chain.first} masks={me.chain.masks} />}
       {question.type === 'bluff' && view.bluff !== null && view.bluff.stage === 'choice' && <BluffBoard info={view.bluff} />}
