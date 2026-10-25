@@ -421,7 +421,7 @@ function FinalStage({ view }: { view: StageView }) {
     <div className="stage-board">
       <p className="meta">{t('finalLabel')}</p>
       <h1 className="question wager-theme">{theme}</h1>
-      {view.phase === 'intro' && <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />}
+      {view.phase === 'intro' && <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} fit />}
       {view.phase === 'wager' && <p className="lead">{t('finalStageWagers', { placed: final.placed, total: final.total })}</p>}
     </div>
   );
@@ -436,7 +436,7 @@ function Intro({ view }: { view: StageView }) {
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
-      <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
+      <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} fit />
       {view.round.type === 'wipeout' && view.wipeout !== null && <WipeoutLadder info={view.wipeout} size="stage" players={false} />}
       {view.round.type === 'survival' && view.survival !== null && (
         <>
@@ -465,7 +465,7 @@ function LadderIntro({ view, info }: { view: StageView; info: NonNullable<StageV
         {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
         <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
         <RoundFacts round={view.round} total={view.total} />
-        <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
+        <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} fit />
         <div className="ladder-contestant">
           {info.contestant === null ? (
             <p className="lead">{t('ladderStageWho')}</p>

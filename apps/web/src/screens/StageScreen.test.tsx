@@ -201,6 +201,24 @@ describe('StageScreen: rounds', () => {
     expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
   });
 
+  it('a long description on the stage is wide and clipped to fit, with the full text in the page', () => {
+    const long = 'а'.repeat(600);
+    show(view({ phase: 'intro', round: { ...round, description: long } }));
+    expect(document.querySelector('.round-brief.is-long')).not.toBeNull();
+    expect(document.querySelector('.round-brief-note.is-fit')?.textContent).toBe(long);
+  });
+
+  it('the final and ladder intros clip a long description too', () => {
+    const long = 'а'.repeat(600);
+    const finalRound: RoundInfo = { ...round, type: 'final', description: long, brief: emptyBrief('final') };
+    show(view({ phase: 'intro', round: finalRound, final: { theme: 'Космос', placed: 0, total: 3, shown: [], left: 0, mode: 'classic', bank: 0, split: null } }));
+    expect(document.querySelector('.round-brief-note.is-fit')).not.toBeNull();
+    cleanup();
+    const ladderRound: RoundInfo = { ...round, type: 'ladder', description: long, brief: emptyBrief('ladder') };
+    show(view({ phase: 'intro', round: ladderRound, ladder: ladderInfo({ contestant: null, current: -1 }) }));
+    expect(document.querySelector('.round-brief-note.is-fit')).not.toBeNull();
+  });
+
   it('the intro shows the rules summary without an empty note', () => {
     show(view({ phase: 'intro', round: { ...round, brief: { ...emptyBrief('classic'), speedBonus: true }, times: null } }));
     expect(document.querySelector('.round-brief-note')).toBeNull();
@@ -364,6 +382,11 @@ describe('StageScreen: blitz', () => {
     const olena = { playerId: 'p1', nickname: 'Олена' };
     const anna = { playerId: 'p2', nickname: 'Анна' };
     const introOf = (board: NonNullable<StageView['board']>) => view({ phase: 'intro', round, board });
+
+    it('the board intro clips a long description to fit the stage', () => {
+      show(view({ phase: 'intro', round: { ...round, description: 'а'.repeat(600) }, board: boardOf({ turn: null }) }));
+      expect(document.querySelector('.round-brief.is-long .round-brief-note.is-fit')).not.toBeNull();
+    });
 
     it("the board intro shows every player's die and the result next to the name", () => {
       const dice = { rows: [{ ...olena, throws: [5], waiting: false }, { ...anna, throws: [], waiting: true }], tieBreak: false, done: false };

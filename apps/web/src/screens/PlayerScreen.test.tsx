@@ -264,6 +264,12 @@ describe('PlayerScreen: rounds', () => {
     expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
   });
 
+  it('the phone shows a long description whole, without clipping', () => {
+    show(view({ phase: 'intro', round: { ...round, description: 'а'.repeat(600) } }));
+    expect(screen.getByText('а'.repeat(600))).toBeTruthy();
+    expect(document.querySelector('.is-fit')).toBeNull();
+  });
+
   it('the intro of a one-round quiz has no round counter', () => {
     show(view({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null } }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Раунд 1');
