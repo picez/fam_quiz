@@ -7,6 +7,7 @@ import { endRound, lock, next, pause, resume, skipGuide, start, submitAnswer, ti
 import { decisionPending } from './ladder';
 import { paceWindow, stamp, stepKey, tooSoon } from './pacing';
 import { revealSurveyAll } from './survey';
+import { hostView, playerView, stageView } from './views';
 import { trialOpen } from './survival';
 import { decisionOpen } from './wipeout';
 import { T0 } from './testing/buffs';
@@ -330,5 +331,26 @@ describe('pacing: windows', () => {
       expect(paceWindow(old, 'lock')).toBeNull();
       expect(paceWindow(old, 'skip')).toBeNull();
     }
+  });
+});
+
+describe('host view pace', () => {
+  it('the host view carries the three windows; the stage and phones do not', () => {
+    const s = started();
+    expect(hostView(s).pace).toEqual({ next: win(T0, PACE_MS.intro), lock: null, skip: null });
+    expect('pace' in stageView(s)).toBe(false);
+    expect('pace' in playerView(s, 'p1')!).toBe(false);
+  });
+
+  it('a question: lock is set, next and skip are not', () => {
+    const s = started();
+    const q = go(s, next(s, T0 + 3000), T0 + 3000);
+    expect(hostView(q).pace).toEqual({ next: null, lock: win(T0 + 3000, PACE_MS.lock), skip: null });
+  });
+
+  it('a state without stepAt has no windows', () => {
+    const lobby = lobbyWith(quiz2, 'Оля', 'Петро');
+    const plain = must(start(lobby, T0));
+    expect(hostView(plain).pace).toEqual({ next: null, lock: null, skip: null });
   });
 });

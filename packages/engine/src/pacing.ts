@@ -1,4 +1,4 @@
-import { PACE_MS } from '@quiz/shared';
+import { PACE_MS, type HostPace, type PaceWindow } from '@quiz/shared';
 // game.ts цей файл не імпортує: його беруть лише views.ts, index.ts і сервер (без циклу під час завантаження модулів).
 import { bluffOrder, bluffPlayOf } from './bluff';
 import type { GameState } from './game';
@@ -9,11 +9,6 @@ import { decisionOpen } from './wipeout';
 
 /** Кроки ведучого з мінімальним часом (11b). */
 export type PacedAction = 'next' | 'lock' | 'skip';
-/** Вікно очікування: від from (час сервера) до until, раніше за until крок не діє. */
-export interface PaceWindow {
-  from: number;
-  until: number;
-}
 
 /**
  * Який зараз крок гри: зміна рядка — новий крок (план 11b, «Де живе мить кроку»).
@@ -96,4 +91,9 @@ export function paceWindow(state: GameState, action: PacedAction): PaceWindow | 
 export function tooSoon(state: GameState, action: PacedAction, now: number): boolean {
   const window = paceWindow(state, action);
   return window !== null && now < window.until;
+}
+
+/** Три вікна для зрізу пульта. */
+export function hostPace(state: GameState): HostPace {
+  return { next: paceWindow(state, 'next'), lock: paceWindow(state, 'lock'), skip: paceWindow(state, 'skip') };
 }

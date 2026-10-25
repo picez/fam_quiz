@@ -128,6 +128,7 @@ import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { cluesAnswered, cluesByHost, cluesOpen, nextClueAt } from './clues';
 import { pendingOf } from './hold';
+import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
 import { actorOf, voterList } from './team-act';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
@@ -2093,5 +2094,6 @@ export function hostView(state: GameState): HostView {
     pinMarks: pinMarks(state, true),
     cloud: hostCloud(state),
     surveySkipped: skippedSurveys(state).map((q) => q.text),
+    pace: hostPace(state),
   };
 }
