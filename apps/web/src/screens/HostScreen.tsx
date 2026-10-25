@@ -29,6 +29,7 @@ import type { AudioCommand } from '../live/useGame';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
+import { LiveAnswers } from './LiveAnswers';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
@@ -432,6 +433,51 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
     if (window.confirm(t('kickConfirm', { name }))) await act('host:kick', { playerId });
   };
 
+  // Відповіді наживо (11c): панель першою під запитанням; поки вона є, дублікати без кнопок ховаються.
+  const liveData = view.live;
+  const liveOn = liveData !== null && liveData.kind !== 'duel';
+  const liveTrial = liveData?.kind === 'trial';
+  const jump = () => document.getElementById('live-answers')?.scrollIntoView({ block: 'start' });
+  const countText =
+    view.wipeout !== null
+      ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
+      : view.survival !== null
+        ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount })
+        : blitz === null
+          ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
+          : instant
+            ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount })
+            : t('blitzQueued', { count: blitz.queue.length });
+  // Черга бліцу: та сама розмітка, що була в окремих панелях; з панеллю наживо вона стоїть усередині неї.
+  const blitzLive =
+    view.question !== null && live && blitz !== null && instant ? (
+      <BlitzQueue rows={blitz.rows} reserve={view.playerCount} question={view.question} blinking={blinking} highlightHead closed={phase !== 'question'} />
+    ) : view.question !== null && live && blitz !== null && phase === 'question' ? (
+      blitz.queue.length === 0 ? (
+        <p className="meta">{t('noResponses')}</p>
+      ) : (
+        <ul className="rows">
+          {blitz.queue.map((entry, index) => (
+            <li key={entry.playerId}>
+              <span className="name">{entry.nickname}</span>
+              {blitz.voice && index === 0 ? (
+                <span className="row-actions">
+                  <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, true)}>
+                    {t('judgeCorrect')}
+                  </button>
+                  <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, false)}>
+                    {t('judgeWrong')}
+                  </button>
+                </span>
+              ) : (
+                <span className="given">{entry.answer === null ? t('blitzTyping') : answerText(entry.answer, correct, view.question?.choices)}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )
+    ) : null;
+
   return (
     <main className="app host">
       <LiveNotices>
@@ -456,7 +502,16 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         {round !== null && round.total > 1 && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
         {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && phase !== 'duel' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&
-          `, ${view.wipeout !== null ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount }) : view.survival !== null ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount }) : blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
+          (liveOn ? (
+            <>
+              {', '}
+              <button type="button" className="link-button live-jump" aria-label={t('liveJump')} onClick={jump}>
+                {countText}
+              </button>
+            </>
+          ) : (
+            `, ${countText}`
+          ))}
       </p>
 
       {view.surveySkipped.map((text) => (
@@ -571,6 +626,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {view.ladder !== null && phase !== 'finished' && phase !== 'round_end' && <HostLadder view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
+      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} />}
+
       {view.survival !== null && phase !== 'finished' && phase !== 'round_end' && <HostSurvival view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
       {view.question !== null && phase !== 'finished' && (
@@ -635,6 +692,21 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {timeShown && (
+        <div className="panel-actions host-time">
+          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={view.question === null || view.bluff?.stage === 'choice' ? 0 : publicLeadMs(view.question)} />
+          {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
+          <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
+            {t('timeMinus')}
+          </button>
+          <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow >= 120} onClick={() => adjust(15)}>
+            {t('timePlus')}
+          </button>
+        </div>
+      )}
+
+      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} />}
+
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">
           <p className="meta">{stageGone ? t('audioHere') : t('audioOnStage')}</p>
@@ -659,19 +731,6 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             />
           )}
         </section>
-      )}
-
-      {timeShown && (
-        <div className="panel-actions host-time">
-          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={view.question === null || view.bluff?.stage === 'choice' ? 0 : publicLeadMs(view.question)} />
-          {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
-          <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
-            {t('timeMinus')}
-          </button>
-          <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow >= 120} onClick={() => adjust(15)}>
-            {t('timePlus')}
-          </button>
-        </div>
       )}
 
       {pending !== null && (
@@ -807,7 +866,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
-      {view.question !== null && live && blitz !== null && instant && (
+      {!liveOn && view.question !== null && live && blitz !== null && instant && (
         <section className="panel">
           <h2>{t('blitzQueue')}</h2>
           <BlitzQueue rows={blitz.rows} reserve={view.playerCount} question={view.question} blinking={blinking} highlightHead closed={phase !== 'question'} />
@@ -817,7 +876,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {view.question !== null && live && blitz !== null && !instant && (
         <>
           {/* Після закриття запитання черги вже немає: лишаються тільки спроби. */}
-          {phase === 'question' && (
+          {!liveOn && phase === 'question' && (
             <section className="panel">
               <h2>{t('blitzQueue')}</h2>
               {blitz.queue.length === 0 ? (
@@ -871,7 +930,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
-      {view.question !== null && live && board !== null && blitz === null && (
+      {view.question !== null && live && board !== null && blitz === null && !(liveOn && !canGradeBoard) && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           <ul className="rows">
@@ -930,14 +989,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
-      {view.chain !== null && (
+      {view.chain !== null && !liveOn && (
         <section className="panel">
           <h2>{t('chainTitle')}</h2>
           <ChainBoard chain={view.chain} reveal={phase === 'reveal'} />
         </section>
       )}
 
-      {view.sort !== null && (
+      {view.sort !== null && !liveOn && (
         <section className="panel">
           <h2>{t('sortTitle')}</h2>
           <SortBoard sort={view.sort} reveal={phase === 'reveal'} />
@@ -952,7 +1011,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             <HelpButton id="question.wall" />
           </h2>
           <WallReveal question={correct} />
-          {view.wall !== null && <WallTable info={view.wall} />}
+          {view.wall !== null && !liveOn && <WallTable info={view.wall} />}
         </section>
       )}
 
@@ -996,7 +1055,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
-      {view.question !== null && live && blitz === null && board === null && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
+      {view.question !== null && live && blitz === null && board === null && !liveOn && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (

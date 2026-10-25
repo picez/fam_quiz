@@ -6,6 +6,7 @@ import { useSplash } from '../live/Splash';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { reducedMotion } from '../motion';
+import { LiveAnswers } from './LiveAnswers';
 import { memberName } from './TeamBar';
 
 /** «Оля 1 : 0 Петро». */
@@ -453,13 +454,17 @@ export function HostDuelPanel({
           {duel.question !== null && <p>{duel.question}</p>}
           {duel.stage === 'question' && <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} />}
           {duel.accepted !== null && duel.accepted.length > 0 && <p className="meta">{t('duelAccepted', { list: duel.accepted.join(', ') })}</p>}
-          {tries.map(
-            ({ player, texts }) =>
-              texts.length > 0 && (
-                <p key={player.playerId} className="meta duel-host-tries">
-                  {t('duelTryTexts', { name: player.nickname, list: texts.join(', ') })}
-                </p>
-              ),
+          {view.live?.kind === 'duel' ? (
+            <LiveAnswers view={view} live={view.live} compact />
+          ) : (
+            tries.map(
+              ({ player, texts }) =>
+                texts.length > 0 && (
+                  <p key={player.playerId} className="meta duel-host-tries">
+                    {t('duelTryTexts', { name: player.nickname, list: texts.join(', ') })}
+                  </p>
+                ),
+            )
           )}
         </>
       )}
