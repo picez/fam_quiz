@@ -136,8 +136,8 @@ describe('round description', () => {
     const quiz = (patch: object) => ({ title: 'Т', description: '', settings: DEFAULT_SETTINGS, rounds: [round('r1', [single], patch)] });
     expect(quizSchema.parse(quiz({})).rounds[0].description).toBeUndefined();
     expect(quizSchema.parse(quiz({ description: '  Кіно 90-х  ' })).rounds[0].description).toBe('Кіно 90-х');
-    expect(valid(quizSchema, quiz({ description: 'а'.repeat(200) }))).toBe(true);
-    expect(valid(quizSchema, quiz({ description: 'а'.repeat(201) }))).toBe(false);
+    expect(valid(quizSchema, quiz({ description: 'а'.repeat(600) }))).toBe(true);
+    expect(valid(quizSchema, quiz({ description: 'а'.repeat(601) }))).toBe(false);
   });
 });
 

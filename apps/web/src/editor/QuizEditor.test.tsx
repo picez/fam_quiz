@@ -1329,7 +1329,7 @@ describe('QuizEditor: quiz on top and round notes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     expect(screen.getByText('Так гравці побачать раунд на заставці')).toBeTruthy();
     expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
-    expect(screen.getByLabelText('Опис раунду для гравців').getAttribute('maxlength')).toBe('200');
+    expect(screen.getByLabelText('Опис раунду для гравців').getAttribute('maxlength')).toBe('600');
     fill('Опис раунду для гравців', 'Кіно 90-х');
     expect(screen.getAllByText('Кіно 90-х').length).toBeGreaterThan(1);
 
@@ -1340,6 +1340,22 @@ describe('QuizEditor: quiz on top and round notes', () => {
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(saved(onSave).rounds[0].description).toBe('Кіно 90-х');
+  });
+
+  it('round description counter', () => {
+    open();
+    const field = () => screen.getByLabelText('Опис раунду для гравців');
+    const count = (text: string) => screen.getByText(text);
+    expect(field().getAttribute('rows')).toBe('4');
+    expect(count('0 / 600').classList.contains('is-near')).toBe(false);
+    fill('Опис раунду для гравців', 'Кіно 90-х');
+    expect(count('9 / 600')).toBeTruthy();
+    fill('Опис раунду для гравців', 'а'.repeat(500));
+    expect(count('500 / 600').classList.contains('is-near')).toBe(false);
+    fill('Опис раунду для гравців', 'а'.repeat(501));
+    expect(count('501 / 600').classList.contains('is-near')).toBe(true);
+    expect(document.getElementById(field().getAttribute('aria-describedby') ?? '')?.textContent).toBe('501 / 600');
+    expect(field().getAttribute('aria-live')).toBeNull();
   });
 });
 

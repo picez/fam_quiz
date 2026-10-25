@@ -1188,6 +1188,23 @@ a.btn {
   resize: vertical;
 }
 
+.field textarea.round-description {
+  field-sizing: content;
+  min-height: calc(4lh + 1.25rem + 4px);
+  max-height: calc(8lh + 1.25rem + 4px);
+  overflow-y: auto;
+}
+
+.field-count {
+  justify-self: end;
+  align-self: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-count.is-near {
+  color: var(--amber);
+}
+
 .field select option {
   background: var(--stage);
 }

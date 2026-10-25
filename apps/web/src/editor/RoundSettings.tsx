@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type Round, type RoundRules } from '@quiz/shared';
 import { ROUND_NAMES } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
@@ -19,6 +19,9 @@ interface Props {
   onToggle?: (open: boolean) => void;
 }
 
+/** З якої довжини лічильник опису жовтіє (11a). */
+export const ROUND_DESCRIPTION_WARN = 500;
+
 const range = (from: number, to: number, step = 1) => Array.from({ length: (to - from) / step + 1 }, (_, i) => from + i * step);
 /** Порожнє поле дає NaN: перевірка перед збереженням попросить виправити. */
 const toNumber = (value: string) => (value.trim() === '' ? Number.NaN : Number(value));
@@ -33,6 +36,9 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
  * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». В кінці — попередній перегляд заставки з поясненням правил. Згорнуті, доки їх не відкриють.
  */
 export function RoundSettings({ round, index, total = 0, onChange, open, onToggle }: Props) {
+  const countId = useId();
+  const fieldId = useId();
+  const descriptionLength = (round.description ?? '').length;
   const [seconds, setSeconds] = useState<number>(LIMITS.defaultTime);
   const secondsValid = Number.isInteger(seconds) && seconds >= LIMITS.minTime && seconds <= LIMITS.maxTime;
   const rules = rulesOf(round);
@@ -63,16 +69,22 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           onChange={(event) => onChange({ ...round, title: event.target.value })}
         />
       </label>
-      <label className="field">
-        <span>{t('roundDescriptionLabel')}</span>
+      <div className="field">
+        <label htmlFor={fieldId}>{t('roundDescriptionLabel')}</label>
         <textarea
-          rows={2}
+          id={fieldId}
+          rows={4}
+          className="round-description"
           maxLength={LIMITS.roundDescription}
+          aria-describedby={countId}
           placeholder={t('roundDescriptionPlaceholder')}
           value={round.description ?? ''}
           onChange={(event) => onChange({ ...round, description: event.target.value })}
         />
-      </label>
+        <span id={countId} className={descriptionLength > ROUND_DESCRIPTION_WARN ? 'meta field-count is-near' : 'meta field-count'}>
+          {t('roundDescriptionCount', { count: descriptionLength, max: LIMITS.roundDescription })}
+        </span>
+      </div>
       {round.type !== 'final' && (
       <div className="same-time">
         <span>{t('sameTimeTitle')}</span>

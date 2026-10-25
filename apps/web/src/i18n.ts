@@ -788,6 +788,7 @@ const uk = {
   sameTimeTitle: 'Однаковий час для всіх запитань раунду',
   sameTimeSeconds: 'Секунд',
   sameTimeApply: 'Застосувати',
+  roundDescriptionCount: '{count} / {max}',
   roundDescriptionLabel: 'Опис раунду для гравців',
   roundDescriptionPlaceholder: 'Необов’язково. Наприклад, усі запитання про кіно 90-х',
   roundBriefPreview: 'Так гравці побачать раунд на заставці',

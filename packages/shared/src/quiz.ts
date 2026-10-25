@@ -23,7 +23,8 @@ export const LIMITS = {
   maxQuizQuestions: 200,
   maxRounds: 10,
   roundTitle: 60,
-  roundDescription: 200,
+  /** Опис раунду для гравців: ~8–10 речень (11a). */
+  roundDescription: 600,
   minCategories: 3,
   maxCategories: 8,
   minCategoryQuestions: 3,
