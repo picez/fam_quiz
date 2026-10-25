@@ -3,6 +3,7 @@ import { answerSchema, type Answer } from './answer';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIFELINES, LIMITS } from './quiz';
 import { DOOR_COUNT } from './survival';
+import { TEAM_FORMS } from './teams';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
 
@@ -95,6 +96,18 @@ export const duelPickSchema = z.object({ categoryId: id64 });
 export const duelAnswerSchema = z.object({
   text: z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE),
 });
+/** Командна гра (10j): учасник вибирає команду в лобі. */
+export const teamPickSchema = z.object({ teamId: playerId });
+/** Капітан вибирає дуелянта команди. */
+export const duelistSchema = z.object({ memberId: playerId });
+/** Чернетка капітана: поточний вибір у полі відповіді; null — поле порожнє. */
+export const draftSchema = z.object({ draft: answerSchema.nullable() });
+/** Ведучий: спосіб формування. */
+export const teamFormSchema = z.object({ form: z.enum(TEAM_FORMS) });
+/** Ведучий: перемістити учасника (teamId null — без команди). */
+export const teamAssignSchema = z.object({ memberId: playerId, teamId: playerId.nullable() });
+/** Ведучий: капітан команди. */
+export const captainSchema = z.object({ teamId: playerId, memberId: playerId });
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
 
 export interface ClientToServerEvents {
@@ -135,6 +148,14 @@ export interface ClientToServerEvents {
   /** Вибір категорії тим, хто оголосив дуель. */
   'player:duel-category': (payload: z.infer<typeof duelPickSchema>, ack: Ack) => void;
   'player:duel-answer': (payload: z.infer<typeof duelAnswerSchema>, ack: Ack) => void;
+  /** Командна гра: вибір команди в лобі (спосіб «гравці обирають самі»). */
+  'player:team': (payload: z.infer<typeof teamPickSchema>, ack: Ack) => void;
+  /** Командна гра: кидок кубика формування в лобі. */
+  'player:team-roll': (ack: Ack) => void;
+  /** Командна гра: капітан вибирає дуелянта команди. */
+  'player:duelist': (payload: z.infer<typeof duelistSchema>, ack: Ack) => void;
+  /** Командна гра: чернетка капітана; бачать лише товариші по команді. */
+  'player:draft': (payload: z.infer<typeof draftSchema>, ack: Ack) => void;
   'host:start': (ack: Ack) => void;
   'host:lock': (ack: Ack) => void;
   'host:next': (ack: Ack) => void;
@@ -185,6 +206,18 @@ export interface ClientToServerEvents {
   'host:guide-skip': (ack: Ack) => void;
   /** «Хто я?» на усній клітинці: відкрити наступну підказку (10c). */
   'host:clue': (ack: Ack) => void;
+  /** Командна гра: спосіб формування команд у лобі. */
+  'host:team-form': (payload: z.infer<typeof teamFormSchema>, ack: Ack) => void;
+  /** Командна гра: перемістити учасника в команду або без команди. */
+  'host:team-assign': (payload: z.infer<typeof teamAssignSchema>, ack: Ack) => void;
+  /** Командна гра: розподілити випадково. */
+  'host:team-deal': (ack: Ack) => void;
+  /** Командна гра: почати кидки кубиків формування. */
+  'host:team-dice': (ack: Ack) => void;
+  /** Командна гра: кинути кубик за тих, хто ще не кинув. */
+  'host:team-roll': (ack: Ack) => void;
+  /** Командна гра: капітан команди. */
+  'host:captain': (payload: z.infer<typeof captainSchema>, ack: Ack) => void;
   /** Звук поточного запитання: програти ще раз або зупинити (сцена, а без сцени — пульт). Годинник не змінюється. */
   'host:audio': (payload: z.infer<typeof audioCommandSchema>, ack: Ack) => void;
 }

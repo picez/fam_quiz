@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { defaultTeams } from '@quiz/shared';
 import type { Db } from '../db/client';
 import { game, liveRoom, user } from '../db/schema';
 import { attachRecorder } from '../recorder';
@@ -521,5 +522,32 @@ describe('rows and the lease, edge cases', () => {
     expect(await b.store.locate(room.code)).toBe('here');
     await b.store.idle();
     expect((await rowOf(w.db, room.code)).owner).toBe('b');
+  });
+});
+
+describe('team drafts (10j)', () => {
+  it('a captain draft neither writes the room nor touches the history', async () => {
+    const w = await world();
+    const a = w.make('a');
+    const room = a.manager.create(makeRoundsQuiz([classicRound('r1', [text])], { teams: defaultTeams(2) }), 'u1');
+    a.manager.connect(room, HOST);
+    const [red, blue] = room.state.teams!.list.map((t) => t.id);
+    const people = ['Олена', 'Тарас', 'Іра', 'Марко'].map((name, i) => {
+      const joined = a.manager.join(room.code, name);
+      if (!joined.ok) throw new Error('join');
+      a.manager.connect(room, { role: 'player', playerId: joined.playerId });
+      a.manager.host(room, { type: 'team-assign', memberId: joined.playerId, teamId: i < 2 ? red : blue });
+      return joined;
+    });
+    a.manager.host(room, { type: 'start' });
+    a.manager.host(room, { type: 'next' });
+    await a.store.idle();
+    await a.recorder.idle();
+    const inserts = vi.spyOn(w.db, 'insert');
+    expect(a.manager.draft(room, people[0].playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: true });
+    await a.store.idle();
+    await a.recorder.idle();
+    expect(inserts).not.toHaveBeenCalled();
+    expect(JSON.stringify((await rowOf(w.db, room.code)).data)).not.toContain('Київ');
   });
 });

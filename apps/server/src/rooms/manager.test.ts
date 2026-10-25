@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
+import { defaultTeams } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { TRIAL_RIGHT, playSurvivalQuestion } from '../testing/survival-game';
 import {
@@ -1149,5 +1150,157 @@ describe('the ladder (10i)', () => {
     expect(audience()?.closed).toBe(true);
     expect(ctx.room.state.phase).toBe('question');
     expect(ctx.manager.answer(ctx.room, ctx.taras.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: false, error: 'vote_closed' });
+  });
+});
+
+describe('teams (10j)', () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const STAGE: Identity = { role: 'stage', playerId: null };
+  /** Грані кубика по черзі, далі 0.5. */
+  const faces = (...values: number[]) => {
+    const queue = values.map((face) => (face - 1) / 6 + 0.01);
+    return () => queue.shift() ?? 0.5;
+  };
+
+  function teamRoom(rounds: Parameters<typeof makeRoundsQuiz>[0], settings: Parameters<typeof makeRoundsQuiz>[1] = {}, rng: () => number = () => 0.5) {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, rng);
+    const room = manager.create(makeRoundsQuiz(rounds, { teams: defaultTeams(2), ...settings }));
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    manager.connect(room, HOST);
+    const [olena, taras, ira, marko] = ['Олена', 'Тарас', 'Іра', 'Марко'].map((name) => enter(manager, room, name));
+    const [red, blue] = room.state.teams!.list.map((t) => t.id);
+    return { scheduler, manager, room, events, olena, taras, ira, marko, red, blue };
+  }
+
+  /** Олена й Тарас — червоні (капітан Олена), Іра й Марко — сині (капітан Іра); перше запитання. */
+  function teamPlaying(rounds: Parameters<typeof makeRoundsQuiz>[0], settings: Parameters<typeof makeRoundsQuiz>[1] = {}) {
+    const ctx = teamRoom(rounds, settings);
+    const { manager, room, olena, taras, ira, marko, red, blue } = ctx;
+    for (const [who, team] of [[olena, red], [taras, red], [ira, blue], [marko, blue]] as const) {
+      expect(manager.host(room, { type: 'team-assign', memberId: who.playerId, teamId: team })).toEqual({ ok: true });
+    }
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    return ctx;
+  }
+
+  it('a room of a team quiz gets uuid team ids, and people join as members of the lobby', () => {
+    const { room, olena, red, blue } = teamRoom([classicRound('r1', [single])]);
+    expect(room.state.teams?.list.map((t) => t.name)).toEqual(['Червоні', 'Сині']);
+    expect(red).toMatch(UUID);
+    expect(blue).toMatch(UUID);
+    expect(red).not.toBe(blue);
+    expect(room.state.players).toEqual([]);
+    expect(room.state.teams?.members.map((m) => m.nickname)).toEqual(['Олена', 'Тарас', 'Іра', 'Марко']);
+    expect(room.state.teams?.members.find((m) => m.id === olena.playerId)).toMatchObject({ connected: true, teamId: null });
+  });
+
+  it('dice: the host starts a tour, everyone rolls, the host rolls for the rest, teams form by bands', () => {
+    const { manager, room, olena, taras, ira, marko, red, blue } = teamRoom([classicRound('r1', [single])], {}, faces(6, 2, 5, 1));
+    expect(manager.host(room, { type: 'team-form', form: 'dice' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'team-dice' })).toEqual({ ok: true });
+    expect(manager.teamRoll(room, olena.playerId)).toEqual({ ok: true });
+    expect(manager.teamRoll(room, olena.playerId)).toEqual({ ok: false, error: 'not_your_turn' });
+    expect(manager.teamRoll(room, taras.playerId)).toEqual({ ok: true });
+    expect(manager.teamRoll(room, ira.playerId)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'team-roll' })).toEqual({ ok: true });
+    const teamOf = (id: string) => room.state.teams?.members.find((m) => m.id === id)?.teamId;
+    expect([olena, ira].map((who) => teamOf(who.playerId))).toEqual([red, red]);
+    expect([taras, marko].map((who) => teamOf(who.playerId))).toEqual([blue, blue]);
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(room.state.players.map((p) => p.id)).toEqual([red, blue]);
+  });
+
+  it('players pick in pick mode, the host deals at random and sets the captain', () => {
+    const { manager, room, olena, taras, red, blue } = teamRoom([classicRound('r1', [single])]);
+    expect(manager.teamPick(room, olena.playerId, blue)).toEqual({ ok: true });
+    expect(manager.teamPick(room, olena.playerId, 'nope')).toEqual({ ok: false, error: 'not_found' });
+    expect(manager.host(room, { type: 'team-form', form: 'random' })).toEqual({ ok: true });
+    expect(manager.teamPick(room, taras.playerId, red)).toEqual({ ok: false, error: 'team_form' });
+    expect(manager.host(room, { type: 'team-deal' })).toEqual({ ok: true });
+    expect(room.state.teams?.members.every((m) => m.teamId !== null)).toBe(true);
+    const team = room.state.teams!.members.find((m) => m.id === taras.playerId)!.teamId!;
+    expect(manager.host(room, { type: 'captain', teamId: team, memberId: taras.playerId })).toEqual({ ok: true });
+    expect(room.state.teams?.captains[team]).toBe(taras.playerId);
+  });
+
+  it('after the start the players are the teams; only the captain answers', () => {
+    const { manager, room, olena, taras, red, blue } = teamPlaying([classicRound('r1', [single, text])]);
+    expect(room.state.players.map((p) => p.id)).toEqual([red, blue]);
+    expect(manager.answer(room, taras.playerId, correct)).toEqual({ ok: false, error: 'not_captain' });
+    expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
+    expect(room.state.plays[0].answers[red]).toBeDefined();
+    expect(manager.buff(room, taras.playerId, 'double')).toEqual({ ok: false, error: 'not_captain' });
+  });
+
+  it('blitz: anyone buzzes and the one who buzzed answers', () => {
+    const { manager, room, olena, taras, red } = teamPlaying([blitzRound('b1', [text], { check: 'manual' })]);
+    expect(manager.buzz(room, taras.playerId)).toEqual({ ok: true });
+    expect(room.state.plays[0].buzzers).toEqual({ [red]: taras.playerId });
+    expect(manager.answer(room, olena.playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: false, error: 'not_in_queue' });
+    expect(manager.answer(room, taras.playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+  });
+
+  it('the hall is voted by a member of another team, under their own id', () => {
+    const { manager, room, olena, ira, marko, red } = teamPlaying([classicRound('r1', [single])], { buffs: ['audience'] });
+    expect(manager.answer(room, ira.playerId, wrong)).toEqual({ ok: true });
+    expect(manager.buff(room, olena.playerId, 'audience')).toEqual({ ok: true });
+    expect(manager.vote(room, marko.playerId, red, correct)).toEqual({ ok: true });
+  });
+
+  it('kicking the last member of a team removes the team', () => {
+    const { manager, room, ira, marko, red, blue } = teamPlaying([classicRound('r1', [single])]);
+    expect(manager.host(room, { type: 'kick', playerId: ira.playerId })).toEqual({ ok: true });
+    expect(room.state.players.map((p) => p.id)).toEqual([red, blue]);
+    expect(manager.host(room, { type: 'kick', playerId: marko.playerId })).toEqual({ ok: true });
+    expect(room.state.players.map((p) => p.id)).toEqual([red]);
+    expect(manager.identify(room.code, 'player', marko.token)).toBeNull();
+  });
+
+  it('the captain draft lives in room memory and reaches only the teammates on the same question', () => {
+    const { manager, room, events, olena, taras, ira, marko, red } = teamPlaying([classicRound('r1', [text, single])]);
+    const draft = { type: 'text', value: 'Чернетка-Дніпро' } as const;
+    const before = room.state;
+    events.length = 0;
+    expect(manager.draft(room, olena.playerId, draft)).toEqual({ ok: true });
+    expect(events).toEqual([{ type: 'draft', teamId: red }]);
+    expect(room.state).toBe(before);
+
+    const teammate = manager.view(room, taras.identity);
+    expect(teammate?.role === 'player' && teammate.team?.draft).toEqual(draft);
+    for (const who of [olena.identity, ira.identity, marko.identity, HOST, STAGE]) {
+      expect(JSON.stringify(manager.view(room, who))).not.toContain('Чернетка-Дніпро');
+    }
+    expect(JSON.stringify(manager.snapshot(room))).not.toContain('Чернетка-Дніпро');
+
+    expect(manager.draft(room, taras.playerId, draft)).toEqual({ ok: false, error: 'not_captain' });
+    expect(manager.draft(room, olena.playerId, correct)).toEqual({ ok: false, error: 'type_mismatch' });
+    expect(manager.draft(room, ira.playerId, null)).toEqual({ ok: true });
+    expect(events.filter((e) => e.type === 'changed')).toEqual([]);
+
+    // Нове запитання: стара чернетка не показується.
+    expect(manager.answer(room, olena.playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+    expect(manager.answer(room, ira.playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+    for (let guard = 0; guard < 4 && room.state.questionIndex === 0; guard++) manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('question');
+    const later = manager.view(room, taras.identity);
+    expect(later?.role === 'player' && later.team?.draft).toBeNull();
+    expect(JSON.stringify(later)).not.toContain('Чернетка-Дніпро');
+  });
+
+  it('a draft clears with null, and is wrong outside a question or in a solo game', () => {
+    const { manager, room, olena, taras } = teamPlaying([classicRound('r1', [text])]);
+    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: true });
+    expect(manager.draft(room, olena.playerId, null)).toEqual({ ok: true });
+    const view = manager.view(room, taras.identity);
+    expect(view?.role === 'player' && view.team?.draft).toBeNull();
+    manager.host(room, { type: 'lock' });
+    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: false, error: 'wrong_phase' });
+
+    const solo = playing();
+    expect(solo.manager.draft(solo.room, solo.olena.playerId, correct)).toEqual({ ok: false, error: 'wrong_phase' });
   });
 });
