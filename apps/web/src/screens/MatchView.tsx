@@ -4,7 +4,7 @@ import type { PairText } from '../format';
 import { t } from '../i18n';
 
 /** Телефон: з'єднання пар дотиками. Стан живе тут, тож пауза його не скидає. */
-export function MatchInput({ question, onSubmit }: { question: PublicQuestion; onSubmit: (answer: Answer) => void }) {
+export function MatchInput({ question, onSubmit, onDraft }: { question: PublicQuestion; onSubmit: (answer: Answer) => void; onDraft?: (draft: Answer | null) => void }) {
   // Лівий id → правий id.
   const [links, setLinks] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<string | null>(null);
@@ -14,12 +14,17 @@ export function MatchInput({ question, onSubmit }: { question: PublicQuestion; o
   const number = (leftId: string) => left.findIndex((item) => item.id === leftId) + 1;
   const ready = left.every((item) => links[item.id] !== undefined);
 
-  const unlink = (leftId: string) =>
-    setLinks((now) => {
-      const next = { ...now };
-      delete next[leftId];
-      return next;
-    });
+  // Чернетка капітана: уся відповідь лише коли пов'язано всі пари; інакше порожньо.
+  const change = (next: Record<string, string>) => {
+    setLinks(next);
+    onDraft?.(left.every((item) => next[item.id] !== undefined) ? { type: 'match', links: left.map((item) => ({ left: item.id, right: next[item.id] })) } : null);
+  };
+
+  const unlink = (leftId: string) => {
+    const next = { ...links };
+    delete next[leftId];
+    change(next);
+  };
 
   const tapLeft = (id: string) => {
     if (links[id] !== undefined) unlink(id);
@@ -30,7 +35,7 @@ export function MatchInput({ question, onSubmit }: { question: PublicQuestion; o
     const owner = partner(id);
     if (owner !== null) unlink(owner);
     else if (picked !== null) {
-      setLinks((now) => ({ ...now, [picked]: id }));
+      change({ ...links, [picked]: id });
       setPicked(null);
     }
   };

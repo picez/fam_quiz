@@ -39,6 +39,12 @@
   --vote-bar: rgb(126 224 255 / 0.22);
   --removed-tag: #ff9db0;
   --surprise: #ffd23f;
+  --team-0: #ff5a5f;
+  --team-1: #4da3ff;
+  --team-2: #4cd685;
+  --team-3: #ffd23f;
+  --team-4: #a78bfa;
+  --team-5: #ff9a3d;
   --guide-accent: #8fe3b0;
   --guide-accent-soft: rgb(143 227 176 / 0.14);
   /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
@@ -9144,4 +9150,153 @@ button.wall-tile:disabled {
 .stage-ladder iframe {
   max-height: 28vh;
   object-fit: contain;
+}
+
+/* Команди (10j): колір — позиція в налаштуваннях вікторини. */
+.team-0 { --team: var(--team-0); }
+.team-1 { --team: var(--team-1); }
+.team-2 { --team: var(--team-2); }
+.team-3 { --team: var(--team-3); }
+.team-4 { --team: var(--team-4); }
+.team-5 { --team: var(--team-5); }
+
+.team-lobby {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* До шести команд — сітка 2 × 3; кнопка з кольоровою смугою зліва. */
+.team-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.team-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  min-height: 3.5rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 0.5rem solid var(--team, var(--line));
+  text-align: left;
+  min-width: 0;
+}
+
+.team-pick[aria-pressed='true'] {
+  border-color: var(--team, var(--amber));
+  background: var(--panel);
+  box-shadow: inset 0 0 0 2px var(--team, var(--amber));
+}
+
+.team-pick-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-pick-count {
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.team-yours {
+  padding-left: 0.75rem;
+  border-left: 0.5rem solid var(--team, var(--line));
+}
+
+.team-roll {
+  min-height: 4.5rem;
+}
+
+.btn-roll {
+  min-width: 70%;
+  min-height: 3.5rem;
+  font-size: 1.125rem;
+}
+
+/* Смуга команди: один рядок, не вища за шапку. */
+.team-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.team-dot {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--team, var(--dim));
+}
+
+.team-bar-name {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-bar-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dim);
+  font-size: 0.9375rem;
+}
+
+/* Чернетка капітана: пунктирна рамка кольору команди, не зелена й не червона (це не вердикт). */
+.choice.is-draft,
+.team-draft.is-draft {
+  border: 2px dashed var(--team, var(--amber));
+}
+
+.team-draft {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+}
+
+.draft-mark {
+  display: block;
+  color: var(--dim);
+  font-size: 0.8125rem;
+}
+
+.team-watch .choice {
+  cursor: default;
+}
+
+.duelist-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.duelist-option {
+  width: 100%;
+}
+
+.duelist-option[aria-pressed='true'] {
+  border-color: var(--duel-accent);
+  background: var(--duel-accent-soft);
+}
+
+.team-debuff-strip {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--panel);
+  color: var(--dim);
+}
+
+.team-you-answer {
+  text-align: center;
 }

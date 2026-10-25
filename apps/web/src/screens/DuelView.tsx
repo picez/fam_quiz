@@ -6,6 +6,7 @@ import { useSplash } from '../live/Splash';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { reducedMotion } from '../motion';
+import { memberName } from './TeamBar';
 
 /** «Оля 1 : 0 Петро». */
 export function duelScoreText(duel: DuelInfo): string {
@@ -206,6 +207,9 @@ export function DuelPlay({
   if (duel === null) return <></>;
   const mine = view.me.duel;
   const duelist = view.me.id === duel.challenger.playerId || view.me.id === duel.opponent.playerId;
+  // Команда: категорію вибирає капітан, відповідає вибраний дуелянт; решті команди — рядок, хто відповідає.
+  const team = view.team;
+  const mayAct = team === null || team.canAct;
 
   const pick = async (categoryId: string) => {
     if (picking.current) return;
@@ -225,7 +229,7 @@ export function DuelPlay({
       <p className="duel-score">{duelScoreText(duel)}</p>
 
       {duel.stage === 'category' &&
-        (mine?.canPick === true ? (
+        (mine?.canPick === true && mayAct ? (
           <>
             <p className="lead">{t('duelChooseCategory')}</p>
             <ul className="duel-categories">
@@ -254,7 +258,10 @@ export function DuelPlay({
 
       {duel.stage === 'question' && (
         <>
-          {duelist && (
+          {duelist && !mayAct && (
+            <p className="lead team-duelist-answers">{t('teamDuelistAnswers', { name: memberName(view, team?.duelistId ?? null) })}</p>
+          )}
+          {duelist && mayAct && (
             <>
               <DuelAnswer key={duel.number} enabled={mine?.canAnswer === true && splashNow === null} send={send} onError={onError} />
               {/* Фіксована висота з прокруткою: нова спроба не зсуває екран. */}

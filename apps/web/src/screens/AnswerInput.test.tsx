@@ -326,3 +326,52 @@ describe('AnswerInput', () => {
     expect(onSubmit).toHaveBeenCalledWith({ type: 'survey', values: ['Яблуко'] });
   });
 });
+
+describe('AnswerInput onDraft', () => {
+  const draftSetup = (over: Partial<PublicQuestion>) => {
+    const onSubmit = vi.fn();
+    const onDraft = vi.fn();
+    render(<AnswerInput question={question(over)} onSubmit={onSubmit} onDraft={onDraft} />);
+    return { onSubmit, onDraft };
+  };
+
+  it('single: a tap becomes a draft, Відповісти submits it', () => {
+    const { onSubmit, onDraft } = draftSetup({});
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'single', optionId: 'b' });
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+  });
+
+  it('multi: every toggle drafts; clearing everything drafts null', () => {
+    const { onDraft } = draftSetup({ type: 'multi' });
+    fireEvent.click(screen.getByRole('button', { name: /Одеса/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Львів/ }));
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'multi', optionIds: ['a', 'c'] });
+    fireEvent.click(screen.getByRole('button', { name: /Одеса/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Львів/ }));
+    expect(onDraft).toHaveBeenLastCalledWith(null);
+  });
+
+  it('text: drafts after each input, an empty field drafts null', () => {
+    const { onDraft } = draftSetup({ type: 'text', choices: [] });
+    const input = screen.getByLabelText('Ваша відповідь');
+    fireEvent.change(input, { target: { value: 'Ки' } });
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'text', value: 'Ки' });
+    fireEvent.change(input, { target: { value: '  ' } });
+    expect(onDraft).toHaveBeenLastCalledWith(null);
+  });
+
+  it('numeric: drafts the parsed number', () => {
+    const { onDraft } = draftSetup({ type: 'numeric', choices: [] });
+    fireEvent.change(screen.getByLabelText('Ваша відповідь'), { target: { value: '4,5' } });
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'numeric', value: 4.5 });
+  });
+
+  it('without onDraft a single tap still submits at once', () => {
+    const onSubmit = setup({});
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+  });
+});

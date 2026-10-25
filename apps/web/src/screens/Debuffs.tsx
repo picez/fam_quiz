@@ -199,3 +199,12 @@ export function DebuffZone({
     </div>
   );
 }
+
+/** Команда: ефект дебафа лише на телефоні капітана; решта команди бачить смугу. */
+export function DebuffStrip({ debuff }: { debuff: NonNullable<Debuff> }) {
+  return (
+    <p className="team-debuff-strip" role="status">
+      {t('teamCaptainDebuff', { name: debuffName(debuff.kind) })}
+    </p>
+  );
+}
