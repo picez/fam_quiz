@@ -2047,3 +2047,20 @@ describe('ladder round (10i)', () => {
     expect(fewer.safe).not.toContain(4);
   });
 });
+
+describe('problemsOf: team names', () => {
+  const withTeams = (names: string[]) => {
+    const quiz = quizWith(filled(newQuestion('single')));
+    return { ...quiz, settings: { ...quiz.settings, teams: { count: names.length, names } } };
+  };
+  it('an empty name and repeated names are flagged; good names are not', () => {
+    expect(problemsOf(withTeams(['Червоні', ' ']))).toContain(t('problemTeamName'));
+    expect(problemsOf(withTeams(['Лисиці', ' лисиці']))).toEqual([t('problemTeamNames')]);
+    expect(problemsOf(withTeams(['Лисиці', 'Вовки']))).not.toContain(t('problemTeamNames'));
+  });
+  it('a names count that differs from the team count gives the same message via the schema code', () => {
+    const quiz = withTeams(['А', 'Б']);
+    quiz.settings.teams = { count: 3, names: ['А', 'Б'] };
+    expect(problemsOf(quiz)).toEqual([t('problemTeamNames')]);
+  });
+});

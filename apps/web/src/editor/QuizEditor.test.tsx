@@ -2499,3 +2499,57 @@ describe('QuizEditor: ladder round', () => {
     expect(screen.getByRole('button', { name: 'Мільйонер' })).toBeTruthy();
   });
 });
+
+describe('QuizEditor: team play', () => {
+  const fillBasics = () => {
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+  };
+
+  it('a quiz saved without teams has no settings.teams', async () => {
+    const { onSave } = open();
+    fillBasics();
+    fireEvent.click(screen.getByLabelText('Грати командами'));
+    fireEvent.click(screen.getByLabelText('Грати командами'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect('teams' in saved(onSave).settings).toBe(false);
+  });
+
+  it('turning it on saves two names and a saved team quiz opens with the toggle on and the names', async () => {
+    const { onSave } = open();
+    fillBasics();
+    fireEvent.click(screen.getByLabelText('Грати командами'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const quiz = saved(onSave);
+    expect(quiz.settings.teams).toEqual({ count: 2, names: ['Червоні', 'Сині'] });
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    cleanup();
+    open(quiz);
+    expect((screen.getByLabelText('Грати командами') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('Назва команди 2') as HTMLInputElement).value).toBe('Сині');
+  });
+
+  it('name fields sit in the shrinking grid so they stay inside 375 px', () => {
+    open();
+    fireEvent.click(screen.getByLabelText('Грати командами'));
+    const grid = screen.getByLabelText('Назва команди 1').closest('.teams-names');
+    expect(grid).not.toBeNull();
+    expect(screen.getByLabelText('Назва команди 1').closest('.team-name')).not.toBeNull();
+  });
+
+  it('an empty or repeated team name blocks saving with a clear message', async () => {
+    const { onSave } = open();
+    fillBasics();
+    fireEvent.click(screen.getByLabelText('Грати командами'));
+    fill('Назва команди 2', '  червоні ');
+    click('Зберегти');
+    expect(await screen.findByText(t('problemTeamNames'))).toBeTruthy();
+    fill('Назва команди 2', '');
+    click('Зберегти');
+    expect(await screen.findByText(t('problemTeamName'))).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});

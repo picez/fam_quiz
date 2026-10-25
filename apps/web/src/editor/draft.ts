@@ -1142,6 +1142,9 @@ export function problemsOf(quiz: Quiz): string[] {
   if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));
   if (draft.spares !== undefined) problems.push(...spareProblems(draft.spares));
   if (draft.settings.buffs?.includes('swap') && draft.spares === undefined && categorySparesOf(draft).length === 0) problems.push(t('problemSparesEmpty'));
+  const teamNames = draft.settings.teams?.names ?? [];
+  if (teamNames.some((name) => name.trim() === '')) problems.push(t('problemTeamName'));
+  else if (new Set(teamNames.map(answerKey)).size < teamNames.length) problems.push(t('problemTeamNames'));
   const prices = Object.values(draft.settings.debuffPrices ?? {});
   if (prices.some((price) => !Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice)) {
     problems.push(t('problemDebuffPrice', { min: LIMITS.minDebuffPrice, max: LIMITS.maxDebuffPrice }));
@@ -1170,6 +1173,7 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));
       if (messages.includes('spares_empty')) problems.push(t('problemSparesEmpty'));
+      if (messages.includes('team_names')) problems.push(t('problemTeamNames'));
       if (messages.includes('buff_unavailable') || messages.includes('duplicate_powers')) problems.push(t('problemPowers'));
       if (problems.length === 0) problems.push(t('problemGeneric', { index: 1 }));
     }

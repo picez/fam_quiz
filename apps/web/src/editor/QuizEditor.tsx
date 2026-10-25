@@ -30,6 +30,7 @@ import { QuestionEditor } from './QuestionEditor';
 import { RoundSettings } from './RoundSettings';
 import { RoundStrip } from './RoundStrip';
 import { SparesEditor } from './SparesEditor';
+import { TeamsEditor } from './TeamsEditor';
 
 interface Props {
   initial: Quiz;
@@ -107,6 +108,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const setNewcomers = (on: boolean) => {
     const { newcomers: _off, ...rest } = settings;
     update({ ...quiz, settings: on ? { ...rest, newcomers: true } : rest });
+  };
+  const setTeams = (teams: Quiz['settings']['teams']) => {
+    const { teams: _off, ...rest } = settings;
+    update({ ...quiz, settings: teams === undefined ? rest : { ...rest, teams } });
   };
   const setSettings = (patch: Partial<Quiz['settings']>) => update({ ...quiz, settings: { ...settings, ...patch } });
 
@@ -273,6 +278,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <HelpButton id="setting.newcomers" />
           </div>
           <p className="meta">{t('newcomersHint')}</p>
+        </details>
+
+        <details className="rules teams">
+          <summary>{t('teamsTitle')}</summary>
+          <TeamsEditor teams={settings.teams} onChange={setTeams} />
         </details>
 
         <details className="rules powers">
