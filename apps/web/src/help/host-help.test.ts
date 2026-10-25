@@ -121,6 +121,21 @@ describe('host help', () => {
     expect(helpEntry('question.pin').tip.join(' ')).toContain('Natural Earth');
   });
 
+  it('10i ladder entries tell the engine numbers and the isolation', () => {
+    const ladder = text('round.ladder');
+    expect(ladder).toContain(String(LIMITS.maxLadderLevel));
+    expect(ladder).toContain(`${LIMITS.minLadderQuestions}–${LIMITS.maxLadderQuestions}`);
+    expect(ladder).toContain('10 %');
+    expect(ladder).toContain('неспалим');
+    expect(ladder).toContain('раз за драбину');
+    expect(ladder).toContain('Забрати');
+    for (const kind of BUFF_KINDS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('Мільйонері');
+    for (const kind of ['fifty', 'audience', 'hint'] as const) expect(text(`buff.${kind}`), kind).toContain('підказка драбини');
+    for (const key of ['debuffShop', 'duels', 'leaderboard', 'speedBonus'] as const) expect(text(`setting.${key}`), key).toContain('Мільйонері');
+    expect(text('round.wipeout')).toContain('раунд «Мільйонер»');
+    expect(searchHelp('мільйонер')).toContain('round.ladder');
+  });
+
   it('related entries mention the new limits', () => {
     for (const kind of ['fifty', 'retry', 'audience'] as const) expect(text(`buff.${kind}`), kind).toContain('Хто я?');
     expect(text('cell.voice')).toContain('Відкрити підказку');
@@ -146,7 +161,7 @@ describe('host help', () => {
     for (const kind of BUFF_KINDS) {
       const e = helpEntry(`buff.${kind}`);
       expect(e.how[0], kind).toContain('раз за гру, не більше одного на запитання і лише до відповіді');
-      expect((e.limits ?? []).join(' '), kind).toContain("Бафи не діють у бліці, на бліц-клітинках, у фіналі, у «Ва-банк» і «Вибуванні», на запитаннях «ланцюжок» і «сортування», на стіні зв'язків, опитуванні й хмарі слів та в дуелях");
+      expect((e.limits ?? []).join(' '), kind).toContain("Бафи не діють у бліці, на бліц-клітинках, у фіналі, у «Ва-банк», «Вибуванні» й «Мільйонері», на запитаннях «ланцюжок» і «сортування», на стіні зв'язків, опитуванні й хмарі слів та в дуелях");
     }
     expect(text('buff.shield')).toContain('в інших баф узяти не можна');
     expect(text('buff.swap')).toContain('лише за наявності запасних запитань');
