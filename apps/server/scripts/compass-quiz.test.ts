@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { QUESTION_TYPES, ROUND_TYPES, allSpares, boardSpareSource, duelShortfall, questionsOf, quizSchema, type Quiz } from '@quiz/shared';
+import { LIMITS, QUESTION_TYPES, ROUND_TYPES, allSpares, boardSpareSource, duelShortfall, questionsOf, quizSchema, roundTrials, type Quiz } from '@quiz/shared';
+import { createQuiz, getQuiz, updateQuiz } from '../src/quizzes';
+import { user } from '../src/db/schema';
+import { createTestDb } from '../src/testing/test-db';
 import { compassQuiz } from './compass-quiz';
 import { demoQuiz } from './demo-quiz';
 import { eruditeQuiz } from './erudite-quiz';
+import { horizonQuiz } from './horizon-quiz';
 import { mosaicQuiz } from './mosaic-quiz';
 import { movieQuiz } from './movie-quiz';
 import { partyQuiz } from './party-quiz';
 import { schoolQuiz } from './school-quiz';
-
-/** Типи, що з'явилися після цієї вікторини (10e і далі): її ще не оновлено під них. */
-const LATER_TYPES = new Set<string>(['survey', 'bluff']);
-const LATER_ROUND_TYPES = new Set<string>(['wipeout', 'survival', 'ladder']);
+import { showcaseQuiz } from './showcase-quiz';
+import { teamsQuiz } from './teams-quiz';
 
 const key = (text: string) => text.trim().toLocaleLowerCase('uk');
 
@@ -20,10 +22,15 @@ describe('the «Компас» quiz', () => {
     expect(result.success ? [] : result.error.issues).toEqual([]);
   });
 
-  it('has every round type and every question type', () => {
-    expect(new Set(compassQuiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => !LATER_ROUND_TYPES.has(type))));
+  it('has every round type and every question type, «100 до 1» from the warm-up cloud, and the new rounds before the final', () => {
+    expect(new Set(compassQuiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES));
     expect(compassQuiz.rounds.filter((r) => r.type === 'classic').length).toBeGreaterThanOrEqual(2);
-    expect(new Set(questionsOf(compassQuiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES.filter((type) => !LATER_TYPES.has(type))));
+    expect(new Set(questionsOf(compassQuiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES));
+    expect(compassQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
+    expect(compassQuiz.rounds.slice(-4).map((r) => r.type)).toEqual(['wipeout', 'survival', 'ladder', 'final']);
+    const survey = questionsOf(compassQuiz).find((q) => q.type === 'survey');
+    const cloud = questionsOf(compassQuiz).find((q) => q.type === 'wordcloud');
+    expect(survey?.type === 'survey' && survey.cloudId).toBe(cloud?.id);
   });
 
   it('is a full evening with unique question texts that do not repeat other demo quizzes', () => {
@@ -31,10 +38,12 @@ describe('the «Компас» quiz', () => {
     expect(texts.length).toBeGreaterThanOrEqual(70);
     expect(texts.length).toBeLessThanOrEqual(90);
     expect(new Set(texts).size).toBe(texts.length);
-    const spares = allSpares(compassQuiz).map((q) => key(q.text));
+    const spares = [...allSpares(compassQuiz), ...compassQuiz.rounds.flatMap(roundTrials)].map((q) => key(q.text));
     expect(new Set([...texts, ...spares]).size).toBe(texts.length + spares.length);
     const others = new Set(
-      [demoQuiz, eruditeQuiz, mosaicQuiz, movieQuiz, partyQuiz(), schoolQuiz].flatMap((quiz: Quiz) => [...questionsOf(quiz), ...allSpares(quiz)].map((q) => key(q.text))),
+      [demoQuiz, eruditeQuiz, mosaicQuiz, movieQuiz, partyQuiz(), schoolQuiz, horizonQuiz, showcaseQuiz(), teamsQuiz()].flatMap((quiz: Quiz) =>
+        [...questionsOf(quiz), ...allSpares(quiz), ...quiz.rounds.flatMap(roundTrials)].map((q) => key(q.text)),
+      ),
     );
     expect([...texts, ...spares].filter((text) => others.has(text))).toEqual([]);
   });
@@ -77,5 +86,16 @@ describe('the «Компас» quiz', () => {
     expect(walls.sort()).toEqual([3, 4]);
     const maps = new Set(questions.map((q) => (q.type === 'pin' ? q.map : null)).filter(Boolean));
     expect(maps).toEqual(new Set(['world', 'europe', 'ukraine']));
+  });
+
+  it('replaces an older copy in place, as seed-demo --update does', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'compass-owner', name: 'Власник', email: 'compass@example.com' });
+    const id = await createQuiz(db, 'compass-owner', quizSchema.parse(demoQuiz));
+    expect(await updateQuiz(db, 'compass-owner', id, quizSchema.parse(compassQuiz))).toBe(true);
+    const loaded = await getQuiz(db, 'compass-owner', id);
+    expect(loaded?.title).toBe(compassQuiz.title);
+    expect(loaded?.rounds).toEqual(quizSchema.parse(compassQuiz).rounds);
+    expect([loaded?.duels, loaded?.spares]).toEqual([compassQuiz.duels, compassQuiz.spares]);
   });
 });

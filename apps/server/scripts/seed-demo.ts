@@ -1,6 +1,9 @@
 /**
- * Додає демо-вікторину користувачу за email.
+ * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
  * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase]
+ * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
+ * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
+ * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
  * party-media також потребує SITE_URL: картинки з Вікіпедії завантажуються на сайт
  * через тимчасовий акаунт, який потім видаляється. showcase з SITE_URL так само завантажує дві картинки,
  * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими.
@@ -10,10 +13,12 @@ import { quizSchema, type Quiz } from '@quiz/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import pg from 'pg';
-import { user } from '../src/db/schema';
+import type { Db } from '../src/db/client';
+import * as schema from '../src/db/schema';
+import { quiz, user } from '../src/db/schema';
 import { compassQuiz } from './compass-quiz';
 import { horizonQuiz } from './horizon-quiz';
-import { createQuiz } from '../src/quizzes';
+import { createQuiz, updateQuiz } from '../src/quizzes';
 import { demoQuiz } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
@@ -38,7 +43,7 @@ const ARTICLES: Record<string, string> = {
   wasabi: 'Wasabi',
   saffron: 'Saffron',
   flamingo: 'American_flamingo',
-  laika: 'Laika',
+  hubble: 'Hubble_Space_Telescope',
   hoverla: 'Hoverla',
   mriya: 'Antonov_An-225_Mriya',
   mazepa: 'Ivan_Mazepa',
@@ -67,7 +72,7 @@ async function thumbnails(keys: readonly string[]): Promise<Record<string, strin
 }
 
 /** Завантажує картинки keys на сайт від імені тимчасового акаунта; повертає ключ → /uploads/… */
-async function uploadImages(site: string, db: ReturnType<typeof drizzle>, keys: readonly string[] = Object.keys(ARTICLES)): Promise<Record<string, string>> {
+async function uploadImages(site: string, db: Db, keys: readonly string[] = Object.keys(ARTICLES)): Promise<Record<string, string>> {
   const email = `seed-${randomBytes(6).toString('hex')}@example.invalid`;
   const signUp = await fetch(`${site}/api/auth/sign-up/email`, {
     method: 'POST',
@@ -103,42 +108,79 @@ async function uploadImages(site: string, db: ReturnType<typeof drizzle>, keys: 
   }
 }
 
-const args = process.argv.slice(2);
-const email = args.find((arg) => arg.includes('@'));
-const name = args.find((arg) => ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase'].includes(arg)) ?? 'demo';
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase'] as const;
+type SeedName = (typeof SEEDS)[number];
+const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Вміст сіда name; для party-media і showcase картинки завантажуються на site. */
+async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promise<Quiz> {
+  switch (name) {
+    case 'demo':
+      return demoQuiz;
+    case 'party':
+      return partyQuiz();
+    case 'movies':
+      return movieQuiz;
+    case 'erudite':
+      return eruditeQuiz;
+    case 'school':
+      return schoolQuiz;
+    case 'mosaic':
+      return mosaicQuiz;
+    case 'compass':
+      return compassQuiz;
+    case 'horizon':
+      return horizonQuiz;
+    case 'teams':
+      return teamsQuiz();
+    case 'showcase':
+      if (!site) console.warn('No SITE_URL: the revealing pictures stay plain text questions');
+      return showcaseQuiz(site ? await uploadImages(site, db, SHOWCASE_IMAGES) : {});
+    case 'party-media': {
+      const base = partyQuiz(await uploadImages(site!, db));
+      return { ...base, title: `${base.title} (з картинками)` };
+    }
+  }
+}
+
+const USAGE = [
+  'Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [' + SEEDS.join('|') + ']',
+  '       DATABASE_URL=... [SITE_URL=...] seed-demo --update <quizId> <' + SEEDS.join('|') + '>',
+].join('\n');
+
+// pnpm може передати й сам роздільник «--».
+const args = process.argv.slice(2).filter((arg) => arg !== '--');
+const updating = args[0] === '--update';
+const quizId = updating ? args[1] : undefined;
+const email = updating ? undefined : args.find((arg) => arg.includes('@'));
+const name: SeedName | undefined = updating ? (isSeed(args[2]) ? args[2] : undefined) : (args.find(isSeed) ?? 'demo');
 const url = process.env.DATABASE_URL;
 const site = process.env.SITE_URL?.replace(/\/$/, '');
-if (!email || !url || (name === 'party-media' && !site)) {
-  console.error('Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase]');
+const valid = updating ? quizId !== undefined && UUID.test(quizId) && name !== undefined : email !== undefined;
+if (!valid || !url || !name || (name === 'party-media' && !site)) {
+  console.error(USAGE);
   process.exit(1);
 }
 
 const pool = new pg.Pool({ connectionString: url, ssl: url.includes('render.com') ? { rejectUnauthorized: false } : undefined });
-const db = drizzle(pool);
+const db = drizzle(pool, { schema }) as unknown as Db;
 try {
-  const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-  if (!owner) throw new Error(`No user with email ${email}`);
-  let source: Quiz = demoQuiz;
-  if (name === 'party') source = partyQuiz();
-  if (name === 'movies') source = movieQuiz;
-  if (name === 'erudite') source = eruditeQuiz;
-  if (name === 'school') source = schoolQuiz;
-  if (name === 'mosaic') source = mosaicQuiz;
-  if (name === 'compass') source = compassQuiz;
-  if (name === 'horizon') source = horizonQuiz;
-  if (name === 'teams') source = teamsQuiz();
-  if (name === 'showcase') {
-    if (!site) console.warn('No SITE_URL: the revealing pictures stay plain text questions');
-    source = showcaseQuiz(site ? await uploadImages(site, db, SHOWCASE_IMAGES) : {});
+  if (quizId !== undefined) {
+    // Власника не перевіряємо: скрипт запускає адміністратор. Беремо його з рядка, щоб скористатися тим самим updateQuiz, що й редактор.
+    const [row] = await db.select({ ownerId: quiz.ownerId }).from(quiz).where(eq(quiz.id, quizId));
+    if (!row) throw new Error(`No quiz with id ${quizId}`);
+    const data = quizSchema.parse(await seedQuiz(name, db, site));
+    if (!(await updateQuiz(db, row.ownerId, quizId, data))) throw new Error(`Quiz ${quizId} was not updated`);
+    console.log(`Updated quiz ${quizId} from the ${name} seed: «${data.title}»`);
+  } else {
+    const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.email, email!));
+    if (!owner) throw new Error(`No user with email ${email}`);
+    const data = quizSchema.parse(await seedQuiz(name, db, site));
+    // createQuiz, а не прямий insert: дуелі зберігаються в settings, окремої колонки немає.
+    const id = await createQuiz(db, owner.id, data);
+    console.log(`Created quiz ${id} for ${email}`);
   }
-  if (name === 'party-media') {
-    const base = partyQuiz(await uploadImages(site!, db));
-    source = { ...base, title: `${base.title} (з картинками)` };
-  }
-  const data = quizSchema.parse(source);
-  // createQuiz, а не прямий insert: дуелі зберігаються в settings, окремої колонки немає.
-  const id = await createQuiz(db, owner.id, data);
-  console.log(`Created quiz ${id} for ${email}`);
 } finally {
   await pool.end();
 }

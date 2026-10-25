@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LIMITS,
   QUESTION_TYPES,
   READY_BUFFS,
   ROUND_TYPES,
@@ -10,6 +11,7 @@ import {
   questionPrice,
   questionsOf,
   quizSchema,
+  roundTrials,
   type Quiz,
 } from '@quiz/shared';
 import { demoQuiz } from './demo-quiz';
@@ -19,14 +21,14 @@ import { eruditeQuiz } from './erudite-quiz';
 import { schoolQuiz } from './school-quiz';
 import { mosaicQuiz } from './mosaic-quiz';
 import { horizonQuiz } from './horizon-quiz';
+import { compassQuiz } from './compass-quiz';
+import { showcaseQuiz } from './showcase-quiz';
+import { teamsQuiz } from './teams-quiz';
 
-/** Типи, що з'явилися після цієї вікторини (10e і далі): її ще не оновлено під них. */
-const LATER_TYPES = new Set<string>(['survey', 'bluff']);
-const LATER_ROUND_TYPES = new Set<string>(['wipeout', 'survival', 'ladder']);
-
-/** Тексти всіх запитань вікторини: раунди, загальні запасні, запасні категорій і дуелі. */
+/** Тексти всіх запитань вікторини: раунди, питання на виживання, загальні запасні, запасні категорій і дуелі. */
 const texts = (quiz: Quiz) => [
   ...questionsOf(quiz).map((q) => q.text),
+  ...quiz.rounds.flatMap(roundTrials).map((q) => q.text),
   ...(quiz.spares ?? []).map((q) => q.text),
   ...quiz.rounds.flatMap((r) => (r.type === 'board' ? r.categories.flatMap((c) => (c.spares ?? []).map((q) => q.text)) : [])),
   ...(quiz.duels?.categories ?? []).flatMap((c) => c.questions.map((q) => q.text)),
@@ -40,21 +42,23 @@ describe('the «Горизонт» quiz', () => {
     expect(parsed.error?.issues ?? []).toEqual([]);
   });
 
-  it('has every round type, two classic rounds and a warm-up', () => {
+  it('has every round type, two classic rounds, a warm-up and the new rounds right before the final', () => {
     const types = horizonQuiz.rounds.map((r) => r.type);
-    for (const type of ROUND_TYPES.filter((type) => !LATER_ROUND_TYPES.has(type))) expect(types).toContain(type);
+    for (const type of ROUND_TYPES) expect(types).toContain(type);
     expect(types.filter((t) => t === 'classic').length).toBeGreaterThanOrEqual(2);
-    expect(types.at(-1)).toBe('final');
+    expect(types.slice(-4)).toEqual(['wipeout', 'survival', 'ladder', 'final']);
+    expect(types.length).toBeLessThanOrEqual(LIMITS.maxRounds);
     const warmup = horizonQuiz.rounds[0];
     expect(warmup.type === 'classic' && warmup.questions.map((q) => q.type).slice(0, 2)).toEqual(['poll', 'wordcloud']);
     const count = questionsOf(horizonQuiz).length;
     expect(count).toBeGreaterThanOrEqual(70);
-    expect(count).toBeLessThanOrEqual(92);
+    // «Мільйонер» грає один гравець, тож його сім запитань вечір майже не подовжують.
+    expect(count).toBeLessThanOrEqual(110);
   });
 
   it('has every question type', () => {
     const types = new Set(questionsOf(horizonQuiz).map((q) => q.type));
-    for (const type of QUESTION_TYPES.filter((type) => !LATER_TYPES.has(type))) expect(types.has(type)).toBe(true);
+    for (const type of QUESTION_TYPES) expect(types.has(type)).toBe(true);
   });
 
   it('every board has 5–6 categories going 100…500 with ×2, ×3, blitz, voice cells, a pin, a 3×3 wall and spares', () => {
@@ -102,7 +106,7 @@ describe('the «Горизонт» quiz', () => {
     const norm = (text: string) => text.trim().toLocaleLowerCase('uk');
     const own = texts(horizonQuiz).map(norm);
     expect(new Set(own).size).toBe(own.length);
-    const others = new Set([demoQuiz, partyQuiz(), movieQuiz, eruditeQuiz, schoolQuiz, mosaicQuiz].flatMap(texts).map(norm));
+    const others = new Set([demoQuiz, partyQuiz(), movieQuiz, eruditeQuiz, schoolQuiz, mosaicQuiz, compassQuiz, showcaseQuiz(), teamsQuiz()].flatMap(texts).map(norm));
     expect(own.filter((text) => others.has(text))).toEqual([]);
   });
 });
