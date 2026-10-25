@@ -27,9 +27,10 @@ function Jump() {
 }
 
 describe('HostHelp', () => {
-  it('groups every entry by topic in order; teams stay hidden while empty', () => {
+  it('groups every entry by topic in order, teams last with seven entries', () => {
     renderAt('/help');
-    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Раунди', 'Типи запитань', 'Клітинки поля', 'Бафи', 'Дебафи', 'Налаштування']);
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Раунди', 'Типи запитань', 'Клітинки поля', 'Бафи', 'Дебафи', 'Налаштування', 'Команди']);
+    expect(helpIds('teams')).toHaveLength(7);
     for (const id of HELP_TOPICS.flatMap(helpIds)) expect(document.getElementById(helpAnchor(id))).not.toBeNull();
     const swap = document.getElementById('help-buff-swap')!;
     within(swap).getByRole('heading', { level: 3, name: /Заміна запитання/ });

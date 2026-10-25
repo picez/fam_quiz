@@ -12,6 +12,7 @@ describe('TeamsEditor', () => {
     expect((screen.getByLabelText('Грати командами') as HTMLInputElement).checked).toBe(false);
     expect(screen.queryByText(/Команд: /)).toBeNull();
     expect(screen.queryByLabelText(/Назва команди/)).toBeNull();
+    screen.getByRole('button', { name: 'Довідка: Командна гра' });
   });
 
   it('turning it on gives two default teams', () => {

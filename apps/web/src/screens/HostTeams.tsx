@@ -1,22 +1,10 @@
 import { useState, type DragEvent } from 'react';
-import { TEAM_FORMS, type TeamForm, type TeamMemberView, type TeamView, type TeamsView } from '@quiz/shared';
+import { TEAM_FORMS, type TeamMemberView, type TeamView, type TeamsView } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { HelpButton } from '../help/HelpButton';
-import { helpEntry, type HelpId } from '../help/host-help';
 import { useGuardedSend } from '../live/useGuardedSend';
 import type { Send } from '../live/types';
 import { DicePanel, useDiceSpin } from './Dice';
-
-/** «ⓘ» способу формування; поки довідка не має запису «команди», кнопки немає (а не падіння). */
-function FormHelp({ form }: { form: TeamForm }) {
-  const id = `team.${form}` as HelpId;
-  try {
-    helpEntry(id);
-  } catch {
-    return null;
-  }
-  return <HelpButton id={id} />;
-}
 
 /** Чи запуститься гра: як у рушії, без команди йдуть у найменшу команду, порожні відпадають, потрібні ≥ 2 команди з людьми. */
 export function teamsStartable(teams: TeamsView): boolean {
@@ -167,7 +155,7 @@ export function HostTeams({ teams, send, onError, onKick }: { teams: TeamsView; 
               />
               {t(`teamForm_${form}` as TextKey)}
             </label>
-            <FormHelp form={form} />
+            <HelpButton id={`team.${form}`} />
           </span>
         ))}
       </fieldset>

@@ -6,11 +6,7 @@ import type { Send } from '../live/types';
 import { HostTeams } from './HostTeams';
 import { teamsView } from './team-test-view';
 
-// Записів «команди» у довідці ще немає (частина 11): «ⓘ» перевіряємо на підставленому записі.
-vi.mock('../help/host-help', async (original) => ({
-  ...(await original<typeof import('../help/host-help')>()),
-  helpEntry: (id: string) => ({ title: id, what: '', how: [], points: [], tip: [] }),
-}));
+// Кнопку «ⓘ» підміняємо, щоб перевірити лише id записів довідки.
 vi.mock('../help/HelpButton', () => ({
   HelpButton: ({ id }: { id: string }) => <button type="button" data-help-id={id}>ⓘ</button>,
 }));

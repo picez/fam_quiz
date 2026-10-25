@@ -1,18 +1,6 @@
 import { DEFAULT_TEAM_NAMES, LIMITS, defaultTeams, type TeamsSettings } from '@quiz/shared';
 import { t } from '../i18n';
 import { HelpButton } from '../help/HelpButton';
-import { helpEntry, type HelpId } from '../help/host-help';
-
-/** «ⓘ» запису «team.play»; поки довідка не має такого запису, кнопки немає (а не падіння). */
-function PlayHelp() {
-  const id = 'team.play' as HelpId;
-  try {
-    helpEntry(id);
-  } catch {
-    return null;
-  }
-  return <HelpButton id={id} />;
-}
 
 /**
  * «Командна гра»: перемикач з «ⓘ» (team.play); увімкнено — кількість 2–6 (кнопки − / +) і поле назви кожної команди з кольоровою позначкою;
@@ -36,7 +24,7 @@ export function TeamsEditor({ teams, onChange }: { teams: TeamsSettings | undefi
           <input type="checkbox" checked={teams !== undefined} onChange={(event) => onChange(event.target.checked ? defaultTeams(2) : undefined)} />
           <span>{t('teamsToggle')}</span>
         </label>
-        <PlayHelp />
+        <HelpButton id="team.play" />
       </div>
       {teams && (
         <>
