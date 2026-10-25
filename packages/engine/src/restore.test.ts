@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Quiz, QuizSettings } from '@quiz/shared';
+import { SPLASH_MS, type Quiz, type QuizSettings } from '@quiz/shared';
 import { takeBuff, type BuffPlay } from './buffs';
 import { chooserOf } from './board-turns';
 import { adjustScore } from './adjust';
@@ -132,12 +132,12 @@ describe('suspend after a restart', () => {
   it('a splash that was playing finishes after the pause, and the timer starts after it', () => {
     const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')])]);
     const open = openAt(lobbyWithSplash(quiz, 'Анна', 'Богдан'), T0);
-    expect(open.splash?.until).toBe(T0 + 1200);
-    // збереження посеред заставки: 700 мс заставки й увесь час запитання ще попереду
+    expect(open.splash?.until).toBe(T0 + SPLASH_MS.question);
+    // збереження посеред заставки: решта заставки й увесь час запитання ще попереду
     const resumed = must(resume(suspend(open, T0 + 500), T0 + 500 + HOUR));
-    expect(resumed.splash?.until).toBe(T0 + 1200 + HOUR);
-    expect(resumed.startedAt).toBe(T0 + 1200 + HOUR);
-    expect(resumed.endsAt).toBe(T0 + 21_200 + HOUR);
+    expect(resumed.splash?.until).toBe(T0 + SPLASH_MS.question + HOUR);
+    expect(resumed.startedAt).toBe(T0 + SPLASH_MS.question + HOUR);
+    expect(resumed.endsAt).toBe(T0 + SPLASH_MS.question + 20_000 + HOUR);
   });
 
   it('keeps a state that was already paused as it was, apart from the connections', () => {

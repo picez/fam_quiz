@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
@@ -130,7 +130,7 @@ describe('transition splashes over real sockets', () => {
     expect(await send(host, 'host:start')).toEqual({ ok: true });
     const intro = await until(stage, inPhase('intro'));
     expect(intro.splash?.kind).toBe('round');
-    expect(intro.splash && intro.splash.until - intro.splash.at).toBe(2500);
+    expect(intro.splash && intro.splash.until - intro.splash.at).toBe(SPLASH_MS.round);
 
     expect(await send(host, 'host:next')).toEqual({ ok: true });
     await until(olena, inPhase('question'));

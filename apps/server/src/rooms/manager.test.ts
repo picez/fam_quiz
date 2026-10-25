@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
-import { defaultTeams } from '@quiz/shared';
+import { defaultTeams, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { TRIAL_RIGHT, playSurvivalQuestion } from '../testing/survival-game';
 import {
@@ -449,7 +449,7 @@ describe('transition splashes', () => {
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(room.state.splash?.kind).toBe('question');
     expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: false, error: 'not_started' });
-    scheduler.advance(1200);
+    scheduler.advance(SPLASH_MS.question);
     expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
     expect(room.state.plays[0]?.answers[olena.playerId]?.timeMs).toBe(0);
 
@@ -463,7 +463,7 @@ describe('transition splashes', () => {
     const { scheduler, manager, room } = splashed();
     manager.host(room, { type: 'start' });
     manager.host(room, { type: 'next' });
-    scheduler.advance(1200 + 20_000 - 1);
+    scheduler.advance(SPLASH_MS.question + 20_000 - 1);
     expect(room.state.phase).toBe('question');
     scheduler.advance(1);
     expect(room.state.phase).toBe('locked');

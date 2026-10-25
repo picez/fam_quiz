@@ -1,4 +1,4 @@
-import type { BoardInfo } from '@quiz/shared';
+import { SPLASH_MS, type BoardInfo } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
 import { lock, next, start } from './game';
@@ -54,14 +54,14 @@ describe('hidden ×2/×3', () => {
 
   it('a marked cell flips longer for the surprise; an unmarked one keeps 1 s', () => {
     const marked = must(pickCell(toBoard(lobbyWithSplash(quiz, 'Оля', 'Петро')), 'p1', 'a1', T0, rng0));
-    expect(marked.splash).toEqual({ kind: 'cell', at: T0, until: T0 + 1000 + CELL_SURPRISE_MS });
-    expect(marked.startedAt).toBe(T0 + 1800);
-    expect(marked.endsAt).toBe(T0 + 1800 + 20_000);
+    expect(marked.splash).toEqual({ kind: 'cell', at: T0, until: T0 + SPLASH_MS.cell + CELL_SURPRISE_MS });
+    expect(marked.startedAt).toBe(T0 + SPLASH_MS.cell + CELL_SURPRISE_MS);
+    expect(marked.endsAt).toBe(T0 + SPLASH_MS.cell + CELL_SURPRISE_MS + 20_000);
     const x3 = must(pickCell(toBoard(lobbyWithSplash(quiz, 'Оля', 'Петро')), 'p1', 'b1', T0, rng0));
-    expect(x3.splash).toEqual({ kind: 'cell', at: T0, until: T0 + 1800 });
+    expect(x3.splash).toEqual({ kind: 'cell', at: T0, until: T0 + SPLASH_MS.cell + CELL_SURPRISE_MS });
     const plain = must(pickCell(toBoard(lobbyWithSplash(quiz, 'Оля', 'Петро')), 'p1', 'a2', T0, rng0));
-    expect(plain.splash).toEqual({ kind: 'cell', at: T0, until: T0 + 1000 });
-    expect(plain.startedAt).toBe(T0 + 1000);
+    expect(plain.splash).toEqual({ kind: 'cell', at: T0, until: T0 + SPLASH_MS.cell });
+    expect(plain.startedAt).toBe(T0 + SPLASH_MS.cell);
     const bare = must(pickCell(toBoard(), 'p1', 'a1', T0, rng0));
     expect(bare.splash).toBeNull();
     expect(bare.startedAt).toBe(T0);

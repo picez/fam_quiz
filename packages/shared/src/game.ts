@@ -50,8 +50,8 @@ export type BuffBlock =
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium' | 'trial';
 
-/** Тривалість кожної заставки, мс; кінець заставки запитання — старт його таймера. Рушій і веб читають одне число. */
-export const SPLASH_MS: Record<SplashKind, number> = { round: 2500, final: 3200, question: 1200, cell: 1000, duel: 2000,
+/** Тривалість кожної заставки, мс; кінець заставки запитання — старт його таймера. Рушій і веб читають одне число. 8c; 11b — довші приблизно в півтора раза (крім п'єдесталу й випробування). */
+export const SPLASH_MS: Record<SplashKind, number> = { round: 3500, final: 4000, question: 1800, cell: 1500, duel: 2500,
   podium: 2500,
   /** Драматична заставка випробування «Вибування» (10h). */
   trial: 2200,
