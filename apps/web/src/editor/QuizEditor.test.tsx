@@ -2318,6 +2318,28 @@ describe('QuizEditor: survival round', () => {
     expect([round.trial, round.survivors, round.bonus]).toEqual(['luck', 2, 0]);
   });
 
+  it('a luck round saves with the default blank survival questions, they are dropped', async () => {
+    const base = newSurvivalRound();
+    const fillQ = (q: Question, i: number): Question => (q.type === 'single' ? { ...q, text: `Q${i}`, options: q.options.map((o, k) => ({ ...o, text: `V${k}` })) } : q);
+    const initial: Quiz = { ...newQuiz(), title: 'Т', rounds: [{ ...base, questions: base.questions.map(fillQ) }] };
+    const { onSave } = open(initial);
+    fireEvent.click(within(settings()).getByLabelText(t('survivalTrialLuckOpt')));
+    click('Зберегти');
+    const round = await savedRound(onSave);
+    expect([round.trial, round.trials]).toEqual(['luck', []]);
+  });
+
+  it('a broken survival question opens the round settings', () => {
+    const base = newSurvivalRound();
+    const fillQ = (q: Question, i: number): Question => (q.type === 'single' ? { ...q, text: `Q${i}`, options: q.options.map((o, k) => ({ ...o, text: `V${k}` })) } : q);
+    const initial: Quiz = { ...newQuiz(), title: 'Т', rounds: [{ ...base, questions: base.questions.map(fillQ) }] };
+    const { onSave } = open(initial);
+    expect((settings() as HTMLDetailsElement).open).toBe(false);
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect((settings() as HTMLDetailsElement).open).toBe(true);
+  });
+
   it('adding and removing a survival question', () => {
     open();
     addRound('Вибування');

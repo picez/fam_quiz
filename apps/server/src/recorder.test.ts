@@ -1280,4 +1280,24 @@ describe('recorder: survival (10h)', () => {
     expect(mine.reduce((sum, r) => sum + r.points, 0) + 500).toBe(vira.score);
     expect(vira.score).toBe(700);
   });
+
+  it('stores no edge when the game ends before the verdict', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const room = manager.create(makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials)]), HOST, null);
+    for (const nickname of ['Олена', 'Тарас']) {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+    }
+    manager.host(room, { type: 'start' });
+    for (let guard = 0; guard < 6 && room.state.phase !== 'question'; guard++) manager.host(room, { type: 'next' });
+    manager.host(room, { type: 'end' });
+    await recorder.idle();
+    const [saved] = await db.select().from(game);
+    expect(saved.plays.length).toBeGreaterThan(0);
+    for (const play of saved.plays) expect(play.survival).not.toHaveProperty('edge');
+  });
 });

@@ -13,7 +13,7 @@ function edgeText(row: SurvivalRow, kind: 'question' | 'luck'): string {
   if (row.trial === 'out') return t('survivalOutMark');
   if (row.trial === 'pending') return t('survivalAnswering');
   if (kind === 'luck' && row.door?.picked != null) return t('survivalDoor', { n: row.door.picked + 1 });
-  return t('survivalPicked');
+  return t(kind === 'question' ? 'survivalAnswered' : 'survivalPicked');
 }
 
 /**

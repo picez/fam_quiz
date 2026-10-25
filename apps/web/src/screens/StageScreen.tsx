@@ -430,7 +430,9 @@ function Intro({ view }: { view: StageView }) {
       {view.round.type === 'wipeout' && view.wipeout !== null && <WipeoutLadder info={view.wipeout} size="stage" players={false} />}
       {view.round.type === 'survival' && view.survival !== null && (
         <>
-          <p className="lead survival-target">{t('survivalTarget', { target: view.survival.target, bonus: num(view.survival.bonus) })}</p>
+          <p className="lead survival-target">
+            {view.survival.bonus > 0 ? t('survivalTarget', { target: view.survival.target, bonus: num(view.survival.bonus) }) : t('survivalTargetNoBonus', { target: view.survival.target })}
+          </p>
           <SurvivalBoard info={view.survival} size="stage" />
         </>
       )}
@@ -502,7 +504,11 @@ function SurvivalBetween({ view, offsetMs }: { view: StageView; offsetMs: number
                 <Timer view={trial} offsetMs={offsetMs} total={trial.limitMs} status={timerStatus(view)} />
               </div>
             )}
-            {trial.stage === 'open' && <p className="meta">{t('survivalTrialDone', { n: trial.done, total: trial.total })}</p>}
+            {trial.stage === 'open' && (
+              <p className="meta" role="status">
+                {t('survivalTrialDone', { n: trial.done, total: trial.total })}
+              </p>
+            )}
           </>
         )}
       </header>
@@ -539,7 +545,7 @@ function SurvivalBetween({ view, offsetMs }: { view: StageView; offsetMs: number
                       : row.trial === 'out'
                         ? t('survivalOutMark')
                         : row.trial === 'done'
-                          ? t('survivalPicked')
+                          ? t(trial.kind === 'question' ? 'survivalAnswered' : 'survivalPicked')
                           : t('survivalAnswering')}
                   </span>
                 </li>
@@ -547,7 +553,7 @@ function SurvivalBetween({ view, offsetMs }: { view: StageView; offsetMs: number
             </ul>
           </div>
         )}
-        <SurvivalBoard info={info} size="stage" />
+        <SurvivalBoard info={info} size="stage" hideEdge={trial !== null} />
       </div>
     </div>
   );

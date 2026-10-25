@@ -1567,6 +1567,7 @@ describe('history: survival (10h)', () => {
         kind: 'question',
         fellBack: false,
         question: survivalTrials[0].text,
+        trialQuestion: survivalTrials[0],
         rows: [{ nickname: 'Оля', out: true, answer: { type: 'boolean', value: false }, door: null, auto: false, trap: null }],
       },
       alive: ['Віра', 'Гліб', 'Петро'],

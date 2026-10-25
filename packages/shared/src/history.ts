@@ -73,13 +73,16 @@ export interface GameQuestionResult {
   wipeout?: { price: number; rows: { nickname: string; status: WipeoutStatus; bank: number }[] };
   /** «Вибування»: вердикт після розкриття, випробування, привиди й хто живий після цього запитання. */
   survival?: {
-    verdict: 'trial' | 'all_wrong' | 'all_right';
+    /** Немає, коли раунд чи гра скінчились на розкритті, до вердикту. */
+    verdict?: 'trial' | 'all_wrong' | 'all_right';
     ghosts: { answered: number; right: number };
     trial: {
       kind: TrialKind;
       fellBack: boolean;
       /** Текст питання на виживання; null — удача. */
       question: string | null;
+      /** Саме питання на виживання (щоб показати відповіді людською мовою); немає в старих записах. */
+      trialQuestion?: Question;
       rows: { nickname: string; out: boolean; answer: Answer | null; door: number | null; auto: boolean; trap: number | null }[];
     } | null;
     /** Живі після цього запитання (нікнейми). */

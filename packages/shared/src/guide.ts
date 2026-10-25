@@ -1,5 +1,5 @@
 import type { BuffKind, DebuffKind } from './game';
-import { allowedBuffs, allowedDebuffs, duelThreshold, questionsOf, type Question, type Quiz } from './quiz';
+import { allowedBuffs, allowedDebuffs, duelThreshold, questionsOf, roundTrials, type Question, type Quiz } from './quiz';
 import { roundBrief, type RoundBrief } from './round-brief';
 
 /** Тип запитання на сторінці «Як грати»; top — підпис верху для order ('' — немає або інший тип). */
@@ -35,8 +35,8 @@ export function guidePages(quiz: Quiz): GuidePage[] {
     if (!briefs.has(key)) briefs.set(key, brief);
   }
 
-  // Типи запитань у порядку першої появи; запасні й запитання дуелей не враховуються.
-  const questions = questionsOf(quiz);
+  // Типи запитань у порядку першої появи (питання на виживання — після запитань); запасні й запитання дуелей не враховуються.
+  const questions = [...questionsOf(quiz), ...quiz.rounds.flatMap(roundTrials)];
   const types: GuideType[] = [];
   for (const q of questions) {
     if (!types.some((x) => x.type === q.type)) types.push({ type: q.type, top: '' });

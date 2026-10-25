@@ -18,12 +18,13 @@ function trialMark(row: SurvivalRow, size: Size): string | null {
 }
 
 /** «Живі / привиди»: групи на межі (підсвічені), живі, привиди (блідо, з «вибув після N»); highlightId — свій рядок. */
-export function SurvivalBoard({ info, size, highlightId }: { info: SurvivalInfo; size: Size; highlightId?: string }) {
+export function SurvivalBoard({ info, size, highlightId, hideEdge = false }: { info: SurvivalInfo; size: Size; highlightId?: string; hideEdge?: boolean }) {
   const ghostHits = info.ghosts.right !== null && info.ghosts.answered > 0;
   return (
     <section className={`survival-board is-${size}`} aria-label={t('survivalBoardTitle')}>
       <p className="meta survival-count">{t('survivalCount', { alive: info.aliveCount, ghosts: info.ghostCount })}</p>
       {GROUPS.map(({ status, title }) => {
+        if (hideEdge && status === 'edge') return null;
         const rows = info.rows.filter((row) => row.status === status);
         if (rows.length === 0) return null;
         return (

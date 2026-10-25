@@ -23,12 +23,14 @@ export function SurvivalDoors({
         const chosen = reveal !== null ? reveal.picked === door : picked === door;
         const trap = reveal !== null && reveal.trap === door;
         const className = `survival-door${chosen ? ' is-picked' : ''}${trap ? ' is-trap' : ''}${reveal !== null ? ' is-open' : ''}`;
+        const note = [trap ? t('survivalTrap') : '', chosen && reveal !== null && reveal.auto ? t('survivalDoorAuto') : ''].filter((x) => x !== '');
+        const label = note.length === 0 ? t('survivalDoor', { n: door + 1 }) : `${t('survivalDoor', { n: door + 1 })}, ${note.join(', ')}`;
         return (
           <button
             key={door}
             type="button"
             className={className}
-            aria-label={t('survivalDoor', { n: door + 1 })}
+            aria-label={label}
             aria-pressed={chosen}
             disabled={disabled || reveal !== null}
             onClick={() => onPick?.(door)}

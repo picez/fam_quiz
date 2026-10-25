@@ -14,6 +14,9 @@ interface Props {
   /** Запитань у всій вікторині разом з питаннями на виживання (ліміт 200). */
   total?: number;
   onChange: (next: Round) => void;
+  /** Керований стан розгортання (щоб редактор міг відкрити налаштування з помилкою). */
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
 }
 
 const range = (from: number, to: number, step = 1) => Array.from({ length: (to - from) / step + 1 }, (_, i) => from + i * step);
@@ -29,7 +32,7 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
  * Налаштування одного раунду: назва, опис для гравців, перемішування варіантів і правила підрахунку (штраф, серії, множник);
  * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». В кінці — попередній перегляд заставки з поясненням правил. Згорнуті, доки їх не відкриють.
  */
-export function RoundSettings({ round, index, total = 0, onChange }: Props) {
+export function RoundSettings({ round, index, total = 0, onChange, open, onToggle }: Props) {
   const [seconds, setSeconds] = useState<number>(LIMITS.defaultTime);
   const secondsValid = Number.isInteger(seconds) && seconds >= LIMITS.minTime && seconds <= LIMITS.maxTime;
   const rules = rulesOf(round);
@@ -45,7 +48,7 @@ export function RoundSettings({ round, index, total = 0, onChange }: Props) {
   };
 
   return (
-    <details className="rules round-settings">
+    <details className="rules round-settings" open={open} onToggle={onToggle === undefined ? undefined : (event) => onToggle(event.currentTarget.open)}>
       <summary>{t('roundSettings')}</summary>
       <p className="meta with-help">
         <span>{t(ROUND_NAMES[round.type])}</span>

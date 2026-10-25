@@ -322,6 +322,14 @@ describe('survival trial: the end of the round', () => {
     expect(survivalAlive(kicked)).toEqual(['p1', 'p2', 'p4']);
   });
 
+  it('nobody is out when the host kicked everyone off the edge and the rest all fail the trial', () => {
+    const s = must(removePlayer(must(removePlayer(firstTrial(), 'p1')), 'p4'));
+    expect(survivalAlive(s)).toEqual(['p2', 'p3']);
+    const wrong = must(answerTrial(must(answerTrial(s, 'p2', NO, 4000)), 'p3', NO, 4100));
+    expect(trialOf(wrong)).toMatchObject({ stage: 'closed', out: [] });
+    expect(survivalAlive(wrong)).toEqual(['p2', 'p3']);
+  });
+
   it('debuffs do not fire on a trial', () => {
     let s = must(setDebuff(firstTrial(), 'p2', 'fog'));
     expect(s.debuffs.p2?.firedAt).toBeNull();

@@ -32,9 +32,12 @@ describe('SurvivalDoors', () => {
   it('after the close marks the trap and the picked door; an auto pick says so', () => {
     render(<SurvivalDoors picked={null} disabled={false} reveal={{ picked: 0, auto: true, trap: 2 }} size="phone" />);
     expect(screen.getByText('Пастка!')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Двері 3' }).className).toContain('is-trap');
-    expect(screen.getByRole('button', { name: 'Двері 1' }).className).toContain('is-picked');
+    expect(screen.getByRole('button', { name: /^Двері 3/ }).className).toContain('is-trap');
+    expect(screen.getByRole('button', { name: /^Двері 1/ }).className).toContain('is-picked');
     expect(screen.getByText('вибрано самі')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Двері 1' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: /^Двері 1/ }).hasAttribute('disabled')).toBe(true);
+    // Позначки чують і ті, хто користується читачем екрана.
+    expect(screen.getByRole('button', { name: 'Двері 3, Пастка!' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Двері 1, вибрано самі' })).toBeTruthy();
   });
 });

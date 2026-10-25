@@ -51,6 +51,13 @@ interface Props {
   send: Send;
 }
 
+/** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
+function survivalStateLine(own: PlayerView['me']['survival']): string | null {
+  if (own === null) return null;
+  if (own.status === 'ghost') return own.outAfter === null ? null : t('survivalOutAfter', { n: own.outAfter });
+  return own.bonus === null || own.bonus <= 0 ? null : t('survivalBonusGot', { bonus: num(own.bonus) });
+}
+
 /** «Хто я?» на телефоні: відкриті підказки з відліком до наступної і частка ціни за правильну відповідь зараз. */
 function CluesNow({ clues, offsetMs }: { clues: PublicClues; offsetMs: number }) {
   const k = Math.max(1, clues.shown.length);
@@ -237,7 +244,7 @@ function Result({ view }: { view: PlayerView }) {
   if (ghost) {
     const right = view.me.survival?.ghostCorrect ?? null;
     return (
-      <section className={`result ${right === true ? 'is-correct' : 'is-wrong'}`}>
+      <section className={`result ${right === null ? 'is-neutral' : right ? 'is-correct' : 'is-wrong'}`}>
         <h2>{right === null ? t('resultNone') : t(right ? 'survivalGhostRight' : 'survivalGhostWrong')}</h2>
         <RevealDetail view={view} answer={view.me.answer} player={view.me} />
         {view.reveal !== null && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'pin' && (
@@ -985,11 +992,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <h1 className="question">{t('roundResults', { index: (view.round?.index ?? 0) + 1 })}</h1>
           {me.wipeout !== null && <WipeoutDecision view={view} offsetMs={offsetMs} onDecide={() => undefined} />}
-          {me.survival !== null && (
-            <p className="lead survival-state">
-              {me.survival.status === 'ghost' ? t('survivalOutAfter', { n: me.survival.outAfter ?? 0 }) : t('survivalBonusGot', { bonus: num(me.survival.bonus ?? 0) })}
-            </p>
-          )}
+          {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
         </>
@@ -998,11 +1001,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'finished' && (
         <>
           <h1 className="question">{t('gameOver')}</h1>
-          {me.survival !== null && (
-            <p className="lead survival-state">
-              {me.survival.status === 'ghost' ? t('survivalOutAfter', { n: me.survival.outAfter ?? 0 }) : t('survivalBonusGot', { bonus: num(me.survival.bonus ?? 0) })}
-            </p>
-          )}
+          {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {place}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
           <MenuLinks role="player" />

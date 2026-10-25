@@ -161,7 +161,9 @@ export function survivalLines(survival: NonNullable<GameQuestionResult['survival
     for (const row of trial.rows) {
       const door = trial.kind === 'luck' && row.door !== null && row.trap !== null ? t(row.auto ? 'historySurvivalDoorAuto' : 'historySurvivalDoor', { door: row.door + 1, trap: row.trap + 1 }) : '';
       const text = t(row.out ? 'historySurvivalOut' : 'historySurvivalSafe', { name: row.nickname });
-      lines.push(door === '' ? text : `${text}, ${door}`);
+      const answer = trial.kind === 'question' ? t('historySurvivalAnswer', { answer: answerText(row.answer, trial.trialQuestion ?? null) }) : '';
+      const extra = door !== '' ? door : answer;
+      lines.push(extra === '' ? text : `${text}, ${extra}`);
     }
   }
   if (survival.ghosts.answered > 0) lines.push(t('historySurvivalGhosts', { right: survival.ghosts.right, answered: survival.ghosts.answered }));

@@ -39,15 +39,29 @@ describe('survivalLines', () => {
           kind: 'question',
           fellBack: false,
           question: 'Перлина біля моря?',
+          trialQuestion: {
+            id: 't1',
+            type: 'single',
+            text: 'Перлина біля моря?',
+            imageUrl: null,
+            video: null,
+            timeLimit: 20,
+            points: 100,
+            correctId: 'a',
+            options: [
+              { id: 'a', text: 'Одеса' },
+              { id: 'b', text: 'Київ' },
+            ],
+          },
           rows: [
-            { nickname: 'Оля', out: false, answer: null, door: null, auto: false, trap: null },
+            { nickname: 'Оля', out: false, answer: { type: 'single', optionId: 'a' }, door: null, auto: false, trap: null },
             { nickname: 'Петро', out: true, answer: null, door: null, auto: false, trap: null },
           ],
         },
         alive: ['Оля'],
         end: false,
       }),
-    ).toEqual(['Питання на виживання: Перлина біля моря?', 'Оля — вижив(-ла)', 'Петро — вибув(-ла)', 'Привиди: 1 з 2 відгадали']);
+    ).toEqual(['Питання на виживання: Перлина біля моря?', 'Оля — вижив(-ла), відповідь: Одеса', 'Петро — вибув(-ла), відповідь: —', 'Привиди: 1 з 2 відгадали']);
   });
 
   it('luck with doors, picked by themselves and a fallback note', () => {
@@ -68,6 +82,10 @@ describe('survivalLines', () => {
         end: false,
       }),
     ).toEqual(['Удача (питань не лишилося)', 'Оля — вижив(-ла), двері 1, пастка 3', 'Петро — вибув(-ла), двері 2 (самі), пастка 2']);
+  });
+
+  it('no verdict line when the round ended on the reveal', () => {
+    expect(survivalLines({ ghosts: { answered: 0, right: 0 }, trial: null, alive: ['Оля'], end: true })).toEqual([]);
   });
 
   it('verdicts without a trial', () => {

@@ -105,6 +105,14 @@ describe('survival views (10h)', () => {
     expect(phone(revealed, 'p2').me.result).toBeNull();
   });
 
+  it('phones of players off the edge do not get the survival question; the stage and the edge do', () => {
+    const s = trialOpen();
+    expect(phone(s, 'p2').survival?.trial?.question).not.toBeNull();
+    expect(phone(s, 'p1').survival?.trial?.question).toBeNull();
+    expect(survivalOf(s).trial?.question).not.toBeNull();
+    expect(hostView(s).survival?.trial?.question).not.toBeNull();
+  });
+
   it('an open survival question hides the answer', () => {
     const s = trialOpen();
     const trial = survivalOf(s).trial;

@@ -41,6 +41,12 @@ describe('SurvivalBoard', () => {
     row({ playerId: 'p4', nickname: 'Софія', status: 'ghost', outAfter: 1 }),
   ];
 
+  it('can hide the edge group when the trial already lists it', () => {
+    render(<SurvivalBoard info={info(rows)} size="stage" hideEdge />);
+    expect(screen.queryByRole('heading', { name: 'На межі' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Живі' })).toBeTruthy();
+  });
+
   it('groups players into alive, on the edge and ghosts', () => {
     render(<SurvivalBoard info={info(rows)} size="phone" />);
     expect(screen.getByRole('heading', { name: 'Живі' })).toBeTruthy();

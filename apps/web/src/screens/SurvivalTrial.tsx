@@ -46,7 +46,9 @@ export function SurvivalTrial({
         {trial.kind === 'luck' && door !== null && door.trap !== null && (
           <SurvivalDoors picked={null} disabled reveal={{ picked: door.picked, auto: door.auto, trap: door.trap }} size="phone" />
         )}
-        <p className="lead survival-state">{t(own.result === 'safe' ? 'survivalSafe' : 'survivalOut')}</p>
+        <p className="lead survival-state" role="status">
+          {t(own.result === 'safe' ? 'survivalSafe' : 'survivalOut')}
+        </p>
       </section>
     );
   }
@@ -76,7 +78,7 @@ export function SurvivalTrial({
               onPick={(door) => !frozen && own.canPickDoor && onDoor(door)}
               size="phone"
             />
-            <p className="meta survival-door-line">
+            <p className="meta survival-door-line" role="status">
               {own.door !== null ? t('survivalDoorPicked', { n: own.door + 1 }) : t('survivalDoorDefault', { seconds: LIMITS.survivalLuckSeconds })}
             </p>
           </>
@@ -90,7 +92,9 @@ export function SurvivalTrial({
     <section className="survival-trial is-watch">
       {head}
       <p className="lead survival-state">{t('survivalWatchTrial', { names: names.join(', ') })}</p>
-      <p className="meta">{t('survivalTrialDone', { n: trial.done, total: trial.total })}</p>
+      <p className="meta" role="status">
+        {t('survivalTrialDone', { n: trial.done, total: trial.total })}
+      </p>
     </section>
   );
 }

@@ -56,6 +56,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const [duelsOpen, setDuelsOpen] = useState(false);
   /** Розділ «Запасні запитання» розгорнуто: автором або помилкою в ньому. */
   const [sparesOpen, setSparesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   /** Клітинка поля, яку треба показати після невдалого збереження. */
   const [boardFocus, setBoardFocus] = useState<{ category: number; index: number } | null>(null);
   /** Запитання, яке зараз перетягують у списку. */
@@ -165,8 +166,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     if (rounds.length === 1) return;
     const target = rounds[index];
     const targetQuestions = roundQuestions(target);
-    const hasText = targetQuestions.some((q) => q.text.trim() !== '');
-    if (hasText && !window.confirm(t('removeRoundConfirm', { index: index + 1, count: targetQuestions.length }))) return;
+    const targetTrials = roundTrials(target);
+    const hasText = [...targetQuestions, ...targetTrials].some((q) => q.text.trim() !== '');
+    if (hasText && !window.confirm(t('removeRoundConfirm', { index: index + 1, count: targetQuestions.length + targetTrials.length }))) return;
     setRounds(rounds.filter((_, i) => i !== index));
     selectRound(Math.max(0, index === rounds.length - 1 ? index - 1 : index));
   };
@@ -181,6 +183,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     setProblems(found);
     if (found.length > 0) {
       if (found.some((problem) => problem.startsWith(t('duelsTitle')))) setDuelsOpen(true);
+      // Помилка в питанні на виживання лежить у налаштуваннях раунду: відкриваємо їх.
+      const trialPrefix = t('problemSurvivalTrial', { index: 0, problem: '' }).split('0')[0];
+      if (found.some((problem) => problem.includes(trialPrefix) || problem.includes(t('problemSurvivalTrials')))) setSettingsOpen(true);
       const sparePrefixes = [t('sparesTitle'), t('problemSparesEmpty'), t('spareN', { index: '' }).trim()];
       if (found.some((problem) => sparePrefixes.some((prefix) => problem.startsWith(prefix)))) setSparesOpen(true);
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
@@ -298,7 +303,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         onMove={moveRound}
         onRemove={removeRound}
       />
-      <RoundSettings round={round} index={ri + 1} total={total} onChange={setRound} />
+      <RoundSettings round={round} index={ri + 1} total={total} onChange={setRound} open={settingsOpen} onToggle={setSettingsOpen} />
 
       <div className="editor-grid">
         <aside className="editor-side">

@@ -232,9 +232,14 @@ export function pickDoor(state: GameState, playerId: string, door: number, now: 
 }
 
 /** Хто вибуває: питання — «на межі» без правильної відповіді; удача — «на межі», чиї двері (свої чи запасні) = пастка. */
-function outOf(trial: SurvivalTrial, edge: string[]): string[] {
-  if (trial.kind === 'question') return edge.filter((id) => trial.answers[id]?.correct !== true);
-  return edge.filter((id) => (trial.doors[id] ?? trial.fallback[id]) === trial.traps[id]);
+function outOf(state: GameState, trial: SurvivalTrial, edge: string[]): string[] {
+  const out =
+    trial.kind === 'question'
+      ? edge.filter((id) => trial.answers[id]?.correct !== true)
+      : edge.filter((id) => (trial.doors[id] ?? trial.fallback[id]) === trial.traps[id]);
+  // Захист «помилилися всі»: випробування не вибиває всіх живих (так буває, коли ведучий вилучив гравців не на межі).
+  const alive = aliveBefore(state);
+  return alive.length > 0 && alive.every((id) => out.includes(id)) ? [] : out;
 }
 
 /**
@@ -248,7 +253,7 @@ export function closeTrial(state: GameState): GameState {
   // Заставка випробування, що ще грала (ведучий закрив рано), зникає разом із ним.
   const splash = state.splash?.kind === 'trial' ? null : state.splash;
   const cleared: GameState = { ...state, startedAt: null, endsAt: null, remainingMs: null, splash };
-  return withTrial(cleared, play, { ...trial, stage: 'closed', out: outOf(trial, play.survival.edge ?? []) });
+  return withTrial(cleared, play, { ...trial, stage: 'closed', out: outOf(state, trial, play.survival.edge ?? []) });
 }
 
 /** Закриває відкрите випробування, якщо всі присутні на межі вже відповіли / вибрали; на паузі й без присутніх — ні. */
@@ -275,7 +280,7 @@ export function overrideTrial(state: GameState, playerId: string, grade: Grade):
   const existing = trial.answers[playerId];
   if (existing === undefined) return fail('not_found');
   const graded: SurvivalTrial = { ...trial, answers: { ...trial.answers, [playerId]: { ...existing, correct: grade === 'correct', overridden: true } } };
-  return ok(withTrial(state, play, { ...graded, out: outOf(graded, play.survival.edge ?? []) }));
+  return ok(withTrial(state, play, { ...graded, out: outOf(state, graded, play.survival.edge ?? []) }));
 }
 
 /** Вердикт за переліком «на межі» серед живих на початку запитання. */

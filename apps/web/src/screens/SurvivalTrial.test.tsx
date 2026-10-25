@@ -133,6 +133,30 @@ describe('SurvivalTrial', () => {
     expect(screen.getByRole('button', { name: /Вісім/ }).closest('fieldset')!.hasAttribute('disabled')).toBe(true);
   });
 
+  it('disables the controls once the trial deadline has passed', () => {
+    const luck = { kind: 'luck' as const, question: null };
+    const onDoor = vi.fn();
+    render(<SurvivalTrial view={makeView({ trial: { ...luck, endsAt: Date.now() - 1000 }, own: { canAnswerTrial: false, canPickDoor: true } })} offsetMs={0} onAnswer={noop} onDoor={onDoor} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Двері 1' }));
+    expect(screen.getByRole('button', { name: 'Двері 1' }).hasAttribute('disabled')).toBe(true);
+    expect(onDoor).not.toHaveBeenCalled();
+    cleanup();
+    render(<SurvivalTrial view={makeView({ trial: { endsAt: Date.now() - 1000 } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(screen.getByRole('button', { name: /Вісім/ }).closest('fieldset')!.hasAttribute('disabled')).toBe(true);
+  });
+
+  it('announces the outcome, the pick and the progress as status', () => {
+    const closed = { stage: 'closed' as const, endsAt: null };
+    render(<SurvivalTrial view={makeView({ trial: closed, own: { status: 'alive', canAnswerTrial: false, result: 'safe' } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(screen.getByRole('status').textContent).toBe('Пронесло! Ти живий(-а).');
+    cleanup();
+    render(<SurvivalTrial view={makeView({ trial: { kind: 'luck', question: null }, own: { canAnswerTrial: false, canPickDoor: false, door: 1 } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(screen.getByRole('status').textContent).toBe('Двері 2. Чекаємо інших…');
+    cleanup();
+    render(<SurvivalTrial view={makeView({ own: { status: 'alive', canAnswerTrial: false } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(screen.getByRole('status').textContent).toBe('Відповіли 0 з 2');
+  });
+
   it('keeps the controls off under the trial splash even when the server says they are open', () => {
     const luck = { kind: 'luck' as const, question: null };
     const splash = { kind: 'trial' as const, at: Date.now(), until: Date.now() + 60_000 };

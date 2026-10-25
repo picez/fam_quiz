@@ -8439,7 +8439,7 @@ button.wall-tile:disabled {
 }
 
 .survival-doors.is-stage .survival-door {
-  min-height: 12rem;
+  min-height: clamp(6rem, 24vh, 12rem);
 }
 
 .survival-door:disabled {
@@ -8642,6 +8642,10 @@ button.wall-tile:disabled {
 
 .survival-edge-rows li.is-out .survival-mark {
   color: var(--signal);
+}
+
+.survival-edge-rows.is-luck {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
 }
 
 /* Двері на сцені: у кожного «на межі» свій ряд невисоких дверей. */

@@ -621,7 +621,9 @@ export function cleaned(quiz: Quiz): Quiz {
       const title = round.title.trim();
       if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanQuestion(question))) };
       if (round.type === 'survival') {
-        return { ...round, title, questions: round.questions.map(cleanQuestion), trials: round.trials.map(cleanQuestion) };
+        // Для «удачі» порожні питання на виживання — просто незаповнений шаблон: вони не потрібні.
+        const trials = round.trial === 'luck' ? round.trials.filter((trial) => trial.text.trim() !== '') : round.trials;
+        return { ...round, title, questions: round.questions.map(cleanQuestion), trials: trials.map(cleanQuestion) };
       }
       if (round.type !== 'board') return { ...round, title, questions: round.questions.map(cleanQuestion) };
       return {
@@ -1033,7 +1035,9 @@ export function problemsOf(quiz: Quiz): string[] {
       if (round.questions.length < LIMITS.minSurvivalQuestions) problems.push(where(t('problemSurvivalFew', { min: LIMITS.minSurvivalQuestions })));
       if (round.questions.length > LIMITS.maxSurvivalQuestions) problems.push(where(t('problemSurvivalMany', { max: LIMITS.maxSurvivalQuestions })));
       const allowed: readonly string[] = SURVIVAL_TYPES;
-      if ([...round.questions, ...round.trials].some((question) => !allowed.includes(question.type))) problems.push(where(t('problemSurvivalType')));
+      // Для «удачі» порожні питання на виживання не рахуються: вони не потрібні й не зберігаються.
+      const trials = round.trial === 'luck' ? round.trials.filter((trial) => trial.text.trim() !== '') : round.trials;
+      if ([...round.questions, ...trials].some((question) => !allowed.includes(question.type))) problems.push(where(t('problemSurvivalType')));
       if (!Number.isInteger(round.survivors) || round.survivors < 1 || round.survivors > LIMITS.maxSurvivors) {
         problems.push(where(t('problemSurvivors', { max: LIMITS.maxSurvivors })));
       }
@@ -1042,6 +1046,7 @@ export function problemsOf(quiz: Quiz): string[] {
       }
       if (round.trial === 'question' && round.trials.length === 0) problems.push(where(t('problemSurvivalTrials')));
       round.trials.forEach((trial, index) => {
+        if (round.trial === 'luck' && trial.text.trim() === '') return;
         const key = problemKey(trial, roundPlace(draft, roundIndex, 0));
         if (key === null) return;
         // «Запитання N: текст» → «Питання на виживання N: текст».

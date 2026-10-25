@@ -110,7 +110,7 @@ function survivalRef(survival: SurvivalPlay): NonNullable<PlayRef['survival']> {
   const ghosts = Object.values(survival.ghosts);
   const trial = survival.trial;
   return {
-    edge: survival.edge ?? [],
+    ...(survival.edge === null ? {} : { edge: survival.edge }),
     ...(ghosts.length === 0 ? {} : { ghosts: { answered: ghosts.length, right: ghosts.filter((g) => g.correct).length } }),
     ...(trial === null || trial.stage !== 'closed'
       ? {}

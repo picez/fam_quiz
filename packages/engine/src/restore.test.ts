@@ -78,6 +78,7 @@ import {
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
+import { pickDoor } from './survival';
 import { decideWipeout } from './wipeout';
 
 const HOUR = 3_600_000;
@@ -607,7 +608,14 @@ function representative(): GameState[] {
   survived = must(submitAnswer(survived, 'p3', { type: 'boolean', value: true }, T0 + 3500));
   survived = must(submitAnswer(survived, 'p1', { type: 'boolean', value: true }, T0 + 4000));
   survived = must(next(must(submitAnswer(survived, 'p2', { type: 'boolean', value: false }, T0 + 4000)), T0 + 5000, () => 0));
+  // 10h: відкрита «удача» — двоє на межі, один уже вибрав двері (справжній перебіг із детермінованим rng).
+  let luck = openAt(lobbyWith(makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials, { trial: 'luck' })]), 'Оля', 'Петро', 'Віра'), T0, () => 0);
+  luck = must(submitAnswer(luck, 'p1', kyiv, T0 + 1000));
+  luck = must(next(must(lock(luck)), T0 + 2000, () => 0));
+  luck = must(next(luck, T0 + 2500, () => 0.5));
+  luck = must(pickDoor(luck, 'p2', 1, T0 + 3500));
   return [
+    luck,
     survived,
     wiped,
     // Вікно «Далі / Забрати» відкрите: на leaderboard є startedAt / endsAt.

@@ -214,13 +214,15 @@ function survivalResult(quiz: Quiz, plays: PlayRef[], index: number, standings: 
   const ids = standings.map((s) => s.participantId);
   const outsUpTo = (upTo: number) => plays.flatMap((play, i) => (i <= upTo && play.roundIndex === ref.roundIndex ? [play.survival?.trial?.out ?? []] : []));
   const before = survivorsAfter(ids, outsUpTo(index - 1));
-  const verdict = survival.edge.length === 0 ? 'all_right' : before.every((id) => survival.edge.includes(id)) ? 'all_wrong' : 'trial';
+  const edge = survival.edge;
+  // Без edge вердикту не було: раунд чи гра скінчились на розкритті.
+  const verdict = edge === undefined ? undefined : edge.length === 0 ? 'all_right' : before.every((id) => edge.includes(id)) ? 'all_wrong' : 'trial';
   const trial = survival.trial;
   const round = quiz.rounds[ref.roundIndex];
   const trialQuestion = trial?.questionId === undefined || round?.type !== 'survival' ? undefined : round.trials.find((q) => q.id === trial.questionId);
   const alive = new Set(survivorsAfter(ids, outsUpTo(index)));
   return {
-    verdict,
+    ...(verdict === undefined ? {} : { verdict }),
     ghosts: survival.ghosts ?? { answered: 0, right: 0 },
     trial:
       trial === undefined
@@ -229,8 +231,9 @@ function survivalResult(quiz: Quiz, plays: PlayRef[], index: number, standings: 
             kind: trial.kind,
             fellBack: trial.fellBack === true,
             question: trialQuestion?.text ?? null,
+            ...(trialQuestion === undefined ? {} : { trialQuestion }),
             rows: standings
-              .filter((s) => survival.edge.includes(s.participantId))
+              .filter((s) => (edge ?? []).includes(s.participantId))
               .map(({ participantId, nickname }) => ({
                 nickname,
                 out: trial.out.includes(participantId),
