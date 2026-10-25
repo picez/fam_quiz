@@ -23,11 +23,13 @@ export function LadderAudience({ info, question, offsetMs }: { info: LadderInfo;
   const audience = info.audience;
   if (audience === null) return null;
   if (audience.state === 'closed' && audience.tally !== null) {
+    // Варіанти, прибрані 50/50, у підсумку залу не показуємо.
+    const shown = info.fifty === null ? question : { ...question, choices: question.choices.filter((choice) => !info.fifty?.includes(choice.id)) };
     return (
       <div className="ladder-audience">
         <VoteResults
           votes={{ endsAt: null, remainingMs: null, closed: true, cast: audience.tally.cast, counts: audience.tally.counts, guesses: [] }}
-          question={question}
+          question={shown}
           offsetMs={offsetMs}
         />
       </div>

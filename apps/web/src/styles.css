@@ -9082,3 +9082,14 @@ button.wall-tile:disabled {
 .host-ladder .ladder-decision {
   margin: 0.5rem 0;
 }
+
+/* Картинка чи відео разом із підсумком залу не мають обрізати варіанти. */
+.ladder-stage-main {
+  overflow: auto;
+}
+
+.stage-ladder .question-image,
+.stage-ladder iframe {
+  max-height: 28vh;
+  object-fit: contain;
+}

@@ -1789,6 +1789,19 @@ describe('StageScreen: bluff (10f)', () => {
       expect(document.querySelectorAll('.vote-row')).toHaveLength(2);
     });
 
+    it('a closed hall vote leaves out the options removed by 50/50', () => {
+      show(
+        view({
+          phase: 'question',
+          round: lRound,
+          questionIndex: 2,
+          question,
+          ladder: ladderInfo({ fifty: ['a'], audience: { state: 'closed', endsAt: null, remainingMs: null, voted: 1, total: 2, tally: { cast: 1, counts: { b: 1 } } } }),
+        }),
+      );
+      expect(document.querySelectorAll('.vote-row')).toHaveLength(1);
+    });
+
     it('locked: «Остаточна відповідь» next to the contestant pick', () => {
       show(view({ phase: 'locked', round: lRound, questionIndex: 2, question, ladder: ladderInfo({ contestantPick: 'a' }) }));
       const picked = document.querySelector('.choice.is-picked');

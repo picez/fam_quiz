@@ -123,6 +123,10 @@ describe('ladderLines', () => {
     expect(flat(ladderLines({ ...base, safe: false }, question))[0]).toBe('Оля · сходинка 3 · 1000');
   });
 
+  it('no hall line when nobody in the hall answered', () => {
+    expect(flat(ladderLines({ ...base, hall: { answered: 0, right: 0 } }, question))).toEqual(['Оля · сходинка 3 · 1000 (неспалима)']);
+  });
+
   it('lifelines: 50/50 removed options, the hall percents, the host hint text or aloud', () => {
     const lines = flat(
       ladderLines(

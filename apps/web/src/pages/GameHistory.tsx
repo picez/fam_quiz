@@ -197,7 +197,7 @@ export function ladderLines(ladder: NonNullable<GameQuestionResult['ladder']>, q
       else if (lifeline.aloud) lines.push(t('historyLadderHintAloud'));
     }
   }
-  lines.push(t('historyLadderHall', { right: ladder.hall.right, answered: ladder.hall.answered }));
+  if (ladder.hall.answered > 0) lines.push(t('historyLadderHall', { right: ladder.hall.right, answered: ladder.hall.answered }));
   if (ladder.outcome !== null) {
     lines.push(t(`historyLadder${{ took: 'Took', wrong: 'Wrong', top: 'Top', stopped: 'Stopped' }[ladder.outcome.kind]}` as TextKey, { name, points: num(ladder.outcome.points) }));
   } else if (ladder.decision === 'go') {
@@ -426,7 +426,7 @@ export function GameHistory() {
                   </p>
                 ))}
                 {bonuses.map((line, at) => (
-                  <p key={at} className="meta round-adjustments history-survival">
+                  <p key={at} className="meta round-adjustments history-bonus">
                     {line}
                   </p>
                 ))}
