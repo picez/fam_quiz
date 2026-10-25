@@ -1107,6 +1107,67 @@ export interface HostResponse {
   clue: number | null;
 }
 
+/** Вердикт автоперевірки для пульта (11c): видно лише ведучому й ще до розкриття. */
+export type LiveVerdict = 'correct' | 'partial' | 'wrong';
+
+/** Поступ у рядку «Відповідей наживо» для типів, де відповідь — не один вибір (11c). */
+export type LiveProgress =
+  | { kind: 'chain'; solved: number; total: number; word: string | null; hints: number }
+  | { kind: 'sort'; card: string | null; sorted: number; total: number; misses: number }
+  | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
+  | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
+  | { kind: 'survey'; ranks: (number | null)[] }
+  | { kind: 'door'; picked: number | null }
+  | { kind: 'duel'; tries: string[]; won: string | null };
+
+/** Рядок «Відповідей наживо»: гравець, команда чи людина (голоси командної гри). */
+export interface LiveRow {
+  id: string;
+  /** Нікнейм; для команди — назва команди. */
+  nickname: string;
+  connected: boolean;
+  /** Подав відповідь (див. план 11c, «Що в рядку»). */
+  answered: boolean;
+  /** null — ще не відповів, усна відповідь або тип із поступом (див. progress). */
+  answer: Answer | null;
+  timeMs: number | null;
+  verdict: LiveVerdict | null;
+  /** Чекає дії ведучого: «Прийняти», ручна оцінка чи усна відповідь. */
+  awaiting: boolean;
+  buff: BuffKind | null;
+  /** Запасне запитання (з правильною відповіддю), на яке гравець відповідає; null — основне. */
+  spare: Question | null;
+  /** «Хто я?»: на якій підказці дано відповідь; інакше null. */
+  clue: number | null;
+  /** Командна гра: нікнейм того, хто зараз діє за команду; соло — null. */
+  actor: string | null;
+  /** Командна гра: жива чернетка (додає сервер з пам'яті кімнати); рушій завжди дає null. */
+  draft: Answer | null;
+  progress: LiveProgress | null;
+  /** Фінал: ставка (null — ще не поставив) і ва-банк; окремо від progress, щоб її видно було й у ланцюжку, сортуванні тощо. Поза фіналом — null. */
+  wager: { wager: number | null; allIn: boolean } | null;
+}
+
+/** Згорнутий список під рядками: привиди «Вибування» чи зал «Мільйонера». */
+export interface LiveAside {
+  kind: 'ghosts' | 'hall';
+  answered: number;
+  total: number;
+  rows: LiveRow[];
+}
+
+/** «Відповіді наживо» (11c): лише пульт; null поза відповіддю. */
+export interface HostLive {
+  /** answers — звичайні рядки; blitz — черга бліцу (пульт малює її з HostView.blitz); trial — випробування «на межі»; duel — дуелянти. */
+  kind: 'answers' | 'blitz' | 'trial' | 'duel';
+  /** Скільки з rows відповіли / усього rows. */
+  answered: number;
+  total: number;
+  /** Усі, хто має відповідати, у порядку гравців (у бліці — теж у порядку гравців). */
+  rows: LiveRow[];
+  aside: LiveAside | null;
+}
+
 export interface HostPlayer extends LobbyPlayer {
   score: number;
   /** fired — діє в поточному запитанні; інакше чекає. */
@@ -1148,6 +1209,8 @@ export interface HostView extends BaseView {
   surveySkipped: string[];
   /** Мінімальний час кроків (11b); лише пульт. */
   pace: HostPace;
+  /** Відповіді наживо (11c); лише пульт. */
+  live: HostLive | null;
 }
 
 export type GameView = StageView | PlayerView | HostView;

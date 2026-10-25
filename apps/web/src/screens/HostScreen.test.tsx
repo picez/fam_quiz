@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOptionView, type HostDuel, type HostView, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
+import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -41,6 +41,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   sort: null,
   notice: null,
   pace: { next: null, lock: null, skip: null },
+  live: null,
   buffs: [],
   buffNotice: null,
   debuffNotice: null,
@@ -784,6 +785,21 @@ describe('HostScreen: blitz', () => {
       expect(screen.getByText('Київ').closest('.choice')?.className).toContain('is-correct');
       expect(screen.queryByText('Торкніться варіанта, який назвав гравець')).toBeNull();
       expect(choices?.querySelector('button')).toBeNull();
+    });
+
+    it('with the live panel up, a voice cell keeps its grade buttons and a phone cell loses the plain responses (11c)', () => {
+      const voiceCell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'voice' as const, penalty: 'none' as const };
+      const phoneCell = { ...voiceCell, answerMode: 'phone' as const };
+      const live = { kind: 'answers' as const, answered: 0, total: 1, rows: [], aside: null };
+      const base = { round: boardRound, players: three, endsAt: Date.now() + 20_000, live };
+      show(during('question', single, { ...base, board: boardOf({ manual: true, cell: voiceCell }) }));
+      expect(document.getElementById('live-answers')).not.toBeNull();
+      expect(screen.getByRole('heading', { name: 'Відповіді' })).toBeTruthy();
+      expect(button('Зарахувати')).toBeTruthy();
+      cleanup();
+      show(during('question', single, { ...base, board: boardOf({ cell: phoneCell }) }));
+      expect(document.getElementById('live-answers')).not.toBeNull();
+      expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
     });
 
     it('the host taps the option a voice player named', () => {
@@ -2466,5 +2482,183 @@ describe('HostScreen: pacing (11b)', () => {
     show(paced('reveal', { next: null, lock: null, skip: null }), wrong);
     fireEvent.click(button('Далі'));
     expect(await screen.findByRole('alert')).toBeTruthy();
+  });
+});
+
+describe('HostScreen: live answers (11c)', () => {
+  const lrow = (over: Partial<LiveRow> = {}): LiveRow => ({
+    id: 'p1',
+    nickname: 'Олена',
+    connected: true,
+    answered: true,
+    answer: { type: 'text', value: 'Одеса' },
+    timeMs: 4000,
+    verdict: 'correct',
+    awaiting: false,
+    buff: null,
+    spare: null,
+    clue: null,
+    actor: null,
+    draft: null,
+    progress: null,
+    wager: null,
+    ...over,
+  });
+  const lrows = [lrow(), lrow({ id: 'p2', nickname: 'Тарас', answered: false, answer: null, timeMs: null, verdict: null })];
+  const liveOf = (over: Partial<HostLive> = {}): HostLive => ({ kind: 'answers', answered: 1, total: 2, rows: lrows, aside: null, ...over });
+  const withLive = (phase: HostView['phase'], q: Question, over: Partial<HostView> = {}, liveOver: Partial<HostLive> = {}) =>
+    during(phase, q, { endsAt: Date.now() + 20_000, answeredCount: 1, live: liveOf(liveOver), ...over });
+  const before = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const otherPanels = () => Array.from(document.querySelectorAll('section.panel')).filter((el) => !el.querySelector('h1.question') && !el.classList.contains('live-answers'));
+  const bluffRound: RoundInfo = { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+
+  it('the panel stands first under the question and the timer, and the plain responses step aside', () => {
+    show(withLive('question', textQuestion));
+    const panel = document.getElementById('live-answers') as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(within(panel).getByRole('heading', { name: 'Відповіді наживо' })).toBeTruthy();
+    expect(before(document.querySelector('.host-time') as Element, panel)).toBe(true);
+    for (const other of otherPanels()) expect(before(panel, other)).toBe(true);
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+    cleanup();
+    show(during('question', textQuestion, { endsAt: Date.now() + 20_000 }));
+    expect(document.getElementById('live-answers')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Відповіді' })).toBeTruthy();
+  });
+
+  it('the answered counter is a button that scrolls to the panel; without it, plain text', () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    show(withLive('question', textQuestion));
+    fireEvent.click(button('До відповідей наживо'));
+    expect(scroll).toHaveBeenCalledWith({ block: 'start' });
+    expect(document.activeElement).toBe(document.getElementById('live-answers'));
+    cleanup();
+    show(during('question', textQuestion, { endsAt: Date.now() + 20_000, answeredCount: 1 }));
+    expect(screen.queryByRole('button', { name: 'До відповідей наживо' })).toBeNull();
+    expect(screen.getByText(/Відповіли 1 з 2/)).toBeTruthy();
+  });
+
+  it('the chain and sort panels step aside while the panel is up, and return without it', () => {
+    const chainQ: Question = { id: 'q3', type: 'chain', text: 'Ланцюжок', imageUrl: null, video: null, timeLimit: 20, points: 1000, words: ['Форель', 'Риба'], hintSeconds: 5 };
+    const chain = { total: 1, rows: [{ playerId: 'p1', nickname: 'Олена', solved: 1, hints: 1, timeMs: 8000, points: null }] };
+    const chainView = { question: { ...publicOf(single), type: 'chain' as const, choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null]], hintSeconds: 5 } }, chain };
+    show(withLive('question', chainQ, chainView));
+    expect(screen.queryByRole('heading', { name: 'Ланцюжок' })).toBeNull();
+    cleanup();
+    show(withLive('reveal', chainQ, { ...chainView, live: null }));
+    expect(screen.getByRole('heading', { name: 'Ланцюжок' })).toBeTruthy();
+    cleanup();
+    const categories = [
+      { id: 'c1', text: 'Овочі' },
+      { id: 'c2', text: 'Фрукти' },
+    ];
+    const sortQ: Question = {
+      id: 'q4',
+      type: 'sort',
+      text: 'Розкладіть',
+      imageUrl: null,
+      video: null,
+      timeLimit: 60,
+      points: 100,
+      lockSeconds: 3,
+      categories,
+      words: [
+        { id: 'w1', text: 'Морква', categoryId: 'c1' },
+        { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+      ],
+    };
+    const sort = { total: 2, winner: null, words: null, rows: [{ playerId: 'p1', nickname: 'Олена', sorted: 1, misses: 0, timeMs: null, points: null }] };
+    const sortView = { question: { ...publicOf(single), type: 'sort' as const, choices: [], sort: { categories, total: 2, lockSeconds: 3 } }, sort };
+    show(withLive('question', sortQ, sortView));
+    expect(screen.queryByRole('heading', { name: 'Сортування' })).toBeNull();
+    cleanup();
+    show(withLive('reveal', sortQ, { ...sortView, live: null }));
+    expect(screen.getByRole('heading', { name: 'Сортування' })).toBeTruthy();
+  });
+
+  it('an instant blitz has the queue inside the panel and no second one', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
+    const rows = [
+      { playerId: 'p1', nickname: 'Олена', timeMs: 1200, grade: 'wrong' as const, answer: { type: 'text' as const, value: 'Одеса' } },
+      { playerId: 'p2', nickname: 'Тарас', timeMs: 2500, grade: null, answer: { type: 'text' as const, value: 'Київ' } },
+    ];
+    const blitz = { voice: false, manual: false, winner: null, instant: true, rows, queue: [], attempts: [] };
+    show(withLive('question', textQuestion, { round, blitz, answeredCount: 2 }, { kind: 'blitz', answered: 2 }));
+    const panel = document.getElementById('live-answers') as HTMLElement;
+    expect(panel.querySelectorAll('.blitz-queue')).toHaveLength(1);
+    expect(document.querySelectorAll('.blitz-queue')).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Черга' })).toBeNull();
+  });
+
+  it('a button blitz has the judge buttons inside the panel', async () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
+    const blitz = {
+      voice: true,
+      manual: true,
+      winner: null,
+      instant: false,
+      rows: [],
+      queue: [{ playerId: 'p1', nickname: 'Олена', answer: null, deadline: null }],
+      attempts: [],
+    };
+    const send = show(withLive('question', textQuestion, { round, blitz }, { kind: 'blitz', answered: 1 }));
+    const panel = document.getElementById('live-answers') as HTMLElement;
+    fireEvent.click(within(panel).getByRole('button', { name: 'Правильно' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:judge', { playerId: 'p1', correct: true }));
+    expect(screen.getAllByRole('button', { name: 'Правильно' })).toHaveLength(1);
+  });
+
+  const sRound: RoundInfo = { index: 0, total: 1, title: '', type: 'survival', partial: false, description: '', brief: emptyBrief('survival'), times: null };
+  const trialSurvival = (): SurvivalInfo => ({
+    current: 1,
+    total: 5,
+    target: 1,
+    bonus: 500,
+    trialKind: 'luck',
+    trialsLeft: 0,
+    rows: [{ playerId: 'p1', nickname: 'Олена', status: 'edge', outAfter: null, ghost: null, answer: null, trial: 'pending', door: null }],
+    aliveCount: 1,
+    ghostCount: 0,
+    ghosts: { answered: 0, right: null },
+    verdict: 'trial',
+    trial: { kind: 'luck', fellBack: false, stage: 'open', endsAt: Date.now() + 10_000, remainingMs: null, limitMs: 10_000, done: 0, total: 1, question: null, reveal: null },
+    ending: false,
+  });
+
+  it('the survival trial gets the panel before the survival panel', () => {
+    show(view({ phase: 'leaderboard', round: sRound, survival: trialSurvival(), live: liveOf({ kind: 'trial' }) }));
+    const panel = document.getElementById('live-answers') as HTMLElement;
+    expect(before(panel, document.querySelector('.host-survival') as Element)).toBe(true);
+  });
+
+  it('the open trial keeps the previous question responses in place', () => {
+    show(during('leaderboard', textQuestion, { round: sRound, survival: trialSurvival(), live: null }));
+    expect(screen.getByRole('heading', { name: 'Відповіді' })).toBeTruthy();
+    cleanup();
+    show(during('leaderboard', textQuestion, { round: sRound, survival: trialSurvival(), live: liveOf({ kind: 'trial' }) }));
+    expect(document.getElementById('live-answers')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Відповіді' })).toBeTruthy();
+  });
+
+  it('the final wager stage has no live panel', () => {
+    void bluffRound;
+    show(view({ phase: 'wager', round: { ...bluffRound, type: 'final' }, live: null }));
+    expect(document.getElementById('live-answers')).toBeNull();
+  });
+
+  it('a duel shows the live rows in the duel panel instead of the try texts', () => {
+    const duelLive = liveOf({
+      kind: 'duel',
+      rows: [
+        lrow({ answered: false, answer: null, progress: { kind: 'duel', tries: ['Варшава'], won: null } }),
+        lrow({ id: 'p2', nickname: 'Петро', answered: false, answer: null, progress: { kind: 'duel', tries: [], won: null } }),
+      ],
+    });
+    show(view({ phase: 'duel', round: bluffRound, duel: hostDuel(), live: duelLive }));
+    const panel = document.querySelector('.duel-host') as HTMLElement;
+    expect(within(panel).getByText(/Варшава/)).toBeTruthy();
+    expect(within(panel).queryByText('Спроби Петро: Львів, Ліон')).toBeNull();
+    expect(document.getElementById('live-answers')).toBeNull();
   });
 });
