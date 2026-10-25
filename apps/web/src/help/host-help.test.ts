@@ -146,7 +146,7 @@ describe('host help', () => {
     for (const kind of BUFF_KINDS) {
       const e = helpEntry(`buff.${kind}`);
       expect(e.how[0], kind).toContain('раз за гру, не більше одного на запитання і лише до відповіді');
-      expect((e.limits ?? []).join(' '), kind).toContain("Бафи не діють у бліці, на бліц-клітинках, у фіналі, у «Ва-банк», на запитаннях «ланцюжок» і «сортування», на стіні зв'язків, опитуванні й хмарі слів та в дуелях");
+      expect((e.limits ?? []).join(' '), kind).toContain("Бафи не діють у бліці, на бліц-клітинках, у фіналі, у «Ва-банк» і «Вибуванні», на запитаннях «ланцюжок» і «сортування», на стіні зв'язків, опитуванні й хмарі слів та в дуелях");
     }
     expect(text('buff.shield')).toContain('в інших баф узяти не можна');
     expect(text('buff.swap')).toContain('лише за наявності запасних запитань');
@@ -223,6 +223,20 @@ describe('host help', () => {
     expect(text('round.final')).toContain('не те саме, що раунд «Ва-банк»');
     expect(text('round.classic')).toContain('«Ва-банк» — окремий тип раунду');
     expect(searchHelp('ва-банк')).toContain('round.wipeout');
+  });
+
+  it('10h survival entries tell the engine numbers and the isolation', () => {
+    const survival = text('round.survival');
+    expect(survival).toContain(String(LIMITS.survivalLuckSeconds));
+    expect(survival).toContain(`${LIMITS.minSurvivalQuestions}–${LIMITS.maxSurvivalQuestions}`);
+    expect(survival).toContain('виберуться самі');
+    expect(survival).toContain('ніхто не вибуває');
+    expect(survival).toContain('привид');
+    for (const kind of BUFF_KINDS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('Вибуванні');
+    for (const key of ['debuffShop', 'duels', 'leaderboard', 'speedBonus'] as const) expect(text(`setting.${key}`), key).toContain('Вибуванні');
+    expect(text('setting.spares')).toContain('питання на виживання');
+    expect(text('round.classic')).toContain('«Вибування» — окремий тип раунду');
+    expect(searchHelp('вибування')).toContain('round.survival');
   });
 
   it('related entries mention the new limits', () => {
