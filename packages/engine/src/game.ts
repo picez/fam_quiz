@@ -314,6 +314,8 @@ export interface WipeoutPlay {
   stay: string[];
   /** Раунд закінчився на цьому запитанні: банки тих, хто в грі, перенесено в бали. */
   end: boolean;
+  /** Хто забрав банк за замовчуванням, коли вікно закрилося (11e); лише непорожній; немає — усі вирішили самі або стан до 11e. */
+  auto?: string[];
 }
 
 /** Блеф у грі. */
@@ -738,7 +740,12 @@ function removeFromGame(state: GameState, playerId: string): Result {
     }
     if (play.wipeout !== undefined) {
       const without = (ids: string[]) => ids.filter((id) => id !== playerId);
-      kept.wipeout = { ...play.wipeout, took: without(play.wipeout.took), stay: without(play.wipeout.stay) };
+      kept.wipeout = {
+        ...play.wipeout,
+        took: without(play.wipeout.took),
+        stay: without(play.wipeout.stay),
+        ...(play.wipeout.auto === undefined ? {} : { auto: without(play.wipeout.auto) }),
+      };
     }
     if (play.survival !== undefined) {
       const without = (ids: string[]) => ids.filter((id) => id !== playerId);

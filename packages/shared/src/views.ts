@@ -719,6 +719,9 @@ export interface BuffTag extends BlitzPlayer {
   kind: BuffKind;
 }
 
+/** Відкритий вибір у «Ва-банк» після закриття вікна (11e): took — забрав сам; stay — далі; auto — не вибрав, банк забрано за замовчуванням. */
+export type WipeoutChoice = 'took' | 'stay' | 'auto';
+
 /** Рядок драбини «Ва-банк»: гравець, стан, банк і рішення у вікні. */
 export interface WipeoutRow extends BlitzPlayer {
   status: WipeoutStatus;

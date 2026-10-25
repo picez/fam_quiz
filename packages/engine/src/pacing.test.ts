@@ -10,7 +10,7 @@ import { paceWindow, stamp, stepKey, tooSoon } from './pacing';
 import { revealSurveyAll } from './survey';
 import { hostView, playerView, stageView } from './views';
 import { trialOpen } from './survival';
-import { decisionOpen } from './wipeout';
+import { decideWipeout, decisionOpen } from './wipeout';
 import { T0 } from './testing/buffs';
 import { toDeclarable } from './testing/duel';
 import {
@@ -332,7 +332,8 @@ describe('pacing: windows', () => {
     expect(paceWindow(closed, 'next')).toEqual({ from: T0 + 9000, until: T0 + 11_000 });
   });
 
-  it('«Ва-банк»: no window while the decision is open; its end by tick stamps and gives 2 s', () => {
+  /** «Ва-банк» на двох: обидва відповіли правильно, розкриття о T0 + 5000, вікно рішення відкрите о T0 + 6000. */
+  const wipeoutWindow = () => {
     const lobby = lobbyWith(makeRoundsQuiz([wipeoutRound('rw', wipeoutLadder)]), 'Оля', 'Петро');
     let s = go(lobby, start(lobby, T0), T0);
     s = go(s, next(s, T0 + 3000, rng0), T0 + 3000);
@@ -340,14 +341,31 @@ describe('pacing: windows', () => {
     s = go(s, submitAnswer(s, 'p2', RIGHT, T0 + 4000), T0 + 4000);
     s = go(s, next(s, T0 + 5000, rng0), T0 + 5000);
     expect(s.phase).toBe('reveal');
-    s = go(s, next(s, T0 + 6000, rng0), T0 + 6000);
+    return go(s, next(s, T0 + 6000, rng0), T0 + 6000);
+  };
+
+  it('«Ва-банк»: no window while the decision is open; its end by tick stamps and gives 3 s for the decisions screen (11e)', () => {
+    const s = wipeoutWindow();
     expect(decisionOpen(s)).toBe(true);
     expect(paceWindow(s, 'next')).toBeNull();
     const endsAt = s.endsAt ?? 0;
     const ended = stamp(s, tick(s, endsAt), endsAt);
     expect(decisionOpen(ended)).toBe(false);
     expect(ended.stepAt).toBe(endsAt);
-    expect(paceWindow(ended, 'next')).toEqual({ from: endsAt, until: endsAt + 2000 });
+    expect(paceWindow(ended, 'next')).toEqual({ from: endsAt, until: endsAt + 3000 });
+  });
+
+  it('«Ва-банк»: the last decision closes the window and the decisions screen waits 3 s from that moment (11e)', () => {
+    expect(PACE_MS.decisions).toBe(3000);
+    const s = wipeoutWindow();
+    const one = go(s, decideWipeout(s, 'p1', false, T0 + 7000), T0 + 7000);
+    const decided = go(one, decideWipeout(one, 'p2', false, T0 + 7000), T0 + 7000);
+    expect(decisionOpen(decided)).toBe(false);
+    expect(decided.stepAt).toBe(T0 + 7000);
+    expect(paceWindow(decided, 'next')).toEqual({ from: T0 + 7000, until: T0 + 10_000 });
+    expect(hostView(decided).pace.next).toEqual({ from: T0 + 7000, until: T0 + 10_000 });
+    expect(tooSoon(decided, 'next', T0 + 9999)).toBe(true);
+    expect(tooSoon(decided, 'next', T0 + 10_000)).toBe(false);
   });
 
   it('«Мільйонер»: the draw stamps the intro, a pending decision has no window', () => {

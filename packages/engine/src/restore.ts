@@ -12,8 +12,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 10 — 10j: GameState.teams (команди, учасники, капітани, кубики лобі, дуелянти), Play.buzzers (хто з команди натиснув у бліці).
  * 11 — 11b: GameState.stepAt (мить останньої зміни кроку для мінімального часу перед кроком ведучого).
  * 12 — 11d: SortProgress.wordMisses (помилки по словах) і SortProgress.missedInto (зона останньої помилки).
+ * 13 — 11e: WipeoutPlay.auto (хто забрав банк за замовчуванням, коли вікно закрилося).
  */
-export const GAME_STATE_VERSION = 12;
+export const GAME_STATE_VERSION = 13;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -37,8 +38,10 @@ export const GAME_STATE_VERSION = 12;
  * тож кімната, збережена до розгортання 11b, теж відновлюється.
  * 11 → 12 лише додала необов'язкові SortProgress.wordMisses і missedInto. Без них розкриття не показує «✗N» (лише «не встиг»
  * і загальне число помилок), а помилка без зони не летить. Тож кімната, збережена до розгортання 11d, теж відновлюється.
+ * 12 → 13 лише додала необов'язкове WipeoutPlay.auto. Без нього екран рішень показує всіх, хто забрав, як «Забрано …»,
+ * без «Без вибору». Тож кімната, збережена до розгортання 11e, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті
