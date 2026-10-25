@@ -6,6 +6,7 @@ import type { LadderOutcomeKind } from './ladder';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
 import type { SurvivalStatus } from './survival';
+import type { TeamForm } from './teams';
 import type { WipeoutStatus } from './wipeout';
 
 export interface Choice {
@@ -426,6 +427,58 @@ export interface DiceInfo {
   tieBreak: boolean;
   /** Порядок визначено. */
   done: boolean;
+}
+
+/** Учасник командної гри (10j). */
+export interface TeamMemberView {
+  id: string;
+  nickname: string;
+  connected: boolean;
+}
+
+export interface TeamView {
+  id: string;
+  name: string;
+  /** Позиція кольору 0…5. */
+  color: number;
+  /** Ефективний капітан; null — команда порожня (лише лобі). */
+  captainId: string | null;
+  members: TeamMemberView[];
+}
+
+/** Командна гра для всіх ролей; null у соло-грі. */
+export interface TeamsView {
+  form: TeamForm;
+  /** У лобі — усі команди з налаштувань; після старту — ті, що грають (як players). */
+  teams: TeamView[];
+  /** Лобі: без команди; після старту []. */
+  unassigned: TeamMemberView[];
+  /** Лобі: кубики формування (рядки — люди); null без кидків. */
+  dice: DiceInfo | null;
+}
+
+/** Учасник командної гри про себе. */
+export interface PlayerTeam {
+  memberId: string;
+  nickname: string;
+  /** null — ще без команди (лобі). */
+  teamId: string | null;
+  captainId: string | null;
+  captain: boolean;
+  /** Може зараз діяти за команду: капітан; у бліці — натиснувший (або будь-хто, поки можна натиснути); у дуелі — дуелянт. */
+  canAct: boolean;
+  /** Бліц: хто з команди натиснув (відповідає він); null. */
+  buzzerId: string | null;
+  /** Дуель: дуелянт команди; null — команда не в дуелі. */
+  duelistId: string | null;
+  /** Капітан команди-дуелянта може вибрати дуелянта (declared / category). */
+  canPickDuelist: boolean;
+  /** Лобі, спосіб 'pick'. */
+  canPick: boolean;
+  /** Лобі: тур кубиків чекає мого кидка. */
+  canRoll: boolean;
+  /** Чернетка капітана для некапітанів (додає сервер, задача 5); рушій завжди дає null. */
+  draft: Answer | null;
 }
 
 /** Коло ходів у розкладі. */
@@ -882,6 +935,8 @@ interface BaseView {
   guide: GuideView | null;
   /** Пояснення для новачків увімкнено (пам'ятка раунду на intro). */
   newcomers: boolean;
+  /** Командна гра (10j); null у соло-грі. */
+  teams: TeamsView | null;
 }
 
 /** «Як грати»: поточна сторінка й усі сторінки цієї вікторини. */
@@ -1028,6 +1083,8 @@ export interface PlayerView extends BaseView {
   standings: Standing[] | null;
   /** Живий рейтинг без балів ще не розкритого запитання; null у лобі. */
   table: PlayerTable | null;
+  /** Командна гра: про себе (10j); null у соло-грі. */
+  team: PlayerTeam | null;
 }
 
 export interface HostResponse {

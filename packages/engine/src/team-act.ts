@@ -67,6 +67,8 @@ function withBuzzer(state: GameState, team: string, memberId: string): GameState
 
 /** Відповідь людини: соло — submitAnswer; командна — actorOf(…, 'answer'); миттєвий бліц пише buzzers; голоси — під id людини. */
 export function actAnswer(state: GameState, memberId: string, answer: Answer, now: number): Result {
+  // Поза запитанням — wrong_phase для всіх, а не not_captain для некапітана (як у submitAnswer).
+  if (state.phase !== 'question') return fail('wrong_phase');
   const who = actorOf(state, memberId, 'answer');
   if (!who.ok) return fail(who.error);
   const result = submitAnswer(state, who.id, answer, now);
