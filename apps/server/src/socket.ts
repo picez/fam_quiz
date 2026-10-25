@@ -162,11 +162,11 @@ export function attachSockets(
       return;
     }
     if (event.type === 'draft') {
-      // Чернетка — лише решті команди автора: ні йому самому, ні сцені, ні пульту, ні іншим командам.
+      // Чернетка — решті команди автора й пульту: ні автору, ні сцені, ні іншим командам.
       members
         .filter((socket) => {
           const { role, playerId } = socket.data.identity;
-          return role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.teamId;
+          return role === 'host' || (role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.teamId);
         })
         .forEach(push);
       return;

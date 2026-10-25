@@ -89,7 +89,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { isUnscored, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type LifelineKind, type Phase, type Question, type Quiz, type Role, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { isUnscored, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostView, type LifelineKind, type Phase, type Question, type Quiz, type Role, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -125,7 +125,7 @@ export interface Room {
   expiryPhase: Phase | null;
   /**
    * Чернетки капітанів (10j): id команди → поле відповіді. Лише в пам'яті: не в стані гри,
-   * не в збереженій кімнаті; після перезапуску порожньо.
+   * не в збереженій кімнаті; після перезапуску порожньо. Йдуть товаришам по команді й пульту (11c).
    */
   drafts: Map<string, Draft>;
   /** Лічильник команд звуку; лише в пам'яті, у збережену кімнату не потрапляє; стартує з Date.now(), щоб після перезапуску клієнт не проґавив команду. */
@@ -496,7 +496,7 @@ export class RoomManager {
   }
 
   view(room: Room, identity: Identity): GameView | null {
-    if (identity.role === 'host') return hostView(room.state);
+    if (identity.role === 'host') return this.withLiveDrafts(room, hostView(room.state));
     if (identity.role === 'stage') return stageView(room.state);
     if (identity.playerId === null) return null;
     const view = playerView(room.state, identity.playerId);
@@ -504,6 +504,16 @@ export class RoomManager {
     if (view === null || team === null || team.teamId === null) return view;
     const draft = this.currentDraft(room, team.teamId, identity.playerId);
     return draft === null ? view : { ...view, team: { ...team, draft } };
+  }
+
+  /** Пульт бачить живі чернетки команд у «Відповідях наживо» (11c); у стан гри вони не потрапляють. */
+  private withLiveDrafts(room: Room, view: HostView): HostView {
+    if (view.live === null || !teamsOn(room.state)) return view;
+    const rows = view.live.rows.map((row) => {
+      const found = this.liveDraft(room, row.id);
+      return found === null ? row : { ...row, draft: found.draft };
+    });
+    return { ...view, live: { ...view.live, rows } };
   }
 
   /**

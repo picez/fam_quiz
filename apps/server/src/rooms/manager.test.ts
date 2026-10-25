@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { sortOf } from '@quiz/engine';
+import { hostView, sortOf } from '@quiz/engine';
 import { defaultTeams, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { TRIAL_RIGHT, playSurvivalQuestion } from '../testing/survival-game';
@@ -1272,9 +1272,13 @@ describe('teams (10j)', () => {
 
     const teammate = manager.view(room, taras.identity);
     expect(teammate?.role === 'player' && teammate.team?.draft).toEqual(draft);
-    for (const who of [olena.identity, ira.identity, marko.identity, HOST, STAGE]) {
+    for (const who of [olena.identity, ira.identity, marko.identity, STAGE]) {
       expect(JSON.stringify(manager.view(room, who))).not.toContain('Чернетка-Дніпро');
     }
+    // Пульт бачить чернетку в «Відповідях наживо» (11c): лише в рядку своєї команди.
+    const host = manager.view(room, HOST);
+    expect(host?.role === 'host' && host.live?.rows.find((r) => r.id === red)?.draft).toEqual(draft);
+    expect(host?.role === 'host' && host.live?.rows.filter((r) => r.id !== red).map((r) => r.draft)).toEqual([null]);
     expect(JSON.stringify(manager.snapshot(room))).not.toContain('Чернетка-Дніпро');
 
     expect(manager.draft(room, taras.playerId, draft)).toEqual({ ok: false, error: 'not_captain' });
@@ -1290,6 +1294,35 @@ describe('teams (10j)', () => {
     const later = manager.view(room, taras.identity);
     expect(later?.role === 'player' && later.team?.draft).toBeNull();
     expect(JSON.stringify(later)).not.toContain('Чернетка-Дніпро');
+  });
+
+  it('the host sees a team draft until the team answers, and never a stale one', () => {
+    const { manager, room, olena, taras, red } = teamPlaying([classicRound('r1', [text])]);
+    const draft = { type: 'text', value: 'Чернетка-Суми' } as const;
+    const redRow = () => {
+      const view = manager.view(room, HOST);
+      return view?.role === 'host' ? view.live?.rows.find((r) => r.id === red) : undefined;
+    };
+    expect(manager.draft(room, olena.playerId, draft)).toEqual({ ok: true });
+    expect(redRow()?.draft).toEqual(draft);
+    // Ведучий змінив капітана: автор більше не діє за команду, чернетка застаріла.
+    expect(manager.host(room, { type: 'captain', teamId: red, memberId: taras.playerId })).toEqual({ ok: true });
+    expect(redRow()?.draft).toBeNull();
+    expect(manager.host(room, { type: 'captain', teamId: red, memberId: olena.playerId })).toEqual({ ok: true });
+    expect(redRow()?.draft).toEqual(draft);
+    expect(manager.answer(room, olena.playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+    expect(redRow()?.draft).toBeNull();
+    expect(redRow()?.answered).toBe(true);
+    expect(JSON.stringify(manager.snapshot(room))).not.toContain('Чернетка-Суми');
+  });
+
+  it('the host view is the plain engine slice in a solo game and outside a question', () => {
+    const solo = playing();
+    expect(solo.manager.view(solo.room, HOST)).toEqual(hostView(solo.room.state));
+    const { manager, room } = teamPlaying([classicRound('r1', [text])]);
+    manager.host(room, { type: 'lock' });
+    manager.host(room, { type: 'next' });
+    expect(manager.view(room, HOST)).toEqual(hostView(room.state));
   });
 
   it('a draft clears with null, and is wrong outside a question or in a solo game', () => {
