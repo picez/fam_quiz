@@ -35,7 +35,7 @@ import { BluffLieInput } from './BluffLieInput';
 import { DebuffStrip, DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { DuelistPicker } from './DuelistPicker';
-import { TeamBar, memberName } from './TeamBar';
+import { TeamBar, buzzerOf, memberName } from './TeamBar';
 import { TeamLobby } from './TeamLobby';
 import { TeamWatch, useDraftSender } from './TeamWatch';
 import { MenuLinks } from './MenuLinks';
@@ -586,6 +586,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const submit = async (answer: Answer) => {
     // До старту сервер однаково відмовив би: дотик, що проскочив крізь вимкнене поле, нічого не надсилає.
     if (notStarted) return;
+    // Подана відповідь не мусить перебитися чернеткою, що ще чекає на відправку.
+    sendDraft.cancel();
     const result = await send('player:answer', answer);
     setError(result.ok ? null : errorText(result.error));
   };
@@ -641,8 +643,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const isBluff = question?.type === 'bluff';
   const unscored = question !== null && isUnscored(question);
   // Чернетка йде лише від того, хто зараз відповідає за команду; опитування й хмару кожен проходить сам, чернеток там немає.
-  const draftOn = team !== null && team.canAct && phase === 'question' && question !== null && !unscored && !instant;
-  const sendDraft = useDraftSender(send, draftOn, view.questionIndex);
+  const trialDraft = team !== null && team.canAct && phase === 'leaderboard' && me.survival?.canAnswerTrial === true;
+  const draftOn = (team !== null && team.canAct && phase === 'question' && question !== null && !unscored && !instant) || trialDraft;
+  const sendDraft = useDraftSender(send, draftOn, `${view.questionIndex}-${me.blitz?.attemptsUsed ?? 0}-${retryStage ?? ''}-${phase}`);
   const onDraft = draftOn ? sendDraft : undefined;
   // Решта команди дивиться: запитання, де відповідає не вона. Бліц з кнопкою — поки відповідає натиснувший; глядач на полі лишається глядачем.
   const teamWatching =
@@ -653,7 +656,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
     !unscored &&
     !wipeoutWatching &&
     !instant &&
-    (me.blitz === null || team.buzzerId !== null) &&
+    // Усно відповідає будь-хто: екран перегляду не потрібен.
+    !voice &&
+    (me.blitz === null || buzzerOf(view) !== null) &&
     !(board !== null && !chooserIsMe && me.blitz === null);
 
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
@@ -740,7 +745,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'board' && board !== null && (
         <>
           <p className="lead">
-            {chooserIsMe ? (acting ? t('yourPick') : t('teamWatchLead', { name: memberName(view, team?.captainId ?? null) })) : t('boardChooser', { name: chooserName })}
+            {chooserIsMe ? (acting ? t('yourPick') : t('teamCaptainPicks', { name: memberName(view, team?.captainId ?? null) })) : t('boardChooser', { name: chooserName })}
           </p>
           <Board board={board} onPick={chooserIsMe && acting ? (cellId) => void pick(cellId) : undefined} disabled={view.paused} />
           <BoardLegend board={board} />
@@ -1059,13 +1064,25 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'leaderboard' && view.survival !== null && (
         <>
           {view.survival.trial !== null && !acting && (me.survival?.canAnswerTrial === true || me.survival?.canPickDoor === true) ? (
-            <p className="lead survival-state team-decides">{t('teamCaptainDecides')}</p>
+            <>
+              <p className="lead survival-state team-decides">{t('teamCaptainDecides')}</p>
+              {team?.draft != null && view.survival.trial.question !== null && (
+                <p className="team-draft is-draft">
+                  <span className="draft-mark">{t(buzzerOf(view) !== null ? 'teamDraftNeutral' : 'teamDraftMark')}</span>
+                  {pickedText(team.draft, shownChoices(view.survival.trial.question), view.survival.trial.question.slider)}
+                </p>
+              )}
+            </>
           ) : view.survival.trial !== null ? (
             <SurvivalTrial
               view={view}
               offsetMs={offsetMs}
-              onAnswer={(answer) => void decideGuard.run('player:trial', { answer })}
+              onAnswer={(answer) => {
+                sendDraft.cancel();
+                void decideGuard.run('player:trial', { answer });
+              }}
               onDoor={(door) => void decideGuard.run('player:door', { door })}
+              onDraft={trialDraft ? sendDraft : undefined}
             />
           ) : (
             view.survival.verdict !== null &&

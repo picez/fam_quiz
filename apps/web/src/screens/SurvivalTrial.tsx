@@ -15,11 +15,14 @@ export function SurvivalTrial({
   offsetMs,
   onAnswer,
   onDoor,
+  onDraft,
 }: {
   view: PlayerView;
   offsetMs: number;
   onAnswer: (answer: Answer) => void;
   onDoor: (door: number) => void;
+  /** Команда: чернетка відповіді капітана для товаришів. */
+  onDraft?: (draft: Answer | null) => void;
 }) {
   const own = view.me.survival;
   const info = view.survival;
@@ -65,7 +68,7 @@ export function SurvivalTrial({
             <>
               <h1 className="question">{trial.question.text}</h1>
               <fieldset className="inputs" disabled={frozen || !own.canAnswerTrial}>
-                <AnswerInput key={trial.question.text} question={trial.question} onSubmit={(answer) => !frozen && own.canAnswerTrial && onAnswer(answer)} />
+                <AnswerInput key={trial.question.text} question={trial.question} onSubmit={(answer) => !frozen && own.canAnswerTrial && onAnswer(answer)} onDraft={onDraft} />
               </fieldset>
             </>
           )

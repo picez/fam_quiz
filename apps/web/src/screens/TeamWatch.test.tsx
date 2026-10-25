@@ -27,6 +27,18 @@ describe('TeamWatch', () => {
     expect(document.querySelector('.team-draft')?.textContent).toContain('Київ');
   });
 
+  it('has one visually hidden live line that sums up the draft', () => {
+    render(<TeamWatch view={watching({ type: 'single', optionId: 'b' })} />);
+    const live = document.querySelector('.sr-only[aria-live="polite"]');
+    expect(live?.textContent).toBe('вибір капітана: Київ');
+  });
+
+  it('a bluff choice shows the read-only board', () => {
+    const bluff = { stage: 'choice', written: 1, picked: 0, options: [{ id: 'o1', text: 'Варіант' }], shown: 0, total: 1, lastOpenedId: null } as never;
+    render(<TeamWatch view={watching(null, { question: { ...publicQuestion, type: 'bluff', choices: [] }, bluff })} />);
+    expect(screen.getByText('Капітан вирішує за команду…')).toBeTruthy();
+  });
+
   it('without a draft only the lead line shows', () => {
     render(<TeamWatch view={watching(null)} />);
     expect(screen.getByText('Відповідає капітан Оля — радьте вголос')).toBeTruthy();
@@ -42,7 +54,7 @@ describe('TeamWatch', () => {
   it('in a blitz the buzzer is the one who answers', () => {
     const view = teamPlayerView({ phase: 'question', questionIndex: 0, question: publicQuestion }, { captain: false, canAct: false, buzzerId: 'u3' });
     render(<TeamWatch view={view} />);
-    expect(screen.getByText('Відповідає капітан Петро — радьте вголос')).toBeTruthy();
+    expect(screen.getByText('Відповідає Петро — радьте вголос')).toBeTruthy();
   });
 });
 
@@ -71,6 +83,43 @@ describe('useDraftSender', () => {
     });
     act(() => vi.advanceTimersByTime(250));
     expect(send).toHaveBeenLastCalledWith('player:draft', { draft: null });
+  });
+
+  it('a cleared field is sent as null after a value, and cancel drops what waits', () => {
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    act(() => {
+      result.current({ type: 'text', value: 'К' });
+    });
+    act(() => vi.advanceTimersByTime(250));
+    act(() => {
+      result.current(null);
+      result.current.cancel();
+    });
+    act(() => vi.advanceTimersByTime(500));
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('the sent-already memory resets with a new key and when the right to act returns', () => {
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const { result, rerender } = renderHook(({ active, key }) => useDraftSender(send, active, key), { initialProps: { active: true, key: 'a' } });
+    const draft = { type: 'text' as const, value: 'К' };
+    const push = () => {
+      act(() => {
+        result.current(draft);
+      });
+      act(() => vi.advanceTimersByTime(250));
+    };
+    push();
+    push();
+    expect(send).toHaveBeenCalledTimes(1);
+    rerender({ active: true, key: 'b' });
+    push();
+    expect(send).toHaveBeenCalledTimes(2);
+    rerender({ active: false, key: 'b' });
+    rerender({ active: true, key: 'b' });
+    push();
+    expect(send).toHaveBeenCalledTimes(3);
   });
 
   it('sends nothing when it is not my turn', () => {

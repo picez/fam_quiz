@@ -269,7 +269,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
     case 'bluff':
       return null; // задача 7: вигадка й вибір — не player:answer
     case 'survey':
-      return question.survey === null ? null : <SurveyInput answers={question.survey.answers} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} />;
+      return question.survey === null ? null : <SurveyInput answers={question.survey.answers} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} onDraft={onDraft} />;
     case 'slider':
       return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} />;
   }

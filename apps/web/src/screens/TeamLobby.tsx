@@ -1,5 +1,5 @@
 import type { PlayerView } from '@quiz/shared';
-import { t } from '../i18n';
+import { countText, t } from '../i18n';
 import { useGuardedSend } from '../live/useGuardedSend';
 import type { Send } from '../live/types';
 import { DicePanel, useDiceSpin } from './Dice';
@@ -57,7 +57,7 @@ export function TeamLobby({ view, send, onError }: { view: PlayerView; send: Sen
               onClick={() => void guard.run('player:team', { teamId: entry.id })}
             >
               <span className="team-pick-name">{entry.name}</span>
-              <span className="team-pick-count">{t('teamMembersCount', { count: entry.members.length })}</span>
+              <span className="team-pick-count">{countText('teamMembersCount', entry.members.length, { count: entry.members.length })}</span>
             </button>
           ))}
         </div>
@@ -66,7 +66,7 @@ export function TeamLobby({ view, send, onError }: { view: PlayerView; send: Sen
     );
   }
 
-  if (teams.form === 'dice' && own === null) {
+  if (teams.form === 'dice' && own === null && teams.dice !== null) {
     return (
       <section className="team-lobby">
         <TeamDice view={view} send={send} onError={onError} />

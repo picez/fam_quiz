@@ -29,7 +29,7 @@ describe('TeamLobby', () => {
     expect(buttons).toHaveLength(6);
     expect(screen.getByRole('button', { name: /Сині/ }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('button', { name: /Червоні/ }).getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByRole('button', { name: /Сині/ }).textContent).toContain('1 грав.');
+    expect(screen.getByRole('button', { name: /Сині/ }).textContent).toContain('1 гравець');
     fireEvent.click(screen.getByRole('button', { name: /Зелені/ }));
     await waitFor(() => expect(send).toHaveBeenCalledWith('player:team', { teamId: 't2' }));
   });
@@ -57,6 +57,24 @@ describe('TeamLobby', () => {
     show(teamPlayerView({ teams: teamsView({ form: 'dice', dice: { ...dice, done: true } }) }, { canRoll: false }));
     expect(screen.getByText('Твоя команда: Сині')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Кинути кубик' })).toBeNull();
+  });
+
+  it('dice form before any throw waits for the host', () => {
+    show(teamPlayerView({ teams: teamsView({ form: 'dice', dice: null }) }, { teamId: null, captainId: null, captain: false }));
+    expect(screen.getByText('Ведучий розподіляє команди…')).toBeTruthy();
+  });
+
+  it('team sizes use proper plurals', () => {
+    const many: TeamView[] = [2, 3, 5].map((count, color) => ({
+      id: `t${color}`,
+      name: `К${color}`,
+      color,
+      captainId: null,
+      members: Array.from({ length: count }, (_, i) => ({ id: `m${color}${i}`, nickname: 'x', connected: true })),
+    }));
+    show(teamPlayerView({ teams: teamsView({ teams: many }) }, { teamId: null, canPick: true }));
+    const counts = [...document.querySelectorAll('.team-pick-count')].map((el) => el.textContent);
+    expect(counts).toEqual(['2 гравці', '3 гравці', '5 гравців']);
   });
 
   it('dice: after my throw I wait for the others', () => {

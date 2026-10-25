@@ -2643,6 +2643,52 @@ describe('PlayerScreen: teams', () => {
     expect(screen.getByText('Ти капітан')).toBeTruthy();
   });
 
+  it('a solo single tap still submits at once', () => {
+    const send = show(onQuestion());
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'b' });
+    expect(send).not.toHaveBeenCalledWith('player:draft', expect.anything());
+  });
+
+  it('a team that is only a board spectator does not switch to the watch screen', () => {
+    const board = {
+      categories: [],
+      order: [],
+      turn: { playerId: 'team-a', nickname: 'Червоні' },
+      cell: { id: 'c1', category: 'Т', price: 100, kind: 'question', mark: 'none', answerMode: 'typed' },
+      dice: null,
+    } as unknown as PlayerView['board'];
+    show(asQuestion(noCaptain, { board }));
+    expect(screen.queryByText(/радьте вголос/)).toBeNull();
+  });
+
+  it('on a spoken cell teammates are told to answer aloud, not to watch the captain', () => {
+    const board = {
+      categories: [],
+      order: [],
+      turn: { playerId: 'team-b', nickname: 'Сині' },
+      cell: { id: 'c1', category: 'Т', price: 100, kind: 'question', mark: 'none', answerMode: 'voice' },
+      dice: null,
+    } as unknown as PlayerView['board'];
+    show(asQuestion(noCaptain, { board }));
+    expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+    expect(screen.queryByText(/радьте вголос/)).toBeNull();
+  });
+
+  it('on the board teammates are told the captain picks the cell', () => {
+    const board = {
+      categories: [],
+      order: [],
+      turn: { playerId: 'team-b', nickname: 'Сині' },
+      cell: null,
+      marks: [],
+      schedule: [],
+      dice: null,
+    } as unknown as PlayerView['board'];
+    show(teamPlayerView({ phase: 'board', board }, noCaptain));
+    expect(screen.getByText('Капітан Оля вибирає клітинку')).toBeTruthy();
+  });
+
   it('the lobby shows the team picker', () => {
     show(teamPlayerView({}, { canPick: true }));
     expect(document.querySelectorAll('.team-pick')).toHaveLength(2);
@@ -2702,9 +2748,21 @@ describe('PlayerScreen: teams', () => {
     });
 
     it('while another teammate answers, the rest watch', () => {
-      show(asQuestion({ ...noCaptain, buzzerId: 'u4' }, { round, question: text, blitz, me: blitzMe({ position: 1, canBuzz: false }) }));
-      expect(screen.getByText('Відповідає капітан Ната — радьте вголос')).toBeTruthy();
+      show(asQuestion({ ...noCaptain, buzzerId: 'u2' }, { round, question: text, blitz, me: blitzMe({ position: 1, canBuzz: false }) }));
+      expect(screen.getByText('Відповідає Оля — радьте вголос')).toBeTruthy();
+      expect(screen.queryByText(/Відповідає капітан/)).toBeNull();
       expect(screen.queryByRole('textbox')).toBeNull();
+    });
+
+    it('the draft of a buzzer is marked neutrally, not as the captain choice', () => {
+      const draft = { type: 'text' as const, value: 'Київ' };
+      show(asQuestion({ ...noCaptain, buzzerId: 'u2', draft }, { round, question: text, blitz, me: blitzMe({ position: 1, canBuzz: false }) }));
+      expect(document.querySelector('.team-draft .draft-mark')?.textContent).toBe('чернетка');
+    });
+
+    it('an offline buzzer falls back to the captain wording', () => {
+      show(asQuestion({ ...noCaptain, buzzerId: 'u4' }, { round, question: text, blitz, me: blitzMe({ position: 1, canBuzz: false }) }));
+      expect(screen.queryByText(/Ната/)).toBeNull();
     });
   });
 

@@ -13,6 +13,14 @@ export function memberName(view: PlayerView, memberId: string | null): string {
   return teamOf(view)?.members.find((member) => member.id === memberId)?.nickname ?? '';
 }
 
+/** Хто з натиснувших відповідає: натиснувший, якщо він на зв'язку; інакше відповідає капітан (null — бліцу немає). */
+export function buzzerOf(view: PlayerView): string | null {
+  const id = view.team?.buzzerId ?? null;
+  if (id === null) return null;
+  const member = teamOf(view)?.members.find((m) => m.id === id);
+  return member !== undefined && member.connected ? id : null;
+}
+
 /** Смуга під шапкою: колір і назва команди, хто капітан; у бліці — хто відповідає; у дуелі — дуелянт. Один рядок. */
 export function TeamBar({ view }: { view: PlayerView }) {
   const team = view.team;
@@ -21,8 +29,8 @@ export function TeamBar({ view }: { view: PlayerView }) {
   const line =
     team.duelistId !== null
       ? t('teamDuelist', { name: memberName(view, team.duelistId) })
-      : team.buzzerId !== null
-        ? t('teamBuzzer', { name: memberName(view, team.buzzerId) })
+      : buzzerOf(view) !== null
+        ? t('teamBuzzer', { name: memberName(view, buzzerOf(view)) })
         : team.captain
           ? t('teamYouCaptain')
           : t('teamCaptain', { name: memberName(view, team.captainId) });
