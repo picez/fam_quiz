@@ -1117,7 +1117,6 @@ export type LiveProgress =
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
   | { kind: 'survey'; ranks: (number | null)[] }
-  | { kind: 'wager'; wager: number | null; allIn: boolean }
   | { kind: 'door'; picked: number | null }
   | { kind: 'duel'; tries: string[]; won: string | null };
 
@@ -1145,6 +1144,8 @@ export interface LiveRow {
   /** Командна гра: жива чернетка (додає сервер з пам'яті кімнати); рушій завжди дає null. */
   draft: Answer | null;
   progress: LiveProgress | null;
+  /** Фінал: ставка (null — ще не поставив) і ва-банк; окремо від progress, щоб її видно було й у ланцюжку, сортуванні тощо. Поза фіналом — null. */
+  wager: { wager: number | null; allIn: boolean } | null;
 }
 
 /** Згорнутий список під рядками: привиди «Вибування» чи зал «Мільйонера». */

@@ -14,7 +14,7 @@ interface Props {
   compact?: boolean;
 }
 
-/** Є хоч один хід: рядок з поступом, але без відповіді, теж видно. Ставка й двері не рахуються. */
+/** Є хоч один хід: рядок з поступом, але без відповіді, теж видно. Двері не рахуються. */
 function started(row: LiveRow): boolean {
   const progress = row.progress;
   if (progress === null) return false;
@@ -77,12 +77,9 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
           parts.push(t('livePick', { text: progress.pick }));
         }
         break;
-      case 'wager':
-        if (progress.wager !== null) parts.push(t('liveWager', { wager: num(progress.wager) }));
-        if (progress.allIn) parts.push(t('finalAllInTag'));
-        break;
       case 'door':
-        if (progress.picked !== null) parts.push(t('liveDoor', { n: progress.picked + 1 }));
+        // Які саме двері — у панелі «Вибування» (HostSurvival); тут лише, що вибрав.
+        if (progress.picked !== null) parts.push(t('liveDoorPicked'));
         break;
       case 'duel':
         if (progress.tries.length > 0) parts.push(t('liveDuelTries', { list: progress.tries.join(', ') }));
@@ -91,6 +88,10 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
       case 'survey':
         break;
     }
+  }
+  if (row.wager !== null) {
+    if (row.wager.wager !== null) parts.push(t('liveWager', { wager: num(row.wager.wager) }));
+    if (row.wager.allIn) parts.push(t('finalAllInTag'));
   }
   if (parts.length === 0) return row.awaiting ? t('answeredAloud') : '—';
   return parts.join(' · ');
@@ -102,12 +103,13 @@ function Row({ row, view }: { row: LiveRow; view: HostView }) {
   return (
     <li className="live-row">
       <span className="name">{row.nickname}</span>
+      {!row.connected && <span className="meta live-offline">{t('liveOffline')}</span>}
       {row.actor !== null && <span className="meta live-actor">{t('liveActs', { name: row.actor })}</span>}
       {row.buff !== null && <BuffBadge kind={row.buff} />}
       {row.spare !== null && <SpareMark spare={row.spare} />}
       {draftShown ? (
         <span className="live-draft">
-          <em>{answerText(row.draft, view.correct, choices)}</em> <span className="tag">{t('liveDraft')}</span>
+          <em>{answerText(row.draft, row.spare ?? view.correct, row.spare === null ? choices : undefined)}</em> <span className="tag">{t('liveDraft')}</span>
         </span>
       ) : (
         <span className="live-answer">{liveAnswerText(row, view.correct, choices)}</span>
@@ -120,13 +122,20 @@ function Row({ row, view }: { row: LiveRow; view: HostView }) {
   );
 }
 
+/** Скільки рядків видно без прокрутки (див. .live-scroll у styles.css). */
+const VISIBLE_ROWS = 8;
+
 function Rows({ rows, view }: { rows: LiveRow[]; view: HostView }) {
+  // Понад вісім рядків список прокручується: з клавіатури до нього можна дійти й гортати стрілками.
+  const scrolls = rows.length > VISIBLE_ROWS;
   return (
-    <ul className="live-rows">
-      {rows.map((row) => (
-        <Row key={row.id} row={row} view={view} />
-      ))}
-    </ul>
+    <div className="live-scroll" {...(scrolls ? { tabIndex: 0, role: 'region', 'aria-label': t('liveRowsLabel') } : {})}>
+      <ul className="live-rows">
+        {rows.map((row) => (
+          <Row key={row.id} row={row} view={view} />
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -135,11 +144,15 @@ export function LiveAnswers({ view, live, blitz, compact = false }: Props) {
   const duel = live.kind === 'duel';
   const queue = live.kind === 'blitz' && view.blitz?.instant !== true;
   const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered);
-  const shown = live.rows.filter((row) => row.answered || started(row) || row.draft !== null);
+  // Дуель: обидва дуелянти завжди, навіть без спроб.
+  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null);
+  const queueShown = blitz !== undefined && blitz !== null;
+  // Командний бліц: чернетки тих, хто ще не в черзі, — під чергою.
+  const drafts = queueShown ? live.rows.filter((row) => !row.answered && row.draft !== null) : [];
   const body = (
     <>
       {!duel && (
-        <p className="meta live-count">{queue ? t('blitzQueued', { count: live.answered }) : t('answeredOf', { answered: live.answered, total: live.total })}</p>
+        <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered: live.answered, total: live.total })}</p>
       )}
       {waiting.length > 0 && (
         <div className="live-waiting">
@@ -154,7 +167,16 @@ export function LiveAnswers({ view, live, blitz, compact = false }: Props) {
           </ul>
         </div>
       )}
-      {blitz ?? (shown.length > 0 ? <Rows rows={shown} view={view} /> : <p className="meta">{t('noResponses')}</p>)}
+      {queueShown ? (
+        <>
+          {blitz}
+          {drafts.length > 0 && <Rows rows={drafts} view={view} />}
+        </>
+      ) : shown.length > 0 ? (
+        <Rows rows={shown} view={view} />
+      ) : (
+        <p className="meta">{t('noResponses')}</p>
+      )}
       {live.aside !== null && (
         <details className="live-aside">
           <summary>{t(live.aside.kind === 'ghosts' ? 'liveGhosts' : 'liveHall', { answered: live.aside.answered, total: live.aside.total })}</summary>
@@ -165,7 +187,7 @@ export function LiveAnswers({ view, live, blitz, compact = false }: Props) {
   );
   if (compact) return <div className="live-answers is-compact">{body}</div>;
   return (
-    <section id="live-answers" className="panel live-answers" aria-labelledby="live-answers-title">
+    <section id="live-answers" className="panel live-answers" aria-labelledby="live-answers-title" tabIndex={-1}>
       <h2 id="live-answers-title">
         {t('liveTitle')}
         <HelpButton id="setting.live" />

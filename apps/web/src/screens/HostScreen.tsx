@@ -437,7 +437,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const liveData = view.live;
   const liveOn = liveData !== null && liveData.kind !== 'duel';
   const liveTrial = liveData?.kind === 'trial';
-  const jump = () => document.getElementById('live-answers')?.scrollIntoView({ block: 'start' });
+  // Відкрите випробування «Вибування» йде на leaderboard: таблиці попереднього запитання лишаються на місці.
+  const liveHides = liveOn && !liveTrial;
+  const jump = () => {
+    const panel = document.getElementById('live-answers');
+    panel?.scrollIntoView({ block: 'start' });
+    panel?.focus({ preventScroll: true });
+  };
   const countText =
     view.wipeout !== null
       ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
@@ -866,7 +872,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
-      {!liveOn && view.question !== null && live && blitz !== null && instant && (
+      {!liveHides && view.question !== null && live && blitz !== null && instant && (
         <section className="panel">
           <h2>{t('blitzQueue')}</h2>
           <BlitzQueue rows={blitz.rows} reserve={view.playerCount} question={view.question} blinking={blinking} highlightHead closed={phase !== 'question'} />
@@ -876,7 +882,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {view.question !== null && live && blitz !== null && !instant && (
         <>
           {/* Після закриття запитання черги вже немає: лишаються тільки спроби. */}
-          {!liveOn && phase === 'question' && (
+          {!liveHides && phase === 'question' && (
             <section className="panel">
               <h2>{t('blitzQueue')}</h2>
               {blitz.queue.length === 0 ? (
@@ -930,7 +936,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
-      {view.question !== null && live && board !== null && blitz === null && !(liveOn && !canGradeBoard) && (
+      {view.question !== null && live && board !== null && blitz === null && !(liveHides && !canGradeBoard) && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           <ul className="rows">
@@ -989,14 +995,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
-      {view.chain !== null && !liveOn && (
+      {view.chain !== null && !liveHides && (
         <section className="panel">
           <h2>{t('chainTitle')}</h2>
           <ChainBoard chain={view.chain} reveal={phase === 'reveal'} />
         </section>
       )}
 
-      {view.sort !== null && !liveOn && (
+      {view.sort !== null && !liveHides && (
         <section className="panel">
           <h2>{t('sortTitle')}</h2>
           <SortBoard sort={view.sort} reveal={phase === 'reveal'} />
@@ -1011,7 +1017,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             <HelpButton id="question.wall" />
           </h2>
           <WallReveal question={correct} />
-          {view.wall !== null && !liveOn && <WallTable info={view.wall} />}
+          {view.wall !== null && !liveHides && <WallTable info={view.wall} />}
         </section>
       )}
 
@@ -1055,7 +1061,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
-      {view.question !== null && live && blitz === null && board === null && !liveOn && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
+      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (

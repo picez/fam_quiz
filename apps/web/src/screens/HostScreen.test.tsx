@@ -2501,6 +2501,7 @@ describe('HostScreen: live answers (11c)', () => {
     actor: null,
     draft: null,
     progress: null,
+    wager: null,
     ...over,
   });
   const lrows = [lrow(), lrow({ id: 'p2', nickname: 'Тарас', answered: false, answer: null, timeMs: null, verdict: null })];
@@ -2531,6 +2532,7 @@ describe('HostScreen: live answers (11c)', () => {
     show(withLive('question', textQuestion));
     fireEvent.click(button('До відповідей наживо'));
     expect(scroll).toHaveBeenCalledWith({ block: 'start' });
+    expect(document.activeElement).toBe(document.getElementById('live-answers'));
     cleanup();
     show(during('question', textQuestion, { endsAt: Date.now() + 20_000, answeredCount: 1 }));
     expect(screen.queryByRole('button', { name: 'До відповідей наживо' })).toBeNull();
@@ -2607,26 +2609,36 @@ describe('HostScreen: live answers (11c)', () => {
     expect(screen.getAllByRole('button', { name: 'Правильно' })).toHaveLength(1);
   });
 
+  const sRound: RoundInfo = { index: 0, total: 1, title: '', type: 'survival', partial: false, description: '', brief: emptyBrief('survival'), times: null };
+  const trialSurvival = (): SurvivalInfo => ({
+    current: 1,
+    total: 5,
+    target: 1,
+    bonus: 500,
+    trialKind: 'luck',
+    trialsLeft: 0,
+    rows: [{ playerId: 'p1', nickname: 'Олена', status: 'edge', outAfter: null, ghost: null, answer: null, trial: 'pending', door: null }],
+    aliveCount: 1,
+    ghostCount: 0,
+    ghosts: { answered: 0, right: null },
+    verdict: 'trial',
+    trial: { kind: 'luck', fellBack: false, stage: 'open', endsAt: Date.now() + 10_000, remainingMs: null, limitMs: 10_000, done: 0, total: 1, question: null, reveal: null },
+    ending: false,
+  });
+
   it('the survival trial gets the panel before the survival panel', () => {
-    const sRound: RoundInfo = { index: 0, total: 1, title: '', type: 'survival', partial: false, description: '', brief: emptyBrief('survival'), times: null };
-    const survival: SurvivalInfo = {
-      current: 1,
-      total: 5,
-      target: 1,
-      bonus: 500,
-      trialKind: 'luck',
-      trialsLeft: 0,
-      rows: [{ playerId: 'p1', nickname: 'Олена', status: 'edge', outAfter: null, ghost: null, answer: null, trial: 'pending', door: null }],
-      aliveCount: 1,
-      ghostCount: 0,
-      ghosts: { answered: 0, right: null },
-      verdict: 'trial',
-      trial: { kind: 'luck', fellBack: false, stage: 'open', endsAt: Date.now() + 10_000, remainingMs: null, limitMs: 10_000, done: 0, total: 1, question: null, reveal: null },
-      ending: false,
-    };
-    show(view({ phase: 'leaderboard', round: sRound, survival, live: liveOf({ kind: 'trial' }) }));
+    show(view({ phase: 'leaderboard', round: sRound, survival: trialSurvival(), live: liveOf({ kind: 'trial' }) }));
     const panel = document.getElementById('live-answers') as HTMLElement;
     expect(before(panel, document.querySelector('.host-survival') as Element)).toBe(true);
+  });
+
+  it('the open trial keeps the previous question responses in place', () => {
+    show(during('leaderboard', textQuestion, { round: sRound, survival: trialSurvival(), live: null }));
+    expect(screen.getByRole('heading', { name: 'Відповіді' })).toBeTruthy();
+    cleanup();
+    show(during('leaderboard', textQuestion, { round: sRound, survival: trialSurvival(), live: liveOf({ kind: 'trial' }) }));
+    expect(document.getElementById('live-answers')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Відповіді' })).toBeTruthy();
   });
 
   it('the final wager stage has no live panel', () => {

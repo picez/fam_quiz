@@ -184,8 +184,8 @@ describe('live answers: the final', () => {
     let s = toFinal();
     expect(live(s).rows.map((r) => r.nickname)).toEqual(['Оля', 'Петро', 'Іра']);
     s = must(submitAnswer(s, 'p1', odesa, T0 + 1000));
-    expect(row(s, 'p1')).toMatchObject({ answered: true, verdict: 'correct', awaiting: false, progress: { kind: 'wager', wager: 500, allIn: false } });
-    expect(row(s, 'p2')).toMatchObject({ answered: false, verdict: null, progress: { kind: 'wager', wager: 1000, allIn: true } });
+    expect(row(s, 'p1')).toMatchObject({ answered: true, verdict: 'correct', awaiting: false, progress: null, wager: { wager: 500, allIn: false } });
+    expect(row(s, 'p2')).toMatchObject({ answered: false, verdict: null, progress: null, wager: { wager: 1000, allIn: true } });
     expect(row(s, 'p1').clue).toBeNull();
   });
 
@@ -204,6 +204,22 @@ describe('live answers: the final', () => {
     let s = toFinal('manual', withId(chain, 'f1'));
     for (const [k, word] of ['Риба', 'Океан', 'Корабель'].entries()) s = must(guessWord(s, 'p1', word, T0 + 1000 + k));
     expect(row(s, 'p1')).toMatchObject({ answered: true, verdict: null, awaiting: false, progress: { kind: 'chain', solved: 3, word: null } });
+  });
+
+  it('a final chain keeps the wager next to the progress', () => {
+    let s = toFinal('auto', withId(chain, 'f1'));
+    s = must(guessWord(s, 'p1', 'Риба', T0 + 1000));
+    expect(row(s, 'p1')).toMatchObject({ progress: { kind: 'chain', solved: 1 }, wager: { wager: 500, allIn: false } });
+    expect(row(s, 'p2').wager).toEqual({ wager: 1000, allIn: true });
+  });
+
+  it('a final sort: one moved card counts as answered, as the host counter does', () => {
+    let s = toFinal('auto', withId(sortQ, 'f1'));
+    const first = sortHead(s, 'p1');
+    s = must(sortWord(s, 'p1', first, rightCategory(first), T0 + 1000));
+    expect(row(s, 'p1')).toMatchObject({ answered: true, answer: null, verdict: null, progress: { kind: 'sort', sorted: 1 } });
+    expect(row(s, 'p2').answered).toBe(false);
+    expect(live(s).answered).toBe(hostView(s).answeredCount);
   });
 });
 
@@ -454,6 +470,14 @@ describe('live answers: bluff and survey', () => {
     expect(r.progress).toEqual({ kind: 'survey', ranks: [1, 4, null] });
     expect(r.verdict).toBe(recordOf(s, 0, 'p1')?.grade);
     expect(row(s, 'p2').progress).toBeNull();
+  });
+
+  it('survey on the board: the answer held before «Accept» gets its ranks', () => {
+    const round = boardRound('g1', [{ title: 'A', cells: [withId(survey, 'c11')] }]);
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Оля', 'Петро')));
+    let s = must(pickCell(must(next(intro, 0)), null, 'c11', 0, rng));
+    s = must(submitAnswer(s, 'p1', { type: 'survey', values: ['Яблуко', 'ананас'] }, 1000));
+    expect(row(s, 'p1')).toMatchObject({ answered: true, awaiting: true, progress: { kind: 'survey', ranks: [1, null] } });
   });
 });
 

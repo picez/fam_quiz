@@ -84,6 +84,7 @@ function emptyRow(who: Answerer, actor: string | null): LiveRow {
     actor,
     draft: null,
     progress: null,
+    wager: null,
   };
 }
 
@@ -109,8 +110,15 @@ function surveyRanks(question: Extract<Question, { type: 'survey' }>, answer: An
   });
 }
 
-/** Поступ рядка за типом запитання (ланцюжок, сортування, стіна, блеф, «100 до 1»); інакше ставка фіналу; інакше null. */
-function progressOf(state: GameState, play: Play, id: string, record: AnswerRecord | undefined): LiveProgress | null {
+/** Ставка фіналу й ва-банк; поза фіналом — null. Окремо від поступу: у фіналі з ланцюжком чи сортуванням видно обидва. */
+function wagerOf(play: Play, id: string): LiveRow['wager'] {
+  if (play.final === undefined) return null;
+  const wagers = play.final.wagers;
+  return { wager: Object.hasOwn(wagers, id) ? wagers[id] : null, allIn: play.final.allIn.includes(id) };
+}
+
+/** Поступ рядка за типом запитання (ланцюжок, сортування, стіна, блеф, «100 до 1»); інакше null. answer — запис чи відповідь поля до «Прийняти». */
+function progressOf(state: GameState, play: Play, id: string, answer: Answer | null): LiveProgress | null {
   const question = play.question;
   if (question.type === 'chain') {
     const { solved, hints } = chainOf(state, id);
@@ -141,13 +149,10 @@ function progressOf(state: GameState, play: Play, id: string, record: AnswerReco
     };
   }
   if (question.type === 'survey') {
-    const answer = record?.answer ?? null;
     const ranks = answer === null ? null : surveyRanks(question, answer);
     return ranks === null ? null : { kind: 'survey', ranks };
   }
-  if (play.final === undefined) return null;
-  const wagers = play.final.wagers;
-  return { kind: 'wager', wager: Object.hasOwn(wagers, id) ? wagers[id] : null, allIn: play.final.allIn.includes(id) };
+  return null;
 }
 
 /**
@@ -158,7 +163,10 @@ function progressOf(state: GameState, play: Play, id: string, record: AnswerReco
 function progressRow(state: GameState, play: Play, base: LiveRow, record: AnswerRecord | undefined): LiveRow {
   const bluff = play.bluff;
   if (play.question.type !== 'bluff' || bluff === undefined) {
-    return record === undefined ? base : { ...base, answered: true, timeMs: record.timeMs };
+    if (record !== undefined) return { ...base, answered: true, timeMs: record.timeMs };
+    // Фінал сортування: відповів, хто зробив хоч один хід, — як answeredCount у views.ts.
+    const finalSort = play.question.type === 'sort' && state.quiz.rounds[play.roundIndex]?.type === 'final';
+    return finalSort && Object.hasOwn(play.sort ?? {}, base.id) ? { ...base, answered: true } : base;
   }
   if (state.phase === 'question' && bluff.stage === 'lies') return { ...base, answered: Object.hasOwn(bluff.lies, base.id) };
   if (!Object.hasOwn(bluff.picks, base.id)) return base;
@@ -181,7 +189,8 @@ function answerRow(state: GameState, play: Play, who: Answerer, unscored: boolea
     ...emptyRow(who, actingNickname(state, who)),
     buff: buff?.kind ?? null,
     spare: spareOf(state, record?.spare ?? buff?.spare?.id),
-    progress: progressOf(state, play, id, record),
+    progress: progressOf(state, play, id, record?.answer ?? board?.answer ?? null),
+    wager: wagerOf(play, id),
   };
   if (PROGRESS_TYPES.includes(play.question.type)) return progressRow(state, play, base, record);
   if (record !== undefined) {

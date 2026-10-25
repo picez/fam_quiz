@@ -2,6 +2,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DEBUFF_KINDS, type HostLive, type HostView, type LiveRow, type Question } from '@quiz/shared';
+import { t } from '../i18n';
 import { LiveAnswers } from './LiveAnswers';
 
 afterEach(cleanup);
@@ -34,6 +35,7 @@ const row = (over: Partial<LiveRow> = {}): LiveRow => ({
   actor: null,
   draft: null,
   progress: null,
+  wager: null,
   ...over,
 });
 
@@ -109,7 +111,7 @@ describe('LiveAnswers', () => {
       row({ id: 'c', nickname: 'В', progress: { kind: 'bluff', stage: 'choice', lie: null, pick: 'Барселона' } }),
       row({ id: 'd', nickname: 'Г', answered: true, answer: { type: 'survey', values: ['Яблуко', 'ананас'] } as never, progress: { kind: 'survey', ranks: [1, null] } }),
       row({ id: 'e', nickname: 'Д', answered: true, answer: { type: 'slider', value: 47 } as never }),
-      row({ id: 'f', nickname: 'Е', answered: true, answer: ans('х'), progress: { kind: 'wager', wager: 300, allIn: false } }),
+      row({ id: 'f', nickname: 'Е', answered: true, answer: ans('х'), wager: { wager: 300, allIn: false } }),
     ]);
     const body = document.querySelector('.live-rows')?.textContent ?? '';
     expect(body).toContain('відгадано 1 з 3 · зараз «Океан» · підказок 1');
@@ -147,11 +149,30 @@ describe('LiveAnswers', () => {
   });
 
   it('puts the blitz queue instead of the rows and has no chips without instant', () => {
-    show([row({ answered: true, answer: ans('х') })], base({ blitz: { instant: false } as never }), { kind: 'blitz' }, { blitz: <div className="blitz-queue">черга</div> });
+    show([row({ answered: true, answer: ans('х') })], base({ blitz: { instant: false, queue: [{ playerId: 'p1' }] } as never }), { kind: 'blitz' }, { blitz: <div className="blitz-queue">черга</div> });
     expect(document.querySelector('.blitz-queue')).toBeTruthy();
     expect(document.querySelector('.live-rows')).toBeNull();
     expect(document.querySelector('.live-chip')).toBeNull();
     expect(screen.getByText('у черзі: 1')).toBeTruthy();
+  });
+
+  it('counts the blitz queue, not past attempts', () => {
+    show([row({ answered: true, answer: ans('х'), verdict: 'wrong' })], base({ blitz: { instant: false, queue: [] } as never }), { kind: 'blitz' }, { blitz: <p>порожньо</p> });
+    expect(screen.getByText('у черзі: 0')).toBeTruthy();
+  });
+
+  it('a team blitz shows the drafts of those not in the queue under it', () => {
+    show(
+      [row({ nickname: 'Червоні', actor: 'Оля', draft: ans('Оде') }), row({ id: 'p2', nickname: 'Сині', answered: true, answer: ans('Київ') })],
+      base({ blitz: { instant: false, queue: [] } as never }),
+      { kind: 'blitz' },
+      { blitz: <div className="blitz-queue">черга</div> },
+    );
+    expect(document.querySelector('.blitz-queue')).toBeTruthy();
+    const rows = document.querySelectorAll('.live-rows li');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].querySelector('.live-draft em')?.textContent).toBe('Оде');
+    expect(rows[0].textContent).toContain('чернетка');
   });
 
   it('drops the title and the id when compact', () => {
@@ -168,8 +189,109 @@ describe('LiveAnswers', () => {
     expect(screen.queryByRole('button', { name: 'Довідка: Відповіді наживо' })).toBeNull();
   });
 
-  it('keeps all rows in the DOM past eight', () => {
-    show(Array.from({ length: 12 }, (_, i) => row({ id: `p${i}`, nickname: `Н${i}`, answered: true, answer: ans('х') })));
+  it('keeps all rows in the DOM past eight in a focusable scroll region', () => {
+    const { unmount } = show(Array.from({ length: 12 }, (_, i) => row({ id: `p${i}`, nickname: `Н${i}`, answered: true, answer: ans('х') })));
     expect(document.querySelectorAll('.live-rows li')).toHaveLength(12);
+    const region = screen.getByRole('region', { name: 'Рядки відповідей наживо' });
+    expect(region.tabIndex).toBe(0);
+    expect(region.querySelector('.live-rows')).toBeTruthy();
+    unmount();
+    show([row({ answered: true, answer: ans('х') })]);
+    expect(screen.queryByRole('region', { name: 'Рядки відповідей наживо' })).toBeNull();
+  });
+
+  it('the panel can take focus from the counter jump', () => {
+    show([row()]);
+    expect((document.getElementById('live-answers') as HTMLElement).tabIndex).toBe(-1);
+  });
+
+  it('marks an answered offline player', () => {
+    show([row({ connected: false, answered: true, answer: ans('Одеса') })]);
+    expect(document.querySelector('.live-rows li .live-offline')?.textContent).toBe('поза зв’язком');
+  });
+
+  it('formats a draft against the spare question', () => {
+    show([row({ actor: 'Оля', draft: { type: 'slider', value: 40 } as never, spare: slider })]);
+    expect(document.querySelector('.live-draft em')?.textContent).toBe('40 %');
+  });
+
+  it('writes the wall found and locked', () => {
+    show([
+      row({ progress: { kind: 'wall', found: 1, groups: 4, mistakes: 3, locked: true, solved: false } }),
+      row({ id: 'p2', nickname: 'Петро', answered: true, progress: { kind: 'wall', found: 4, groups: 4, mistakes: 0, locked: false, solved: true } }),
+    ]);
+    const rows = document.querySelectorAll('.live-rows li');
+    expect(rows[0].textContent).toContain('1 з 4');
+    expect(rows[0].textContent).toContain('замкнено');
+    expect(rows[1].textContent).not.toContain('замкнено');
+  });
+
+  it('a trial door says only that it is picked', () => {
+    show([row({ answered: true, progress: { kind: 'door', picked: 2 } })], base(), { kind: 'trial' });
+    const text = document.querySelector('.live-answer')?.textContent ?? '';
+    expect(text).toBe('вибрав двері');
+    expect(text).not.toContain('3');
+  });
+
+  it('a duel shows both duellists, the tries and the win, without a counter', () => {
+    show(
+      [
+        row({ progress: { kind: 'duel', tries: [], won: null } }),
+        row({ id: 'p2', nickname: 'Петро', answered: true, verdict: 'correct', timeMs: 3000, progress: { kind: 'duel', tries: ['Львів', 'Ліон'], won: 'Лондон' } }),
+      ],
+      base(),
+      { kind: 'duel' },
+      { compact: true },
+    );
+    const rows = document.querySelectorAll('.live-rows li');
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain('Оля');
+    expect(rows[1].textContent).toContain('спроби: Львів, Ліон');
+    expect(rows[1].textContent).toContain('вгадав: «Лондон»');
+    expect(document.querySelector('.live-count')).toBeNull();
+    expect(document.querySelector('.live-chip')).toBeNull();
+  });
+
+  it('folds the hall aside', () => {
+    show([row({ answered: true, answer: ans('Одеса') })], base(), {
+      aside: { kind: 'hall', answered: 1, total: 3, rows: [row({ id: 'h', nickname: 'Зала', answered: true, answer: ans('Львів') })] },
+    });
+    expect(document.querySelector('details.live-aside summary')?.textContent).toBe('Зал: відповіли 1 з 3');
+  });
+
+  it('writes the all-in tag with the wager', () => {
+    show([row({ answered: true, answer: ans('х'), wager: { wager: 1000, allIn: true } })]);
+    const text = document.querySelector('.live-answer')?.textContent ?? '';
+    expect(text).toContain('ставка 1');
+    expect(text).toContain('ва-банк');
+  });
+
+  it('a row with a buff, a spare and a clue', () => {
+    show([row({ answered: true, answer: ans('Одеса'), buff: 'double', spare: text, clue: 2 })]);
+    const li = document.querySelector('.live-rows li') as HTMLElement;
+    expect(li.querySelector('.buff-tag')).toBeTruthy();
+    expect(li.querySelector('.spare-tag')).toBeTruthy();
+    expect(li.textContent).toContain('підказці 2');
+  });
+
+  it('writes an order and a pin answer', () => {
+    const order: Question = {
+      id: 'q5',
+      type: 'order',
+      text: 'Впорядкуйте',
+      imageUrl: null,
+      video: null,
+      timeLimit: 20,
+      points: 1000,
+      items: [
+        { id: 'i1', text: 'Перший' },
+        { id: 'i2', text: 'Другий' },
+      ],
+    } as unknown as Question;
+    show([row({ answered: true, answer: { type: 'order', itemIds: ['i2', 'i1'] } as never })], base({ correct: order }));
+    expect(document.querySelector('.live-answer')?.textContent).toBe('Другий → Перший');
+    cleanup();
+    show([row({ answered: true, answer: { type: 'pin', x: 0.5, y: 0.5 } as never })]);
+    expect(document.querySelector('.live-answer')?.textContent).toBe(t('pinAnswerBare'));
   });
 });

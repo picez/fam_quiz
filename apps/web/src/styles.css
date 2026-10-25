@@ -9740,12 +9740,15 @@ button.wall-tile:disabled {
 }
 
 /* 11c: «Відповіді наживо» — до ~8 рядків, далі прокрутка в панелі. */
+.live-scroll {
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
 .live-rows {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 22rem;
-  overflow-y: auto;
 }
 
 .live-row {
