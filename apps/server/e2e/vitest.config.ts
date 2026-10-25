@@ -6,7 +6,8 @@ export default defineConfig({
   test: {
     root: resolve(import.meta.dirname, '../../..'),
     include: ['apps/server/e2e/**/*.e2e.ts'],
-    testTimeout: 180_000,
+    // 11b: кожен крок ведучого чекає мінімальний час.
+    testTimeout: 300_000,
     hookTimeout: 60_000,
   },
 });
