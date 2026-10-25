@@ -998,6 +998,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'finished' && (
         <>
           <h1 className="question">{t('gameOver')}</h1>
+          {me.survival !== null && (
+            <p className="lead survival-state">
+              {me.survival.status === 'ghost' ? t('survivalOutAfter', { n: me.survival.outAfter ?? 0 }) : t('survivalBonusGot', { bonus: num(me.survival.bonus ?? 0) })}
+            </p>
+          )}
           {place}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
           <MenuLinks role="player" />

@@ -8676,6 +8676,17 @@ button.wall-tile:disabled {
 
 .survival-board.is-stage .survival-group li {
   padding: 0.125rem 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* «вибув(-ла) після N» не стискає нікнейм: менший шрифт, а на тісній сцені — рядком нижче. */
+.survival-group li .meta {
+  font-size: 0.75em;
+  white-space: nowrap;
+}
+
+.survival-group .name {
+  flex: 1 1 auto;
 }
 
 .stage-survival.is-intro .survival-board.is-stage {
@@ -8699,6 +8710,12 @@ button.wall-tile:disabled {
 
 .splash.is-trial .splash-title {
   color: var(--signal);
+  /* «Випробування!» довше за «Запитання 12»: у вужчому розмірі стає в один рядок. */
+  font-size: clamp(3rem, 7.5vw, 7rem);
+}
+
+.splash.is-phone.is-trial .splash-title {
+  font-size: clamp(1.25rem, 7.2vw, 2.5rem);
 }
 
 .splash-note,

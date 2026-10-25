@@ -2455,5 +2455,13 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       show(view({ phase: 'round_end', round: survivalRound, survival: board(), me: own({ status: 'ghost', outAfter: 2 }), standings }));
       expect(screen.getByText('Ти вибув(-ла) після запитання 2.')).toBeTruthy();
     });
+
+    it('the finished screen of a game that ends on a survival round shows the bonus or when you dropped out', () => {
+      show(view({ phase: 'finished', round: survivalRound, survival: board(), me: own({ bonus: 500 }), standings }));
+      expect(screen.getByText('Ти дожив(-ла) до кінця: +500')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'finished', round: survivalRound, survival: board(), me: own({ status: 'ghost', outAfter: 4 }), standings }));
+      expect(screen.getByText('Ти вибув(-ла) після запитання 4.')).toBeTruthy();
+    });
   });
 });
