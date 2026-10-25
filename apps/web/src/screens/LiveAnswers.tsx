@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { HostLive, HostView, LiveRow, Question } from '@quiz/shared';
 import { answerText, num, secondsText, sliderNumber } from '../format';
 import { t, type TextKey } from '../i18n';
+import { HelpButton } from '../help/HelpButton';
 import { BuffBadge, SpareMark } from './Buffs';
 
 interface Props {
@@ -165,7 +166,10 @@ export function LiveAnswers({ view, live, blitz, compact = false }: Props) {
   if (compact) return <div className="live-answers is-compact">{body}</div>;
   return (
     <section id="live-answers" className="panel live-answers" aria-labelledby="live-answers-title">
-      <h2 id="live-answers-title">{t('liveTitle')}</h2>
+      <h2 id="live-answers-title">
+        {t('liveTitle')}
+        <HelpButton id="setting.live" />
+      </h2>
       {body}
     </section>
   );

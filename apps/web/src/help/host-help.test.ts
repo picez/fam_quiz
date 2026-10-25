@@ -109,6 +109,16 @@ describe('host help', () => {
     expect(searchHelp('пауза')).not.toContain('setting.pacing');
   });
 
+  it('11c live answers entry follows «pacing» and the captain line tells the host sees the draft', () => {
+    const ids = helpIds('settings');
+    expect(ids.indexOf('setting.live')).toBe(ids.indexOf('setting.pacing') + 1);
+    filled('setting.live');
+    const body = text('setting.live').toLowerCase();
+    for (const part of ['чекаємо', 'чекає рішення', 'чернетка', 'лише ви']) expect(body).toContain(part);
+    expect(text('team.captain')).toContain('Відповідях наживо');
+    expect(searchHelp('наживо')).toContain('setting.live');
+  });
+
   it('10b entries tell the engine numbers', () => {
     expect(helpEntry('setting.reveal').points.join(' ')).toContain('100 %');
     expect(helpEntry('setting.reveal').points.join(' ')).toContain(`${REVEAL_MIN_SHARE * 100} %`);

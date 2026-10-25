@@ -160,6 +160,14 @@ describe('LiveAnswers', () => {
     expect(document.getElementById('live-answers')).toBeNull();
   });
 
+  it('has the help button in the panel title, but not when compact', () => {
+    const { unmount } = show([row({ answered: true, answer: ans('х') })]);
+    expect(within(document.querySelector('h2') as HTMLElement).getByRole('button', { name: 'Довідка: Відповіді наживо' })).toBeTruthy();
+    unmount();
+    show([row({ answered: true, answer: ans('х') })], base(), {}, { compact: true });
+    expect(screen.queryByRole('button', { name: 'Довідка: Відповіді наживо' })).toBeNull();
+  });
+
   it('keeps all rows in the DOM past eight', () => {
     show(Array.from({ length: 12 }, (_, i) => row({ id: `p${i}`, nickname: `Н${i}`, answered: true, answer: ans('х') })));
     expect(document.querySelectorAll('.live-rows li')).toHaveLength(12);
