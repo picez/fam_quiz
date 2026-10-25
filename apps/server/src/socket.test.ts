@@ -7,6 +7,7 @@ import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
+import { FakeScheduler } from './testing/fake-scheduler';
 import { SURVIVAL_RIGHT, SURVIVAL_WRONG, TRIAL_RIGHT, TRIAL_WRONG } from './testing/survival-game';
 import { LADDER_RIGHT } from './testing/ladder-game';
 import { WIPEOUT_RIGHT } from './testing/wipeout-game';
@@ -134,6 +135,23 @@ describe('transition splashes over real sockets', () => {
     expect(await send(host, 'host:next')).toEqual({ ok: true });
     await until(olena, inPhase('question'));
     expect(await send(olena, 'player:answer', correct)).toEqual({ ok: false, error: 'not_started' });
+  });
+});
+
+describe('pacing over real sockets (11b)', () => {
+  it('answers too_soon before the window and steps once it has passed', async () => {
+    await ctx.app.close();
+    const scheduler = new FakeScheduler();
+    ctx = await buildApp({ db, auth: TEST_AUTH, pacing: true, scheduler });
+    await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+    url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
+    const { host, olena } = await lobby();
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: false, error: 'too_soon' });
+    scheduler.advance(3000);
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
   });
 });
 

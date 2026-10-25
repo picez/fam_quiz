@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { defaultTeams } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
@@ -1371,5 +1371,151 @@ describe('teams (10j)', () => {
     expect(room.state.phase).toBe('question');
     const view = manager.view(room, taras.identity);
     expect(view?.role === 'player' && view.team?.draft).toBeNull();
+  });
+});
+
+describe('pacing (11b)', () => {
+  /** Ведучий і два гравці з мінімальним часом; гру лише почато (етап intro). */
+  function pacedPlaying(quiz = makeQuiz([single, text])) {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5, { pacing: true });
+    const room = manager.create(quiz);
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    const T = scheduler.now();
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    return { scheduler, manager, room, events, olena, taras, T };
+  }
+
+  /** Те саме, але вже на розкритті першого запитання (мітка щойно поставлена); before — дії гравців до закриття. */
+  function pacedReveal(quiz = makeQuiz([single, text]), before: (ctx: ReturnType<typeof pacedPlaying>) => void = () => {}) {
+    const ctx = pacedPlaying(quiz);
+    ctx.scheduler.advance(3000);
+    expect(ctx.manager.host(ctx.room, { type: 'next' })).toEqual({ ok: true });
+    before(ctx);
+    ctx.scheduler.advance(3000);
+    expect(ctx.manager.host(ctx.room, { type: 'lock' })).toEqual({ ok: true });
+    expect(ctx.manager.host(ctx.room, { type: 'next' })).toEqual({ ok: true });
+    expect(ctx.room.state.phase).toBe('reveal');
+    expect(ctx.room.state.stepAt).toBe(ctx.scheduler.now());
+    return ctx;
+  }
+
+  it('stamps the start and holds the intro for three seconds', () => {
+    const { scheduler, manager, room, events, T } = pacedPlaying();
+    expect(room.state.stepAt).toBe(T);
+    const count = events.length;
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
+    expect(room.state.phase).toBe('intro');
+    expect(events.length).toBe(count);
+    scheduler.advance(2999);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
+    scheduler.advance(1);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    expect(room.state.stepAt).toBe(T + 3000);
+  });
+
+  it('holds an early lock for three seconds of the question, then shows the answer at once', () => {
+    const { scheduler, manager, room } = pacedPlaying();
+    scheduler.advance(3000);
+    manager.host(room, { type: 'next' });
+    expect(manager.host(room, { type: 'lock' })).toEqual({ ok: false, error: 'too_soon' });
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(3000);
+    expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+  });
+
+  it('a double tap on the reveal stops at the next step', () => {
+    const { scheduler, manager, room } = pacedReveal();
+    scheduler.advance(2000);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const after = room.state;
+    expect(after.phase).not.toBe('reveal');
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
+    expect(room.state).toBe(after);
+  });
+
+  describe('never waits', () => {
+    it('pause and resume; next while paused answers paused', () => {
+      const { manager, room } = pacedReveal();
+      expect(manager.host(room, { type: 'pause' })).toEqual({ ok: true });
+      expect(manager.host(room, { type: 'next' })).toEqual({ ok: false, error: 'paused' });
+      expect(manager.host(room, { type: 'resume' })).toEqual({ ok: true });
+    });
+
+    it('adjusting points', () => {
+      const { manager, room, olena } = pacedReveal();
+      expect(manager.host(room, { type: 'adjust', playerId: olena.playerId, points: 100 })).toEqual({ ok: true });
+      expect(room.state.players[0].score).toBe(100);
+    });
+
+    it('grading an answer', () => {
+      const { manager, room, olena } = pacedReveal(makeQuiz([text]), (ctx) => {
+        expect(ctx.manager.answer(ctx.room, ctx.olena.playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: true });
+      });
+      expect(manager.host(room, { type: 'override', playerId: olena.playerId, grade: 'correct' })).toEqual({ ok: true });
+    });
+
+    it('kicking a player', () => {
+      const { manager, room, taras } = pacedReveal();
+      expect(manager.host(room, { type: 'kick', playerId: taras.playerId })).toEqual({ ok: true });
+      expect(room.state.players.map((p) => p.nickname)).toEqual(['Олена']);
+    });
+
+    it('ending the round', () => {
+      const { manager, room } = pacedReveal();
+      expect(manager.host(room, { type: 'end-round' })).toEqual({ ok: true });
+      expect(['round_end', 'finished']).toContain(room.state.phase);
+    });
+
+    it('ending the game', () => {
+      const { manager, room } = pacedReveal();
+      expect(manager.host(room, { type: 'end' })).toEqual({ ok: true });
+      expect(room.state.phase).toBe('finished');
+    });
+  });
+
+  it('«open all» and the next survey row wait for their windows', () => {
+    const all = pacedReveal(makeQuiz([survey]));
+    expect(all.manager.host(all.room, { type: 'survey-all' })).toEqual({ ok: false, error: 'too_soon' });
+    all.scheduler.advance(2000);
+    expect(all.manager.host(all.room, { type: 'survey-all' })).toEqual({ ok: true });
+
+    const rows = pacedReveal(makeQuiz([survey]));
+    rows.scheduler.advance(2000);
+    expect(rows.manager.host(rows.room, { type: 'next' })).toEqual({ ok: true });
+    expect(rows.room.state.plays[0]?.survey?.shown).toBe(1);
+    expect(rows.manager.host(rows.room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
+    rows.scheduler.advance(999);
+    expect(rows.manager.host(rows.room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
+    rows.scheduler.advance(1);
+    expect(rows.manager.host(rows.room, { type: 'next' })).toEqual({ ok: true });
+    expect(rows.room.state.plays[0]?.survey?.shown).toBe(2);
+  });
+
+  it('a timer stamps the step at its deadline', () => {
+    const { scheduler, manager, room, T } = pacedPlaying();
+    scheduler.advance(3000);
+    manager.host(room, { type: 'next' });
+    scheduler.advance(20_000);
+    expect(room.state.phase).toBe('locked');
+    expect(room.state.stepAt).toBe(T + 23_000);
+    expect(room.state.stepAt).toBe(room.tickedTo);
+  });
+
+  it('without the option there is no stepAt and no wait', () => {
+    const { manager, room } = setup();
+    manager.connect(room, HOST);
+    enter(manager, room, 'Олена');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect('stepAt' in room.state).toBe(false);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
   });
 });

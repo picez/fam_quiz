@@ -91,6 +91,8 @@ const { app, shutdown } = await buildApp({
   webRoot: existsSync(built) ? built : undefined,
   // Єдине місце, де вмикаються заставки переходів справжньої гри (8c).
   transitions: true,
+  // Єдине місце, де вмикається мінімальний час справжньої гри (11b).
+  pacing: true,
   persist: { instanceId: randomUUID() },
 });
 await app.listen({ port, host: '0.0.0.0' });
