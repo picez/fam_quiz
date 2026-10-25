@@ -91,7 +91,7 @@ import {
   stopLadder,
   submitLadderAnswer,
 } from './ladder';
-import { addMember, dropMember, formTeams, memberConnected, memberOf, teamsOn, withoutTeam } from './teams';
+import { addMember, dropMember, formTeams, memberConnected, memberOf, presentMembers, teamsOn, withoutDuelists, withoutTeam } from './teams';
 import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
@@ -1311,6 +1311,12 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   if (inLadderRound(state)) return ladderAnswered(state) ? lockNow(state) : state;
   // «Ва-банк»: чекають лише тих, хто в грі; без присутніх у грі запитання закриє таймер чи ведучий.
   // «Вибування»: так само лише живих — привиди запитання не тримають.
+  // Командна гра, опитування й «хмара слів»: чекають кожну присутню людину.
+  if (teamsOn(state) && isUnscored(state.plays[state.questionIndex].question)) {
+    const people = presentMembers(state).filter((m) => m.teamId !== null);
+    if (people.length === 0) return state;
+    return people.every((m) => recordOf(state, state.questionIndex, m.id) !== undefined) ? lockNow(state) : state;
+  }
   const type = currentRound(state)?.type;
   const playing = type === 'wipeout' ? wipeoutIn(state) : type === 'survival' ? survivalAlive(state) : null;
   const connected = presentPlayers(state).filter((p) => playing === null || playing.includes(p.id));
@@ -1359,6 +1365,11 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (state.phase !== 'question') return fail('wrong_phase');
   if (state.paused) return fail('paused');
   if (notStarted(state, now)) return fail('not_started');
+  // Командна гра: опитування й «хмару слів» проходить кожна людина окремо — голос під її id, не під id команди.
+  if (teamsOn(state) && isUnscored(state.plays[state.questionIndex].question)) {
+    if (memberOf(state, playerId)?.teamId == null) return fail('not_found');
+    return submitVote(state, playerId, answer, now);
+  }
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   // «Вибування»: привид відповідає «для себе» — поза answers, без балів; живі йдуть класичним шляхом.
   if (currentRound(state)?.type === 'survival' && isGhost(state, playerId)) return submitGhostAnswer(state, playerId, answer, now);
@@ -2004,7 +2015,7 @@ export function end(state: GameState, now?: number): Result {
     now ?? 0,
   );
   const stopped: GameState = {
-    ...dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(markWipeoutEnd(decided)))))),
+    ...withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(markWipeoutEnd(decided))))))),
     phase: 'finished',
     board: clearAway(state.board),
     paused: false,

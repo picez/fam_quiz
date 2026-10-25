@@ -126,6 +126,7 @@ import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turn
 import { cluesAnswered, cluesByHost, cluesOpen, nextClueAt } from './clues';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
+import { voterList } from './team-act';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
@@ -934,7 +935,7 @@ function currentCloud(state: GameState) {
 function stageCloud(state: GameState): CloudWord[] | null {
   const play = currentCloud(state);
   if (play === null || !isRevealed(state)) return null;
-  return cloudTally(play, state.players)
+  return cloudTally(play, voterList(state))
     .filter((entry) => !entry.hidden)
     .slice(0, LIMITS.cloudShown)
     .map(({ key, text, count }) => ({ key, text, count }));
@@ -944,12 +945,13 @@ function stageCloud(state: GameState): CloudWord[] | null {
 function hostCloud(state: GameState): HostCloudWord[] | null {
   const play = currentCloud(state);
   if (play === null) return null;
-  return cloudTally(play, state.players).map(({ key, text, count, hidden, playerIds }) => ({
+  const voters = voterList(state);
+  return cloudTally(play, voters).map(({ key, text, count, hidden, playerIds }) => ({
     key,
     text,
     count,
     hidden,
-    by: playerIds.map((id) => state.players.find((p) => p.id === id)?.nickname ?? ''),
+    by: playerIds.map((id) => voters.find((v) => v.id === id)?.nickname ?? ''),
   }));
 }
 
@@ -1742,7 +1744,7 @@ export function stageView(state: GameState): StageView {
     sliderMarks: sliderMarks(state, false),
     pinMarks: pinMarks(state, false),
     cloud: stageCloud(state),
-    cloudVoters: stageCloud(state) === null ? null : cloudVoters(state.plays[state.questionIndex], state.players),
+    cloudVoters: stageCloud(state) === null ? null : cloudVoters(state.plays[state.questionIndex], voterList(state)),
   };
 }
 

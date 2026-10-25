@@ -62,6 +62,11 @@ export function duelistOf(state: GameState, teamId: string): string | null {
   return duelist !== undefined && duelist.connected ? duelist.id : captainOf(state, teamId);
 }
 
+/** Без дуелянтів (дуелі немає); соло-гра — без змін. */
+export function withoutDuelists(state: GameState): GameState {
+  return teamsOn(state) ? withTeams(state, { duelists: {} }) : state;
+}
+
 /** Люди на зв'язку плюс усі люди команд з awaiting (для голосів без балів). */
 export function presentMembers(state: GameState): TeamMember[] {
   return state.teams?.members.filter((m) => m.connected || (m.teamId !== null && state.awaiting.includes(m.teamId))) ?? [];

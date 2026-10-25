@@ -2,6 +2,7 @@ import { cloudKey, cloudWords, type Answer } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { autoLock, fail, ok, recordOf, withRecord, type AnswerRecord, type GameState, type Play, type Result } from './game';
+import { voterList } from './team-act';
 import { timeOverFor } from './timing';
 
 /**
@@ -102,7 +103,7 @@ export function hideCloudWord(state: GameState, key: string, hidden: boolean): R
   const play = state.plays[state.questionIndex];
   if (play?.question.type !== 'wordcloud') return fail('wrong_phase');
   const wanted = cloudKey(key);
-  if (!cloudTally(play, state.players).some((e) => e.key === wanted)) return fail('not_found');
+  if (!cloudTally(play, voterList(state)).some((e) => e.key === wanted)) return fail('not_found');
   const rest = (play.cloudHidden ?? []).filter((k) => k !== wanted);
   return ok(withPlay(state, { ...play, cloudHidden: hidden ? [...rest, wanted] : rest }));
 }
