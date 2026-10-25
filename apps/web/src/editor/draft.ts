@@ -405,9 +405,10 @@ export function newLadderRound(): LadderRound {
 
 /**
  * Змінює кількість сходинок «Мільйонера» до `count`. Рівні й неспалимі за пресетом переходять на пресет нової довжини;
- * змінені автором — додають зверху `last + 1000` (не більше максимуму) або втрачають верхній рівень. Неспалимих на верхній сходинці й вище не лишається.
+ * змінені автором — додають зверху `last + 1000`, а коли це не більше за верхній рівень (він уже на максимумі чи порожній), беруть пресет нової довжини;
+ * при вилученні сходинки `removed` пропадає її власні рівень і позначка, решта неспалимих зсувається вниз разом зі своїми рівнями. Неспалимих на верхній сходинці й вище не лишається.
  */
-export function resizeLadder(round: LadderRound, count: number): LadderRound {
+export function resizeLadder(round: LadderRound, count: number, removed?: number): LadderRound {
   const old = round.levels.length;
   const preset = LADDER_PRESETS[old];
   const presetSafe = ladderPresetSafe(round.levels);
@@ -422,8 +423,21 @@ export function resizeLadder(round: LadderRound, count: number): LadderRound {
     return { ...round, levels, safe: ladderPresetSafe(levels) };
   }
   let levels = round.levels.slice(0, count);
-  while (levels.length < count) levels = [...levels, Math.min(LIMITS.maxLadderLevel, (levels[levels.length - 1] ?? 0) + 1000)];
-  return { ...round, levels, safe: round.safe.filter((s) => s < count - 1) };
+  let safe = round.safe;
+  if (removed !== undefined && count < old) {
+    levels = round.levels.filter((_, i) => i !== removed);
+    safe = round.safe.filter((s) => s !== removed).map((s) => (s > removed ? s - 1 : s));
+  }
+  while (levels.length < count) {
+    const last = levels[levels.length - 1] ?? 0;
+    const next = Math.min(LIMITS.maxLadderLevel, last + 1000);
+    if (!(next > last) && target !== undefined) {
+      const levelsFromPreset = [...target];
+      return { ...round, levels: levelsFromPreset, safe: ladderPresetSafe(levelsFromPreset) };
+    }
+    levels = [...levels, next];
+  }
+  return { ...round, levels, safe: safe.filter((s) => s < count - 1) };
 }
 
 /** Новий раунд «Фінал»: одне запитання, автоматична перевірка, класичні ставки; правил балів у ньому немає. */
@@ -1146,7 +1160,8 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('too_many_questions')) problems.push(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
       if (messages.includes('duplicate_question_ids') || messages.includes('duplicate_round_ids')) problems.push(t('problemDuplicateIds'));
       if (messages.includes('survival_type')) problems.push(t('problemSurvivalType'));
-      if (messages.includes('ladder_type') || messages.includes('ladder_lifelines')) problems.push(t('problemLadderType'));
+      if (messages.includes('ladder_type')) problems.push(t('problemLadderType'));
+      if (messages.includes('ladder_lifelines')) problems.push(t('problemLadderLifelines'));
       if (messages.includes('ladder_levels')) problems.push(t('problemLadderLevels', { max: LIMITS.maxLadderLevel }));
       if (messages.includes('ladder_safe')) problems.push(t('problemLadderSafe'));
       if (messages.includes('survival_trials')) problems.push(t('problemSurvivalTrials'));

@@ -2018,6 +2018,20 @@ describe('ladder round (10i)', () => {
     expect(six.levels).toEqual([...LADDER_PRESETS[6]]);
     expect(six.safe).toEqual(ladderPresetSafe(six.levels));
   });
+  it('resizeLadder falls back to the preset when the top is at the cap or empty', () => {
+    const base = newLadderRound();
+    const atCap = resizeLadder({ ...base, levels: [100, 200, 300, 400, 10000], safe: [1] }, 6);
+    expect(atCap.levels).toEqual([...LADDER_PRESETS[6]]);
+    expect(atCap.safe).toEqual(ladderPresetSafe(atCap.levels));
+    const empty = resizeLadder({ ...base, levels: [100, 200, 300, 400, Number.NaN], safe: [] }, 6);
+    expect(empty.levels).toEqual([...LADDER_PRESETS[6]]);
+  });
+  it('resizeLadder removing a step drops its own level and safe mark and keeps the top', () => {
+    const base = { ...newLadderRound(), levels: [100, 200, 300, 400, 500], safe: [1, 3] };
+    const fewer = resizeLadder(base, 4, 1);
+    expect(fewer.levels).toEqual([100, 300, 400, 500]);
+    expect(fewer.safe).toEqual([2]);
+  });
   it('resizeLadder adds last + 1000 (capped) to changed levels and drops the top one when removing', () => {
     const base = newLadderRound();
     const changed = { ...base, levels: [100, 200, 300, 400, 500], safe: [1, 3] };

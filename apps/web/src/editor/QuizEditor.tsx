@@ -128,7 +128,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     const hasText = current.text.trim() !== '';
     if (hasText && !window.confirm(t('removeQuestionConfirm', { index: selected + 1 }))) return;
     const rest = questions.filter((_, index) => index !== selected);
-    if (round.type === 'ladder') setRound(resizeLadder({ ...round, questions: rest }, rest.length));
+    if (round.type === 'ladder') setRound(resizeLadder({ ...round, questions: rest }, rest.length, selected));
     else setQuestions(rest);
     setSelected(Math.max(0, selected === last ? selected - 1 : selected));
   };
@@ -395,7 +395,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                         {round.type === 'wipeout' && <span className="question-item-price">{question.points}</span>}
                         {round.type === 'ladder' && (
                           <span className="question-item-price">
-                            {round.safe.includes(index) && <span aria-label={t('ladderSafeMark')}>🛡 </span>}
+                            {round.safe.includes(index) && <span role="img" aria-label={t('ladderSafeMark')}>🛡 </span>}
                             {round.levels[index]}
                           </span>
                         )}

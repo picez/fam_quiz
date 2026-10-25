@@ -346,7 +346,7 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
           rows={question.options}
           min={fixedOptions ?? LIMITS.minOptions}
           max={fixedOptions ?? LIMITS.maxOptions}
-          fixed={fixedOptions !== undefined}
+          fixed={fixedOptions !== undefined && question.options.length === fixedOptions}
           maxLength={LIMITS.optionText}
           label="optionN"
           removeLabel="removeOption"

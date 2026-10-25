@@ -2415,6 +2415,16 @@ describe('QuizEditor: ladder round', () => {
     expect(removeButton().disabled).toBe(true);
   });
 
+  it('a question with a wrong option count gets add and remove buttons back', () => {
+    const quiz = fillLadder();
+    const round = quiz.rounds[0];
+    if (round.type !== 'ladder') throw new Error('x');
+    const first = round.questions[0];
+    if (first.type !== 'single') throw new Error('x');
+    open({ ...quiz, rounds: [{ ...round, questions: [{ ...first, options: first.options.slice(0, 3) }, ...round.questions.slice(1)] }] });
+    expect(screen.getByRole('button', { name: t('addOption') })).toBeTruthy();
+  });
+
   it('adding stops at fifteen', () => {
     open();
     addRound('Мільйонер');
