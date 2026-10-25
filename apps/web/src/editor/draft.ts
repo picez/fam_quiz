@@ -20,7 +20,9 @@ import {
   type Duels,
   type FinalRound,
   type WipeoutRound,
+  type SurvivalRound,
   WIPEOUT_TYPES,
+  SURVIVAL_TYPES,
   type Round,
   type Question,
   type Quiz,
@@ -47,6 +49,7 @@ export { QUESTION_TYPES, type QuestionType };
  * сортування — скрізь; класика — усі.
  * Блеф — лише класика (поле, бліц і фінал його не мають).
  * «Ва-банк» — лише WIPEOUT_TYPES: один варіант, так/ні, число, текст, повзунок.
+ * «Вибування» (основні запитання й питання на виживання) — лише SURVIVAL_TYPES, ті самі п'ять.
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
@@ -59,6 +62,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
     return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
+  if (roundType === 'survival') return SURVIVAL_TYPES;
   return QUESTION_TYPES;
 }
 
@@ -353,6 +357,23 @@ export function newWipeoutRound(): WipeoutRound {
   };
 }
 
+/** Нове «Вибування»: три порожні запитання «один варіант» по 100, два питання на виживання, випробування — питання, лишається 1, бонус 500. */
+export function newSurvivalRound(): SurvivalRound {
+  return {
+    id: newId(),
+    type: 'survival',
+    title: '',
+    speedBonus: false,
+    shuffleOptions: false,
+    rules: defaultRules(),
+    questions: Array.from({ length: LIMITS.minSurvivalQuestions }, () => ({ ...newQuestion('single'), points: 100 })),
+    trials: [newQuestion('single'), newQuestion('single')],
+    trial: 'question',
+    survivors: 1,
+    bonus: 500,
+  };
+}
+
 /** Новий раунд «Фінал»: одне запитання, автоматична перевірка, класичні ставки; правил балів у ньому немає. */
 export function newFinalRound(): FinalRound {
   return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', questions: [newQuestion('single')] };
@@ -599,6 +620,11 @@ export function cleaned(quiz: Quiz): Quiz {
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
       if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanQuestion(question))) };
+      if (round.type === 'survival') {
+        // Для «удачі» порожні питання на виживання — просто незаповнений шаблон: вони не потрібні.
+        const trials = round.trial === 'luck' ? round.trials.filter((trial) => trial.text.trim() !== '') : round.trials;
+        return { ...round, title, questions: round.questions.map(cleanQuestion), trials: trials.map(cleanQuestion) };
+      }
       if (round.type !== 'board') return { ...round, title, questions: round.questions.map(cleanQuestion) };
       return {
         ...round,
@@ -1005,6 +1031,29 @@ export function problemsOf(quiz: Quiz): string[] {
       const allowed: readonly string[] = WIPEOUT_TYPES;
       if (round.questions.some((question) => !allowed.includes(question.type))) problems.push(where(t('problemWipeoutType')));
     }
+    if (round.type === 'survival') {
+      if (round.questions.length < LIMITS.minSurvivalQuestions) problems.push(where(t('problemSurvivalFew', { min: LIMITS.minSurvivalQuestions })));
+      if (round.questions.length > LIMITS.maxSurvivalQuestions) problems.push(where(t('problemSurvivalMany', { max: LIMITS.maxSurvivalQuestions })));
+      const allowed: readonly string[] = SURVIVAL_TYPES;
+      // Для «удачі» порожні питання на виживання не рахуються: вони не потрібні й не зберігаються.
+      const trials = round.trial === 'luck' ? round.trials.filter((trial) => trial.text.trim() !== '') : round.trials;
+      if ([...round.questions, ...trials].some((question) => !allowed.includes(question.type))) problems.push(where(t('problemSurvivalType')));
+      if (!Number.isInteger(round.survivors) || round.survivors < 1 || round.survivors > LIMITS.maxSurvivors) {
+        problems.push(where(t('problemSurvivors', { max: LIMITS.maxSurvivors })));
+      }
+      if (!Number.isInteger(round.bonus) || round.bonus < 0 || round.bonus > LIMITS.maxPoints) {
+        problems.push(where(t('problemSurvivalBonus', { max: LIMITS.maxPoints })));
+      }
+      if (round.trial === 'question' && round.trials.length === 0) problems.push(where(t('problemSurvivalTrials')));
+      round.trials.forEach((trial, index) => {
+        if (round.trial === 'luck' && trial.text.trim() === '') return;
+        const key = problemKey(trial, roundPlace(draft, roundIndex, 0));
+        if (key === null) return;
+        // «Запитання N: текст» → «Питання на виживання N: текст».
+        const problem = problemText(key, index + 1, trial).replace(/^Запитання \d+:\s*/, '');
+        problems.push(where(t('problemSurvivalTrial', { index: index + 1, problem })));
+      });
+    }
     round.questions.forEach((question, index) => {
       const key = problemKey(question, roundPlace(draft, roundIndex, index));
       if (key !== null) problems.push(where(problemText(key, index + 1, question)));
@@ -1028,6 +1077,11 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
       if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
       if (messages.includes('wipeout_type')) problems.push(t('problemWipeoutType'));
+      if (messages.includes('too_many_questions')) problems.push(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
+      if (messages.includes('duplicate_question_ids') || messages.includes('duplicate_round_ids')) problems.push(t('problemDuplicateIds'));
+      if (messages.includes('survival_type')) problems.push(t('problemSurvivalType'));
+      if (messages.includes('survival_trials')) problems.push(t('problemSurvivalTrials'));
+      if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));

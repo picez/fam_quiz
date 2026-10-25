@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { answerSchema, type Answer } from './answer';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIMITS } from './quiz';
+import { DOOR_COUNT } from './survival';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
 
@@ -46,6 +47,10 @@ export const lieSchema = z.object({ text: z.string().max(LIMITS.bluffLie).refine
 export const bluffOptionSchema = z.object({ optionId: z.string().min(1).max(16).refine(isStorable, UNSTORABLE) });
 /** «Ва-банк»: «Забрати» (true) чи «Далі» (false). */
 export const wipeoutSchema = z.object({ take: z.boolean() });
+/** «Вибування»: відповідь на питання на виживання (10h). */
+export const trialSchema = z.object({ answer: answerSchema });
+/** «Вибування»: вибір дверей удачі (10h). */
+export const doorSchema = z.object({ door: z.number().int().min(0).max(DOOR_COUNT - 1) });
 /** Сховати чи повернути слово «хмари» (10d). */
 export const cloudHideSchema = z.object({ key: z.string().min(1).max(LIMITS.cloudWord * 2).refine(isStorable, UNSTORABLE), hidden: z.boolean() });
 /** Варіант, названий уголос на усній клітинці; null знімає позначку. */
@@ -98,6 +103,10 @@ export interface ClientToServerEvents {
   'player:bluff': (payload: z.infer<typeof bluffOptionSchema>, ack: Ack) => void;
   /** «Ва-банк»: рішення після розкриття (10g). */
   'player:wipeout': (payload: z.infer<typeof wipeoutSchema>, ack: Ack) => void;
+  /** «Вибування»: відповідь на питання на виживання (10h). */
+  'player:trial': (payload: z.infer<typeof trialSchema>, ack: Ack) => void;
+  /** «Вибування»: вибір дверей удачі (10h). */
+  'player:door': (payload: z.infer<typeof doorSchema>, ack: Ack) => void;
   /** Узяти баф на поточне запитання. */
   'player:buff': (payload: z.infer<typeof buffSchema>, ack: Ack) => void;
   /** Купити дебаф для суперника за бали. */

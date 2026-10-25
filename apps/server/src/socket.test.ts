@@ -1,12 +1,13 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
+import { SURVIVAL_RIGHT, SURVIVAL_WRONG, TRIAL_RIGHT, TRIAL_WRONG } from './testing/survival-game';
 import { WIPEOUT_RIGHT } from './testing/wipeout-game';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -1007,3 +1008,52 @@ describe('wipeout over sockets (10g)', () => {
   });
 });
 
+
+describe('survival over sockets (10h)', () => {
+  /** Олена помилилася на s1, Тарас ні: до «Далі» на розкритті, відкрите випробування. */
+  const survivalGame = async (trial: 'question' | 'luck') => {
+    const created = (await startGame(ctx.app, makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials, { trial })]))).game;
+    const players = await lobby(created);
+    const { host, olena, taras } = players;
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', SURVIVAL_WRONG[0])).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', SURVIVAL_RIGHT[0])).toEqual({ ok: true });
+    await until(host, inPhase('locked'));
+    await send(host, 'host:next');
+    await until(host, inPhase('reveal'));
+    return players;
+  };
+
+  it('player:trial answers the survival question; it is player-only and checks the payload and the phase', async () => {
+    const { host, stage, olena, taras } = await survivalGame('question');
+    expect(await send(olena, 'player:trial', { answer: TRIAL_RIGHT[0] })).toEqual({ ok: false, error: 'wrong_phase' });
+    await send(host, 'host:next');
+    await until(olena, inPhase('leaderboard'));
+    expect(await send(host, 'player:trial', { answer: TRIAL_RIGHT[0] })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:trial', { answer: TRIAL_RIGHT[0] })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:trial')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:trial', { answer: { type: 'nope' } })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:trial', TRIAL_RIGHT[0])).toEqual({ ok: false, error: 'invalid_payload' });
+    // Тарас не на межі; двері в питанні — не та фаза.
+    expect(await send(taras, 'player:trial', { answer: TRIAL_RIGHT[0] })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(olena, 'player:door', { door: 1 })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'player:trial', { answer: TRIAL_WRONG[0] })).toEqual({ ok: true });
+    expect(await send(olena, 'player:trial', { answer: TRIAL_RIGHT[0] })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('player:door picks a door in luck; door 3 is an invalid payload and the host and the stage are forbidden', async () => {
+    const { host, stage, olena } = await survivalGame('luck');
+    await send(host, 'host:next');
+    await until(olena, inPhase('leaderboard'));
+    for (const door of [3, -1, 1.5, '1', undefined]) {
+      expect(await send(olena, 'player:door', { door })).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(host, 'player:door', { door: 1 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:door', { door: 1 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:trial', { answer: TRIAL_RIGHT[0] })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'player:door', { door: 2 })).toEqual({ ok: true });
+    expect(await send(olena, 'player:door', { door: 1 })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});

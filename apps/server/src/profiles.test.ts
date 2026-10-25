@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { bluff, blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
+import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { follow, game, participant, profile, user } from './db/schema';
 import { ensureProfile, profileFacts, saveProfile } from './profiles';
@@ -483,5 +484,31 @@ describe('profile facts', () => {
     expect(await accuracy('Дійшов')).toBe(100);
     // Мовчун у грі на першій сходинці, тож його мовчання — одна невдала відповідь; далі він згорів і не грав.
     expect(await accuracy('Мовчун')).toBe(0);
+  });
+  it('survival accuracy comes from the questions the player was alive for: the ghost questions have no rows and a ghost answer changes nothing (10h)', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const quiz = makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials)]);
+    const { game: created } = await startGame(ctx.app, quiz, host.cookie);
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const people: Record<string, { playerId: string; email: string }> = {};
+    for (const name of ['Привид', 'Вибув', 'Дожив']) {
+      const player = await signUp(ctx.app, name);
+      const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: name }, player.cookie)).json() as { playerId: string };
+      ctx.manager.connect(room, { role: 'player', playerId });
+      people[name] = { playerId, email: player.email };
+    }
+    const id = (name: string) => people[name].playerId;
+    // s1: Привид помилився й вибув на питанні. s2: він відгадує як привид; Вибув помилився й вибув — лишився Дожив.
+    playSurvivalQuestion(ctx.manager, room, { right: [id('Вибув'), id('Дожив')], trial: [] });
+    playSurvivalQuestion(ctx.manager, room, { right: [id('Дожив')], ghosts: { [id('Привид')]: true }, trial: [] });
+    for (let guard = 0; guard < 4 && room.state.phase !== 'finished'; guard++) ctx.manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+    const accuracy = async (name: string) => (await profileFacts(db, await idOf(people[name].email))).stats.accuracy;
+    // Привид: 0 з 1 (s2 — не його запитання, його правильна відповідь привида не рахується); Вибув: 1 з 2; Дожив: 2 з 2.
+    expect(await accuracy('Привид')).toBe(0);
+    expect(await accuracy('Вибув')).toBe(50);
+    expect(await accuracy('Дожив')).toBe(100);
   });
 });

@@ -1,4 +1,4 @@
-import { LIMITS, questionsOf, roundQuestions, type Question, type Quiz, type Round } from '@quiz/shared';
+import { LIMITS, questionsOf, roundQuestions, roundTrials, type Question, type Quiz, type Round } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
@@ -12,6 +12,7 @@ import {
   newFinalRound,
   newWipeoutQuestion,
   newWipeoutRound,
+  newSurvivalRound,
   newClassicRound,
   newQuestion,
   problemsOf,
@@ -55,6 +56,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const [duelsOpen, setDuelsOpen] = useState(false);
   /** Розділ «Запасні запитання» розгорнуто: автором або помилкою в ньому. */
   const [sparesOpen, setSparesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   /** Клітинка поля, яку треба показати після невдалого збереження. */
   const [boardFocus, setBoardFocus] = useState<{ category: number; index: number } | null>(null);
   /** Запитання, яке зараз перетягують у списку. */
@@ -87,10 +89,12 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     if (round.type !== 'board') setRound({ ...round, questions: next });
   };
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
-  const total = questionsOf(quiz).length;
+  const total = questionsOf(quiz).length + quiz.rounds.reduce((sum, r) => sum + roundTrials(r).length, 0);
   const gaps = swapGaps(quiz);
   const roomForMore =
-    questions.length < (round.type === 'wipeout' ? LIMITS.maxWipeoutQuestions : LIMITS.maxQuestions) && total < LIMITS.maxQuizQuestions;
+    questions.length <
+      (round.type === 'wipeout' ? LIMITS.maxWipeoutQuestions : round.type === 'survival' ? LIMITS.maxSurvivalQuestions : LIMITS.maxQuestions) &&
+    total < LIMITS.maxQuizQuestions;
   const setNewcomers = (on: boolean) => {
     const { newcomers: _off, ...rest } = settings;
     update({ ...quiz, settings: on ? { ...rest, newcomers: true } : rest });
@@ -119,7 +123,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
 
   const add = () => {
-    setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : newQuestion('single')]);
+    setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : round.type === 'survival' ? { ...newQuestion('single'), points: 100 } : newQuestion('single')]);
     select(questions.length);
   };
 
@@ -139,7 +143,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   const addRound = (type: Round['type']) => {
     const fresh =
-      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'wipeout' ? newWipeoutRound() : newClassicRound();
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : newClassicRound();
     setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };
@@ -162,8 +166,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     if (rounds.length === 1) return;
     const target = rounds[index];
     const targetQuestions = roundQuestions(target);
-    const hasText = targetQuestions.some((q) => q.text.trim() !== '');
-    if (hasText && !window.confirm(t('removeRoundConfirm', { index: index + 1, count: targetQuestions.length }))) return;
+    const targetTrials = roundTrials(target);
+    const hasText = [...targetQuestions, ...targetTrials].some((q) => q.text.trim() !== '');
+    if (hasText && !window.confirm(t('removeRoundConfirm', { index: index + 1, count: targetQuestions.length + targetTrials.length }))) return;
     setRounds(rounds.filter((_, i) => i !== index));
     selectRound(Math.max(0, index === rounds.length - 1 ? index - 1 : index));
   };
@@ -178,6 +183,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     setProblems(found);
     if (found.length > 0) {
       if (found.some((problem) => problem.startsWith(t('duelsTitle')))) setDuelsOpen(true);
+      // Помилка в питанні на виживання лежить у налаштуваннях раунду: відкриваємо їх.
+      const trialPrefix = t('problemSurvivalTrial', { index: 0, problem: '' }).split('0')[0];
+      if (found.some((problem) => problem.includes(trialPrefix) || problem.includes(t('problemSurvivalTrials')))) setSettingsOpen(true);
       const sparePrefixes = [t('sparesTitle'), t('problemSparesEmpty'), t('spareN', { index: '' }).trim()];
       if (found.some((problem) => sparePrefixes.some((prefix) => problem.startsWith(prefix)))) setSparesOpen(true);
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
@@ -295,7 +303,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         onMove={moveRound}
         onRemove={removeRound}
       />
-      <RoundSettings round={round} index={ri + 1} onChange={setRound} />
+      <RoundSettings round={round} index={ri + 1} total={total} onChange={setRound} open={settingsOpen} onToggle={setSettingsOpen} />
 
       <div className="editor-grid">
         <aside className="editor-side">
@@ -433,8 +441,14 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 type="button"
                 className="btn btn-small btn-danger"
                 aria-label={t('removeQuestion', { index: selected + 1 })}
-                disabled={questions.length === 1 || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions)}
-                title={round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions }) : undefined}
+                disabled={questions.length === 1 || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions) || (round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions)}
+                title={
+                  round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions
+                    ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions })
+                    : round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions
+                      ? t('survivalMinHint', { min: LIMITS.minSurvivalQuestions })
+                      : undefined
+                }
                 onClick={remove}
               >
                 {t('remove')}

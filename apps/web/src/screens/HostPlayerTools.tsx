@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { LIMITS, type DebuffKind, type HostPlayer } from '@quiz/shared';
+import { LIMITS, type DebuffKind, type HostPlayer, type HostView, type SurvivalInfo } from '@quiz/shared';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { signed } from '../format';
 import { t } from '../i18n';
@@ -14,6 +14,11 @@ export function parseAdjust(raw: string): number | null {
   if (!/^[+-]?\d+$/.test(text)) return null;
   const value = Number(text);
   return value === 0 || Math.abs(value) > LIMITS.maxAdjust ? null : value;
+}
+
+/** «Вибування»: привиду дебаф нічого не дає, тож меню дебафів біля нього не показується (до round_end). */
+export function isSurvivalGhost(survival: SurvivalInfo | null, phase: HostView['phase'], playerId: string): boolean {
+  return survival !== null && phase !== 'round_end' && survival.rows.some((row) => row.playerId === playerId && row.status === 'ghost');
 }
 
 interface PanelProps {

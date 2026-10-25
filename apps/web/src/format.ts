@@ -7,6 +7,7 @@ export const roundLabel = (title: string, index: number, type?: Round['type']): 
   if (type === 'blitz') return t('blitzLabel');
   if (type === 'final') return t('finalLabel');
   if (type === 'wipeout') return t('wipeoutLabel');
+  if (type === 'survival') return t('survivalLabel');
   return type === 'board' ? t('boardLabel') : t('roundN', { index: index + 1 });
 };
 

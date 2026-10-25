@@ -34,7 +34,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -45,6 +45,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   spotlight: null,
   final: null,
   wipeout: null,
+  survival: null,
   chain: null,
   sort: null,
   wall: null,
@@ -2357,6 +2358,110 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
     it('the round end sums the round up', () => {
       show(view({ phase: 'round_end', round: wipeoutRound, wipeout: ladder({ decide: null }), me: own({ status: 'took', bank: 300, canDecide: false }), standings }));
       expect(screen.getByText('Забрано 300')).toBeTruthy();
+    });
+  });
+
+  describe('survival', () => {
+    const survivalRound: RoundInfo = { index: 0, total: 1, title: '', type: 'survival', partial: false, description: '', brief: emptyBrief('survival'), times: null };
+    type Own = NonNullable<PlayerView['me']['survival']>;
+    const own = (over: Partial<Own> = {}) => ({
+      ...me,
+      survival: { status: 'alive' as const, outAfter: null, ghostCorrect: null, canAnswerTrial: false, trialAnswer: null, canPickDoor: false, door: null, result: null, bonus: null, ...over },
+    });
+    const board = (over: Partial<NonNullable<PlayerView['survival']>> = {}): NonNullable<PlayerView['survival']> => ({
+      current: 0,
+      total: 3,
+      target: 1,
+      bonus: 500,
+      trialKind: 'luck',
+      trialsLeft: 0,
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', status: 'alive', outAfter: null, ghost: null, answer: null, trial: null, door: null },
+        { playerId: 'p2', nickname: 'Іван', status: 'ghost', outAfter: 1, ghost: null, answer: null, trial: null, door: null },
+      ],
+      aliveCount: 1,
+      ghostCount: 1,
+      ghosts: { answered: 0, right: null },
+      verdict: null,
+      trial: null,
+      ending: false,
+      ...over,
+    });
+    const standings = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 0, rank: 1 }];
+
+    it('a ghost sees the banner and the answer field, and answers for themselves', () => {
+      const send = show(onQuestion({ round: survivalRound, survival: board(), me: own({ status: 'ghost', outAfter: 1 }) }));
+      expect(screen.getByText('Ти привид: відповідай для себе — балів не буде.')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'b' });
+    });
+
+    it('a ghost who answered sees the for-yourself line', () => {
+      show(onQuestion({ round: survivalRound, survival: board(), me: { ...own({ status: 'ghost', outAfter: 1 }), answer: { type: 'single', optionId: 'b' } } }));
+      expect(screen.getByText('Відповідь для себе прийнято.')).toBeTruthy();
+    });
+
+    it('a living player gets no ghost banner', () => {
+      show(onQuestion({ round: survivalRound, survival: board(), me: own() }));
+      expect(screen.queryByText(/Ти привид/)).toBeNull();
+    });
+
+    it('the ghost reveal says guessed or not, without points', () => {
+      const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 300 };
+      show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: survivalRound, survival: board(), me: { ...own({ status: 'ghost', ghostCorrect: true, outAfter: 1 }), result } }));
+      expect(screen.getByText('Відгадав(-ла) — для себе.')).toBeTruthy();
+      expect(screen.queryByText(/\+300/)).toBeNull();
+      cleanup();
+      show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: survivalRound, survival: board(), me: own({ status: 'ghost', ghostCorrect: false, outAfter: 1 }) }));
+      expect(screen.getByText('Не відгадав(-ла).')).toBeTruthy();
+    });
+
+    it('a player on the edge is told so under the verdict', () => {
+      show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: survivalRound, survival: board(), me: own({ status: 'edge' }) }));
+      expect(screen.getByText('Ти на межі — зараз випробування.')).toBeTruthy();
+    });
+
+    it('the leaderboard shows the trial and the board instead of the standings', async () => {
+      const luck = { kind: 'luck' as const, fellBack: false, stage: 'open' as const, endsAt: Date.now() + 10_000, remainingMs: null, limitMs: 10_000, done: 0, total: 1, question: null, reveal: null };
+      const rows = [{ playerId: 'p1', nickname: 'Олена', status: 'edge' as const, outAfter: null, ghost: null, answer: null, trial: 'pending' as const, door: null }];
+      const send = show(view({ phase: 'leaderboard', round: survivalRound, survival: board({ rows, trial: luck, verdict: 'trial' }), me: own({ status: 'edge', canPickDoor: true }), standings: null }));
+      expect(document.querySelector('.standings')).toBeNull();
+      expect(document.querySelector('.survival-board')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Двері 3' }));
+      expect(send).toHaveBeenCalledWith('player:door', { door: 2 });
+    });
+
+    it('a survival question answer goes out as player:trial', () => {
+      const question = { ...publicQuestion, id: 't1' };
+      const trial = { kind: 'question' as const, fellBack: false, stage: 'open' as const, endsAt: Date.now() + 10_000, remainingMs: null, limitMs: 10_000, done: 0, total: 1, question, reveal: null };
+      const send = show(view({ phase: 'leaderboard', round: survivalRound, survival: board({ trial, verdict: 'trial' }), me: own({ status: 'edge', canAnswerTrial: true }), standings: null }));
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      expect(send).toHaveBeenCalledWith('player:trial', { answer: { type: 'single', optionId: 'b' } });
+    });
+
+    it('without a trial the leaderboard shows the verdict and the board', () => {
+      show(view({ phase: 'leaderboard', round: survivalRound, survival: board({ verdict: 'all_wrong' }), me: own(), standings: null }));
+      expect(screen.getByText('Помилилися всі — ніхто не вибуває.')).toBeTruthy();
+      expect(document.querySelector('.survival-board')).not.toBeNull();
+      cleanup();
+      show(view({ phase: 'leaderboard', round: survivalRound, survival: board({ verdict: 'all_right' }), me: own(), standings: null }));
+      expect(screen.getByText('Усі вціліли.')).toBeTruthy();
+    });
+
+    it('the round end shows the bonus to the living and the drop-out question to the ghost', () => {
+      show(view({ phase: 'round_end', round: survivalRound, survival: board(), me: own({ bonus: 500 }), standings }));
+      expect(screen.getByText('Ти дожив(-ла) до кінця: +500')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'round_end', round: survivalRound, survival: board(), me: own({ status: 'ghost', outAfter: 2 }), standings }));
+      expect(screen.getByText('Ти вибув(-ла) після запитання 2.')).toBeTruthy();
+    });
+
+    it('the finished screen of a game that ends on a survival round shows the bonus or when you dropped out', () => {
+      show(view({ phase: 'finished', round: survivalRound, survival: board(), me: own({ bonus: 500 }), standings }));
+      expect(screen.getByText('Ти дожив(-ла) до кінця: +500')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'finished', round: survivalRound, survival: board(), me: own({ status: 'ghost', outAfter: 4 }), standings }));
+      expect(screen.getByText('Ти вибув(-ла) після запитання 4.')).toBeTruthy();
     });
   });
 });

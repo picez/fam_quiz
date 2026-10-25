@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { DEFAULT_RULES } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
@@ -9129,6 +9129,349 @@ async function wipeoutGame() {
   expect(history2).toContain('Петро — забрав(-ла) 300');
   expect(await items.filter({ hasText: 'країн-членів' }).innerText()).toContain('Віра — доніс(-ла) 1500');
   await shot(host, 'p10g-history');
+
+  expect(problems).toEqual([]);
+}
+
+/** Підкладає пастки й запасні двері для наступного випробування-удачі: пари [trap, fallback] у порядку гравців «на межі». Двері d → грань 2d + 1 (rng = 2d/6 + 0.01 → ⌊·3⌋ = d). */
+function rigDoors(...pairs: [number, number][]): void {
+  for (const [trap, fallback] of pairs) rigged.push(2 * trap + 1, 2 * fallback + 1);
+}
+
+/** Натискає двері n (0…2) на телефоні. */
+async function pickDoor(page: Page, door: number): Promise<void> {
+  const button = page.getByRole('button', { name: `Двері ${door + 1}`, ...exact });
+  expect((await button.boundingBox())!.height, 'a door is big').toBeGreaterThanOrEqual(96);
+  await button.click();
+}
+
+/** Група, у якій стоїть нікнейм на дошці «живі / привиди» (сцена чи пульт): «Живі», «На межі» чи «Привиди». */
+async function survivalGroupOf(page: Page, nickname: string): Promise<string> {
+  const group = page.locator('.survival-group').filter({ has: page.locator('li .name', { hasText: new RegExp(`^${nickname}$`) }) });
+  return (await group.locator('h3').first().textContent())!.trim();
+}
+
+/** Підсумковий рахунок гравця в списку фінального екрана пульта. */
+async function podiumScore(host: Page, nickname: string): Promise<number> {
+  const text = await host.locator('li', { hasText: nickname }).first().innerText();
+  return Number(text.trim().split(/\s+/).pop());
+}
+
+type SurvivalFrameView = { trial: Record<string, unknown> | null; rows: Record<string, unknown>[] };
+
+/** Усі зрізи «Вибування» (об'єкти з rows, trial і verdict) у кадрах сокета. */
+function survivalViews(frames: string[]): SurvivalFrameView[] {
+  const found: SurvivalFrameView[] = [];
+  const walk = (value: unknown) => {
+    if (Array.isArray(value)) return value.forEach(walk);
+    if (value === null || typeof value !== 'object') return;
+    const object = value as Record<string, unknown>;
+    if (Array.isArray(object.rows) && 'trial' in object && 'verdict' in object) found.push(object as unknown as SurvivalFrameView);
+    Object.values(object).forEach(walk);
+  };
+  for (const frame of frames) {
+    const at = frame.indexOf('[');
+    if (at < 0) continue;
+    try {
+      walk(JSON.parse(frame.slice(at)));
+    } catch {
+      // не JSON (службовий кадр)
+    }
+  }
+  return found;
+}
+
+/** Поки випробування відкрите, у кадрах немає ні правильної відповіді, ні пасток, ні чужих дверей, ні чужих відповідей. Повертає, скільки таких кадрів було. */
+function openTrialLeaks(who: string, frames: string[], kind: 'question' | 'luck'): number {
+  const open = survivalViews(frames).filter((view) => view.trial !== null && view.trial.stage === 'open' && view.trial.kind === kind);
+  for (const view of open) {
+    const trial = view.trial!;
+    expect(trial.reveal, `${who}: the trial answer leaks while open`).toBeNull();
+    if (trial.question !== null) expect(Object.keys(trial.question as object), `${who}: the trial question has a correct key`).not.toContain('correct');
+    for (const row of view.rows) {
+      expect(row.answer, `${who}: a trial answer is visible while open`).toBeNull();
+      const door = row.door as { picked: number | null; trap: number | null } | null;
+      if (door !== null) {
+        expect(door.trap, `${who}: a trap is visible while open`).toBeNull();
+        expect(door.picked, `${who}: a door pick of another player is visible while open`).toBeNull();
+      }
+    }
+  }
+  return open.length;
+}
+
+it('part 10h: survival — the editor builds a survival round with trials, bonus and survivors (375 px too), a mistake puts players on the edge, a survival question knocks one out, a ghost answers for herself without points, everyone wrong means nobody is out, luck with doors when trial questions run out (a trap picked, a door that picks itself), the round ends at one survivor with the bonus, no buffs, debuffs only on the living, the board instead of the leaderboard, nothing leaks before the reveal or the trial closing, survival details in the history', async () => {
+  try {
+    await survivalGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function survivalGame() {
+  const host = await open('host10h', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10h@example.com');
+
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const s1 = { ...common, id: 's1', type: 'single' as const, text: 'Столиця Канади?', points: 100, options: [{ id: 's1-a', text: 'Оттава' }, { id: 's1-b', text: 'Торонто' }, { id: 's1-c', text: 'Монреаль' }], correctId: 's1-a' };
+  const s2 = { ...common, id: 's2', type: 'boolean' as const, text: 'Сонце — зірка', points: 100, correct: true };
+  const s3 = { ...common, id: 's3', type: 'numeric' as const, text: 'Скільки сантиметрів в одному метрі?', points: 100, correct: 100, tolerance: 0 };
+  const s4 = { ...common, id: 's4', type: 'single' as const, text: 'Найбільша планета Сонячної системи?', points: 100, options: [{ id: 's4-a', text: 'Юпітер' }, { id: 's4-b', text: 'Сатурн' }, { id: 's4-c', text: 'Марс' }], correctId: 's4-a' };
+  const s5 = { ...common, id: 's5', type: 'text' as const, text: 'Столиця Туреччини?', points: 100, accepted: ['Анкара'] };
+  const t1 = { ...common, id: 't1', type: 'boolean' as const, text: 'Вода кипить при 100 °C на рівні моря', points: 100, correct: true, timeLimit: 15 };
+  const data = {
+    ...makeRoundsQuiz([survivalRound('rs', [s1, s2, s3, s4, s5] as never, [t1] as never, { title: 'Хто лишиться' })], { leaderboard: 'each', buffs: ['double'], debuffs: ['fog'] }),
+    title: 'Вибування 10h',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Редактор.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Вибування 10h' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  await expect.poll(() => host.locator('.question-list .question-item').count()).toBe(5);
+  await openRoundSettings(host);
+  const settings = host.locator('.survival-settings');
+  await settings.waitFor();
+  await settings.locator('.with-help button').first().waitFor();
+  expect(await settings.getByRole('radio', { name: 'Питання на виживання', ...exact }).isChecked()).toBe(true);
+  expect(await field(host, 'Скільки має лишитися').inputValue()).toBe('1');
+  expect(await field(host, 'Бонус виживання').inputValue()).toBe('500');
+  expect(await settings.getByText(/^Питання \d+ ·/).count(), 'one survival question').toBe(1);
+  await host.getByLabel(/^Штраф/).waitFor();
+  await shot(host, 'p10h-editor-survival');
+  for (const group of await host.getByRole('group', { name: 'Тип запитання', ...exact }).all()) expect(await group.getByRole('button').count(), 'five question types').toBe(5);
+
+  await click(host, '+ Раунд');
+  await click(host, 'Вибування');
+  await expect.poll(() => host.locator('.question-list .question-item').count()).toBe(3);
+  await openRoundSettings(host);
+  await expect.poll(() => host.locator('.survival-settings').getByText(/^Питання \d+ ·/).count(), POLL).toBe(2);
+  await shot(host, 'p10h-editor-new-survival');
+  await host.locator('.survival-settings').getByRole('radio', { name: 'Удача (троє дверей)', ...exact }).check();
+  await host.locator('.survival-settings').getByText('З удачею ці питання не потрібні.', exact).waitFor();
+  await click(host, 'Видалити раунд');
+  await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.locator('.survival-settings').scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10h-editor-survival-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // 2. Гра.
+  await host.locator('.quiz-list li', { hasText: 'Вибування 10h' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10h', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya10h', 375, 812);
+  const petro = await open('petro10h', 375, 812);
+  const vira = await open('vira10h', 375, 812);
+  const hlib = await open('hlib10h', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const viraFrames = socketFrames(vira);
+  const hlibFrames = socketFrames(hlib);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(vira, code, 'Віра', false);
+  await join(hlib, code, 'Гліб', false);
+  const phones = [olya, petro, vira, hlib];
+  const all = [host, stage, ...phones];
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+
+  // 3. Інтро.
+  await stage.locator('.survival-board').waitFor();
+  await stage.getByText('Лишиться 1 · бонус 500', exact).waitFor();
+  await stage.getByText('Живих: 4 · привидів: 0', exact).waitFor();
+  expect(await survivalGroupOf(stage, 'Гліб')).toBe('Живі');
+  await expectStageFits(stage, 'p10h-stage-intro');
+  await shot(stage, 'p10h-stage-intro');
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 4. s1: питання на виживання.
+  await stage.getByText('Столиця Канади?', exact).waitFor();
+  await expectStageFits(stage, 'p10h-stage-question');
+  await tapBuff(olya, 'Подвійні бали', 'У «Вибуванні» бафів немає.');
+  await shot(olya, 'p10h-phone-no-buffs');
+  expect(await host.locator('.player-row', { hasText: 'Петро' }).getByRole('button', { name: 'Дебаф', ...exact }).count(), 'a living player has debuffs').toBeGreaterThan(0);
+  await pickOption(olya, 'Оттава');
+  await pickOption(petro, 'Оттава');
+  await pickOption(vira, 'Оттава');
+  await pickOption(hlib, 'Торонто');
+  await host.getByText('Запитання закрите').waitFor();
+  for (const [who, frames] of [['stage', stageFrames], ['hlib', hlibFrames]] as const) {
+    const text = framesBeforeReveal(frames).join(NL);
+    const at = text.indexOf('"status":"edge"');
+    expect(at < 0, `${who} got an edge status before the reveal: ${text.slice(Math.max(0, at - 150), at + 150)}`).toBe(true);
+  }
+  await click(host, 'Показати відповідь');
+  await stage.locator('.survival-edge-line', { hasText: 'Гліб' }).waitFor();
+  await shot(stage, 'p10h-stage-edge');
+  await hlib.getByText('Ти на межі — зараз випробування.', exact).waitFor();
+
+  await click(host, 'Далі');
+  await stage.locator('.splash').waitFor({ state: 'attached' });
+  await shot(stage, 'p10h-stage-trial-splash', { splash: true });
+  await afterSplash(stage, hlib);
+  await stage.getByText('Вода кипить при 100 °C на рівні моря', exact).waitFor();
+  await stage.getByText('Відповіли 0 з 1', exact).waitFor();
+  await expectStageFits(stage, 'p10h-stage-trial-question');
+  await shot(stage, 'p10h-stage-trial-question');
+  await host.getByRole('button', { name: 'Закрити випробування', ...exact }).waitFor();
+  await hlib.getByText('Вода кипить при 100 °C на рівні моря', exact).waitFor();
+  await expectNoSideScroll(hlib, 'p10h-phone-trial');
+  await pickOption(hlib, '(^|\\s)Ні$');
+  await hlib.getByText('Ти вибуваєш — тепер ти привид.', exact).waitFor();
+  await shot(hlib, 'p10h-phone-out');
+  await expect.poll(() => survivalGroupOf(stage, 'Гліб'), POLL).toBe('Привиди');
+  expect(openTrialLeaks('stage', stageFrames, 'question'), 'the stage saw the open trial').toBeGreaterThan(0);
+  expect(openTrialLeaks('hlib', hlibFrames, 'question'), 'Hlib saw the open trial').toBeGreaterThan(0);
+  await vira.getByRole('button', { name: 'Таблиця', ...exact }).click();
+  const sheet = vira.getByRole('dialog', { name: 'Таблиця', ...exact });
+  await sheet.waitFor();
+  expect(await sheet.innerText()).toContain('100');
+  await vira.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+  expect(await host.locator('.player-row', { hasText: 'Гліб' }).getByRole('button', { name: 'Дебаф', ...exact }).count(), 'no debuffs for a ghost').toBe(0);
+
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 5. s2: помилилися всі живі, привид відгадав.
+  await stage.getByText('Сонце — зірка', exact).waitFor();
+  await hlib.locator('.survival-ghost-banner').waitFor();
+  await shot(hlib, 'p10h-phone-ghost');
+  await pickOption(hlib, '(^|\\s)Так$');
+  for (const page of [olya, petro, vira]) await pickOption(page, '(^|\\s)Ні$');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await stage.getByText('Привиди: 1 з 1 відгадали', exact).waitFor();
+  await shot(stage, 'p10h-stage-ghost-hits');
+  await hlib.getByText('Відгадав(-ла) — для себе.', exact).waitFor();
+  expect(await bodyText(hlib), 'a ghost gets no points').not.toMatch(/\+\d/);
+  await click(host, 'Далі');
+  await stage.getByText('Помилилися всі — ніхто не вибуває.', exact).waitFor();
+  await expectStageFits(stage, 'p10h-stage-all-wrong');
+  await shot(stage, 'p10h-stage-all-wrong');
+  for (const nick of ['Оля', 'Петро', 'Віра']) expect(await survivalGroupOf(stage, nick)).toBe('Живі');
+  expect(await survivalGroupOf(stage, 'Гліб')).toBe('Привиди');
+  expect(await totalOf(host, 'Гліб'), 'a ghost scores nothing').toBe(0);
+
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 6. s3: питання на виживання скінчились — удача.
+  await stage.getByText('Скільки сантиметрів в одному метрі?', exact).waitFor();
+  await numericAnswer(olya, '100');
+  await numericAnswer(petro, '90');
+  await numericAnswer(vira, '50');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await stage.locator('.survival-edge-line', { hasText: 'Петро, Віра' }).waitFor();
+  rigDoors([0, 1], [2, 0]);
+  await click(host, 'Далі');
+  await afterSplash(stage, petro, vira);
+  await petro.getByText('Питань на виживання не лишилося — удача.', exact).waitFor();
+  for (const door of [1, 2, 3]) await petro.getByRole('button', { name: `Двері ${door}`, ...exact }).waitFor();
+  await petro.getByText('Не вибереш за 10 с — двері виберуться самі.', exact).waitFor();
+  await expectNoSideScroll(petro, 'p10h-phone-doors');
+  await expectStageFits(stage, 'p10h-stage-trial-luck');
+  await shot(stage, 'p10h-stage-trial-luck');
+  await pickDoor(petro, 0);
+  await petro.getByText('Двері 1. Чекаємо інших…', exact).waitFor();
+  await stage.getByText('Відповіли 1 з 2', exact).waitFor();
+  await host.locator('.host-survival li', { hasText: 'Петро' }).getByText('Двері 1', exact).waitFor();
+  expect(await bodyText(stage), 'the stage sees a door of Petro').not.toContain('Двері 1');
+  expect(await bodyText(vira), 'Vira sees a door of Petro').not.toContain('Двері 1. Чекаємо');
+  await pickDoor(vira, 1);
+  await petro.getByText('Ти вибуваєш — тепер ти привид.', exact).waitFor();
+  await vira.getByText('Пронесло! Ти живий(-а).', exact).waitFor();
+  expect(openTrialLeaks('stage', stageFrames, 'luck'), 'the stage saw the open luck').toBeGreaterThan(0);
+  expect(openTrialLeaks('petro', petroFrames, 'luck'), 'Petro saw the open luck').toBeGreaterThan(0);
+  expect(openTrialLeaks('vira', viraFrames, 'luck')).toBeGreaterThan(0);
+  expect(openTrialLeaks('olya', olyaFrames, 'luck')).toBeGreaterThan(0);
+  const doorRows = stage.locator('.survival-edge-rows li');
+  expect(await doorRows.filter({ hasText: 'Петро' }).getByText('Пастка!', exact).count(), 'Petro has a trap').toBe(1);
+  expect(await doorRows.filter({ hasText: 'Віра' }).getByText('Пастка!', exact).count(), 'Vira has a trap on another door').toBe(1);
+  expect(await doorRows.filter({ hasText: 'Петро' }).locator('.survival-door.is-picked.is-trap').count(), 'Petro picked the trap').toBe(1);
+  expect(await doorRows.filter({ hasText: 'Віра' }).locator('.survival-door.is-picked.is-trap').count(), 'Vira did not pick the trap').toBe(0);
+  await expectStageFits(stage, 'p10h-stage-doors');
+  await shot(stage, 'p10h-stage-doors');
+  await shot(vira, 'p10h-phone-safe');
+  expect(await survivalGroupOf(stage, 'Петро')).toBe('Привиди');
+  expect(await survivalGroupOf(stage, 'Віра')).toBe('Живі');
+
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 7. s4: двері вибираються самі, кінець раунду.
+  await stage.getByText('Найбільша планета Сонячної системи?', exact).waitFor();
+  // Привиди відповідають першими: живі, що відповіли, закривають запитання, а привиди його не тримають.
+  await pickOption(petro, 'Марс');
+  await pickOption(hlib, 'Юпітер');
+  await pickOption(olya, 'Юпітер');
+  await pickOption(vira, 'Сатурн');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await stage.locator('.survival-edge-line', { hasText: 'Віра' }).waitFor();
+  rigDoors([1, 1]);
+  await click(host, 'Далі');
+  await afterSplash(stage, vira);
+  await vira.getByRole('button', { name: 'Двері 1', ...exact }).waitFor();
+  await host.getByRole('button', { name: 'Пауза', ...exact }).first().click();
+  const timerOf = () => vira.locator('[role=timer]').getAttribute('aria-label');
+  const held = await timerOf();
+  await vira.waitForTimeout(1500);
+  expect(await timerOf(), 'the countdown stands still on pause').toBe(held);
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+  await stage.getByText('вибрано самі', exact).waitFor({ timeout: 20000 });
+  await vira.getByText('Ти вибуваєш — тепер ти привид.', exact).waitFor();
+  const viraRow = stage.locator('.survival-edge-rows li', { hasText: 'Віра' });
+  expect(await viraRow.getByText('Пастка!', exact).count()).toBe(1);
+  expect(await viraRow.locator('.survival-door.is-picked.is-trap').count(), 'the auto door is the trap').toBe(1);
+  expect(await viraRow.locator('.survival-door.is-picked .survival-door-n').textContent()).toBe('2');
+  expect(await survivalGroupOf(stage, 'Віра')).toBe('Привиди');
+  const ending = host.getByRole('button', { name: /^(Підсумки раунду|Далі)$/ });
+  await ending.waitFor();
+  await shot(host, 'p10h-host-ending');
+  await ending.click();
+  await olya.getByText('Ти дожив(-ла) до кінця: +500', exact).waitFor();
+  await shot(olya, 'p10h-phone-bonus');
+  await vira.getByText('Ти вибув(-ла) після запитання 4.', exact).waitFor();
+  expect(await podiumScore(host, 'Оля')).toBe(800);
+  expect(await podiumScore(host, 'Петро')).toBe(100);
+  expect(await podiumScore(host, 'Віра')).toBe(100);
+  expect(await podiumScore(host, 'Гліб')).toBe(0);
+
+  // 8. Історія.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Вибування 10h/ }).click();
+  const items = host.locator('.rows.stacked > li');
+  await items.first().waitFor();
+  const h1 = await items.filter({ hasText: 'Столиця Канади?' }).innerText();
+  expect(h1).toContain('Питання на виживання: Вода кипить');
+  expect(h1).toContain('Гліб — вибув(-ла)');
+  const h2 = await items.filter({ hasText: 'Сонце — зірка' }).innerText();
+  expect(h2).toContain('Помилилися всі — ніхто не вибув');
+  expect(h2).toContain('Привиди: 1 з 1 відгадали');
+  const h3 = await items.filter({ hasText: 'сантиметрів' }).innerText();
+  expect(h3).toContain('Удача (питань не лишилося)');
+  expect(h3).toContain('Петро — вибув(-ла)');
+  expect(h3).toContain('Віра — вижив(-ла)');
+  expect(h3).toContain('двері 1, пастка 1');
+  const h4 = await items.filter({ hasText: 'Найбільша планета' }).innerText();
+  expect(h4).toContain('двері 2 (самі), пастка 2');
+  await host.getByText('Бонус виживання: Оля +500', exact).waitFor();
+  await shot(host, 'p10h-history');
 
   expect(problems).toEqual([]);
 }

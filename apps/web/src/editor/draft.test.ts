@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -1904,5 +1904,68 @@ describe('wipeout round (10g)', () => {
     expect(problemsOf(wipeoutQuiz(many))).toContain(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions }));
     const multi = filled(newQuestion('multi'));
     expect(problemsOf(wipeoutQuiz([...five.slice(0, 4), multi]))).toContain(t('problemWipeoutType'));
+  });
+});
+
+describe('survival round (10h)', () => {
+  it('a new survival round has three questions of 100, two trial questions, a question trial, one survivor and a bonus of 500', () => {
+    const round = newSurvivalRound();
+    expect(round.type).toBe('survival');
+    expect(round.questions.map((q) => q.points)).toEqual([100, 100, 100]);
+    expect(round.trials).toHaveLength(2);
+    expect([round.trial, round.survivors, round.bonus]).toEqual(['question', 1, 500]);
+    expect(roundSchema.safeParse({ ...round, questions: round.questions.map(filled), trials: round.trials.map(filled) }).success).toBe(true);
+  });
+  it('a survival round offers only its simple types', () => {
+    expect(questionTypesFor('survival')).toEqual(SURVIVAL_TYPES);
+  });
+  it('a survival draft round-trips through storage with its trials and rules', () => {
+    const quiz: Quiz = { ...newQuiz(), title: 'Т', rounds: [newSurvivalRound()] };
+    saveDraft('survival-draft', quiz);
+    expect(loadDraft('survival-draft')!.rounds[0]).toEqual(quiz.rounds[0]);
+  });
+  const survivalQuiz = (patch: Partial<ReturnType<typeof newSurvivalRound>>): Quiz => {
+    const base = newSurvivalRound();
+    return { ...newQuiz(), title: 'Т', rounds: [{ ...base, questions: base.questions.map(filled), trials: base.trials.map(filled), ...patch }] };
+  };
+  it('problemsOf counts the questions, checks the types and the trials', () => {
+    expect(problemsOf(survivalQuiz({}))).toEqual([]);
+    const three = newSurvivalRound().questions.map(filled);
+    expect(problemsOf(survivalQuiz({ questions: three.slice(0, 2) }))).toContain(t('problemSurvivalFew', { min: LIMITS.minSurvivalQuestions }));
+    const many = Array.from({ length: 31 }, (_, i) => ({ ...three[i % 3], id: `q${i}` }));
+    expect(problemsOf(survivalQuiz({ questions: many }))).toContain(t('problemSurvivalMany', { max: LIMITS.maxSurvivalQuestions }));
+    const multi = filled(newQuestion('multi'));
+    expect(problemsOf(survivalQuiz({ trials: [multi] }))).toContain(t('problemSurvivalType'));
+    expect(problemsOf(survivalQuiz({ questions: [...three.slice(0, 2), multi] }))).toContain(t('problemSurvivalType'));
+    expect(problemsOf(survivalQuiz({ trial: 'question', trials: [] }))).toContain(t('problemSurvivalTrials'));
+    expect(problemsOf(survivalQuiz({ trial: 'luck', trials: [] }))).toEqual([]);
+  });
+  it('problemsOf checks the trial questions too and names them with the trial prefix', () => {
+    const problems = problemsOf(survivalQuiz({ trials: [newQuestion('single')] }));
+    expect(problems.some((p) => p.startsWith('Питання на виживання 1:'))).toBe(true);
+  });
+  it('problemsOf explains the media a trial question must not have', () => {
+    const withVideo = { ...filled(newQuestion('single')), video: { id: 'dQw4w9WgXcQ', start: 0 } };
+    expect(problemsOf(survivalQuiz({ trials: [withVideo] }))).toContain(t('problemSurvivalTrialMedia'));
+  });
+  it('problemsOf checks survivors and the bonus', () => {
+    const has = (patch: Partial<ReturnType<typeof newSurvivalRound>>, text: string) => problemsOf(survivalQuiz(patch)).includes(text);
+    const bad = t('problemSurvivors', { max: LIMITS.maxSurvivors });
+    for (const survivors of [Number.NaN, 0, 11, 1.5]) expect(has({ survivors }, bad)).toBe(true);
+    expect(has({ survivors: 10 }, bad)).toBe(false);
+    const badBonus = t('problemSurvivalBonus', { max: LIMITS.maxPoints });
+    for (const bonus of [Number.NaN, -1, LIMITS.maxPoints + 1, 1.5]) expect(has({ bonus }, badBonus)).toBe(true);
+    expect(has({ bonus: 0 }, badBonus)).toBe(false);
+  });
+  it('the quiz question cap counts the survival questions', () => {
+    const base = newSurvivalRound();
+    const classicOf = (from: number) => ({ ...newClassicRound(), questions: Array.from({ length: 65 }, (_, i) => ({ ...filled(newQuestion('single')), id: `c${from + i}` })) });
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: 'Т',
+      rounds: [classicOf(0), classicOf(65), classicOf(130), { ...base, questions: base.questions.map(filled), trials: [...base.trials, newQuestion('single')].map(filled) }],
+    };
+    expect(questionsOf(quiz).length).toBe(198);
+    expect(problemsOf(quiz)).toContain(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
   });
 });

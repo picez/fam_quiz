@@ -28,6 +28,7 @@ const stage = (over: Partial<StageView> = {}): StageView => ({
   spotlight: null,
   final: null,
   wipeout: null,
+  survival: null,
   chain: null,
   sort: null,
   bluff: null,
@@ -327,5 +328,26 @@ describe('splash styles', () => {
   it('the host chip is fixed and never shifts the console', () => {
     expect(rule('.splash-chip')).toContain('position: fixed');
     expect(rule('.splash-chip')).toContain('pointer-events: none');
+  });
+
+  it('trial: a big «Випробування!», the kind of the trial and the nicknames on the edge', () => {
+    const survival = {
+      rows: [
+        { playerId: 'a', nickname: 'Оля', status: 'edge' },
+        { playerId: 'b', nickname: 'Петро', status: 'alive' },
+        { playerId: 'c', nickname: 'Іра', status: 'edge' },
+      ],
+      trial: { kind: 'luck', fellBack: true },
+    } as unknown as StageView['survival'];
+    const { container } = render(<Splash view={stage({ phase: 'leaderboard', survival, splash: at('trial', SPLASH_MS.trial) })} offsetMs={0} size="stage" />);
+    const layer = container.querySelector('.splash.is-trial')!;
+    expect(layer.querySelector('.splash-title')?.textContent).toBe('Випробування!');
+    expect(layer.textContent).toContain('Удача: вибери двері');
+    expect(layer.textContent).toContain('Питань на виживання не лишилося — удача.');
+    expect(layer.querySelector('.splash-edge')?.textContent).toBe('Оля · Іра');
+    cleanup();
+    const question = { rows: [], trial: { kind: 'question', fellBack: false } } as unknown as StageView['survival'];
+    const again = render(<Splash view={stage({ phase: 'leaderboard', survival: question, splash: at('trial', SPLASH_MS.trial) })} offsetMs={0} size="stage" />);
+    expect(again.container.textContent).toContain('Питання на виживання');
   });
 });

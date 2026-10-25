@@ -35,6 +35,12 @@ export const LIMITS = {
   minWipeoutQuestions: 5,
   maxWipeoutQuestions: 15,
   wipeoutDecideSeconds: 10,
+  /** «Вибування»: запитань і питань на виживання в раунді, скільки може лишитися, секунд на двері удачі. */
+  minSurvivalQuestions: 3,
+  maxSurvivalQuestions: 30,
+  maxSurvivalTrials: 10,
+  maxSurvivors: 10,
+  survivalLuckSeconds: 10,
   /** Ціна дебафу для гравців (9c), балів. */
   minDebuffPrice: 50,
   maxDebuffPrice: 5000,
@@ -804,8 +810,37 @@ export const wipeoutRoundSchema = z.object({
 
 export type WipeoutRound = z.infer<typeof wipeoutRoundSchema>;
 
+/** Типи запитань раунду «Вибування» (основних і питань на виживання): відповідь однозначно правильна чи ні. */
+export const SURVIVAL_TYPES = ['single', 'boolean', 'numeric', 'text', 'slider'] as const satisfies readonly QuestionType[];
+
+/** Вид випробування «на межі»: окреме питання або троє дверей. */
+export const TRIAL_KINDS = ['question', 'luck'] as const;
+
+/** «Вибування»: хто помилився, проходить випробування; хто його не пройде, стає привидом. Правила балів — як у класиці. */
+export const survivalRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('survival'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  speedBonus: z.boolean(),
+  shuffleOptions: z.boolean(),
+  rules: roundRulesSchema,
+  questions: z.array(questionSchema).min(LIMITS.minSurvivalQuestions).max(LIMITS.maxSurvivalQuestions),
+  /** Питання на виживання — по одному на випробування, за порядком; ціна не важить, таймер — його timeLimit. */
+  trials: z.array(questionSchema).max(LIMITS.maxSurvivalTrials),
+  trial: z.enum(TRIAL_KINDS),
+  /** Раунд закінчується, щойно після вибування живих ≤ survivors. */
+  survivors: z.number().int().min(1).max(LIMITS.maxSurvivors),
+  /** Бали кожному, хто дожив до кінця раунду. */
+  bonus: z.number().int().min(0).max(LIMITS.maxPoints),
+});
+
+export type SurvivalRound = z.infer<typeof survivalRoundSchema>;
+export type TrialKind = (typeof TRIAL_KINDS)[number];
+
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'wipeout'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'wipeout', 'survival'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -814,6 +849,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   boardRoundSchema,
   finalRoundSchema,
   wipeoutRoundSchema,
+  survivalRoundSchema,
 ]);
 
 export type Round = z.infer<typeof roundSchema>;
@@ -823,7 +859,7 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі й «Ва-банк» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1). */
+/** Правила балів раунду; у фіналі й «Ва-банк» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
 export function rulesOf(round: Round): RoundRules {
   return round.type === 'final' || round.type === 'wipeout' ? DEFAULT_RULES : round.rules;
 }
@@ -892,7 +928,7 @@ export const quizSchema = z
     spares: z.array(questionSchema).min(1).max(LIMITS.maxSpares).optional(),
   })
   .superRefine((quiz, ctx) => {
-    const questions = quiz.rounds.flatMap(roundQuestions);
+    const questions = [...quiz.rounds.flatMap(roundQuestions), ...quiz.rounds.flatMap(roundTrials)];
     if (questions.length > LIMITS.maxQuizQuestions) ctx.addIssue({ code: 'custom', message: 'too_many_questions' });
     if (hasDuplicates(questions.map((q) => q.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_question_ids' });
     if (hasDuplicates(quiz.rounds.map((r) => r.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_round_ids' });
@@ -950,6 +986,15 @@ export const quizSchema = z
       if (round.type === 'wipeout') {
         const allowed: readonly string[] = WIPEOUT_TYPES;
         if (round.questions.some((q) => !allowed.includes(q.type))) ctx.addIssue({ code: 'custom', message: 'wipeout_type' });
+      }
+      // «Вибування»: прості типи, питання на виживання без медіа, а для такого випробування — хоч одне питання.
+      if (round.type === 'survival') {
+        const allowed: readonly string[] = SURVIVAL_TYPES;
+        if ([...round.questions, ...round.trials].some((q) => !allowed.includes(q.type))) ctx.addIssue({ code: 'custom', message: 'survival_type' });
+        if (round.trial === 'question' && round.trials.length === 0) ctx.addIssue({ code: 'custom', message: 'survival_trials' });
+        if (round.trials.some((q) => q.video !== null || q.audio !== undefined || q.reveal !== undefined)) {
+          ctx.addIssue({ code: 'custom', message: 'survival_trial_media' });
+        }
       }
       // Дошка з хмари — лише в класиці.
       if (round.type === 'board' && boardCells(round).some(({ cell }) => cell.question.type === 'survey' && cell.question.cloudId !== undefined)) {
@@ -1022,6 +1067,11 @@ export function questionsOf(quiz: Quiz): Question[] {
 /** Усі запитання раунду: у полі — по категоріях, у порядку клітинок. */
 export function roundQuestions(round: Round): Question[] {
   return round.type === 'board' ? boardCells(round).map(({ cell }) => cell.question) : round.questions;
+}
+
+/** Питання на виживання раунду; поза «Вибуванням» — []. */
+export function roundTrials(round: Round): Question[] {
+  return round.type === 'survival' ? round.trials : [];
 }
 
 /** Скільки запитань раунду дають бали (опитування й хмари слів не рахуються). */

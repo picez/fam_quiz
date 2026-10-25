@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react';
-import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView } from '@quiz/shared';
+import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView, SurvivalInfo } from '@quiz/shared';
 import { LETTERS, answerText, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -27,6 +27,8 @@ import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { WipeoutLadder } from './WipeoutLadder';
+import { SurvivalBoard } from './SurvivalBoard';
+import { SurvivalDoors } from './SurvivalDoors';
 import { MenuLinks } from './MenuLinks';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
 import { SortBoard, SortReveal, SortWords } from './SortView';
@@ -200,6 +202,8 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
                 t('sortFinishedOf', { finished: view.sort.rows.filter((row) => row.timeMs !== null).length, total: view.playerCount })
               : view.wipeout !== null
               ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
+              : view.survival !== null
+              ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount })
               : view.blitz === null
               ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
               : instant
@@ -211,6 +215,11 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
       {view.wipeout !== null && view.wipeout.current >= 0 && (
         <p className="meta wipeout-strip">
           {t('wipeoutStageStrip', { index: view.wipeout.current + 1, total: view.wipeout.ladder.length, price: num(view.wipeout.ladder[view.wipeout.current] ?? 0) })}
+        </p>
+      )}
+      {view.survival !== null && view.survival.current >= 0 && (
+        <p className="meta survival-strip">
+          {t('survivalStageStrip', { index: view.survival.current + 1, total: view.survival.total, alive: view.survival.aliveCount, ghosts: view.survival.ghostCount })}
         </p>
       )}
       {view.board !== null && view.board.cell !== null && (
@@ -389,6 +398,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand }: Pick<Props,
           )}
         </div>
       )}
+      {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
       {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
     </div>
   );
@@ -412,12 +422,20 @@ function Intro({ view }: { view: StageView }) {
   if (view.round === null) return null;
   if (view.round.type === 'final') return <FinalStage view={view} />;
   return (
-    <div className={view.board !== null ? 'stage-board is-board-intro' : 'stage-board'}>
+    <div className={view.board !== null ? 'stage-board is-board-intro' : view.round.type === 'survival' ? 'stage-board stage-survival is-intro' : 'stage-board'}>
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
       {view.round.type === 'wipeout' && view.wipeout !== null && <WipeoutLadder info={view.wipeout} size="stage" players={false} />}
+      {view.round.type === 'survival' && view.survival !== null && (
+        <>
+          <p className="lead survival-target">
+            {view.survival.bonus > 0 ? t('survivalTarget', { target: view.survival.target, bonus: num(view.survival.bonus) }) : t('survivalTargetNoBonus', { target: view.survival.target })}
+          </p>
+          <SurvivalBoard info={view.survival} size="stage" />
+        </>
+      )}
       {/* Обгортка сцени: на широкому екрані розклад стає поруч із кидками, а не під ними. */}
       {view.board !== null && (
         <div className="stage-dice">
@@ -442,6 +460,101 @@ function WipeoutBetween({ view, offsetMs }: { view: StageView; offsetMs: number 
         </div>
       )}
       <WipeoutLadder info={info} size="stage" />
+    </div>
+  );
+}
+
+/** Після розкриття: хто «на межі» і скільки привидів відгадали. */
+function SurvivalReveal({ info }: { info: SurvivalInfo }) {
+  const edge = info.rows.filter((row) => row.status === 'edge');
+  const hits = info.ghosts.right !== null && info.ghosts.answered > 0;
+  if (edge.length === 0 && !hits) return null;
+  return (
+    <div className="survival-reveal">
+      {edge.length > 0 && (
+        <p className="lead survival-edge-line">
+          <span className="meta">{t('survivalEdgeGroup')}: </span>
+          {edge.map((row) => row.nickname).join(', ')}
+        </p>
+      )}
+      {hits && info.ghosts.right !== null && <p className="meta survival-ghost-hits">{t('survivalGhostHits', { right: info.ghosts.right, answered: info.ghosts.answered })}</p>}
+    </div>
+  );
+}
+
+/** Між запитаннями «Вибування»: випробування (питання чи двері «на межі») або вердикт, а поруч — живі й привиди. */
+function SurvivalBetween({ view, offsetMs }: { view: StageView; offsetMs: number }) {
+  const info = view.survival;
+  if (info === null) return null;
+  const trial = info.trial;
+  const edgeRows = info.rows.filter((row) => row.trial !== null);
+  const closed = trial?.stage === 'closed';
+  const question = trial?.question ?? null;
+  return (
+    <div className="stage-board stage-survival">
+      <header className="survival-head">
+        {trial === null ? (
+          info.verdict !== null && <h1 className="question survival-verdict">{t(info.verdict === 'all_wrong' ? 'survivalAllWrong' : 'survivalAllRight')}</h1>
+        ) : (
+          <>
+            {trial.fellBack && <p className="meta">{t('survivalFellBack')}</p>}
+            <h1 className="question">{question !== null ? question.text : t('survivalTrialLuck')}</h1>
+            {trial.stage === 'open' && (trial.endsAt !== null || trial.remainingMs !== null) && (
+              <div className="stage-clock">
+                <Timer view={trial} offsetMs={offsetMs} total={trial.limitMs} status={timerStatus(view)} />
+              </div>
+            )}
+            {trial.stage === 'open' && (
+              <p className="meta" role="status">
+                {t('survivalTrialDone', { n: trial.done, total: trial.total })}
+              </p>
+            )}
+          </>
+        )}
+      </header>
+      <div className="survival-body">
+        {trial !== null && (
+          <div className="survival-trial-area">
+            {question !== null && question.choices.length > 0 && (
+              <ul className={choicesClass(question.choices)}>
+                {question.choices.map((choice, index) => (
+                  <li key={choice.id} className={closed && trial.reveal?.type === 'single' && trial.reveal.correctId === choice.id ? 'choice is-correct' : 'choice'}>
+                    <ChoiceFace choice={choice} letter={LETTERS[index]} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {closed && trial.reveal !== null && question !== null && (
+              <p className="lead answer">{t('correctAnswer', { answer: correctText(trial.reveal, question.choices) })}</p>
+            )}
+            <ul className={trial.kind === 'luck' ? 'survival-edge-rows is-luck' : 'survival-edge-rows'}>
+              {edgeRows.map((row) => (
+                <li key={row.playerId} className={row.trial === 'out' ? 'is-out' : row.trial === 'safe' ? 'is-safe' : undefined}>
+                  <span className="name">{row.nickname}</span>
+                  {trial.kind === 'luck' && (
+                    <SurvivalDoors
+                      picked={null}
+                      disabled
+                      reveal={closed && row.door !== null && row.door.trap !== null ? { picked: row.door.picked, auto: row.door.auto, trap: row.door.trap } : null}
+                      size="stage"
+                    />
+                  )}
+                  <span className="survival-mark">
+                    {row.trial === 'safe'
+                      ? t('survivalSafeMark')
+                      : row.trial === 'out'
+                        ? t('survivalOutMark')
+                        : row.trial === 'done'
+                          ? t(trial.kind === 'question' ? 'survivalAnswered' : 'survivalPicked')
+                          : t('survivalAnswering')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <SurvivalBoard info={info} size="stage" hideEdge={trial !== null} />
+      </div>
     </div>
   );
 }
@@ -493,6 +606,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
       {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}
+      {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && (
         <div className={phase === 'finished' ? 'stage-board is-final' : 'stage-board'}>
           <h1 className="question">

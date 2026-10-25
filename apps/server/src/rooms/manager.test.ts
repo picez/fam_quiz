@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
+import { TRIAL_RIGHT, playSurvivalQuestion } from '../testing/survival-game';
 import {
   FINISHED_TTL_MS,
   HOST_ABSENCE_MS,
@@ -1043,3 +1044,50 @@ describe('the wipeout decision window (10g)', () => {
   });
 });
 
+
+describe('the survival trial (10h)', () => {
+  function survival(trial: 'question' | 'luck' = 'question') {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials, { trial })]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    return { scheduler, manager, room, olena, taras };
+  }
+
+  it('closes at once when everyone present on the edge has answered; a wrong answer means out', () => {
+    const { manager, room, olena, taras } = survival();
+    playSurvivalQuestion(manager, room, { right: [taras.playerId], trial: [] });
+    expect(room.state.plays[0].survival?.trial?.stage).toBe('closed');
+    expect(room.state.plays[0].survival?.trial?.out).toEqual([olena.playerId]);
+  });
+
+  it('the scheduler closes an open trial at its deadline', () => {
+    const { manager, room, scheduler, olena, taras } = survival();
+    manager.host(room, { type: 'start' });
+    manager.host(room, { type: 'next' });
+    manager.answer(room, olena.playerId, { type: 'single', optionId: 'a' });
+    manager.answer(room, taras.playerId, correct);
+    manager.host(room, { type: 'lock' });
+    manager.host(room, { type: 'next' });
+    manager.host(room, { type: 'next' });
+    const trial = () => room.state.plays[0].survival?.trial;
+    expect(room.state.phase).toBe('leaderboard');
+    expect(trial()?.stage).toBe('open');
+    scheduler.advance(14_999);
+    expect(trial()?.stage).toBe('open');
+    scheduler.advance(1);
+    expect(trial()?.stage).toBe('closed');
+    expect(trial()?.out).toEqual([olena.playerId]);
+  });
+
+  it('a host override after the survival question closes brings the player back alive', () => {
+    const { manager, room, olena, taras } = survival();
+    playSurvivalQuestion(manager, room, { right: [taras.playerId], trial: [] });
+    expect(room.state.plays[0].survival?.trial?.out).toEqual([olena.playerId]);
+    expect(manager.host(room, { type: 'override', playerId: olena.playerId, grade: 'correct' })).toEqual({ ok: true });
+    expect(room.state.plays[0].survival?.trial?.out).toEqual([]);
+    expect(manager.trial(room, olena.playerId, TRIAL_RIGHT[0])).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});

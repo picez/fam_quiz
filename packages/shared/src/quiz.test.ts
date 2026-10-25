@@ -59,6 +59,8 @@ import {
   roundSchema,
   rulesOf,
   WIPEOUT_TYPES,
+  SURVIVAL_TYPES,
+  roundTrials,
   surveyOrder,
   surveyShare,
   surveyHitsOf,
@@ -1693,6 +1695,61 @@ describe('wipeout round (10g)', () => {
       accepted: ['Барселона'], lies: ['Мадрид', 'Лондон'] };
     for (const odd of [multi, poll, bluff]) expect(issues(quizOf([...ladder.slice(0, 4), odd]))).toContain('wipeout_type');
     expect(issues(quizOf(ladder))).toEqual([]);
+  });
+});
+
+describe('survival round (10h)', () => {
+  const boolQ = { id: 'b1', type: 'boolean', text: 'Говерла найвища гора України', imageUrl: null, video: null, timeLimit: 20, points: 100, correct: true };
+  const qs = [1, 2, 3].map((i) => ({ ...single, id: `s${i}`, points: 100 }));
+  const trials = [{ ...boolQ, id: 't1' }];
+  const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+    questions: qs, trials, trial: 'question', survivors: 1, bonus: 500 } as const;
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const quizOf = (patch: object) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds: [{ ...survival, ...patch }] });
+  it('a survival round has 3–30 simple questions, trials, an end condition and a bonus', () => {
+    expect(ROUND_TYPES).toContain('survival');
+    expect(valid(roundSchema, survival)).toBe(true);
+    expect(valid(roundSchema, { ...survival, questions: qs.slice(0, 2) })).toBe(false);
+    expect(valid(roundSchema, { ...survival, survivors: 0 })).toBe(false);
+    expect(valid(roundSchema, { ...survival, survivors: 11 })).toBe(false);
+    expect(valid(roundSchema, { ...survival, bonus: 2001 })).toBe(false);
+    expect(valid(roundSchema, { ...survival, trial: 'luck', trials: [] })).toBe(true);
+    expect(SURVIVAL_TYPES).toEqual(['single', 'boolean', 'numeric', 'text', 'slider']);
+    expect(rulesOf(roundSchema.parse(survival))).toEqual(DEFAULT_RULES);
+    expect(LIMITS.survivalLuckSeconds).toBe(10);
+    expect(roundQuestions(roundSchema.parse(survival))).toHaveLength(3);
+    expect(roundTrials(roundSchema.parse(survival))).toHaveLength(1);
+    expect(roundTrials(roundSchema.parse(round('r', [single])))).toEqual([]);
+  });
+  it('refuses other types, a question trial without trials and trials with media', () => {
+    const multi = { ...single, id: 'm1', type: 'multi', correctIds: ['b'], correctId: undefined };
+    const order = { id: 'o1', type: 'order', text: 'Порядок', imageUrl: null, video: null, timeLimit: 20, points: 100,
+      items: [{ id: 'a', text: 'А' }, { id: 'b', text: 'Б' }] };
+    expect(issues(quizOf({ questions: [...qs.slice(0, 2), multi] }))).toContain('survival_type');
+    expect(issues(quizOf({ trials: [order] }))).toContain('survival_type');
+    expect(issues(quizOf({ trials: [] }))).toContain('survival_trials');
+    expect(issues(quizOf({ trial: 'luck', trials: [] }))).toEqual([]);
+    expect(issues(quizOf({}))).toEqual([]);
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 };
+    for (const patch of [{ video }, { audio }, { reveal: 'blur', imageUrl: '/uploads/abcdefabcdefabcdef.png' }]) {
+      expect(issues(quizOf({ trials: [{ ...boolQ, id: 't1', ...patch }] }))).toContain('survival_trial_media');
+    }
+  });
+  it('trials count toward the quiz limit and must not reuse question ids', () => {
+    expect(issues(quizOf({ trials: [{ ...boolQ, id: 's1' }] }))).toContain('duplicate_question_ids');
+    expect(issues({ ...quizOf({}), spares: [{ ...single, id: 't1' }] })).toContain('duplicate_spare_ids');
+    const filler = (n: number) => [
+      round('r1', Array.from({ length: Math.min(n, 100) }, (_, i) => ({ ...single, id: `f${i}` }))),
+      ...(n > 100 ? [round('r2', Array.from({ length: n - 100 }, (_, i) => ({ ...single, id: `g${i}` })))] : []),
+    ];
+    const full = { ...quizOf({}), rounds: [...filler(LIMITS.maxQuizQuestions - 3), survival] };
+    expect(issues(full)).toContain('too_many_questions');
+    const fits = { ...quizOf({}), rounds: [...filler(LIMITS.maxQuizQuestions - 4), survival] };
+    expect(issues(fits)).toEqual([]);
   });
 });
 

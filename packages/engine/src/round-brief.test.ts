@@ -40,4 +40,18 @@ describe('roundBrief', () => {
     expect(roundBrief(finalRound('f1', single, { wagerMode: 'bank' }))).toEqual({ ...emptyBrief('final'), wagerMode: 'bank' });
     expect(roundBrief(classicRound('r1', [single])).wagerMode).toBeNull();
   });
+
+  it('describes a survival round: classic rules plus the trial, the survivors and the bonus', () => {
+    const rules = { penalty: 'minus' as const, partial: null, streak: null, multiplier: 2 as const };
+    const round = {
+      id: 'sv', type: 'survival' as const, title: '', speedBonus: true, shuffleOptions: false, rules,
+      questions: [single, { ...single, id: 'x2' }, { ...single, id: 'x3' }], trials: [{ ...single, id: 't1' }],
+      trial: 'question' as const, survivors: 1, bonus: 500,
+    };
+    expect(roundBrief(round)).toEqual({
+      ...emptyBrief('survival'), speedBonus: true, penalty: true, multiplier: 2, survival: { trial: 'question', survivors: 1, bonus: 500 },
+    });
+    expect(emptyBrief('classic').survival).toBeNull();
+    expect(roundBrief(classicRound('r1', [single])).survival).toBeNull();
+  });
 });

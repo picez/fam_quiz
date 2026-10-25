@@ -149,6 +149,35 @@ export function wipeoutLines(wipeout: NonNullable<GameQuestionResult['wipeout']>
   });
 }
 
+/** «Вибування»: вердикт, випробування (питання чи двері), привиди. */
+export function survivalLines(survival: NonNullable<GameQuestionResult['survival']>): string[] {
+  const lines: string[] = [];
+  if (survival.verdict === 'all_wrong') lines.push(t('historySurvivalAllWrong'));
+  else if (survival.verdict === 'all_right') lines.push(t('historySurvivalAllRight'));
+  const trial = survival.trial;
+  if (trial !== null) {
+    const head = trial.kind === 'question' ? t('historySurvivalTrialQuestion', { question: trial.question ?? '' }) : t('historySurvivalTrialLuck');
+    lines.push(trial.fellBack ? `${head} ${t('historySurvivalFellBack')}` : head);
+    for (const row of trial.rows) {
+      const door = trial.kind === 'luck' && row.door !== null && row.trap !== null ? t(row.auto ? 'historySurvivalDoorAuto' : 'historySurvivalDoor', { door: row.door + 1, trap: row.trap + 1 }) : '';
+      const text = t(row.out ? 'historySurvivalOut' : 'historySurvivalSafe', { name: row.nickname });
+      const answer = trial.kind === 'question' ? t('historySurvivalAnswer', { answer: answerText(row.answer, trial.trialQuestion ?? null) }) : '';
+      const extra = door !== '' ? door : answer;
+      lines.push(extra === '' ? text : `${text}, ${extra}`);
+    }
+  }
+  if (survival.ghosts.answered > 0) lines.push(t('historySurvivalGhosts', { right: survival.ghosts.right, answered: survival.ghosts.answered }));
+  return lines;
+}
+
+/** Рядки бонусу виживання (source 'survival') за seq. */
+export function survivalBonusLines(adjustments: GameAdjustment[]): string[] {
+  return adjustments
+    .filter((adjustment) => adjustment.source === 'survival')
+    .sort((a, b) => a.seq - b.seq)
+    .map((adjustment) => t('historySurvivalBonus', { name: adjustment.nickname, points: num(adjustment.points) }));
+}
+
 export function GameHistory() {
   const { id = '' } = useParams();
   const state = usePrivateData(() => getGame(id), id);
@@ -217,6 +246,7 @@ export function GameHistory() {
             const adjustments = roundAdjustments.filter((adjustment) => adjustment.source === 'host');
             const duels = duelLines(roundAdjustments);
             const purchases = debuffLines(roundAdjustments);
+            const bonuses = survivalBonusLines(roundAdjustments);
             if (questions.length === 0 && roundAdjustments.length === 0) return null;
             return (
               <div key={roundIndex} className="round-group">
@@ -263,6 +293,15 @@ export function GameHistory() {
                         {question.wipeout !== undefined && (
                           <ul className="wipeout-history">
                             {wipeoutLines(question.wipeout).map((line, at) => (
+                              <li key={at} className="meta">
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {question.survival !== undefined && (
+                          <ul className="survival-history">
+                            {survivalLines(question.survival).map((line, at) => (
                               <li key={at} className="meta">
                                 {line}
                               </li>
@@ -338,6 +377,11 @@ export function GameHistory() {
                 )}
                 {duels.map((line, at) => (
                   <p key={at} className="meta history-duel">
+                    {line}
+                  </p>
+                ))}
+                {bonuses.map((line, at) => (
+                  <p key={at} className="meta round-adjustments history-survival">
                     {line}
                   </p>
                 ))}

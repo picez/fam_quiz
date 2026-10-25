@@ -13,6 +13,7 @@ import {
   type QuizSettings,
   type RevealMode,
   type Round,
+  type SurvivalRound,
   type Video,
   type WipeoutRound,
 } from '@quiz/shared';
@@ -354,6 +355,42 @@ export const wipeoutLadder: Question[] = [single, bool, numeric, text, slider].m
   id: `w${i + 1}`,
   points: (i + 1) * 100,
 }));
+
+/** «Вибування»: типово title '', speedBonus false, shuffleOptions false, DEFAULT_RULES, trial 'question', survivors 1, bonus 500. */
+export function survivalRound(
+  id: string,
+  questions: Question[],
+  trials: Question[],
+  options: Partial<Omit<SurvivalRound, 'id' | 'type' | 'questions' | 'trials'>> = {},
+): SurvivalRound {
+  return {
+    id,
+    type: 'survival',
+    title: '',
+    speedBonus: false,
+    shuffleOptions: false,
+    rules: DEFAULT_RULES,
+    trial: 'question',
+    survivors: 1,
+    bonus: 500,
+    ...options,
+    questions,
+    trials,
+  };
+}
+
+/** П'ять запитань s1…s5 по 100: single, bool, numeric, text, slider (відповіді — як у wipeoutLadder). */
+export const survivalQuestions: Question[] = [single, bool, numeric, text, slider].map((question, i) => ({
+  ...question,
+  id: `s${i + 1}`,
+  points: 100,
+}));
+
+/** Два питання на виживання t1 (boolean, true), t2 (single, правильний 'b'), timeLimit 15. */
+export const survivalTrials: Question[] = [
+  { ...bool, id: 't1', timeLimit: 15 },
+  { ...single, id: 't2', timeLimit: 15 },
+];
 
 /** Копія запитання з іншим id: поле збирають з однакових запитань. */
 export const withId = (question: Question, id: string): Question => ({ ...question, id });

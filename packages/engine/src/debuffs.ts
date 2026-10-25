@@ -2,10 +2,16 @@ import { allowedDebuffs, debuffPrice, isUnscored, type DebuffKind, type DebuffNo
 import { addAdjustment, afterQuestionNow } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { currentRound, fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
+import { isGhost, survivalAlive } from './survival';
 
 /** У раунді «Ва-банк» дебафів немає (14a): на його етапах, крім round_end. */
 export function debuffsOff(state: GameState): boolean {
   return currentRound(state)?.type === 'wipeout' && state.phase !== 'round_end';
+}
+
+/** «Вибування»: ціль — привид на етапах раунду (крім round_end); дебаф на нього нічого не дає. */
+export function ghostTarget(state: GameState, playerId: string): boolean {
+  return state.phase !== 'round_end' && isGhost(state, playerId);
 }
 
 /**
@@ -16,7 +22,7 @@ export function setDebuff(state: GameState, playerId: string, kind: DebuffKind):
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (!allowedDebuffs(state.quiz).includes(kind)) return fail('not_allowed');
-  if (debuffsOff(state)) return fail('not_allowed');
+  if (debuffsOff(state) || ghostTarget(state, playerId)) return fail('not_allowed');
   if (shownDebuff(state, playerId) !== null) return fail('debuff_busy');
   return ok({ ...state, debuffs: { ...state.debuffs, [playerId]: { kind, firedAt: null, since: null, by: null } } });
 }
@@ -64,6 +70,7 @@ export function buyDebuff(state: GameState, buyerId: string, targetId: string, k
   if (targetId === buyerId || state.quiz.settings.debuffShop === false || !allowedDebuffs(state.quiz).includes(kind)) {
     return fail('not_allowed');
   }
+  if (ghostTarget(state, targetId)) return fail('not_allowed');
   const block = shopBlock(state, buyerId);
   if (block !== null) return fail(BLOCK_ERRORS[block]);
   if (!state.players.some((p) => p.id === targetId && p.connected)) return fail('target_offline');
@@ -110,7 +117,11 @@ export function answerersOf(state: GameState, play: Play): string[] {
 export function fireDebuffs(state: GameState, now: number): GameState {
   const play = state.plays[state.questionIndex];
   // На опитуванні й хмарі дебаф не згорає даремно: ті, що чекають, чекають наступного запитання з балами.
-  const answering = new Set(play === undefined || isUnscored(play.question) || state.quiz.rounds[play.roundIndex]?.type === 'wipeout' ? [] : answerersOf(state, play));
+  const type = play === undefined ? undefined : state.quiz.rounds[play.roundIndex]?.type;
+  // У «Вибуванні» дебаф діє лише на живих: той, що чекає на привида, чекає наступного раунду.
+  const answering = new Set(
+    play === undefined || isUnscored(play.question) || type === 'wipeout' ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
+  );
   const connected = new Set(state.players.filter((p) => p.connected).map((p) => p.id));
   const debuffs: Record<string, DebuffState> = {};
   for (const [playerId, debuff] of Object.entries(state.debuffs)) {

@@ -1,5 +1,5 @@
 import type { BluffOption } from '@quiz/engine';
-import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, Question, QuizSettings, Round, SurveyRow } from '@quiz/shared';
+import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -96,6 +96,24 @@ export interface PlayRef {
   bluff?: { options: BluffOption[]; picks: Record<string, string> };
   /** «Ва-банк»: хто забрав банк після цього запитання (id учасників) і чи скінчився на ньому раунд. */
   wipeout?: { took: string[]; end?: true };
+  /** «Вибування»: хто був на межі, випробування, привиди й кінець раунду (id учасників). */
+  survival?: {
+    /** Хто був на межі; немає — раунд чи гра скінчились на розкритті, до вердикту. */
+    edge?: string[];
+    /** Скільки привидів відповіли «для себе» й скільки відгадали; немає — жоден не відповідав. */
+    ghosts?: { answered: number; right: number };
+    trial?: {
+      kind: TrialKind;
+      fellBack?: true;
+      questionId?: string;
+      /** Питання: відповіді на межі (answer і correct). */
+      answers?: Record<string, { answer: Answer; correct: boolean }>;
+      /** Удача: двері (picked чи auto) і пастка кожного на межі. */
+      doors?: Record<string, { door: number; auto: boolean; trap: number }>;
+      out: string[];
+    };
+    end?: true;
+  };
 }
 
 /** Зіграна або поточна гра. id збігається з id кімнати. */

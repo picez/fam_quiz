@@ -22,11 +22,11 @@ export function questionSplashMs(kind: SplashKind, board?: BoardPlay): number {
   return kind === 'cell' && board !== undefined && board.multiplier > 1 ? SPLASH_MS.cell + CELL_SURPRISE_MS : SPLASH_MS[kind];
 }
 
-/** Заставка перед запитанням: поле (board задано) — cell; класика, фінал і «Ва-банк» — question; бліц — null. */
+/** Заставка перед запитанням: поле (board задано) — cell; класика, фінал, «Ва-банк» і «Вибування» — question; бліц — null. */
 export function questionSplashKind(state: GameState, board?: BoardPlay): SplashKind | null {
   if (board !== undefined) return 'cell';
   const type = state.quiz.rounds[state.roundIndex]?.type;
-  return type === 'classic' || type === 'final' || type === 'wipeout' ? 'question' : null;
+  return type === 'classic' || type === 'final' || type === 'wipeout' || type === 'survival' ? 'question' : null;
 }
 
 /** Чи запитання (чи запитання дуелі) ще не почалося: startedAt у майбутньому. */
@@ -42,12 +42,12 @@ export function shiftSplash(state: GameState, pausedAt: number, shift: number): 
 }
 
 /**
- * Скільки заставки перед запитанням (question, cell, duel) лишалося на мить паузи pausedAt; інакше 0.
- * Таймер запитання стартує на її кінці, тож resume додає цей залишок перед залишком таймера.
+ * Скільки заставки перед запитанням (question, cell, duel) чи випробуванням (trial) лишалося на мить паузи pausedAt; інакше 0.
+ * Таймер стартує на її кінці, тож resume додає цей залишок перед залишком таймера.
  */
 export function splashLead(state: GameState, pausedAt: number): number {
   const splash = state.splash;
-  if (splash === null || (splash.kind !== 'question' && splash.kind !== 'cell' && splash.kind !== 'duel')) return 0;
+  if (splash === null || (splash.kind !== 'question' && splash.kind !== 'cell' && splash.kind !== 'duel' && splash.kind !== 'trial')) return 0;
   return Math.max(0, splash.until - pausedAt);
 }
 

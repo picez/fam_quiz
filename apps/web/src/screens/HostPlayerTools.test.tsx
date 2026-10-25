@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, type HostPlayer } from '@quiz/shared';
+import { DEBUFF_KINDS, type HostPlayer, type SurvivalInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
-import { DebuffPanel, parseAdjust, PointsPanel } from './HostPlayerTools';
+import { DebuffPanel, isSurvivalGhost, parseAdjust, PointsPanel } from './HostPlayerTools';
 
 afterEach(cleanup);
 
@@ -98,5 +98,19 @@ describe('DebuffPanel', () => {
     expect(screen.getByText('Куплено гравцем — скасувати не можна.')).toBeTruthy();
     rerender(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: true, by: 'Оля' } })} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
     expect(screen.getByText('🌫️ Туман від гравця Оля · діє')).toBeTruthy();
+  });
+});
+
+describe('isSurvivalGhost', () => {
+  const survival = { rows: [{ playerId: 'p1', status: 'ghost' }, { playerId: 'p2', status: 'alive' }, { playerId: 'p3', status: 'edge' }] } as unknown as SurvivalInfo;
+  it('a ghost has no debuff menu, a living or edge player has one', () => {
+    expect(isSurvivalGhost(survival, 'leaderboard', 'p1')).toBe(true);
+    expect(isSurvivalGhost(survival, 'question', 'p1')).toBe(true);
+    expect(isSurvivalGhost(survival, 'leaderboard', 'p2')).toBe(false);
+    expect(isSurvivalGhost(survival, 'leaderboard', 'p3')).toBe(false);
+  });
+  it('outside the survival round and at the round end nobody is a ghost', () => {
+    expect(isSurvivalGhost(null, 'question', 'p1')).toBe(false);
+    expect(isSurvivalGhost(survival, 'round_end', 'p1')).toBe(false);
   });
 });

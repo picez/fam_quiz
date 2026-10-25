@@ -9,6 +9,7 @@ import { PollBars } from './PollBars';
 import { HostCloud } from './HostCloud';
 import { HostBluff } from './HostBluff';
 import { DecidingLabel, HostWipeout } from './HostWipeout';
+import { HostSurvival } from './HostSurvival';
 import { SurveyBoard } from './SurveyBoard';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
@@ -31,7 +32,7 @@ import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
 import { MenuLinks } from './MenuLinks';
-import { DebuffPanel, debuffTagText, PointsPanel } from './HostPlayerTools';
+import { DebuffPanel, debuffTagText, isSurvivalGhost, PointsPanel } from './HostPlayerTools';
 import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
 import { BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
 import { SplashChip, useSplash } from '../live/Splash';
@@ -234,6 +235,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const board = view.board;
   // «Ва-банк»: поки гравці вирішують, «Далі» вимкнене (рушій відповів би deciding).
   const wipeoutDeciding = phase === 'leaderboard' && view.wipeout?.decide != null;
+  // «Вибування»: на leaderboard головна кнопка закриває відкрите випробування, а коли воно закрите чи його не було, веде далі.
+  const survivalTrialOpen = phase === 'leaderboard' && view.survival?.trial?.stage === 'open';
   // «100 до 1» на розкритті: головна кнопка спершу відкриває рядки по одному.
   const surveyStep = phase === 'reveal' && view.question?.type === 'survey' && view.survey !== null && view.survey.shown < view.survey.total;
   // Блеф: на розкритті головна кнопка спершу відкриває варіанти по одному; у фазах вигадок і вибору вона перемикає фазу.
@@ -417,7 +420,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         {round !== null && round.total > 1 && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
         {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && phase !== 'duel' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&
-          `, ${view.wipeout !== null ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount }) : blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
+          `, ${view.wipeout !== null ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount }) : view.survival !== null ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount }) : blitz === null ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount }) : instant ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount }) : t('blitzQueued', { count: blitz.queue.length })}`}
       </p>
 
       {view.surveySkipped.map((text) => (
@@ -523,6 +526,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {view.wipeout !== null && phase !== 'finished' && phase !== 'round_end' && <HostWipeout view={view} offsetMs={offsetMs} />}
+
+      {view.survival !== null && phase !== 'finished' && phase !== 'round_end' && <HostSurvival view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
@@ -1037,7 +1042,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                 {player.streak >= 2 && <span className="streak">{t('streakMark', { count: player.streak })}</span>}
                 <span className="score">{num(player.score)}</span>
                 {live &&
-                  (debuffKinds.length > 0 ? (['points', 'debuff'] as const) : (['points'] as const)).map((kind) => (
+                  (debuffKinds.length > 0 && !isSurvivalGhost(view.survival, phase, player.id) ? (['points', 'debuff'] as const) : (['points'] as const)).map((kind) => (
                     <button
                       key={kind}
                       type="button"
@@ -1051,7 +1056,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                 <button type="button" className="btn btn-small" onClick={() => kick(player.id, player.nickname)}>
                   {t('kick')}
                 </button>
-                {live && tools?.playerId === player.id && (tools.kind === 'points' ? <PointsPanel player={player} send={send} onError={setError} /> : <DebuffPanel player={player} kinds={debuffKinds} send={send} onError={setError} />)}
+                {live && tools?.playerId === player.id && (tools.kind === 'points' ? <PointsPanel player={player} send={send} onError={setError} /> : isSurvivalGhost(view.survival, phase, player.id) ? null : <DebuffPanel player={player} kinds={debuffKinds} send={send} onError={setError} />)}
               </li>
             ))}
           </ul>
@@ -1117,6 +1122,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           >
             {wipeoutDeciding && view.wipeout?.decide != null
               ? <DecidingLabel decide={view.wipeout.decide} offsetMs={offsetMs} />
+              : survivalTrialOpen
+              ? t('survivalCloseTrial')
+              : phase === 'leaderboard' && view.survival !== null && view.survival.ending
+              ? t(lastRound ? 'next' : 'survivalToResults')
               : phase === 'leaderboard' && view.wipeout !== null && view.wipeout.inCount === 0
               ? t(lastRound ? 'next' : 'wipeoutToResults')
               : surveyStep && view.survey !== null

@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, withId, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, isUnscored, type Question } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
@@ -8,6 +8,7 @@ import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { playToEnd } from './testing/final-game';
+import { TRIAL_WRONG, playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { createTestDb } from './testing/test-db';
 
@@ -1229,5 +1230,74 @@ describe('recorder: wipeout (10g)', () => {
     expect([olena.score, taras.score]).toEqual([1500, 0]);
     const last = await db.select().from(answer).where(eq(answer.questionIndex, 4));
     expect(last.find((a) => a.participantId === p1)?.points).toBe(1500);
+  });
+});
+
+describe('recorder: survival (10h)', () => {
+  it('stores the edge, the trials, the ghost counts and the end in game.plays; the bonus is survival adjustments and the ghost has no answer rows', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const room = manager.create(makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials)]), HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const [a, b, c] = [enter('Олена'), enter('Тарас'), enter('Віра')];
+    // s1: Олена помиляється й вибуває на питанні; s2: Олена-привид відгадує, Тарас помиляється й вибуває — лишилася Віра.
+    playSurvivalQuestion(manager, room, { right: [b, c], trial: [] });
+    await recorder.idle();
+    expect((await db.select().from(game))[0].plays[0].survival).toEqual({
+      edge: [a],
+      trial: { kind: 'question', questionId: 't1', answers: { [a]: { answer: TRIAL_WRONG[0], correct: false } }, out: [a] },
+    });
+    playSurvivalQuestion(manager, room, { right: [c], ghosts: { [a]: true }, trial: [] });
+    await recorder.idle();
+    // Привид відповів, а випробування закрите — запис змінився без зміни фази.
+    expect((await db.select().from(game))[0].plays[1].survival).toMatchObject({ edge: [b], ghosts: { answered: 1, right: 1 } });
+    for (let guard = 0; guard < 4 && room.state.phase !== 'finished'; guard++) manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('finished');
+    await recorder.idle();
+    const [saved] = await db.select().from(game);
+    expect(saved.plays).toHaveLength(2);
+    expect(saved.plays[1].survival).toEqual({
+      edge: [b],
+      ghosts: { answered: 1, right: 1 },
+      trial: { kind: 'question', questionId: 't2', answers: { [b]: { answer: TRIAL_WRONG[1], correct: false } }, out: [b] },
+      end: true,
+    });
+    // Відповіді привида в рядки не потрапляють: у Олени лише рядок s1.
+    const rows = await db.select().from(answer).where(eq(answer.participantId, a));
+    expect(rows.map((r) => r.questionIndex)).toEqual([0]);
+    // Бонус — одне коригування живій; рахунок = відповіді + коригування.
+    const adjustments = await db.select().from(scoreAdjustment);
+    expect(adjustments.map((x) => [x.participantId, x.source, x.points, x.roundIndex])).toEqual([[c, 'survival', 500, 0]]);
+    const mine = await db.select().from(answer).where(eq(answer.participantId, c));
+    const [vira] = await db.select().from(participant).where(eq(participant.id, c));
+    expect(mine.reduce((sum, r) => sum + r.points, 0) + 500).toBe(vira.score);
+    expect(vira.score).toBe(700);
+  });
+
+  it('stores no edge when the game ends before the verdict', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const room = manager.create(makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials)]), HOST, null);
+    for (const nickname of ['Олена', 'Тарас']) {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+    }
+    manager.host(room, { type: 'start' });
+    for (let guard = 0; guard < 6 && room.state.phase !== 'question'; guard++) manager.host(room, { type: 'next' });
+    manager.host(room, { type: 'end' });
+    await recorder.idle();
+    const [saved] = await db.select().from(game);
+    expect(saved.plays.length).toBeGreaterThan(0);
+    for (const play of saved.plays) expect(play.survival).not.toHaveProperty('edge');
   });
 });

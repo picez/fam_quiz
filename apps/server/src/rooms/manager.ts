@@ -47,6 +47,8 @@ import {
   removeBluffOption,
   pickBluff,
   decideWipeout,
+  answerTrial,
+  pickDoor,
   writeLie,
   takeBuff,
   chooseRetry,
@@ -447,6 +449,16 @@ export class RoomManager {
   wipeout(room: Room, playerId: string, take: boolean): AckResult {
     if (!this.alive(room)) return this.gone();
     return this.apply(room, decideWipeout(room.state, playerId, take, this.now()));
+  }
+
+  trial(room: Room, playerId: string, answer: Answer): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, answerTrial(room.state, playerId, answer, this.now()));
+  }
+
+  door(room: Room, playerId: string, door: number): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, pickDoor(room.state, playerId, door, this.now()));
   }
 
   buff(room: Room, playerId: string, kind: BuffKind): AckResult {

@@ -38,6 +38,8 @@ import { MenuLinks } from './MenuLinks';
 import { DebuffShop } from './DebuffShop';
 import { TableButton } from './TableSheet';
 import { useGuardedSend } from '../live/useGuardedSend';
+import { SurvivalBoard } from './SurvivalBoard';
+import { SurvivalTrial } from './SurvivalTrial';
 import { WipeoutDecision } from './WipeoutDecision';
 import { WipeoutLadder } from './WipeoutLadder';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
@@ -47,6 +49,13 @@ interface Props {
   hostOnline: boolean;
   offsetMs: number;
   send: Send;
+}
+
+/** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
+function survivalStateLine(own: PlayerView['me']['survival']): string | null {
+  if (own === null) return null;
+  if (own.status === 'ghost') return own.outAfter === null ? null : t('survivalOutAfter', { n: own.outAfter });
+  return own.bonus === null || own.bonus <= 0 ? null : t('survivalBonusGot', { bonus: num(own.bonus) });
 }
 
 /** «Хто я?» на телефоні: відкриті підказки з відліком до наступної і частка ціни за правильну відповідь зараз. */
@@ -230,6 +239,20 @@ function Result({ view }: { view: PlayerView }) {
       </section>
     );
   }
+  // «Вибування»: привид грає для себе — вердикт без балів.
+  const ghost = view.me.survival?.status === 'ghost';
+  if (ghost) {
+    const right = view.me.survival?.ghostCorrect ?? null;
+    return (
+      <section className={`result ${right === null ? 'is-neutral' : right ? 'is-correct' : 'is-wrong'}`}>
+        <h2>{right === null ? t('resultNone') : t(right ? 'survivalGhostRight' : 'survivalGhostWrong')}</h2>
+        <RevealDetail view={view} answer={view.me.answer} player={view.me} />
+        {view.reveal !== null && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'pin' && (
+          <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>
+        )}
+      </section>
+    );
+  }
   const title =
     result === null
       ? t('resultNone')
@@ -257,6 +280,7 @@ function Result({ view }: { view: PlayerView }) {
       {view.me.sort !== null && <SortOutcome view={view} />}
       <WallOutcome view={view} />
       <SurveyOutcome view={view} />
+      {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {view.reveal !== null &&
         (view.reveal.type === 'wall' || view.reveal.type === 'survey' ? null : view.reveal.type === 'pin' ? (
@@ -522,6 +546,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const decideGuard = useGuardedSend(send, setError);
   // «Ва-банк»: гравець, що вже не в грі, дивиться — поля відповіді в нього немає.
   const wipeoutWatching = me.wipeout !== null && me.wipeout.status !== 'in';
+  // «Вибування»: привид відповідає «для себе».
+  const survivalGhost = me.survival?.status === 'ghost';
   // Поступ проявлення картинки: лише за часом; від locked — 1 (повна).
   const revealP = useRevealProgress(view, question, offsetMs);
   const revealStageNow = revealStage(revealP);
@@ -715,6 +741,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
+            {survivalGhost && <p className="lead survival-ghost-banner">{t('survivalGhostBanner')}</p>}
             {wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
             ) : isBluff ? (
@@ -794,7 +821,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </>
             ) : me.answer !== null ? (
               <section className="sent">
-                <h2>{t(unscored ? 'voteSent' : me.answer.type === 'survey' ? 'surveySent' : 'answerSent')}</h2>
+                <h2>{t(survivalGhost ? 'survivalGhostSent' : unscored ? 'voteSent' : me.answer.type === 'survey' ? 'surveySent' : 'answerSent')}</h2>
                 {me.answer.type === 'pin' && question.pin !== null ? (
                   <PinBoard
                     pin={question.pin}
@@ -935,7 +962,26 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         </>
       )}
 
-      {phase === 'leaderboard' && view.wipeout === null && view.standings !== null && (
+      {phase === 'leaderboard' && view.survival !== null && (
+        <>
+          {view.survival.trial !== null ? (
+            <SurvivalTrial
+              view={view}
+              offsetMs={offsetMs}
+              onAnswer={(answer) => void decideGuard.run('player:trial', { answer })}
+              onDoor={(door) => void decideGuard.run('player:door', { door })}
+            />
+          ) : (
+            view.survival.verdict !== null &&
+            view.survival.verdict !== 'trial' && (
+              <p className="lead survival-state">{t(view.survival.verdict === 'all_wrong' ? 'survivalAllWrong' : 'survivalAllRight')}</p>
+            )
+          )}
+          <SurvivalBoard info={view.survival} size="phone" highlightId={me.id} />
+        </>
+      )}
+
+      {phase === 'leaderboard' && view.wipeout === null && view.survival === null && view.standings !== null && (
         <>
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
@@ -946,6 +992,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <h1 className="question">{t('roundResults', { index: (view.round?.index ?? 0) + 1 })}</h1>
           {me.wipeout !== null && <WipeoutDecision view={view} offsetMs={offsetMs} onDecide={() => undefined} />}
+          {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
         </>
@@ -954,6 +1001,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'finished' && (
         <>
           <h1 className="question">{t('gameOver')}</h1>
+          {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {place}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
           <MenuLinks role="player" />

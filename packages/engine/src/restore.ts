@@ -7,8 +7,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 5 — 10e: Play.survey (джерело дошки «100 до 1» і скільки рядків відкрито).
  * 6 — 10f: Play.bluff (фаза, зерно, вигадки, варіанти й вибори блефу).
  * 7 — 10g: Play.wipeout (рішення «Ва-банк» і кінець раунду).
+ * 8 — 10h: Play.survival (привиди, «на межі», випробування й кінець «Вибування»).
  */
-export const GAME_STATE_VERSION = 7;
+export const GAME_STATE_VERSION = 8;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -22,8 +23,10 @@ export const GAME_STATE_VERSION = 7;
  * тож кімната, збережена до розгортання 10f, теж відновлюється.
  * 6 → 7 лише додала необов'язкове Play.wipeout, а стан версій 2–6 не може містити «Ва-банк»:
  * тож кімната, збережена до розгортання 10g, теж відновлюється.
+ * 7 → 8 лише додала необов'язкове Play.survival (і значення SplashKind 'trial', AdjustmentSource 'survival'), а стан версій 2–7
+ * не може містити «Вибування»: тож кімната, збережена до розгортання 10h, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

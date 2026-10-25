@@ -23,7 +23,12 @@ export function roundSummary(brief: RoundBrief): string[] {
     lines.push(t('summaryWipeout'), t('summaryWipeoutTake'));
     return lines;
   }
-  if (brief.type === 'classic') {
+  if (brief.type === 'survival' && brief.survival !== null) {
+    const { trial, bonus } = brief.survival;
+    lines.push(t('summarySurvival'), t(`summarySurvivalTrial_${trial}`));
+    if (bonus > 0) lines.push(t('summarySurvivalBonus', { bonus }));
+    lines.push(modifiers(brief, brief.speedBonus ? [t('summarySpeed')] : []));
+  } else if (brief.type === 'classic') {
     lines.push(t('summaryClassic'));
     if (brief.speedBonus) lines.push(t('summarySpeed'));
     lines.push(modifiers(brief, []));

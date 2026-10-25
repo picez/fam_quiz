@@ -586,7 +586,7 @@ describe('StageBuffs', () => {
     expect(within(sheet).getByText('Де: запитання з варіантами — у класиці й на полі, і на усних клітинках.')).toBeTruthy();
     expect(within(sheet).getByText('Зал підказує; з таймером — вам +15 с.')).toBeTruthy();
     expect(within(sheet).queryByText(/Подвоює бали/)).toBeNull();
-    expect(within(sheet).getByText('Не діють: бліц, бліц-клітинки, фінал, «Ва-банк», ланцюжок, сортування й дуелі.')).toBeTruthy();
+    expect(within(sheet).getByText('Не діють: бліц, бліц-клітинки, фінал, «Ва-банк», «Вибування», ланцюжок, сортування й дуелі.')).toBeTruthy();
     expect(document.activeElement).toBe(within(sheet).getByRole('button', { name: 'Закрити' }));
     expect(within(sheet).getByText('Кожен баф — раз за гру, не більше одного на запитання.')).toBeTruthy();
     // Фокус ходить колом усередині аркуша.
