@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { DEFAULT_RULES } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
@@ -9472,6 +9472,378 @@ async function survivalGame() {
   expect(h4).toContain('двері 2 (самі), пастка 2');
   await host.getByText('Бонус виживання: Оля +500', exact).waitFor();
   await shot(host, 'p10h-history');
+
+  expect(problems).toEqual([]);
+}
+
+/** Сходинка, підсвічена на драбині сцени, пульта чи телефона (номер з 1). */
+async function ladderCurrent(page: Page): Promise<number> {
+  const text = await page.locator('.ladder-step.is-current .ladder-number').first().textContent();
+  return Number(text);
+}
+
+/** Натискає підказку драбини на телефоні учасника. */
+async function useLifeline(page: Page, name: '50/50' | 'Зал' | 'Підказка'): Promise<void> {
+  const button = page.locator('.ladder-lifeline', { hasText: name });
+  expect((await button.boundingBox())!.height, 'a lifeline is a tap target').toBeGreaterThanOrEqual(44);
+  await button.click();
+}
+
+/** «Граю далі» чи «Забрати …» на телефоні учасника. */
+async function ladderDecide(page: Page, take: boolean): Promise<void> {
+  const button = take ? page.getByRole('button', { name: /^Забрати \d/ }) : page.getByRole('button', { name: 'Граю далі', ...exact });
+  expect((await button.boundingBox())!.height, 'decision button is a tap target').toBeGreaterThanOrEqual(44);
+  await button.click();
+}
+
+/** Усі підсумки голосування залу (об'єкти audience зі станом) у кадрах сокета. */
+function ladderAudiences(frames: string[]): { state: string; tally: unknown }[] {
+  const found: { state: string; tally: unknown }[] = [];
+  const walk = (value: unknown) => {
+    if (Array.isArray(value)) return value.forEach(walk);
+    if (value === null || typeof value !== 'object') return;
+    const object = value as Record<string, unknown>;
+    const audience = object.audience;
+    if (audience !== null && typeof audience === 'object' && 'state' in audience && 'tally' in audience) found.push(audience as { state: string; tally: unknown });
+    Object.values(object).forEach(walk);
+  };
+  for (const frame of frames) {
+    const at = frame.indexOf('[');
+    if (at < 0) continue;
+    try {
+      walk(JSON.parse(frame.slice(at)));
+    } catch {
+      // не JSON (службовий кадр)
+    }
+  }
+  return found;
+}
+
+it('part 10i: ladder — the editor builds a ladder round with levels, safe steps, contestant pick, lifelines and a timer flag (375 px too), the host picks the contestant, 50/50 and ask the hall with the hall answering for itself for 10 %, play on and take the money at a safe level, a lowest-score contestant with the host hint falls to the safe sum, no buffs or debuffs, the ladder instead of the leaderboard, nothing leaks before the reveal or the hall vote closing, ladder details and the prize in the history', async () => {
+  try {
+    await ladderGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function ladderGame() {
+  const host = await open('host10i', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10i@example.com');
+
+  const common = { imageUrl: null, video: null, timeLimit: 20, points: 0 };
+  const four = (id: string, text: string, options: string[], right: number) => ({
+    ...common,
+    id,
+    type: 'single' as const,
+    text,
+    options: options.map((option, i) => ({ id: `${id}-${i}`, text: option })),
+    correctId: `${id}-${right}`,
+  });
+  const a1 = four('a1', 'Столиця Австралії?', ['Сідней', 'Канберра', 'Мельбурн', 'Перт'], 1);
+  const a2 = four('a2', 'Скільки континентів на Землі за найпоширенішою моделлю?', ['5', '6', '7', '8'], 2);
+  const a3 = four('a3', 'Хімічний символ золота?', ['Ag', 'Au', 'Gd', 'Go'], 1);
+  const a4 = four('a4', 'Хто написав «Кобзар»?', ['Франко', 'Шевченко', 'Леся Українка', 'Котляревський'], 1);
+  const a5 = four('a5', 'Найбільший океан?', ['Атлантичний', 'Індійський', 'Тихий', 'Північний Льодовитий'], 2);
+  const b1 = four('b1', 'Скільки днів у високосному році?', ['365', '366', '364', '360'], 1);
+  const b2 = four('b2', 'Яка планета — Червона?', ['Венера', 'Марс', 'Юпітер', 'Меркурій'], 1);
+  const b3 = four('b3', 'У якому році проголошено незалежність України?', ['1989', '1990', '1991', '1992'], 2);
+  const b4 = four('b4', 'Скільки хвилин у годині?', ['30', '60', '90', '100'], 1);
+  const b5 = four('b5', 'Скільки сторін у трикутника?', ['2', '3', '4', '5'], 1);
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        ladderRound('rl1', [a1, a2, a3, a4, a5] as never, { title: 'Драбина Олі', pick: 'host', lifelines: ['fifty', 'audience', 'hint'], timer: false, safe: [2] }),
+        ladderRound('rl2', [b1, b2, b3, b4, b5] as never, { title: 'Драбина за балами', pick: 'lowest', lifelines: ['hint'], timer: true, safe: [0] }),
+      ],
+      { leaderboard: 'each', buffs: ['double'], debuffs: ['fog'] },
+    ),
+    title: 'Мільйонер 10i',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Редактор.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Мільйонер 10i' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  await host.locator('.round-tab', { hasText: 'Драбина Олі' }).click();
+  await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
+  expect(await host.locator('.question-list .question-item-price').nth(2).innerText(), 'a safe step has a mark in the list').toContain('1000');
+  await openRoundSettings(host);
+  const settings = host.locator('.ladder-settings');
+  await settings.waitFor();
+  await settings.locator('.with-help button').first().waitFor();
+  expect(await settings.getByRole('radio', { name: 'Вибирає ведучий', ...exact }).isChecked()).toBe(true);
+  for (const name of ['50/50', 'Зал', 'Підказка']) expect(await settings.getByRole('checkbox', { name, ...exact }).isChecked(), `${name} is on`).toBe(true);
+  expect(await settings.getByRole('checkbox', { name: 'Таймер на запитання', ...exact }).isChecked(), 'the timer is off').toBe(false);
+  expect(await settings.locator('.ladder-level-row').count()).toBe(5);
+  expect(await field(host, 'Сума сходинки 5').inputValue()).toBe('10000');
+  expect(await field(host, 'Сума сходинки 1').inputValue()).toBe('100');
+  expect(await field(host, 'неспалима 3').isChecked(), 'step 3 is safe').toBe(true);
+  expect(await field(host, 'неспалима 2').isChecked(), 'step 2 is not safe').toBe(false);
+  await shot(host, 'p10i-editor-ladder');
+  expect(await host.getByRole('button', { name: 'Додати варіант', ...exact }).count(), 'exactly four options, no add button').toBe(0);
+  expect(await host.getByLabel(/^Варіант \d$/).count(), 'four options').toBe(4);
+  expect(await host.getByRole('group', { name: 'Тип запитання', ...exact }).getByRole('button').count(), 'only «один варіант»').toBe(1);
+
+  await click(host, '+ Раунд');
+  await click(host, 'Мільйонер');
+  await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
+  await expect.poll(() => host.locator('.round-tab').count(), POLL).toBe(3);
+  await openRoundSettings(host);
+  await host.locator('.ladder-settings').waitFor();
+  await shot(host, 'p10i-editor-new-ladder');
+  await click(host, 'Видалити раунд');
+  await expect.poll(() => host.locator('.round-tab').count(), POLL).toBe(2);
+  await host.locator('.round-tab', { hasText: 'Драбина Олі' }).click();
+  await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
+
+  await host.setViewportSize({ width: 375, height: 812 });
+  await openRoundSettings(host);
+  await host.locator('.ladder-settings').scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10i-editor-ladder-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // 2. Гра.
+  await host.locator('.quiz-list li', { hasText: 'Мільйонер 10i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10i', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya10i', 375, 812);
+  const petro = await open('petro10i', 375, 812);
+  const vira = await open('vira10i', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const viraFrames = socketFrames(vira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(vira, code, 'Віра', false);
+  const phones = [olya, petro, vira];
+  const all = [host, stage, ...phones];
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+
+  // 3. Інтро «Драбини Олі».
+  await stage.locator('.ladder-stage-intro').waitFor();
+  await stage.getByText('Хто піде на драбину?', exact).waitFor();
+  expect(await stage.locator('.ladder-step').count()).toBe(5);
+  expect(await stage.locator('.ladder-step.is-safe').count(), 'one safe step').toBe(1);
+  await expectStageFits(stage, 'p10i-stage-intro');
+  await shot(stage, 'p10i-stage-intro');
+  const pickFirst = host.getByRole('button', { name: 'Виберіть учасника', ...exact });
+  await pickFirst.waitFor();
+  expect(await pickFirst.isDisabled(), 'the host must pick first').toBe(true);
+  await host.locator('.host-ladder-players').getByRole('button', { name: 'Оля', ...exact }).click();
+  await stage.locator('.ladder-contestant-name', { hasText: 'Оля' }).waitFor();
+  await olya.getByText('Ти йдеш на драбину!', exact).waitFor();
+  await petro.getByText(/Драбину проходить Оля/).waitFor();
+  await click(host, 'Почати драбину');
+  await afterSplash(...all);
+
+  // 4. a1: 50/50, зал відповідає за себе.
+  await stage.getByText('Столиця Австралії?', exact).waitFor();
+  expect(await ladderCurrent(stage)).toBe(1);
+  expect(await stage.locator('[role=timer]').count(), 'no timer without the flag').toBe(0);
+  expect(await olya.locator('[role=timer]').count(), 'no timer on the contestant phone').toBe(0);
+  for (const name of ['50/50', 'Зал', 'Підказка']) await olya.locator('.ladder-lifeline', { hasText: name }).waitFor();
+  expect(await olya.locator('.buff-row').count(), 'no buff row in a ladder').toBe(0);
+  await expectNoSideScroll(olya, 'p10i-phone-contestant');
+  await petro.locator('.ladder-hall', { hasText: 'Драбину проходить Оля' }).waitFor();
+  expect(await petro.locator('.ladder-hall').innerText()).toContain('+10');
+  await expectNoSideScroll(petro, 'p10i-phone-hall');
+  expect(await host.locator('.player-row', { hasText: 'Петро' }).getByRole('button', { name: 'Дебаф', ...exact }).count(), 'no debuffs in a ladder').toBe(0);
+  rigged.push(1, 1);
+  await useLifeline(olya, '50/50');
+  for (const page of [olya, petro, vira]) {
+    await expect.poll(() => page.locator('.choice.is-removed').count(), POLL).toBe(2);
+    expect(await page.locator('.choice:not(.is-removed)').count(), 'two options are left').toBe(2);
+    for (const gone of ['Сідней', 'Мельбурн']) expect(await page.locator('.choice.is-removed', { hasText: gone }).count(), `${gone} is removed`).toBe(1);
+  }
+  await expect.poll(() => stage.locator('.stage-ladder .choice:not(.is-removed)').count(), POLL).toBe(2);
+  await expectStageFits(stage, 'p10i-stage-fifty');
+  await shot(stage, 'p10i-stage-fifty');
+  await pickOption(petro, 'Канберра');
+  await pickOption(vira, 'Перт');
+  await pickOption(olya, 'Канберра');
+  await host.getByText('Запитання закрите').waitFor();
+  for (const [who, frames] of [['stage', stageFrames], ['olya', olyaFrames], ['petro', petroFrames], ['vira', viraFrames]] as const) {
+    expect(framesBeforeReveal(frames).join(NL), `${who} got the correct answer before the reveal`).not.toContain('"correctId"');
+  }
+  const openStage = stageFrames.filter((frame) => frame.includes('"phase":"question"') && frame.includes('"contestantPick"'));
+  expect(openStage.length, 'the stage saw the open question').toBeGreaterThan(0);
+  for (const frame of openStage) expect(frame, 'the stage sees the pick of the contestant while the question is open').toContain('"contestantPick":null');
+  await click(host, 'Показати відповідь');
+  await stage.getByText('Зал: 1 з 2 відгадали — по +10', exact).waitFor();
+  await expectStageFits(stage, 'p10i-stage-reveal');
+  await shot(stage, 'p10i-stage-reveal');
+  await petro.locator('.earned', { hasText: '+10' }).waitFor();
+  await olya.getByText('Правильно! 100 у кишені.', exact).waitFor();
+
+  await click(host, 'Далі');
+  await stage.getByText(/Оля вирішує/).waitFor();
+  const waiting = host.getByRole('button', { name: 'Учасник вирішує…', ...exact });
+  await waiting.waitFor();
+  expect(await waiting.isDisabled(), 'the host waits for the contestant').toBe(true);
+  await expectStageFits(stage, 'p10i-stage-deciding');
+  await shot(stage, 'p10i-stage-deciding');
+  await olya.getByRole('button', { name: 'Забрати 100', ...exact }).waitFor();
+  await expectNoSideScroll(olya, 'p10i-phone-decision');
+  await vira.getByRole('button', { name: 'Таблиця', ...exact }).click();
+  const sheet = vira.getByRole('dialog', { name: 'Таблиця', ...exact });
+  await sheet.waitFor();
+  await sheet.getByText('Оля', exact).first().waitFor();
+  await vira.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+  await ladderDecide(olya, false);
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 5. a2: підказка «Зал».
+  await stage.getByText('Скільки континентів на Землі за найпоширенішою моделлю?', exact).waitFor();
+  expect(await ladderCurrent(stage)).toBe(2);
+  await useLifeline(olya, 'Зал');
+  await stage.getByText('Зал голосує: 0 з 2', exact).waitFor();
+  await pickOption(petro, '(^|\\s)7$');
+  await stage.getByText('Зал голосує: 1 з 2', exact).waitFor();
+  await pickOption(vira, '(^|\\s)7$');
+  const tally = stage.locator('.ladder-audience .vote-row', { hasText: '100 %' });
+  await tally.waitFor();
+  expect(await tally.innerText()).toContain('7');
+  await olya.locator('.ladder-lifeline-info .vote-row', { hasText: '100 %' }).waitFor();
+  await expectStageFits(stage, 'p10i-stage-hall-tally');
+  await shot(stage, 'p10i-stage-hall-tally');
+  await expectNoSideScroll(olya, 'p10i-phone-hall-tally');
+  for (const [who, frames] of [['stage', stageFrames], ['olya', olyaFrames]] as const) {
+    const audiences = ladderAudiences(frames);
+    const voting = audiences.filter((audience) => audience.state === 'voting');
+    expect(voting.length, `${who} saw the vote open`).toBeGreaterThan(0);
+    for (const audience of voting) expect(audience.tally, `${who} sees the tally while the hall votes`).toBeNull();
+    expect(audiences.some((audience) => audience.state === 'closed' && audience.tally !== null), `${who} sees the tally after the vote`).toBe(true);
+  }
+  // Зал уже проголосував: телефон Віри не дає відповісти знову, а Олі лишилось відповісти.
+  await pickOption(olya, '(^|\\s)7$');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await stage.getByText('Зал: 2 з 2 відгадали — по +30', exact).waitFor();
+  await click(host, 'Далі');
+  await olya.getByRole('button', { name: 'Забрати 300', ...exact }).waitFor();
+  await ladderDecide(olya, false);
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 6. a3: неспалима сходинка, «Забрати».
+  await stage.getByText('Хімічний символ золота?', exact).waitFor();
+  expect(await ladderCurrent(stage)).toBe(3);
+  await pickOption(petro, '(^|\\s)Ag$');
+  await pickOption(vira, '(^|\\s)Gd$');
+  await pickOption(olya, '(^|\\s)Au$');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await olya.getByRole('button', { name: 'Забрати 1000', ...exact }).waitFor();
+  await ladderDecide(olya, true);
+  await stage.getByText(/Оля забирає 1000/).waitFor();
+  expect(await stage.locator('.ladder-step.is-passed').count(), 'three steps are passed').toBe(3);
+  expect(await stage.locator('.ladder-step.is-passed.is-safe').count(), 'the safe step is among them').toBe(1);
+  await expectStageFits(stage, 'p10i-stage-took');
+  await shot(stage, 'p10i-stage-took');
+  const toResults = host.getByRole('button', { name: 'Підсумки раунду', ...exact });
+  await toResults.waitFor();
+  await toResults.click();
+  await stage.getByRole('heading', { name: /Підсумки раунду 1/ }).waitFor();
+  expect(await totalOf(host, 'Оля')).toBe(1000);
+  expect(await totalOf(host, 'Петро')).toBe(40);
+  expect(await totalOf(host, 'Віра')).toBe(30);
+
+  // 7. Інтро «Драбини за балами»: учасника вибирає найменший рахунок.
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await stage.getByText('Хто піде на драбину?', exact).waitFor();
+  await click(host, 'Вибрати учасника');
+  await stage.locator('.ladder-contestant-name', { hasText: 'Віра' }).waitFor();
+  await stage.getByText('найменше балів', exact).waitFor();
+  await expectStageFits(stage, 'p10i-stage-drawn');
+  await shot(stage, 'p10i-stage-drawn');
+  await click(host, 'Почати драбину');
+  await afterSplash(...all);
+
+  // 8. b1–b3: підказка ведучого, падіння до неспалимої.
+  await stage.getByText('Скільки днів у високосному році?', exact).waitFor();
+  await vira.locator('[role=timer]').waitFor();
+  await pickOption(olya, '(^|\\s)366$');
+  await pickOption(petro, '(^|\\s)365$');
+  await pickOption(vira, '(^|\\s)366$');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await ladderDecide(vira, false);
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  await stage.getByText('Яка планета — Червона?', exact).waitFor();
+  expect(await vira.locator('.ladder-lifeline').count(), 'only the host hint is on').toBe(1);
+  await useLifeline(vira, 'Підказка');
+  const request = host.locator('.hint-request', { hasText: 'Віра просить підказку' });
+  await request.waitFor();
+  await request.locator('textarea').fill('Її називають Червоною');
+  await request.getByRole('button', { name: 'Надіслати', ...exact }).click();
+  await vira.getByText(/Її називають Червоною/).waitFor();
+  await expectNoSideScroll(vira, 'p10i-phone-hint');
+  await stage.locator('.ladder-badge.is-used, .ladder-badge.is-active').first().waitFor();
+  expect(await bodyText(stage), 'the stage must not see the hint text').not.toContain('Червоною');
+  await pickOption(olya, '(^|\\s)Марс$');
+  await pickOption(petro, '(^|\\s)Венера$');
+  await pickOption(vira, '(^|\\s)Марс$');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await ladderDecide(vira, false);
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  await stage.getByText('У якому році проголошено незалежність України?', exact).waitFor();
+  await pickOption(olya, '(^|\\s)1991$');
+  await pickOption(petro, '(^|\\s)1990$');
+  await pickOption(vira, '(^|\\s)1990$');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await stage.getByText('Помилка — Віра отримує 100', exact).waitFor();
+  await expectStageFits(stage, 'p10i-stage-wrong');
+  await shot(stage, 'p10i-stage-wrong');
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await vira.getByText('Твій виграш: 100', exact).waitFor();
+  await expectNoSideScroll(vira, 'p10i-phone-won');
+  expect(await podiumScore(host, 'Віра')).toBe(130);
+  expect(await podiumScore(host, 'Оля')).toBe(1140);
+  expect(await podiumScore(host, 'Петро')).toBe(40);
+
+  // 9. Історія.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Мільйонер 10i/ }).click();
+  const items = host.locator('.rows.stacked > li');
+  await items.first().waitFor();
+  const h1 = await items.filter({ hasText: 'Столиця Австралії?' }).innerText();
+  expect(h1).toContain('Оля · сходинка 1 · 100');
+  expect(h1).toContain('50/50: прибрано Сідней, Мельбурн');
+  expect(h1).toContain('Зал: 1 з 2 відгадали');
+  expect(await items.filter({ hasText: 'континентів' }).innerText()).toContain('7 100 %');
+  const h3 = await items.filter({ hasText: 'Хімічний символ золота?' }).innerText();
+  expect(h3).toMatch(/Оля забрав\(-ла\) 1000/);
+  expect(h3).toContain('(неспалима)');
+  expect(await items.filter({ hasText: 'Яка планета' }).innerText()).toContain('Підказка ведучого: Її називають Червоною');
+  expect(await items.filter({ hasText: 'незалежність' }).innerText()).toContain('Помилка — Віра отримує 100');
+  await host.getByText('Виграш драбини: Оля +1000', exact).waitFor();
+  await host.getByText('Виграш драбини: Віра +100', exact).waitFor();
+  await shot(host, 'p10i-history');
 
   expect(problems).toEqual([]);
 }
