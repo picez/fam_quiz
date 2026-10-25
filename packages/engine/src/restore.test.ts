@@ -270,7 +270,7 @@ const STATE_SHAPE: Record<string, string> = {
     true,
   ),
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
-  QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop'], true),
+  QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
   Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
@@ -537,7 +537,7 @@ const KEYS: Record<number, Record<string, string>> = {
   9: {
     GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,transitions',
     Quiz: 'description,duels,rounds,settings,spares,title',
-    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
     Play: 'answers,blitz,bluff,board,buffs,chain,cloudHidden,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',

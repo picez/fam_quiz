@@ -52,6 +52,10 @@ export const LIMITS = {
   defaultDebuffPrice: 200,
   nicknameMin: 2,
   nicknameMax: 20,
+  /** Командна гра: команд у грі й довжина назви (як нікнейм). */
+  minTeams: 2,
+  maxTeams: 6,
+  teamName: 20,
   /** Найпізніша секунда початку відео (12 год). */
   maxVideoStart: 43_200,
   minChainWords: 3,
@@ -930,6 +934,14 @@ export type DuelQuestion = z.infer<typeof duelQuestionSchema>;
 export type DuelCategory = z.infer<typeof duelCategorySchema>;
 export type Duels = z.infer<typeof duelsSchema>;
 
+/** Командна гра (10j): кількість і назви; немає поля — соло. Спосіб формування вибирає ведучий у лобі. */
+export const teamsSettingsSchema = z.object({
+  count: z.number().int().min(LIMITS.minTeams).max(LIMITS.maxTeams),
+  names: z.array(z.string().trim().min(1).max(LIMITS.teamName).refine(isStorable, UNSTORABLE)).min(LIMITS.minTeams).max(LIMITS.maxTeams),
+});
+
+export type TeamsSettings = z.infer<typeof teamsSettingsSchema>;
+
 export const quizSettingsSchema = z.object({
   leaderboard: z.enum(['each', 'end']),
   /** Дозволені дебафи; немає поля — усі шість (старі вікторини). */
@@ -944,6 +956,8 @@ export const quizSettingsSchema = z.object({
     .optional(),
   /** Чи можуть гравці купувати дебафи (9c); немає поля — можуть, якщо дебафи дозволені. */
   debuffShop: z.boolean().optional(),
+  /** Командна гра (10j); немає поля — соло. */
+  teams: teamsSettingsSchema.optional(),
 });
 
 export type QuizSettings = z.infer<typeof quizSettingsSchema>;
@@ -1079,6 +1093,10 @@ export const quizSchema = z
       }
     }
     if (buffs?.includes('swap') && pools.length === 0) ctx.addIssue({ code: 'custom', message: 'spares_empty' });
+    const { teams } = quiz.settings;
+    if (teams && (teams.names.length !== teams.count || hasDuplicates(teams.names.map(answerKey)))) {
+      ctx.addIssue({ code: 'custom', message: 'team_names' });
+    }
     if (quiz.duels) {
       const { categories, questionsPerDuel } = quiz.duels;
       if (categories.some((c) => c.questions.length < questionsPerDuel)) {

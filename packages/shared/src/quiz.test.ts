@@ -1834,3 +1834,25 @@ describe('review fixes (10d)', () => {
     expect(valid(cloudHideSchema, { key: 'ки\u0000їв', hidden: true })).toBe(false);
   });
 });
+
+describe('team settings (10j)', () => {
+  const base = { title: 'Т', description: '', settings: DEFAULT_SETTINGS, rounds: [round('r1', [single])] };
+  const withTeams = (teams: unknown) => ({ ...base, settings: { leaderboard: 'each', teams } });
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+
+  it('an optional teams block with 2–6 teams and as many names', () => {
+    expect(valid(quizSchema, withTeams({ count: 2, names: ['Червоні', 'Сині'] }))).toBe(true);
+    expect(valid(quizSchema, base)).toBe(true);
+    expect(valid(quizSchema, withTeams({ count: 1, names: ['А'] }))).toBe(false);
+    expect(valid(quizSchema, withTeams({ count: 7, names: [...'абвгдеє'] }))).toBe(false);
+    expect(valid(quizSchema, withTeams({ count: 2, names: ['А', ' '] }))).toBe(false);
+    expect(valid(quizSchema, withTeams({ count: 2, names: ['А', 'Б'.repeat(21)] }))).toBe(false);
+  });
+  it('refuses a name count that differs from the team count and repeated names', () => {
+    expect(issues(withTeams({ count: 3, names: ['А', 'Б'] }))).toContain('team_names');
+    expect(issues(withTeams({ count: 2, names: ['Сині', ' сині '] }))).toContain('team_names');
+  });
+});
