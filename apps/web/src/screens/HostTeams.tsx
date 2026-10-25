@@ -18,12 +18,31 @@ function FormHelp({ form }: { form: TeamForm }) {
   return <HelpButton id={id} />;
 }
 
+/** Чи запуститься гра: як у рушії, без команди йдуть у найменшу команду, порожні відпадають, потрібні ≥ 2 команди з людьми. */
+export function teamsStartable(teams: TeamsView): boolean {
+  const sizes = teams.teams.map((team) => team.members.length);
+  for (let i = 0; i < teams.unassigned.length; i++) {
+    const smallest = sizes.indexOf(Math.min(...sizes));
+    if (smallest >= 0) sizes[smallest]! += 1;
+  }
+  return sizes.filter((size) => size > 0).length >= 2;
+}
+
 const NO_ROWS: NonNullable<TeamsView['dice']>['rows'] = [];
+
+interface MoveTo {
+  teams: TeamView[];
+  onMove: (member: TeamMemberView, teamId: string | null) => void;
+  draggable: boolean;
+  onDragStart: (event: DragEvent, id: string) => void;
+  onDragEnd: () => void;
+  busy: boolean;
+}
 
 interface PeopleProps {
   team: TeamView;
   /** Лобі: перемістити в іншу команду; null — рядок без вибору команди. */
-  moveTo?: { teams: TeamView[]; onMove: (member: TeamMemberView, teamId: string | null) => void; draggable: boolean; onDragStart: (id: string) => void; busy: boolean };
+  moveTo?: MoveTo;
   onCaptain: (team: TeamView, member: TeamMemberView) => void;
   onKick?: (member: TeamMemberView) => void;
   busy: boolean;
@@ -38,7 +57,8 @@ export function TeamPeople({ team, moveTo, onCaptain, onKick, busy }: PeopleProp
           key={member.id}
           className="team-person"
           draggable={moveTo?.draggable === true}
-          onDragStart={moveTo === undefined ? undefined : () => moveTo.onDragStart(member.id)}
+          onDragStart={moveTo === undefined || !moveTo.draggable ? undefined : (event) => moveTo.onDragStart(event, member.id)}
+          onDragEnd={moveTo === undefined ? undefined : moveTo.onDragEnd}
         >
           <span className="name">
             {member.id === team.captainId && (
@@ -56,7 +76,7 @@ export function TeamPeople({ team, moveTo, onCaptain, onKick, busy }: PeopleProp
             </button>
           )}
           {onKick !== undefined && (
-            <button type="button" className="btn btn-small" onClick={() => onKick(member)} aria-label={`${t('kick')}: ${member.nickname}`}>
+            <button type="button" className="btn btn-small" disabled={busy} onClick={() => onKick(member)} aria-label={`${t('kick')}: ${member.nickname}`}>
               {t('kick')}
             </button>
           )}
@@ -66,7 +86,7 @@ export function TeamPeople({ team, moveTo, onCaptain, onKick, busy }: PeopleProp
   );
 }
 
-function MoveSelect({ member, current, moveTo }: { member: TeamMemberView; current: string | null; moveTo: NonNullable<PeopleProps['moveTo']> }) {
+function MoveSelect({ member, current, moveTo }: { member: TeamMemberView; current: string | null; moveTo: MoveTo }) {
   return (
     <select
       className="team-move"
@@ -86,7 +106,7 @@ function MoveSelect({ member, current, moveTo }: { member: TeamMemberView; curre
 }
 
 /** Пульт у лобі командної гри: спосіб формування, колонки команд, перетягування й «У команду», кубики, капітани. */
-export function HostTeams({ teams, send, onError }: { teams: TeamsView; send: Send; onError: (text: string | null) => void }) {
+export function HostTeams({ teams, send, onError, onKick }: { teams: TeamsView; send: Send; onError: (text: string | null) => void; onKick?: (member: TeamMemberView) => void }) {
   const guard = useGuardedSend(send, onError);
   const spinning = useDiceSpin(teams.dice?.rows ?? NO_ROWS);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -115,9 +135,18 @@ export function HostTeams({ teams, send, onError }: { teams: TeamsView; send: Se
   const moveFor = (current: TeamView[]) => ({
     teams: current,
     onMove: (member: TeamMemberView, teamId: string | null) => assign(member.id, teamId),
-    draggable: true,
-    onDragStart: setDragging,
-    busy: guard.busy,
+    // Поки тур кубиків відкритий, сервер не переміщує людей (dice_pending).
+    draggable: !diceOn,
+    onDragStart: (event: DragEvent, id: string) => {
+      event.dataTransfer?.setData('text/plain', id);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      setDragging(id);
+    },
+    onDragEnd: () => {
+      setDragging(null);
+      setOver(null);
+    },
+    busy: guard.busy || diceOn,
   });
   const onCaptain = (team: TeamView, member: TeamMemberView) => void guard.run('host:captain', { teamId: team.id, memberId: member.id });
 
@@ -172,17 +201,31 @@ export function HostTeams({ teams, send, onError }: { teams: TeamsView; send: Se
             {...dropTarget(team.id, team.id)}
           >
             <h3 className="host-team-name">{team.name}</h3>
-            <TeamPeople team={team} moveTo={moveFor(teams.teams)} onCaptain={onCaptain} busy={guard.busy} />
+            <TeamPeople team={team} moveTo={moveFor(teams.teams)} onCaptain={onCaptain} onKick={onKick} busy={guard.busy} />
           </section>
         ))}
         <section className={`host-team host-team-none${over === 'none' ? ' is-over' : ''}`} data-team-id="" {...dropTarget('none', null)}>
           <h3 className="host-team-name">{t('teamUnassigned')}</h3>
           <ul className="team-people">
             {teams.unassigned.map((member) => (
-              <li key={member.id} className="team-person" draggable onDragStart={() => setDragging(member.id)}>
+              <li
+                key={member.id}
+                className="team-person"
+                draggable={!diceOn}
+                onDragStart={diceOn ? undefined : (event) => moveFor(teams.teams).onDragStart(event, member.id)}
+                onDragEnd={() => {
+                  setDragging(null);
+                  setOver(null);
+                }}
+              >
                 <span className="name">{member.nickname}</span>
                 {!member.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
                 <MoveSelect member={member} current={null} moveTo={moveFor(teams.teams)} />
+                {onKick !== undefined && (
+                  <button type="button" className="btn btn-small" disabled={guard.busy} onClick={() => onKick(member)} aria-label={`${t('kick')}: ${member.nickname}`}>
+                    {t('kick')}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

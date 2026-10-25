@@ -9349,6 +9349,16 @@ button.wall-tile:disabled {
   white-space: nowrap;
 }
 
+.stage-team-members.is-many {
+  gap: 0.05rem;
+  padding-block: 0.25rem;
+}
+
+.stage-team-members.is-many li {
+  font-size: clamp(0.7rem, 1.7vh, 1.1rem);
+  line-height: 1.15;
+}
+
 .stage-team-members .is-away {
   opacity: 0.45;
 }

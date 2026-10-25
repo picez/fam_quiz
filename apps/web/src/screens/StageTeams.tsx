@@ -14,7 +14,7 @@ export function StageTeams({ teams }: { teams: TeamsView }) {
         {teams.teams.map((team) => (
           <section key={team.id} className={`stage-team team-${team.color}`}>
             <h2 className="stage-team-name">{team.name}</h2>
-            <ul className="stage-team-members">
+            <ul className={team.members.length > 8 ? 'stage-team-members is-many' : 'stage-team-members'}>
               {team.members.map((member) => (
                 <li key={member.id} className={member.connected ? undefined : 'is-away'}>
                   {member.id === team.captainId && (

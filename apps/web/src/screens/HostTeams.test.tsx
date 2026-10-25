@@ -98,6 +98,46 @@ describe('HostTeams', () => {
     await waitFor(() => expect(onError).toHaveBeenCalledWith('Ще не всі кинули кубик.'));
   });
 
+  it('kicks a member or an unassigned person in the lobby', () => {
+    const onKick = vi.fn();
+    render(<HostTeams teams={lobby()} send={vi.fn<Send>(async () => ({ ok: true as const }))} onError={vi.fn()} onKick={onKick} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Вилучити: Ігор' }));
+    expect(onKick).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'u9' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Вилучити: Петро' }));
+    expect(onKick).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'u3' }));
+  });
+
+  it('has no kick buttons without onKick', () => {
+    show(lobby());
+    expect(screen.queryByRole('button', { name: /^Вилучити/ })).toBeNull();
+  });
+
+  it('drag and the move list are inert during an open dice round', () => {
+    const dice: DiceInfo = { rows: [{ playerId: 'u2', nickname: 'Оля', throws: [], waiting: true }], tieBreak: false, done: false };
+    const { send } = show(lobby({ form: 'dice', dice }));
+    expect((screen.getByLabelText('У команду: Ігор') as HTMLSelectElement).disabled).toBe(true);
+    expect(screen.getByText('Ігор').closest('li')!.getAttribute('draggable')).toBe('false');
+    expect(screen.getByText('Петро').closest('li')!.getAttribute('draggable')).toBe('false');
+    const column = document.querySelector('[data-team-id="team-b"]')!;
+    fireEvent.dragStart(screen.getByText('Ігор').closest('li')!);
+    fireEvent.drop(column);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sets the drag data for Firefox and clears the highlight when the drag ends', () => {
+    show(lobby());
+    const person = screen.getByText('Ігор').closest('li')!;
+    const column = document.querySelector('[data-team-id="team-b"]')!;
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' };
+    fireEvent.dragStart(person, { dataTransfer });
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'u9');
+    expect(dataTransfer.effectAllowed).toBe('move');
+    fireEvent.dragOver(column);
+    expect(column.classList.contains('is-over')).toBe(true);
+    fireEvent.dragEnd(person);
+    expect(column.classList.contains('is-over')).toBe(false);
+  });
+
   it('puts the unassigned in their own column', () => {
     show(lobby());
     const none = document.querySelector('[data-team-id=""]') as HTMLElement;

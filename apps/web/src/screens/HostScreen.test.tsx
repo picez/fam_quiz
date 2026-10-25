@@ -2303,6 +2303,30 @@ describe('HostScreen: bluff (10f)', () => {
       expect(button(t('start')).disabled).toBe(false);
     });
 
+    it('«Почати гру» is off when everyone sits in one team and nobody is left to deal', () => {
+      const one = teamsView({ teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null } : team)) });
+      show(teamLobby({ teams: one }));
+      expect(button(t('start')).disabled).toBe(true);
+      expect(screen.getByText(t('teamStartFew'))).toBeTruthy();
+    });
+
+    it('«Почати гру» is on when the unassigned fill the empty team', () => {
+      const one = teamsView({
+        teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null } : team)),
+        unassigned: unassigned(1),
+      });
+      show(teamLobby({ teams: one }));
+      expect(button(t('start')).disabled).toBe(false);
+    });
+
+    it('the lobby kicks a member with the host:kick event', () => {
+      const send = vi.fn(async () => ({ ok: true as const }));
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      show(teamLobby(), send);
+      fireEvent.click(screen.getByRole('button', { name: 'Вилучити: Петро' }));
+      expect(send).toHaveBeenCalledWith('host:kick', { playerId: 'u3' });
+    });
+
     it('«Почати гру» waits for an open dice round', () => {
       const dice = { rows: [{ playerId: 'u1', nickname: 'Іра', throws: [], waiting: true }], tieBreak: false, done: false };
       show(teamLobby({ teams: teamsView({ form: 'dice', dice }) }));
@@ -2314,7 +2338,7 @@ describe('HostScreen: bluff (10f)', () => {
       expect(screen.getByText('Без команди: 1 — розподілимо при старті')).toBeTruthy();
     });
 
-    it('in the game the people stand under their team with a crown, «Капітан» and «Вилучити»', () => {
+    it('in the game the people stand under their team with a crown, «Капітан» and «Вилучити»', async () => {
       const send = vi.fn(async () => ({ ok: true as const }));
       vi.spyOn(window, 'confirm').mockReturnValue(true);
       show(
@@ -2334,6 +2358,9 @@ describe('HostScreen: bluff (10f)', () => {
       expect(document.querySelectorAll('.player-row .captain-mark')).toHaveLength(2);
       fireEvent.click(screen.getByRole('button', { name: 'Вилучити: Петро' }));
       expect(send).toHaveBeenCalledWith('host:kick', { playerId: 'u3' });
+      // Пока відповідь не прийшла, другий дотик не йде.
+      expect((screen.getByRole('button', { name: 'Капітан: Петро' }) as HTMLButtonElement).disabled).toBe(true);
+      await waitFor(() => expect((screen.getByRole('button', { name: 'Капітан: Петро' }) as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(screen.getByRole('button', { name: 'Капітан: Петро' }));
       expect(send).toHaveBeenCalledWith('host:captain', { teamId: 'team-b', memberId: 'u3' });
     });

@@ -315,6 +315,7 @@ const uk = {
   teamUnassigned: 'Без команди',
   teamMakeCaptain: 'Капітан',
   teamStartHint: 'Без команди: {count} — розподілимо при старті',
+  teamStartFew: 'Для старту потрібні люди щонайменше у двох командах',
   teamCaptainMark: 'капітан',
   stageTeamsTitle: 'Команди',
   stageNoTeam: 'Без команди',
