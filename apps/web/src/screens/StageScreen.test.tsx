@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
+import { ladderInfo } from './ladder-fixtures';
 
 afterEach(cleanup);
 
@@ -1730,6 +1731,99 @@ describe('StageScreen: bluff (10f)', () => {
       show(view({ phase: 'round_end', round: sRound, survival: sInfo({ trial: null, verdict: null }), standings: [{ playerId: 'a', nickname: 'Оля', score: 500, rank: 1 }] as unknown as StageView['standings'] }));
       expect(document.querySelector('.standings')).not.toBeNull();
       expect(document.querySelector('.survival-board')).toBeNull();
+    });
+  });
+
+  describe('ladder', () => {
+    const lRound: RoundInfo = { index: 0, total: 1, title: '', type: 'ladder', partial: false, description: '', brief: emptyBrief('ladder'), times: null };
+    const flat = (el: Element) => (el.textContent ?? '').replace(/\s/g, ' ');
+
+    it('intro: the ladder under the briefing; «Хто піде на драбину?» until picked, then the nickname and how', () => {
+      show(view({ phase: 'intro', round: lRound, ladder: ladderInfo({ contestant: null, current: -1 }) }));
+      expect(document.querySelector('.ladder-board.is-stage')).not.toBeNull();
+      expect(screen.getByText('Хто піде на драбину?')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'intro', round: lRound, ladder: ladderInfo({ pick: 'random', drawn: true, current: -1 }) }));
+      expect(screen.queryByText('Хто піде на драбину?')).toBeNull();
+      expect(screen.getByText('Олена')).toBeTruthy();
+      expect(screen.getByText('за жеребом')).toBeTruthy();
+    });
+
+    it('question: the question beside the ladder, the removed options empty, the hall voting', () => {
+      show(
+        view({
+          phase: 'question',
+          round: lRound,
+          questionIndex: 2,
+          question,
+          ladder: ladderInfo({
+            fifty: ['a'],
+            lifelines: [
+              { kind: 'fifty', state: 'active' },
+              { kind: 'audience', state: 'active' },
+            ],
+            audience: { state: 'voting', endsAt: null, remainingMs: null, voted: 1, total: 2, tally: null },
+          }),
+        }),
+      );
+      expect(document.querySelector('.ladder-board.is-stage')).not.toBeNull();
+      expect(screen.getByText('Столиця України?')).toBeTruthy();
+      expect(screen.queryByText('Львів')).toBeNull();
+      expect(screen.getByText('Київ')).toBeTruthy();
+      expect(document.querySelectorAll('.choice.is-removed')).toHaveLength(1);
+      expect(screen.getByText('Зал голосує: 1 з 2')).toBeTruthy();
+      expect(screen.getByText('Зал відповів: 0 з 2')).toBeTruthy();
+    });
+
+    it('a closed hall vote shows the tally on the stage', () => {
+      show(
+        view({
+          phase: 'question',
+          round: lRound,
+          questionIndex: 2,
+          question,
+          ladder: ladderInfo({ audience: { state: 'closed', endsAt: null, remainingMs: null, voted: 2, total: 2, tally: { cast: 2, counts: { a: 1, b: 1 } } } }),
+        }),
+      );
+      expect(screen.queryByText(/Зал голосує/)).toBeNull();
+      expect(document.querySelectorAll('.vote-row')).toHaveLength(2);
+    });
+
+    it('locked: «Остаточна відповідь» next to the contestant pick', () => {
+      show(view({ phase: 'locked', round: lRound, questionIndex: 2, question, ladder: ladderInfo({ contestantPick: 'a' }) }));
+      const picked = document.querySelector('.choice.is-picked');
+      expect(picked).not.toBeNull();
+      expect(within(picked as HTMLElement).getByText('Остаточна відповідь')).toBeTruthy();
+    });
+
+    it('reveal: the right option green, a wrong pick red, the hall hits with the points', () => {
+      show(view({ phase: 'reveal', round: lRound, questionIndex: 2, question, reveal: full, ladder: ladderInfo({ contestantPick: 'a', hall: { answered: 2, total: 2, right: 1 } }) }));
+      expect(document.querySelector('.choice.is-correct')?.textContent).toContain('Київ');
+      expect(document.querySelector('.choice.is-picked.is-wrong')?.textContent).toContain('Львів');
+      expect(flat(document.body)).toContain('Зал: 1 з 2 відгадали — по +100');
+    });
+
+    it('leaderboard: «вирішує» with the banked sum, no standings table', () => {
+      show(view({ phase: 'leaderboard', round: lRound, standings: null, ladder: ladderInfo({ decision: 'pending' }) }));
+      expect(flat(document.body)).toContain('Олена вирішує: грати далі чи забрати 300?');
+      expect(document.querySelector('.standings')).toBeNull();
+      expect(document.querySelector('.ladder-board.is-stage')).not.toBeNull();
+    });
+
+    it('leaderboard: playing on, and the outcome with its points (not the banked sum after a miss)', () => {
+      show(view({ phase: 'leaderboard', round: lRound, ladder: ladderInfo({ decision: 'go' }) }));
+      expect(screen.getByText('Граємо далі!')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'leaderboard', round: lRound, ladder: ladderInfo({ decision: null, outcome: { kind: 'took', passed: 2, points: 300 } }) }));
+      expect(flat(document.body)).toContain('Олена забирає 300');
+      cleanup();
+      show(view({ phase: 'leaderboard', round: lRound, ladder: ladderInfo({ decision: null, banked: 300, guaranteed: 100, outcome: { kind: 'wrong', passed: 2, points: 100 } }) }));
+      expect(screen.getByRole('status').textContent).toBe('Помилка — Олена отримує 100');
+    });
+
+    it('round_end: the usual standings table', () => {
+      show(view({ phase: 'round_end', round: lRound, ladder: ladderInfo(), standings: [] }));
+      expect(document.querySelector('.standings')).not.toBeNull();
     });
   });
 });

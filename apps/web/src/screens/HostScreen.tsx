@@ -10,6 +10,7 @@ import { HostCloud } from './HostCloud';
 import { HostBluff } from './HostBluff';
 import { DecidingLabel, HostWipeout } from './HostWipeout';
 import { HostSurvival } from './HostSurvival';
+import { HostLadder } from './HostLadder';
 import { SurveyBoard } from './SurveyBoard';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
@@ -235,6 +236,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const board = view.board;
   // «Ва-банк»: поки гравці вирішують, «Далі» вимкнене (рушій відповів би deciding).
   const wipeoutDeciding = phase === 'leaderboard' && view.wipeout?.decide != null;
+  // «Мільйонер»: без учасника (ведучий вибирає сам) «Далі» вимкнене, поки учасник вирішує — теж.
+  const ladder = view.ladder;
+  const ladderPickFirst = phase === 'intro' && ladder !== null && ladder.contestant === null && ladder.pick === 'host';
+  const ladderDraw = phase === 'intro' && ladder !== null && ladder.contestant === null && ladder.pick !== 'host';
+  const ladderStart = phase === 'intro' && ladder !== null && ladder.contestant !== null;
+  const ladderDeciding = phase === 'leaderboard' && ladder !== null && ladder.outcome === null && ladder.decision === 'pending';
+  const ladderEnding = phase === 'leaderboard' && ladder !== null && ladder.outcome !== null;
   // «Вибування»: на leaderboard головна кнопка закриває відкрите випробування, а коли воно закрите чи його не було, веде далі.
   const survivalTrialOpen = phase === 'leaderboard' && view.survival?.trial?.stage === 'open';
   // «100 до 1» на розкритті: головна кнопка спершу відкриває рядки по одному.
@@ -526,6 +534,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {view.wipeout !== null && phase !== 'finished' && phase !== 'round_end' && <HostWipeout view={view} offsetMs={offsetMs} />}
+
+      {view.ladder !== null && phase !== 'finished' && phase !== 'round_end' && <HostLadder view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
       {view.survival !== null && phase !== 'finished' && phase !== 'round_end' && <HostSurvival view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
@@ -1117,10 +1127,20 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <button
             type="button"
             className="btn btn-primary"
-            disabled={stepping || (phase === 'lobby' && view.players.length === 0) || diceRolling || wipeoutDeciding}
+            disabled={stepping || (phase === 'lobby' && view.players.length === 0) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding}
             onClick={() => step(main.event)}
           >
-            {wipeoutDeciding && view.wipeout?.decide != null
+            {ladderPickFirst
+              ? t('ladderPickFirst')
+              : ladderDraw
+              ? t('ladderDraw')
+              : ladderStart
+              ? t('ladderStart')
+              : ladderDeciding
+              ? t('ladderDecidingWait')
+              : ladderEnding
+              ? t(lastRound ? 'next' : 'ladderToResults')
+              : wipeoutDeciding && view.wipeout?.decide != null
               ? <DecidingLabel decide={view.wipeout.decide} offsetMs={offsetMs} />
               : survivalTrialOpen
               ? t('survivalCloseTrial')
