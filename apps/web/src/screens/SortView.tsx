@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from 'react';
-import type { Choice, PlayerSort, PublicQuestion, Question, SortInfo } from '@quiz/shared';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from 'react';
+import { SORT_TILT_MS, type Choice, PlayerSort, PublicQuestion, Question, SortInfo } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { secondsLeft } from '../clock';
@@ -11,6 +11,10 @@ export type ZonePosition = 'left' | 'right' | 'top' | 'bottom';
 const ORDER: ZonePosition[] = ['left', 'right', 'top', 'bottom'];
 /** Свайп від стількох пікселів веде картку в зону. */
 const SWIPE_PX = 60;
+/** Відстань, на якій нахил стає повним (1), px. */
+export const TILT_FULL_PX = 120;
+/** Менший рух ще не нахил: картка в центрі, px. */
+const TILT_MIN_PX = 12;
 const SHAKE_MS = 400;
 /** Відповідь на хід може не прийти (send без тайм-ауту): картка не лишається заблокованою назавжди. */
 const PENDING_FALLBACK_MS = 3000;
@@ -42,6 +46,81 @@ function zoneAt(x: number, y: number): ZonePosition | null {
   return null;
 }
 
+/** Нахил з руху пальця (11d): зона під пальцем — повний, інакше домінуюча вісь без порогу свайпу; amount 0…1 з кроком 0,05. */
+export function tiltOf(
+  dx: number,
+  dy: number,
+  positions: ZonePosition[],
+  categories: Choice[],
+  under: ZonePosition | null,
+): { categoryId: string | null; amount: number } {
+  const center = { categoryId: null, amount: 0 };
+  if (under !== null) {
+    const index = positions.indexOf(under);
+    return index < 0 || categories[index] === undefined ? center : { categoryId: categories[index].id, amount: 1 };
+  }
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+  const distance = horizontal ? Math.abs(dx) : Math.abs(dy);
+  const pos: ZonePosition = horizontal ? (dx < 0 ? 'left' : 'right') : dy < 0 ? 'top' : 'bottom';
+  const index = positions.indexOf(pos);
+  if (index < 0 || categories[index] === undefined || distance < TILT_MIN_PX) return center;
+  return { categoryId: categories[index].id, amount: Math.round(Math.min(1, distance / TILT_FULL_PX) * 20) / 20 };
+}
+
+type TiltValue = { categoryId: string | null; amount: number };
+export type TiltSender = ((tilt: TiltValue) => void) & { release: () => void; cancel: () => void };
+
+/** Нахил на сервер (11d): не частіше SORT_TILT_MS, з хвостом, без повторів; release — одразу «в центр»; wordId — поточна картка. */
+export function useTiltSender(send: Send, active: boolean, wordId: string | null): TiltSender {
+  const pending = useRef<TiltValue | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sent = useRef('null:0');
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const wordRef = useRef(wordId);
+  wordRef.current = wordId;
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const stop = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    pending.current = null;
+  }, []);
+  const out = useCallback((tilt: TiltValue) => {
+    const word = wordRef.current;
+    const key = `${tilt.categoryId}:${tilt.amount}`;
+    if (word === null || key === sent.current) return;
+    sent.current = key;
+    void sendRef.current('player:sort-tilt', { wordId: word, categoryId: tilt.categoryId, amount: tilt.amount });
+  }, []);
+  // Нове слово чи втрата права сортувати: хвіст не йде, а на сервері нахил уже скинуто.
+  useEffect(() => {
+    sent.current = 'null:0';
+    stop();
+    return stop;
+  }, [wordId, active, stop]);
+  const sender = useRef<TiltSender | null>(null);
+  if (sender.current === null) {
+    const push = ((tilt: TiltValue) => {
+      if (!activeRef.current) return;
+      pending.current = tilt;
+      if (timer.current !== null) return;
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        const next = pending.current;
+        pending.current = null;
+        if (next !== null) out(next);
+      }, SORT_TILT_MS);
+    }) as TiltSender;
+    push.cancel = stop;
+    push.release = () => {
+      stop();
+      if (activeRef.current) out({ categoryId: null, amount: 0 });
+    };
+    sender.current = push;
+  }
+  return sender.current;
+}
 
 /** Сітка зон по краях і середина: однакова для того, хто сортує, і для глядачів. */
 function Arena({
@@ -93,6 +172,7 @@ export function SortPlay({
   const [shaking, setShaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  const tilt = useTiltSender(send, sort.watched && sort.canSort, sort.card?.id ?? null);
   const prevMisses = useRef(sort.misses);
 
   // Секунди підвисання за годинником сервера; на паузі — збережений залишок.
@@ -189,7 +269,10 @@ export function SortPlay({
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const start = dragRef.current;
     if (start === null || start.id !== event.pointerId) return;
-    setDrag({ dx: event.clientX - start.x, dy: event.clientY - start.y });
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    setDrag({ dx, dy });
+    tilt(tiltOf(dx, dy, positions, categories, zoneAt(event.clientX, event.clientY)));
   };
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     const start = dragRef.current;
@@ -197,11 +280,16 @@ export function SortPlay({
     dragRef.current = null;
     setDrag(null);
     const pos = zoneAt(event.clientX, event.clientY) ?? swipeTarget(event.clientX - start.x, event.clientY - start.y, positions);
-    if (pos !== null) moveTo(pos);
+    if (pos === null) tilt.release();
+    else {
+      tilt.cancel();
+      moveTo(pos);
+    }
   };
   const onPointerCancel = () => {
     dragRef.current = null;
     setDrag(null);
+    tilt.release();
   };
 
   const flying = fly !== null && word !== null && fly.wordId === word.id && !locked ? fly.pos : null;

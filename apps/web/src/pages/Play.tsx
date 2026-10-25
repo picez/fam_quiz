@@ -110,7 +110,7 @@ export function Play() {
           {t(statusTextKey(game.status))}
         </p>
       )}
-      <PlayerScreen view={game.view} hostOnline={game.hostOnline} offsetMs={game.offsetMs} send={game.send} />
+      <PlayerScreen view={game.view} hostOnline={game.hostOnline} offsetMs={game.offsetMs} send={game.send} tilts={game.tilts} />
     </>
   );
 }

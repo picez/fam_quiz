@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type Spotlight } from '@quiz/shared';
+import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
@@ -58,6 +58,8 @@ interface Props {
   hostOnline: boolean;
   offsetMs: number;
   send: Send;
+  /** Останній нахил картки сортування за тим, хто сортує (11d). */
+  tilts?: Record<string, SortTilt>;
 }
 
 /** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */

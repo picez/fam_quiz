@@ -41,6 +41,7 @@ export function Stage() {
         offsetMs={game.offsetMs}
         hostOnline={game.hostOnline}
         audioCommand={game.audioCommand}
+        tilts={game.tilts}
       />
     </>
   );

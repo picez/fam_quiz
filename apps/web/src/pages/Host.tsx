@@ -104,6 +104,7 @@ export function Host() {
         offsetMs={game.offsetMs}
         stageOnline={game.stageOnline}
         audioCommand={game.audioCommand}
+        tilts={game.tilts}
       />
     </>
   );

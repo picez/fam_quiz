@@ -121,3 +121,32 @@ describe('useGame audio', () => {
     expect(result.current.audioCommand).toEqual({ action: 'stop', seq: 6 });
   });
 });
+
+describe('useGame tilts (11d)', () => {
+  const tilt = (patch = {}) => ({ sorterId: 'p1', wordId: 'w1', toward: 'c1', amount: 0.5, seq: 0, ...patch });
+
+  it('keeps the latest tilt per sorter', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    expect(result.current.tilts).toEqual({});
+    act(() => socket.fire('sort:tilt', tilt()));
+    expect(result.current.tilts.p1).toEqual(tilt());
+    act(() => socket.fire('sort:tilt', tilt({ amount: 0.8 })));
+    act(() => socket.fire('sort:tilt', tilt({ sorterId: 'p2', toward: 'c2' })));
+    expect(result.current.tilts.p1.amount).toBe(0.8);
+    expect(result.current.tilts.p2.toward).toBe('c2');
+  });
+
+  it('forgets tilts on a paused state, and on a lost connection', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('sort:tilt', tilt()));
+    act(() => socket.fire('state', view, meta()));
+    expect(result.current.tilts.p1).toBeDefined();
+    act(() => socket.fire('state', { ...view, paused: true }, meta()));
+    expect(result.current.tilts).toEqual({});
+    act(() => socket.fire('sort:tilt', tilt()));
+    act(() => socket.fire('disconnect', 'transport close'));
+    expect(result.current.tilts).toEqual({});
+  });
+});

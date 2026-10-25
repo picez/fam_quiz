@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView } from '@quiz/shared';
+import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { paceAttrs, usePace } from '../pace';
 import { ChainBoard } from './ChainView';
@@ -57,6 +57,8 @@ interface Props {
   stageOnline?: boolean;
   /** Остання команда звуку від ведучого (її бачить і цей пульт). */
   audioCommand?: AudioCommand | null;
+  /** Останній нахил картки сортування за тим, хто сортує (11d). */
+  tilts?: Record<string, SortTilt>;
 }
 
 type HostEvent = keyof ClientToServerEvents;

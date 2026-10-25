@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react';
-import { hallPoints, type BoardInfo, type Choice, type FinalInfo, type Question as FullQuestion, type StageView, type SurvivalInfo } from '@quiz/shared';
+import { hallPoints, type BoardInfo, type Choice, type FinalInfo, type Question as FullQuestion, type SortTilt, type StageView, type SurvivalInfo } from '@quiz/shared';
 import { LETTERS, answerText, choiceLabel, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -52,6 +52,8 @@ interface Props {
   hostOnline: boolean;
   /** Остання команда звуку від ведучого. */
   audioCommand?: AudioCommand | null;
+  /** Останній нахил картки сортування за тим, хто сортує (11d). */
+  tilts?: Record<string, SortTilt>;
 }
 
 function hostOf(url: string): string {

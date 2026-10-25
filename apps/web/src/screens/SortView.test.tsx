@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 // Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerSort, PublicQuestion, Question, SortInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
-import { SortBoard, SortPlay, SortReveal, SortWatch, swipeTarget, zonePositions } from './SortView';
+import { SortBoard, SortPlay, SortReveal, SortWatch, swipeTarget, tiltOf, useTiltSender, zonePositions } from './SortView';
 
 const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
 const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
@@ -360,5 +360,116 @@ describe('SortBoard and SortReveal', () => {
     expect(css).toContain(tight);
     // Після загального правила картки — інакше воно перекриває.
     expect(css.indexOf(tight)).toBeGreaterThan(css.indexOf('\n.sort-card {'));
+  });
+});
+
+describe('tilt sending (11d)', () => {
+  const cats = CATEGORIES.slice(0, 2);
+  const LR: ('left' | 'right')[] = ['left', 'right'];
+
+  it('tiltOf follows the dominant axis, or the zone under the finger', () => {
+    expect(tiltOf(60, 5, LR, cats, null)).toEqual({ categoryId: 'c2', amount: 0.5 });
+    expect(tiltOf(-200, 0, LR, cats, null)).toEqual({ categoryId: 'c1', amount: 1 });
+    expect(tiltOf(5, 4, LR, cats, null)).toEqual({ categoryId: null, amount: 0 });
+    expect(tiltOf(0, -80, LR, cats, null)).toEqual({ categoryId: null, amount: 0 });
+    expect(tiltOf(10, 0, LR, cats, 'left')).toEqual({ categoryId: 'c1', amount: 1 });
+  });
+
+  describe('useTiltSender', () => {
+    const right = { categoryId: 'c2', amount: 0.5 };
+    const left = { categoryId: 'c1', amount: 0.25 };
+
+    it('sends the latest value once per window, with a trailing send', () => {
+      const send = okSend();
+      const { result } = renderHook(() => useTiltSender(send, true, 'w1'));
+      result.current({ categoryId: 'c2', amount: 0.1 });
+      vi.advanceTimersByTime(30);
+      result.current(left);
+      vi.advanceTimersByTime(30);
+      result.current(right);
+      expect(send).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledWith('player:sort-tilt', { wordId: 'w1', ...right });
+    });
+
+    it('does not repeat the same value', () => {
+      const send = okSend();
+      const { result } = renderHook(() => useTiltSender(send, true, 'w1'));
+      result.current(right);
+      vi.advanceTimersByTime(100);
+      result.current(right);
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('release sends the centre at once and drops the pending tail', () => {
+      const send = okSend();
+      const { result } = renderHook(() => useTiltSender(send, true, 'w1'));
+      result.current(right);
+      vi.advanceTimersByTime(100);
+      result.current(left);
+      result.current.release();
+      expect(send).toHaveBeenLastCalledWith('player:sort-tilt', { wordId: 'w1', categoryId: null, amount: 0 });
+      expect(send).toHaveBeenCalledTimes(2);
+      vi.advanceTimersByTime(300);
+      expect(send).toHaveBeenCalledTimes(2);
+      result.current.release();
+      expect(send).toHaveBeenCalledTimes(2);
+    });
+
+    it('sends nothing when inactive, and a new word drops the tail', () => {
+      const off = okSend();
+      const inactive = renderHook(() => useTiltSender(off, false, 'w1'));
+      inactive.result.current(right);
+      vi.advanceTimersByTime(300);
+      expect(off).not.toHaveBeenCalled();
+
+      const send = okSend();
+      const { result, rerender } = renderHook(({ id }) => useTiltSender(send, true, id), { initialProps: { id: 'w1' } });
+      result.current(right);
+      rerender({ id: 'w2' });
+      vi.advanceTimersByTime(300);
+      expect(send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('SortPlay', () => {
+    it('sends the tilt while dragging and releases a drop without a move', () => {
+      const { send } = play(2, playerSort({ watched: true }));
+      fireEvent.pointerDown(card(), { pointerId: 1, clientX: 100, clientY: 300 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 180, clientY: 300 });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(send).toHaveBeenCalledWith('player:sort-tilt', { wordId: 'w1', categoryId: 'c2', amount: 0.65 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 105, clientY: 300 });
+      fireEvent.pointerUp(card(), { pointerId: 1, clientX: 105, clientY: 300 });
+      expect(send).toHaveBeenLastCalledWith('player:sort-tilt', { wordId: 'w1', categoryId: null, amount: 0 });
+      expect(send).not.toHaveBeenCalledWith('player:sort', expect.anything());
+    });
+
+    it('a move cancels the tail instead of releasing', () => {
+      const { send } = play(2, playerSort({ watched: true }));
+      fireEvent.pointerDown(card(), { pointerId: 1, clientX: 100, clientY: 300 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 200, clientY: 300 });
+      fireEvent.pointerUp(card(), { pointerId: 1, clientX: 200, clientY: 300 });
+      expect(send).toHaveBeenCalledWith('player:sort', { wordId: 'w1', categoryId: 'c2' });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(send).not.toHaveBeenCalledWith('player:sort-tilt', expect.anything());
+    });
+
+    it('sends no tilt where nobody watches', () => {
+      const { send } = play(2, playerSort({ watched: false }));
+      fireEvent.pointerDown(card(), { pointerId: 1, clientX: 100, clientY: 300 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 180, clientY: 300 });
+      fireEvent.pointerUp(card(), { pointerId: 1, clientX: 105, clientY: 300 });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(send).not.toHaveBeenCalledWith('player:sort-tilt', expect.anything());
+    });
   });
 });
