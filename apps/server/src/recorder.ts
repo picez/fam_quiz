@@ -46,7 +46,9 @@ function signature(state: GameState): string {
   const survival = last < 0 ? null : (state.plays[last].survival ?? null);
   // Підказки й рішення «Мільйонера» теж не міняють фазу.
   const ladder = last < 0 ? null : (state.plays[last].ladder ?? null);
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder]);
+  // Командна гра: вилучення людини (не останньої в команді) не змінює команд, а її рядок треба прибрати.
+  const members = state.teams?.members.map((m) => m.id) ?? null;
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder, members]);
 }
 
 interface AnswerRow {
@@ -201,31 +203,22 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         set: { ...progress, finishedAt: finished ? sql`coalesce(${game.finishedAt}, excluded.finished_at)` : null },
       });
 
-    // Вилучених гравців прибираємо разом з їхніми відповідями й коригуваннями (каскадом).
-    const ids = state.players.map((player) => player.id);
+    // Командна гра: гравці рушія — команди, люди — окремі рядки з посиланням на свою команду.
+    const teamGame = state.teams !== undefined;
+    const members = (state.teams?.members ?? []).filter((m) => m.teamId !== null && state.players.some((p) => p.id === m.teamId));
+    // Вилучених гравців (команди й людей) прибираємо разом з їхніми відповідями й коригуваннями (каскадом).
+    const ids = [...state.players.map((player) => player.id), ...members.map((m) => m.id)];
     const inGame = eq(participant.gameId, snapshot.id);
     await tx.delete(participant).where(ids.length === 0 ? inGame : and(inGame, notInArray(participant.id, ids)));
 
-    for (const player of state.players) {
-      const result = { score: player.score, totalTimeMs: player.totalTimeMs, rank: ranks.get(player.id) ?? null };
-      await tx
-        .insert(participant)
-        .values({
-          id: player.id,
-          gameId: snapshot.id,
-          nickname: player.nickname,
-          userId: snapshot.playerUsers.get(player.id) ?? null,
-          ...result,
-        })
-        .onConflictDoUpdate({ target: participant.id, set: result });
-
+    const saveAnswers = async (participantId: string) => {
       for (let index = snapshot.fromQuestion; index < closed; index++) {
-        for (const row of answerRows(state, index, player.id)) {
+        for (const row of answerRows(state, index, participantId)) {
           const { attempt, payload, timeMs, ...grade } = row;
           await tx
             .insert(answer)
             .values({
-              participantId: player.id,
+              participantId,
               questionIndex: index,
               attempt,
               roundIndex: state.plays[index].roundIndex,
@@ -236,6 +229,41 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
             .onConflictDoUpdate({ target: [answer.participantId, answer.questionIndex, answer.attempt], set: grade });
         }
       }
+    };
+
+    for (const player of state.players) {
+      const result = { score: player.score, totalTimeMs: player.totalTimeMs, rank: ranks.get(player.id) ?? null };
+      await tx
+        .insert(participant)
+        .values({
+          id: player.id,
+          gameId: snapshot.id,
+          nickname: player.nickname,
+          userId: snapshot.playerUsers.get(player.id) ?? null,
+          isTeam: teamGame,
+          ...result,
+        })
+        .onConflictDoUpdate({ target: participant.id, set: result });
+      await saveAnswers(player.id);
+    }
+
+    // Рядки людей — після рядків команд (зовнішній ключ): бали, час і місце — копія командних; відповіді — лише власні голоси.
+    for (const member of members) {
+      const team = state.players.find((p) => p.id === member.teamId);
+      if (team === undefined) continue;
+      const result = { score: team.score, totalTimeMs: team.totalTimeMs, rank: ranks.get(team.id) ?? null };
+      await tx
+        .insert(participant)
+        .values({
+          id: member.id,
+          gameId: snapshot.id,
+          nickname: member.nickname,
+          userId: snapshot.playerUsers.get(member.id) ?? null,
+          teamId: team.id,
+          ...result,
+        })
+        .onConflictDoUpdate({ target: participant.id, set: result });
+      await saveAnswers(member.id);
     }
 
     // Коригування незмінні, а seq зростає в межах гри: дописуємо лише новіші за вже збережені, одним запитом.

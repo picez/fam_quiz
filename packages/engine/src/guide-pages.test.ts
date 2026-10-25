@@ -79,3 +79,13 @@ describe('guidePages', () => {
     expect(newcomersOn(makeRoundsQuiz([classicRound('r1', [single])], { newcomers: true }))).toBe(true);
   });
 });
+
+describe('guidePages: teams (10j)', () => {
+  it('a team quiz gets a teams page right after the phone page; a solo quiz has none', () => {
+    const solo = makeRoundsQuiz([classicRound('r1', [single])], { debuffs: [], newcomers: true });
+    expect(kinds(solo)).not.toContain('teams');
+    const teams = makeRoundsQuiz([classicRound('r1', [single])], { debuffs: [], newcomers: true, teams: { count: 2, names: ['Червоні', 'Сині'] } });
+    expect(guidePages(teams)[1]).toEqual({ kind: 'teams', count: 2 });
+    expect(kinds(teams)[0]).toBe('phone');
+  });
+});

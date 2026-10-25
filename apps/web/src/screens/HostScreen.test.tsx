@@ -6,6 +6,7 @@ import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
 import { ladderInfo } from './ladder-fixtures';
+import { teamsView } from './team-test-view';
 
 afterEach(() => {
   cleanup();
@@ -47,6 +48,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   overtime: [],
   guide: null,
   newcomers: false,
+  teams: null,
   duel: null,
   round: null,
   questionIndex: -1,
@@ -2278,6 +2280,89 @@ describe('HostScreen: bluff (10f)', () => {
       show(lView({ phase: 'leaderboard', allowed: { debuffs: [], buffs: [] }, ladder: ladderInfo({ decision: 'pending' }) }));
       expect(screen.queryAllByRole('button', { name: t('debuff') })).toHaveLength(0);
       expect(screen.getAllByRole('button', { name: t('points') })).toHaveLength(3);
+    });
+  });
+
+  describe('teams', () => {
+    const teamLobby = (over: Partial<HostView> = {}) => view({ players: [], playerCount: 0, teams: teamsView(), ...over });
+    const unassigned = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `x${i}`, nickname: `Гість${i}`, connected: true }));
+    const alone = teamsView({ teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null } : { ...team, members: team.members.slice(0, 1) })) });
+
+    it('the team lobby shows the host team form and no plain player list', () => {
+      show(teamLobby());
+      expect(screen.getAllByRole('radio')).toHaveLength(4);
+      expect(document.querySelector('.host-team-cols')).not.toBeNull();
+      expect(document.querySelector('ul.rows')).toBeNull();
+    });
+
+    it('«Почати гру» is off with fewer than two people and on with two', () => {
+      show(teamLobby({ teams: alone }));
+      expect(button(t('start')).disabled).toBe(true);
+      cleanup();
+      show(teamLobby());
+      expect(button(t('start')).disabled).toBe(false);
+    });
+
+    it('«Почати гру» is off when everyone sits in one team and nobody is left to deal', () => {
+      const one = teamsView({ teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null } : team)) });
+      show(teamLobby({ teams: one }));
+      expect(button(t('start')).disabled).toBe(true);
+      expect(screen.getByText(t('teamStartFew'))).toBeTruthy();
+    });
+
+    it('«Почати гру» is on when the unassigned fill the empty team', () => {
+      const one = teamsView({
+        teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null } : team)),
+        unassigned: unassigned(1),
+      });
+      show(teamLobby({ teams: one }));
+      expect(button(t('start')).disabled).toBe(false);
+    });
+
+    it('the lobby kicks a member with the host:kick event', () => {
+      const send = vi.fn(async () => ({ ok: true as const }));
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      show(teamLobby(), send);
+      fireEvent.click(screen.getByRole('button', { name: 'Вилучити: Петро' }));
+      expect(send).toHaveBeenCalledWith('host:kick', { playerId: 'u3' });
+    });
+
+    it('«Почати гру» waits for an open dice round', () => {
+      const dice = { rows: [{ playerId: 'u1', nickname: 'Іра', throws: [], waiting: true }], tieBreak: false, done: false };
+      show(teamLobby({ teams: teamsView({ form: 'dice', dice }) }));
+      expect(button(t('start')).disabled).toBe(true);
+    });
+
+    it('hints how many people will be dealt at the start', () => {
+      show(teamLobby({ teams: teamsView({ unassigned: unassigned(1) }) }));
+      expect(screen.getByText('Без команди: 1 — розподілимо при старті')).toBeTruthy();
+    });
+
+    it('in the game the people stand under their team with a crown, «Капітан» and «Вилучити»', async () => {
+      const send = vi.fn(async () => ({ ok: true as const }));
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      show(
+        view({
+          phase: 'leaderboard',
+          teams: teamsView(),
+          players: [
+            { id: 'team-a', nickname: 'Червоні', connected: true, score: 100, streak: 0, debuff: null },
+            { id: 'team-b', nickname: 'Сині', connected: true, score: 200, streak: 0, debuff: null },
+          ],
+        }),
+        send,
+      );
+      // «Вилучити» лише біля людей: четверо, біля команд — немає.
+      expect(screen.getAllByRole('button', { name: /^Вилучити: / })).toHaveLength(4);
+      expect(screen.queryByRole('button', { name: 'Вилучити' })).toBeNull();
+      expect(document.querySelectorAll('.player-row .captain-mark')).toHaveLength(2);
+      fireEvent.click(screen.getByRole('button', { name: 'Вилучити: Петро' }));
+      expect(send).toHaveBeenCalledWith('host:kick', { playerId: 'u3' });
+      // Пока відповідь не прийшла, другий дотик не йде.
+      expect((screen.getByRole('button', { name: 'Капітан: Петро' }) as HTMLButtonElement).disabled).toBe(true);
+      await waitFor(() => expect((screen.getByRole('button', { name: 'Капітан: Петро' }) as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(screen.getByRole('button', { name: 'Капітан: Петро' }));
+      expect(send).toHaveBeenCalledWith('host:captain', { teamId: 'team-b', memberId: 'u3' });
     });
   });
 });

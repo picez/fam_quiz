@@ -46,6 +46,8 @@ import {
   type SurveyPlay,
   type SurvivalPlay,
   type SurvivalTrial,
+  type TeamMember,
+  type TeamsState,
   type TrialAnswer,
   type WallProgress,
   type WipeoutPlay,
@@ -87,6 +89,9 @@ import { guessWall } from './wall';
 import { pickDoor } from './survival';
 import { decideWipeout } from './wipeout';
 import { decideLadder, pickContestant, useLifeline } from './ladder';
+import { rollTeamDie, setCaptain, setTeamForm, startTeamDice } from './teams';
+import { actAnswer, actBuzz } from './team-act';
+import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
 const HOUR = 3_600_000;
 const kyiv = { type: 'single', optionId: 'b' } as const;
@@ -265,14 +270,14 @@ const STATE_SHAPE: Record<string, string> = {
     [
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
-      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder',
+      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams',
     ],
     true,
   ),
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
-  QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop'], true),
+  QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -298,6 +303,8 @@ const STATE_SHAPE: Record<string, string> = {
   ),
   TrialAnswer: keysOf<TrialAnswer>()(['answer', 'correct', 'timeMs', 'overridden'], true),
   LadderState: keysOf<LadderState>()(['contestantId', 'drawn'], true),
+  TeamsState: keysOf<TeamsState>()(['form', 'list', 'members', 'captains', 'dice', 'duelists'], true),
+  TeamMember: keysOf<TeamMember>()(['id', 'nickname', 'connected', 'teamId'], true),
   LadderPlay: keysOf<LadderPlay>()(['contestantId', 'step', 'level', 'timed', 'lifelines', 'decision', 'outcome'], true),
   LadderLifelines: keysOf<LadderLifelines>()(['fifty', 'audience', 'hint'], true),
   LadderOutcome: keysOf<LadderOutcome>()(['kind', 'passed', 'points'], true),
@@ -573,6 +580,47 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  10: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,misses,queue,sorted',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'captains,dice,duelists,form,list,members',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -678,7 +726,16 @@ function representative(): GameState[] {
   helped = must(useLifeline(helped, 'p2', 'fifty', T0 + 1000, () => 0));
   helped = must(useLifeline(helped, 'p2', 'audience', T0 + 1500, () => 0));
   helped = must(useLifeline(helped, 'p2', 'hint', T0 + 2000, () => 0));
+  // 10j: лобі командної гри з кубиками посеред туру — GameState.teams, TeamsState, TeamMember, DiceState у teams.dice.
+  let teamDice = must(setTeamForm(teamLobby(teamQuiz([classicRound('r1', [single])]), 'Оля', 'Петро', 'Віра'), 'dice'));
+  teamDice = must(rollTeamDie(must(startTeamDice(teamDice)), 'm1', () => 0.5));
+  // 10j: командний бліц із натиском Петра за Червоних — Play.buzzers; капітан Червоних — Петро.
+  let teamBuzz = teamGame(teamQuiz([blitzRound('b1', [single], { check: 'manual' })]), [['Оля', 'Петро'], ['Віра']]);
+  teamBuzz = must(actBuzz(must(next(teamBuzz, T0, () => 0)), 'm2', T0 + 1000));
+  teamBuzz = must(setCaptain(must(actAnswer(teamBuzz, 'm2', kyiv, T0 + 1000)), 't1', 'm2'));
   return [
+    teamDice,
+    teamBuzz,
     laddered,
     took,
     helped,
@@ -725,6 +782,23 @@ describe('the saved state', () => {
     }
   });
 
+  it('team states (lobby dice mid-tour, a team blitz with a buzzer) survive JSON and suspend', () => {
+    const [teamDice, teamBuzz] = representative();
+    for (const s of [teamDice, teamBuzz]) {
+      expect(s.teams).toBeDefined();
+      expect(roundTrip(s)).toEqual(s);
+      const suspended = suspend(s, T0 + 2000);
+      expect(roundTrip(suspended)).toEqual(suspended);
+      expect(suspended.teams?.members.every((m) => !m.connected)).toBe(true);
+      expect({ ...suspended.teams, members: [] }).toEqual({ ...s.teams, members: [] });
+      expect(suspended.teams?.members.map(({ connected: _c, ...m }) => m)).toEqual(s.teams?.members.map(({ connected: _c, ...m }) => m));
+    }
+    expect(teamDice.teams?.dice).toMatchObject({ throws: { m1: [4] }, waiting: ['m2', 'm3'] });
+    const suspendedBuzz = suspend(teamBuzz, T0 + 2000);
+    expect(suspendedBuzz.plays[0].buzzers).toEqual({ t1: 'm2' });
+    expect(suspendedBuzz.awaiting).toEqual(['t1', 't2', 'm1', 'm2', 'm3']);
+  });
+
   it('the state format is pinned to GAME_STATE_VERSION', () => {
     // Перелік ключів кожного типу стану: компілятор (pnpm typecheck) вимагає рівно всі ключі типу, тож нове поле
     // не пройде непоміченим, а тест порівнює перелік із KEYS поточної версії.
@@ -735,7 +809,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -757,7 +831,9 @@ describe('the saved state', () => {
       add('Play', s.plays);
       add('AnswerRecord', s.plays.flatMap((p) => Object.values(p.answers)));
       add('BoardState', [s.board]);
-      add('DiceState', [s.board?.dice]);
+      add('DiceState', [s.board?.dice, s.teams?.dice]);
+      add('TeamsState', [s.teams]);
+      add('TeamMember', s.teams?.members ?? []);
       add('BoardPlay', s.plays.map((p) => p.board));
       add('BlitzPlay', s.plays.map((p) => p.blitz));
       add('BuzzEntry', s.plays.flatMap((p) => [...(p.blitz?.queue ?? []), ...(p.blitz?.dropped ?? [])]));
@@ -792,8 +868,8 @@ describe('the saved state', () => {
       const declared = new Set(STATE_SHAPE[name].split(','));
       for (const o of objects) for (const key of Object.keys(o)) expect(declared.has(key), `${name}.${key}`).toBe(true);
     }
-    // кожен вкладений тип справді трапився (крім тих, що потребують окремих раундів: сортування, ланцюжок, кубики)
+    // кожен вкладений тип справді трапився (крім тих, що потребують окремих раундів: сортування, ланцюжок; кубики — з лобі команд)
     const missing = Object.keys(STATE_SHAPE).filter((name) => (seen[name]?.length ?? 0) === 0);
-    expect(missing.sort()).toEqual(['ChainProgress', 'DiceState', 'SortProgress']);
+    expect(missing.sort()).toEqual(['ChainProgress', 'SortProgress']);
   });
 });

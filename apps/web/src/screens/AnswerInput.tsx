@@ -18,6 +18,8 @@ interface Props {
   submitLabel?: string;
   /** Поле тексту отримує фокус одразу (типово так; аркуш голосування — ні). */
   autoFocus?: boolean;
+  /** Командна гра: капітан шле чернетку при кожній зміні поля (те саме перетворення, що й надсилання); порожнє поле — null. Без пропа поведінка звичайна. */
+  onDraft?: (draft: Answer | null) => void;
 }
 
 const NONE: string[] = [];
@@ -63,13 +65,20 @@ function ChoiceButtons({
   );
 }
 
-function MultiInput({ question, onSubmit, removed, submitLabel }: Props) {
+function MultiInput({ question, onSubmit, removed, submitLabel, onDraft }: Props) {
   const [picked, setPicked] = useState<string[]>([]);
-  const toggle = (id: string) => setPicked((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
   // Вибране до 50/50, а потім прибране, у відповідь не йде й не світиться вибраним.
-  const kept = removed === undefined ? picked : picked.filter((id) => !removed.includes(id));
+  const keep = (list: string[]) => (removed === undefined ? list : list.filter((id) => !removed.includes(id)));
   // Порядок як у запитанні, а не як натискав гравець.
-  const ordered = question.choices.map((choice) => choice.id).filter((id) => kept.includes(id));
+  const orderedOf = (list: string[]) => question.choices.map((choice) => choice.id).filter((id) => keep(list).includes(id));
+  const toggle = (id: string) => {
+    const next = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id];
+    setPicked(next);
+    const ids = orderedOf(next);
+    onDraft?.(ids.length === 0 ? null : { type: 'multi', optionIds: ids });
+  };
+  const kept = keep(picked);
+  const ordered = orderedOf(picked);
   return (
     <>
       <ChoiceButtons choices={question.choices} picked={kept} removed={removed} onPick={toggle} />
@@ -85,12 +94,21 @@ function MultiInput({ question, onSubmit, removed, submitLabel }: Props) {
   );
 }
 
-function TypedInput({ question, onSubmit, submitLabel, autoFocus = true }: Props) {
+function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft }: Props) {
   const [raw, setRaw] = useState('');
   const numeric = question.type === 'numeric';
   const number = numeric ? parseNumber(raw) : null;
   const text = raw.trim();
   const ready = numeric ? number !== null : text !== '';
+  const change = (next: string) => {
+    setRaw(next);
+    if (onDraft === undefined) return;
+    const value = next.trim();
+    if (numeric) {
+      const parsed = parseNumber(next);
+      onDraft(parsed === null ? null : { type: 'numeric', value: parsed });
+    } else onDraft(value === '' ? null : { type: question.type === 'clues' ? 'clues' : 'text', value });
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -105,7 +123,7 @@ function TypedInput({ question, onSubmit, submitLabel, autoFocus = true }: Props
         <span>{t('yourAnswer')}</span>
         <input
           value={raw}
-          onChange={(event) => setRaw(event.target.value)}
+          onChange={(event) => change(event.target.value)}
           inputMode={numeric ? 'decimal' : 'text'}
           placeholder={t(numeric ? 'numberPlaceholder' : 'answerPlaceholder')}
           maxLength={200}
@@ -120,14 +138,14 @@ function TypedInput({ question, onSubmit, submitLabel, autoFocus = true }: Props
   );
 }
 
-function OrderInput({ question, onSubmit }: Props) {
+function OrderInput({ question, onSubmit, onDraft }: Props) {
   const [items, setItems] = useState<Choice[]>(question.choices);
-  const move = (index: number, step: -1 | 1) =>
-    setItems((now) => {
-      const next = [...now];
-      [next[index], next[index + step]] = [next[index + step], next[index]];
-      return next;
-    });
+  const move = (index: number, step: -1 | 1) => {
+    const next = [...items];
+    [next[index], next[index + step]] = [next[index + step], next[index]];
+    setItems(next);
+    onDraft?.({ type: 'order', itemIds: next.map((item) => item.id) });
+  };
 
   return (
     <>
@@ -170,9 +188,40 @@ function OrderInput({ question, onSubmit }: Props) {
   );
 }
 
-export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus }: Props) {
+/** Вибір одного варіанта з підтвердженням: капітан спершу позначає (чернетка для команди), потім «Відповісти». */
+function ConfirmChoice({ question, onSubmit, removed, submitLabel, onDraft }: Props) {
+  const boolean = question.type === 'boolean';
+  const [picked, setPicked] = useState<string | null>(null);
+  const answerOf = (id: string): Answer => (boolean ? { type: 'boolean', value: id === 'true' } : { type: 'single', optionId: id });
+  const kept = picked !== null && !(removed ?? NONE).includes(picked) ? picked : null;
+  const pick = (id: string) => {
+    setPicked(id);
+    onDraft?.(answerOf(id));
+  };
+  return (
+    <>
+      {boolean ? (
+        <div className="choices">
+          {['true', 'false'].map((id) => (
+            <button type="button" className={kept === id ? 'choice is-picked' : 'choice'} aria-pressed={kept === id} key={id} onClick={() => pick(id)}>
+              <span>{t(id === 'true' ? 'yes' : 'no')}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <ChoiceButtons choices={question.choices} picked={kept === null ? NONE : [kept]} removed={removed} onPick={pick} />
+      )}
+      <button type="button" className="btn btn-primary" disabled={kept === null} onClick={() => kept !== null && onSubmit(answerOf(kept))}>
+        {submitLabel ?? t('submit')}
+      </button>
+    </>
+  );
+}
+
+export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus, onDraft }: Props) {
   switch (question.type) {
     case 'single':
+      if (onDraft !== undefined) return <ConfirmChoice question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} onDraft={onDraft} />;
       return (
         <ChoiceButtons
           choices={question.choices}
@@ -182,6 +231,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
         />
       );
     case 'boolean':
+      if (onDraft !== undefined) return <ConfirmChoice question={question} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} />;
       return (
         <div className="choices">
           {[true, false].map((value) => (
@@ -192,17 +242,17 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
         </div>
       );
     case 'multi':
-      return <MultiInput question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} />;
+      return <MultiInput question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} onDraft={onDraft} />;
     case 'text':
     case 'numeric':
     case 'clues':
-      return <TypedInput question={question} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} />;
+      return <TypedInput question={question} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} onDraft={onDraft} />;
     case 'order':
-      return <OrderInput question={question} onSubmit={onSubmit} />;
+      return <OrderInput question={question} onSubmit={onSubmit} onDraft={onDraft} />;
     case 'match':
-      return <MatchInput question={question} onSubmit={onSubmit} />;
+      return <MatchInput question={question} onSubmit={onSubmit} onDraft={onDraft} />;
     case 'pin':
-      return question.pin === null ? null : <PinInput question={{ ...question, pin: question.pin }} onSubmit={onSubmit} submitLabel={submitLabel} />;
+      return question.pin === null ? null : <PinInput question={{ ...question, pin: question.pin }} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} />;
     case 'poll':
       return (
         <ChoiceButtons
@@ -219,8 +269,8 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
     case 'bluff':
       return null; // задача 7: вигадка й вибір — не player:answer
     case 'survey':
-      return question.survey === null ? null : <SurveyInput answers={question.survey.answers} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} />;
+      return question.survey === null ? null : <SurveyInput answers={question.survey.answers} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} onDraft={onDraft} />;
     case 'slider':
-      return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} />;
+      return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} />;
   }
 }

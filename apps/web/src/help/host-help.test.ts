@@ -44,7 +44,7 @@ describe('host help', () => {
     expect(helpIds('rounds')).toEqual(ROUND_TYPES.map((type) => `round.${type}`));
     expect(helpIds('questions')).toEqual(QUESTION_TYPES.map((type) => `question.${type}`));
     expect(helpIds('cells')).toEqual(['cell.normal', 'cell.blitz', 'cell.voice', 'cell.marks']);
-    expect(helpIds('teams')).toEqual([]);
+    expect(helpIds('teams')).toEqual(['team.play', 'team.host', 'team.pick', 'team.random', 'team.dice', 'team.captain', 'team.formats']);
     const all = HELP_TOPICS.flatMap(helpIds);
     expect(new Set(all).size).toBe(all.length);
     for (const id of all) expect(helpIds(helpTopic(id))).toContain(id);
@@ -209,6 +209,28 @@ describe('host help', () => {
     expect(bluff.how.join(' ')).toContain('Це правда!');
     expect(bluff.how.join(' ')).toContain('Прибрати');
     expect(bluff.how.join(' ')).toContain('правда — остання');
+  });
+
+  it('10j team entries tell the engine rules', () => {
+    for (const id of helpIds('teams')) {
+      filled(id);
+      expect(helpEntry(id).points.length, id).toBeGreaterThan(0);
+    }
+    expect(text('team.play')).toContain(`${LIMITS.minTeams}–${LIMITS.maxTeams}`);
+    expect(text('team.play')).toContain(String(LIMITS.teamName));
+    expect(text('team.dice')).toContain('смуг');
+    expect(text('team.dice')).toContain('перекида');
+    expect(text('team.captain')).toContain('наступн');
+    expect(text('team.captain')).toContain('на зв’язку');
+    for (const word of ['натиснув', 'інших команд', 'кожен окремо', 'капітан']) expect(text('team.formats'), word).toContain(word);
+    expect(searchHelp('капітан')).toContain('team.captain');
+    expect(searchHelp('кубик')).toContain('team.dice');
+  });
+
+  it('format, buff, debuff and setting entries have a team line', () => {
+    const ids: HelpId[] = ['round.classic', 'round.blitz', 'round.board', 'round.final', 'round.wipeout', 'round.survival', 'round.ladder', 'question.bluff', 'question.poll', 'question.wordcloud', 'buff.audience', 'buff.hint', 'buff.retry', 'setting.duels', 'setting.debuffShop'];
+    for (const kind of DEBUFF_KINDS) ids.push(`debuff.${kind}`);
+    for (const id of ids) expect(text(id), id).toContain('У командній грі');
   });
 
   it('related entries mention the bluff', () => {

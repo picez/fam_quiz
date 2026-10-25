@@ -2,6 +2,7 @@ import {
   ANSWER_MODES,
   AUDIO_URL,
   BUFF_KINDS,
+  teamsSettingsSchema,
   CELL_KINDS,
   CELL_MARKS,
   CELL_PENALTIES,
@@ -248,7 +249,7 @@ const reviveKinds = <K extends string>(value: unknown, all: readonly K[]): K[] |
   Array.isArray(value) ? all.filter((kind) => value.includes(kind)) : null;
 
 const reviveSettings = (settings: Quiz['settings']): Quiz['settings'] => {
-  const { debuffs, buffs, ...others } = settings;
+  const { debuffs, buffs, teams, ...others } = settings;
   const revivedDebuffs = reviveKinds(debuffs, DEBUFF_KINDS);
   const revivedBuffs = reviveKinds(buffs, BUFF_KINDS);
   return {
@@ -256,6 +257,7 @@ const reviveSettings = (settings: Quiz['settings']): Quiz['settings'] => {
     leaderboard: settings.leaderboard ?? 'each',
     ...(revivedDebuffs === null ? {} : { debuffs: revivedDebuffs }),
     ...(revivedBuffs === null ? {} : { buffs: revivedBuffs }),
+    ...(teamsSettingsSchema.safeParse(teams).success ? { teams: teams! } : {}),
   };
 };
 

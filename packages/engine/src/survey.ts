@@ -3,6 +3,7 @@ import { surveyHits } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { currentRound, fail, ok, withCurrentPlay, type GameState, type Play, type Result, type SurveyPlay } from './game';
 import { normalizeText } from './normalize';
+import { voterList } from './team-act';
 import { cloudTally, cloudVoters } from './votes';
 
 type SurveyQuestion = Extract<Question, { type: 'survey' }>;
@@ -43,13 +44,13 @@ export function surveyBoard(state: GameState, question: Question): { rows: Surve
   const host = { rows: question.rows, source: 'host' as const };
   if (question.cloudId === undefined) return host;
   const cloud = lastPlayOf(state, question.cloudId)?.play;
-  // Гравці — з state.players: вилучені не рахуються ні в словах, ні серед тих, хто писав.
+  // Голосували люди (voterList): вилучені не рахуються ні в словах, ні серед тих, хто писав; у командній грі популярність — частка людей.
   // Відповіді рушій звіряє за normalizeText (answerKey): слова, що збігаються за ним (напр. «…» і “…”), — один рядок, перше з них.
   const keys = new Set<string>();
   const entries =
     cloud === undefined
       ? []
-      : cloudTally(cloud, state.players)
+      : cloudTally(cloud, voterList(state))
           .filter((e) => !e.hidden)
           .filter((e) => {
             const key = normalizeText(e.text);
@@ -59,7 +60,7 @@ export function surveyBoard(state: GameState, question: Question): { rows: Surve
           })
           .slice(0, LIMITS.maxSurveyRows);
   if (cloud === undefined || entries.length === 0) return question.rows.length >= LIMITS.minSurveyRows ? host : null;
-  const voters = cloudVoters(cloud, state.players);
+  const voters = cloudVoters(cloud, voterList(state));
   const rows = entries.map((entry, index) => ({
     id: `cloud-${index + 1}`,
     text: entry.text,

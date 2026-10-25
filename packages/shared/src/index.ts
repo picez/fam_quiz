@@ -14,3 +14,4 @@ export * from './text';
 export * from './youtube';
 export * from './profile';
 export * from './guide';
+export * from './teams';

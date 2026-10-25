@@ -35,10 +35,17 @@ import {
   audioCommandSchema,
   timeSchema,
   undebuffSchema,
+  teamPickSchema,
+  duelistSchema,
+  draftSchema,
+  teamFormSchema,
+  teamAssignSchema,
+  captainSchema,
   type AckResult,
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from '@quiz/shared';
+import { teamOf } from '@quiz/engine';
 import { Server, type Socket } from 'socket.io';
 import type { Identity, Room, RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
@@ -58,7 +65,7 @@ const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue', 'survey-all', 'bluff-all'] as const;
+const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue', 'survey-all', 'bluff-all', 'team-deal', 'team-dice', 'team-roll'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
@@ -152,6 +159,16 @@ export function attachSockets(
     const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
     if (event.type === 'changed') {
       members.forEach(push);
+      return;
+    }
+    if (event.type === 'draft') {
+      // Чернетка — лише решті команди автора: ні йому самому, ні сцені, ні пульту, ні іншим командам.
+      members
+        .filter((socket) => {
+          const { role, playerId } = socket.data.identity;
+          return role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.teamId;
+        })
+        .forEach(push);
       return;
     }
     if (event.type === 'audio') {
@@ -334,6 +351,29 @@ export function attachSockets(
       return payload.success ? manager.wager(room, identity.playerId, payload.data.amount, payload.data.allIn ?? false) : INVALID;
     });
 
+    on('player:team', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = teamPickSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.teamPick(room, identity.playerId, payload.data.teamId) : INVALID;
+    });
+
+    on('player:team-roll', () => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      return manager.teamRoll(room, identity.playerId);
+    });
+
+    on('player:duelist', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = duelistSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.duelist(room, identity.playerId, payload.data.memberId) : INVALID;
+    });
+
+    on('player:draft', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = draftSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.draft(room, identity.playerId, payload.data.draft) : INVALID;
+    });
+
     for (const type of SIMPLE_HOST_ACTIONS) {
       on(`host:${type}`, () => (isHost ? manager.host(room, { type }) : FORBIDDEN));
     }
@@ -435,6 +475,24 @@ export function attachSockets(
         return payload.success ? manager.host(room, { type, ...payload.data }) : INVALID;
       });
     }
+
+    on('host:team-form', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = teamFormSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'team-form', ...payload.data }) : INVALID;
+    });
+
+    on('host:team-assign', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = teamAssignSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'team-assign', ...payload.data }) : INVALID;
+    });
+
+    on('host:captain', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = captainSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.host(room, { type: 'captain', ...payload.data }) : INVALID;
+    });
 
     on('host:audio', (args) => {
       if (!isHost) return FORBIDDEN;

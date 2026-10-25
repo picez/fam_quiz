@@ -5,6 +5,7 @@ import { emptyBrief, type WipeoutInfo, type WipeoutRow, type DuelInfo, type Boar
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
 import { ladderInfo } from './ladder-fixtures';
+import { teamsView } from './team-test-view';
 
 afterEach(cleanup);
 
@@ -38,6 +39,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   overtime: [],
   guide: null,
   newcomers: false,
+  teams: null,
   duel: null,
   debuffs: [],
   round: null,
@@ -1846,6 +1848,40 @@ describe('StageScreen: bluff (10f)', () => {
     it('round_end: the usual standings table', () => {
       show(view({ phase: 'round_end', round: lRound, ladder: ladderInfo(), standings: [] }));
       expect(document.querySelector('.standings')).not.toBeNull();
+    });
+  });
+
+  describe('teams', () => {
+    const lRound: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+    it('the team lobby shows the team columns instead of the player chips', () => {
+      show(view({ teams: teamsView({ unassigned: [{ id: 'u9', nickname: 'Ігор', connected: true }] }) }));
+      expect(document.querySelectorAll('.stage-team')).toHaveLength(2);
+      expect(document.querySelector('.chips')).toBeNull();
+      expect(screen.getByText('Без команди: Ігор')).toBeTruthy();
+      expect(document.querySelector('.qr')).not.toBeNull();
+    });
+
+    it('a solo lobby keeps the chips', () => {
+      show(view({ players: [{ id: 'p1', nickname: 'Олена', connected: true, streak: 0 }], playerCount: 1 }));
+      expect(document.querySelector('.stage-team')).toBeNull();
+      expect(document.querySelector('.chips')!.textContent).toContain('Олена');
+    });
+
+    it('the round table lists the teams with the people under the names', () => {
+      show(
+        view({
+          phase: 'round_end',
+          round: lRound,
+          teams: teamsView(),
+          standings: [
+            { participantId: 'team-b', nickname: 'Сині', score: 900, totalTimeMs: 0, rank: 1 },
+            { participantId: 'team-a', nickname: 'Червоні', score: 400, totalTimeMs: 0, rank: 2 },
+          ],
+        }),
+      );
+      const first = document.querySelector('.standings li')!;
+      expect(first.classList.contains('team-1')).toBe(true);
+      expect(first.querySelector('.standing-members')!.textContent).toBe('Оля, Петро, Ната');
     });
   });
 });

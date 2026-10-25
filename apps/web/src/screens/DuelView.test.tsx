@@ -67,6 +67,7 @@ const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): Player
   overtime: [],
   guide: null,
   newcomers: false,
+  teams: null,
   duel,
   round: null,
   questionIndex: 0,
@@ -82,6 +83,7 @@ const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): Player
   reveal: null,
   standings: null,
   table: null,
+  team: null,
 });
 
 const okSend = () => vi.fn<Send>().mockResolvedValue({ ok: true });

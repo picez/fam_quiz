@@ -2,16 +2,20 @@ import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto
 import {
   audioOf,
   acceptAnswer,
+  actAnswer,
+  actBuzz,
+  actorOf,
   addPlayer,
+  assignTeam,
   adjustScore,
   adjustTime,
   answerDuel,
   buyDebuff,
-  buzz,
   cancelDebuff,
   cancelDuel,
   castVote,
   createGame,
+  dealTeams,
   declareDuel,
   end,
   endRound,
@@ -26,6 +30,8 @@ import {
   override,
   pause,
   pickDuelCategory,
+  pickDuelist,
+  pickTeam,
   pickCell,
   placeWager,
   playerView,
@@ -34,7 +40,11 @@ import {
   resume,
   rollDie,
   rollForRest,
+  rollTeamDie,
+  rollTeamRest,
+  setCaptain,
   setConnected,
+  setTeamForm,
   setDebuff,
   setOrder,
   skipDuelQuestion,
@@ -58,18 +68,25 @@ import {
   nextClue,
   skipGuide,
   startDice,
+  startTeamDice,
   stageView,
   start,
-  submitAnswer,
   suspend,
   takeHint,
+  teamsOn,
+  memberOf,
+  recordOf,
   tick,
+  trialOpen,
+  trialQuestionOf,
+  questionFor,
   GAME_STATE_VERSION,
   READABLE_STATE_VERSIONS,
   type GameState,
   type Result,
+  type TeamAct,
 } from '@quiz/engine';
-import type { AckResult, Answer, BuffKind, DebuffKind, ErrorCode, GameView, Grade, LifelineKind, Phase, Quiz, Role, SubmittedAnswer } from '@quiz/shared';
+import { isUnscored, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type LifelineKind, type Phase, type Question, type Quiz, type Role, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -103,8 +120,25 @@ export interface Room {
   absence: unknown;
   expiry: unknown;
   expiryPhase: Phase | null;
+  /**
+   * Чернетки капітанів (10j): id команди → поле відповіді. Лише в пам'яті: не в стані гри,
+   * не в збереженій кімнаті; після перезапуску порожньо.
+   */
+  drafts: Map<string, Draft>;
   /** Лічильник команд звуку; лише в пам'яті, у збережену кімнату не потрапляє; стартує з Date.now(), щоб після перезапуску клієнт не проґавив команду. */
   audioSeq: number;
+}
+
+/** Чернетка того, хто відповідає за команду: на якому запитанні (trial — питання на виживання після нього), хто, коли й що в полі. */
+export interface Draft {
+  questionIndex: number;
+  trial: boolean;
+  /** Автор: лише поки він і далі відповідає за команду; йому самому чернетка не показується. */
+  by: string;
+  at: number;
+  /** Відбиток відповіді команди на мить чернетки: відповідь змінилася — чернетка застаріла. */
+  stamp: string;
+  draft: Answer;
 }
 
 /** moved — кімнату тепер веде інший процес (9b): вона пішла з пам'яті, але не закрита. */
@@ -113,7 +147,9 @@ export type RoomEvent =
   | { type: 'kicked'; playerId: string }
   | { type: 'closed' }
   | { type: 'moved' }
-  | { type: 'audio'; action: 'replay' | 'stop'; seq: number };
+  | { type: 'audio'; action: 'replay' | 'stop'; seq: number }
+  /** Чернетка капітана змінилася: стан гри той самий, зріз перезбирається лише учасникам команди. */
+  | { type: 'draft'; teamId: string; by: string };
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
@@ -131,7 +167,11 @@ export type HostAction =
   | { type: 'order'; playerIds: string[] }
   | { type: 'cloud-hide'; key: string; hidden: boolean }
   | { type: 'bluff-remove'; optionId: string }
-  | { type: 'time'; seconds: -15 | 15 };
+  | { type: 'time'; seconds: -15 | 15 }
+  | { type: 'team-form'; form: TeamForm }
+  | { type: 'team-assign'; memberId: string; teamId: string | null }
+  | { type: 'team-deal' | 'team-dice' | 'team-roll' }
+  | { type: 'captain'; teamId: string; memberId: string };
 
 export type JoinResult =
   | { ok: true; token: string; playerId: string }
@@ -192,6 +232,37 @@ export interface RoomManagerOptions {
   transitions?: boolean;
 }
 
+interface DraftStage {
+  trial: boolean;
+  /** Хто відповідає за команду: на запитанні — як за відповідь (у бліці той, хто натиснув), на виживанні — капітан. */
+  act: TeamAct;
+  question: (teamId: string) => Question;
+}
+
+/** Де ведеться чернетка: етап запитання з балами або відкрите питання на виживання (тоді trial); інакше null. */
+function draftStage(state: GameState): DraftStage | null {
+  if (state.phase === 'question') {
+    const play = state.plays[state.questionIndex];
+    // Опитування й «хмару» кожен проходить сам: чернетки немає.
+    if (play === undefined || isUnscored(play.question)) return null;
+    return { trial: false, act: 'answer', question: (teamId) => questionFor(state, play, teamId) };
+  }
+  const trial = trialOpen(state) ? trialQuestionOf(state) : null;
+  return trial === null ? null : { trial: true, act: 'captain', question: () => trial };
+}
+
+/** Відбиток того, що команда вже подала на поточному запитанні: відповідь, спроби й черга бліцу, відповідь поля, випробування. */
+function answerStamp(state: GameState, teamId: string): string {
+  const play = state.plays[state.questionIndex];
+  return JSON.stringify([
+    recordOf(state, state.questionIndex, teamId) ?? null,
+    play?.blitz?.attempts.filter((a) => a.playerId === teamId) ?? [],
+    play?.blitz?.queue.find((e) => e.playerId === teamId)?.answer ?? null,
+    play?.board?.chooserId === teamId ? play.board.answer : null,
+    play?.survival?.trial?.answers[teamId] ?? null,
+  ]);
+}
+
 export class RoomManager {
   private readonly scheduler: Scheduler;
   private readonly rng: () => number;
@@ -238,7 +309,8 @@ export class RoomManager {
       hostUserId,
       quizId,
       playerUsers: new Map(),
-      state: createGame(quiz, { transitions: this.transitions }),
+      // Рядок команди стає рядком participant в історії: id команд — uuid.
+      state: createGame(quiz, { transitions: this.transitions, teamIds: Array.from({ length: quiz.settings.teams?.count ?? 0 }, () => randomUUID()) }),
       playerTokens: new Map(),
       connections: new Map(),
       deadline: null,
@@ -246,6 +318,7 @@ export class RoomManager {
       absence: null,
       expiry: null,
       expiryPhase: null,
+      drafts: new Map(),
       audioSeq: Date.now(),
     };
     this.live.set(room.code, room);
@@ -292,6 +365,7 @@ export class RoomManager {
       absence: null,
       expiry: null,
       expiryPhase: null,
+      drafts: new Map(),
       audioSeq: Date.now(),
     };
     this.live.set(room.code, room);
@@ -411,59 +485,143 @@ export class RoomManager {
   view(room: Room, identity: Identity): GameView | null {
     if (identity.role === 'host') return hostView(room.state);
     if (identity.role === 'stage') return stageView(room.state);
-    return identity.playerId === null ? null : playerView(room.state, identity.playerId);
+    if (identity.playerId === null) return null;
+    const view = playerView(room.state, identity.playerId);
+    const team = view?.team ?? null;
+    if (view === null || team === null || team.teamId === null) return view;
+    const draft = this.currentDraft(room, team.teamId, identity.playerId);
+    return draft === null ? view : { ...view, team: { ...team, draft } };
+  }
+
+  /**
+   * Чернетка команди для глядача: те саме запитання (чи питання на виживання), автор досі відповідає за команду,
+   * відповідь команди відтоді не змінилася, глядач — не автор; інакше null.
+   */
+  private currentDraft(room: Room, teamId: string, viewerId: string): Answer | null {
+    const found = this.liveDraft(room, teamId);
+    return found === null || found.by === viewerId ? null : found.draft;
+  }
+
+  private liveDraft(room: Room, teamId: string): Draft | null {
+    const found = room.drafts.get(teamId);
+    const at = draftStage(room.state);
+    if (found === undefined || at === null) return null;
+    if (found.questionIndex !== room.state.questionIndex || found.trial !== at.trial) return null;
+    const author = actorOf(room.state, found.by, at.act);
+    if (!author.ok || author.id !== teamId) return null;
+    return found.stamp === answerStamp(room.state, teamId) ? found : null;
+  }
+
+  /**
+   * Чернетка (10j): лише командна гра, етап запитання з балами (чи відкрите питання на виживання), лише той,
+   * хто зараз відповідає за команду (капітан; у бліці — той, хто натиснув). Стан гри не змінюється й не пишеться:
+   * подія draft перезбирає зріз решті команди. Та сама чернетка не шлеться вдруге; кожна нова зберігається й шлеться
+   * (клієнт сам шле не частіше ніж раз на 250 мс і вдруге не повторює), тож остання не губиться.
+   */
+  draft(room: Room, playerId: string, draft: Answer | null): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const at = draftStage(room.state);
+    if (!teamsOn(room.state) || at === null) return { ok: false, error: 'wrong_phase' };
+    const who = this.act(room, playerId, at.act);
+    if (!who.ok) return who;
+    if (draft !== null && draft.type !== at.question(who.id).type) return { ok: false, error: 'type_mismatch' };
+    const live = this.liveDraft(room, who.id);
+    const now = this.now();
+    if (draft === null) {
+      if (live === null) return { ok: true };
+      room.drafts.delete(who.id);
+    } else {
+      if (live !== null && live.by === playerId && JSON.stringify(live.draft) === JSON.stringify(draft)) return { ok: true };
+      room.drafts.set(who.id, { questionIndex: room.state.questionIndex, trial: at.trial, by: playerId, at: now, stamp: answerStamp(room.state, who.id), draft });
+    }
+    this.emit(room, { type: 'draft', teamId: who.id, by: playerId });
+    return { ok: true };
+  }
+
+  /** Командна гра: учасник вибирає команду в лобі. */
+  teamPick(room: Room, playerId: string, teamId: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, pickTeam(room.state, playerId, teamId));
+  }
+
+  /** Командна гра: учасник кидає кубик формування. */
+  teamRoll(room: Room, playerId: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, rollTeamDie(room.state, playerId, this.rng));
+  }
+
+  /** Командна гра: капітан вибирає дуелянта своєї команди. */
+  duelist(room: Room, playerId: string, memberId: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, pickDuelist(room.state, playerId, memberId));
   }
 
   answer(room: Room, playerId: string, answer: Answer): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, submitAnswer(room.state, playerId, answer, this.now()));
+    return this.apply(room, actAnswer(room.state, playerId, answer, this.now()));
   }
 
   buzz(room: Room, playerId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, buzz(room.state, playerId, this.now()));
+    return this.apply(room, actBuzz(room.state, playerId, this.now()));
   }
 
   guess(room: Room, playerId: string, word: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, guessWord(room.state, playerId, word, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, guessWord(room.state, who.id, word, this.now()));
   }
 
   sort(room: Room, playerId: string, wordId: string, categoryId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, sortWord(room.state, playerId, wordId, categoryId, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, sortWord(room.state, who.id, wordId, categoryId, this.now()));
   }
 
   wall(room: Room, playerId: string, tiles: number[]): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, guessWall(room.state, playerId, tiles, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, guessWall(room.state, who.id, tiles, this.now()));
   }
 
   lie(room: Room, playerId: string, text: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, writeLie(room.state, playerId, text, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, writeLie(room.state, who.id, text, this.now()));
   }
 
   bluff(room: Room, playerId: string, optionId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, pickBluff(room.state, playerId, optionId, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, pickBluff(room.state, who.id, optionId, this.now()));
   }
 
   wipeout(room: Room, playerId: string, take: boolean): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, decideWipeout(room.state, playerId, take, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, decideWipeout(room.state, who.id, take, this.now()));
   }
 
   /** «Мільйонер»: учасник бере підказку драбини (10i). */
   lifeline(room: Room, playerId: string, kind: LifelineKind): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, useLifeline(room.state, playerId, kind, this.now(), this.rng));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, useLifeline(room.state, who.id, kind, this.now(), this.rng));
   }
 
   /** «Мільйонер»: рішення учасника — «Граю далі» чи «Забрати» (10i). */
   ladderDecide(room: Room, playerId: string, take: boolean): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, decideLadder(room.state, playerId, take, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, decideLadder(room.state, who.id, take, this.now()));
   }
 
   /** «Мільйонер»: ведучий вибирає учасника на заставці (10i). */
@@ -480,28 +638,39 @@ export class RoomManager {
 
   trial(room: Room, playerId: string, answer: Answer): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, answerTrial(room.state, playerId, answer, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, answerTrial(room.state, who.id, answer, this.now()));
   }
 
   door(room: Room, playerId: string, door: number): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, pickDoor(room.state, playerId, door, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, pickDoor(room.state, who.id, door, this.now()));
   }
 
   buff(room: Room, playerId: string, kind: BuffKind): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, takeBuff(room.state, playerId, kind, this.now(), this.rng));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, takeBuff(room.state, who.id, kind, this.now(), this.rng));
   }
 
   /** Гравець купує дебаф для суперника (9c). */
   buyDebuff(room: Room, buyerId: string, targetId: string, kind: DebuffKind): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, buyDebuff(room.state, buyerId, targetId, kind, this.now()));
+    const who = this.act(room, buyerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, buyDebuff(room.state, who.id, targetId, kind, this.now()));
   }
 
   vote(room: Room, playerId: string, askerId: string, answer: Answer): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, castVote(room.state, playerId, askerId, answer, this.now()));
+    // Голос залу подає сама людина (і в командній грі): право перевіряє рушій.
+    const who = this.act(room, playerId, 'vote');
+    if (!who.ok) return who;
+    return this.apply(room, castVote(room.state, who.id, askerId, answer, this.now()));
   }
 
   /** Підказка ведучого на запит гравця з бафом (не плутати з підказкою ланцюжка, hint). */
@@ -512,42 +681,58 @@ export class RoomManager {
 
   retry(room: Room, playerId: string, keep: boolean): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, chooseRetry(room.state, playerId, keep, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, chooseRetry(room.state, who.id, keep, this.now()));
   }
 
   declareDuel(room: Room, playerId: string, opponentId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, declareDuel(room.state, playerId, opponentId));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, declareDuel(room.state, who.id, opponentId));
   }
 
   duelCategory(room: Room, playerId: string, categoryId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, pickDuelCategory(room.state, playerId, categoryId, this.now(), this.rng));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, pickDuelCategory(room.state, who.id, categoryId, this.now(), this.rng));
   }
 
   duelAnswer(room: Room, playerId: string, text: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, answerDuel(room.state, playerId, text, this.now()));
+    const who = this.act(room, playerId, 'duel');
+    if (!who.ok) return who;
+    return this.apply(room, answerDuel(room.state, who.id, text, this.now()));
   }
 
   hint(room: Room, playerId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, takeHint(room.state, playerId, this.now()));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, takeHint(room.state, who.id, this.now()));
   }
 
   pick(room: Room, playerId: string, cellId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, pickCell(room.state, playerId, cellId, this.now(), this.rng));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, pickCell(room.state, who.id, cellId, this.now(), this.rng));
   }
 
   roll(room: Room, playerId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, rollDie(room.state, playerId, this.rng));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, rollDie(room.state, who.id, this.rng));
   }
 
   wager(room: Room, playerId: string, amount: number, allIn = false): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, placeWager(room.state, playerId, amount, this.now(), this.rng, allIn));
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    return this.apply(room, placeWager(room.state, who.id, amount, this.now(), this.rng, allIn));
   }
 
   host(room: Room, action: HostAction): AckResult {
@@ -616,19 +801,42 @@ export class RoomManager {
         return this.apply(room, acceptAnswer(state, action.playerId, this.now()));
       case 'repick':
         return this.apply(room, repick(state, action.playerId, this.now()));
+      case 'team-form':
+        return this.apply(room, setTeamForm(state, action.form));
+      case 'team-assign':
+        return this.apply(room, assignTeam(state, action.memberId, action.teamId));
+      case 'team-deal':
+        return this.apply(room, dealTeams(state, this.rng));
+      case 'team-dice':
+        return this.apply(room, startTeamDice(state));
+      case 'team-roll':
+        return this.apply(room, rollTeamRest(state, this.rng));
+      case 'captain':
+        return this.apply(room, setCaptain(state, action.teamId, action.memberId));
     }
+  }
+
+  /** Хто з людей діє (10j): у командній грі — id команди (голос — сама людина) або помилка; соло — сам гравець. */
+  private act(room: Room, playerId: string, kind: TeamAct): { ok: true; id: string } | { ok: false; error: ErrorCode } {
+    return actorOf(room.state, playerId, kind);
   }
 
   private kick(room: Room, playerId: string): AckResult {
     // Після фінішу подіум уже показано; вилучення переписало б результати.
     if (room.state.phase === 'finished') return { ok: false, error: 'wrong_phase' };
-    const removed = removePlayer(room.state, playerId);
+    // Ведучий вилучає людей: id команди в командній грі — не людина (команда зникає з останнім учасником).
+    if (teamsOn(room.state) && memberOf(room.state, playerId) === undefined) return { ok: false, error: 'not_found' };
+    const removed = removePlayer(room.state, playerId, this.now());
     if (!removed.ok) return { ok: false, error: removed.error };
     for (const [token, id] of room.playerTokens) {
       if (id === playerId) room.playerTokens.delete(token);
     }
     room.connections.delete(playerId);
     room.playerUsers.delete(playerId);
+    // Останній учасник забрав команду — її чернетка теж зникає.
+    for (const teamId of room.drafts.keys()) {
+      if (!removed.state.players.some((p) => p.id === teamId)) room.drafts.delete(teamId);
+    }
     this.emit(room, { type: 'kicked', playerId });
     // Новою головою черги може стати гравець, чиє вікно вже сплило, поки чекали на ведучого;
     // таймер його вже минув, тож доводимо стан до поточної миті тут.

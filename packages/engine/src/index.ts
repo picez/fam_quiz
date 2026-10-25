@@ -28,4 +28,6 @@ export * from './survival';
 export * from './ladder';
 export * from './duel';
 export * from './splash';
+export * from './teams';
+export * from './team-act';
 export * from './restore';

@@ -1,6 +1,7 @@
 import type { BuffKind, DebuffKind } from './game';
 import { allowedBuffs, allowedDebuffs, duelThreshold, questionsOf, roundTrials, type Question, type Quiz } from './quiz';
 import { roundBrief, type RoundBrief } from './round-brief';
+import { teamsOf } from './teams';
 
 /** Тип запитання на сторінці «Як грати»; top — підпис верху для order ('' — немає або інший тип). */
 export interface GuideType {
@@ -11,6 +12,8 @@ export interface GuideType {
 /** Одна сторінка «Як грати» без тексту: тексти складає клієнт. */
 export type GuidePage =
   | { kind: 'phone' }
+  /** Командна гра (10j): після «Телефона». */
+  | { kind: 'teams'; count: number }
   | { kind: 'rounds'; rounds: RoundBrief[] }
   | { kind: 'questions'; types: GuideType[] }
   | { kind: 'buffs'; buffs: BuffKind[] }
@@ -25,7 +28,7 @@ export function newcomersOn(quiz: Pick<Quiz, 'settings'>): boolean {
   return quiz.settings.newcomers === true;
 }
 
-/** Сторінки «Як грати» для цієї вікторини: phone, rounds, questions…, [buffs], [debuffs], [duels]. */
+/** Сторінки «Як грати» для цієї вікторини: phone, [teams], rounds, questions…, [buffs], [debuffs], [duels]. */
 export function guidePages(quiz: Quiz): GuidePage[] {
   // Один пункт на вид раунду — зведення першого раунду цього виду.
   const briefs = new Map<string, RoundBrief>();
@@ -45,7 +48,10 @@ export function guidePages(quiz: Quiz): GuidePage[] {
   const order = types.find((x) => x.type === 'order');
   if (order && top) order.top = top;
 
-  const pages: GuidePage[] = [{ kind: 'phone' }, { kind: 'rounds', rounds: [...briefs.values()] }];
+  const pages: GuidePage[] = [{ kind: 'phone' }];
+  const teams = teamsOf(quiz);
+  if (teams) pages.push({ kind: 'teams', count: teams.count });
+  pages.push({ kind: 'rounds', rounds: [...briefs.values()] });
   for (let i = 0; i < types.length; i += GUIDE_TYPES_PER_PAGE) {
     pages.push({ kind: 'questions', types: types.slice(i, i + GUIDE_TYPES_PER_PAGE) });
   }

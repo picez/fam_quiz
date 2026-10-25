@@ -30,6 +30,7 @@ export function History() {
                 <Link to={`/history/${game.id}`}>{game.title}</Link>
               </h2>
               <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}`}</p>
+              {game.teams && <p className="meta team-game-mark">{t('historyTeamGame')}</p>}
               <p className="meta">{t('playersCount', { count: game.playerCount })}</p>
               <p className="meta">{t('questionsProgress', { played: game.questionsPlayed, total: game.questionCount })}</p>
             </li>

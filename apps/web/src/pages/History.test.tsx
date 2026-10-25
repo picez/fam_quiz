@@ -19,6 +19,7 @@ const summary: GameSummary = {
   playerCount: 2,
   questionsPlayed: 6,
   questionCount: 6,
+  teams: false,
 };
 
 const base = { imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -64,6 +65,7 @@ const detail: GameDetail = {
     { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
     { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null },
   ],  adjustments: [],
+  teams: false,
 };
 
 /** Підставна сторінка входу: показує адресу, на яку людину повернуть після входу. */
@@ -97,6 +99,15 @@ describe('History', () => {
     expect(screen.getByText(/жовт.*завершено/)).toBeTruthy();
     expect(screen.getByText('Гравців: 2')).toBeTruthy();
     expect(screen.getByText('Запитань зіграно: 6 з 6')).toBeTruthy();
+    expect(screen.queryByText('Командна гра')).toBeNull();
+  });
+
+  it('marks a team game in the list', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...summary, teams: true, playerCount: 4 }] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Географія' });
+    expect(screen.getByText('Командна гра')).toBeTruthy();
+    expect(screen.getByText('Гравців: 4')).toBeTruthy();
   });
 
   it('says in words that a game was interrupted or is still running', async () => {
@@ -151,6 +162,32 @@ describe('GameHistory', () => {
     expect(screen.getByRole('link', { name: 'Історія ігор' }).getAttribute('href')).toBe('/history');
     // Текст запитання й статистика стоять в окремих рядках: інакше на телефоні текст стискається.
     for (const list of screen.getAllByRole('list')) expect(list.className).toContain('stacked');
+  });
+
+  it('a team game is marked and every team shows its line-up', async () => {
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        teams: true,
+        standings: [
+          { participantId: 't1', nickname: 'Червоні', score: 2000, rank: 1, correct: 2, members: ['Оля', 'Петро'] },
+          { participantId: 't2', nickname: 'Сині', score: 0, rank: 2, correct: 0, members: [] },
+        ],
+      },
+    });
+    open('/history/g1');
+    expect(await screen.findByText('Командна гра')).toBeTruthy();
+    expect(screen.getByText('Склад: Оля, Петро')).toBeTruthy();
+    expect(screen.getAllByText(/^Склад:/)).toHaveLength(1);
+  });
+
+  it('a solo game has no team mark and no line-ups', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+    open('/history/g1');
+    await screen.findByRole('heading', { name: 'Географія' });
+    expect(screen.queryByText('Командна гра')).toBeNull();
+    expect(screen.queryByText(/^Склад:/)).toBeNull();
   });
 
   it('shows a game without places or players without looking broken', async () => {

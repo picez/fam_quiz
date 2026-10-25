@@ -13,8 +13,10 @@ import { follow, game, participant, profile, user } from './db/schema';
 import { ensureProfile, profileFacts, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
 import type { Room } from './rooms/manager';
-import { questionsOf } from '@quiz/shared';
+import { defaultTeams, questionsOf } from '@quiz/shared';
 import { seedGame } from './testing/history-rows';
+import { TEAM_HOST, TEAM_USERS, recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
+import { hostGames, playerGames } from './history';
 
 const addUser = (db: Awaited<ReturnType<typeof createTestDb>>, id: string, name: string) =>
   db.insert(user).values({ id, name, email: `${id}@example.com` });
@@ -541,5 +543,90 @@ describe('profile facts', () => {
     // Глядач: 1 з 1 (на l2 і l3 він мовчав); Учасник: 2 з 3.
     expect(await accuracy('Глядач')).toBe(100);
     expect(await accuracy('Учасник')).toBe(67);
+  });
+});
+
+describe('profile: teams (10j)', () => {
+  /**
+   * Червоні (Оля, Петро; капітан — Петро) проти Синіх (Віра, Ігор): single — Червоні так, Сині ні; text — Червоні ні, Сині так;
+   * хмара — голоси людей; бліц — натискає й відповідає Петро, правильно. Червоні: 2 з 3 і 2000, Сині: 1 з 3 і 1000.
+   */
+  async function teamGame() {
+    const t = await recordedTeamGame(
+      makeRoundsQuiz(
+        [classicRound('r1', [single, text, cloud], { speedBonus: false }), blitzRound('b1', [withId(text, 'q9')], { check: 'manual' })],
+        { teams: defaultTeams(2) },
+      ),
+    );
+    const { manager, room, members, teams } = t;
+    expect(manager.host(room, { type: 'captain', teamId: teams[0], memberId: members['Петро'] })).toEqual({ ok: true });
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Петро'], { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(manager.answer(room, members['Віра'], { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Петро'], { type: 'text', value: 'Львів' })).toEqual({ ok: true });
+    expect(manager.answer(room, members['Віра'], { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+    toQuestion(manager, room);
+    for (const name of ['Оля', 'Петро', 'Віра', 'Ігор']) expect(manager.answer(room, members[name], { type: 'wordcloud', words: ['літо'] })).toEqual({ ok: true });
+    toQuestion(manager, room);
+    expect(manager.buzz(room, members['Петро'])).toEqual({ ok: true });
+    expect(manager.answer(room, members['Петро'], { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'judge', playerId: teams[0], correct: true })).toEqual({ ok: true });
+    toEnd(manager, room);
+    await t.recorder.idle();
+    expect(t.errors).toEqual([]);
+    expect(room.state.players.map((p) => [p.nickname, p.score])).toEqual([
+      ['Червоні', 2000],
+      ['Сині', 1000],
+    ]);
+    return t;
+  }
+
+  it("a member gets the team's place, win and accuracy from the team's answers, even when not the captain; their cloud vote is not an answer", async () => {
+    const t = await teamGame();
+    const olya = await profileFacts(t.db, TEAM_USERS['Оля']);
+    expect(olya.stats).toMatchObject({ games: 1, wins: 1, accuracy: 67 });
+    expect(olya.wins).toHaveLength(1);
+    const [played] = await playerGames(t.db, TEAM_USERS['Оля'], null);
+    expect(played.played).toMatchObject({ nickname: 'Оля', team: 'Червоні', rank: 1, score: 2000, playerCount: 2, correct: 2, answered: 3, questionsPlayed: 3 });
+    expect(played.marks.map((m) => [m.questionIndex, m.accepted])).toEqual(
+      expect.arrayContaining([
+        [0, true],
+        [1, false],
+        [3, true],
+      ]),
+    );
+    expect(played.marks).toHaveLength(3);
+
+    const vira = await profileFacts(t.db, TEAM_USERS['Віра']);
+    expect(vira.stats).toMatchObject({ games: 1, wins: 0, accuracy: 33 });
+    const [viraGame] = await playerGames(t.db, TEAM_USERS['Віра'], null);
+    expect(viraGame.played).toMatchObject({ team: 'Сині', rank: 2, playerCount: 2 });
+  });
+
+  it('a blitz round won by a team is earned by its members; the host game list counts people', async () => {
+    const t = await teamGame();
+    const earned = async (userId: string) => (await profileFacts(t.db, userId)).achievements.find((a) => a.id === 'blitz_win')?.earned;
+    expect(await earned(TEAM_USERS['Оля'])).toBe(true);
+    expect(await earned(TEAM_USERS['Віра'])).toBe(false);
+    const [listed] = await hostGames(t.db, TEAM_HOST);
+    expect(listed.playerCount).toBe(4);
+    expect(listed.teams).toBe(true);
+  });
+
+  it('a solo game has no team in my games', async () => {
+    const db = await createTestDb();
+    await addUser(db, 'solo-host', 'Ведуча');
+    await addUser(db, 'solo-player', 'Тарас');
+    await seedGame(db, {
+      hostId: 'solo-host',
+      startedAt: new Date(),
+      players: [
+        { userId: 'solo-player', nickname: 'Тарас', score: 10, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 10 }] },
+        { userId: null, nickname: 'Гість', score: 0, rank: 2 },
+      ],
+    });
+    const [played] = await playerGames(db, 'solo-player', null);
+    expect(played.played).toMatchObject({ team: null, playerCount: 2, rank: 1 });
   });
 });

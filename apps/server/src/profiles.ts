@@ -127,9 +127,9 @@ export async function profileFacts(
     played.map((g) => g.gameId),
   );
   const friendRows = await db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId));
-  // Свій учасник у грі: з кількох береться той, що з кращим місцем, а без місця останній.
+  // Свій учасник у грі (сам гравець або команда, де він грав): з кількох береться той, що з кращим місцем, а без місця останній.
   const mine = tables.flatMap((table) => {
-    const own = table.players.filter((p) => p.userId === userId).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+    const own = table.players.filter((p) => p.userId === userId || p.memberUserIds.includes(userId)).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
     return own[0] === undefined ? [] : [{ table, id: own[0].participantId }];
   });
   const achievements = achievementsOf({

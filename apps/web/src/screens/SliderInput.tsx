@@ -7,6 +7,7 @@ interface Props {
   question: PublicQuestion & { slider: PublicSlider };
   onSubmit: (answer: Answer) => void;
   submitLabel?: string;
+  onDraft?: (draft: Answer | null) => void;
 }
 
 /** Найближче вузол сітки min + k·step, округлене до знаків кроку й межі: 0,1 × 10 без «0,9999999». */
@@ -16,10 +17,14 @@ function snap(value: number, min: number, step: number): number {
 }
 
 /** Повзунок: велике число, кнопки «−»/«+» на один крок для точного налаштування одним пальцем, «Відповісти». */
-export function SliderInput({ question, onSubmit, submitLabel }: Props) {
+export function SliderInput({ question, onSubmit, submitLabel, onDraft }: Props) {
   const { min, max, step } = question.slider;
   const [value, setValue] = useState(() => snap(min + Math.round((max - min) / 2 / step) * step, min, step));
-  const move = (delta: number) => setValue((now) => Math.min(max, Math.max(min, snap(now + delta, min, step))));
+  const change = (next: number) => {
+    setValue(next);
+    onDraft?.({ type: 'slider', value: next });
+  };
+  const move = (delta: number) => change(Math.min(max, Math.max(min, snap(value + delta, min, step))));
   const stepText = sliderNumber(step, step);
   // Знаки після коми — як у кроку й у межі: min 0,5 з кроком 1 дає «2,5», а не «3».
   const digits = Math.max(stepDecimals(step), stepDecimals(min));
@@ -42,7 +47,7 @@ export function SliderInput({ question, onSubmit, submitLabel }: Props) {
           step={step}
           value={value}
           aria-valuetext={sliderValueText(value, shown)}
-          onChange={(event) => setValue(Math.min(max, Math.max(min, snap(Number(event.target.value), min, step))))}
+          onChange={(event) => change(Math.min(max, Math.max(min, snap(Number(event.target.value), min, step))))}
         />
         <button type="button" className="btn btn-icon slider-step" aria-label={t('sliderMore', { step: stepText })} disabled={value >= max} onClick={() => move(step)}>
           +

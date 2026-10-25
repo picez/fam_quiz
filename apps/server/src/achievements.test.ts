@@ -18,6 +18,7 @@ const played = (status: PlayedGame['status'] = 'finished'): PlayedGame => ({
   correct: 0,
   answered: 0,
   questionsPlayed: 10,
+  team: null,
 });
 
 const zero = { winStreak: 0, blitzWins: 0, finalHits: 0, comebacks: 0, friendsPlayedWith: 0 };
@@ -132,7 +133,7 @@ describe('new achievements', () => {
 
   it('blitz_win needs a strict lead and comeback needs to trail before the last round', () => {
     const row = (roundIndex: number, points: number, accepted = points > 0) => ({ roundIndex, attempt: 0, accepted, points, wager: null });
-    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, memberUserIds: [], rank, score, rows });
     const blitz = table(['blitz', 'classic'], [p('a', 1, 30, [row(0, 20), row(1, 10)]), p('b', 2, 20, [row(0, 20)])]);
     expect(wonBlitzRound(blitz, 'a')).toBe(false); // 20 = 20
     const lead = table(['classic', 'blitz'], [p('a', 1, 30, [row(1, 30)]), p('b', 2, 10, [row(1, 20), row(1, -10, false)])]);
@@ -151,7 +152,7 @@ describe('new achievements', () => {
 
   it('hitFinal counts a right answer with a stake even when the bank was empty', () => {
     const one = (row: Omit<TableRow, 'roundIndex' | 'attempt'>) =>
-      table(['classic', 'final'], [{ participantId: 'a', userId: 'a', rank: 1, score: 0, rows: [{ roundIndex: 1, attempt: 0, ...row }] }]);
+      table(['classic', 'final'], [{ participantId: 'a', userId: 'a', memberUserIds: [], rank: 1, score: 0, rows: [{ roundIndex: 1, attempt: 0, ...row }] }]);
     expect(hitFinal(one({ accepted: true, points: 0, wager: 300 }), 'a')).toBe(true);
     expect(hitFinal(one({ accepted: true, points: 0, wager: 0 }), 'a')).toBe(false);
     // Старі рядки без ставки: ставка дорівнює |points|.
@@ -162,7 +163,7 @@ describe('new achievements', () => {
   it('adjustments count for blitz rounds and comebacks but never for the final hit', () => {
     const row = (roundIndex: number, points: number, accepted = points > 0) => ({ roundIndex, attempt: 0, accepted, points, wager: null });
     const adj = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null });
-    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, memberUserIds: [], rank, score, rows });
 
     // Фінал: коригування з points > 0 у раунді фіналу — не влучання; відповідь — влучання.
     const onlyBonus = table(['classic', 'final'], [p('a', 1, 40, [row(0, 10), adj(1, 30)]), p('b', 2, 20, [row(0, 20)])]);
@@ -193,7 +194,7 @@ describe('new achievements', () => {
   it('a debuff purchase in a blitz round does not lose its win', () => {
     const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
     const buy = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null, source: 'debuff' as const });
-    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, memberUserIds: [], rank, score, rows });
     // a має 30 проти 20, але купівля −200 у тому ж раунді забрала б перевагу
     expect(wonBlitzRound(table(['blitz'], [p('a', 2, -170, [row(0, 30), buy(0, -200)]), p('b', 1, 20, [row(0, 20)])]), 'a')).toBe(true);
   });
@@ -201,7 +202,7 @@ describe('new achievements', () => {
   it('a duel stake that lands in a blitz round does not win it, but still counts for a comeback', () => {
     const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
     const duel = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null, source: 'duel' as const });
-    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, rank, score, rows });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, memberUserIds: [], rank, score, rows });
 
     // a виграв дуель у бліц-раунді: +300 у нього, −300 у b. За бліцем вони нарівні — короля бліцу немає.
     const stake = table(['blitz', 'classic'], [p('a', 1, 320, [row(0, 20), duel(0, 300)]), p('b', 2, -280, [row(0, 20), duel(0, -300)])]);
@@ -218,9 +219,25 @@ describe('new achievements', () => {
   });
 
   it('friendsPlayedWith counts distinct friends other than the player', () => {
-    const p = (userId: string | null) => ({ participantId: `${userId}-p`, userId, rank: null, score: 0, rows: [] });
+    const p = (userId: string | null) => ({ participantId: `${userId}-p`, userId, memberUserIds: [], rank: null, score: 0, rows: [] });
     const tables = [table(['classic'], [p('me'), p('f1'), p('f2'), p(null)]), table(['classic'], [p('me'), p('f1'), p('x')])];
     expect(friendsPlayedWith(tables, 'me', new Set(['f1', 'f2', 'f3', 'me']))).toBe(2);
+  });
+});
+
+describe('teams (10j)', () => {
+  const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
+  const team = (id: string, rank: number, score: number, memberUserIds: string[], rows: TableRow[] = []) => ({ participantId: id, userId: null, memberUserIds, rank, score, rows });
+
+  it('friendsPlayedWith counts a teammate and a rival from another team', () => {
+    const tables = [table(['classic'], [team('red', 1, 10, ['me', 'f1', 'x']), team('blue', 2, 0, ['f2', 'f3'])])];
+    expect(friendsPlayedWith(tables, 'me', new Set(['f1', 'f2', 'me']))).toBe(2);
+  });
+
+  it('a blitz round is compared between teams', () => {
+    const game = table(['blitz'], [team('red', 1, 30, ['me'], [row(0, 30)]), team('blue', 2, 10, ['you'], [row(0, 10)])]);
+    expect(wonBlitzRound(game, 'red')).toBe(true);
+    expect(wonBlitzRound(game, 'blue')).toBe(false);
   });
 });
 

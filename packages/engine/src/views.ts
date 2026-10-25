@@ -83,6 +83,9 @@ import {
   type SplashKind,
   type SplashView,
   type StageView,
+  type PlayerTeam,
+  type TeamMemberView,
+  type TeamsView,
   guidePages,
   isUnscored,
   LIMITS,
@@ -93,7 +96,7 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalOutcome, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState } from './game';
+import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
@@ -126,6 +129,8 @@ import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turn
 import { cluesAnswered, cluesByHost, cluesOpen, nextClueAt } from './clues';
 import { pendingOf } from './hold';
 import { rankPlayers } from './ranking';
+import { actorOf, voterList } from './team-act';
+import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
@@ -934,7 +939,7 @@ function currentCloud(state: GameState) {
 function stageCloud(state: GameState): CloudWord[] | null {
   const play = currentCloud(state);
   if (play === null || !isRevealed(state)) return null;
-  return cloudTally(play, state.players)
+  return cloudTally(play, voterList(state))
     .filter((entry) => !entry.hidden)
     .slice(0, LIMITS.cloudShown)
     .map(({ key, text, count }) => ({ key, text, count }));
@@ -944,12 +949,13 @@ function stageCloud(state: GameState): CloudWord[] | null {
 function hostCloud(state: GameState): HostCloudWord[] | null {
   const play = currentCloud(state);
   if (play === null) return null;
-  return cloudTally(play, state.players).map(({ key, text, count, hidden, playerIds }) => ({
+  const voters = voterList(state);
+  return cloudTally(play, voters).map(({ key, text, count, hidden, playerIds }) => ({
     key,
     text,
     count,
     hidden,
-    by: playerIds.map((id) => state.players.find((p) => p.id === id)?.nickname ?? ''),
+    by: playerIds.map((id) => voters.find((v) => v.id === id)?.nickname ?? ''),
   }));
 }
 
@@ -1507,7 +1513,8 @@ function base(state: GameState, forHost: boolean) {
           ? state.quiz.duels.timeLimit * 1000
           : null,
     held,
-    playerCount: state.players.length,
+    // Командна гра: на опитуванні й «хмарі» відповідають люди — «Відповіли N з M» рахує їх; поза запитанням («Місце N з M») — команди.
+    playerCount: unscoredNow(state) && ANSWERING.includes(state.phase) ? voterList(state).length : state.players.length,
     answeredCount: answeredCount(state),
     blitz: blitzInfo(state, forHost),
     board: boardInfo(state, forHost),
@@ -1531,6 +1538,41 @@ function base(state: GameState, forHost: boolean) {
     overtime: overtimeRows(state),
     guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,
     newcomers: newcomersOn(state.quiz),
+    teams: teamsView(state),
+  };
+}
+
+/** Етапи запитання, на яких лічильник голосу без балів рахує людей. */
+const ANSWERING: Phase[] = ['question', 'locked', 'reveal'];
+
+/** Чи поточне запитання — голос без балів (опитування, «хмара слів»). */
+function unscoredNow(state: GameState): boolean {
+  const question = currentQuestion(state);
+  return question !== null && isUnscored(question);
+}
+
+const memberView = ({ id, nickname, connected }: TeamMember): TeamMemberView => ({ id, nickname, connected });
+
+/** Команди для всіх ролей: склад, капітани, у лобі — ще без команди й кубики формування; null у соло-грі. */
+function teamsView(state: GameState): TeamsView | null {
+  if (!teamsOn(state)) return null;
+  const { form, list, members, dice } = state.teams;
+  const lobby = state.phase === 'lobby';
+  return {
+    form,
+    teams: list.map((t) => ({ id: t.id, name: t.name, color: t.color, captainId: captainOf(state, t.id), members: teamMembers(state, t.id).map(memberView) })),
+    unassigned: lobby ? members.filter((m) => m.teamId === null).map(memberView) : [],
+    // Рядки — ті, хто кидав або чекає кидка (хто прийшов після старту кидків — поза ними).
+    dice:
+      lobby && dice !== null
+        ? {
+            rows: members
+              .filter((m) => Object.hasOwn(dice.throws, m.id) || dice.tour.includes(m.id))
+              .map((m) => ({ playerId: m.id, nickname: m.nickname, throws: dice.throws[m.id] ?? [], waiting: dice.waiting.includes(m.id) })),
+            tieBreak: dice.tour.length > 0 && dice.tourNo > 1,
+            done: dice.tour.length === 0,
+          }
+        : null,
   };
 }
 
@@ -1742,7 +1784,7 @@ export function stageView(state: GameState): StageView {
     sliderMarks: sliderMarks(state, false),
     pinMarks: pinMarks(state, false),
     cloud: stageCloud(state),
-    cloudVoters: stageCloud(state) === null ? null : cloudVoters(state.plays[state.questionIndex], state.players),
+    cloudVoters: stageCloud(state) === null ? null : cloudVoters(state.plays[state.questionIndex], voterList(state)),
   };
 }
 
@@ -1758,6 +1800,106 @@ function blitzAnswer(state: GameState, playerId: string): Answer | null | undefi
 }
 
 export function playerView(state: GameState, playerId: string): PlayerView | null {
+  if (!teamsOn(state)) {
+    const view = ownView(state, playerId);
+    return view === null ? null : { ...view, team: null };
+  }
+  const member = memberOf(state, playerId);
+  if (member === undefined) return null;
+  const team = playerTeam(state, member);
+  const view = member.teamId === null ? null : ownView(state, member.teamId);
+  if (view === null) return lobbyView(state, member, team);
+  // Опитування й «хмару» кожен проходить сам: власний голос, а не запис команди (його немає).
+  const vote = unscoredNow(state) ? publicAnswer(recordOf(state, state.questionIndex, member.id)?.answer ?? null, isRevealed(state)) : view.me.answer;
+  return { ...view, me: { ...view.me, answer: vote, vote: votePrompt(state, member.id) }, team };
+}
+
+/** Учасник без команди (лобі): спільна частина й порожній me. */
+function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): PlayerView {
+  const shared = base(state, false);
+  return {
+    ...shared,
+    question: shared.question === null ? null : withoutClip(shared.question),
+    role: 'player',
+    me: {
+      id: member.id,
+      nickname: member.nickname,
+      score: 0,
+      rank: null,
+      answer: null,
+      result: null,
+      blitz: null,
+      final: null,
+      wipeout: null,
+      survival: null,
+      ladder: null,
+      chain: null,
+      sort: null,
+      wall: null,
+      survey: null,
+      bluff: null,
+      debuff: null,
+      shop: null,
+      duel: null,
+      buffs: null,
+      overtime: null,
+      tip: null,
+      vote: null,
+    },
+    reveal: null,
+    standings: null,
+    table: null,
+    team,
+  };
+}
+
+/** Учасник про себе: капітан, право діяти зараз, натиснувший, дуелянт, вибір команди й кубик у лобі. Чернетку додає сервер. */
+function playerTeam(state: GameState, member: TeamMember): PlayerTeam {
+  const teamId = member.teamId;
+  const captainId = teamId === null ? null : captainOf(state, teamId);
+  const lobby = state.phase === 'lobby';
+  const dice = state.teams?.dice ?? null;
+  const duel = state.duel;
+  const duelling = teamId !== null && duel !== null && (duel.challengerId === teamId || duel.opponentId === teamId);
+  const play = inQuestion(state) ? state.plays[state.questionIndex] : undefined;
+  return {
+    memberId: member.id,
+    nickname: member.nickname,
+    teamId,
+    captainId,
+    captain: captainId === member.id,
+    canAct: teamId !== null && !lobby && canActNow(state, member.id, teamId),
+    // Натиснувший — лише поки команда в черзі: після оцінки спроби його вже немає.
+    buzzerId: teamId !== null && play?.blitz?.queue.some((e) => e.playerId === teamId) ? (play.buzzers?.[teamId] ?? null) : null,
+    duelistId: duelling ? duelistOf(state, teamId) : null,
+    canPickDuelist: duelling && captainId === member.id && (duel.stage === 'declared' || duel.stage === 'category'),
+    canPick: lobby && state.teams?.form === 'pick',
+    canRoll: lobby && dice !== null && dice.waiting.includes(member.id),
+    draft: null,
+  };
+}
+
+/** Чи людина може зараз діяти за команду: дуель — дуелянт; поза запитанням — капітан; бліц без команди в черзі — будь-хто; інакше як actorOf(…, 'answer'). */
+function canActNow(state: GameState, memberId: string, teamId: string): boolean {
+  const duel = state.duel;
+  if (state.phase === 'duel' && duel !== null && (duel.challengerId === teamId || duel.opponentId === teamId) && (duel.stage === 'question' || duel.stage === 'answer')) {
+    return actorOf(state, memberId, 'duel').ok;
+  }
+  // Поза запитанням (поле, ставка, рішення) — капітан.
+  if (state.phase !== 'question') return actorOf(state, memberId, 'captain').ok;
+  // Бліц: ті самі умови, що в кнопки й поля команди (спроби, час, уже відповіла).
+  const open = currentBlitz(state);
+  const own = playerBlitz(state, teamId);
+  if (open !== null && own !== null) {
+    // Миттєвий бліц — будь-хто, поки команда може відповісти; з кнопкою — натиснути може будь-хто, поки команди немає в черзі.
+    if (isInstant(open.rules)) return own.canAnswer;
+    if (own.position === null) return own.canBuzz;
+  }
+  return actorOf(state, memberId, 'answer').ok;
+}
+
+/** Зріз гравця рушія (соло-гравця або команди) без поля team. */
+function ownView(state: GameState, playerId: string): Omit<PlayerView, 'team'> | null {
   const player = state.players.find((p) => p.id === playerId);
   if (player === undefined) return null;
   const record = currentRecord(state, playerId);
@@ -1902,7 +2044,9 @@ function responseClue(state: GameState, playerId: string, timeMs: number): numbe
 export function hostView(state: GameState): HostView {
   const current = state.plays[state.questionIndex]?.question;
   const unscored = current !== undefined && isUnscored(current);
-  const responses = state.players.flatMap((player): HostResponse[] => {
+  // Голоси без балів у командній грі лежать під id людей (voterList; у соло-грі — гравці).
+  const responders = unscored ? voterList(state) : state.players;
+  const responses = responders.flatMap((player): HostResponse[] => {
     const record = currentRecord(state, player.id);
     if (record === undefined) return [];
     return [

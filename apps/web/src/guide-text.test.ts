@@ -62,3 +62,11 @@ describe('guide texts', () => {
     );
   });
 });
+
+describe('teams guide page (10j)', () => {
+  it('has a title and a body with the number of teams', () => {
+    const text = guidePageText({ kind: 'teams', count: 3 });
+    expect(text.title).toBe('Граємо командами');
+    expect(text.lead.join(' ')).toContain('Команд: 3');
+  });
+});

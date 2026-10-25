@@ -92,6 +92,8 @@ export function guidePageText(page: GuidePage): GuideText {
   switch (page.kind) {
     case 'phone':
       return { title: t('guidePhoneTitle'), lead: [t('guidePhoneSee'), t('guidePhoneAnswer'), t('guidePhoneScore')], items: [] };
+    case 'teams':
+      return { title: t('guideTeamsTitle'), lead: [t('guideTeamsBody', { count: page.count })], items: [] };
     case 'rounds':
       return {
         title: t('guideRoundsTitle'),

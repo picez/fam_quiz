@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
@@ -16,6 +16,8 @@ type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 interface Tracked {
   socket: Client;
   last: GameView | null;
+  /** Скільки зрізів state отримано. */
+  states: number;
   waiters: { test: (view: GameView) => boolean; resolve: (view: GameView) => void }[];
 }
 
@@ -43,9 +45,10 @@ afterEach(async () => {
 function open(auth: SocketAuth): Tracked {
   const socket: Client = connect(url, { auth, transports: ['websocket'], reconnection: false });
   sockets.push(socket);
-  const tracked: Tracked = { socket, last: null, waiters: [] };
+  const tracked: Tracked = { socket, last: null, states: 0, waiters: [] };
   socket.on('state', (view) => {
     tracked.last = view;
+    tracked.states += 1;
     const ready = tracked.waiters.filter((waiter) => waiter.test(view));
     tracked.waiters = tracked.waiters.filter((waiter) => !ready.includes(waiter));
     for (const waiter of ready) waiter.resolve(view);
@@ -1117,5 +1120,91 @@ describe('survival over sockets (10h)', () => {
     expect(await send(olena, 'player:trial', { answer: TRIAL_RIGHT[0] })).toEqual({ ok: false, error: 'wrong_phase' });
     expect(await send(olena, 'player:door', { door: 2 })).toEqual({ ok: true });
     expect(await send(olena, 'player:door', { door: 1 })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});
+
+describe('teams over sockets (10j)', () => {
+  /** Командна гра з ведучим, сценою й чотирма людьми в лобі; ids команд — зі зрізу пульта. */
+  async function teamLobby(rounds = [classicRound('r1', [text, single])]) {
+    const game = (await startGame(ctx.app, makeRoundsQuiz(rounds, { teams: defaultTeams(2) }))).game;
+    const joins = [];
+    for (const name of ['Олена', 'Тарас', 'Іра', 'Марко']) joins.push(await join(game.code, name));
+    const host = open({ code: game.code, role: 'host', token: game.hostToken });
+    const stage = open({ code: game.code, role: 'stage', token: game.stageToken });
+    const [olena, taras, ira, marko] = joins.map((j) => open({ code: game.code, role: 'player', token: j.token }));
+    const view = await until(host, (v) => v.role === 'host' && (v.teams?.unassigned.filter((m) => m.connected).length ?? 0) === 4);
+    const [red, blue] = (view.teams?.teams ?? []).map((t) => t.id);
+    return { game, host, stage, olena, taras, ira, marko, joins, red, blue };
+  }
+
+  it('lobby events: player:team, player:team-roll, player:duelist, player:draft are player-only and validated', async () => {
+    const { host, stage, olena, red } = await teamLobby();
+    expect(await send(olena, 'player:team', { teamId: red })).toEqual({ ok: true });
+    await until(host, (v) => v.role === 'host' && v.teams?.teams[0].members.length === 1);
+    for (const payload of [undefined, { teamId: 5 }, { teamId: '' }]) {
+      expect(await send(olena, 'player:team', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:team-roll')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'player:duelist', { memberId: 5 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:duelist', { memberId: 'm1' })).toEqual({ ok: false, error: 'wrong_phase' });
+    for (const payload of [undefined, {}, { draft: { type: 'magic' } }]) {
+      expect(await send(olena, 'player:draft', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'player:draft', { draft: null })).toEqual({ ok: false, error: 'wrong_phase' });
+    for (const who of [host, stage]) {
+      expect(await send(who, 'player:team', { teamId: red })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:team-roll')).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:duelist', { memberId: 'm1' })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:draft', { draft: null })).toEqual({ ok: false, error: 'forbidden' });
+    }
+  });
+
+  it('host team events are host-only and validated', async () => {
+    const { host, stage, olena, joins, red } = await teamLobby();
+    const olenaId = joins[0].playerId;
+    expect(await send(host, 'host:team-form', { form: 'dice' })).toEqual({ ok: true });
+    expect(await send(host, 'host:team-form', { form: 'magic' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:team-dice')).toEqual({ ok: true });
+    expect(await send(host, 'host:team-roll')).toEqual({ ok: true });
+    expect(await send(host, 'host:team-form', { form: 'random' })).toEqual({ ok: true });
+    expect(await send(host, 'host:team-deal')).toEqual({ ok: true });
+    expect(await send(host, 'host:team-form', { form: 'host' })).toEqual({ ok: true });
+    expect(await send(host, 'host:team-assign', { memberId: olenaId, teamId: red })).toEqual({ ok: true });
+    expect(await send(host, 'host:team-assign', { memberId: olenaId, teamId: null })).toEqual({ ok: true });
+    expect(await send(host, 'host:team-assign', { memberId: olenaId })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:team-assign', { memberId: olenaId, teamId: red })).toEqual({ ok: true });
+    expect(await send(host, 'host:captain', { teamId: red, memberId: olenaId })).toEqual({ ok: true });
+    expect(await send(host, 'host:captain', { teamId: red })).toEqual({ ok: false, error: 'invalid_payload' });
+    for (const who of [olena, stage]) {
+      expect(await send(who, 'host:team-form', { form: 'dice' })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'host:team-assign', { memberId: olenaId, teamId: red })).toEqual({ ok: false, error: 'forbidden' });
+      for (const event of ['host:team-deal', 'host:team-dice', 'host:team-roll']) {
+        expect(await send(who, event)).toEqual({ ok: false, error: 'forbidden' });
+      }
+      expect(await send(who, 'host:captain', { teamId: red, memberId: olenaId })).toEqual({ ok: false, error: 'forbidden' });
+    }
+  });
+
+  it('the captain draft reaches only the teammates: not the other team, the stage or the host', async () => {
+    const { host, stage, olena, taras, ira, marko, joins, red, blue } = await teamLobby();
+    for (const [i, team] of [red, red, blue, blue].entries()) {
+      expect(await send(host, 'host:team-assign', { memberId: joins[i].playerId, teamId: team })).toEqual({ ok: true });
+    }
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    for (const who of [olena, taras, ira, marko, stage, host]) await until(who, inPhase('question'));
+    const counts = () => [olena, ira, marko, stage, host].map((who) => who.states);
+    const before = counts();
+
+    expect(await send(olena, 'player:draft', { draft: { type: 'text', value: 'Чернетка-Львів' } })).toEqual({ ok: true });
+    const seen = await until(taras, (v) => v.role === 'player' && v.team?.draft !== null && v.team?.draft !== undefined);
+    expect(seen.role === 'player' && seen.team?.draft).toEqual({ type: 'text', value: 'Чернетка-Львів' });
+    // Кругообіг підтвердження: усе, що сервер надіслав цим сокетам до нього, уже прийшло.
+    expect(await send(marko, 'player:draft', { draft: null })).toEqual({ ok: false, error: 'not_captain' });
+    expect(await send(ira, 'player:team', { teamId: red })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(stage, 'host:team-deal')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:team-deal')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(counts()).toEqual(before);
+    for (const who of [olena, ira, marko, stage, host]) expect(JSON.stringify(who.last)).not.toContain('Чернетка-Львів');
   });
 });

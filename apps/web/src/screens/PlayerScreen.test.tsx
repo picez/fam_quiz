@@ -5,6 +5,7 @@ import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, Pla
 import type { Send } from '../live/types';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS } from './verdict-blink';
+import { baseMe, teamPlayerView } from './team-test-view';
 
 afterEach(cleanup);
 
@@ -61,6 +62,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   overtime: [],
   guide: null,
   newcomers: false,
+  teams: null,
   duel: null,
   round: null,
   questionIndex: -1,
@@ -76,6 +78,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   reveal: null,
   standings: null,
   table: null,
+  team: null,
   ...over,
 });
 
@@ -2623,5 +2626,184 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       show(view({ phase: 'finished', round: survivalRound, survival: board(), me: own({ status: 'ghost', outAfter: 4 }), standings }));
       expect(screen.getByText('Ти вибув(-ла) після запитання 4.')).toBeTruthy();
     });
+  });
+});
+
+describe('PlayerScreen: teams', () => {
+  const asQuestion = (team: Parameters<typeof teamPlayerView>[1] = {}, over: Partial<PlayerView> = {}) =>
+    teamPlayerView({ phase: 'question', questionIndex: 0, question: publicQuestion, endsAt: Date.now() + 20_000, ...over }, team);
+  const noCaptain = { captain: false, canAct: false, memberId: 'u3' };
+
+  it('the header shows the person, the score is the team score, and the team strip sits under it', () => {
+    show(teamPlayerView({ me: { ...baseMe, score: 120 } }));
+    const bar = document.querySelector('header.bar')!;
+    expect(bar.querySelector('span')?.textContent).toBe('Оля');
+    expect(bar.querySelector('.score')?.textContent).toBe('120');
+    expect(document.querySelector('.team-bar')?.textContent).toContain('Сині');
+    expect(screen.getByText('Ти капітан')).toBeTruthy();
+  });
+
+  it('a solo single tap still submits at once', () => {
+    const send = show(onQuestion());
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'b' });
+    expect(send).not.toHaveBeenCalledWith('player:draft', expect.anything());
+  });
+
+  it('a team that is only a board spectator does not switch to the watch screen', () => {
+    const board = {
+      categories: [],
+      order: [],
+      turn: { playerId: 'team-a', nickname: 'Червоні' },
+      cell: { id: 'c1', category: 'Т', price: 100, kind: 'question', mark: 'none', answerMode: 'typed' },
+      dice: null,
+    } as unknown as PlayerView['board'];
+    show(asQuestion(noCaptain, { board }));
+    expect(screen.queryByText(/радьте вголос/)).toBeNull();
+  });
+
+  it('on a spoken cell teammates are told to answer aloud, not to watch the captain', () => {
+    const board = {
+      categories: [],
+      order: [],
+      turn: { playerId: 'team-b', nickname: 'Сині' },
+      cell: { id: 'c1', category: 'Т', price: 100, kind: 'question', mark: 'none', answerMode: 'voice' },
+      dice: null,
+    } as unknown as PlayerView['board'];
+    show(asQuestion(noCaptain, { board }));
+    expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
+    expect(screen.queryByText(/радьте вголос/)).toBeNull();
+  });
+
+  it('on the board teammates are told the captain picks the cell', () => {
+    const board = {
+      categories: [],
+      order: [],
+      turn: { playerId: 'team-b', nickname: 'Сині' },
+      cell: null,
+      marks: [],
+      schedule: [],
+      dice: null,
+    } as unknown as PlayerView['board'];
+    show(teamPlayerView({ phase: 'board', board }, noCaptain));
+    expect(screen.getByText('Капітан Оля вибирає клітинку')).toBeTruthy();
+  });
+
+  it('the lobby shows the team picker', () => {
+    show(teamPlayerView({}, { canPick: true }));
+    expect(document.querySelectorAll('.team-pick')).toHaveLength(2);
+  });
+
+  it('a teammate on a classic question watches instead of answering', () => {
+    show(asQuestion({ ...noCaptain, draft: { type: 'single', optionId: 'b' } }));
+    expect(screen.getByText('Відповідає капітан Оля — радьте вголос')).toBeTruthy();
+    expect(document.querySelector('.choice.is-draft')).not.toBeNull();
+    expect(document.querySelector('.inputs')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+  });
+
+  it('the captain picks, the draft goes out after 250 ms, and Відповісти sends the answer', () => {
+    vi.useFakeTimers();
+    try {
+      const send = show(asQuestion());
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      expect(send).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(send).toHaveBeenCalledWith('player:draft', { draft: { type: 'single', optionId: 'b' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+      expect(send).toHaveBeenLastCalledWith('player:answer', { type: 'single', optionId: 'b' });
+      expect(screen.getByText('Ти відповідаєш за команду')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a teammate answers a poll on their own', () => {
+    const poll = { ...publicQuestion, type: 'poll' as const };
+    const send = show(asQuestion(noCaptain, { question: poll }));
+    expect(document.querySelector('.choice.is-draft')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(send).toHaveBeenCalledWith('player:answer', { type: 'poll', optionId: 'b' });
+  });
+
+  describe('blitz', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
+    const text = { ...publicQuestion, type: 'text' as const, choices: [] };
+    const blitzMe = (blitz: Partial<NonNullable<PlayerView['me']['blitz']>>) => ({
+      ...baseMe,
+      blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null, canAnswer: false, grade: null, ...blitz },
+    });
+    const blitz = { queue: [], winner: null, instant: false, rows: [] };
+
+    it('a teammate can buzz; after the buzz is theirs they get the answer field', () => {
+      const send = show(asQuestion({ ...noCaptain, canAct: true }, { round, question: text, blitz, me: blitzMe({}) }));
+      fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+      expect(send).toHaveBeenCalledWith('player:buzz');
+      cleanup();
+      show(asQuestion({ ...noCaptain, canAct: true, buzzerId: 'u3' }, { round, question: text, blitz, me: blitzMe({ position: 1, canBuzz: false }) }));
+      expect(screen.getByRole('textbox')).toBeTruthy();
+      expect(screen.getByText('Відповідає Петро')).toBeTruthy();
+    });
+
+    it('while another teammate answers, the rest watch', () => {
+      show(asQuestion({ ...noCaptain, buzzerId: 'u2' }, { round, question: text, blitz, me: blitzMe({ position: 1, canBuzz: false }) }));
+      expect(screen.getByText('Відповідає Оля — радьте вголос')).toBeTruthy();
+      expect(screen.queryByText(/Відповідає капітан/)).toBeNull();
+      expect(screen.queryByRole('textbox')).toBeNull();
+    });
+
+    it('the draft of a buzzer is marked neutrally, not as the captain choice', () => {
+      const draft = { type: 'text' as const, value: 'Київ' };
+      show(asQuestion({ ...noCaptain, buzzerId: 'u2', draft }, { round, question: text, blitz, me: blitzMe({ position: 1, canBuzz: false }) }));
+      expect(document.querySelector('.team-draft .draft-mark')?.textContent).toBe('чернетка');
+    });
+
+    it('an offline buzzer falls back to the captain wording', () => {
+      show(asQuestion({ ...noCaptain, buzzerId: 'u4' }, { round, question: text, blitz, me: blitzMe({ position: 1, canBuzz: false }) }));
+      expect(screen.queryByText(/Ната/)).toBeNull();
+    });
+  });
+
+  it('a teammate sees the captain decide in «Ва-банк» and gets no buttons', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'wipeout', partial: false, description: '', brief: emptyBrief('wipeout'), times: null };
+    const ladder = {
+      ladder: [100, 200, 300],
+      current: 2,
+      done: 3,
+      rows: [{ playerId: 'team-b', nickname: 'Сині', status: 'in' as const, bank: 300, step: null, decision: null }],
+      inCount: 1,
+      decide: { endsAt: Date.now() + 8_000, remainingMs: null, decided: 0, total: 1 },
+    };
+    const own = { ...baseMe, wipeout: { status: 'in' as const, bank: 300, decision: null, canDecide: true } };
+    show(teamPlayerView({ phase: 'leaderboard', round, wipeout: ladder, me: own }, noCaptain));
+    expect(screen.getByText('Капітан вирішує за команду…')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Забрати 300' })).toBeNull();
+    cleanup();
+    show(teamPlayerView({ phase: 'leaderboard', round, wipeout: ladder, me: own }));
+    expect(screen.getByRole('button', { name: 'Забрати 300' })).toBeTruthy();
+  });
+
+  it('a teammate sees the captain place the final wager', () => {
+    show(teamPlayerView({ phase: 'wager', me: { ...baseMe, final: { wager: null, limit: 500, allIn: false } } }, noCaptain));
+    expect(screen.getByText('Капітан ставить за команду')).toBeTruthy();
+    expect(document.querySelector('.wager-form')).toBeNull();
+  });
+
+  it('a debuff acts on the captain phone only; teammates get a strip', () => {
+    const me = { ...baseMe, debuff: { kind: 'mirror' as const, since: Date.now(), by: null } };
+    show(asQuestion({}, { me }));
+    expect(document.querySelector('[data-debuff="mirror"]')).not.toBeNull();
+    expect(screen.queryByText(/На капітані дебаф/)).toBeNull();
+    cleanup();
+    show(asQuestion(noCaptain, { me }));
+    expect(document.querySelector('[data-debuff]')).toBeNull();
+    expect(screen.getByText(/На капітані дебаф: /)).toBeTruthy();
+  });
+
+  it('the captain of a duelling team gets the duelist picker', () => {
+    show(teamPlayerView({ phase: 'question', questionIndex: 0, question: publicQuestion }, { canPickDuelist: true, duelistId: 'u2' }));
+    expect(screen.getByText('Хто з команди піде на дуель?')).toBeTruthy();
   });
 });

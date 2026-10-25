@@ -35,6 +35,8 @@ import { giveLadderHint, inLadderRound } from './ladder';
 import { normalizeText } from './normalize';
 import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
 import { notStarted } from './splash';
+import { canMemberVote } from './team-act';
+import { memberOf, teamsOn } from './teams';
 
 /** Скільки додає «Додатковий час», мс. */
 export const EXTRA_TIME_MS = 30_000;
@@ -157,8 +159,9 @@ export function hasAnswered(state: GameState, play: Play, playerId: string): boo
   return board.answer !== null || board.named !== undefined;
 }
 
-/** Чи може гравець голосувати за askerId (без перевірки часу й повторного голосу). */
+/** Чи може гравець голосувати за askerId (без перевірки часу й повторного голосу); у командній грі voterId — людина (canMemberVote). */
 export function canVote(state: GameState, voterId: string, askerId: string): boolean {
+  if (teamsOn(state)) return canMemberVote(state, voterId, askerId);
   const play = state.plays[state.questionIndex];
   if (play === undefined || voterId === askerId || !state.players.some((p) => p.id === voterId)) return false;
   // На полі голосують усі, крім вибравшого; у класиці — ті, хто вже відповів (перша спроба, що чекає другої, не рахується).
@@ -194,7 +197,9 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       return null;
     case 'audience':
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
-      return state.players.some((p) => p.connected && canVote(state, p.id, playerId)) ? null : 'no_voters';
+      // Командна гра: голосують люди інших команд.
+      const voters = teamsOn(state) ? state.teams.members : state.players;
+      return voters.some((v) => v.connected && canVote(state, v.id, playerId)) ? null : 'no_voters';
     case 'swap': {
       const { spares, scope } = sparePool(state, play);
       if (scope === 'category' && spares.length === 0) return 'no_category_spares';
@@ -412,7 +417,9 @@ export function voteTally(
 
 /** Голос за гравця з бафом audience: голос — відповідь того самого типу, що й запитання; один на голосування. */
 export function castVote(state: GameState, voterId: string, askerId: string, answer: Answer, now: number): Result {
-  if (!state.players.some((p) => p.id === voterId)) return fail('not_found');
+  // Командна гра: голосує людина, бюлетень — під її id.
+  const known = teamsOn(state) ? memberOf(state, voterId) !== undefined : state.players.some((p) => p.id === voterId);
+  if (!known) return fail('not_found');
   if (state.phase !== 'question') return fail('wrong_phase');
   if (state.paused) return fail('paused');
   const play = state.plays[state.questionIndex];

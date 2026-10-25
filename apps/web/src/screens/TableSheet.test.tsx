@@ -5,6 +5,7 @@ import type { Standing } from '@quiz/shared';
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { TableButton } from './TableSheet';
+import { teamsView } from './team-test-view';
 
 afterEach(cleanup);
 
@@ -72,6 +73,13 @@ describe('TableButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
     expect(screen.getAllByRole('listitem')).toHaveLength(1);
     expect(screen.getByText('Повна таблиця — наприкінці гри.')).toBeTruthy();
+  });
+
+  it('in a team game the people stand under the team name', () => {
+    render(<TableButton table={{ rows: [{ participantId: 'team-b', nickname: 'Сині', score: 300, totalTimeMs: 0, rank: 1 }], full: true }} meId="team-b" teams={teamsView()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
+    const row = screen.getByRole('dialog').querySelector('.standings li')!;
+    expect(row.querySelector('.standing-members')!.textContent).toBe('Оля, Петро, Ната');
   });
 
   it('the sheet is a fixed layer', () => {

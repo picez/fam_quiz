@@ -3,6 +3,7 @@ import { adjustScore } from './adjust';
 import { textMatches } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { notStarted, splashUntil, withSplash } from './splash';
+import { withoutDuelists } from './teams';
 import { fail, next, ok, type DuelQuestionPlay, type DuelState, type GameState, type Result, type Rng } from './game';
 
 /** Етапи гри, на яких можна оголосити дуель. */
@@ -234,8 +235,10 @@ export function tickDuel(state: GameState, now: number): GameState {
   return { ...state, duel: { ...duel, stage: 'answer' }, startedAt: null, endsAt: null, remainingMs: null };
 }
 
-/** Прибирає дуель; на етапі duel повертає returnPhase з порожнім годинником (startedAt, endsAt, remainingMs — null). */
-export function dropDuel(state: GameState): GameState {
+/** Прибирає дуель (і дуелянтів команд); на етапі duel повертає returnPhase з порожнім годинником (startedAt, endsAt, remainingMs — null). */
+export function dropDuel(input: GameState): GameState {
+  // Командна гра: вибір дуелянтів діє лише на цю дуель.
+  const state = withoutDuelists(input);
   if (state.phase !== 'duel') return { ...state, duel: null };
   return { ...state, phase: state.duel?.returnPhase ?? 'reveal', duel: null, startedAt: null, endsAt: null, remainingMs: null };
 }

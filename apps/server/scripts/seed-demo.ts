@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams]
  * party-media також потребує SITE_URL: картинки з Вікіпедії завантажуються на сайт
  * через тимчасовий акаунт, який потім видаляється.
  */
@@ -19,6 +19,7 @@ import { movieQuiz } from './movie-quiz';
 import { eruditeQuiz } from './erudite-quiz';
 import { schoolQuiz } from './school-quiz';
 import { mosaicQuiz } from './mosaic-quiz';
+import { teamsQuiz } from './teams-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -101,11 +102,11 @@ async function uploadImages(site: string, db: ReturnType<typeof drizzle>): Promi
 
 const args = process.argv.slice(2);
 const email = args.find((arg) => arg.includes('@'));
-const name = args.find((arg) => ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon'].includes(arg)) ?? 'demo';
+const name = args.find((arg) => ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams'].includes(arg)) ?? 'demo';
 const url = process.env.DATABASE_URL;
 const site = process.env.SITE_URL?.replace(/\/$/, '');
 if (!email || !url || (name === 'party-media' && !site)) {
-  console.error('Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon]');
+  console.error('Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams]');
   process.exit(1);
 }
 
@@ -122,6 +123,7 @@ try {
   if (name === 'mosaic') source = mosaicQuiz;
   if (name === 'compass') source = compassQuiz;
   if (name === 'horizon') source = horizonQuiz;
+  if (name === 'teams') source = teamsQuiz();
   if (name === 'party-media') {
     const base = partyQuiz(await uploadImages(site!, db));
     source = { ...base, title: `${base.title} (з картинками)` };

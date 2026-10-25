@@ -32,8 +32,12 @@ import { SurveyBoard } from './SurveyBoard';
 import { BluffBoard } from './BluffBoard';
 import { BluffChoice } from './BluffChoice';
 import { BluffLieInput } from './BluffLieInput';
-import { DebuffZone, useDebuffQuestion } from './Debuffs';
+import { DebuffStrip, DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
+import { DuelistPicker } from './DuelistPicker';
+import { TeamBar, buzzerOf, memberName } from './TeamBar';
+import { TeamLobby } from './TeamLobby';
+import { TeamWatch, useDraftSender } from './TeamWatch';
 import { MenuLinks } from './MenuLinks';
 import { DebuffShop } from './DebuffShop';
 import { TableButton } from './TableSheet';
@@ -557,6 +561,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
   const decideGuard = useGuardedSend(send, setError);
+  // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере бафи, дебафи й крамницю.
+  const team = view.team;
+  const acting = team === null || team.canAct;
+  const captain = team === null || team.captain;
+  const debuff = captain ? me.debuff : null;
   // «Ва-банк»: гравець, що вже не в грі, дивиться — поля відповіді в нього немає.
   const wipeoutWatching = me.wipeout !== null && me.wipeout.status !== 'in';
   // «Вибування»: привид відповідає «для себе».
@@ -565,7 +574,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const revealP = useRevealProgress(view, question, offsetMs);
   const revealStageNow = revealStage(revealP);
   // Хук на рівні екрана: під «Дзеркалом» варіанти зсуваються по колу; інакше те саме запитання.
-  const shown = useDebuffQuestion(question, me.debuff);
+  const shown = useDebuffQuestion(question, debuff);
 
   // Заставка перед запитанням: шар пропускає дотики (pointer-events: none), тож поле й бафи під ним вимкнені до старту.
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
@@ -577,6 +586,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const submit = async (answer: Answer) => {
     // До старту сервер однаково відмовив би: дотик, що проскочив крізь вимкнене поле, нічого не надсилає.
     if (notStarted) return;
+    // Подана відповідь не мусить перебитися чернеткою, що ще чекає на відправку.
+    sendDraft.cancel();
     const result = await send('player:answer', answer);
     setError(result.ok ? null : errorText(result.error));
   };
@@ -631,6 +642,24 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
   const isSurvey = question?.type === 'survey';
   const isBluff = question?.type === 'bluff';
   const unscored = question !== null && isUnscored(question);
+  // Чернетка йде лише від того, хто зараз відповідає за команду; опитування й хмару кожен проходить сам, чернеток там немає.
+  const trialDraft = team !== null && team.canAct && phase === 'leaderboard' && me.survival?.canAnswerTrial === true;
+  const draftOn = (team !== null && team.canAct && phase === 'question' && question !== null && !unscored && !instant) || trialDraft;
+  const sendDraft = useDraftSender(send, draftOn, `${view.questionIndex}-${me.blitz?.attemptsUsed ?? 0}-${retryStage ?? ''}-${phase}`);
+  const onDraft = draftOn ? sendDraft : undefined;
+  // Решта команди дивиться: запитання, де відповідає не вона. Бліц з кнопкою — поки відповідає натиснувший; глядач на полі лишається глядачем.
+  const teamWatching =
+    team !== null &&
+    !team.canAct &&
+    phase === 'question' &&
+    question !== null &&
+    !unscored &&
+    !wipeoutWatching &&
+    !instant &&
+    // Усно відповідає будь-хто: екран перегляду не потрібен.
+    !voice &&
+    (me.blitz === null || buzzerOf(view) !== null) &&
+    !(board !== null && !chooserIsMe && me.blitz === null);
 
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
 
@@ -651,11 +680,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {/* Заставка — шар position: fixed над розкладкою етапу, що вже стоїть: поява й зникнення нічого не зсувають. */}
       <Splash view={view} offsetMs={offsetMs} size="phone" />
       <header className="bar">
-        <span>{me.nickname}</span>
+        <span>{team !== null ? team.nickname : me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
-        <DuelButton duel={me.duel} paused={view.paused || splashUp} send={send} onError={setError} />
-        {me.shop !== null && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
-        {view.table !== null && <TableButton table={view.table} meId={me.id} />}
+        <DuelButton duel={captain || me.duel === null ? me.duel : { ...me.duel, rights: null }} paused={view.paused || splashUp} send={send} onError={setError} />
+        {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
+        {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} />}
         <strong className="score">{num(me.score)}</strong>
       </header>
 
@@ -665,7 +694,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         </p>
       )}
 
+      <TeamBar view={view} />
+      <DuelistPicker view={view} send={send} onError={setError} />
+
       {phase === 'lobby' && <p className="lead">{t('inLobby')}</p>}
+      {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
 
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" />}
 
@@ -688,9 +721,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           )}
           {board !== null && (
             <BoardIntro board={board} meId={me.id}>
-              {board.dice !== null && !board.dice.done && (
+              {board.dice !== null && !board.dice.done && (acting ? (
                 <DiceAction dice={board.dice} meId={me.id} paused={view.paused || splashUp} send={send} onError={setError} />
-              )}
+              ) : (
+                <p className="lead">{t('teamCaptainDecides')}</p>
+              ))}
             </BoardIntro>
           )}
         </>
@@ -699,14 +734,20 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
       {phase === 'wager' && me.final !== null && (
         <>
           {view.round !== null && <p className="meta">{roundLabel(view.round.title, view.round.index, view.round.type)}</p>}
-          <WagerForm key={me.final.limit} final={me.final} bank={view.final?.mode === 'bank'} send={send} onError={setError} />
+          {acting ? (
+            <WagerForm key={me.final.limit} final={me.final} bank={view.final?.mode === 'bank'} send={send} onError={setError} />
+          ) : (
+            <p className="lead">{t('teamCaptainWager')}</p>
+          )}
         </>
       )}
 
       {phase === 'board' && board !== null && (
         <>
-          <p className="lead">{chooserIsMe ? t('yourPick') : t('boardChooser', { name: chooserName })}</p>
-          <Board board={board} onPick={chooserIsMe ? (cellId) => void pick(cellId) : undefined} disabled={view.paused} />
+          <p className="lead">
+            {chooserIsMe ? (acting ? t('yourPick') : t('teamCaptainPicks', { name: memberName(view, team?.captainId ?? null) })) : t('boardChooser', { name: chooserName })}
+          </p>
+          <Board board={board} onPick={chooserIsMe && acting ? (cellId) => void pick(cellId) : undefined} disabled={view.paused} />
           <BoardLegend board={board} />
           <TurnSchedule board={board} heading={t('turnQueueTitle')} limit={3} />
         </>
@@ -745,7 +786,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               💡 {tip}
             </p>
           )}
-          <DebuffZone debuff={me.debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
+          {team !== null && !captain && me.debuff !== null && <DebuffStrip debuff={me.debuff} />}
+          <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)}>{question.text}</h1>
             {/* Власна картинка точки — це основа мапи, вона вже в рамці. */}
             <RevealImage url={question.pin !== null ? null : question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />
@@ -758,17 +800,19 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             {question.clues !== null && <CluesNow clues={question.clues} offsetMs={offsetMs} />}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
-            {me.buffs !== null && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} send={send} onError={setError} />}
+            {me.buffs !== null && captain && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} send={send} onError={setError} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
-            {me.ladder?.role === 'contestant' && (
+            {me.ladder?.role === 'contestant' && captain && (
               <LadderLifelines view={view} offsetMs={offsetMs} onUse={(kind) => void decideGuard.run('player:lifeline', { kind })} />
             )}
             {me.ladder?.role === 'hall' && <LadderHall view={view} />}
             {survivalGhost && <p className="lead survival-ghost-banner">{t('survivalGhostBanner')}</p>}
-            {wipeoutWatching ? (
+            {teamWatching ? (
+              <TeamWatch view={view} />
+            ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
             ) : isBluff ? (
               <BluffPlay view={view} paused={locked} send={send} />
@@ -828,6 +872,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
                   offsetMs={offsetMs}
                   notStarted={notStarted}
                   onSubmit={submit}
+                  onDraft={onDraft}
                   send={send}
                   onError={setError}
                 />
@@ -867,9 +912,12 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             ) : (
               // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
-              <fieldset className="inputs" disabled={locked || me.ladder?.hallClosed === true}>
-                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} />
-              </fieldset>
+              <>
+                <fieldset className="inputs" disabled={locked || me.ladder?.hallClosed === true}>
+                  <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} onDraft={onDraft} />
+                </fieldset>
+                {draftOn && <p className="meta team-you-answer">{t('teamYouAnswer')}</p>}
+              </>
             )}
           </DebuffZone>
         </>
@@ -983,14 +1031,20 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 
       {phase === 'leaderboard' && view.wipeout !== null && (
         <>
-          <WipeoutDecision view={view} offsetMs={offsetMs} onDecide={(take) => void decideGuard.run('player:wipeout', { take })} />
+          {!acting && me.wipeout?.canDecide === true ? (
+            <p className="lead team-decides">{t('teamCaptainDecides')}</p>
+          ) : (
+            <WipeoutDecision view={view} offsetMs={offsetMs} onDecide={(take) => void decideGuard.run('player:wipeout', { take })} />
+          )}
           <WipeoutLadder info={view.wipeout} size="phone" highlightId={me.id} />
         </>
       )}
 
       {phase === 'leaderboard' && view.ladder !== null && (
         <>
-          {view.ladder.decision === 'pending' && me.ladder?.role === 'contestant' ? (
+          {!acting && view.ladder.decision === 'pending' && me.ladder?.role === 'contestant' ? (
+            <p className="lead ladder-state team-decides">{t('teamCaptainDecides')}</p>
+          ) : view.ladder.decision === 'pending' && me.ladder?.role === 'contestant' ? (
             <LadderDecision
               info={view.ladder}
               disabled={view.paused || !me.ladder.canDecide}
@@ -1009,12 +1063,26 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
 
       {phase === 'leaderboard' && view.survival !== null && (
         <>
-          {view.survival.trial !== null ? (
+          {view.survival.trial !== null && !acting && (me.survival?.canAnswerTrial === true || me.survival?.canPickDoor === true) ? (
+            <>
+              <p className="lead survival-state team-decides">{t('teamCaptainDecides')}</p>
+              {team?.draft != null && view.survival.trial.question !== null && (
+                <p className="team-draft is-draft">
+                  <span className="draft-mark">{t(buzzerOf(view) !== null ? 'teamDraftNeutral' : 'teamDraftMark')}</span>
+                  {pickedText(team.draft, shownChoices(view.survival.trial.question), view.survival.trial.question.slider)}
+                </p>
+              )}
+            </>
+          ) : view.survival.trial !== null ? (
             <SurvivalTrial
               view={view}
               offsetMs={offsetMs}
-              onAnswer={(answer) => void decideGuard.run('player:trial', { answer })}
+              onAnswer={(answer) => {
+                sendDraft.cancel();
+                void decideGuard.run('player:trial', { answer });
+              }}
               onDoor={(door) => void decideGuard.run('player:door', { door })}
+              onDraft={trialDraft ? sendDraft : undefined}
             />
           ) : (
             view.survival.verdict !== null &&
@@ -1074,6 +1142,7 @@ function BlitzTurn({
   offsetMs,
   notStarted,
   onSubmit,
+  onDraft,
   send,
   onError,
 }: {
@@ -1088,6 +1157,8 @@ function BlitzTurn({
   /** Ще йде заставка клітинки: натискання й відповідь чекають на старт. */
   notStarted: boolean;
   onSubmit: (answer: Answer) => void;
+  /** Команда: чернетка відповіді для товаришів (лише від того, хто відповідає). */
+  onDraft?: (draft: Answer | null) => void;
   send: Send;
   onError: (message: string | null) => void;
 }) {
@@ -1119,7 +1190,7 @@ function BlitzTurn({
           <>
             {labelled && <h2 className="meta">{t('blitzYourAnswer')}</h2>}
             <fieldset className="inputs" disabled={view.paused || notStarted}>
-              <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={shown} onSubmit={onSubmit} />
+              <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={shown} onSubmit={onSubmit} onDraft={onDraft} />
             </fieldset>
           </>
         )}

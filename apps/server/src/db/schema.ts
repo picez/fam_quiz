@@ -1,6 +1,6 @@
 import type { BluffOption } from '@quiz/engine';
 import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -155,7 +155,7 @@ export const game = pgTable(
   (table) => [index('game_host_idx').on(table.hostId)],
 );
 
-/** Гравець у грі. id збігається з id гравця в кімнаті. */
+/** Гравець у грі. id збігається з id гравця в кімнаті; у командній грі — рядок команди (id команди) або людини. */
 export const participant = pgTable(
   'participant',
   {
@@ -169,8 +169,16 @@ export const participant = pgTable(
     score: integer('score').notNull(),
     totalTimeMs: integer('total_time_ms').notNull(),
     rank: integer('rank'),
+    /** Рядок команди (10j): відповіді й коригування команди; user_id null. */
+    isTeam: boolean('is_team').notNull().default(false),
+    /** Рядок людини в командній грі: її команда; бали й місце — копія командних. */
+    teamId: uuid('team_id').references((): AnyPgColumn => participant.id, { onDelete: 'cascade' }),
   },
-  (table) => [index('participant_game_idx').on(table.gameId), index('participant_user_idx').on(table.userId)],
+  (table) => [
+    index('participant_game_idx').on(table.gameId),
+    index('participant_user_idx').on(table.userId),
+    index('participant_team_idx').on(table.teamId),
+  ],
 );
 
 /** Номер рядка answer з балами без відповіді: штраф бліц-клітинки або мовчання у фіналі; спроби мають номери 0…n. */

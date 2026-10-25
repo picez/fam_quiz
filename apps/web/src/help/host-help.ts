@@ -4,9 +4,10 @@ import { BUFF_HELP, DEBUFF_HELP } from './powers';
 import { QUESTION_HELP } from './questions';
 import { ROUND_HELP } from './rounds';
 import { SETTING_HELP, SETTING_HELP_KEYS } from './settings';
+import { TEAM_HELP, TEAM_HELP_KEYS } from './teams';
 import type { HelpEntry } from './types';
 
-/** Теми довідника в порядку сторінки; teams — з частини 10j. */
+/** Теми довідника в порядку сторінки. */
 export const HELP_TOPICS = ['rounds', 'questions', 'cells', 'buffs', 'debuffs', 'settings', 'teams'] as const;
 export type HelpTopic = (typeof HELP_TOPICS)[number];
 
@@ -16,7 +17,6 @@ interface Topic<P extends string, K extends string> {
   entries: Record<K, HelpEntry>;
 }
 const topic = <P extends string, K extends string>(prefix: P, keys: readonly K[], entries: Record<K, HelpEntry>): Topic<P, K> => ({ prefix, keys, entries });
-const none = <P extends string>(prefix: P): Topic<P, never> => ({ prefix, keys: [], entries: {} as Record<never, HelpEntry> });
 
 /** Таблиця тем: новий тип у переліку shared без запису не пройде typecheck. */
 const TOPICS = {
@@ -26,7 +26,7 @@ const TOPICS = {
   buffs: topic('buff', BUFF_KINDS, BUFF_HELP),
   debuffs: topic('debuff', DEBUFF_KINDS, DEBUFF_HELP),
   settings: topic('setting', SETTING_HELP_KEYS, SETTING_HELP),
-  teams: none('team'), // частина 10j
+  teams: topic('team', TEAM_HELP_KEYS, TEAM_HELP),
 } satisfies Record<HelpTopic, Topic<string, string>>;
 
 type Topics = typeof TOPICS;

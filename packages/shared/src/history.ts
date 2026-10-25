@@ -18,6 +18,8 @@ export interface GameSummary {
   questionsPlayed: number;
   /** Усі запитання вікторини в усіх раундах. */
   questionCount: number;
+  /** Командна гра (10j): є рядки команд. */
+  teams: boolean;
 }
 
 export interface GameStanding {
@@ -27,6 +29,8 @@ export interface GameStanding {
   rank: number | null;
   /** Скільки відповідей зараховано. */
   correct: number;
+  /** Командна гра: нікнейми людей команди; немає — соло. */
+  members?: string[];
 }
 
 /** Відповідь одного гравця на запитання в історії. */
@@ -158,8 +162,11 @@ export interface PlayedGame {
   nickname: string;
   score: number;
   rank: number | null;
+  /** Командна гра — кількість команд (місце — місце команди). */
   playerCount: number;
   correct: number;
   answered: number;
   questionsPlayed: number;
+  /** Командна гра: назва команди людини; null — соло. */
+  team: string | null;
 }

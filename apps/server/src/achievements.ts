@@ -107,11 +107,13 @@ export function isComeback(table: GameTable, participantId: string): boolean {
   return table.players.some((p) => p !== me && before(p) > mine);
 }
 
-/** Різні userId (не userId і є в friendIds) серед учасників цих ігор. */
+/** Різні userId (не userId і є в friendIds) серед учасників цих ігор; у командній грі — і люди кожної команди (свої й суперники). */
 export function friendsPlayedWith(tables: GameTable[], userId: string, friendIds: Set<string>): number {
   const met = new Set<string>();
   for (const table of tables) {
-    for (const p of table.players) if (p.userId !== null && p.userId !== userId && friendIds.has(p.userId)) met.add(p.userId);
+    for (const p of table.players) {
+      for (const id of [p.userId, ...p.memberUserIds]) if (id !== null && id !== userId && friendIds.has(id)) met.add(id);
+    }
   }
   return met.size;
 }

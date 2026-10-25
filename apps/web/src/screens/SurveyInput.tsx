@@ -8,17 +8,25 @@ export function SurveyInput({
   onSubmit,
   submitLabel,
   autoFocus = true,
+  onDraft,
 }: {
   answers: number;
   onSubmit: (a: Answer) => void;
   submitLabel?: string;
   autoFocus?: boolean;
+  onDraft?: (draft: Answer | null) => void;
 }) {
   const [fields, setFields] = useState<string[]>(() => Array.from({ length: answers }, () => ''));
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const keys = fields.map((value) => answerKey(value));
   const same = keys.map((key, index) => key !== '' && keys.some((other, i) => i !== index && other === key));
   const ready = fields.some((value) => value.trim() !== '');
+
+  const change = (next: string[]) => {
+    setFields(next);
+    const values = next.map((value) => value.trim()).filter((value) => value !== '');
+    onDraft?.(values.length > 0 ? { type: 'survey', values } : null);
+  };
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
@@ -43,7 +51,7 @@ export function SurveyInput({
               refs.current[index] = node;
             }}
             value={value}
-            onChange={(event) => setFields((now) => now.map((old, i) => (i === index ? event.target.value : old)))}
+            onChange={(event) => change(fields.map((old, i) => (i === index ? event.target.value : old)))}
             onKeyDown={(event) => onEnter(event, index)}
             aria-label={t('surveyAnswerN', { n: index + 1 })}
             maxLength={LIMITS.surveyAnswer}

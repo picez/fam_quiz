@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { blitzRound, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { defaultTeams, type Round } from '@quiz/shared';
 import { GAME_STATE_VERSION } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { HOST_ABSENCE_MS, RoomManager, isSavedRoom, type Identity, type Room, type RoomEvent } from './manager';
@@ -189,5 +190,80 @@ describe('eviction and reserved codes', () => {
     manager.evict(restored!);
     codes.push(123456);
     expect(manager.create(makeQuiz([single])).code).toBe('123456');
+  });
+});
+
+describe('a team room restored after a restart (10j)', () => {
+  /** Командна кімната: Олена, Тарас, Іра, Марко в лобі. */
+  function teamLobby(rounds: Round[] = [classicRound('r1', [single])]) {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz(rounds, { teams: defaultTeams(2) }), 'u1');
+    manager.connect(room, HOST);
+    const people = ['Олена', 'Тарас', 'Іра', 'Марко'].map((name) => {
+      const joined = manager.join(room.code, name);
+      if (!joined.ok) throw new Error('join');
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined;
+    });
+    return { scheduler, manager, room, people };
+  }
+
+  it('a lobby with dice comes back: the same members, teams and throws, people return with their tokens', () => {
+    const { scheduler, manager, room, people } = teamLobby();
+    manager.host(room, { type: 'team-form', form: 'dice' });
+    manager.host(room, { type: 'team-dice' });
+    expect(manager.teamRoll(room, people[0].playerId)).toEqual({ ok: true });
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    expect(saved.stateVersion).toBe(10);
+    expect(isSavedRoom(saved)).toBe(true);
+
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.teams?.list).toEqual(room.state.teams?.list);
+    expect(back.state.teams?.dice).toEqual(room.state.teams?.dice);
+    expect(back.state.teams?.members.map((m) => m.id)).toEqual(people.map((p) => p.playerId));
+    for (const person of people) expect(next.identify(room.code, 'player', person.token)?.identity.playerId).toBe(person.playerId);
+    next.connect(back, { role: 'player', playerId: people[1].playerId });
+    expect(next.teamRoll(back, people[1].playerId)).toEqual({ ok: true });
+    expect(next.teamRoll(back, people[0].playerId)).toEqual({ ok: false, error: 'not_your_turn' });
+  });
+
+  it('a game in the middle of a blitz comes back with the buzzers, and the one who buzzed still answers', () => {
+    const { scheduler, manager, room, people } = teamLobby([blitzRound('b1', [text], { check: 'manual' })]);
+    const [red, blue] = room.state.teams!.list.map((t) => t.id);
+    people.forEach((person, i) => manager.host(room, { type: 'team-assign', memberId: person.playerId, teamId: i < 2 ? red : blue }));
+    manager.host(room, { type: 'start' });
+    manager.host(room, { type: 'next' });
+    const taras = people[1];
+    expect(manager.buzz(room, taras.playerId)).toEqual({ ok: true });
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    expect(saved.stateVersion).toBe(10);
+
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.plays[0].buzzers).toEqual({ [red]: taras.playerId });
+    expect(back.state.players.map((p) => p.id)).toEqual([red, blue]);
+    expect(back.state.teams?.members.every((m) => !m.connected)).toBe(true);
+    next.connect(back, HOST);
+    for (const person of people) next.connect(back, { role: 'player', playerId: person.playerId });
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    expect(next.answer(back, taras.playerId, { type: 'text', value: 'Одеса' })).toEqual({ ok: true });
+  });
+
+  it('a solo room of state version 9 still comes back', () => {
+    const { scheduler, manager, room, taras } = midQuestion();
+    const saved = { ...viaJson(manager.snapshot(room)), stateVersion: 9 };
+    manager.freeze();
+    expect(isSavedRoom(saved)).toBe(true);
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.teams).toBeUndefined();
+    next.connect(back, HOST);
+    next.connect(back, { role: 'player', playerId: taras.playerId });
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    expect(next.answer(back, taras.playerId, correct)).toEqual({ ok: true });
   });
 });

@@ -85,6 +85,13 @@
       "when": 1792797669512,
       "tag": "0011_debuff_purchases",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792906901433,
+      "tag": "0012_teams",
+      "breakpoints": true
     }
   ]
 }

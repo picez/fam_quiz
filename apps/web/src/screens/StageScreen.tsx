@@ -26,6 +26,7 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
+import { StageTeams } from './StageTeams';
 import { WipeoutLadder } from './WipeoutLadder';
 import { SurvivalBoard } from './SurvivalBoard';
 import { LadderBoard } from './LadderBoard';
@@ -73,16 +74,22 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
       <div className="qr">
         <QRCodeSVG value={joinUrl} size={256} bgColor="#F5F1E6" fgColor="#0E1020" marginSize={2} />
       </div>
-      <div className="roster">
-        <p className="meta">{view.playerCount === 0 ? t('noPlayersYet') : t('playersIn', { count: view.playerCount })}</p>
-        <ul className="chips">
-          {view.players.map((player) => (
-            <li key={player.id} className={player.connected ? undefined : 'is-away'}>
-              {player.nickname}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {view.teams !== null ? (
+        <div className="roster">
+          <StageTeams teams={view.teams} />
+        </div>
+      ) : (
+        <div className="roster">
+          <p className="meta">{view.playerCount === 0 ? t('noPlayersYet') : t('playersIn', { count: view.playerCount })}</p>
+          <ul className="chips">
+            {view.players.map((player) => (
+              <li key={player.id} className={player.connected ? undefined : 'is-away'}>
+                {player.nickname}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -742,6 +749,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
             standings={standings}
             limit={phase === 'finished' ? undefined : 8}
             streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
+            teams={view.teams}
           />
         </div>
       )}

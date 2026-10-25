@@ -32,6 +32,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
+import { HostTeams, TeamPeople, teamsStartable } from './HostTeams';
 import { MenuLinks } from './MenuLinks';
 import { DebuffPanel, debuffTagText, isSurvivalGhost, PointsPanel } from './HostPlayerTools';
 import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
@@ -400,8 +401,29 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const toggleTools = (playerId: string, kind: 'points' | 'debuff') =>
     setTools((open) => (open?.playerId === playerId && open.kind === kind ? null : { playerId, kind }));
 
-  const kick = (playerId: string, name: string) => {
-    if (window.confirm(t('kickConfirm', { name }))) void act('host:kick', { playerId });
+  // Командна гра: у лобі — люди з teams (view.players порожній), у грі — люди під своєю командою.
+  const teamLobby = phase === 'lobby' && view.teams !== null;
+  const peopleCount = view.teams === null ? 0 : view.teams.teams.reduce((sum, team) => sum + team.members.length, 0) + view.teams.unassigned.length;
+  const teamOf = (playerId: string) => view.teams?.teams.find((team) => team.id === playerId) ?? null;
+  const teamStartable = view.teams === null || teamsStartable(view.teams);
+  // Дії над людьми команди йдуть по одній: подвійний дотик не вилучає двох.
+  const [peopleBusy, setPeopleBusy] = useState(false);
+  const peopleRef = useRef(false);
+  const peopleAct = async (run: () => Promise<void> | void) => {
+    if (peopleRef.current) return;
+    peopleRef.current = true;
+    setPeopleBusy(true);
+    try {
+      await run();
+    } finally {
+      peopleRef.current = false;
+      setPeopleBusy(false);
+    }
+  };
+  const teamDiceRolling = view.teams?.dice != null && !view.teams.dice.done;
+
+  const kick = async (playerId: string, name: string) => {
+    if (window.confirm(t('kickConfirm', { name }))) await act('host:kick', { playerId });
   };
 
   return (
@@ -1030,15 +1052,22 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase === 'round_end' && round !== null && (
         <section className="panel">
           <h2>{t('roundResults', { index: round.index + 1 })}</h2>
-          <Standings standings={view.standings} streaks={streaksOf(view.players)} />
+          <Standings standings={view.standings} streaks={streaksOf(view.players)} teams={view.teams} />
         </section>
       )}
 
       {phase === 'finished' ? (
         <section className="panel">
           <h2>{t('gameOver')}</h2>
-          <Standings standings={view.standings} />
+          <Standings standings={view.standings} teams={view.teams} />
           <MenuLinks role="host" />
+        </section>
+      ) : teamLobby && view.teams !== null ? (
+        <section className="panel">
+          <h2>{`${t('players')}: ${peopleCount}`}</h2>
+          <HostTeams teams={view.teams} send={send} onError={setError} onKick={(member) => kick(member.id, member.nickname)} />
+          {view.teams.unassigned.length > 0 && <p className="meta">{t('teamStartHint', { count: view.teams.unassigned.length })}</p>}
+          {!teamStartable && <p className="meta" role="status">{t('teamStartFew')}</p>}
         </section>
       ) : (
         <section className="panel">
@@ -1063,9 +1092,19 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                       {t(kind)}
                     </button>
                   ))}
-                <button type="button" className="btn btn-small" onClick={() => kick(player.id, player.nickname)}>
-                  {t('kick')}
-                </button>
+                {view.teams === null && (
+                  <button type="button" className="btn btn-small" onClick={() => kick(player.id, player.nickname)}>
+                    {t('kick')}
+                  </button>
+                )}
+                {teamOf(player.id) !== null && (
+                  <TeamPeople
+                    team={teamOf(player.id)!}
+                    onCaptain={(team, member) => void peopleAct(() => act('host:captain', { teamId: team.id, memberId: member.id }))}
+                    onKick={(member) => void peopleAct(() => kick(member.id, member.nickname))}
+                    busy={peopleBusy}
+                  />
+                )}
                 {live && tools?.playerId === player.id && (tools.kind === 'points' ? <PointsPanel player={player} send={send} onError={setError} /> : isSurvivalGhost(view.survival, phase, player.id) ? null : <DebuffPanel player={player} kinds={debuffKinds} send={send} onError={setError} />)}
               </li>
             ))}
@@ -1127,7 +1166,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <button
             type="button"
             className="btn btn-primary"
-            disabled={stepping || (phase === 'lobby' && view.players.length === 0) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding}
+            disabled={stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding}
             onClick={() => step(main.event)}
           >
             {ladderPickFirst

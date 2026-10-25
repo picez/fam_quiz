@@ -251,6 +251,7 @@ export function GameHistory() {
       {back}
       <h1 className="brand">{game.title}</h1>
       <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}`}</p>
+      {game.teams && <p className="meta team-game-mark">{t('historyTeamGame')}</p>}
       <p className="meta">{t('questionsProgress', { played: game.questionsPlayed, total: game.questionCount })}</p>
 
       <section className="panel">
@@ -262,7 +263,16 @@ export function GameHistory() {
             {game.standings.map((row) => (
               <li key={row.participantId}>
                 <span className="rank">{row.rank ?? '–'}</span>
-                <span className="name">{row.nickname}</span>
+                <span className="name">
+                  {row.nickname}
+                  {row.members !== undefined && row.members.length > 0 && (
+                    <>
+                      {/* Для читача екрана назва й склад — окремими фразами. */}
+                      <span className="sr-only">, </span>
+                      <small className="team-members">{t('historyMembers', { names: row.members.join(', ') })}</small>
+                    </>
+                  )}
+                </span>
                 <span className="tag">{t('correctOf', { correct: row.correct })}</span>
                 <span className="score">{num(row.score)}</span>
               </li>

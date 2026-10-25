@@ -7300,7 +7300,7 @@ async function hostHelpGame() {
   // 3. Довідник.
   await host.goto(`${base}/help`);
   await host.getByRole('heading', { level: 1, name: 'Довідка ведучого', ...exact }).waitFor();
-  expect(await host.locator('h2').allTextContents()).toEqual(['Раунди', 'Типи запитань', 'Клітинки поля', 'Бафи', 'Дебафи', 'Налаштування']);
+  expect(await host.locator('h2').allTextContents()).toEqual(['Раунди', 'Типи запитань', 'Клітинки поля', 'Бафи', 'Дебафи', 'Налаштування', 'Команди']);
   await shot(host, 'help10a-reference');
   const search = host.getByLabel('Пошук за назвою', exact);
   await search.fill('щит');
@@ -9854,6 +9854,466 @@ async function ladderGame() {
   await host.getByText('Виграш драбини: Оля +1000', exact).waitFor();
   await host.getByText('Виграш драбини: Віра +100', exact).waitFor();
   await shot(host, 'p10i-history');
+
+  expect(problems).toEqual([]);
+}
+
+/** Натискає кнопку команди на телефоні в лобі. */
+async function pickTeamOn(page: Page, name: string): Promise<void> {
+  const button = page.locator('.team-pick', { has: page.locator('.team-pick-name', { hasText: name }) });
+  expect((await button.boundingBox())!.height, 'a team button is a tap target').toBeGreaterThanOrEqual(44);
+  await button.click();
+  await expect.poll(() => button.getAttribute('aria-pressed'), POLL).toBe('true');
+}
+
+/** Нікнейми в колонці команди на сцені. */
+async function stageTeam(stage: Page, name: string): Promise<string[]> {
+  const column = stage.locator('.stage-team', { has: stage.locator('.stage-team-name', { hasText: name }) });
+  return (await column.locator('.stage-team-members li').allTextContents()).map((text) => text.replace(/👑|капітан/g, '').trim());
+}
+
+/** Усі тексти, що сторінка надіслала сокетом. */
+function sentFrames(page: Page): string[] {
+  const list: string[] = [];
+  page.on('websocket', (socket) => socket.on('framesent', (frame) => list.push(String(frame.payload))));
+  return list;
+}
+
+/** Рядок команди на пульті (за початком тексту: у рядку іншої команди може стояти «від гравця Сині»). */
+const teamRowOf = (host: Page, name: string) => host.locator('.player-row', { hasText: new RegExp(`^${name}`) });
+
+/** Сума команди в рядку «Гравці» пульта. */
+async function teamTotal(host: Page, name: string): Promise<number> {
+  const text = await teamRowOf(host, name).locator('.score').first().textContent();
+  return Number(text!.replace(/[^\d-]/g, ''));
+}
+
+/** Бали команди за запитання з рядка відповідей пульта. */
+async function teamScore(host: Page, name: string): Promise<number> {
+  const text = await host.locator('li', { hasText: new RegExp(`^${name}`) }).locator('.score').first().textContent();
+  return Number(text!.replace(/[^\d-]/g, ''));
+}
+
+/** Смуга команди на телефоні (одним рядком, не вища за шапку). */
+const teamBar = (page: Page) => page.locator('.team-bar');
+
+it('part 10j: teams — the editor turns team play on (375 px too), the host forms teams by dice with a rerolled tie and names a captain, the captain answers while a teammate watches the live draft that no other team or the stage ever receives, everyone answers a word cloud, ask the hall is voted by the other team, anyone buzzes in blitz and answers, a bought debuff hits only the captain, a restart keeps the teams, the final wager by the captain, team line-ups in the history and the team win in a member profile', async () => {
+  try {
+    await teamsGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function teamsGame() {
+  const host = await open('host10j', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10j@example.com');
+
+  const common = { imageUrl: null, video: null, timeLimit: 30, points: 100 };
+  const c1 = { ...common, id: 'c1', type: 'text' as const, text: 'Столиця Австралії?', accepted: ['Канберра'] };
+  const c2 = { ...common, id: 'c2', type: 'wordcloud' as const, text: 'Одне слово про осінь', points: 0, words: 1 };
+  const c3 = {
+    ...common,
+    id: 'c3',
+    type: 'single' as const,
+    timeLimit: 120,
+    text: 'Скільки ніг у павука?',
+    options: ['6', '8', '10', '12'].map((option, i) => ({ id: `c3-${i}`, text: option })),
+    correctId: 'c3-1',
+  };
+  const b1 = { ...common, id: 'b1', type: 'text' as const, text: 'Хімічний символ золота?', accepted: ['Au'] };
+  const f1 = { ...common, id: 'f1', type: 'numeric' as const, text: 'Скільки днів у високосному році?', correct: 366, tolerance: 0 };
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('rt1', [c1, c2, c3] as never, { title: 'Класика', speedBonus: false, shuffleOptions: false }),
+        blitzRound('rt2', [b1] as never, { title: 'Бліц', check: 'manual', attempts: 1 }),
+        finalRound('rt3', f1 as never, { title: 'Фінал' }),
+      ],
+      { leaderboard: 'each', teams: { count: 2, names: ['Червоні', 'Сині'] }, buffs: ['audience'], debuffs: ['fog'] },
+    ),
+    title: 'Команди 10j',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Редактор: «Командна гра» (375 px теж).
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Команди 10j' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  const teamsBlock = host.locator('details.teams');
+  await teamsBlock.locator('summary').click();
+  expect(await teamsBlock.getByRole('checkbox', { name: 'Грати командами', ...exact }).isChecked(), 'team play is on').toBe(true);
+  await teamsBlock.getByText('Команд: 2', exact).waitFor();
+  expect(await field(host, 'Назва команди 1').inputValue()).toBe('Червоні');
+  expect(await field(host, 'Назва команди 2').inputValue()).toBe('Сині');
+  await teamsBlock.getByRole('button', { name: 'Довідка: Командна гра', ...exact }).click();
+  await host.getByRole('dialog', { name: 'Командна гра', ...exact }).waitFor();
+  await shot(host, 'p10j-editor-teams');
+  await host.keyboard.press('Escape');
+  await teamsBlock.getByRole('button', { name: 'Більше команд', ...exact }).click();
+  await teamsBlock.getByText('Команд: 3', exact).waitFor();
+  expect(await field(host, 'Назва команди 3').inputValue()).toBe('Зелені');
+  await teamsBlock.getByRole('button', { name: 'Менше команд', ...exact }).click();
+  await teamsBlock.getByText('Команд: 2', exact).waitFor();
+  expect(await field(host, 'Назва команди 3').count(), 'the third name is gone').toBe(0);
+  await host.setViewportSize({ width: 375, height: 812 });
+  await teamsBlock.scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10j-editor-teams-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  // 2. Лобі: чотири людини, вибір команди й кубики.
+  await host.locator('.quiz-list li', { hasText: 'Команди 10j' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10j', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya10j', 375, 812);
+  await register(olya, 'menu', 'Оля', 'olya10j@example.com');
+  const petro = await open('petro10j', 375, 812);
+  const vira = await open('vira10j', 375, 812);
+  const ihor = await open('ihor10j', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const viraFrames = socketFrames(vira);
+  const ihorFrames = socketFrames(ihor);
+  const viraSent = sentFrames(vira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(vira, code, 'Віра', false);
+  await join(ihor, code, 'Ігор', false);
+  const phones = [olya, petro, vira, ihor];
+  const all = [host, stage, ...phones];
+
+  await petro.locator('.team-pick-grid').waitFor();
+  expect(await petro.locator('.team-pick').count(), 'one button per team').toBe(2);
+  await expectNoSideScroll(petro, 'p10j-phone-pick');
+  await pickTeamOn(petro, 'Сині');
+  await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Петро']);
+
+  await host.getByRole('radio', { name: 'Кубик', ...exact }).click();
+  await expect.poll(() => host.getByRole('radio', { name: 'Кубик', ...exact }).isChecked(), POLL).toBe(true);
+  await host.getByRole('button', { name: 'Довідка: Кубик', ...exact }).waitFor();
+  await host.locator('.host-teams').waitFor();
+  {
+    // Рядок учасника: ім'я, «У команду» й «Вилучити» — в один рядок.
+    const row = host.locator('.team-person', { hasText: 'Оля' });
+    const select = await row.getByRole('combobox').boundingBox();
+    const kick = await row.getByRole('button', { name: 'Вилучити: Оля', ...exact }).boundingBox();
+    expect(select !== null && kick !== null && Math.abs(select.y + select.height / 2 - (kick.y + kick.height / 2)) < 4, 'kick beside the select').toBe(true);
+  }
+  await shot(host, 'p10j-host-lobby');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.locator('.host-teams').scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10j-host-lobby-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await click(host, 'Кидаємо кубики');
+  for (const page of phones) await page.getByRole('button', { name: 'Кинути кубик', ...exact }).waitFor();
+  await expectNoSideScroll(olya, 'p10j-phone-dice');
+  const roll = async (page: Page, face: number) => {
+    rigged.push(face);
+    await click(page, 'Кинути кубик');
+  };
+  await roll(olya, 6);
+  await roll(petro, 2);
+  await roll(vira, 5);
+  await roll(ihor, 2);
+  // Нічия Петро — Ігор: тур перекидається, обидва кидають ще раз.
+  for (const page of [petro, ihor]) await page.getByText('Нічия — кидай ще раз', exact).waitFor();
+  await roll(petro, 3);
+  await roll(ihor, 1);
+  await expect.poll(() => stageTeam(stage, 'Червоні'), POLL).toEqual(['Оля', 'Віра']);
+  await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Петро', 'Ігор']);
+  await stage.locator('.dice-status').getByText('Порядок визначено', exact).waitFor();
+  await expectStageInView(stage, 'p10j-stage-lobby-dice');
+  await shot(stage, 'p10j-stage-lobby-dice');
+
+  // Капітан Синіх — Ігор (за порядком був би Петро).
+  await host.getByRole('button', { name: 'Капітан: Ігор', ...exact }).click();
+  await stage.locator('.stage-team', { has: stage.locator('.stage-team-name', { hasText: 'Сині' }) }).locator('li', { hasText: 'Ігор' }).locator('.captain-mark').waitFor();
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 3. c1: капітан, чернетка, нічого не витікає.
+  await stage.getByText('Столиця Австралії?', exact).waitFor();
+  await teamBar(olya).getByText('Ти капітан', exact).waitFor();
+  await field(olya, 'Ваша відповідь').waitFor();
+  await vira.getByText('Відповідає капітан Оля — радьте вголос', exact).waitFor();
+  expect(await vira.locator('textarea, input').count(), 'a teammate has no answer field').toBe(0);
+  expect(await vira.getByRole('button', { name: 'Відповісти', ...exact }).count(), 'a teammate has no submit button').toBe(0);
+  await expectNoSideScroll(vira, 'p10j-phone-watch');
+  await field(olya, 'Ваша відповідь').fill('Канбер');
+  await vira.locator('.team-draft', { hasText: 'Канбер' }).waitFor({ timeout: 1500 });
+  await expectNoSideScroll(vira, 'p10j-phone-draft');
+  for (const [who, frames] of [['stage', stageFrames], ['petro', petroFrames], ['ihor', ihorFrames]] as const) {
+    expect(frames.join(NL), `${who} received the captain draft`).not.toContain('Канбер');
+  }
+  expect(viraFrames.join(NL), 'a teammate receives the draft').toContain('Канбер');
+  await vira.locator('main, body').first().click({ position: { x: 10, y: 300 } });
+  expect(viraSent.filter((frame) => frame.includes('player:answer')), 'a teammate sent no answer').toEqual([]);
+  await field(olya, 'Ваша відповідь').fill('Канберра');
+  await click(olya, 'Відповісти');
+  await olya.getByText('Відповідь прийнято', exact).waitFor();
+  await vira.getByText('Команда відповіла', exact).waitFor();
+  await field(ihor, 'Ваша відповідь').fill('Сідней');
+  await click(ihor, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  for (const [who, frames] of [['stage', stageFrames], ['petro', petroFrames], ['ihor', ihorFrames], ['olya', olyaFrames], ['vira', viraFrames]] as const) {
+    expect(framesBeforeReveal(frames).join(NL), `${who} got the correct answer before the reveal`).not.toContain('"accepted"');
+  }
+  await click(host, 'Показати відповідь');
+  await stage.getByText('Правильна відповідь: Канберра', exact).waitFor();
+  await vira.getByText('Правильно!').waitFor();
+  expect(await teamScore(host, 'Червоні')).toBe(100);
+  expect(await teamScore(host, 'Сині')).toBe(0);
+  await click(host, 'Далі');
+  await stage.locator('.standings li', { hasText: 'Червоні' }).waitFor();
+  expect(await stage.locator('.standings li', { hasText: 'Червоні' }).innerText()).toMatch(/Оля, Віра/);
+  await expectStageInView(stage, 'p10j-stage-standings');
+  await shot(stage, 'p10j-stage-standings');
+
+  // 4. c2: хмара — кожен пише окремо, бали команд не змінюються.
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+  await stage.getByText('Одне слово про осінь', exact).waitFor();
+  const word = async (page: Page, text: string) => {
+    await field(page, 'Слово 1').fill(text);
+    await click(page, 'Відповісти');
+  };
+  expect(await vira.locator('.team-watch').count(), 'a cloud has no watch mode: everyone writes').toBe(0);
+  await word(olya, 'листя');
+  await word(vira, 'дощ');
+  await word(petro, 'листя');
+  await stage.getByText('Написали 3 з 4', exact).waitFor();
+  await word(ihor, 'гарбуз');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати результати');
+  await stage.locator('.word-cloud').waitFor();
+  await stage.getByText('Написали 4', exact).waitFor();
+  const wordSize = async (text: string) =>
+    parseFloat(await stage.locator('.word-cloud .word', { hasText: text }).evaluate((el) => (globalThis as unknown as { getComputedStyle: (e: unknown) => { fontSize: string } }).getComputedStyle(el).fontSize));
+  expect(await wordSize('листя'), 'the most popular word is the biggest').toBeGreaterThan(await wordSize('гарбуз'));
+  await expectStageInView(stage, 'p10j-stage-cloud');
+  await shot(stage, 'p10j-stage-cloud');
+  await click(host, 'Далі');
+  expect(await teamTotal(host, 'Червоні')).toBe(100);
+  expect(await teamTotal(host, 'Сині')).toBe(0);
+
+  // 5. Між c2 і c3: ведучий дарує Синім бали, капітан Ігор купує Туман для Червоних.
+  const teamRow = (name: string) => teamRowOf(host, name);
+  await teamRow('Сині').getByRole('button', { name: 'Бали', ...exact }).click();
+  await teamRow('Сині').getByLabel('Своя сума', exact).fill('200');
+  await teamRow('Сині').getByRole('button', { name: 'Нарахувати', ...exact }).click();
+  await expect.poll(() => teamTotal(host, 'Сині'), POLL).toBe(200);
+  await ihor.getByRole('button', { name: 'Дебафи', ...exact }).click();
+  const shop = ihor.getByRole('dialog', { name: 'Дебафи для суперників' });
+  await shop.waitFor();
+  await shop.locator('.shop-item', { hasText: /Туман/ }).click();
+  await shop.locator('.shop-target', { hasText: 'Червоні' }).click();
+  await expectNoSideScroll(ihor, 'p10j-phone-shop');
+  await shop.getByRole('button', { name: 'Купити за 200', ...exact }).click();
+  await shop.waitFor({ state: 'detached' });
+  await expect.poll(() => teamTotal(host, 'Сині'), POLL).toBe(0);
+
+  // 6. c3: туман лише на телефоні капітана Червоних; зал голосує інша команда.
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+  await stage.getByText('Скільки ніг у павука?', exact).waitFor();
+  await olya.locator('.debuff-zone[data-debuff="fog"]').waitFor();
+  await vira.getByText('На капітані дебаф: Туман', exact).waitFor();
+  expect(await vira.locator('.debuff-zone[data-debuff="fog"]').count(), 'only the captain is in the fog').toBe(0);
+  await expectNoSideScroll(vira, 'p10j-phone-debuff');
+  await shot(olya, 'p10j-phone-debuff-captain');
+  await pickOption(ihor, '(^|\\s)8$');
+  await click(ihor, 'Відповісти');
+  await ihor.getByText(/^(Відповідь прийнято|Чекаємо на правильну відповідь)$/).first().waitFor();
+  await takeBuff(olya, 'Запитання в залі');
+  for (const page of [petro, ihor]) await page.locator('.vote-sheet').getByText('Червоні питає зал: як думаєте?', { exact: false }).waitFor();
+  expect(await vira.locator('.vote-sheet').count(), 'a teammate of the asking captain does not vote').toBe(0);
+  expect(await olya.locator('.vote-sheet').count(), 'the asking captain does not vote').toBe(0);
+  await petro.waitForTimeout(300);
+  await vote(petro, '8');
+  await vote(ihor, '8');
+  await olya.locator('.buff-panel').getByText(/100 %/).waitFor();
+  await shot(olya, 'p10j-phone-hall');
+  await expectNoSideScroll(olya, 'p10j-phone-hall');
+  expect(await bodyText(stage)).not.toContain('100 %');
+  await pickOption(olya, '(^|\\s)8$');
+  await click(olya, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await olya.getByText('Правильно!').waitFor();
+  expect(await teamScore(host, 'Червоні')).toBe(100);
+  expect(await teamScore(host, 'Сині')).toBe(100);
+
+  // 7. Перезапуск: команди, склад і капітан на місці.
+  await restart(async () => {
+    for (const page of [...phones, stage, host]) await page.getByText(RESTARTING_TEXT, exact).waitFor();
+  });
+  for (const page of [...phones, stage, host]) await page.getByText(RESTARTING_TEXT, exact).waitFor({ state: 'detached', timeout: 15_000 });
+  restarting = false;
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().waitFor();
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+  await teamBar(ihor).getByText('Ти капітан', exact).waitFor();
+  await teamBar(vira).getByText('Капітан: Оля', exact).waitFor();
+  await click(host, 'Далі');
+  await stage.locator('.standings li', { hasText: 'Сині' }).waitFor();
+  expect(await stage.locator('.standings li', { hasText: 'Червоні' }).innerText()).toMatch(/Оля, Віра/);
+  expect((await stage.locator('.standings li', { hasText: 'Сині' }).innerText()).replace(/\s+/g, ' ')).toMatch(/Петро, Ігор|Ігор, Петро/);
+  expect(await teamTotal(host, 'Червоні')).toBe(200);
+  expect(await teamTotal(host, 'Сині')).toBe(100);
+  await expectStageInView(stage, 'p10j-stage-after-restart');
+  await shot(stage, 'p10j-stage-after-restart');
+  await shot(host, 'p10j-host-after-restart');
+
+  // 8. b1: у бліці натискає будь-хто, і відповідає той, хто натиснув.
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+  await stage.getByText('Хімічний символ золота?', exact).waitFor();
+  await click(vira, 'Відповісти');
+  await teamBar(olya).getByText('Відповідає Віра', exact).waitFor();
+  await teamBar(vira).getByText('Відповідає Віра', exact).waitFor();
+  await field(vira, 'Ваша відповідь').waitFor();
+  await olya.getByText('Відповідає Віра — радьте вголос', exact).waitFor();
+  expect(await olya.locator('textarea, input').count(), 'the captain only watches while a teammate answers').toBe(0);
+  await expectNoSideScroll(olya, 'p10j-phone-buzzer');
+  await field(vira, 'Ваша відповідь').fill('Au');
+  await click(vira, 'Відповісти');
+  await vira.getByText('Чекаємо на рішення ведучого', exact).waitFor();
+  await host.getByText('Відповідає Червоні', exact).waitFor();
+  await host.getByRole('button', { name: 'Правильно', ...exact }).click();
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).click();
+  await vira.getByText(/Правильно/).first().waitFor();
+  expect(await teamScore(host, 'Червоні')).toBe(100);
+  await click(host, 'Далі');
+  expect(await teamTotal(host, 'Червоні')).toBe(300);
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+
+  // 9. Фінал: ставку робить і відповідає капітан.
+  await click(host, 'Почати фінал');
+  await olya.getByText(/Ваша ставка від 0 до 300/).waitFor();
+  await vira.getByText('Капітан ставить за команду', exact).waitFor();
+  await expectNoSideScroll(vira, 'p10j-phone-final-watch');
+  await field(olya, 'Ставка').fill('100');
+  await click(olya, 'Поставити');
+  await field(ihor, 'Ставка').fill('50');
+  await click(ihor, 'Поставити');
+  await field(olya, 'Ваша відповідь').fill('366');
+  await click(olya, 'Відповісти');
+  await field(ihor, 'Ваша відповідь').fill('365');
+  await click(ihor, 'Відповісти');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).click();
+  await click(host, 'Наступний гравець');
+  await click(host, 'Наступний гравець');
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const podium = (await stage.locator('.standings li').allTextContents()).map((text) => text.replace(/\s+/g, ' '));
+  expect(podium[0]).toContain('Червоні');
+  expect(podium[0]).toContain('400');
+  expect(podium[1]).toContain('Сині');
+  expect(podium[1]).toContain('50');
+  await expectStageInView(stage, 'p10j-stage-podium');
+  await shot(stage, 'p10j-stage-podium');
+
+  // 10. Історія: склад команд, голоси людей, відповідь бліцу, дебаф.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Команди 10j/ }).click();
+  await host.getByText('Командна гра', exact).first().waitFor();
+  const hostRows = host.locator('.standings li');
+  await hostRows.first().waitFor();
+  const standingsText = (await hostRows.allTextContents()).map((text) => text.replace(/\s+/g, ' '));
+  expect(standingsText[0]).toContain('Червоні');
+  expect(standingsText[0]).toMatch(/Склад: (Оля, Віра|Віра, Оля)/);
+  expect(standingsText[1]).toContain('Сині');
+  expect(standingsText[1]).toMatch(/Склад: (Ігор, Петро|Петро, Ігор)/);
+  const items = host.locator('.rows.stacked > li');
+  const cloudItem = (await items.filter({ hasText: 'Одне слово про осінь' }).textContent())!;
+  expect(cloudItem).toContain('Проголосували: 4');
+  for (const person of ['Оля', 'Віра', 'Петро', 'Ігор']) expect(cloudItem, `${person} voted in the cloud`).toContain(person);
+  expect(await items.filter({ hasText: 'Хімічний символ золота?' }).textContent()).toContain('Червоні');
+  await host.getByText(/Сині купує.*Туман для гравця Червоні/).first().waitFor();
+  await shot(host, 'p10j-history');
+
+  // 11. Профіль Олі: командна перемога.
+  await olya.goto(`${base}/me`);
+  const mine = olya.locator('.quiz-list li', { hasText: 'Команди 10j' });
+  await mine.waitFor();
+  const mineText = (await mine.innerText()).replace(/\s+/g, ' ');
+  expect(mineText).toContain('Команда «Червоні»');
+  expect(mineText).toContain('1 місце з 2');
+  await expectNoSideScroll(olya, 'p10j-my-games');
+  await olya.goto(`${base}/profile`);
+  await olya.getByRole('heading', { name: 'Статистика' }).waitFor();
+  expect(await stat(olya, 'перемога').textContent()).toBe('1перемога');
+  await shot(olya, 'p10j-profile');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 10j: a full team lobby fits the 1280 × 720 stage — six teams of eight, then a dice round of eight', async () => {
+  try {
+    await fullLobby();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function fullLobby() {
+  const host = await open('host10j-full', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host10jfull@example.com');
+  const six = ['Червоні', 'Сині', 'Зелені', 'Жовті', 'Фіолетові', 'Помаранчеві'];
+  const data = {
+    ...makeRoundsQuiz([classicRound('rf1', [withPoints(withId(single, 'f-q1'), 100)], { speedBonus: false })], { teams: { count: 6, names: six } }),
+    title: 'Повне лобі 10j',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Повне лобі 10j' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage10j-full', 1280, 720);
+  await stage.goto(stageUrl);
+
+  const room = ctx.manager.get(code)!;
+  const teamIds = room.state.teams!.list.map((team) => team.id);
+  const members: string[] = [];
+  for (let n = 1; n <= 48; n++) {
+    const joined = ctx.manager.join(code, `Гравець ${n}`, null);
+    if (!joined.ok) throw new Error(`join ${n}: ${joined.error}`);
+    ctx.manager.connect(room, { role: 'player', playerId: joined.playerId });
+    members.push(joined.playerId);
+  }
+  expect(ctx.manager.host(room, { type: 'team-form', form: 'host' }).ok).toBe(true);
+  members.forEach((memberId, n) => {
+    expect(ctx.manager.host(room, { type: 'team-assign', memberId, teamId: teamIds[n % 6]! }).ok).toBe(true);
+  });
+  await expect.poll(() => stage.locator('.stage-team-members li').count(), POLL).toBe(48);
+  await expectStageInView(stage, 'p10j-stage-lobby-full');
+  await shot(stage, 'p10j-stage-lobby-full');
+  expect(await stage.locator('.stage-team-members li').first().evaluate((el) => el.scrollWidth <= el.clientWidth), 'a nickname is cut').toBe(true);
+
+  // Кубик на вісім людей: решту вилучено.
+  for (const [n, memberId] of members.entries()) {
+    if (n >= 8) expect(ctx.manager.host(room, { type: 'kick', playerId: memberId }).ok).toBe(true);
+  }
+  expect(ctx.manager.host(room, { type: 'team-form', form: 'dice' }).ok).toBe(true);
+  expect(ctx.manager.host(room, { type: 'team-dice' }).ok, 'the dice round starts').toBe(true);
+  await stage.locator('.dice-rows li').first().waitFor();
+  await expectStageInView(stage, 'p10j-stage-lobby-dice-full');
+  await shot(stage, 'p10j-stage-lobby-dice-full');
 
   expect(problems).toEqual([]);
 }
