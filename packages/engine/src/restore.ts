@@ -8,8 +8,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 6 — 10f: Play.bluff (фаза, зерно, вигадки, варіанти й вибори блефу).
  * 7 — 10g: Play.wipeout (рішення «Ва-банк» і кінець раунду).
  * 8 — 10h: Play.survival (привиди, «на межі», випробування й кінець «Вибування»).
+ * 9 — 10i: GameState.ladder (учасник драбини), Play.ladder (сходинка, підказки, рішення й підсумок «Мільйонера»).
  */
-export const GAME_STATE_VERSION = 8;
+export const GAME_STATE_VERSION = 9;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -25,8 +26,10 @@ export const GAME_STATE_VERSION = 8;
  * тож кімната, збережена до розгортання 10g, теж відновлюється.
  * 7 → 8 лише додала необов'язкове Play.survival (і значення SplashKind 'trial', AdjustmentSource 'survival'), а стан версій 2–7
  * не може містити «Вибування»: тож кімната, збережена до розгортання 10h, теж відновлюється.
+ * 8 → 9 лише додала необов'язкові GameState.ladder і Play.ladder (і значення AdjustmentSource 'ladder'), а стан версій 2–8
+ * не може містити «Мільйонера»: тож кімната, збережена до розгортання 10i, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

@@ -256,7 +256,11 @@ function withoutClip(question: PublicQuestion): PublicQuestion {
 /** Публічне запитання, яке бачать усі; null поза запитанням. */
 function shownPublic(state: GameState): PublicQuestion | null {
   const shown = shownQuestion(state);
-  return shown === null ? null : publicQuestion(shown.question, shown.presented, publicClues(state));
+  if (shown === null) return null;
+  const question = publicQuestion(shown.question, shown.presented, publicClues(state));
+  // «Мільйонер» без таймера: запитання з timeLimit, але відліку немає.
+  const play = state.plays[state.questionIndex];
+  return play?.ladder?.timed === false ? { ...question, timeLimit: null } : question;
 }
 
 /** Відкриті підказки показаного запитання «Хто я?» (на полі із заміною — запасного, а це простий тип, тож null); інакше null. */
