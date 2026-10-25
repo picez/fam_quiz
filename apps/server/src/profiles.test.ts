@@ -611,6 +611,7 @@ describe('profile: teams (10j)', () => {
     expect(await earned(TEAM_USERS['Віра'])).toBe(false);
     const [listed] = await hostGames(t.db, TEAM_HOST);
     expect(listed.playerCount).toBe(4);
+    expect(listed.teams).toBe(true);
   });
 
   it('a solo game has no team in my games', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, removePlayer, type GameState } from './game';
+import { addPlayer, removePlayer, start, type GameState } from './game';
 import { assignTeam, rollTeamDie, rollTeamRest, setTeamForm, startTeamDice } from './teams';
 import { classicRound, single } from './testing/fixtures';
 import { must } from './testing/helpers';
@@ -30,6 +30,8 @@ describe('team dice in the lobby', () => {
     let state = must(startTeamDice(diceLobby(4)));
     expect(state.teams?.dice).toEqual({ throws: {}, tour: ['m1', 'm2', 'm3', 'm4'], waiting: ['m1', 'm2', 'm3', 'm4'], tourNo: 1 });
     expect(startTeamDice(state)).toEqual({ ok: false, error: 'dice_pending' });
+    // Гра не стартує, поки тур кубиків відкритий.
+    expect(start(state)).toEqual({ ok: false, error: 'dice_pending' });
     state = roll(roll(roll(roll(state, 'm1', 6), 'm2', 2), 'm3', 5), 'm4', 2);
     expect(state.teams?.dice).toMatchObject({ tour: ['m2', 'm4'], waiting: ['m2', 'm4'], tourNo: 2 });
     expect(teamOf(state, 'm1')).toBeNull();

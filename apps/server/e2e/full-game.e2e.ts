@@ -10000,7 +10000,18 @@ async function teamsGame() {
   await expect.poll(() => host.getByRole('radio', { name: 'Кубик', ...exact }).isChecked(), POLL).toBe(true);
   await host.getByRole('button', { name: 'Довідка: Кубик', ...exact }).waitFor();
   await host.locator('.host-teams').waitFor();
+  {
+    // Рядок учасника: ім'я, «У команду» й «Вилучити» — в один рядок.
+    const row = host.locator('.team-person', { hasText: 'Оля' });
+    const select = await row.getByRole('combobox').boundingBox();
+    const kick = await row.getByRole('button', { name: 'Вилучити: Оля', ...exact }).boundingBox();
+    expect(select !== null && kick !== null && Math.abs(select.y + select.height / 2 - (kick.y + kick.height / 2)) < 4, 'kick beside the select').toBe(true);
+  }
   await shot(host, 'p10j-host-lobby');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.locator('.host-teams').scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p10j-host-lobby-375');
+  await host.setViewportSize({ width: 1280, height: 900 });
   await click(host, 'Кидаємо кубики');
   for (const page of phones) await page.getByRole('button', { name: 'Кинути кубик', ...exact }).waitFor();
   await expectNoSideScroll(olya, 'p10j-phone-dice');

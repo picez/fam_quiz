@@ -129,9 +129,6 @@ export interface Room {
   audioSeq: number;
 }
 
-/** Найменший проміжок між чернетками однієї команди; частіші ігноруються (клієнт шле не частіше ніж раз на 250 мс). */
-export const DRAFT_GAP_MS = 100;
-
 /** Чернетка того, хто відповідає за команду: на якому запитанні (trial — питання на виживання після нього), хто, коли й що в полі. */
 export interface Draft {
   questionIndex: number;
@@ -518,7 +515,8 @@ export class RoomManager {
   /**
    * Чернетка (10j): лише командна гра, етап запитання з балами (чи відкрите питання на виживання), лише той,
    * хто зараз відповідає за команду (капітан; у бліці — той, хто натиснув). Стан гри не змінюється й не пишеться:
-   * подія draft перезбирає зріз решті команди. Та сама чернетка не шлеться вдруге; частіші за DRAFT_GAP_MS ігноруються.
+   * подія draft перезбирає зріз решті команди. Та сама чернетка не шлеться вдруге; кожна нова зберігається й шлеться
+   * (клієнт сам шле не частіше ніж раз на 250 мс і вдруге не повторює), тож остання не губиться.
    */
   draft(room: Room, playerId: string, draft: Answer | null): AckResult {
     if (!this.alive(room)) return this.gone();
@@ -534,7 +532,6 @@ export class RoomManager {
       room.drafts.delete(who.id);
     } else {
       if (live !== null && live.by === playerId && JSON.stringify(live.draft) === JSON.stringify(draft)) return { ok: true };
-      if (live !== null && now - live.at < DRAFT_GAP_MS) return { ok: true };
       room.drafts.set(who.id, { questionIndex: room.state.questionIndex, trial: at.trial, by: playerId, at: now, stamp: answerStamp(room.state, who.id), draft });
     }
     this.emit(room, { type: 'draft', teamId: who.id, by: playerId });

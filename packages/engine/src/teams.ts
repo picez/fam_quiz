@@ -70,9 +70,9 @@ export function withoutDuelists(state: GameState): GameState {
   return teamsOn(state) ? withTeams(state, { duelists: {} }) : state;
 }
 
-/** Люди на зв'язку плюс усі люди команд з awaiting (для голосів без балів). */
+/** Люди на зв'язку плюс люди з awaiting — на зв'язку до перезапуску й ще не повернулися (для голосів без балів). */
 export function presentMembers(state: GameState): TeamMember[] {
-  return state.teams?.members.filter((m) => m.connected || (m.teamId !== null && state.awaiting.includes(m.teamId))) ?? [];
+  return state.teams?.members.filter((m) => m.connected || state.awaiting.includes(m.id)) ?? [];
 }
 
 const withTeams = (state: TeamGame, teams: Partial<TeamsState>): GameState => ({ ...state, teams: { ...state.teams, ...teams } });
@@ -241,7 +241,7 @@ export function dropMember(state: GameState, memberId: string, now?: number): Re
   }
   const members = state.teams.members.filter((m) => m.id !== memberId);
   const left = withTeams(
-    { ...state, plays: withoutPeople(state.plays, [memberId]) },
+    { ...state, plays: withoutPeople(state.plays, [memberId]), awaiting: state.awaiting.filter((id) => id !== memberId) },
     { members, captains: withoutValues(state.teams.captains, [memberId]), duelists: withoutValues(state.teams.duelists, [memberId]) },
   ) as TeamGame;
   if (state.phase === 'lobby') {
@@ -270,7 +270,9 @@ export function dropMember(state: GameState, memberId: string, now?: number): Re
 export function memberConnected(state: GameState, memberId: string, connected: boolean, now: number): Result {
   if (!teamsOn(state)) return fail('not_found');
   if (memberOf(state, memberId) === undefined) return fail('not_found');
-  const updated = withTeams(state, { members: state.teams.members.map((m) => (m.id === memberId ? { ...m, connected } : m)) });
+  const members = state.teams.members.map((m) => (m.id === memberId ? { ...m, connected } : m));
+  // Людина повернулася після перезапуску (або вийшла знову): далі її не чекають окремо.
+  const updated = withTeams({ ...state, awaiting: state.awaiting.filter((id) => id !== memberId) }, { members });
   const team = teamOf(state, memberId);
   const player = team === null ? undefined : state.players.find((p) => p.id === team);
   if (team === null || player === undefined) return ok(updated);
@@ -279,9 +281,10 @@ export function memberConnected(state: GameState, memberId: string, connected: b
   return present !== player.connected || returned ? setConnected(updated, team, present, now) : ok(updated);
 }
 
-/** Старт: без команди — у найменші; порожні відпадають; < 2 команд чи < 2 учасників → teams_few; players = команди. */
+/** Старт: тур кубиків триває → dice_pending; без команди — у найменші; порожні відпадають; < 2 команд чи < 2 учасників → teams_few; players = команди. */
 export function formTeams(state: GameState): Result {
   if (!teamLobby(state)) return fail('wrong_phase');
+  if (dicePending(state.teams.dice)) return fail('dice_pending');
   const { list } = state.teams;
   const sizes = list.map((t) => state.teams.members.filter((m) => m.teamId === t.id).length);
   // Без команди — у найменшу на цю мить, за рівності — у першу за порядком; роздача в порядку приходу.

@@ -796,7 +796,7 @@ describe('the saved state', () => {
     expect(teamDice.teams?.dice).toMatchObject({ throws: { m1: [4] }, waiting: ['m2', 'm3'] });
     const suspendedBuzz = suspend(teamBuzz, T0 + 2000);
     expect(suspendedBuzz.plays[0].buzzers).toEqual({ t1: 'm2' });
-    expect(suspendedBuzz.awaiting).toEqual(['t1', 't2']);
+    expect(suspendedBuzz.awaiting).toEqual(['t1', 't2', 'm1', 'm2', 'm3']);
   });
 
   it('the state format is pinned to GAME_STATE_VERSION', () => {

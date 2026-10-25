@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { adjustScore } from './adjust';
-import { addPlayer, createGame, end, lock, next, recordOf, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
+import { addPlayer, createGame, end, lock, next, recordOf, removePlayer, resume, setConnected, start, submitAnswer, type GameState } from './game';
+import { actAnswer } from './team-act';
 import { suspend } from './restore';
-import { assignTeam, captainOf, dealTeams, pickTeam, rollTeamRest, setCaptain, setTeamForm, startTeamDice } from './teams';
-import { boardRound, classicRound, makeRoundsQuiz, single, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
+import { assignTeam, captainOf, dealTeams, pickTeam, presentMembers, rollTeamRest, setCaptain, setTeamForm, startTeamDice } from './teams';
+import { boardRound, classicRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
 import { decideWipeout, decisionOpen, wipeoutTable } from './wipeout';
 import { must } from './testing/helpers';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
@@ -274,10 +275,37 @@ describe('team game: restart', () => {
     state = suspend(state, 1000);
     expect(state.players.every((p) => !p.connected)).toBe(true);
     expect(state.teams?.members.every((m) => !m.connected)).toBe(true);
-    expect(state.awaiting).toEqual(['t1', 't2']);
+    // Люди, що були на зв'язку, теж у awaiting — їх і чекає голос без балів.
+    expect(state.awaiting).toEqual(['t1', 't2', 'm1', 'm2', 'm3']);
     state = must(setConnected(state, 'm1', true, 2000));
-    expect(state.awaiting).toEqual(['t2']);
+    expect(state.awaiting).toEqual(['t2', 'm2', 'm3']);
     expect(state.players.map((p) => p.connected)).toEqual([true, false, false]);
+  });
+
+  it('after a restart a team poll waits only on the people who were online before it', () => {
+    const quiz = teamQuiz([classicRound('r1', [poll])], 2);
+    let state = must(next(teamGame(quiz, [['Анна', 'Богдан'], ['Віра', 'Галина']]), 1000));
+    expect(state.phase).toBe('question');
+    // Галина пішла ще до перезапуску.
+    state = must(setConnected(state, 'm4', false, 1500));
+    state = must(resume(suspend(state, 2000), 3000));
+    expect(presentMembers(state).map((m) => m.id)).toEqual(['m1', 'm2', 'm3']);
+    for (const id of ['m1', 'm2']) state = must(setConnected(state, id, true, 3000));
+    expect(presentMembers(state).map((m) => m.id)).toEqual(['m1', 'm2', 'm3']);
+    for (const id of ['m1', 'm2']) state = must(actAnswer(state, id, { type: 'poll', optionId: 'a' }, 3500));
+    expect(state.phase).toBe('question');
+  });
+
+  it('after a restart a team poll waits on an awaited member who has not returned yet', () => {
+    const quiz = teamQuiz([classicRound('r1', [poll])], 2);
+    let state = must(next(teamGame(quiz, [['Анна', 'Богдан'], ['Віра']]), 1000));
+    state = must(resume(suspend(state, 2000), 3000));
+    for (const id of ['m1', 'm3']) state = must(setConnected(state, id, true, 3000));
+    for (const id of ['m1', 'm3']) state = must(actAnswer(state, id, { type: 'poll', optionId: 'a' }, 3500));
+    expect(state.phase).toBe('question');
+    state = must(setConnected(state, 'm2', true, 3600));
+    state = must(actAnswer(state, 'm2', { type: 'poll', optionId: 'a' }, 3700));
+    expect(state.phase).toBe('locked');
   });
 });
 

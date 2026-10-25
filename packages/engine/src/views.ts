@@ -1513,8 +1513,8 @@ function base(state: GameState, forHost: boolean) {
           ? state.quiz.duels.timeLimit * 1000
           : null,
     held,
-    // Командна гра: на опитуванні й «хмарі» відповідають люди — «Відповіли N з M» рахує їх.
-    playerCount: unscoredNow(state) ? voterList(state).length : state.players.length,
+    // Командна гра: на опитуванні й «хмарі» відповідають люди — «Відповіли N з M» рахує їх; поза запитанням («Місце N з M») — команди.
+    playerCount: unscoredNow(state) && ANSWERING.includes(state.phase) ? voterList(state).length : state.players.length,
     answeredCount: answeredCount(state),
     blitz: blitzInfo(state, forHost),
     board: boardInfo(state, forHost),
@@ -1541,6 +1541,9 @@ function base(state: GameState, forHost: boolean) {
     teams: teamsView(state),
   };
 }
+
+/** Етапи запитання, на яких лічильник голосу без балів рахує людей. */
+const ANSWERING: Phase[] = ['question', 'locked', 'reveal'];
 
 /** Чи поточне запитання — голос без балів (опитування, «хмара слів»). */
 function unscoredNow(state: GameState): boolean {

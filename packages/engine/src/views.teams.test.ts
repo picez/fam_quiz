@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultTeams, type Answer, type Quiz } from '@quiz/shared';
 import { takeBuff } from './buffs';
 import { declareDuel, pickDuelCategory } from './duel';
-import { judge, next, setConnected, type GameState } from './game';
+import { judge, lock, next, setConnected, type GameState } from './game';
 import { actAnswer, actBuzz, pickDuelist } from './team-act';
 import { pickTeam, rollTeamDie, setTeamForm, startTeamDice } from './teams';
 import { hostView, playerView, stageView } from './views';
@@ -204,6 +204,25 @@ describe('team views: polls and word clouds', () => {
     expect(s.phase).toBe('locked');
     expect(team(s, 'm2')?.canAct).toBe(false);
     expect(team(s, 'm1')?.canAct).toBe(true);
+  });
+
+  it('after a poll the leaderboard and the finish count teams, not people', () => {
+    const quiz = teamQuiz([classicRound('r1', [poll, single])]);
+    let s = opened({ ...quiz, settings: { ...quiz.settings, leaderboard: 'each' } });
+    for (const id of ['m1', 'm2', 'm3', 'm4']) s = must(actAnswer(s, id, { type: 'poll', optionId: 'a' }, T0 + 1000));
+    expect(s.phase).toBe('locked');
+    expect(stageView(s).playerCount).toBe(4);
+    s = must(next(s, T0 + 2000, rng));
+    expect(s.phase).toBe('reveal');
+    expect(stageView(s).playerCount).toBe(4);
+    // Далі (таблиця, кінець раунду, фініш) — знову команди.
+    const phases: string[] = [];
+    for (let at = T0 + 3000; s.phase !== 'finished'; at += 1000) {
+      s = must(s.phase === 'question' ? lock(s, at) : next(s, at, rng));
+      phases.push(s.phase);
+      for (const view of [stageView(s), hostView(s), playerView(s, 'm2')]) expect(view?.playerCount).toBe(2);
+    }
+    expect(phases).toContain('leaderboard');
   });
 
   it('a scored question counts teams', () => {

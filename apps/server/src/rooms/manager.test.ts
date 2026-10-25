@@ -1344,7 +1344,7 @@ describe('teams (10j)', () => {
     expect(JSON.stringify(manager.view(room, taras.identity))).not.toContain('Чернетка-Ужгород');
   });
 
-  it('an unchanged draft is not sent again, and drafts closer than 100 ms are ignored', () => {
+  it('an unchanged draft is not sent again; quick drafts are all kept, so the last one is never lost', () => {
     const { scheduler, manager, room, events, olena, taras } = teamPlaying([classicRound('r1', [text])]);
     const seen = () => {
       const view = manager.view(room, taras.identity);
@@ -1357,11 +1357,8 @@ describe('teams (10j)', () => {
     expect(events).toEqual([]);
     expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Киї' })).toEqual({ ok: true });
     expect(events).toHaveLength(1);
-    scheduler.advance(50);
-    expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: true });
-    expect(events).toHaveLength(1);
-    expect(seen()).toEqual({ type: 'text', value: 'Киї' });
-    scheduler.advance(50);
+    // Остання чернетка за 10 мс після попередньої (клієнт її вдруге не шле) — не губиться.
+    scheduler.advance(10);
     expect(manager.draft(room, olena.playerId, { type: 'text', value: 'Київ' })).toEqual({ ok: true });
     expect(events).toHaveLength(2);
     expect(seen()).toEqual({ type: 'text', value: 'Київ' });

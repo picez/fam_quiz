@@ -19,6 +19,7 @@ const summary: GameSummary = {
   playerCount: 2,
   questionsPlayed: 6,
   questionCount: 6,
+  teams: false,
 };
 
 const base = { imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -98,6 +99,15 @@ describe('History', () => {
     expect(screen.getByText(/жовт.*завершено/)).toBeTruthy();
     expect(screen.getByText('Гравців: 2')).toBeTruthy();
     expect(screen.getByText('Запитань зіграно: 6 з 6')).toBeTruthy();
+    expect(screen.queryByText('Командна гра')).toBeNull();
+  });
+
+  it('marks a team game in the list', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...summary, teams: true, playerCount: 4 }] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Географія' });
+    expect(screen.getByText('Командна гра')).toBeTruthy();
+    expect(screen.getByText('Гравців: 4')).toBeTruthy();
   });
 
   it('says in words that a game was interrupted or is still running', async () => {

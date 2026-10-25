@@ -82,6 +82,7 @@ describe('host history', () => {
       playerCount: 2,
       questionsPlayed: 2,
       questionCount: 2,
+      teams: false,
     });
     expect(Date.parse(String(list[0].startedAt))).not.toBeNaN();
     expect(Date.parse(String(list[0].finishedAt))).not.toBeNaN();

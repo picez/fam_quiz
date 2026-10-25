@@ -54,7 +54,11 @@ export function suspend(state: GameState, at: number): GameState {
     const off = setConnected(s, p.id, false, at);
     if (off.ok) s = off.state;
   }
-  // Командна гра: люди теж поза зв'язком; awaiting — id команд, що були на зв'язку.
-  if (s.teams !== undefined) s = { ...s, teams: { ...s.teams, members: s.teams.members.map((m) => ({ ...m, connected: false })) } };
+  // Командна гра: люди теж поза зв'язком; awaiting — id команд, що були на зв'язку, і id людей на зв'язку
+  // (голос без балів чекає лише їх, а не тих, хто пішов ще до перезапуску).
+  if (s.teams !== undefined) {
+    awaiting.push(...s.teams.members.filter((m) => m.connected && !awaiting.includes(m.id)).map((m) => m.id));
+    s = { ...s, teams: { ...s.teams, members: s.teams.members.map((m) => ({ ...m, connected: false })) } };
+  }
   return { ...s, awaiting };
 }

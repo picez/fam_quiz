@@ -309,12 +309,21 @@ async function rivalCounts(db: Db, gameIds: string[]): Promise<Map<string, numbe
   return new Map(rows.map((row) => [row.gameId, row.players]));
 }
 
+/** Командні ігри серед заданих: ті, де є рядки команд. */
+async function teamGameIds(db: Db, gameIds: string[]): Promise<Set<string>> {
+  if (gameIds.length === 0) return new Set();
+  const rows = await db
+    .selectDistinct({ gameId: participant.gameId })
+    .from(participant)
+    .where(and(inArray(participant.gameId, gameIds), eq(participant.isTeam, true)));
+  return new Set(rows.map((row) => row.gameId));
+}
+
 export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> {
   const games = await db.select().from(game).where(eq(game.hostId, hostId)).orderBy(desc(game.startedAt)).limit(LIMIT);
-  const players = await playerCounts(
-    db,
-    games.map((row) => row.id),
-  );
+  const ids = games.map((row) => row.id);
+  const players = await playerCounts(db, ids);
+  const teamGames = await teamGameIds(db, ids);
   return games.map((row) => ({
     id: row.id,
     title: row.title,
@@ -325,6 +334,7 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
     playerCount: players.get(row.id) ?? 0,
     questionsPlayed: row.questionsPlayed,
     questionCount: questionCountOf(row.quizSnapshot),
+    teams: teamGames.has(row.id),
   }));
 }
 

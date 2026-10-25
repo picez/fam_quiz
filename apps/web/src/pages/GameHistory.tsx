@@ -266,7 +266,11 @@ export function GameHistory() {
                 <span className="name">
                   {row.nickname}
                   {row.members !== undefined && row.members.length > 0 && (
-                    <small className="team-members">{t('historyMembers', { names: row.members.join(', ') })}</small>
+                    <>
+                      {/* Для читача екрана назва й склад — окремими фразами. */}
+                      <span className="sr-only">, </span>
+                      <small className="team-members">{t('historyMembers', { names: row.members.join(', ') })}</small>
+                    </>
                   )}
                 </span>
                 <span className="tag">{t('correctOf', { correct: row.correct })}</span>

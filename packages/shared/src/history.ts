@@ -18,6 +18,8 @@ export interface GameSummary {
   questionsPlayed: number;
   /** Усі запитання вікторини в усіх раундах. */
   questionCount: number;
+  /** Командна гра (10j): є рядки команд. */
+  teams: boolean;
 }
 
 export interface GameStanding {
@@ -134,8 +136,6 @@ export interface GameDetail extends Omit<GameSummary, 'playerCount'> {
   questions: GameQuestionResult[];
   /** Коригування рахунку за seq; [] у старих іграх. */
   adjustments: GameAdjustment[];
-  /** Командна гра (10j): таблиця — команди, голоси без балів — від людей. */
-  teams: boolean;
 }
 
 /** Коригування рахунку учасника поза відповідями в історії гри. */
