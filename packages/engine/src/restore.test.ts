@@ -54,6 +54,7 @@ import {
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
+import { sortMarks, sortOf, sortWord } from './sort';
 import type { Splash } from './splash';
 import { writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
@@ -71,6 +72,7 @@ import {
   pin,
   single,
   slider,
+  sortQ,
   survey,
   surveyCloud,
   survivalQuestions,
@@ -85,6 +87,7 @@ import {
   withReveal,
 } from './testing/fixtures';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
+import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
 import { pickDoor } from './survival';
@@ -291,7 +294,7 @@ const STATE_SHAPE: Record<string, string> = {
   Attempt: keysOf<Attempt>()(['playerId', 'answer', 'timeMs', 'grade', 'points'], true),
   FinalState: keysOf<FinalState>()(['limits', 'wagers', 'allIn', 'order', 'shown', 'split'], true),
   FinalPlay: keysOf<FinalPlay>()(['wagers', 'allIn', 'graded'], true),
-  SortProgress: keysOf<SortProgress>()(['queue', 'sorted', 'misses', 'lockedUntil', 'missed'], true),
+  SortProgress: keysOf<SortProgress>()(['queue', 'sorted', 'misses', 'lockedUntil', 'missed', 'wordMisses', 'missedInto'], true),
   WallProgress: keysOf<WallProgress>()(['found', 'mistakes', 'tried'], true),
   SurveyPlay: keysOf<SurveyPlay>()(['source', 'shown'], true),
   BluffPlay: keysOf<BluffPlay>()(['stage', 'seed', 'lies', 'options', 'picks', 'shown'], true),
@@ -663,6 +666,47 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  12: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,missedInto,misses,queue,sorted,wordMisses',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'captains,dice,duelists,form,list,members',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
 
 /** 11b: класика після «Почати гру» через stamp сервера — GameState.stepAt. */
@@ -781,10 +825,15 @@ function representative(): GameState[] {
   let teamBuzz = teamGame(teamQuiz([blitzRound('b1', [single], { check: 'manual' })]), [['Оля', 'Петро'], ['Віра']]);
   teamBuzz = must(actBuzz(must(next(teamBuzz, T0, () => 0)), 'm2', T0 + 1000));
   teamBuzz = must(setCaptain(must(actAnswer(teamBuzz, 'm2', kyiv, T0 + 1000)), 't1', 'm2'));
+  // 11d: сортування — помилка Анни (wordMisses, missedInto) і правильний хід Богдана — SortProgress.
+  let sorting = toSort();
+  sorting = must(sortWord(sorting, 'p1', head(sorting, 'p1'), wrong(head(sorting, 'p1')), 2000));
+  sorting = must(sortWord(sorting, 'p2', head(sorting, 'p2'), right(head(sorting, 'p2')), 2000));
   return [
     teamDice,
     teamBuzz,
     stamped(),
+    sorting,
     laddered,
     took,
     helped,
@@ -857,6 +906,19 @@ describe('the saved state', () => {
     expect(suspendedBuzz.awaiting).toEqual(['t1', 't2', 'm1', 'm2', 'm3']);
   });
 
+  it('a sort progress of version 11 (no wordMisses, no missedInto) restores and reveals late marks only', () => {
+    const s = toSort();
+    const [first, ...rest] = s.presented;
+    const old: SortProgress = { queue: [...rest.slice(1), first], sorted: [rest[0]], misses: 1, lockedUntil: null, missed: null };
+    const saved: GameState = { ...s, plays: s.plays.map((p, i) => (i === s.questionIndex ? { ...p, sort: { p1: old } } : p)) };
+    const restored = roundTrip(suspend(roundTrip(saved), 3000));
+    const progress = sortOf(restored, 'p1');
+    expect(progress).toEqual(old);
+    expect(sortMarks(sortQ, progress, false)).toEqual(
+      sortQ.words.filter((w) => old.queue.includes(w.id)).map((w) => ({ wordId: w.id, misses: 0, late: true })),
+    );
+  });
+
   it('the state format is pinned to GAME_STATE_VERSION', () => {
     // Перелік ключів кожного типу стану: компілятор (pnpm typecheck) вимагає рівно всі ключі типу, тож нове поле
     // не пройде непоміченим, а тест порівнює перелік із KEYS поточної версії.
@@ -867,7 +929,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -919,6 +981,7 @@ describe('the saved state', () => {
       add('BluffLie', s.plays.flatMap((p) => Object.values(p.bluff?.lies ?? {})));
       add('BluffPick', s.plays.flatMap((p) => Object.values(p.bluff?.picks ?? {})));
       add('BluffOption', s.plays.flatMap((p) => p.bluff?.options ?? []));
+      add('SortProgress', s.plays.flatMap((p) => Object.values(p.sort ?? {})));
       // стан без змін переживає JSON
       expect(roundTrip(s)).toEqual(s);
     }
@@ -926,8 +989,8 @@ describe('the saved state', () => {
       const declared = new Set(STATE_SHAPE[name].split(','));
       for (const o of objects) for (const key of Object.keys(o)) expect(declared.has(key), `${name}.${key}`).toBe(true);
     }
-    // кожен вкладений тип справді трапився (крім тих, що потребують окремих раундів: сортування, ланцюжок; кубики — з лобі команд)
+    // кожен вкладений тип справді трапився (крім ланцюжка, що потребує окремого раунду; кубики — з лобі команд)
     const missing = Object.keys(STATE_SHAPE).filter((name) => (seen[name]?.length ?? 0) === 0);
-    expect(missing.sort()).toEqual(['ChainProgress', 'SortProgress']);
+    expect(missing.sort()).toEqual(['ChainProgress']);
   });
 });

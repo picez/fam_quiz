@@ -1,12 +1,14 @@
-import { rulesOf, type Question } from '@quiz/shared';
+import { rulesOf, type Question, type SortWordMark } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { autoLock, fail, lockNow, ok, recordOf, revealNow, withFinalPoints, type AnswerRecord, type GameState, type Play, type Result, type SortProgress } from './game';
 import { finalPoints } from './score';
 import { limitMsOf, timeOver } from './timing';
 import { notStarted } from './splash';
+import { teamsOn } from './teams';
 
-type SortPlay = Play & { question: Extract<Question, { type: 'sort' }> };
+type SortQuestion = Extract<Question, { type: 'sort' }>;
+type SortPlay = Play & { question: SortQuestion };
 
 /** Поточне запитання, якщо воно сортування. */
 function sortPlay(state: GameState): SortPlay | null {
@@ -80,6 +82,8 @@ export function sortWord(state: GameState, playerId: string, wordId: string, cat
       misses: progress.misses + 1,
       lockedUntil: now + play.question.lockSeconds * 1000,
       missed: wordId,
+      missedInto: categoryId,
+      wordMisses: { ...progress.wordMisses, [wordId]: (progress.wordMisses?.[wordId] ?? 0) + 1 },
     };
     return ok(withProgress(state, play, playerId, locked));
   }
@@ -89,6 +93,7 @@ export function sortWord(state: GameState, playerId: string, wordId: string, cat
     misses: progress.misses,
     lockedUntil: null,
     missed: null,
+    ...(progress.wordMisses === undefined ? {} : { wordMisses: progress.wordMisses }),
   });
   if (rest.length > 0) return ok(advanced);
 
@@ -160,4 +165,41 @@ export function shiftSortLocks(state: GameState, shiftMs: number): GameState {
     Object.entries(play.sort).map(([id, p]) => [id, p.lockedUntil === null ? p : { ...p, lockedUntil: p.lockedUntil + shiftMs }]),
   );
   return withPlay(state, { ...play, sort });
+}
+
+/** Ходів зроблено: правильні + помилки (11d) — ключ польоту картки й свіжості нахилу. */
+export function sortSeq(progress: SortProgress): number {
+  return progress.sorted.length + progress.misses;
+}
+
+/** Останній хід для глядачів: помилка — у зону missedInto, інакше останнє розкладене слово; null — ходів немає або помилка без зони (стан до 11d). */
+export function lastSortMove(question: SortQuestion, progress: SortProgress): { wordId: string; to: string; hit: boolean } | null {
+  if (progress.missed !== null) {
+    return progress.missedInto === undefined ? null : { wordId: progress.missed, to: progress.missedInto, hit: false };
+  }
+  const wordId = progress.sorted.at(-1);
+  if (wordId === undefined) return null;
+  return { wordId, to: question.words.find((w) => w.id === wordId)?.categoryId ?? '', hit: true };
+}
+
+/**
+ * Позначки слів на розкритті в порядку слів запитання, лише зі «✗N» або «не встиг»; finished — запис accepted.
+ * «✗N» — лише коли лічильник по словах повний (сума дорівнює misses); інакше (стан до 11d) — 0 у всіх.
+ */
+export function sortMarks(question: SortQuestion, progress: SortProgress, finished: boolean): SortWordMark[] {
+  const counts = progress.wordMisses ?? {};
+  const whole = Object.values(counts).reduce((sum, n) => sum + n, 0) === progress.misses;
+  return question.words
+    .map((w) => ({
+      wordId: w.id,
+      misses: whole ? (counts[w.id] ?? 0) : 0,
+      late: !finished && progress.queue.includes(w.id),
+    }))
+    .filter((mark) => mark.misses > 0 || mark.late);
+}
+
+/** Де живий показ дозволено (11d): 'all' — звичайна клітинка поля; 'team' — командна гра поза нею; null — сортують усі одночасно. */
+export function sortAudience(state: GameState, play: Play): 'all' | 'team' | null {
+  if (play.board?.kind === 'normal') return 'all';
+  return teamsOn(state) ? 'team' : null;
 }
