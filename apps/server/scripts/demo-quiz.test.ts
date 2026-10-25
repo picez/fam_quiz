@@ -455,11 +455,11 @@ describe('the ladder round in the party quiz (10i)', () => {
     expect(questionsOf(quiz).length).toBeLessThanOrEqual(LIMITS.maxQuizQuestions);
   });
 
-  it('has the right answers: the blue whale, the ostrich, Baikal, Angel, the Andes, Sweden and the stirrup', () => {
+  it('has the right answers: the blue whale, the ostrich, Lake Victoria, Angel, the Andes, Sweden and the stirrup', () => {
     const round = partyQuiz().rounds.find((r) => r.type === 'ladder');
     if (round === undefined || round.type !== 'ladder') throw new Error('no ladder round');
     const answers = round.questions.map((question) => (question.type === 'single' ? question.options.find((o) => o.id === question.correctId)?.text : undefined));
-    expect(answers).toEqual(['Синій кит', 'Страус', 'Байкал', 'Анхель', 'Анди', 'Швеція', 'Стремінце']);
+    expect(answers).toEqual(['Синій кит', 'Страус', 'Вікторія', 'Анхель', 'Анди', 'Швеція', 'Стремінце']);
   });
 });
 
@@ -490,15 +490,15 @@ describe('the team party quiz (10j)', () => {
     expect(final.type === 'final' && final.wagerMode).toBe('classic');
   });
 
-  it('has the right answers: the Dnipro, six volleyball players and the Kyiv metro opened in 1960', () => {
+  it('has the right answers: the Dnipro, six volleyball players and the Golden Gate laid in 1037', () => {
     const questions = questionsOf(teamsQuiz());
     const find = (text: string) => questions.find((q) => q.text.startsWith(text));
     const river = find('Яка річка найдовша');
     expect(river?.type === 'single' && river.options.find((o) => o.id === river.correctId)?.text).toBe('Дніпро');
     const volleyball = find('Скільки гравців однієї команди');
     expect(volleyball?.type === 'numeric' && volleyball.correct).toBe(6);
-    const metro = find('У якому році відкрили Київське метро');
-    expect(metro?.type === 'numeric' && metro.correct).toBe(1960);
+    const gate = find('У якому році, за літописом, Ярослав Мудрий заклав Золоті ворота');
+    expect(gate?.type === 'numeric' && gate.correct).toBe(1037);
   });
 
   it('repeats no question text of the other demo quizzes', () => {
