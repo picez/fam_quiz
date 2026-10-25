@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -2072,5 +2072,116 @@ describe('problemsOf: team names', () => {
     expect(loadDraft('teams-ok')!.settings.teams).toEqual({ count: 2, names: ['А', 'Б'] });
     saveDraft('teams-bad', { ...base, settings: { ...base.settings, teams: { count: 'x', names: 5 } as never } });
     expect('teams' in loadDraft('teams-bad')!.settings).toBe(false);
+  });
+});
+
+describe('board readiness (11a)', () => {
+  const filledSingle = (text: string, a = 'Осло', b = 'Берген'): Question => {
+    const base = newQuestion('single') as Extract<Question, { type: 'single' }>;
+    const options = base.options.map((option, index) => ({ ...option, text: index === 0 ? a : index === 1 ? b : option.text }));
+    return { ...base, text, options, correctId: options[0].id };
+  };
+  const asked = (text: string): Question => ({ ...newQuestion('single'), text });
+  const withCell = (round: BoardRound, category: number, index: number, patch: Partial<BoardRound['categories'][number]['cells'][number]>): BoardRound => ({
+    ...round,
+    categories: round.categories.map((c, ci) => (ci !== category ? c : { ...c, cells: c.cells.map((cell, i) => (i === index ? { ...cell, ...patch } : cell)) })),
+  });
+  const titled = (round: BoardRound, titles: string[]): BoardRound => ({ ...round, categories: round.categories.map((c, i) => ({ ...c, title: titles[i] })) });
+  const quizOf = (round: BoardRound): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [round] });
+  const cellOf = (round: BoardRound, category = 0, index = 0) => round.categories[category].cells[index];
+
+  describe('cellState', () => {
+    it('empty for a fresh cell and for whitespace text', () => {
+      const round = newBoardRound();
+      expect(cellState(round, cellOf(round))).toBe('empty');
+      const spaces = withCell(round, 0, 0, { question: { ...cellOf(round).question, text: '   ' } });
+      expect(cellState(spaces, cellOf(spaces))).toBe('empty');
+    });
+
+    it('incomplete with a text but empty options, ready once the options are filled', () => {
+      const round = withCell(newBoardRound(), 0, 0, { question: asked('Столиця Норвегії?') });
+      expect(cellState(round, cellOf(round))).toBe('incomplete');
+      const done = withCell(round, 0, 0, { question: filledSingle('Столиця Норвегії?') });
+      expect(cellState(done, cellOf(done))).toBe('ready');
+    });
+
+    it('incomplete when the cleaned answers are empty', () => {
+      const text = { ...(newQuestion('text') as Extract<Question, { type: 'text' }>), text: 'Найвища гора України?', accepted: [''] } as Question;
+      const round = withCell(newBoardRound(), 0, 0, { question: text });
+      expect(cellState(round, cellOf(round))).toBe('incomplete');
+    });
+
+    it('a clues question on a blitz cell is incomplete, on a phone cell ready', () => {
+      const clues = { ...(newQuestion('clues') as Extract<Question, { type: 'clues' }>), text: 'Хто я?', clues: ['Раз', 'Два', 'Три'], accepted: ['Говерла'], timeLimit: 60, interval: 5 } as Question;
+      const phone = withCell(newBoardRound(), 0, 0, { question: clues });
+      expect(cellState(phone, cellOf(phone))).toBe('ready');
+      const blitz = withCell(newBoardRound(), 0, 0, { question: clues, kind: 'blitz' });
+      expect(cellState(blitz, cellOf(blitz))).toBe('incomplete');
+    });
+
+    it('sorting is ready on a normal phone cell and incomplete off it', () => {
+      const sort = { ...(filled(newQuestion('sort')) as Extract<Question, { type: 'sort' }>), points: 100, lockSeconds: LIMITS.defaultLockSeconds } as Question;
+      const phone = withCell(newBoardRound(), 0, 0, { question: sort, kind: 'normal', answerMode: 'phone' });
+      expect(cellState(phone, cellOf(phone))).toBe('ready');
+      const voice = withCell(newBoardRound(), 0, 0, { question: sort, kind: 'normal', answerMode: 'voice' });
+      expect(cellState(voice, cellOf(voice))).toBe('incomplete');
+      const problems = problemsOf(quizOf(titled(voice, ['А', 'Б', 'В'])));
+      expect(problems.some((problem) => problem.includes('сортування діє лише на звичайній клітинці поля з телефона'))).toBe(true);
+    });
+  });
+
+  describe('boardReadiness', () => {
+    it('a fresh board has nothing ready and every title missing', () => {
+      const readiness = boardReadiness(newBoardRound());
+      expect(readiness).toMatchObject({ ready: 0, total: 9, notReady: 9 });
+      expect(readiness.categories).toEqual([0, 1, 2].map(() => ({ ready: 0, total: 3, titleMissing: true })));
+    });
+
+    const mixed = (): BoardRound => {
+      let round = titled(newBoardRound(), ['Річки', 'Гори', '']);
+      const fill = (c: number, i: number) => (round = withCell(round, c, i, { question: filledSingle(`Запитання ${c}.${i}?`) }));
+      const half = (c: number, i: number) => (round = withCell(round, c, i, { question: asked(`Запитання ${c}.${i}?`) }));
+      fill(0, 0);
+      half(0, 2);
+      fill(1, 0);
+      fill(1, 1);
+      fill(1, 2);
+      fill(2, 0);
+      fill(2, 1);
+      return round;
+    };
+
+    it('counts ready cells in total and per category', () => {
+      const readiness = boardReadiness(mixed());
+      expect(readiness).toMatchObject({ ready: 6, total: 9, notReady: 3 });
+      expect(readiness.categories).toEqual([
+        { ready: 1, total: 3, titleMissing: false },
+        { ready: 3, total: 3, titleMissing: false },
+        { ready: 2, total: 3, titleMissing: true },
+      ]);
+    });
+
+    it('a cell is ready exactly when problemsOf has no line for it', () => {
+      const round = mixed();
+      const problems = problemsOf(quizOf(round));
+      expect(problems).toContain('Категорія 3: немає назви.');
+      round.categories.forEach((category, c) =>
+        category.cells.forEach((cell, i) => {
+          const listed = problems.some((problem) => problem.includes(`Категорія ${c + 1}, запитання ${i + 1}:`));
+          expect(cellState(round, cell) === 'ready').toBe(!listed);
+        }),
+      );
+    });
+
+    it('firstProblem points at the first not ready cell', () => {
+      expect(firstProblem(quizOf(mixed()))).toEqual({ round: 0, question: 1, cell: { category: 0, index: 1 } });
+    });
+
+    it('a fully ready board has no problems', () => {
+      let round = titled(newBoardRound(), ['А', 'Б', 'В']);
+      for (let c = 0; c < 3; c += 1) for (let i = 0; i < 3; i += 1) round = withCell(round, c, i, { question: filledSingle(`Запитання ${c}.${i}?`) });
+      expect(problemsOf(quizOf(round))).toEqual([]);
+      expect(boardReadiness(round).notReady).toBe(0);
+    });
   });
 });

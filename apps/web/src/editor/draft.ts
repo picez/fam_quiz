@@ -545,120 +545,122 @@ const isBlankSurveyRow = (row: { text: string; popularity: number; accepted: str
 /** Заповнений рядок дошки: текст і популярність від 1 (верхню межу стереже сума). */
 const isFilledSurveyRow = (row: { text: string; popularity: number }) => row.text !== '' && Number.isInteger(row.popularity) && row.popularity >= 1;
 
+const trimAll = <T extends { text: string }>(items: T[]) => items.map((item) => ({ ...item, text: item.text.trim() }));
+// Порожні рядки (наприклад, доданий останнім Enter) просто не зберігаються, якщо без них рядків
+// досить і жоден із них не позначено правильною відповіддю. Інакше їх лишаємо: про них скаже перевірка.
+// Варіант лише з картинкою не порожній.
+const withoutSpare = <T extends { id: string; text: string; imageUrl?: string }>(items: T[], min: number, mustKeep: string[] = []) => {
+  const kept = items.filter((item) => !isBlankOption(item));
+  const dropsNeeded = items.some((item) => isBlankOption(item) && mustKeep.includes(item.id));
+  return kept.length >= min && !dropsNeeded ? kept : items;
+};
+// У впорядкуванні місце рядка має значення, тому прибираються лише порожні рядки в кінці.
+const withoutTrailing = <T extends { text: string }>(items: T[], min: number) => {
+  let end = items.length;
+  while (end > min && items[end - 1].text === '') end -= 1;
+  return items.slice(0, end);
+};
+const cleanBody = (question: Question): Question => {
+  const text = question.text.trim();
+  switch (question.type) {
+    case 'single':
+      return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions, [question.correctId]) };
+    case 'poll':
+      return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions) };
+    case 'wall':
+      return { ...question, text, groups: question.groups.map((group) => ({ ...group, name: group.name.trim(), tiles: trimAll(group.tiles) })) };
+    case 'survey': {
+      // Порожні рядки не зберігаються, якщо без них рядків досить; з хмарою без жодного заповненого рядка запасних немає.
+      const rows = question.rows.map((row) => ({ ...row, text: row.text.trim(), accepted: row.accepted.map((s) => s.trim()).filter((s) => s !== '') }));
+      const kept = rows.filter((row) => !isBlankSurveyRow(row));
+      const spareOff = question.cloudId !== undefined && kept.length === 0;
+      return { ...question, text, rows: kept.length >= LIMITS.minSurveyRows ? kept : spareOff ? [] : rows };
+    }
+    case 'multi': {
+      const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
+      const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
+      return { ...question, text, options, correctIds };
+    }
+    case 'order': {
+      // Порожній підпис зникає з запитання, а не лишається порожнім рядком.
+      const { topLabel, bottomLabel, ...rest } = question;
+      const top = topLabel?.trim() ?? '';
+      const bottom = bottomLabel?.trim() ?? '';
+      return {
+        ...rest,
+        text,
+        items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems),
+        ...(top === '' ? {} : { topLabel: top }),
+        ...(bottom === '' ? {} : { bottomLabel: bottom }),
+      };
+    }
+    case 'match': {
+      // Як і в впорядкуванні, прибираються лише порожні пари в кінці.
+      const trimmed = question.pairs.map((pair) => ({ left: trimAll([pair.left])[0], right: trimAll([pair.right])[0] }));
+      let end = trimmed.length;
+      while (end > LIMITS.minPairs && trimmed[end - 1].left.text === '' && trimmed[end - 1].right.text === '') end -= 1;
+      return { ...question, text, pairs: trimmed.slice(0, end) };
+    }
+    case 'chain': {
+      const words = question.words.map((word) => word.normalize('NFC').trim().replace(/\s+/g, ' '));
+      let end = words.length;
+      while (end > LIMITS.minChainWords && words[end - 1] === '') end -= 1;
+      return { ...question, text, words: words.slice(0, end) };
+    }
+    case 'sort': {
+      const words = question.words.map((word) => ({ ...word, text: word.text.trim() }));
+      let end = words.length;
+      while (end > LIMITS.minSortWords && words[end - 1].text === '') end -= 1;
+      return { ...question, text, categories: trimAll(question.categories), words: words.slice(0, end) };
+    }
+    case 'text':
+      return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
+    case 'bluff': {
+      // Правда — перше написання: порожня лишається, щоб про неї сказала перевірка; порожні додаткові написання відкидаються.
+      const [truth = '', ...others] = question.accepted.map((s) => s.trim());
+      const spares = question.lies.map((lie) => lie.trim());
+      const filledSpares = spares.filter((lie) => lie !== '');
+      return {
+        ...question,
+        text,
+        accepted: [truth, ...others.filter((s) => s !== '')],
+        lies: filledSpares.length >= LIMITS.minBluffSpares ? filledSpares : spares,
+      };
+    }
+    case 'clues':
+      return {
+        ...question,
+        text,
+        clues: question.clues.map((clue) => clue.trim()),
+        accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== ''),
+      };
+    case 'slider': {
+      // Порожня одиниця й порожня межа нуля не зберігаються: ключів немає, як у старих запитань.
+      const { unit, zeroBeyond, ...rest } = question;
+      const trimmedUnit = unit?.trim() ?? '';
+      return {
+        ...rest,
+        text,
+        ...(trimmedUnit === '' ? {} : { unit: trimmedUnit }),
+        ...(zeroBeyond === undefined ? {} : { zeroBeyond }),
+      };
+    }
+    default:
+      return { ...question, text };
+  }
+};
+// Порожня підказка не зберігається: ключа немає, як у старих запитань.
+/** Запитання в тому вигляді, у якому воно піде на сервер (те саме чищення, що в cleaned). */
+export function cleanedQuestion(question: Question): Question {
+  const { hint, reveal, ...rest } = cleanBody(question);
+  const trimmed = hint?.trim() ?? '';
+  // Режим проявлення без картинки (її прибрали) зникає тихо.
+  const kept = reveal !== undefined && rest.imageUrl !== null && rest.video === null ? { ...rest, reveal } : rest;
+  return (trimmed === '' ? kept : { ...kept, hint: trimmed }) as Question;
+}
+
 /** Вікторина в тому вигляді, у якому вона піде на сервер. */
 export function cleaned(quiz: Quiz): Quiz {
-  const trimAll = <T extends { text: string }>(items: T[]) => items.map((item) => ({ ...item, text: item.text.trim() }));
-  // Порожні рядки (наприклад, доданий останнім Enter) просто не зберігаються, якщо без них рядків
-  // досить і жоден із них не позначено правильною відповіддю. Інакше їх лишаємо: про них скаже перевірка.
-  // Варіант лише з картинкою не порожній.
-  const withoutSpare = <T extends { id: string; text: string; imageUrl?: string }>(items: T[], min: number, mustKeep: string[] = []) => {
-    const kept = items.filter((item) => !isBlankOption(item));
-    const dropsNeeded = items.some((item) => isBlankOption(item) && mustKeep.includes(item.id));
-    return kept.length >= min && !dropsNeeded ? kept : items;
-  };
-  // У впорядкуванні місце рядка має значення, тому прибираються лише порожні рядки в кінці.
-  const withoutTrailing = <T extends { text: string }>(items: T[], min: number) => {
-    let end = items.length;
-    while (end > min && items[end - 1].text === '') end -= 1;
-    return items.slice(0, end);
-  };
-  const cleanBody = (question: Question): Question => {
-    const text = question.text.trim();
-    switch (question.type) {
-      case 'single':
-        return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions, [question.correctId]) };
-      case 'poll':
-        return { ...question, text, options: withoutSpare(trimAll(question.options), LIMITS.minOptions) };
-      case 'wall':
-        return { ...question, text, groups: question.groups.map((group) => ({ ...group, name: group.name.trim(), tiles: trimAll(group.tiles) })) };
-      case 'survey': {
-        // Порожні рядки не зберігаються, якщо без них рядків досить; з хмарою без жодного заповненого рядка запасних немає.
-        const rows = question.rows.map((row) => ({ ...row, text: row.text.trim(), accepted: row.accepted.map((s) => s.trim()).filter((s) => s !== '') }));
-        const kept = rows.filter((row) => !isBlankSurveyRow(row));
-        const spareOff = question.cloudId !== undefined && kept.length === 0;
-        return { ...question, text, rows: kept.length >= LIMITS.minSurveyRows ? kept : spareOff ? [] : rows };
-      }
-      case 'multi': {
-        const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
-        const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
-        return { ...question, text, options, correctIds };
-      }
-      case 'order': {
-        // Порожній підпис зникає з запитання, а не лишається порожнім рядком.
-        const { topLabel, bottomLabel, ...rest } = question;
-        const top = topLabel?.trim() ?? '';
-        const bottom = bottomLabel?.trim() ?? '';
-        return {
-          ...rest,
-          text,
-          items: withoutTrailing(trimAll(question.items), LIMITS.minOrderItems),
-          ...(top === '' ? {} : { topLabel: top }),
-          ...(bottom === '' ? {} : { bottomLabel: bottom }),
-        };
-      }
-      case 'match': {
-        // Як і в впорядкуванні, прибираються лише порожні пари в кінці.
-        const trimmed = question.pairs.map((pair) => ({ left: trimAll([pair.left])[0], right: trimAll([pair.right])[0] }));
-        let end = trimmed.length;
-        while (end > LIMITS.minPairs && trimmed[end - 1].left.text === '' && trimmed[end - 1].right.text === '') end -= 1;
-        return { ...question, text, pairs: trimmed.slice(0, end) };
-      }
-      case 'chain': {
-        const words = question.words.map((word) => word.normalize('NFC').trim().replace(/\s+/g, ' '));
-        let end = words.length;
-        while (end > LIMITS.minChainWords && words[end - 1] === '') end -= 1;
-        return { ...question, text, words: words.slice(0, end) };
-      }
-      case 'sort': {
-        const words = question.words.map((word) => ({ ...word, text: word.text.trim() }));
-        let end = words.length;
-        while (end > LIMITS.minSortWords && words[end - 1].text === '') end -= 1;
-        return { ...question, text, categories: trimAll(question.categories), words: words.slice(0, end) };
-      }
-      case 'text':
-        return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
-      case 'bluff': {
-        // Правда — перше написання: порожня лишається, щоб про неї сказала перевірка; порожні додаткові написання відкидаються.
-        const [truth = '', ...others] = question.accepted.map((s) => s.trim());
-        const spares = question.lies.map((lie) => lie.trim());
-        const filledSpares = spares.filter((lie) => lie !== '');
-        return {
-          ...question,
-          text,
-          accepted: [truth, ...others.filter((s) => s !== '')],
-          lies: filledSpares.length >= LIMITS.minBluffSpares ? filledSpares : spares,
-        };
-      }
-      case 'clues':
-        return {
-          ...question,
-          text,
-          clues: question.clues.map((clue) => clue.trim()),
-          accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== ''),
-        };
-      case 'slider': {
-        // Порожня одиниця й порожня межа нуля не зберігаються: ключів немає, як у старих запитань.
-        const { unit, zeroBeyond, ...rest } = question;
-        const trimmedUnit = unit?.trim() ?? '';
-        return {
-          ...rest,
-          text,
-          ...(trimmedUnit === '' ? {} : { unit: trimmedUnit }),
-          ...(zeroBeyond === undefined ? {} : { zeroBeyond }),
-        };
-      }
-      default:
-        return { ...question, text };
-    }
-  };
-  // Порожня підказка не зберігається: ключа немає, як у старих запитань.
-  const cleanQuestion = (question: Question): Question => {
-    const { hint, reveal, ...rest } = cleanBody(question);
-    const trimmed = hint?.trim() ?? '';
-    // Режим проявлення без картинки (її прибрали) зникає тихо.
-    const kept = reveal !== undefined && rest.imageUrl !== null && rest.video === null ? { ...rest, reveal } : rest;
-    return (trimmed === '' ? kept : { ...kept, hint: trimmed }) as Question;
-  };
   // У фіналі бали — ставки, поля балів за слово немає: прихована ціна не має блокувати збереження.
   const inFinal = (question: Question): Question =>
     question.type === 'sort' && question.words.length > 0 && question.points * question.words.length > LIMITS.maxPoints
@@ -686,26 +688,26 @@ export function cleaned(quiz: Quiz): Quiz {
     description: quiz.description.trim(),
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
-      if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanQuestion(question))) };
+      if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanedQuestion(question))) };
       if (round.type === 'survival') {
         // Для «удачі» порожні питання на виживання — просто незаповнений шаблон: вони не потрібні.
         const trials = round.trial === 'luck' ? round.trials.filter((trial) => trial.text.trim() !== '') : round.trials;
-        return { ...round, title, questions: round.questions.map(cleanQuestion), trials: trials.map(cleanQuestion) };
+        return { ...round, title, questions: round.questions.map(cleanedQuestion), trials: trials.map(cleanedQuestion) };
       }
-      if (round.type !== 'board') return { ...round, title, questions: round.questions.map(cleanQuestion) };
+      if (round.type !== 'board') return { ...round, title, questions: round.questions.map(cleanedQuestion) };
       return {
         ...round,
         title,
         categories: round.categories.map(({ spares: categorySpares, ...category }) => ({
           ...category,
           title: category.title.trim(),
-          cells: category.cells.map((cell) => ({ ...cell, question: cleanQuestion(cell.question) })),
-          ...(categorySpares === undefined || categorySpares.length === 0 ? {} : { spares: categorySpares.map(cleanQuestion) }),
+          cells: category.cells.map((cell) => ({ ...cell, question: cleanedQuestion(cell.question) })),
+          ...(categorySpares === undefined || categorySpares.length === 0 ? {} : { spares: categorySpares.map(cleanedQuestion) }),
         })),
       };
     }),
     ...(quiz.duels === undefined ? {} : { duels: cleanDuels(quiz.duels) }),
-    ...(spares === undefined || spares.length === 0 ? {} : { spares: spares.map(cleanQuestion) }),
+    ...(spares === undefined || spares.length === 0 ? {} : { spares: spares.map(cleanedQuestion) }),
   };
 }
 
@@ -726,20 +728,58 @@ interface Place {
   clouds: readonly string[] | null;
   /** Усна клітинка: інтервал підказок схований, тож порада «зменште інтервал» недоречна. */
   voice: boolean;
+  /** Сортування: класика, фінал, бліц і звичайна клітинка з телефона. */
+  sort: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone };
 };
+
+/** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
+export function cellIssue(round: BoardRound, cell: BoardCell): TextKey | null {
+  return problemKey(cell.question, cellPlace(round, cell));
+}
+
+export type CellState = 'empty' | 'incomplete' | 'ready';
+/** Стан клітинки в редакторі: порожня (немає тексту), не заповнена (cellIssue ≠ null) чи готова. */
+export function cellState(round: BoardRound, cell: BoardCell): CellState {
+  const question = cleanedQuestion(cell.question);
+  if (question.text === '') return 'empty';
+  return cellIssue(round, { ...cell, question }) !== null ? 'incomplete' : 'ready';
+}
+
+export interface CategoryReadiness {
+  ready: number;
+  total: number;
+  titleMissing: boolean;
+}
+export interface BoardReadiness {
+  ready: number;
+  total: number;
+  notReady: number;
+  categories: CategoryReadiness[];
+}
+/** Скільки клітинок поля готові: усього й по категоріях; порожня назва категорії — окремо. */
+export function boardReadiness(round: BoardRound): BoardReadiness {
+  const categories = round.categories.map((category) => ({
+    ready: category.cells.filter((cell) => cellState(round, cell) === 'ready').length,
+    total: category.cells.length,
+    titleMissing: category.title.trim() === '',
+  }));
+  const ready = categories.reduce((sum, category) => sum + category.ready, 0);
+  const total = categories.reduce((sum, category) => sum + category.total, 0);
+  return { ready, total, notReady: total - ready, categories };
+}
 
 /** Чи вистачає часу останній підказці: (n − 1) × інтервал + хвіст ≤ час. */
 const lastClueAt = (question: Extract<Question, { type: 'clues' }>) => (question.clues.length - 1) * question.interval;
@@ -892,6 +932,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   }
   if (question.reveal !== undefined && !place.reveal) return 'problemRevealPlace';
   if (question.type === 'clues' && !place.clues) return 'problemCluesPlace';
+  if (question.type === 'sort' && !place.sort) return 'problemSortPlace';
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
   if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
   if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';
@@ -922,7 +963,7 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
         const { title, cells } = current.categories[category];
         if (title === '') return { round, question, cell: { category, index: 0 } };
         for (let index = 0; index < cells.length; index += 1) {
-          if (problemKey(cells[index].question, cellPlace(current, cells[index])) !== null) return { round, question: question + index, cell: { category, index } };
+          if (cellIssue(current, cells[index]) !== null) return { round, question: question + index, cell: { category, index } };
         }
         question += cells.length;
       }
@@ -1083,7 +1124,7 @@ export function problemsOf(quiz: Quiz): string[] {
           problems.push(where(t('problemCategorySpare', { category: name, index: index + 1, problem })));
         });
         category.cells.forEach((cell, index) => {
-          const key = problemKey(cell.question, cellPlace(round, cell));
+          const key = cellIssue(round, cell);
           if (key !== null) problems.push(where(cellProblem(categoryIndex + 1, index + 1, key, cell.question)));
         });
       });
