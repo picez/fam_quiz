@@ -4405,6 +4405,14 @@ button.sort-zone:disabled {
   background: var(--sort-lock-strip);
 }
 
+/* Вузька середина «хреста»: «Підвисання:» не рветься посеред слова. */
+.sort-arena[data-zones='3'] .sort-lock-text,
+.sort-arena[data-zones='4'] .sort-lock-text {
+  padding-inline: 0.25rem;
+  font-size: 0.8125rem;
+  overflow-wrap: normal;
+}
+
 .sort-done {
   color: var(--correct);
   font-weight: 700;
@@ -4672,7 +4680,7 @@ button.sort-zone:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 7.5rem;
+  min-height: 5.5rem;
 }
 
 .stage-sort-live .sort-live-strip .sort-watching {
@@ -4689,8 +4697,8 @@ button.sort-zone:disabled {
 
 .stage-sort-live .sort-live-card {
   --tilt-reach: 18rem;
-  padding: 0.75rem 2rem;
-  font-size: clamp(1.5rem, 2.8vw, 2.5rem);
+  padding: 0.5rem 2rem;
+  font-size: clamp(1.5rem, 2.5vw, 2.5rem);
 }
 
 .stage-sort-live .sort-lock {
@@ -4709,6 +4717,32 @@ button.sort-zone:disabled {
 
 .stage .stage-sort-live .sort-words li {
   font-size: clamp(0.9rem, 1.4vw, 1.4rem);
+}
+
+/* Сцена з живим сортуванням: картка, 4 стовпці й 20 чипів на 1280 × 720 без прокрутки — запитання й табло менші, проміжки тісніші. */
+.app.stage:has(.stage-sort-live) {
+  padding-block: 3vh;
+}
+
+.stage-question:has(.stage-sort-live) {
+  gap: 1.5vh;
+}
+
+.stage-question:has(.stage-sort-live) .stage-main {
+  flex: 0 0 auto;
+}
+
+.stage-question:has(.stage-sort-live) .question {
+  font-size: clamp(1.5rem, 3.2vw, 3.25rem);
+}
+
+.stage-question:has(.stage-sort-live) .stage-clock .flap {
+  font-size: clamp(1.25rem, 6vh, 3rem);
+}
+
+/* «Сортуйте на телефоні» тут зайве: сортує один, і смуга над карткою вже каже хто. */
+.stage-question:has(.stage-sort-live) .sort-line {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -161,7 +161,8 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
   const queue = live.kind === 'blitz' && view.blitz?.instant !== true;
   const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered);
   // Дуель: обидва дуелянти завжди, навіть без спроб.
-  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null);
+  // Нахил першої картки (11d) теж показує рядок: ведучий бачить, куди її тягнуть, ще до першого ходу.
+  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null || towardOf(row, view, tilts) !== null);
   const queueShown = blitz !== undefined && blitz !== null;
   // Командний бліц: чернетки тих, хто ще не в черзі, — під чергою.
   const drafts = queueShown ? live.rows.filter((row) => !row.answered && row.draft !== null) : [];

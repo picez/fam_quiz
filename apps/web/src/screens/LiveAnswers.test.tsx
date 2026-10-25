@@ -317,4 +317,13 @@ describe('LiveAnswers: where the card is heading (11d)', () => {
     cleanup();
     expect(body(sortView({ paused: true }), tilt())).not.toContain('→');
   });
+
+  it('shows the row of a sorter tilting the first card before any move', () => {
+    const fresh = row({ id: 'p1', progress: { kind: 'sort', card: 'Буряк', cardId: 'w3', seq: 0, sorted: 0, total: 4, misses: 0 } });
+    render(<LiveAnswers view={sortView()} live={live([fresh])} tilts={tilt({ seq: 0 })} />);
+    expect(document.querySelector('.live-rows')?.textContent).toContain('→ «Овочі»');
+    cleanup();
+    render(<LiveAnswers view={sortView()} live={live([fresh])} tilts={{}} />);
+    expect(document.querySelector('.live-rows')).toBeNull();
+  });
 });
