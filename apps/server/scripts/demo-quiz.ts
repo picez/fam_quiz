@@ -104,7 +104,7 @@ export const clues = (
   text: string,
   hints: string[],
   accepted: string[],
-  interval = LIMITS.defaultClueSeconds,
+  interval: number = LIMITS.defaultClueSeconds,
   points?: number,
   time = 40,
 ): Question => ({

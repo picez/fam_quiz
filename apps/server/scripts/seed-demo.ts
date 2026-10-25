@@ -1,8 +1,9 @@
 /**
  * Додає демо-вікторину користувачу за email.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase]
  * party-media також потребує SITE_URL: картинки з Вікіпедії завантажуються на сайт
- * через тимчасовий акаунт, який потім видаляється.
+ * через тимчасовий акаунт, який потім видаляється. showcase з SITE_URL так само завантажує дві картинки,
+ * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими.
  */
 import { randomBytes } from 'node:crypto';
 import { quizSchema, type Quiz } from '@quiz/shared';
@@ -20,6 +21,7 @@ import { eruditeQuiz } from './erudite-quiz';
 import { schoolQuiz } from './school-quiz';
 import { mosaicQuiz } from './mosaic-quiz';
 import { teamsQuiz } from './teams-quiz';
+import { SHOWCASE_IMAGES, showcaseQuiz } from './showcase-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -46,8 +48,8 @@ const ARTICLES: Record<string, string> = {
 
 const UA = { 'user-agent': 'fam-quiz-seed/1.0 (demo content)' };
 
-async function thumbnails(): Promise<Record<string, string>> {
-  const titles = Object.values(ARTICLES).join('|');
+async function thumbnails(keys: readonly string[]): Promise<Record<string, string>> {
+  const titles = keys.map((key) => ARTICLES[key]).join('|');
   const api = `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=800&format=json&redirects=1&titles=${encodeURIComponent(titles)}`;
   const body = (await (await fetch(api, { headers: UA })).json()) as {
     query: { pages: Record<string, { title: string; thumbnail?: { source: string } }>; redirects?: { from: string; to: string }[] };
@@ -55,7 +57,8 @@ async function thumbnails(): Promise<Record<string, string>> {
   const byTitle = new Map(Object.values(body.query.pages).map((page) => [page.title, page.thumbnail?.source]));
   const resolve = (title: string) => body.query.redirects?.find((r) => r.from === title)?.to ?? title;
   const result: Record<string, string> = {};
-  for (const [key, article] of Object.entries(ARTICLES)) {
+  for (const key of keys) {
+    const article = ARTICLES[key];
     const source = byTitle.get(resolve(article.replaceAll('_', ' ')));
     if (source) result[key] = source;
     else console.warn(`No image for ${article}`);
@@ -63,8 +66,8 @@ async function thumbnails(): Promise<Record<string, string>> {
   return result;
 }
 
-/** Завантажує картинки на сайт від імені тимчасового акаунта; повертає ключ → /uploads/… */
-async function uploadImages(site: string, db: ReturnType<typeof drizzle>): Promise<Record<string, string>> {
+/** Завантажує картинки keys на сайт від імені тимчасового акаунта; повертає ключ → /uploads/… */
+async function uploadImages(site: string, db: ReturnType<typeof drizzle>, keys: readonly string[] = Object.keys(ARTICLES)): Promise<Record<string, string>> {
   const email = `seed-${randomBytes(6).toString('hex')}@example.invalid`;
   const signUp = await fetch(`${site}/api/auth/sign-up/email`, {
     method: 'POST',
@@ -75,7 +78,7 @@ async function uploadImages(site: string, db: ReturnType<typeof drizzle>): Promi
   const cookie = signUp.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
   try {
     const urls: Record<string, string> = {};
-    for (const [key, source] of Object.entries(await thumbnails())) {
+    for (const [key, source] of Object.entries(await thumbnails(keys))) {
       const image = await fetch(source, { headers: UA });
       const type = image.headers.get('content-type')?.split(';')[0] ?? '';
       if (!image.ok || !['image/jpeg', 'image/png', 'image/webp'].includes(type)) {
@@ -102,11 +105,11 @@ async function uploadImages(site: string, db: ReturnType<typeof drizzle>): Promi
 
 const args = process.argv.slice(2);
 const email = args.find((arg) => arg.includes('@'));
-const name = args.find((arg) => ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams'].includes(arg)) ?? 'demo';
+const name = args.find((arg) => ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase'].includes(arg)) ?? 'demo';
 const url = process.env.DATABASE_URL;
 const site = process.env.SITE_URL?.replace(/\/$/, '');
 if (!email || !url || (name === 'party-media' && !site)) {
-  console.error('Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams]');
+  console.error('Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase]');
   process.exit(1);
 }
 
@@ -124,6 +127,10 @@ try {
   if (name === 'compass') source = compassQuiz;
   if (name === 'horizon') source = horizonQuiz;
   if (name === 'teams') source = teamsQuiz();
+  if (name === 'showcase') {
+    if (!site) console.warn('No SITE_URL: the revealing pictures stay plain text questions');
+    source = showcaseQuiz(site ? await uploadImages(site, db, SHOWCASE_IMAGES) : {});
+  }
   if (name === 'party-media') {
     const base = partyQuiz(await uploadImages(site!, db));
     source = { ...base, title: `${base.title} (з картинками)` };
