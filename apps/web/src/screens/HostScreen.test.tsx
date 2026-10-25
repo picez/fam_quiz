@@ -397,6 +397,12 @@ describe('HostScreen: rounds', () => {
     expect(screen.getByText('Якщо є таймер, швидша правильна відповідь дає більше балів.')).toBeTruthy();
   });
 
+  it('the host sees a long description whole, without clipping', () => {
+    show(view({ phase: 'intro', round: round({ description: 'а'.repeat(600) }) }));
+    expect(screen.getByText('а'.repeat(600))).toBeTruthy();
+    expect(document.querySelector('.is-fit')).toBeNull();
+  });
+
   it('the intro of a one-round quiz has no round counter', () => {
     show(view({ phase: 'intro', round: round({ total: 1, title: '', brief: { ...emptyBrief('classic'), speedBonus: true }, times: null }) }));
     expect(screen.queryByText(/Раунд 1 з 1/)).toBeNull();

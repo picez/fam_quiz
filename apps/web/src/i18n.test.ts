@@ -25,6 +25,11 @@ describe('countText', () => {
     const they = (count: number) => countText('versusTheyHigher', count, { name: 'Віра' });
     expect([1, 3, 0, 5].map(they)).toEqual(['гра, де Віра вище', 'гри, де Віра вище', 'ігор, де Віра вище', 'ігор, де Віра вище']);
   });
+
+  it('counts board cells that are not ready (11a)', () => {
+    const notReady = (count: number) => countText('boardNotReady', count, { count });
+    expect([1, 2, 5, 11, 21].map(notReady)).toEqual(['1 не готова', '2 не готові', '5 не готових', '11 не готових', '21 не готова']);
+  });
 });
 
 describe('sort prices', () => {

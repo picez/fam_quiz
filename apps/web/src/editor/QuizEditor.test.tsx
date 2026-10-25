@@ -1329,7 +1329,7 @@ describe('QuizEditor: quiz on top and round notes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     expect(screen.getByText('Так гравці побачать раунд на заставці')).toBeTruthy();
     expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
-    expect(screen.getByLabelText('Опис раунду для гравців').getAttribute('maxlength')).toBe('200');
+    expect(screen.getByLabelText('Опис раунду для гравців').getAttribute('maxlength')).toBe('600');
     fill('Опис раунду для гравців', 'Кіно 90-х');
     expect(screen.getAllByText('Кіно 90-х').length).toBeGreaterThan(1);
 
@@ -1340,6 +1340,22 @@ describe('QuizEditor: quiz on top and round notes', () => {
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(saved(onSave).rounds[0].description).toBe('Кіно 90-х');
+  });
+
+  it('round description counter', () => {
+    open();
+    const field = () => screen.getByLabelText('Опис раунду для гравців');
+    const count = (text: string) => screen.getByText(text);
+    expect(field().getAttribute('rows')).toBe('4');
+    expect(count('0 / 600').classList.contains('is-near')).toBe(false);
+    fill('Опис раунду для гравців', 'Кіно 90-х');
+    expect(count('9 / 600')).toBeTruthy();
+    fill('Опис раунду для гравців', 'а'.repeat(500));
+    expect(count('500 / 600').classList.contains('is-near')).toBe(false);
+    fill('Опис раунду для гравців', 'а'.repeat(501));
+    expect(count('501 / 600').classList.contains('is-near')).toBe(true);
+    expect(document.getElementById(field().getAttribute('aria-describedby') ?? '')?.textContent).toBe('501 / 600');
+    expect(field().getAttribute('aria-live')).toBeNull();
   });
 });
 
@@ -2551,5 +2567,45 @@ describe('QuizEditor: team play', () => {
     click('Зберегти');
     expect(await screen.findByText(t('problemTeamName'))).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('QuizEditor board tab badge (11a)', () => {
+  const board = (): Quiz => {
+    const round = newBoardRound();
+    round.categories.forEach((category, ci) => {
+      category.title = `Тема ${ci + 1}`;
+      category.cells.forEach((cell, i) => {
+        const q = cell.question;
+        if (q.type !== 'single') return;
+        cell.question = { ...q, text: `Питання ${ci}${i}`, options: q.options.map((o, k) => ({ ...o, text: `В${k}` })) };
+      });
+    });
+    round.categories[1].cells[2].question = { ...round.categories[1].cells[2].question, text: '' };
+    return { ...newQuiz(), title: 'Гра', rounds: [round, newClassicRound()] };
+  };
+
+  it('badges the board tab with the not-ready count without changing its name, and drops it when fixed', () => {
+    open(board());
+    const tab = screen.getByRole('button', { name: 'Ігрове поле' });
+    const badge = document.getElementById(tab.getAttribute('aria-describedby') ?? '');
+    expect(badge?.textContent).toBe('1 не готова');
+    expect(screen.getByRole('button', { name: 'Раунд 2' }).getAttribute('aria-describedby')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Категорія 2, клітинка 3:/ }));
+    fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Тепер є' } });
+    expect(screen.getByRole('button', { name: 'Ігрове поле' }).getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('with a long round name only the name is clipped: the badge sits outside the name', () => {
+    const quiz = board();
+    const long = 'Річки, гори й острови Європи та Азії для найсміливіших гравців вечора';
+    quiz.rounds[0] = { ...quiz.rounds[0], title: long };
+    open(quiz);
+    const tab = screen.getByRole('button', { name: long });
+    expect(tab.querySelector('.round-tab-name')?.textContent).toBe(long);
+    const badge = tab.querySelector('.round-tab-badge');
+    expect(badge?.textContent).toBe('1 не готова');
+    expect(badge?.closest('.round-tab-name')).toBeNull();
+    expect(badge?.parentElement).toBe(tab);
   });
 });

@@ -1,8 +1,8 @@
 import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty, type Question } from '@quiz/shared';
 import { HelpButton } from '../help/HelpButton';
 import { useEffect, useId, useState } from 'react';
-import { t } from '../i18n';
-import { fitCell, moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
+import { countText, t, type TextKey } from '../i18n';
+import { boardReadiness, cellState, fitCell, moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
 import { newId } from './new-id';
 import { QuestionEditor } from './QuestionEditor';
 import { SparesEditor } from './SparesEditor';
@@ -51,6 +51,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
   const hintId = useId();
   const sparesTitle = categories[category].title.trim() === '' ? t('boardCategoryPlaceholder', { index: category + 1 }) : categories[category].title.trim();
   const atMin = cells.length <= LIMITS.minCategoryQuestions;
+  const readiness = boardReadiness(round);
   const room = roomForMore && categories.reduce((sum, c) => sum + c.cells.length, 0) < LIMITS.maxQuestions;
 
   const setCategories = (next: BoardCategory[]) => onChange({ ...round, categories: next });
@@ -103,13 +104,17 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           {categories.map((column, columnIndex) => (
             <div className="board-column" key={column.id}>
               <input
-                className="board-edit-title"
+                className={readiness.categories[columnIndex].titleMissing ? 'board-edit-title is-incomplete' : 'board-edit-title'}
+                aria-invalid={readiness.categories[columnIndex].titleMissing ? true : undefined}
                 aria-label={t('boardCategoryTitle', { index: columnIndex + 1 })}
                 placeholder={t('boardCategoryPlaceholder', { index: columnIndex + 1 })}
                 value={column.title}
                 maxLength={LIMITS.categoryTitle}
                 onChange={(event) => setCategory(columnIndex, { title: event.target.value })}
               />
+              <span className="meta board-edit-ready">
+                {(readiness.categories[columnIndex].titleMissing ? '! ' : '') + t('boardCategoryReady', { ready: readiness.categories[columnIndex].ready, total: readiness.categories[columnIndex].total })}
+              </span>
               {(column.spares?.length ?? 0) > 0 && (
                 <span className="meta board-edit-spares" aria-label={t('categorySparesBadge', { count: column.spares?.length ?? 0 })}>
                   {`⇄ ${column.spares?.length ?? 0}`}
@@ -125,23 +130,28 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
                 const price = questionPrice(cell.question);
                 const points = Number.isNaN(price) ? t('boardPointsBlank') : String(price);
                 const mark = markText(cell.mark);
+                const state = cellState(round, cell);
                 return (
                   <button
                     key={cell.question.id}
                     type="button"
-                    className={on ? 'board-edit-cell is-on' : 'board-edit-cell'}
+                    className={`board-edit-cell is-${state}${on ? ' is-on' : ''}`}
                     aria-current={on}
                     aria-label={t('boardCellLabel', {
                       category: columnIndex + 1,
                       index: cellIndex + 1,
                       points,
                       mark: (mark === '' ? '' : ` ${mark}`) + (cell.kind === 'blitz' ? t('boardCellBlitzSuffix') : ''),
+                      state: t(`boardCellState_${state}` as TextKey),
                     })}
                     onClick={() => setPicked({ category: columnIndex, index: cellIndex })}
                   >
                     <span>{points}</span>
                     {mark !== '' && <span className="board-mark">{mark}</span>}
                     {cell.kind === 'blitz' && <span className="board-edit-badge">{t('boardKindBlitz')}</span>}
+                    <span className="board-edit-state" aria-hidden="true">
+                      {state === 'ready' ? '✓' : state === 'incomplete' ? '!' : ''}
+                    </span>
                   </button>
                 );
               })}
@@ -177,6 +187,25 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           )}
         </div>
       </div>
+      <p className="meta board-legend" role="group" aria-label={t('boardLegendLabel')}>
+        <span className="board-legend-item">
+          <span className="board-legend-swatch is-empty" aria-hidden="true" />
+          {t('boardCellState_empty')}
+        </span>
+        <span className="board-legend-item">
+          <span className="board-legend-swatch is-incomplete" aria-hidden="true">
+            !
+          </span>
+          {t('boardCellState_incomplete')}
+        </span>
+        <span className="board-legend-item">
+          <span className="board-legend-swatch is-ready" aria-hidden="true">
+            ✓
+          </span>
+          {t('boardCellState_ready')}
+        </span>
+        {readiness.notReady > 0 && <span>{` · ${countText('boardNotReady', readiness.notReady, { count: readiness.notReady })}`}</span>}
+      </p>
 
       <section className="panel board-panel" aria-label={t('boardCellPanel', { index: index + 1, category: category + 1 })}>
         <div className="with-help">

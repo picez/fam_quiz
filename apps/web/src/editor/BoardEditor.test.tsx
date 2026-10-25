@@ -236,3 +236,70 @@ describe('BoardEditor «100 до 1» cells (10e)', () => {
     expect(changed.type === 'survey' && changed.rows.length).toBe(5);
   });
 });
+
+describe('BoardEditor readiness (11a)', () => {
+  const ready = (cell: BoardRound['categories'][number]['cells'][number]) => {
+    const q = cell.question;
+    if (q.type !== 'single') return cell;
+    return { ...cell, question: { ...q, text: 'Запитання?', options: q.options.map((o, k) => ({ ...o, text: `В${k}` })) } };
+  };
+  const withCells = (fill: (ci: number, i: number) => 'empty' | 'text' | 'ready'): BoardRound => {
+    const round = boardWith(0);
+    return {
+      ...round,
+      categories: round.categories.map((category, ci) => ({
+        ...category,
+        cells: category.cells.map((cell, i) => {
+          const how = fill(ci, i);
+          if (how === 'ready') return ready(cell);
+          if (how === 'text') return { ...cell, question: { ...cell.question, text: 'Є текст' } };
+          return cell;
+        }),
+      })),
+    };
+  };
+  const legend = () => screen.getByRole('group', { name: 'Стан клітинок' }).textContent ?? '';
+
+  it('shows nine empty cells, 0 / 3 per column and a legend with the count', () => {
+    render(<BoardEditor round={boardWith(0)} onChange={vi.fn()} />);
+    expect(screen.getAllByRole('button', { name: /, порожня$/ })).toHaveLength(9);
+    expect(screen.getAllByText('0 / 3 готово')).toHaveLength(3);
+    for (const word of ['порожня', 'не заповнена', 'готова', '9 не готових']) expect(legend()).toContain(word);
+  });
+
+  it('marks a ready cell with a check and an incomplete one with a bang', () => {
+    render(<BoardEditor round={withCells((ci, i) => (ci === 0 && i === 0 ? 'ready' : ci === 0 && i === 1 ? 'text' : 'empty'))} onChange={vi.fn()} />);
+    const done = screen.getByRole('button', { name: 'Категорія 1, клітинка 1: 100, готова' });
+    expect(done.classList.contains('is-ready')).toBe(true);
+    expect(done.textContent).toContain('✓');
+    const half = screen.getByRole('button', { name: 'Категорія 1, клітинка 2: 200, не заповнена' });
+    expect(half.classList.contains('is-incomplete')).toBe(true);
+    expect(half.textContent).toContain('!');
+    expect(screen.getByText('1 / 3 готово')).toBeTruthy();
+    expect(legend()).toContain('8 не готових');
+  });
+
+  it('keeps the state class on the picked cell next to is-on', () => {
+    render(<BoardEditor round={withCells((ci, i) => (ci === 0 && i === 0 ? 'ready' : 'empty'))} onChange={vi.fn()} />);
+    const picked = screen.getByRole('button', { name: /^Категорія 1, клітинка 1: 100/ });
+    expect(picked.classList.contains('is-on')).toBe(true);
+    expect(picked.classList.contains('is-ready')).toBe(true);
+  });
+
+  it('marks an empty category title and prefixes its counter', () => {
+    const round = withCells(() => 'empty');
+    round.categories[2].title = '';
+    render(<BoardEditor round={round} onChange={vi.fn()} />);
+    const title = screen.getByLabelText('Назва категорії 3');
+    expect(title.classList.contains('is-incomplete')).toBe(true);
+    expect(title.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText('! 0 / 3 готово')).toBeTruthy();
+    expect(screen.getByLabelText('Назва категорії 1').getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('shows no not-ready count when the whole board is ready', () => {
+    render(<BoardEditor round={withCells(() => 'ready')} onChange={vi.fn()} />);
+    expect(legend()).not.toContain('не готов');
+    expect(screen.getAllByText('3 / 3 готово')).toHaveLength(3);
+  });
+});

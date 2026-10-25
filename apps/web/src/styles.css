@@ -1188,6 +1188,22 @@ a.btn {
   resize: vertical;
 }
 
+.field textarea.round-description {
+  field-sizing: content;
+  min-height: calc(4lh + 1.25rem + 4px);
+  max-height: calc(8lh + 1.25rem + 4px);
+  overflow-y: auto;
+}
+
+.field-count {
+  align-self: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-count.is-near {
+  color: var(--amber);
+}
+
 .field select option {
   background: var(--stage);
 }
@@ -1747,17 +1763,36 @@ a.banner {
   overflow-x: auto;
 }
 
+/* Три крапки — лише на назві: значок «не готові» завжди видно повністю. */
 .round-tab {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  gap: 0.375rem;
   max-width: 14rem;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.round-tab-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .round-tab.is-on {
   border-color: var(--amber);
   color: var(--amber);
+}
+
+/* Власна плашка: не зливається з жовтою рамкою й текстом вибраної вкладки. */
+.round-tab-badge {
+  flex: none;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: var(--pending);
+  color: var(--stage);
+  font-size: 0.75rem;
 }
 
 .round-settings {
@@ -2004,7 +2039,7 @@ a.banner {
   min-width: 0;
   min-height: 2.75rem;
   padding: 0 0.625rem;
-  border: 1px solid var(--line);
+  border: 2px solid var(--line);
   border-radius: 0.625rem;
   background: none;
   color: var(--paper);
@@ -2021,7 +2056,8 @@ a.banner {
   min-width: 0;
   min-height: 2.75rem;
   padding: 0 0.75rem;
-  border: 1px solid var(--line);
+  /* Рамка завжди 2px: «не заповнена» лише міняє колір і не зсуває вміст. */
+  border: 2px solid var(--line);
   border-radius: 0.625rem;
   background: none;
   color: var(--paper);
@@ -2031,10 +2067,73 @@ a.banner {
   cursor: pointer;
 }
 
-.board-edit-cell.is-on {
+.board-edit-cell.is-empty {
+  border-style: dashed;
+  color: var(--dim);
+}
+
+.board-edit-cell.is-incomplete {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.1);
-  color: var(--amber);
+}
+
+.board-edit-cell.is-ready {
+  border-color: var(--correct);
+  background: rgb(61 220 192 / 0.1);
+}
+
+.board-edit-cell.is-on {
+  outline: 3px solid var(--paper);
+  outline-offset: 2px;
+}
+
+.board-edit-state {
+  font-size: 0.875rem;
+}
+
+.board-edit-title.is-incomplete {
+  border-color: var(--amber);
+}
+
+.board-edit-ready {
+  font-size: 0.8125rem;
+}
+
+.board-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0.5rem 0 0;
+}
+
+.board-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.board-legend-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+.board-legend-swatch.is-empty {
+  border-style: dashed;
+}
+
+.board-legend-swatch.is-incomplete {
+  border: 2px solid var(--amber);
+}
+
+.board-legend-swatch.is-ready {
+  border-color: var(--correct);
+  background: rgb(61 220 192 / 0.1);
 }
 
 .board-mark {
@@ -2492,8 +2591,15 @@ a.banner {
   font-size: clamp(1.25rem, 3.2vh, 1.75rem);
 }
 
-/* Широкий екран: розклад поруч із кидками; колонки задані наперед, тож поява розкладу не зсуває рядки. */
+/* Ліва колонка заставки поля: лічильник раунду, назва, факти, опис і правила. */
+.board-intro-main {
+  display: grid;
+  gap: 2vh;
+  min-width: 0;
+}
+
 @media (min-width: 1100px) {
+  /* Без опису широкий екран ставить розклад поруч із кидками; колонки задані наперед, тож поява розкладу не зсуває рядки. */
   /* Без кубиків (вручну, за приєднанням, один гравець) розклад стоїть ліворуч, як решта заставки. */
   .stage-dice:has(> .dice-panel) {
     grid-template-columns: minmax(0, 15em) minmax(0, 1fr);
@@ -2511,6 +2617,31 @@ a.banner {
   .stage-dice > .dice-panel ~ .turn-schedule {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  /* З описом раунду: опис і правила ліворуч, праворуч одна колонка — кидки над розкладом (як заставка «Мільйонера»); опис отримує всю висоту лівої колонки. */
+  .stage-board.is-board-intro:has(.round-brief-note) {
+    grid-template-columns: minmax(0, 3fr) minmax(16rem, 2fr);
+    align-items: start;
+    column-gap: 4vw;
+  }
+
+  .stage-board.is-board-intro:has(.round-brief-note) .stage-dice {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stage-board.is-board-intro:has(.round-brief-note) .stage-dice > .dice-panel ~ .turn-schedule {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  /* Вузька колонка: довгий рядок стану переноситься в межах двох зарезервованих рядків, тож рядки кидків не стрибають і вбік не прокручується. */
+  .stage-board.is-board-intro:has(.round-brief-note) .dice-status {
+    width: auto;
+    max-width: 100%;
+    min-height: 2.6em;
+    line-height: 1.3;
+    white-space: normal;
   }
 }
 
@@ -3286,6 +3417,20 @@ button.match-item {
 }
 .stage .round-brief {
   font-size: clamp(1.125rem, 2vw, 2rem);
+}
+/* Довгий опис на сцені: ширший блок, тісніші інтервал і проміжки; кегль не зменшується — решту вирішує обрізання (fit). */
+.stage .round-brief.is-long { max-width: none; gap: 0.375rem; }
+.stage .board-intro-main:has(.round-brief.is-long) { gap: 1.5vh; }
+.stage .round-brief.is-long .round-brief-note { line-height: 1.3; }
+/* Сцена з довгим описом, якому бракує місця (fit, data-rules="short"): з правил лишається перший рядок; телефони й пульт показують усі. */
+.round-brief[data-rules='short'] .round-brief-lines li:nth-child(n + 2) { display: none; }
+/* Лише на сцені (fit): повний текст лишається в DOM, браузер малює три крапки. */
+.round-brief-note.is-fit {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--note-lines, none);
+  line-clamp: var(--note-lines, none);
+  overflow: hidden;
 }
 
 .editor-quiz { display: grid; gap: 0.875rem; margin-bottom: 0.75rem; }
@@ -8700,7 +8845,9 @@ button.wall-tile:disabled {
 }
 
 .stage-survival.is-intro .survival-board.is-stage {
-  flex: 1 1 0;
+  /* Дошка не стискається нижче свого вмісту (інакше довгий опис з'їв би її до нуля, а .app не переповнився б і обрізання опису не спрацювало б); більше за 40vh не займає. */
+  flex: 1 0 auto;
+  max-height: 40vh;
 }
 
 .survival-reveal {

@@ -2,7 +2,7 @@ import { AUDIO_LIMITS, LIMITS, REVEAL_MIN_SHARE } from '@quiz/shared';
 import type { HelpEntry } from './types';
 
 /** Налаштування з довідкою в порядку довідника. */
-export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'speedBonus', 'spares', 'debuffShop', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal'] as const;
+export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'description', 'speedBonus', 'spares', 'debuffShop', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal'] as const;
 export type SettingHelpKey = (typeof SETTING_HELP_KEYS)[number];
 
 export const SETTING_HELP: Record<SettingHelpKey, HelpEntry> = {
@@ -26,6 +26,17 @@ export const SETTING_HELP: Record<SettingHelpKey, HelpEntry> = {
     ],
     points: ['На бали не впливає.'],
     tip: ['Вмикайте для нової компанії; для постійних гравців можна вимкнути.'],
+  },
+  description: {
+    title: 'Опис раунду для гравців',
+    what: 'Ваші слова до раунду: тема, настрій, особливі умови.',
+    how: [
+      `До ${LIMITS.roundDescription} символів; лічильник під полем жовтіє, коли лишається мало.`,
+      'Опис стоїть на заставці раунду над пам’яткою правил — на сцені, телефонах і пульті.',
+      'Якщо разом із правилами не вміщається на сцені, сцена обрізає опис трьома крапками; телефони й пульт показують його повністю.',
+    ],
+    points: ['На бали не впливає.'],
+    tip: ['Найважливіше пишіть на початку: на сцені його видно завжди.'],
   },
   speedBonus: {
     title: 'Бали за швидкість',
