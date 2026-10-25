@@ -8919,7 +8919,9 @@ button.wall-tile:disabled {
   opacity: 1;
 }
 
-.ladder-lifeline.is-used {
+.ladder-lifeline.is-used,
+.ladder-lifeline.is-used:disabled {
+  opacity: 1;
   border-color: var(--buff-used);
   color: var(--buff-used);
   text-decoration: line-through;

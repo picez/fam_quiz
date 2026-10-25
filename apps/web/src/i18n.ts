@@ -462,7 +462,7 @@ const uk = {
   ladderFinalAnswer: 'Остаточна відповідь прийнята.',
   ladderHallBanner: 'Драбину проходить {name}. Відповідай за себе: правильно — +{points}.',
   ladderHallClosed: 'Зал уже проголосував — на це запитання відповідати пізно.',
-  ladderStepRight: 'Правильно! Сходинка {level}.',
+  ladderStepRight: 'Правильно! {level} у кишені.',
   ladderStepWrong: 'Неправильно.',
   ladderGoOn: 'Граю далі',
   ladderTake: 'Забрати {points}',

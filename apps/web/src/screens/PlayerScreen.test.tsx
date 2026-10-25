@@ -2448,7 +2448,8 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
     it('the reveal shows the step, not points, to the contestant', () => {
       const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 0 };
       show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: ladderRound, ladder: info(), me: { ...own({ canLifeline: false }), result } }));
-      expect(screen.getByText('Правильно! Сходинка 1000.')).toBeTruthy();
+      expect(screen.getByText('Правильно! 1000 у кишені.')).toBeTruthy();
+      expect(document.querySelector('.result')!.classList.contains('is-correct')).toBe(true);
       expect(document.querySelector('.earned')).toBeNull();
     });
 
@@ -2456,6 +2457,7 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       const result = { accepted: true, accuracy: 0, grade: 'wrong' as const, streakBonus: 0, points: 0 };
       show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: ladderRound, ladder: info(), me: { ...own({ canLifeline: false }), result } }));
       expect(screen.getByText('Неправильно.')).toBeTruthy();
+      expect(document.querySelector('.result')!.classList.contains('is-wrong')).toBe(true);
     });
 
     it('the hall sees its points at the reveal as usual', () => {

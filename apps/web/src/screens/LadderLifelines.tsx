@@ -40,7 +40,8 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
       {/* Усе, що з'являється після дотику, — в одному місці під рядом кнопок. */}
       <div className="ladder-lifeline-info" aria-live="polite">
         {audience !== null &&
-          (audience.state === 'closed' && audience.tally !== null && view.question !== null ? (
+          (audience.state === 'closed' ? (
+            audience.tally !== null && view.question !== null && (
             <>
               <h3 className="meta">{t('ladderHallResult')}</h3>
               <VoteResults
@@ -49,6 +50,7 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
                 offsetMs={offsetMs}
               />
             </>
+            )
           ) : (
             <p className="meta">{t('ladderHallVoting', { voted: audience.voted, total: audience.total })}</p>
           ))}

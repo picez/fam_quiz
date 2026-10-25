@@ -272,7 +272,8 @@ function Result({ view }: { view: PlayerView }) {
         : result.grade === 'partial'
           ? t('resultPartial')
           : t('resultWrong');
-  const tone = result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
+  // Учасник драбини завжди має 0 балів: тон — за правильністю.
+  const tone = climber !== null ? (result?.grade === 'correct' ? 'is-correct' : 'is-wrong') : result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
   return (
     <section className={`result ${tone}`}>
       <h2>{title}</h2>
@@ -999,7 +1000,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {t(`ladderOutcome_${view.ladder.outcome.kind}` as TextKey, { name: view.ladder.contestant?.nickname ?? '', points: num(view.ladder.outcome.points) })}
             </p>
           ) : view.ladder.decision === 'pending' ? (
-            <p className="lead ladder-state">{t('ladderDeciding', { name: view.ladder.contestant?.nickname ?? '' })}</p>
+            <p className="lead ladder-state">{view.ladder.contestant === null ? t('ladderDecidingWait') : t('ladderDeciding', { name: view.ladder.contestant.nickname })}</p>
           ) : (
             <p className="lead ladder-state">{t('ladderPlayingOn')}</p>
           )}
