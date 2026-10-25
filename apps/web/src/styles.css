@@ -376,6 +376,16 @@ a {
   cursor: not-allowed;
 }
 
+/* 11b: поки сервер не дозволяє крок, кнопка заповнюється зліва направо (--pace 0…1); підпис той самий. */
+.btn.is-pacing {
+  background-image: linear-gradient(90deg, rgb(255 255 255 / 0.22) calc(var(--pace, 0) * 100%), transparent 0);
+  cursor: progress;
+}
+
+.btn.is-pacing:disabled {
+  opacity: 0.85;
+}
+
 .btn-primary {
   border-color: var(--amber);
   background: var(--amber);

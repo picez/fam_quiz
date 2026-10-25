@@ -667,6 +667,23 @@ describe('HostScreen: blitz', () => {
       expect(send).toHaveBeenCalledWith('host:skip', undefined);
     });
 
+    it('«Пропустити хід» waits for the pace window and fills (11b)', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000_000);
+      try {
+        show(onBoard({ pace: { next: null, lock: null, skip: { from: 1_000_000 - 500, until: 1_000_000 + 1500 } } }));
+        expect(button('Пропустити хід').disabled).toBe(true);
+        expect(button('Пропустити хід').className).toContain('is-pacing');
+        act(() => {
+          vi.advanceTimersByTime(2100);
+        });
+        expect(button('Пропустити хід').disabled).toBe(false);
+        expect(button('Пропустити хід').className).not.toContain('is-pacing');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('shows the countdown for an absent chooser and a waiting turn on pause', () => {
       const away = three.map((p) => (p.id === 'p1' ? { ...p, connected: false } : p));
       show(onBoard({ players: away }, boardOf({ skipAt: Date.now() + 20_000 })));
@@ -2040,6 +2057,14 @@ describe('HostScreen: survey (10e)', () => {
     show(view({ phase: 'intro', surveySkipped: ['Що ви назвали про Київ?'] }));
     expect(screen.getByText('Запитання «Що ви назвали про Київ?» пропущено: хмара не дала слів, а запасних рядків немає.')).toBeTruthy();
   });
+
+  it('both row buttons wait for the pace window (11b)', () => {
+    const now = Date.now();
+    show(surveyView('reveal', 1, { pace: { next: { from: now - 100, until: now + 1000 }, lock: null, skip: null } }));
+    expect(button('Відкрити рядок 2 з 5').disabled).toBe(true);
+    expect(button('Відкрити всі').disabled).toBe(true);
+    expect(button('Відкрити всі').className).toContain('is-pacing');
+  });
 });
 
 describe('HostScreen: bluff (10f)', () => {
@@ -2048,6 +2073,14 @@ describe('HostScreen: bluff (10f)', () => {
   const bluff = (over: Partial<BluffInfo> = {}): BluffInfo => ({ stage: 'lies', written: 1, picked: 0, options: [], shown: 0, total: 0, lastOpenedId: null, lies: [{ nickname: 'Олена', text: 'Рим' }], ...over });
   const five = [opt('b1', 'Рим'), opt('b2', 'Мілан', { kind: 'spare', authors: [] }), opt('b3', 'Париж'), opt('b4', 'Барселона', { kind: 'truth', authors: [] }), opt('b5', 'Лісабон', { kind: 'spare', authors: [] })];
   const bluffView = (phase: HostView['phase'], info: BluffInfo, over: Partial<HostView> = {}) => during(phase, bluffQ, { bluff: info, ...over });
+
+  it('«Відкрити всі» waits for the pace window (11b)', () => {
+    const now = Date.now();
+    const info = bluff({ stage: 'reveal', options: five.map((o, at) => ({ ...o, open: at < 1 })), shown: 1, total: 5, lies: null });
+    show(bluffView('reveal', info, { pace: { next: { from: now - 100, until: now + 1000 }, lock: null, skip: null } }));
+    expect(button('Відкрити всі').disabled).toBe(true);
+    expect(button('Відкрити варіант 2 з 5').disabled).toBe(true);
+  });
 
   it('the bluff help button sits once, in the context line, and sends nothing', () => {
     const send = show(bluffView('question', bluff(), { round: { index: 0, total: 1, title: '', type: 'classic' } as unknown as HostView['round'] }));
@@ -2371,5 +2404,60 @@ describe('HostScreen: bluff (10f)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Капітан: Петро' }));
       expect(send).toHaveBeenCalledWith('host:captain', { teamId: 'team-b', memberId: 'u3' });
     });
+  });
+});
+
+describe('HostScreen: pacing (11b)', () => {
+  const T = 2_000_000;
+  const paced = (phase: HostView['phase'], pace: HostView['pace']) => during(phase, single, { pace });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('the main button is disabled and filling while the window runs, with the same label', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const send = show(paced('reveal', { next: { from: T - 500, until: T + 1500 }, lock: null, skip: null }));
+    const next = button('Далі');
+    expect(next.disabled).toBe(true);
+    expect(next.className).toContain('is-pacing');
+    expect(Number(next.style.getPropertyValue('--pace'))).toBeCloseTo(500 / 2100, 2);
+    act(() => {
+      vi.advanceTimersByTime(1599);
+    });
+    expect(button('Далі').disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(button('Далі').disabled).toBe(false);
+    expect(button('Далі').className).not.toContain('is-pacing');
+    fireEvent.click(button('Далі'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+  });
+
+  it('the close button follows the lock window, not the next one', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    show(paced('question', { next: null, lock: { from: T, until: T + 3000 }, skip: null }));
+    const close = button('Закрити запитання');
+    expect(close.disabled).toBe(true);
+    expect(close.className).toContain('is-pacing');
+    cleanup();
+    show(paced('question', { next: { from: T, until: T + 3000 }, lock: null, skip: null }));
+    expect(button('Закрити запитання').disabled).toBe(false);
+  });
+
+  it('a too_soon answer shows no error, another one does', async () => {
+    const soon = vi.fn(async () => ({ ok: false as const, error: 'too_soon' as const }));
+    show(paced('reveal', { next: null, lock: null, skip: null }), soon);
+    fireEvent.click(button('Далі'));
+    await waitFor(() => expect(soon).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByRole('alert')).toBeNull();
+    cleanup();
+    const wrong = vi.fn(async () => ({ ok: false as const, error: 'wrong_phase' as const }));
+    show(paced('reveal', { next: null, lock: null, skip: null }), wrong);
+    fireEvent.click(button('Далі'));
+    expect(await screen.findByRole('alert')).toBeTruthy();
   });
 });
