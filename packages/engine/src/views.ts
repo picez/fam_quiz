@@ -1522,7 +1522,10 @@ function hintRequests(state: GameState): HintRequest[] {
   return state.players.flatMap((p) => {
     const buff = buffOf(play, p.id);
     const waiting = buff?.hint !== undefined && buff.hint.text === null && !buff.hint.aloud;
-    return waiting ? [{ ...blitzPlayer(state, p.id), at: buff.at }] : [];
+    if (waiting) return [{ ...blitzPlayer(state, p.id), at: buff.at }];
+    // «Мільйонер»: запит підказки ведучого від учасника драбини.
+    const hint = play.ladder?.contestantId === p.id ? play.ladder.lifelines.hint : undefined;
+    return hint !== undefined && hint.text === null && !hint.aloud ? [{ ...blitzPlayer(state, p.id), at: hint.at }] : [];
   });
 }
 

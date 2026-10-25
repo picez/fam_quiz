@@ -31,6 +31,7 @@ import {
   type Result,
   type Rng,
 } from './game';
+import { giveLadderHint, inLadderRound } from './ladder';
 import { normalizeText } from './normalize';
 import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
 import { notStarted } from './splash';
@@ -421,9 +422,11 @@ export function castVote(state: GameState, voterId: string, askerId: string, ans
   return ok(withBuff(state, askerId, { vote: { ...buff.vote, ballots: { ...buff.vote.ballots, [voterId]: answer } } }));
 }
 
-/** Відповідь ведучого на запит підказки: text — підказка текстом, null — «Підказав уголос». Пауза не заважає. */
+/** Відповідь ведучого на запит підказки: text — підказка текстом, null — «Підказав уголос». Пауза не заважає. У «Мільйонері» — giveLadderHint. */
 export function giveHint(state: GameState, playerId: string, text: string | null): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
+  // «Мільйонер»: запит іде від підказки драбини, а не від бафу.
+  if (inLadderRound(state)) return giveLadderHint(state, playerId, text);
   const hint = buffOf(state.plays[state.questionIndex], playerId)?.hint;
   // Немає бафу hint, що чекає: уже підказано або підказка з редактора.
   if (hint === undefined || hint.text !== null || hint.aloud) return fail('not_found');
@@ -454,7 +457,7 @@ export function dropBallots(buffs: Record<string, BuffPlay>, playerId: string): 
 }
 
 /** 50/50: fiftyCount разів випадковий неправильний варіант з тих, що лишилися. */
-function pickRemoved(question: Question, rng: Rng): string[] {
+export function pickRemoved(question: Question, rng: Rng): string[] {
   const pool = wrongOptions(question);
   const removed: string[] = [];
   for (let i = fiftyCount(question); i > 0; i -= 1) removed.push(...pool.splice(Math.floor(rng() * pool.length), 1));

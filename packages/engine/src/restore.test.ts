@@ -86,7 +86,7 @@ import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
 import { pickDoor } from './survival';
 import { decideWipeout } from './wipeout';
-import { decideLadder, pickContestant } from './ladder';
+import { decideLadder, pickContestant, useLifeline } from './ladder';
 
 const HOUR = 3_600_000;
 const kyiv = { type: 'single', optionId: 'b' } as const;
@@ -673,9 +673,15 @@ function representative(): GameState[] {
   // 10i: драбина скінчилася — Петро забрав гроші після l2: LadderOutcome і коригування 'ladder'.
   let took = must(next(must(submitAnswer(laddered, 'p2', LADDER_RIGHT[1], T0 + 4500)), T0 + 5000, () => 0));
   took = must(decideLadder(must(next(took, T0 + 5500, () => 0)), 'p2', true, T0 + 6000));
+  // 10i: усі три підказки на l1, голосування залу відкрите (Оля ще не відповіла) — LadderLifelines.fifty / audience / hint.
+  let helped = must(next(must(pickContestant(must(start(lobbyWith(makeRoundsQuiz([ladderRound('rl')]), 'Оля', 'Петро'))), 'p2')), T0, () => 0));
+  helped = must(useLifeline(helped, 'p2', 'fifty', T0 + 1000, () => 0));
+  helped = must(useLifeline(helped, 'p2', 'audience', T0 + 1500, () => 0));
+  helped = must(useLifeline(helped, 'p2', 'hint', T0 + 2000, () => 0));
   return [
     laddered,
     took,
+    helped,
     luck,
     survived,
     wiped,

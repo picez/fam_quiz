@@ -1,4 +1,4 @@
-import { hallPoints, ladderPrize, type Answer, type LadderOutcomeKind, type LadderRound } from '@quiz/shared';
+import { hallPoints, ladderPrize, LIFELINES, type Answer, type LadderOutcomeKind, type LadderRound, type LifelineKind } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; звертання лише під час виклику функцій.
 import {
   autoLock,
@@ -16,9 +16,11 @@ import {
   type Rng,
 } from './game';
 import { addAdjustment } from './adjust';
+import { AUDIENCE_MS, pickRemoved } from './buffs';
 import { checkAnswer } from './check';
 import { presentPlayers } from './present';
-import { timeOverFor } from './timing';
+import { notStarted } from './splash';
+import { grantOvertime, timedPlay, timeOverFor } from './timing';
 
 /** Чи поточний раунд — «Мільйонер». */
 export function inLadderRound(state: GameState): boolean {
@@ -96,10 +98,15 @@ function presentHall(state: GameState, contestantId: string): string[] {
     .filter((id) => id !== contestantId);
 }
 
-/** Голосування залу закривається, коли відповіли всі присутні глядачі. */
-function settleAudience(state: GameState): GameState {
+/** Голосування залу відкрите: є audience, closed false. */
+export function audienceOpen(state: GameState): boolean {
+  return ladderPlayOf(state)?.ladder.lifelines.audience?.closed === false;
+}
+
+/** Закриває відкрите голосування, якщо відповіли всі присутні глядачі; на паузі — ні. */
+export function settleAudience(state: GameState): GameState {
   const play = ladderPlayOf(state);
-  if (play === null || play.ladder.lifelines.audience?.closed !== false) return state;
+  if (state.paused || play === null || play.ladder.lifelines.audience?.closed !== false) return state;
   const hall = presentHall(state, play.ladder.contestantId);
   return hall.every((id) => recordOf(state, state.questionIndex, id) !== undefined) ? closeAudience(state) : state;
 }
@@ -238,4 +245,61 @@ export function stopLadder(state: GameState, now: number): GameState {
     return awardLadder(state, outcomeOf(round, play.ladder.decision === 'go' ? 'stopped' : 'took', step + 1), now);
   }
   return state;
+}
+
+/** Підказки, уже використані на драбині поточного раунду (у порядку LIFELINES). */
+export function lifelinesUsed(state: GameState): LifelineKind[] {
+  const used = new Set(
+    state.plays.flatMap((play) => (play.roundIndex === state.roundIndex && play.ladder !== undefined ? Object.keys(play.ladder.lifelines) : [])),
+  );
+  return LIFELINES.filter((kind) => used.has(kind));
+}
+
+/**
+ * Учасник бере підказку. Помилки за порядком: wrong_phase, not_found, not_allowed (не учасник або не ввімкнено), buff_used,
+ * paused, not_started, already_answered, time_over, buff_unfit (зал без присутніх глядачів).
+ * fifty — pickRemoved(question, rng); audience — endsAt = now + AUDIENCE_MS, за timedPlay — grantOvertime(учасник, AUDIENCE_MS);
+ * hint — text = question.hint ?? null. Кілька підказок на одне запитання можна. Бафи вікторини тут не важать.
+ */
+export function useLifeline(state: GameState, playerId: string, kind: LifelineKind, now: number, rng: Rng): Result {
+  const round = ladderRoundOf(state);
+  const play = state.phase === 'question' ? ladderPlayOf(state) : null;
+  if (round === null || play === null) return fail('wrong_phase');
+  if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
+  if (playerId !== play.ladder.contestantId || !round.lifelines.includes(kind)) return fail('not_allowed');
+  if (lifelinesUsed(state).includes(kind)) return fail('buff_used');
+  if (state.paused) return fail('paused');
+  if (notStarted(state, now)) return fail('not_started');
+  if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
+  if (timeOverFor(state, play, playerId, now)) return fail('time_over');
+  if (kind === 'audience' && presentHall(state, playerId).length === 0) return fail('buff_unfit');
+  const lifelines = { ...play.ladder.lifelines };
+  if (kind === 'fifty') lifelines.fifty = { removed: pickRemoved(play.question, rng), at: now };
+  if (kind === 'audience') lifelines.audience = { endsAt: now + AUDIENCE_MS, closed: false, ballots: {}, at: now };
+  if (kind === 'hint') lifelines.hint = { text: play.question.hint ?? null, aloud: false, at: now };
+  const taken = withCurrentPlay(state, { ...play, ladder: { ...play.ladder, lifelines } });
+  // Поки зал голосує, учасник не втрачає часу: +15 с особистого, як баф 8b. Без таймера часу немає.
+  if (kind === 'audience' && timedPlay(play)) return ok(grantOvertime(taken, playerId, AUDIENCE_MS));
+  // Відповіді залу, що вже були, — теж голоси: якщо відповіли всі присутні, голосування одразу закривається.
+  return ok(kind === 'audience' ? settleAudience(taken) : taken);
+}
+
+/** Ведучий відповідає на запит підказки учасника: text або null («уголос»); not_found — немає запиту, що чекає. Пауза не заважає. */
+export function giveLadderHint(state: GameState, playerId: string, text: string | null): Result {
+  const play = state.phase === 'question' ? ladderPlayOf(state) : null;
+  if (play === null) return fail('wrong_phase');
+  const hint = play.ladder.lifelines.hint;
+  // Немає запиту, що чекає: уже підказано, підказка з редактора або гравець не учасник.
+  if (playerId !== play.ladder.contestantId || hint === undefined || hint.text !== null || hint.aloud) return fail('not_found');
+  const lifelines = { ...play.ladder.lifelines, hint: { ...hint, text, aloud: text === null } };
+  return ok(withCurrentPlay(state, { ...play, ladder: { ...play.ladder, lifelines } }));
+}
+
+/** Після паузи: endsAt відкритого голосування залу зсувається на shiftMs. */
+export function shiftLadderClocks(state: GameState, shiftMs: number): GameState {
+  const play = ladderPlayOf(state);
+  const audience = play?.ladder.lifelines.audience;
+  if (play === null || audience === undefined || audience.closed || shiftMs === 0) return state;
+  const lifelines = { ...play.ladder.lifelines, audience: { ...audience, endsAt: audience.endsAt + shiftMs } };
+  return withCurrentPlay(state, { ...play, ladder: { ...play.ladder, lifelines } });
 }

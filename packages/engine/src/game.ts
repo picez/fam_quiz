@@ -75,13 +75,17 @@ import {
   trialOpen,
 } from './survival';
 import {
+  audienceOpen,
+  closeAudience,
   decisionPending,
   drawContestant,
   inLadderRound,
   ladderAnswered,
   ladderPlayOf,
   passedSteps,
+  settleAudience,
   settleStep,
+  shiftLadderClocks,
   stopLadder,
   submitLadderAnswer,
 } from './ladder';
@@ -745,7 +749,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
   });
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   // «Ва-банк»: якщо вилучений був останнім, хто не вирішив, вікно закривається; «Вибування» — так само випробування.
-  return ok(settleTrial(settleDecision(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)))));
+  // «Мільйонер»: якщо вилучений був останнім глядачем, що не відповів, голосування залу закривається.
+  return ok(settleTrial(settleDecision(autoLock(settleAudience(kicked.paused ? kicked : settleQueue(kicked, null))))));
 }
 
 /** Гравець зникає з меж, ставок, ва-банку й порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */
@@ -772,8 +777,8 @@ export function setConnected(state: GameState, playerId: string, connected: bool
   if (watched && state.board !== null && (connected || state.heldAt === null)) {
     return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }, now));
   }
-  // «Ва-банк»: відсутній гравець вікна рішення не тримає; «Вибування» — випробування.
-  return ok(settleTrial(settleDecision(autoLock(changed, now))));
+  // «Ва-банк»: відсутній гравець вікна рішення не тримає; «Вибування» — випробування; «Мільйонер» — голосування залу.
+  return ok(settleTrial(settleDecision(autoLock(settleAudience(changed), now))));
 }
 
 /** Гравець, чия відсутність закриває запитання: той, хто вибрав звичайну клітинку без таймера; інакше null. */
@@ -1208,7 +1213,8 @@ export function lockNow(state: GameState): GameState {
   // Незавершена друга спроба зараховує першу відповідь.
   // Незакінчена стіна отримує записи за знайдені групи.
   // Блеф отримує записи лише тут: бали залежать від виборів усіх.
-  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(settleRetries(state))))))));
+  // Голосування залу «Мільйонера» закривається з відповідями залу на цю мить.
+  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(closeAudience(settleRetries(state)))))))));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
@@ -1565,10 +1571,12 @@ export function tick(state: GameState, now: number): GameState {
     const settled = settleQueue(opened, now);
     return blitzDone(settled, now) ? lockNow(settled) : settled;
   }
+  // «Мільйонер»: голосування залу, що сплило (з endsAt включно), закривається.
+  const voted = audienceOpen(opened) && now >= (ladderPlayOf(opened)?.ladder.lifelines.audience?.endsAt ?? Infinity) ? closeAudience(opened) : opened;
   // Запитання чекає на особистий кінець того, хто ще не відповів.
-  const closes = closesAt(opened);
+  const closes = closesAt(voted);
   const expired = closes !== null && now >= closes;
-  return expired ? lockNow(opened) : opened;
+  return expired ? lockNow(voted) : voted;
 }
 
 /** Етап вибору клітинки: стартує відлік для відключеного гравця й пропускає хід, коли 30 секунд сплило. */
@@ -1730,7 +1738,8 @@ export function resume(state: GameState, now: number): Result {
   // Заставка, що не скінчилася до паузи, стоїть разом із годинником і дограє після неї.
   const pausedAt = state.pausedAt ?? now;
   // «Ва-банк»: якщо на паузі вирішили (чи вилучили) останніх, вікно закривається; «Вибування» — так само випробування.
-  return ok(settleTrial(settleDecision(shiftSplash(result.state, pausedAt, now - pausedAt))));
+  // «Мільйонер»: якщо на паузі відповіли (чи вийшли) останні глядачі, голосування залу закривається.
+  return ok(settleTrial(settleDecision(settleAudience(shiftSplash(result.state, pausedAt, now - pausedAt)))));
 }
 
 function resumeClock(state: GameState, now: number): Result {
@@ -1761,7 +1770,7 @@ function resumeClock(state: GameState, now: number): Result {
     // Підвисання в сортуванні зсувається разом із годинником.
     const resumed = shiftSortLocks({ ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs }, shift);
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
-    return ok(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(resumed, shift), shift), shift), now), now));
+    return ok(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(shiftLadderClocks(resumed, shift), shift), shift), shift), now), now));
   }
   if (state.phase === 'question' && !timedPlay(state.plays[state.questionIndex])) {
     // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
@@ -1773,7 +1782,7 @@ function resumeClock(state: GameState, now: number): Result {
       startedAt: state.startedAt === null ? null : state.startedAt + shift,
     };
     // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
-    return ok(watchAway(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(resumed, shift), shift), shift), now), now), now));
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(shiftLadderClocks(resumed, shift), shift), shift), shift), now), now), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.

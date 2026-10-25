@@ -3,6 +3,7 @@ import { cellBlitzRules } from './board-cells';
 import { BOARD_AWAY_MS } from './board-turns';
 import { chainDeadline } from './chain';
 import { nextClueAt } from './clues';
+import { audienceOpen } from './ladder';
 // З game.ts лише типи, але chain.ts (вище) під час виконання імпортує game.ts, тож цикл є:
 // game.ts → blitz.ts → chain.ts → game.ts. Він безпечний, бо всі звертання відбуваються лише під час виклику функцій.
 import { presentPlayers } from './present';
@@ -219,6 +220,8 @@ export function nextDeadline(state: GameState, now: number): number | null {
     ...chainers.map((id) => chainDeadline(state, id)),
     // «Хто я?»: мить наступної підказки.
     nextClueAt(state),
+    // «Мільйонер»: кінець голосування залу.
+    audienceOpen(state) ? (play?.ladder?.lifelines.audience?.endsAt ?? null) : null,
   ];
   const upcoming = times.filter((time): time is number => time !== null && time > now);
   return upcoming.length === 0 ? null : Math.min(...upcoming);
