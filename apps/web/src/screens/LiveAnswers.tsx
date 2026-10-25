@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { HostLive, HostView, LiveRow, Question } from '@quiz/shared';
+import type { HostLive, HostView, LiveRow, Question, SortTilt } from '@quiz/shared';
 import { answerText, num, secondsText, sliderNumber } from '../format';
 import { t, type TextKey } from '../i18n';
 import { HelpButton } from '../help/HelpButton';
@@ -12,6 +12,8 @@ interface Props {
   blitz?: ReactNode;
   /** Дуель: без заголовка й рамки панелі, усередині HostDuelPanel. */
   compact?: boolean;
+  /** Нахил картки сортування за тим, хто сортує (11d). */
+  tilts?: Record<string, SortTilt>;
 }
 
 /** Є хоч один хід: рядок з поступом, але без відповіді, теж видно. Двері не рахуються. */
@@ -35,7 +37,7 @@ function started(row: LiveRow): boolean {
 }
 
 /** Текст відповіді рядка людською мовою з деталями типу. */
-export function liveAnswerText(row: LiveRow, correct: Question | null, choices: { id: string }[] | undefined): string {
+export function liveAnswerText(row: LiveRow, correct: Question | null, choices: { id: string }[] | undefined, toward: string | null = null): string {
   const parts: string[] = [];
   const question = row.spare ?? correct;
   const answer = row.answer;
@@ -60,6 +62,7 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
         break;
       case 'sort':
         parts.push(progress.card === null ? t('liveSortDone', { misses: progress.misses }) : t('liveSort', { card: progress.card, sorted: progress.sorted, total: progress.total, misses: progress.misses }));
+        if (progress.card !== null && toward !== null) parts[parts.length - 1] += ` · ${t('liveSortToward', { name: toward })}`;
         break;
       case 'wall': {
         parts.push(
@@ -97,7 +100,25 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
   return parts.join(' · ');
 }
 
-function Row({ row, view }: { row: LiveRow; view: HostView }) {
+/** Куди тягнуть картку зараз: текст категорії, якщо нахил діє (той самий хід і слово, не пауза, сильний). */
+function towardOf(row: LiveRow, view: HostView, tilts: Record<string, SortTilt>): string | null {
+  const progress = row.progress;
+  const tilt = tilts[row.id];
+  if (progress === null || progress.kind !== 'sort' || tilt === undefined) return null;
+  if (view.paused || tilt.toward === null || tilt.amount < 0.2) return null;
+  if (tilt.wordId !== progress.cardId || tilt.seq !== progress.seq) return null;
+  const category = view.question?.sort?.categories.find((item) => item.id === tilt.toward);
+  return category?.text ?? null;
+}
+
+/** Чи тягне той, хто сортує, картку цього ходу (будь-який нахил, і «в центр» теж): рядок не блимає, поки палець рухається й відпускає. */
+function tilting(row: LiveRow, tilts: Record<string, SortTilt>): boolean {
+  const progress = row.progress;
+  const tilt = tilts[row.id];
+  return progress !== null && progress.kind === 'sort' && tilt !== undefined && tilt.seq === progress.seq;
+}
+
+function Row({ row, view, tilts }: { row: LiveRow; view: HostView; tilts: Record<string, SortTilt> }) {
   const choices = view.question?.choices;
   const draftShown = !row.answered && row.draft !== null;
   return (
@@ -112,7 +133,7 @@ function Row({ row, view }: { row: LiveRow; view: HostView }) {
           <em>{answerText(row.draft, row.spare ?? view.correct, row.spare === null ? choices : undefined)}</em> <span className="tag">{t('liveDraft')}</span>
         </span>
       ) : (
-        <span className="live-answer">{liveAnswerText(row, view.correct, choices)}</span>
+        <span className="live-answer">{liveAnswerText(row, view.correct, choices, towardOf(row, view, tilts))}</span>
       )}
       {row.clue !== null && <span className="meta">{t('clueAt', { n: row.clue })}</span>}
       {row.timeMs !== null && <span className="meta live-time">{t('blitzRowTime', { time: secondsText(row.timeMs) })}</span>}
@@ -125,14 +146,14 @@ function Row({ row, view }: { row: LiveRow; view: HostView }) {
 /** Скільки рядків видно без прокрутки (див. .live-scroll у styles.css). */
 const VISIBLE_ROWS = 8;
 
-function Rows({ rows, view }: { rows: LiveRow[]; view: HostView }) {
+function Rows({ rows, view, tilts }: { rows: LiveRow[]; view: HostView; tilts: Record<string, SortTilt> }) {
   // Понад вісім рядків список прокручується: з клавіатури до нього можна дійти й гортати стрілками.
   const scrolls = rows.length > VISIBLE_ROWS;
   return (
     <div className="live-scroll" {...(scrolls ? { tabIndex: 0, role: 'region', 'aria-label': t('liveRowsLabel') } : {})}>
       <ul className="live-rows">
         {rows.map((row) => (
-          <Row key={row.id} row={row} view={view} />
+          <Row key={row.id} row={row} view={view} tilts={tilts} />
         ))}
       </ul>
     </div>
@@ -140,12 +161,15 @@ function Rows({ rows, view }: { rows: LiveRow[]; view: HostView }) {
 }
 
 /** «Відповіді наживо» на пульті (11c): хто що відповів ще до розкриття. */
-export function LiveAnswers({ view, live, blitz, compact = false }: Props) {
+const NO_TILTS: Record<string, SortTilt> = {};
+
+export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TILTS }: Props) {
   const duel = live.kind === 'duel';
   const queue = live.kind === 'blitz' && view.blitz?.instant !== true;
   const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered);
   // Дуель: обидва дуелянти завжди, навіть без спроб.
-  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null);
+  // Нахил першої картки (11d) теж показує рядок: ведучий бачить, куди її тягнуть, ще до першого ходу.
+  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null || tilting(row, tilts));
   const queueShown = blitz !== undefined && blitz !== null;
   // Командний бліц: чернетки тих, хто ще не в черзі, — під чергою.
   const drafts = queueShown ? live.rows.filter((row) => !row.answered && row.draft !== null) : [];
@@ -170,17 +194,17 @@ export function LiveAnswers({ view, live, blitz, compact = false }: Props) {
       {queueShown ? (
         <>
           {blitz}
-          {drafts.length > 0 && <Rows rows={drafts} view={view} />}
+          {drafts.length > 0 && <Rows rows={drafts} view={view} tilts={tilts} />}
         </>
       ) : shown.length > 0 ? (
-        <Rows rows={shown} view={view} />
+        <Rows rows={shown} view={view} tilts={tilts} />
       ) : (
         <p className="meta">{t('noResponses')}</p>
       )}
       {live.aside !== null && (
         <details className="live-aside">
           <summary>{t(live.aside.kind === 'ghosts' ? 'liveGhosts' : 'liveHall', { answered: live.aside.answered, total: live.aside.total })}</summary>
-          <Rows rows={live.aside.rows} view={view} />
+          <Rows rows={live.aside.rows} view={view} tilts={tilts} />
         </details>
       )}
     </>

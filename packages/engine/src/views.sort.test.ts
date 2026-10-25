@@ -4,10 +4,10 @@ import { pickCell } from './board';
 import { guessWord } from './chain';
 import { placeWager } from './final';
 import { lock, next, pause, resume, start, type GameState } from './game';
-import { sortWord } from './sort';
-import { blitzRound, boardRound, chain, finalRound, makeRoundsQuiz, single, sortQ, withId, withPoints } from './testing/fixtures';
+import { sortMarks, sortOf, sortWord } from './sort';
+import { blitzRound, boardRound, chain, finalRound, makeRoundsQuiz, single, sortQ } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
-import { head, right, sortAll, toSort, wrong } from './testing/sort';
+import { head, right, sortAll, toBoardSort, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
 
 const rng = () => 0;
@@ -17,19 +17,7 @@ const wordOf = (id: string) => {
 };
 const toReveal = (s: GameState, now: number) => must(next(must(lock(s)), now, rng));
 
-/** Поле з p1 «Анна» і p2 «Богдан»: p1 вибрав клітинку ×2 із сортуванням о 1000. */
-function onBoardSort(): GameState {
-  const round = boardRound(
-    'g1',
-    [
-      { title: 'Сортування', cells: [{ mark: 'x2', answerMode: 'phone', question: sortQ }] },
-      { title: 'Інше', cells: [withPoints(withId(single, 's1'), 300)] },
-    ],
-    { rules: DEFAULT_RULES },
-  );
-  const board = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Анна', 'Богдан'))), 0));
-  return must(pickCell(board, 'p1', 'q9', 1000, rng));
-}
+const onBoardSort = toBoardSort;
 
 /** Фінал-раунд з одним запитанням; ставки 0, запитання відкрито о 2000. */
 function inFinal(question: Question, check: 'auto' | 'manual' = 'auto'): GameState {
@@ -77,6 +65,7 @@ describe('sort views', () => {
       ],
       winner: null,
       words: null,
+      live: null,
     });
     expect(hostView(s).sort?.rows.map((r) => r.points)).toEqual([null, null]);
     expect(stageView(toReveal(s, 10_000)).sort?.rows.map((r) => r.points)).toEqual([400, 0]);
@@ -113,6 +102,9 @@ describe('sort views', () => {
       missed: null,
       canSort: true,
       timeMs: null,
+      watched: false,
+      marks: null,
+      live: null,
     });
     const first = head(s, 'p1');
     s = must(sortWord(s, 'p1', first, wrong(first), 2000));
@@ -126,6 +118,9 @@ describe('sort views', () => {
       missed: wordOf(first),
       canSort: true,
       timeMs: null,
+      watched: false,
+      marks: null,
+      live: null,
     });
     s = must(pause(s, 3000));
     expect(playerView(s, 'p1')?.me.sort).toMatchObject({ lockedUntil: null, lockRemainingMs: 2000, canSort: false });
@@ -213,5 +208,110 @@ describe('sort views', () => {
   it('a classic sort has no winner', () => {
     const s = sortAll(toSort(), 'p1', 2000);
     expect(stageView(must(lock(s))).sort?.winner).toBeNull();
+  });
+});
+
+describe('live sorting views (11d)', () => {
+  it('a classic sort has no live view: everyone sorts at once', () => {
+    let s = toSort();
+    s = must(sortWord(s, 'p1', head(s, 'p1'), right(head(s, 'p1')), 2000));
+    expect(stageView(s).sort?.live).toBeNull();
+    expect(hostView(s).sort?.live).toBeNull();
+    expect(playerView(s, 'p2')?.sort?.live).toBeNull();
+    expect(playerView(s, 'p1')?.me.sort).toMatchObject({ watched: false, live: null, marks: null });
+  });
+
+  it("a board sort: the stage, the host and the other phones see the chooser's card, columns and last move", () => {
+    let s = onBoardSort();
+    expect(stageView(s).sort?.live).toEqual({
+      sorterId: 'p1',
+      nickname: 'Анна',
+      card: wordOf(head(s, 'p1')),
+      missed: null,
+      lockedUntil: null,
+      lockRemainingMs: null,
+      sorted: 0,
+      total: 4,
+      misses: 0,
+      timeMs: null,
+      seq: 0,
+      columns: [
+        { id: 'c1', words: [] },
+        { id: 'c2', words: [] },
+      ],
+      last: null,
+      marks: null,
+    });
+    expect(hostView(s).sort?.live).toEqual(stageView(s).sort?.live);
+    expect(playerView(s, 'p2')?.sort?.live).toEqual(stageView(s).sort?.live);
+    expect(playerView(s, 'p1')?.sort?.live).toBeNull();
+    expect(playerView(s, 'p1')?.me.sort).toMatchObject({ watched: true, live: null });
+
+    const w = head(s, 'p1');
+    s = must(sortWord(s, 'p1', w, right(w), 2000));
+    const live = stageView(s).sort?.live;
+    expect(live).toMatchObject({ card: wordOf(head(s, 'p1')), sorted: 1, seq: 1, last: { wordId: w, text: wordOf(w).text, to: right(w), hit: true } });
+    expect(live?.columns.find((c) => c.id === right(w))).toEqual({ id: right(w), words: [wordOf(w)] });
+    expect(live?.columns.find((c) => c.id === wrong(w))).toEqual({ id: wrong(w), words: [] });
+
+    // Глядач не бачить категорій і нерозкладених слів, крім поточної картки (усі слова за абеткою — лише в sort.words).
+    const watcher = playerView(s, 'p2');
+    const text = JSON.stringify({ ...watcher, sort: watcher?.sort === null || watcher?.sort === undefined ? null : { ...watcher.sort, words: null } });
+    expect(text).not.toContain('categoryId');
+    const visible = sortQ.words.filter((word) => text.includes(word.text)).map((word) => word.id);
+    expect(visible.sort()).toEqual([w, head(s, 'p1')].sort());
+
+    const miss = head(s, 'p1');
+    s = must(sortWord(s, 'p1', miss, wrong(miss), 3000));
+    expect(stageView(s).sort?.live).toMatchObject({
+      missed: wordOf(miss),
+      lockedUntil: 6000,
+      lockRemainingMs: null,
+      misses: 1,
+      seq: 2,
+      last: { wordId: miss, text: wordOf(miss).text, to: wrong(miss), hit: false },
+    });
+    const paused = must(pause(s, 4000));
+    expect(stageView(paused).sort?.live).toMatchObject({ lockedUntil: null, lockRemainingMs: 2000 });
+
+    const locked = must(lock(s));
+    expect(stageView(locked).sort?.live?.card).toBeNull();
+    expect(stageView(locked).sort?.live?.columns).toEqual(stageView(s).sort?.live?.columns);
+
+    const revealed = must(next(locked, 7000, rng));
+    expect(revealed.phase).toBe('reveal');
+    const marks = sortMarks(sortQ, sortOf(revealed, 'p1'), false);
+    expect(marks.length).toBeGreaterThan(0);
+    expect(stageView(revealed).sort?.live?.marks).toEqual(marks);
+    expect(playerView(revealed, 'p1')?.me.sort?.marks).toEqual(marks);
+  });
+
+  it('a solo blitz cell with a sort has no live view', () => {
+    const round = boardRound('g1', [{ title: 'Сортування', cells: [{ answerMode: 'phone', kind: 'blitz', question: sortQ }] }]);
+    const board = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Анна', 'Богдан'))), 0));
+    let s = must(pickCell(board, 'p1', 'q9', 1000, rng));
+    expect(s.plays[0].board?.kind).toBe('blitz');
+    s = must(sortWord(s, 'p1', head(s, 'p1'), right(head(s, 'p1')), 2000));
+    expect(stageView(s).sort?.live).toBeNull();
+    expect(playerView(s, 'p2')?.sort?.live).toBeNull();
+    expect(playerView(s, 'p1')?.me.sort).toMatchObject({ watched: false, live: null });
+  });
+
+  it('a classic reveal: own marks on each phone, none on the stage', () => {
+    let s = toSort();
+    const w = head(s, 'p1');
+    s = must(sortWord(s, 'p1', w, wrong(w), 2000));
+    s = sortAll(s, 'p1', 6000);
+    s = must(sortWord(s, 'p2', head(s, 'p2'), right(head(s, 'p2')), 6000));
+    expect(playerView(s, 'p1')?.me.sort?.marks).toBeNull();
+    s = toReveal(s, 7000);
+    expect(playerView(s, 'p1')?.me.sort?.marks).toEqual([{ wordId: w, misses: 1, late: false }]);
+    const late = playerView(s, 'p2')?.me.sort?.marks;
+    expect(late).toHaveLength(3);
+    expect(late?.every((m) => m.late && m.misses === 0)).toBe(true);
+    expect(stageView(s).sort?.live).toBeNull();
+    const stage = JSON.stringify(stageView(s));
+    expect(stage).not.toContain('wordMisses');
+    expect(stage).not.toContain('"marks":[');
   });
 });

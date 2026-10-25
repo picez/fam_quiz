@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView } from '@quiz/shared';
+import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { paceAttrs, usePace } from '../pace';
 import { ChainBoard } from './ChainView';
@@ -57,6 +57,8 @@ interface Props {
   stageOnline?: boolean;
   /** Остання команда звуку від ведучого (її бачить і цей пульт). */
   audioCommand?: AudioCommand | null;
+  /** Останній нахил картки сортування за тим, хто сортує (11d). */
+  tilts?: Record<string, SortTilt>;
 }
 
 type HostEvent = keyof ClientToServerEvents;
@@ -199,7 +201,7 @@ function useStageGone(stageOnline: boolean): boolean {
   return gone && !stageOnline;
 }
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null }: Props) {
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const inRound = round !== null && IN_ROUND.includes(phase);
@@ -632,7 +634,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {view.ladder !== null && phase !== 'finished' && phase !== 'round_end' && <HostLadder view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
-      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} />}
+      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} tilts={tilts} />}
 
       {view.survival !== null && phase !== 'finished' && phase !== 'round_end' && <HostSurvival view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
@@ -711,7 +713,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </div>
       )}
 
-      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} />}
+      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} />}
 
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">

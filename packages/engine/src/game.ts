@@ -384,6 +384,10 @@ export interface SortProgress {
   lockedUntil: number | null;
   /** Слово останньої помилки; null після правильного ходу. */
   missed: string | null;
+  /** Помилки на кожному слові (11d); немає — стан до 11d, позначок «✗N» на розкритті немає. */
+  wordMisses?: Record<string, number>;
+  /** Категорія, у яку пішла остання помилка (11d), — зона трусіння в глядачів; лише разом із missed. */
+  missedInto?: string;
 }
 
 /** Поступ гравця в ланцюжку слів. */

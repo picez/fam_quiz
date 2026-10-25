@@ -411,12 +411,12 @@ describe('live answers: chain, sort and wall progress', () => {
     s = must(sortWord(s, 'p1', first, rightCategory(first), 2000));
     const card = sortQ.words.find((w) => w.id === sortOf(s, 'p1').queue[0])?.text;
     expect(row(s, 'p1')).toMatchObject({ answered: false, answer: null, verdict: null });
-    expect(row(s, 'p1').progress).toEqual({ kind: 'sort', card, sorted: 1, total: 4, misses: 0 });
+    expect(row(s, 'p1').progress).toEqual({ kind: 'sort', card, cardId: sortHead(s, 'p1'), seq: 1, sorted: 1, total: 4, misses: 0 });
     const second = sortHead(s, 'p1');
     s = must(sortWord(s, 'p1', second, wrongCategory(second), 3000));
-    expect(row(s, 'p1').progress).toMatchObject({ kind: 'sort', sorted: 1, misses: 1 });
+    expect(row(s, 'p1').progress).toMatchObject({ kind: 'sort', cardId: sortHead(s, 'p1'), seq: 2, sorted: 1, misses: 1 });
     s = sortAll(s, 'p1', 10_000);
-    expect(row(s, 'p1')).toMatchObject({ answered: true, answer: null, verdict: null, progress: { kind: 'sort', card: null, sorted: 4 } });
+    expect(row(s, 'p1')).toMatchObject({ answered: true, answer: null, verdict: null, progress: { kind: 'sort', card: null, cardId: null, sorted: 4 } });
   });
 
   it('wall: found groups and mistakes, the same numbers as the host wall rows', () => {

@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
@@ -67,6 +67,13 @@ function send(tracked: Tracked, event: string, ...args: unknown[]): Promise<AckR
   // Події різних типів мають різні аргументи; тест перевіряє поведінку, а не типи emit.
   const emit = tracked.socket.emit.bind(tracked.socket) as (event: string, ...args: unknown[]) => void;
   return new Promise((resolve) => emit(event, ...args, resolve));
+}
+
+/** Збирає нахили сортування (11d), що прийшли сокету. */
+function listenTilt(tracked: Tracked): SortTilt[] {
+  const received: SortTilt[] = [];
+  tracked.socket.on('sort:tilt', (tilt) => received.push(tilt));
+  return received;
 }
 
 const createGame = async () => (await startGame(ctx.app, makeQuiz([single, text]))).game;
@@ -930,6 +937,66 @@ describe('audio over sockets', () => {
   });
 });
 
+describe('sort tilt over sockets (11d)', () => {
+  const cardOf = (view: GameView | null) => (view?.role === 'player' ? (view.me.sort?.card?.id ?? null) : null);
+
+  it('a board cell: everyone but the author gets the tilt', async () => {
+    const filler = (prefix: string) => [1, 2, 3].map((n) => ({ ...withId(single, `${prefix}${n}`), points: 100 * n }));
+    const board = makeRoundsQuiz([
+      boardRound('g1', [
+        { title: 'Сортування', cells: [{ answerMode: 'phone', question: sortQ }, ...filler('a').slice(0, 2)] },
+        { title: 'Міста', cells: filler('b') },
+        { title: 'Річки', cells: filler('c') },
+      ]),
+    ]);
+    const { game, host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby((await startGame(ctx.app, board)).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    expect(await send(host, 'host:pick', { cellId: sortQ.id })).toEqual({ ok: true });
+    for (const who of [olena, taras, stage, host]) await until(who, inPhase('question'));
+    const [chooser, other] = cardOf(olena.last) !== null ? [olena, taras] : [taras, olena];
+    const wordId = cardOf(chooser.last);
+    expect(wordId).not.toBeNull();
+    const got = { host: listenTilt(host), stage: listenTilt(stage), chooser: listenTilt(chooser), other: listenTilt(other) };
+
+    expect(await send(chooser, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: true });
+    // Кругообіг підтвердження: усе, що сервер надіслав цим сокетам до нього, уже прийшло.
+    expect(await send(other, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: false, error: 'not_your_turn' });
+    expect(await send(stage, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [undefined, {}, { wordId, categoryId: 'c1', amount: 2 }, { wordId: 5, categoryId: 'c1', amount: 0.5 }, { wordId, amount: 0.5 }]) {
+      expect(await send(chooser, 'player:sort-tilt', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    const tilt: SortTilt = { sorterId: (chooser === olena ? olenaJoin : tarasJoin).playerId, wordId: wordId!, toward: 'c1', amount: 0.7, seq: 0 };
+    expect(got.stage).toEqual([tilt]);
+    expect(got.host).toEqual([tilt]);
+    expect(got.other).toEqual([tilt]);
+    expect(got.chooser).toEqual([]);
+
+    // Щойно підключений отримує нахил, що діє: палець стоїть, нового не буде; автор — ні.
+    const late = { stage: open({ code: game.code, role: 'stage', token: game.stageToken }), chooser: open({ code: game.code, role: 'player', token: (chooser === olena ? olenaJoin : tarasJoin).token }) };
+    const lateGot = { stage: listenTilt(late.stage), chooser: listenTilt(late.chooser) };
+    for (const who of [late.stage, late.chooser]) await until(who, inPhase('question'));
+    expect(await send(late.stage, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(late.chooser, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: true });
+    expect(lateGot.stage).toEqual([tilt]);
+    expect(lateGot.chooser).toEqual([]);
+  });
+
+  it('classic: refused with wrong_phase, nobody gets anything', async () => {
+    const { host, stage, olena, taras } = await lobby((await startGame(ctx.app, makeQuiz([sortQ]))).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    for (const who of [olena, taras, stage, host]) await until(who, inPhase('question'));
+    const got = [host, stage, olena, taras].map(listenTilt);
+    const wordId = cardOf(olena.last);
+    expect(wordId).not.toBeNull();
+    expect(await send(olena, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 1 })).toEqual({ ok: false, error: 'wrong_phase' });
+    for (const who of [taras, stage, host]) await send(who, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 1 });
+    expect(got.flat()).toEqual([]);
+  });
+});
+
 describe('survey over real sockets (10e)', () => {
   /** Класика зі «100 до 1»: Олена влучає в Яблуко й Полуницю, Тарас мовчить; дійшли до reveal. */
   async function toReveal() {
@@ -1227,5 +1294,33 @@ describe('teams over sockets (10j)', () => {
     expect(await send(host, 'host:team-deal')).toEqual({ ok: false, error: 'wrong_phase' });
     expect(counts()).toEqual(before);
     for (const who of [olena, ira, marko, stage]) expect(JSON.stringify(who.last)).not.toContain('Чернетка-Львів');
+  });
+
+  it('sort tilt (11d): the captain tilt reaches the teammates and the host, not the other team, the stage or the captain', async () => {
+    const { host, stage, olena, taras, ira, marko, joins, red, blue } = await teamLobby([classicRound('r1', [sortQ])]);
+    for (const [i, team] of [red, red, blue, blue].entries()) {
+      expect(await send(host, 'host:team-assign', { memberId: joins[i].playerId, teamId: team })).toEqual({ ok: true });
+    }
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    for (const who of [olena, taras, ira, marko, stage, host]) await until(who, inPhase('question'));
+    const got = { host: listenTilt(host), stage: listenTilt(stage), olena: listenTilt(olena), taras: listenTilt(taras), ira: listenTilt(ira), marko: listenTilt(marko) };
+    const view = olena.last;
+    const wordId = view?.role === 'player' ? view.me.sort?.card?.id : undefined;
+    expect(wordId).toBeDefined();
+
+    expect(await send(olena, 'player:sort-tilt', { wordId, categoryId: 'c2', amount: 0.4 })).toEqual({ ok: true });
+    expect(await send(taras, 'player:sort-tilt', { wordId, categoryId: 'c2', amount: 0.4 })).toEqual({ ok: false, error: 'not_captain' });
+    // Кругообіг підтвердження: усе, що сервер надіслав цим сокетам до нього, уже прийшло.
+    expect(await send(ira, 'player:sort-tilt', { wordId, categoryId: 'c2', amount: 0.4 })).toEqual({ ok: true });
+    for (const who of [marko, stage, host]) await send(who, 'player:sort-tilt', { wordId, categoryId: 'c2', amount: 0.4 });
+    const tilt: SortTilt = { sorterId: red, wordId: wordId!, toward: 'c2', amount: 0.4, seq: 0 };
+    expect(got.taras).toEqual([tilt]);
+    expect(got.host).toContainEqual(tilt);
+    expect(got.olena).toEqual([]);
+    expect(got.stage).toEqual([]);
+    // Сині отримують лише нахил власного капітана Іри, а не червоних.
+    expect(got.marko.every((t) => t.sorterId === blue)).toBe(true);
+    expect(got.ira).toEqual([]);
   });
 });

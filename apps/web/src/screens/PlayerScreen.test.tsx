@@ -1233,6 +1233,9 @@ describe('PlayerScreen: sort', () => {
     missed: null,
     canSort: true,
     timeMs: null,
+    watched: false,
+    marks: null,
+    live: null,
   };
   const boardRound: RoundInfo = { index: 0, total: 1, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
   const blitzRound: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
@@ -1249,7 +1252,7 @@ describe('PlayerScreen: sort', () => {
     marks: [],
     marksHidden: false,
   };
-  const info = (over = {}) => ({ total: 4, rows: [{ playerId: 'p2', nickname: 'Оля', sorted: 2, misses: 0, timeMs: null, points: null, ...over }], winner: null, words: null });
+  const info = (over = {}) => ({ total: 4, rows: [{ playerId: 'p2', nickname: 'Оля', sorted: 2, misses: 0, timeMs: null, points: null, ...over }], winner: null, words: null, live: null });
 
   it('a sort question on the phone', () => {
     const send = show(onQuestion({ question: sortQ, sort: info(), me: { ...me, sort: mine } }));
@@ -1297,6 +1300,53 @@ describe('PlayerScreen: sort', () => {
     expect(document.querySelectorAll('.sort-reveal.is-open li')).toHaveLength(4);
     expect(document.querySelectorAll('.sort-reveal-col')).toHaveLength(2);
     expect(document.querySelector('.sort-words')).toBeNull();
+  });
+
+  describe('live sort (11d)', () => {
+    const liveOf = (over = {}) => ({
+      sorterId: 'p2',
+      nickname: 'Оля',
+      card: { id: 'w3', text: 'Буряк' },
+      missed: null,
+      lockedUntil: null,
+      lockRemainingMs: null,
+      sorted: 0,
+      total: 4,
+      misses: 0,
+      timeMs: null,
+      seq: 0,
+      columns: [{ id: 'c1', words: [] }, { id: 'c2', words: [] }],
+      last: null,
+      marks: null,
+      ...over,
+    });
+
+    it('a board watcher sees the chooser card, not an interactive one', () => {
+      show(onQuestion({ round: boardRound, board: sortBoard, question: sortQ, sort: { ...info(), live: liveOf() }, me: { ...me, sort: null } }));
+      expect(document.querySelector('.sort-live-card')?.textContent).toBe('Буряк');
+      expect(document.querySelector('.sort-card')).toBeNull();
+    });
+
+    it('the chooser plays with the own card', () => {
+      show(onQuestion({ round: boardRound, board: sortBoard, question: sortQ, sort: info(), me: { ...me, sort: { ...mine, watched: true } } }));
+      expect(document.querySelector('.sort-card')?.textContent).toBe('Морква');
+      expect(document.querySelector('.sort-live-card')).toBeNull();
+    });
+
+    it('the classic reveal shows the own marks', () => {
+      const marks = [{ wordId: 'w1', misses: 1, late: false }, { wordId: 'w4', misses: 0, late: true }];
+      show(view({ phase: 'reveal', questionIndex: 0, question: sortQ, sort: info(), reveal: fullSort, me: { ...me, sort: { ...mine, card: null, sorted: 3, canSort: false, marks } } }));
+      expect(document.querySelector('.sort-reveal.is-open .sort-mark')?.textContent).toBe('✗1');
+      const late = [...document.querySelectorAll('li.is-late')];
+      expect(late).toHaveLength(1);
+      expect(late[0].textContent).toContain('не встиг');
+    });
+
+    it('a board watcher sees the chooser marks at the reveal', () => {
+      const marks = [{ wordId: 'w2', misses: 2, late: false }];
+      show(view({ phase: 'reveal', questionIndex: 0, round: boardRound, board: sortBoard, question: sortQ, sort: { ...info(), live: liveOf({ card: null, marks }) }, reveal: fullSort, me: { ...me, sort: null } }));
+      expect(document.querySelector('.sort-reveal.is-open .sort-mark')?.textContent).toBe('✗2');
+    });
   });
 
   it('after the sort the phone shows the own result and later the grouping', () => {

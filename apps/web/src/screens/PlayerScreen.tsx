@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type Spotlight } from '@quiz/shared';
+import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
@@ -58,6 +58,8 @@ interface Props {
   hostOnline: boolean;
   offsetMs: number;
   send: Send;
+  /** Останній нахил картки сортування за тим, хто сортує (11d). */
+  tilts?: Record<string, SortTilt>;
 }
 
 /** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
@@ -332,6 +334,8 @@ function Result({ view }: { view: PlayerView }) {
   );
 }
 
+const NO_TILTS: Record<string, SortTilt> = {};
+
 /** Власний підсумок сортування: час повного сортування або скільки встиг. */
 function sortOutcomeText(sort: NonNullable<PlayerView['me']['sort']>): string {
   return sort.timeMs !== null
@@ -342,9 +346,14 @@ function sortOutcomeText(sort: NonNullable<PlayerView['me']['sort']>): string {
 /** Рядок підсумку сортування в результаті; у бліці — ще й переможець. */
 function SortOutcome({ view }: { view: PlayerView }) {
   if (view.me.sort === null) return null;
+  const { reveal, question } = view;
   return (
     <>
       <p>{sortOutcomeText(view.me.sort)}</p>
+      {/* Свій підсумок по словах (11d): ✗N і «не встиг» лише для себе. */}
+      {reveal?.type === 'sort' && question?.sort != null && (
+        <SortReveal categories={question.sort.categories} question={reveal} total={question.sort.total} marks={view.me.sort.marks} />
+      )}
       <SortWinner view={view} />
     </>
   );
@@ -557,7 +566,7 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
+export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
   const decideGuard = useGuardedSend(send, setError);
@@ -811,7 +820,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             {me.ladder?.role === 'hall' && <LadderHall view={view} />}
             {survivalGhost && <p className="lead survival-ghost-banner">{t('survivalGhostBanner')}</p>}
             {teamWatching ? (
-              <TeamWatch view={view} />
+              <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
             ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
             ) : isBluff ? (
@@ -819,7 +828,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             ) : isSort && me.sort !== null ? (
               <SortPlay question={shown ?? question} sort={me.sort} paused={locked} offsetMs={offsetMs} send={send} />
             ) : isSort ? (
-              view.sort !== null && <SortWatch question={question} info={view.sort} />
+              view.sort !== null && <SortWatch question={question} info={view.sort} tilts={tilts} paused={view.paused} offsetMs={offsetMs} />
             ) : isWall && me.wall !== null && question.wall !== null ? (
               <WallInput key={view.questionIndex} question={{ ...question, wall: question.wall }} wall={me.wall} paused={locked} send={send} />
             ) : isWall ? (
@@ -936,7 +945,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {me.sort !== null ? (
                 <h2>{sortOutcomeText(me.sort)}</h2>
               ) : (
-                question !== null && view.sort !== null && <SortWatch question={question} info={view.sort} />
+                question !== null && view.sort !== null && <SortWatch question={question} info={view.sort} tilts={tilts} paused={view.paused} offsetMs={offsetMs} />
               )}
               <SortWinner view={view} />
               <p className="lead">{t('sortWaitResults')}</p>
@@ -1005,7 +1014,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               {question !== null && !isSort && !isWall && !isSurvey && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
               {isSort && question?.sort != null && (
-                <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} />
+                <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} marks={view.sort?.live?.marks ?? null} />
               )}
               {isWall && question?.wall != null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />}
               {view.reveal?.type === 'wall' && <WallReveal question={view.reveal} colors={view.reveal.groups.map(() => null)} />}

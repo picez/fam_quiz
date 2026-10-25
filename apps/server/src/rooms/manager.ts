@@ -50,6 +50,10 @@ import {
   skipDuelQuestion,
   skipTurn,
   sortWord,
+  sortAudience,
+  sortOf,
+  sortSeq,
+  tiltRefusal,
   guessWall,
   hideCloudWord,
   revealSurveyAll,
@@ -89,7 +93,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { isUnscored, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostView, type LifelineKind, type Phase, type Question, type Quiz, type Role, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostView, type LifelineKind, type Phase, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -128,6 +132,11 @@ export interface Room {
    * не в збереженій кімнаті; після перезапуску порожньо. Йдуть товаришам по команді й пульту (11c).
    */
   drafts: Map<string, Draft>;
+  /**
+   * Останні нахили картки сортування (11d): id того, хто сортує (гравця чи команди), → нахил. Лише в пам'яті:
+   * не в стані гри, не в збереженій кімнаті; після перезапуску порожньо. Хід, пауза, нове запитання й вилучення стирають.
+   */
+  tilts: Map<string, Tilt>;
   /** Лічильник команд звуку; лише в пам'яті, у збережену кімнату не потрапляє; стартує з Date.now(), щоб після перезапуску клієнт не проґавив команду. */
   audioSeq: number;
 }
@@ -144,6 +153,18 @@ export interface Draft {
   draft: Answer;
 }
 
+/** Останній нахил того, хто сортує (11d): лише пам'ять, не стан гри й не збережена кімната. */
+export interface Tilt {
+  questionIndex: number;
+  seq: number;
+  /** Людина, що шле (у команді — капітан): їй нахил не йде. */
+  by: string;
+  wordId: string;
+  toward: string | null;
+  amount: number;
+  at: number;
+}
+
 /** moved — кімнату тепер веде інший процес (9b): вона пішла з пам'яті, але не закрита. */
 export type RoomEvent =
   | { type: 'changed' }
@@ -152,7 +173,9 @@ export type RoomEvent =
   | { type: 'moved' }
   | { type: 'audio'; action: 'replay' | 'stop'; seq: number }
   /** Чернетка капітана змінилася: стан гри той самий, зріз перезбирається лише учасникам команди. */
-  | { type: 'draft'; teamId: string; by: string };
+  | { type: 'draft'; teamId: string; by: string }
+  /** Нахил картки сортування (11d): by — людина, що шле; audience — кому показ дозволено. Стан гри той самий. */
+  | { type: 'tilt'; tilt: SortTilt; by: string; audience: 'all' | 'team' };
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
@@ -332,6 +355,7 @@ export class RoomManager {
       expiry: null,
       expiryPhase: null,
       drafts: new Map(),
+      tilts: new Map(),
       audioSeq: Date.now(),
     };
     this.live.set(room.code, room);
@@ -379,6 +403,7 @@ export class RoomManager {
       expiry: null,
       expiryPhase: null,
       drafts: new Map(),
+      tilts: new Map(),
       audioSeq: Date.now(),
     };
     this.live.set(room.code, room);
@@ -600,7 +625,45 @@ export class RoomManager {
     if (!this.alive(room)) return this.gone();
     const who = this.act(room, playerId, 'captain');
     if (!who.ok) return who;
-    return this.apply(room, sortWord(room.state, who.id, wordId, categoryId, this.now()));
+    const result = this.apply(room, sortWord(room.state, who.id, wordId, categoryId, this.now()));
+    if (result.ok) room.tilts.delete(who.id);
+    return result;
+  }
+
+  /** Нахил картки (11d): перевірка рушія, дросель SORT_TILT_GAP_MS, подія кімнати лише з новим значенням; стан гри не змінюється. */
+  tilt(room: Room, playerId: string, tilt: { wordId: string; categoryId: string | null; amount: number }): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'captain');
+    if (!who.ok) return who;
+    const now = this.now();
+    const refused = tiltRefusal(room.state, who.id, tilt.wordId, tilt.categoryId, now);
+    if (refused !== null) return { ok: false, error: refused };
+    const audience = sortAudience(room.state, room.state.plays[room.state.questionIndex]);
+    if (audience === null) return { ok: false, error: 'wrong_phase' };
+    const toward = tilt.categoryId;
+    const amount = toward === null ? 0 : Math.round(tilt.amount * 20) / 20;
+    const seq = sortSeq(sortOf(room.state, who.id));
+    const found = room.tilts.get(who.id);
+    // Нахил іншого запитання, старого ходу чи іншої картки вважається відсутнім.
+    const last = found !== undefined && found.questionIndex === room.state.questionIndex && found.seq === seq && found.wordId === tilt.wordId ? found : null;
+    if (last !== null && last.toward === toward && last.amount === amount) return { ok: true };
+    // Зарано після попереднього: не дійшло — телефон надішле це значення знову наступним вікном.
+    if (last !== null && toward !== null && now - last.at < SORT_TILT_GAP_MS) return { ok: false, error: 'too_soon' };
+    room.tilts.set(who.id, { questionIndex: room.state.questionIndex, seq, by: playerId, wordId: tilt.wordId, toward, amount, at: now });
+    this.emit(room, { type: 'tilt', tilt: { sorterId: who.id, wordId: tilt.wordId, toward, amount, seq }, by: playerId, audience });
+    return { ok: true };
+  }
+
+  /** Нахили, що діють зараз (11d), — для того, хто щойно підключився: те саме запитання й хід, гра йде, є напрям. */
+  liveTilts(room: Room): { tilt: SortTilt; by: string; audience: 'all' | 'team' }[] {
+    const state = room.state;
+    const play = state.plays[state.questionIndex];
+    if (state.phase !== 'question' || state.paused || play === undefined) return [];
+    const audience = sortAudience(state, play);
+    if (audience === null) return [];
+    return [...room.tilts]
+      .filter(([id, tilt]) => tilt.toward !== null && tilt.questionIndex === state.questionIndex && tilt.seq === sortSeq(sortOf(state, id)))
+      .map(([id, tilt]) => ({ tilt: { sorterId: id, wordId: tilt.wordId, toward: tilt.toward, amount: tilt.amount, seq: tilt.seq }, by: tilt.by, audience }));
   }
 
   wall(room: Room, playerId: string, tiles: number[]): AckResult {
@@ -771,8 +834,11 @@ export class RoomManager {
         return this.apply(room, lock(state, this.now()));
       case 'next':
         return this.apply(room, next(state, this.now(), this.rng));
-      case 'pause':
-        return this.apply(room, pause(state, this.now()));
+      case 'pause': {
+        const paused = this.apply(room, pause(state, this.now()));
+        if (paused.ok) room.tilts.clear();
+        return paused;
+      }
       case 'resume':
         return this.apply(room, resume(state, this.now()));
       case 'end-round':
@@ -863,6 +929,10 @@ export class RoomManager {
     for (const teamId of room.drafts.keys()) {
       if (!removed.state.players.some((p) => p.id === teamId)) room.drafts.delete(teamId);
     }
+    // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
+    for (const sorterId of room.tilts.keys()) {
+      if (!removed.state.players.some((p) => p.id === sorterId)) room.tilts.delete(sorterId);
+    }
     this.emit(room, { type: 'kicked', playerId });
     // Новою головою черги може стати гравець, чиє вікно вже сплило, поки чекали на ведучого;
     // таймер його вже минув, тож доводимо стан до поточної миті тут.
@@ -904,6 +974,8 @@ export class RoomManager {
 
   /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. */
   private commit(room: Room, state: GameState, at = this.now()): void {
+    // Нове запитання: нахили попереднього вже нічого не значать.
+    if (state.questionIndex !== room.state.questionIndex) room.tilts.clear();
     room.state = this.pacing ? stamp(room.state, state, at) : state;
     this.reschedule(room);
     this.emit(room, { type: 'changed' });

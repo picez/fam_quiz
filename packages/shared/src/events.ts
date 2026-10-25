@@ -40,6 +40,16 @@ export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).ref
 const id64 = z.string().min(1).max(64).refine(isStorable, UNSTORABLE);
 /** Хід сортування: слово з поточної картки в категорію; перевіряє рушій. */
 export const sortSchema = z.object({ wordId: id64, categoryId: id64 });
+/** Нахил картки сортування (11d): категорія, у бік якої тягнуть (null — відпустив без ходу), і наскільки. */
+export const sortTiltSchema = z.object({ wordId: id64, categoryId: id64.nullable(), amount: z.number().min(0).max(1) });
+/** Нахил для глядачів (11d): sorterId — учасник гри (гравець або команда), seq — ходів на мить нахилу. */
+export interface SortTilt {
+  sorterId: string;
+  wordId: string;
+  toward: string | null;
+  amount: number;
+  seq: number;
+}
 /** Вибір плиток стіни: позиції в порядку показу (10d). */
 export const wallSchema = z.object({ tiles: z.array(z.number().int().min(0).max(15)).min(3).max(4) });
 /** Вигадка блефу (10f); правду відхиляє рушій. */
@@ -115,6 +125,8 @@ export interface ClientToServerEvents {
   'player:guess': (payload: z.infer<typeof guessSchema>, ack: Ack) => void;
   'player:hint': (ack: Ack) => void;
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;
+  /** Сортування: нахил картки, поки її тягнуть (11d); у стан гри не йде. */
+  'player:sort-tilt': (payload: z.infer<typeof sortTiltSchema>, ack: Ack) => void;
   'player:wall': (payload: z.infer<typeof wallSchema>, ack: Ack) => void;
   /** Блеф: вигадка гравця (10f). */
   'player:lie': (payload: z.infer<typeof lieSchema>, ack: Ack) => void;
@@ -235,6 +247,8 @@ export interface ServerToClientEvents {
   state: (view: GameView, meta: StateMeta) => void;
   /** Команда звуку від ведучого; seq зростає в межах кімнати. Отримують лише сцена й пульт. */
   audio: (command: { action: 'replay' | 'stop'; seq: number }) => void;
+  /** Нахил картки того, хто сортує (11d): лише там, де показ дозволено. */
+  'sort:tilt': (tilt: SortTilt) => void;
   closed: (reason: CloseReason) => void;
   /** Сервер зупиняється (нова версія) або кімнату веде інший процес: перепідключитися з тим самим токеном. */
   restarting: () => void;

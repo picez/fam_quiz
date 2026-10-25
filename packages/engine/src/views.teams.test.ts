@@ -3,11 +3,14 @@ import { defaultTeams, type Answer, type Quiz } from '@quiz/shared';
 import { takeBuff } from './buffs';
 import { declareDuel, pickDuelCategory } from './duel';
 import { judge, lock, next, setConnected, type GameState } from './game';
-import { actAnswer, actBuzz, pickDuelist } from './team-act';
+import { pickCell } from './board';
+import { sortWord } from './sort';
+import { actAnswer, actBuzz, actorOf, pickDuelist } from './team-act';
 import { pickTeam, rollTeamDie, setTeamForm, startTeamDice } from './teams';
 import { hostView, playerView, stageView } from './views';
 import { T0, T1, duelQuiz, revealOf } from './testing/duel';
-import { blitzRound, classicRound, cloud, makeQuiz, makeRoundsQuiz, poll, single, single4, text, withId } from './testing/fixtures';
+import { blitzRound, boardRound, classicRound, cloud, makeQuiz, makeRoundsQuiz, poll, single, single4, sortQ, text, withId } from './testing/fixtures';
+import { head, right } from './testing/sort';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
@@ -252,5 +255,44 @@ describe('team act: errors', () => {
     const s = teamGame(teamQuiz([classicRound('r1', [single])]), LAYOUT);
     expect(s.phase).not.toBe('question');
     expect(actAnswer(s, 'm2', RIGHT, T0)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});
+
+describe('team views: live sorting (11d)', () => {
+  const layout = [
+    ['Оля', 'Петро'],
+    ['Іра', 'Марко'],
+  ];
+  const wordOf = (id: string) => ({ id, text: sortQ.words.find((w) => w.id === id)?.text ?? '' });
+
+  it('a captain sorts: the own team sees the live card and columns, the other team and the stage see nothing (11d)', () => {
+    let s = teamGame(teamQuiz([classicRound('r1', [sortQ])]), layout);
+    while (s.phase !== 'question') s = must(next(s, T0, rng));
+    const actor = actorOf(s, 'm1', 'captain');
+    expect(actor).toEqual({ ok: true, id: 't1' });
+    const w = head(s, 't1');
+    s = must(sortWord(s, 't1', w, right(w), T0 + 1000));
+    const own = playerView(s, 'm2')?.me.sort?.live;
+    expect(own).toMatchObject({ sorterId: 't1', sorted: 1, card: wordOf(head(s, 't1')) });
+    expect(own?.columns.find((c) => c.id === right(w))?.words).toEqual([wordOf(w)]);
+    expect(playerView(s, 'm1')?.me.sort?.live).toEqual(own);
+    expect(playerView(s, 'm1')?.me.sort?.watched).toBe(true);
+    const other = playerView(s, 'm4')?.me.sort?.live;
+    expect(other).toMatchObject({ sorterId: 't2', sorted: 0 });
+    expect(other?.columns.every((c) => c.words.length === 0)).toBe(true);
+    expect(stageView(s).sort?.live).toBeNull();
+    expect(hostView(s).sort?.live).toBeNull();
+  });
+
+  it("a team's normal board cell: the stage and the other team see the live view, the choosing team only its own (11d)", () => {
+    const quiz = teamQuiz([boardRound('g1', [{ title: 'Сортування', cells: [{ answerMode: 'phone', question: sortQ }] }])]);
+    let s = must(next(teamGame(quiz, layout), T0, rng));
+    s = must(pickCell(s, 't1', 'q9', T0, rng));
+    const w = head(s, 't1');
+    s = must(sortWord(s, 't1', w, right(w), T0 + 1000));
+    expect(stageView(s).sort?.live?.sorterId).toBe('t1');
+    expect(playerView(s, 'm3')?.sort?.live?.sorterId).toBe('t1');
+    expect(playerView(s, 'm2')?.sort?.live).toBeNull();
+    expect(playerView(s, 'm2')?.me.sort?.live).toMatchObject({ sorterId: 't1', sorted: 1 });
   });
 });

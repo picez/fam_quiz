@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, CloseReason, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
+import type { ClientToServerEvents, CloseReason, GameView, ServerToClientEvents, SocketAuth, SortTilt } from '@quiz/shared';
 import { freshSplash } from '../clock';
 import type { Send, SendResult } from './types';
 
@@ -27,6 +27,8 @@ export function useGame(auth: SocketAuth | null) {
   const [audioCommand, setAudioCommand] = useState<AudioCommand | null>(null);
   const [offsetMs, setOffsetMs] = useState(0);
   const [closed, setClosed] = useState<CloseReason | null>(null);
+  // Останній нахил картки сортування за тим, хто сортує (11d); тимчасовий, у зріз стану не потрапляє.
+  const [tilts, setTilts] = useState<Record<string, SortTilt>>({});
   const socketRef = useRef<GameSocket | null>(null);
 
   const code = auth?.code;
@@ -40,6 +42,7 @@ export function useGame(auth: SocketAuth | null) {
     setStatus('connecting');
     setClosed(null);
     setAudioCommand(null);
+    setTilts({});
     if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
@@ -48,6 +51,8 @@ export function useGame(auth: SocketAuth | null) {
     let gone = false;
     let restarting = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    // Запитання, на якому зібрано нахили: нове запитання їх скидає.
+    let tiltsAt: number | null = null;
     const again = () => {
       if (retry === null)
         retry = setTimeout(() => {
@@ -60,12 +65,15 @@ export function useGame(auth: SocketAuth | null) {
       // Заставка, що скінчилася до відправлення, відкидається за часом сервера, а не за годинником пристрою.
       restarting = false;
       setView(freshSplash(next, meta.serverNow));
+      if (next.paused || (tiltsAt !== null && tiltsAt !== next.questionIndex)) setTilts({});
+      tiltsAt = next.questionIndex;
       setHostOnline(meta.hostOnline);
       setStageOnline(meta.stageOnline ?? true);
       setOffsetMs(meta.serverNow - Date.now());
       setStatus('live');
     });
     socket.on('audio', (command) => setAudioCommand(command));
+    socket.on('sort:tilt', (tilt) => setTilts((prev) => ({ ...prev, [tilt.sorterId]: tilt })));
     socket.on('closed', (reason) => {
       gone = true;
       setClosed(reason);
@@ -75,6 +83,7 @@ export function useGame(auth: SocketAuth | null) {
       setStatus('restarting');
     });
     socket.on('disconnect', (reason) => {
+      setTilts({});
       if (gone) return;
       if (reason === 'io server disconnect') {
         restarting = true;
@@ -116,5 +125,5 @@ export function useGame(auth: SocketAuth | null) {
     });
   }, []);
 
-  return { view, status, hostOnline, stageOnline, audioCommand, offsetMs, closed, send };
+  return { view, status, hostOnline, stageOnline, audioCommand, offsetMs, closed, tilts, send };
 }

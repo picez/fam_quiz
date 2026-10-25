@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { end, lock, next, override, pause, recordOf, removePlayer, resume, submitAnswer, type GameState } from './game';
-import { sortOf, sortWord } from './sort';
-import { makeQuiz, single } from './testing/fixtures';
+import { DEFAULT_RULES, type BoardCell, type Question } from '@quiz/shared';
+import { pickCell } from './board';
+import { placeWager } from './final';
+import { end, lock, next, override, pause, recordOf, removePlayer, resume, start, submitAnswer, type GameState } from './game';
+import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortWord, tiltRefusal } from './sort';
+import { blitzRound, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
-import { head, right, sortAll, toSort, wrong } from './testing/sort';
+import { head, right, sortAll, toBoardSort, toSort, wrong } from './testing/sort';
+import { teamGame, teamQuiz } from './testing/teams';
 
 const rng = () => 0;
 
@@ -181,5 +185,177 @@ describe('sort', () => {
     expect(s.phase).toBe('finished');
     expect(recordOf(s, 0, 'p2')).toMatchObject({ points: 100, grade: 'partial' });
     expect(scores(s)).toEqual([0, 100]);
+  });
+});
+
+describe('sort per-word misses (11d)', () => {
+  const playOf = (s: GameState) => s.plays[s.questionIndex];
+
+  it('a miss counts on its word and remembers the zone it went to', () => {
+    const w = head(toSort(), 'p1');
+    const s = must(sortWord(toSort(), 'p1', w, wrong(w), 2000));
+    expect(sortOf(s, 'p1')).toMatchObject({ wordMisses: { [w]: 1 }, missedInto: wrong(w) });
+  });
+
+  it('a right move after the lock drops the zone and keeps the count', () => {
+    let s = toSort();
+    const w = head(s, 'p1');
+    s = must(sortWord(s, 'p1', w, wrong(w), 2000));
+    const n = head(s, 'p1');
+    s = must(sortWord(s, 'p1', n, right(n), 5000));
+    expect('missedInto' in sortOf(s, 'p1')).toBe(false);
+    expect(sortOf(s, 'p1').wordMisses).toEqual({ [w]: 1 });
+  });
+
+  it('a second miss on the same word counts to 2', () => {
+    let s = toSort();
+    const w = head(s, 'p1');
+    s = must(sortWord(s, 'p1', w, wrong(w), 2000));
+    for (let i = 0; i < 3; i += 1) {
+      const n = head(s, 'p1');
+      s = must(sortWord(s, 'p1', n, right(n), 5000));
+    }
+    expect(head(s, 'p1')).toBe(w);
+    s = must(sortWord(s, 'p1', w, wrong(w), 6000));
+    expect(sortOf(s, 'p1').wordMisses?.[w]).toBe(2);
+    expect(sortOf(s, 'p1').misses).toBe(2);
+  });
+
+  it('sortSeq counts right moves and misses', () => {
+    let s = toSort();
+    expect(sortSeq(sortOf(s, 'p1'))).toBe(0);
+    const w = head(s, 'p1');
+    s = must(sortWord(s, 'p1', w, wrong(w), 2000));
+    const n = head(s, 'p1');
+    s = must(sortWord(s, 'p1', n, right(n), 5000));
+    expect(sortSeq(sortOf(s, 'p1'))).toBe(2);
+  });
+
+  it('lastSortMove: none, a hit, a miss, and a miss without a zone (version 11)', () => {
+    let s = toSort();
+    expect(lastSortMove(sortQ, sortOf(s, 'p1'))).toBeNull();
+    const first = head(s, 'p1');
+    s = must(sortWord(s, 'p1', first, right(first), 2000));
+    expect(lastSortMove(sortQ, sortOf(s, 'p1'))).toEqual({ wordId: first, to: right(first), hit: true });
+    const w = head(s, 'p1');
+    s = must(sortWord(s, 'p1', w, wrong(w), 3000));
+    expect(lastSortMove(sortQ, sortOf(s, 'p1'))).toEqual({ wordId: w, to: wrong(w), hit: false });
+    const { missedInto: _zone, ...old } = sortOf(s, 'p1');
+    expect(lastSortMove(sortQ, old)).toBeNull();
+  });
+
+  it('sortMarks: a missed word still in the queue and the words not reached are late; sorted words have no mark', () => {
+    let s = toSort();
+    const w = head(s, 'p1');
+    s = must(sortWord(s, 'p1', w, wrong(w), 2000));
+    for (let i = 0; i < 2; i += 1) {
+      const n = head(s, 'p1');
+      s = must(sortWord(s, 'p1', n, right(n), 5000));
+    }
+    const progress = sortOf(s, 'p1');
+    const expected = sortQ.words
+      .map((word) => word.id)
+      .filter((id) => progress.queue.includes(id))
+      .map((id) => ({ wordId: id, misses: id === w ? 1 : 0, late: true }));
+    expect(expected).toHaveLength(2);
+    expect(sortMarks(sortQ, progress, false)).toEqual(expected);
+  });
+
+  it('sortMarks: all sorted after a miss leaves only the miss mark', () => {
+    let s = toSort();
+    const w = head(s, 'p1');
+    s = must(sortWord(s, 'p1', w, wrong(w), 2000));
+    s = sortAll(s, 'p1', 5000);
+    expect(record(s, 'p1')?.accepted).toBe(true);
+    expect(sortMarks(sortQ, sortOf(s, 'p1'), true)).toEqual([{ wordId: w, misses: 1, late: false }]);
+  });
+
+  it('sortMarks: an incomplete count shows no ✗N; no moves makes every word late', () => {
+    const s = toSort();
+    const progress = { ...sortOf(s, 'p1'), queue: ['w1'], sorted: ['w2', 'w3', 'w4'], misses: 2, wordMisses: { w1: 1 } };
+    expect(sortMarks(sortQ, progress, false)).toEqual([{ wordId: 'w1', misses: 0, late: true }]);
+    expect(sortMarks(sortQ, sortOf(s, 'p1'), false)).toEqual(sortQ.words.map((word) => ({ wordId: word.id, misses: 0, late: true })));
+  });
+
+  it('sortAudience: a normal board cell for all, a team for its captain, nowhere when everyone sorts at once', () => {
+    const classic = toSort();
+    expect(sortAudience(classic, playOf(classic))).toBeNull();
+
+    const boardOf = (cells: (Partial<BoardCell> & { question: Question })[]) =>
+      must(next(must(start(lobbyWith(makeRoundsQuiz([boardRound('g1', [{ title: 'Сортування', cells }])], { leaderboard: 'end' }), 'Анна', 'Богдан'))), 0));
+    const normal = must(pickCell(boardOf([{ answerMode: 'phone', question: sortQ }]), 'p1', 'q9', 1000, rng));
+    expect(sortAudience(normal, playOf(normal))).toBe('all');
+    const blitzCell = must(pickCell(boardOf([{ answerMode: 'phone', kind: 'blitz', question: sortQ }]), 'p1', 'q9', 1000, rng));
+    expect(playOf(blitzCell).board?.kind).toBe('blitz');
+    expect(sortAudience(blitzCell, playOf(blitzCell))).toBeNull();
+
+    const blitz = startRound(
+      lobbyWith(makeRoundsQuiz([blitzRound('b1', [sortQ], { check: 'manual', rules: { ...DEFAULT_RULES, partial: null } })]), 'Анна', 'Богдан'),
+      1000,
+      rng,
+    );
+    expect(sortAudience(blitz, playOf(blitz))).toBeNull();
+
+    let final = must(start(lobbyWith(makeRoundsQuiz([finalRound('f', sortQ)], { leaderboard: 'end' }), 'Анна', 'Богдан')));
+    while (final.phase !== 'wager') final = must(next(final, 0, rng));
+    final = must(placeWager(must(placeWager(final, 'p1', 0, 1000, rng)), 'p2', 0, 2000, rng));
+    expect(final.phase).toBe('question');
+    expect(sortAudience(final, playOf(final))).toBeNull();
+
+    const layout = [
+      ['Оля', 'Петро'],
+      ['Іра', 'Марко'],
+    ];
+    let team = teamGame(teamQuiz([classicRound('r1', [sortQ])]), layout);
+    while (team.phase !== 'question') team = must(next(team, 1000, rng));
+    expect(sortAudience(team, playOf(team))).toBe('team');
+
+    let teamBoard = teamGame(teamQuiz([boardRound('g1', [{ title: 'Сортування', cells: [{ answerMode: 'phone', question: sortQ }] }])]), layout);
+    teamBoard = must(pickCell(must(next(teamBoard, 0, rng)), 't1', 'q9', 1000, rng));
+    expect(sortAudience(teamBoard, playOf(teamBoard))).toBe('all');
+  });
+});
+
+describe('tilt rules (11d)', () => {
+  it('classic: everyone sorts at once, so nobody may tilt', () => {
+    const s = toSort();
+    expect(tiltRefusal(s, 'p1', head(s, 'p1'), 'c1', 2000)).toBe('wrong_phase');
+  });
+
+  it('a board cell: the chooser tilts the head card toward a category or releases it', () => {
+    const s = toBoardSort();
+    const w = head(s, 'p1');
+    expect(tiltRefusal(s, 'p1', w, 'c1', 2000)).toBeNull();
+    expect(tiltRefusal(s, 'p1', w, null, 2000)).toBeNull();
+    expect(tiltRefusal(s, 'p1', sortOf(s, 'p1').queue[1], 'c1', 2000)).toBe('sort_stale');
+    expect(tiltRefusal(s, 'p1', w, 'nope', 2000)).toBe('not_found');
+    expect(tiltRefusal(s, 'p2', w, 'c1', 2000)).toBe('not_your_turn');
+    expect(tiltRefusal(must(pause(s, 1500)), 'p1', w, 'c1', 2000)).toBe('paused');
+    expect(tiltRefusal(must(lock(s)), 'p1', w, 'c1', 2000)).toBe('wrong_phase');
+  });
+
+  it('a board cell: refused during the lock and after the record', () => {
+    const s = toBoardSort();
+    const w = head(s, 'p1');
+    const missed = must(sortWord(s, 'p1', w, wrong(w), 2000));
+    expect(tiltRefusal(missed, 'p1', head(missed, 'p1'), 'c1', 2100)).toBe('sort_locked');
+    const done = sortAll(s, 'p1', 2000);
+    expect(record(done, 'p1')?.accepted).toBe(true);
+    // Останнє слово на полі одразу розкриває оцінку; запис перевіряємо на етапі question до розкриття.
+    const play = s.plays[s.questionIndex];
+    const recorded: GameState = {
+      ...s,
+      plays: s.plays.map((p, i) => (i === s.questionIndex ? { ...play, answers: { ...play.answers, p1: done.plays[done.questionIndex].answers.p1 } } : p)),
+    };
+    expect(tiltRefusal(recorded, 'p1', w, 'c1', 2000)).toBe('already_answered');
+  });
+
+  it('team play: the team sorts in a classic round and may tilt', () => {
+    let team = teamGame(teamQuiz([classicRound('r1', [sortQ])]), [
+      ['Оля', 'Петро'],
+      ['Іра', 'Марко'],
+    ]);
+    while (team.phase !== 'question') team = must(next(team, 1000, rng));
+    expect(tiltRefusal(team, 't1', head(team, 't1'), 'c1', 2000)).toBeNull();
   });
 });
