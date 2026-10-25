@@ -1,5 +1,6 @@
 import type { BluffInfo } from '@quiz/shared';
 import { t } from '../i18n';
+import { paceAttrs } from '../pace';
 import { BluffBoard } from './BluffBoard';
 
 type Act = (event: 'host:bluff-remove' | 'host:bluff-all', payload?: { optionId: string }) => void;
@@ -8,8 +9,23 @@ type Act = (event: 'host:bluff-remove' | 'host:bluff-all', payload?: { optionId:
  * Пульт блефу: вигадки наживо (фаза вигадок), «Прибрати» біля вигадок гравців (фаза вибору), «Відкрити всі» (розкриття).
  * Крок гри веде HostScreen: busy — його спільний замок, тож «Прибрати», «Відкрити всі» і головна кнопка не йдуть одночасно.
  * «Прибрати» лише поки триває вибір (canRemove: фаза question; після закриття рушій відмовляє). На паузі «Відкрити всі» не показується (рушій відмовив би).
+ * pace — поступ вікна кроку (11b): поки не null, «Відкрити всі» неактивна й заповнюється, як «Відкрити всі» у «100 до 1».
  */
-export function HostBluff({ info, act, busy = false, paused = false, canRemove = true }: { info: BluffInfo; act: Act; busy?: boolean; paused?: boolean; canRemove?: boolean }) {
+export function HostBluff({
+  info,
+  act,
+  busy = false,
+  pace = null,
+  paused = false,
+  canRemove = true,
+}: {
+  info: BluffInfo;
+  act: Act;
+  busy?: boolean;
+  pace?: number | null;
+  paused?: boolean;
+  canRemove?: boolean;
+}) {
   if (info.stage === 'lies') {
     const lies = info.lies ?? [];
     return (
@@ -48,7 +64,13 @@ export function HostBluff({ info, act, busy = false, paused = false, canRemove =
         </ul>
       )}
       {info.stage === 'reveal' && info.shown < info.total && !paused && (
-        <button type="button" className="btn" disabled={busy} onClick={() => act('host:bluff-all')}>
+        <button
+          type="button"
+          className={pace !== null ? 'btn is-pacing' : 'btn'}
+          {...paceAttrs(pace)}
+          disabled={busy || pace !== null}
+          onClick={() => act('host:bluff-all')}
+        >
           {t('bluffAllRows')}
         </button>
       )}

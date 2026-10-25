@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { PACE_MS, SPLASH_MS, type Answer } from '@quiz/shared';
 import { skipTurn } from './board';
 import { bluffOrder, bluffPlayOf, writeLie } from './bluff';
-import { answerDuel, declareDuel, duelQuestionOf, pickDuelCategory } from './duel';
+import { answerDuel, cancelDuel, declareDuel, duelQuestionOf, pickDuelCategory } from './duel';
 import { endRound, lock, next, pause, resume, skipGuide, start, submitAnswer, tick, type GameState, type Result } from './game';
+import { placeWager } from './final';
 import { decisionPending } from './ladder';
 import { paceWindow, stamp, stepKey, tooSoon } from './pacing';
 import { revealSurveyAll } from './survey';
@@ -224,6 +225,45 @@ describe('pacing: windows', () => {
     expect(paceWindow(s, 'next')).toEqual({ from: t, until: t + 2000 });
   });
 
+  it('final reveal: each player shown and the bank split stamp a new step with 2 s', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), finalRound('f', withId(single, 'f1'), { wagerMode: 'bank' })], { leaderboard: 'end' });
+    let s = must(start(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра')));
+    s = must(next(s, 0, rng0));
+    s = must(submitAnswer(s, 'p1', RIGHT, 1000));
+    s = must(next(must(lock(s)), 2000, rng0));
+    s = must(next(s, 3000, rng0));
+    s = must(next(s, 4000, rng0));
+    s = must(next(s, 5000, rng0));
+    expect(s.phase).toBe('wager');
+    s = must(placeWager(s, 'p1', 0, 6000, rng0, true));
+    s = must(placeWager(s, 'p2', 0, 6000, rng0));
+    s = must(placeWager(s, 'p3', 0, 6000, rng0));
+    expect(s.phase).toBe('question');
+    s = must(submitAnswer(s, 'p1', { type: 'single', optionId: 'a' }, 7000));
+    s = must(submitAnswer(s, 'p2', RIGHT, 7000));
+    s = must(submitAnswer(s, 'p3', RIGHT, 7000));
+    const R = T0;
+    s = go({ ...s, stepAt: R - 5000 }, next(s, R, rng0), R);
+    expect(s.phase).toBe('reveal');
+    expect(s.final?.shown).toBe(0);
+    expect(paceWindow(s, 'next')).toEqual(win(R, PACE_MS.step));
+    let t = R;
+    const total = s.final?.order.length ?? 0;
+    expect(total).toBe(3);
+    for (let shown = 1; shown <= total; shown += 1) {
+      t += PACE_MS.step;
+      s = go(s, next(s, t, rng0), t);
+      expect(s.final?.shown).toBe(shown);
+      expect(s.stepAt).toBe(t);
+      expect(paceWindow(s, 'next')).toEqual(win(t, PACE_MS.step));
+    }
+    t += PACE_MS.step;
+    s = go(s, next(s, t, rng0), t);
+    expect([s.phase, s.final?.split]).toEqual(['reveal', true]);
+    expect(s.stepAt).toBe(t);
+    expect(paceWindow(s, 'next')).toEqual(win(t, PACE_MS.step));
+  });
+
   it('board: skip 2 s from the step, next is not paced; a skip stamps', () => {
     const field = boardRound('g1', [
       { title: 'Міста', cells: [withId(single, 'c11'), withId(single, 'c12')] },
@@ -239,6 +279,19 @@ describe('pacing: windows', () => {
     const skipped = go(s, skipTurn(s, t + 2000), t + 2000);
     expect(skipped.board?.done).not.toBe(s.board?.done);
     expect(skipped.stepAt).toBe(t + 2000);
+  });
+
+  it('declaring and cancelling a duel outside the duel phase keep the current wait', () => {
+    const base = toDeclarable();
+    const s = { ...base, stepAt: T0 + 3000 };
+    expect(s.phase).toBe('reveal');
+    const declared = go(s, declareDuel(s, 'p1', 'p2'), T0 + 3500);
+    expect(declared.duel?.stage).toBe('declared');
+    expect(declared.stepAt).toBe(T0 + 3000);
+    expect(paceWindow(declared, 'next')).toEqual(paceWindow(s, 'next'));
+    const cancelled = go(declared, cancelDuel(declared), T0 + 3800);
+    expect(cancelled.duel).toBeNull();
+    expect(cancelled.stepAt).toBe(T0 + 3000);
   });
 
   it('duel: the answer stage is not paced, «Продовжити гру» from the result 2 s', () => {

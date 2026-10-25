@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { sortOf } from '@quiz/engine';
 import { defaultTeams, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
@@ -8,6 +8,7 @@ import {
   FINISHED_TTL_MS,
   HOST_ABSENCE_MS,
   LOBBY_TTL_MS,
+  PACE_GRACE_MS,
   RoomManager,
   type Identity,
   type Room,
@@ -1411,12 +1412,22 @@ describe('pacing (11b)', () => {
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
     expect(room.state.phase).toBe('intro');
     expect(events.length).toBe(count);
-    scheduler.advance(2999);
+    scheduler.advance(3000 - PACE_GRACE_MS - 1);
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
     scheduler.advance(1);
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(room.state.phase).toBe('question');
-    expect(room.state.stepAt).toBe(T + 3000);
+    expect(room.state.stepAt).toBe(T + 3000 - PACE_GRACE_MS);
+  });
+
+  it('allows a step up to 150 ms before the window ends (a client clock offset never swallows a click)', () => {
+    expect(PACE_GRACE_MS).toBe(150);
+    const { scheduler, manager, room, T } = pacedPlaying();
+    scheduler.advance(2849);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
+    scheduler.advance(1);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.stepAt).toBe(T + 2850);
   });
 
   it('holds an early lock for three seconds of the question, then shows the answer at once', () => {
@@ -1493,11 +1504,50 @@ describe('pacing (11b)', () => {
     expect(rows.manager.host(rows.room, { type: 'next' })).toEqual({ ok: true });
     expect(rows.room.state.plays[0]?.survey?.shown).toBe(1);
     expect(rows.manager.host(rows.room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
-    rows.scheduler.advance(999);
+    rows.scheduler.advance(1000 - PACE_GRACE_MS - 1);
     expect(rows.manager.host(rows.room, { type: 'next' })).toEqual({ ok: false, error: 'too_soon' });
     rows.scheduler.advance(1);
     expect(rows.manager.host(rows.room, { type: 'next' })).toEqual({ ok: true });
     expect(rows.room.state.plays[0]?.survey?.shown).toBe(2);
+  });
+
+  it('«open all» bluff options waits for the reveal window', () => {
+    const { scheduler, manager, room, olena, taras } = pacedPlaying(makeQuiz([bluff]));
+    scheduler.advance(3000);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.lie(room, olena.playerId, 'Рим')).toEqual({ ok: true });
+    expect(manager.lie(room, taras.playerId, 'Мілан')).toEqual({ ok: true });
+    const options = room.state.plays[0]?.bluff?.options ?? [];
+    const idOf = (text: string) => options.find((o) => o.text === text)?.id ?? '';
+    expect(manager.bluff(room, olena.playerId, idOf('Мілан'))).toEqual({ ok: true });
+    expect(manager.bluff(room, taras.playerId, idOf('Рим'))).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+    expect(manager.host(room, { type: 'bluff-all' })).toEqual({ ok: false, error: 'too_soon' });
+    expect(room.state.plays[0]?.bluff?.shown).toBe(0);
+    scheduler.advance(2000);
+    expect(manager.host(room, { type: 'bluff-all' })).toEqual({ ok: true });
+    expect(room.state.plays[0]?.bluff?.shown).toBeGreaterThan(0);
+  });
+
+  it('a restored room keeps its old stamp (or none) and does not wait', () => {
+    for (const keep of [true, false]) {
+      const { scheduler, manager, room } = pacedReveal();
+      const stepAt = room.state.stepAt;
+      const snap = JSON.parse(JSON.stringify(manager.snapshot(room))) as ReturnType<RoomManager['snapshot']>;
+      if (!keep) delete (snap.state as { stepAt?: number }).stepAt;
+      manager.freeze();
+      scheduler.advance(60_000); // процес перезапускався хвилину: вікно кроку давно минуло
+      const next = new RoomManager(scheduler, () => 0.5, { pacing: true });
+      const back = next.restore(snap) as Room;
+      expect(back.state.stepAt).toBe(keep ? stepAt : undefined);
+      next.connect(back, HOST);
+      expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+      expect(back.state.stepAt).toBe(keep ? stepAt : undefined);
+      expect(next.host(back, { type: 'next' })).toEqual({ ok: true });
+      expect(back.state.phase).not.toBe('reveal');
+    }
   });
 
   it('a timer stamps the step at its deadline', () => {

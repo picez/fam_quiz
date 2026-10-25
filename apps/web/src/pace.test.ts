@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { paceProgress, usePace } from './pace';
+import { paceAttrs, paceProgress, usePace } from './pace';
 
 const w = { from: 1000, until: 3000 };
 
@@ -24,6 +24,13 @@ describe('paceProgress', () => {
 
   it('is null once the window and the margin are over', () => {
     expect(paceProgress(w, 3100)).toBeNull();
+  });
+});
+
+describe('paceAttrs', () => {
+  it('a waiting button gets the fill, the hint and aria-busy; a free one nothing', () => {
+    expect(paceAttrs(0.5)).toEqual({ style: { '--pace': 0.5 }, title: 'Ще мить: гравці мають побачити екран.', 'aria-busy': true });
+    expect(paceAttrs(null)).toEqual({});
   });
 });
 

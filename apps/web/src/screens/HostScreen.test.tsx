@@ -2064,6 +2064,7 @@ describe('HostScreen: survey (10e)', () => {
     expect(button('Відкрити рядок 2 з 5').disabled).toBe(true);
     expect(button('Відкрити всі').disabled).toBe(true);
     expect(button('Відкрити всі').className).toContain('is-pacing');
+    expect(button('Відкрити всі').getAttribute('aria-busy')).toBe('true');
   });
 });
 
@@ -2079,6 +2080,8 @@ describe('HostScreen: bluff (10f)', () => {
     const info = bluff({ stage: 'reveal', options: five.map((o, at) => ({ ...o, open: at < 1 })), shown: 1, total: 5, lies: null });
     show(bluffView('reveal', info, { pace: { next: { from: now - 100, until: now + 1000 }, lock: null, skip: null } }));
     expect(button('Відкрити всі').disabled).toBe(true);
+    expect(button('Відкрити всі').className).toContain('is-pacing');
+    expect(button('Відкрити всі').title).toBe('Ще мить: гравці мають побачити екран.');
     expect(button('Відкрити варіант 2 з 5').disabled).toBe(true);
   });
 
@@ -2422,6 +2425,8 @@ describe('HostScreen: pacing (11b)', () => {
     expect(next.disabled).toBe(true);
     expect(next.className).toContain('is-pacing');
     expect(Number(next.style.getPropertyValue('--pace'))).toBeCloseTo(500 / 2100, 2);
+    expect(next.title).toBe('Ще мить: гравці мають побачити екран.');
+    expect(next.getAttribute('aria-busy')).toBe('true');
     act(() => {
       vi.advanceTimersByTime(1599);
     });
@@ -2431,6 +2436,8 @@ describe('HostScreen: pacing (11b)', () => {
     });
     expect(button('Далі').disabled).toBe(false);
     expect(button('Далі').className).not.toContain('is-pacing');
+    expect(button('Далі').title).toBe('');
+    expect(button('Далі').hasAttribute('aria-busy')).toBe(false);
     fireEvent.click(button('Далі'));
     expect(send).toHaveBeenCalledWith('host:next', undefined);
   });

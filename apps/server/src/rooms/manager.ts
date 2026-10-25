@@ -240,6 +240,9 @@ export interface RoomManagerOptions {
 /** Кроки ведучого з мінімальним часом (11b) і вікно, яке їх стереже. Решта дій не затримується ніколи. */
 const PACED: Partial<Record<HostAction['type'], PacedAction>> = { next: 'next', lock: 'lock', skip: 'skip', 'survey-all': 'next', 'bluff-all': 'next' };
 
+/** Сервер пускає крок до 150 мс раніше кінця вікна: розбіжність годинника пульта в цих межах не «ковтає» натискання (пульт сам чекає +100 мс). */
+export const PACE_GRACE_MS = 150;
+
 interface DraftStage {
   trial: boolean;
   /** Хто відповідає за команду: на запитанні — як за відповідь (у бліці той, хто натиснув), на виживанні — капітан. */
@@ -750,7 +753,7 @@ export class RoomManager {
     const state = room.state;
     // На паузі рушій сам відповість paused; затримка — лише поки гра йде.
     const paced = PACED[action.type];
-    if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now())) return { ok: false, error: 'too_soon' };
+    if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now() + PACE_GRACE_MS)) return { ok: false, error: 'too_soon' };
     switch (action.type) {
       case 'start':
         return this.apply(room, start(state, this.now()));

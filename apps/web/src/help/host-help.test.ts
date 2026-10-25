@@ -98,13 +98,15 @@ describe('host help', () => {
     expect(text('setting.duels')).toContain('Бафів і дебафів у дуелі немає');
   });
 
-  it('11b pause entry follows «newcomers» and tells the minimum times', () => {
+  it('11b minimum-time entry follows «newcomers» and tells the minimum times', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.pacing')).toBe(ids.indexOf('setting.newcomers') + 1);
     filled('setting.pacing');
     const body = text('setting.pacing');
-    for (const part of ['2 с', '1 с', '3 с', 'Завершити раунд', 'вилучення гравця']) expect(body).toContain(part);
-    expect(searchHelp('пауза')).toContain('setting.pacing');
+    expect(helpEntry('setting.pacing').title).toBe('Мінімальний час перед «Далі»');
+    for (const part of ['2 с', '1 с', '3 с', 'Завершити раунд', 'вилучення гравця', '«Закрити випробування» у «Вибуванні» — через 3 с', '«Почати драбину» в «Мільйонері» — через 3 с']) expect(body).toContain(part);
+    expect(searchHelp('мінімальний час')).toContain('setting.pacing');
+    expect(searchHelp('пауза')).not.toContain('setting.pacing');
   });
 
   it('10b entries tell the engine numbers', () => {

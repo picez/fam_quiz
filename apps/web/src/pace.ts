@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { PaceWindow } from '@quiz/shared';
+import { t } from './i18n';
 
 /** Запас поверх кінця вікна: кнопка вмикається трохи пізніше, ніж дозволяє сервер (11b). */
 export const PACE_MARGIN_MS = 100;
@@ -14,6 +15,12 @@ export function paceProgress(window: PaceWindow | null, serverNow: number): numb
   const span = end - window.from;
   if (span <= 0) return null;
   return Math.min(1, Math.max(0, (serverNow - window.from) / span));
+}
+
+/** Атрибути кнопки, що чекає вікна: заповнення (--pace), підказка «Ще мить…» і aria-busy; progress null — жодних. */
+export function paceAttrs(progress: number | null): { style?: CSSProperties; title?: string; 'aria-busy'?: true } {
+  if (progress === null) return {};
+  return { style: { '--pace': progress } as CSSProperties, title: t('err_too_soon'), 'aria-busy': true };
 }
 
 /** paceProgress на поточну мить (Date.now() + offsetMs); перемальовує кожні PACE_TICK_MS, поки вікно триває. */

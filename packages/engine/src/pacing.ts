@@ -16,6 +16,8 @@ export type PacedAction = 'next' | 'lock' | 'skip';
  */
 export function stepKey(state: GameState): string {
   const play = state.plays[state.questionIndex];
+  // Оголошена (ще не розпочата) дуель кроку не змінює: оголошення чи скасування поза етапом duel очікування не перезапускають.
+  const duel = state.phase === 'duel' ? state.duel : null;
   return [
     state.phase,
     state.roundIndex,
@@ -29,8 +31,8 @@ export function stepKey(state: GameState): string {
     play?.ladder?.outcome === null,
     state.final?.shown,
     state.final?.split,
-    state.duel?.stage,
-    state.duel?.questions.length,
+    duel?.stage,
+    duel?.questions.length,
     state.board?.circleNo,
     state.board?.done,
     state.ladder?.contestantId,

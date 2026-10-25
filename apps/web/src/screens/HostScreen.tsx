@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView } from '@quiz/shared';
 import { secondsLeft } from '../clock';
-import { usePace } from '../pace';
+import { paceAttrs, usePace } from '../pace';
 import { ChainBoard } from './ChainView';
 import { SortBoard } from './SortView';
 import { WallReveal } from './WallReveal';
@@ -290,7 +290,6 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const lockPace = usePace(view.pace.lock, offsetMs);
   const skipPace = usePace(view.pace.skip, offsetMs);
   const mainPace = main?.event === 'host:lock' ? lockPace : main?.event === 'host:next' ? nextPace : null;
-  const paceStyle = (progress: number | null) => (progress !== null ? ({ '--pace': progress } as CSSProperties) : undefined);
   const stageGone = useStageGone(stageOnline);
   const underSplash = phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell');
   // Поступ проявлення потрібен лише запитанню з проявленням: решта не перемальовується щоразу.
@@ -558,7 +557,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             <button
               type="button"
               className={skipPace !== null ? 'btn is-pacing' : 'btn'}
-              style={paceStyle(skipPace)}
+              {...paceAttrs(skipPace)}
               disabled={skipPace !== null}
               onClick={() => void act('host:skip')}
             >
@@ -971,7 +970,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {bluff !== null && (
         <section className="panel host-bluff">
           {/* Заголовок «Блеф ⓘ» уже в рядку контексту запитання, тут його не повторюємо. */}
-          <HostBluff info={bluff} act={step} busy={stepping || nextPace !== null} paused={view.paused} canRemove={phase === 'question'} />
+          <HostBluff info={bluff} act={step} busy={stepping || nextPace !== null} pace={nextPace} paused={view.paused} canRemove={phase === 'question'} />
         </section>
       )}
 
@@ -1174,7 +1173,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <button
             type="button"
             className={nextPace !== null ? 'btn is-pacing' : 'btn'}
-            style={paceStyle(nextPace)}
+            {...paceAttrs(nextPace)}
             disabled={stepping || nextPace !== null}
             onClick={() => step('host:survey-all')}
           >
@@ -1185,7 +1184,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <button
             type="button"
             className={mainPace !== null ? 'btn btn-primary is-pacing' : 'btn btn-primary'}
-            style={paceStyle(mainPace)}
+            {...paceAttrs(mainPace)}
             disabled={mainPace !== null || stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding}
             onClick={() => step(main.event)}
           >
