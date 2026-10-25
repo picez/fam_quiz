@@ -37,6 +37,8 @@ interface Props {
   clouds?: { n: number; id: string; text: string }[];
   /** Чи можна збирати дошку «100 до 1» з хмари (лише класика). */
   allowCloud?: boolean;
+  /** Рівно стільки варіантів у «одному варіанті» (кнопок додати й прибрати немає); типово кількість вільна. */
+  fixedOptions?: number;
 }
 
 interface Row {
@@ -97,6 +99,8 @@ export function Rows(props: {
   lead?: (row: Row, index: number) => ReactNode;
   tail?: (row: Row, index: number) => ReactNode;
   makeRow?: () => Row;
+  /** Кількість рядків незмінна: кнопок додати й прибрати немає. */
+  fixed?: boolean;
   onChange: (rows: Row[]) => void;
 }) {
   const { rows, min, max, onChange } = props;
@@ -145,20 +149,24 @@ export function Rows(props: {
             onChange={(event) => onChange(rows.map((r) => (r.id === row.id ? { ...r, text: event.target.value } : r)))}
           />
           {props.tail?.(row, index)}
-          <button
-            type="button"
-            className="row-button"
-            aria-label={t(props.removeLabel, { index: index + 1 })}
-            disabled={rows.length <= min}
-            onClick={() => remove(index)}
-          >
-            ×
-          </button>
+          {props.fixed !== true && (
+            <button
+              type="button"
+              className="row-button"
+              aria-label={t(props.removeLabel, { index: index + 1 })}
+              disabled={rows.length <= min}
+              onClick={() => remove(index)}
+            >
+              ×
+            </button>
+          )}
         </div>
       ))}
-      <button type="button" className="btn btn-dashed" disabled={rows.length >= max} onClick={add}>
-        {t(props.addLabel)}
-      </button>
+      {props.fixed !== true && (
+        <button type="button" className="btn btn-dashed" disabled={rows.length >= max} onClick={add}>
+          {t(props.addLabel)}
+        </button>
+      )}
     </div>
   );
 }
@@ -330,14 +338,15 @@ function raisedTime(timeLimit: number, count: number, interval: number): number 
   return Math.max(timeLimit, need);
 }
 
-function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud }: Pick<Props, 'question' | 'onChange'> & { showPoints: boolean; cluesByHost: boolean; clouds: { n: number; id: string; text: string }[]; allowCloud: boolean }) {
+function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud, fixedOptions }: Pick<Props, 'question' | 'onChange' | 'fixedOptions'> & { showPoints: boolean; cluesByHost: boolean; clouds: { n: number; id: string; text: string }[]; allowCloud: boolean }) {
   switch (question.type) {
     case 'single':
       return (
         <Rows
           rows={question.options}
-          min={LIMITS.minOptions}
-          max={LIMITS.maxOptions}
+          min={fixedOptions ?? LIMITS.minOptions}
+          max={fixedOptions ?? LIMITS.maxOptions}
+          fixed={fixedOptions !== undefined && question.options.length === fixedOptions}
           maxLength={LIMITS.optionText}
           label="optionN"
           removeLabel="removeOption"
@@ -748,7 +757,7 @@ function setReveal(question: Question, onChange: (next: Question) => void, mode:
 }
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false, clouds = [], allowCloud = false }: Props) {
+export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false, clouds = [], allowCloud = false, fixedOptions }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
@@ -869,7 +878,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             />
           </label>
         )}
-        <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} clouds={clouds} allowCloud={allowCloud} />
+        <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} clouds={clouds} allowCloud={allowCloud} fixedOptions={fixedOptions} />
       </div>
 
       {(showTime || (showPoints && question.type !== 'sort' && !isVote)) && (

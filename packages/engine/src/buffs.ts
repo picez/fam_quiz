@@ -31,6 +31,7 @@ import {
   type Result,
   type Rng,
 } from './game';
+import { giveLadderHint, inLadderRound } from './ladder';
 import { normalizeText } from './normalize';
 import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
 import { notStarted } from './splash';
@@ -101,7 +102,7 @@ function wrongOptions(question: Question): string[] {
   return [];
 }
 
-type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_wipeout' | 'off_survival' | 'off_chain' | 'off_sort' | 'off_wall' | 'off_vote';
+type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_sort' | 'off_wall' | 'off_vote';
 
 /** Де гравець відповідає: null — тут бафи можна; not_chooser — на полі відповідає інший; elsewhere — немає де; off_* — тут бафів немає. */
 function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock | null {
@@ -116,6 +117,7 @@ function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock 
   else if (round.type === 'final') return 'off_final';
   else if (round.type === 'wipeout') return 'off_wipeout';
   else if (round.type === 'survival') return 'off_survival';
+  else if (round.type === 'ladder') return 'off_ladder';
   // Ланцюжок, сортування й стіна рахуються окремо.
   if (play.question.type === 'chain') return 'off_chain';
   if (play.question.type === 'sort') return 'off_sort';
@@ -139,6 +141,8 @@ export function buffsHere(state: GameState, play: Play, playerId: string): boole
 export function buffRowHere(state: GameState, play: Play, playerId: string): boolean {
   // Вибравший на усній клітинці відповідає вголос, але бафи бере з телефона.
   const place = placeBlock(state, play, playerId);
+  // «Мільйонер»: учасник має підказки драбини, залу ряд не потрібен — ряд схований.
+  if (place === 'off_ladder') return false;
   return place !== 'elsewhere' && place !== 'not_chooser';
 }
 
@@ -421,9 +425,11 @@ export function castVote(state: GameState, voterId: string, askerId: string, ans
   return ok(withBuff(state, askerId, { vote: { ...buff.vote, ballots: { ...buff.vote.ballots, [voterId]: answer } } }));
 }
 
-/** Відповідь ведучого на запит підказки: text — підказка текстом, null — «Підказав уголос». Пауза не заважає. */
+/** Відповідь ведучого на запит підказки: text — підказка текстом, null — «Підказав уголос». Пауза не заважає. У «Мільйонері» — giveLadderHint. */
 export function giveHint(state: GameState, playerId: string, text: string | null): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
+  // «Мільйонер»: запит іде від підказки драбини, а не від бафу.
+  if (inLadderRound(state)) return giveLadderHint(state, playerId, text);
   const hint = buffOf(state.plays[state.questionIndex], playerId)?.hint;
   // Немає бафу hint, що чекає: уже підказано або підказка з редактора.
   if (hint === undefined || hint.text !== null || hint.aloud) return fail('not_found');
@@ -454,7 +460,7 @@ export function dropBallots(buffs: Record<string, BuffPlay>, playerId: string): 
 }
 
 /** 50/50: fiftyCount разів випадковий неправильний варіант з тих, що лишилися. */
-function pickRemoved(question: Question, rng: Rng): string[] {
+export function pickRemoved(question: Question, rng: Rng): string[] {
   const pool = wrongOptions(question);
   const removed: string[] = [];
   for (let i = fiftyCount(question); i > 0; i -= 1) removed.push(...pool.splice(Math.floor(rng() * pool.length), 1));

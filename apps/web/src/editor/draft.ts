@@ -23,6 +23,10 @@ import {
   type SurvivalRound,
   WIPEOUT_TYPES,
   SURVIVAL_TYPES,
+  LADDER_PRESETS,
+  LIFELINES,
+  ladderPresetSafe,
+  type LadderRound,
   type Round,
   type Question,
   type Quiz,
@@ -50,6 +54,7 @@ export { QUESTION_TYPES, type QuestionType };
  * Блеф — лише класика (поле, бліц і фінал його не мають).
  * «Ва-банк» — лише WIPEOUT_TYPES: один варіант, так/ні, число, текст, повзунок.
  * «Вибування» (основні запитання й питання на виживання) — лише SURVIVAL_TYPES, ті самі п'ять.
+ * «Мільйонер» — лише «один варіант» (рівно з чотирма варіантами).
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
@@ -63,6 +68,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
   }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
   if (roundType === 'survival') return SURVIVAL_TYPES;
+  if (roundType === 'ladder') return ['single'];
   return QUESTION_TYPES;
 }
 
@@ -372,6 +378,66 @@ export function newSurvivalRound(): SurvivalRound {
     survivors: 1,
     bonus: 500,
   };
+}
+
+/** Нове запитання драбини «Мільйонер»: «один варіант» з рівно 4 порожніми варіантами; ціни немає (сума рівня — у сходинці). */
+export function newLadderQuestion(): Question {
+  const options = blanks(LIMITS.ladderOptions);
+  return { ...newQuestion('single'), points: 0, type: 'single', options, correctId: options[0].id };
+}
+
+/** Новий «Мільйонер»: п'ять запитань по 4 варіанти, рівні з пресету, неспалимий — 1000, учасника вибирає ведучий, усі три підказки, без таймера. */
+export function newLadderRound(): LadderRound {
+  const levels = [...LADDER_PRESETS[LIMITS.minLadderQuestions]];
+  return {
+    id: newId(),
+    type: 'ladder',
+    title: '',
+    shuffleOptions: false,
+    questions: Array.from({ length: LIMITS.minLadderQuestions }, newLadderQuestion),
+    levels,
+    safe: ladderPresetSafe(levels),
+    pick: 'host',
+    lifelines: [...LIFELINES],
+    timer: false,
+  };
+}
+
+/**
+ * Змінює кількість сходинок «Мільйонера» до `count`. Рівні й неспалимі за пресетом переходять на пресет нової довжини;
+ * змінені автором — додають зверху `last + 1000`, а коли це не більше за верхній рівень (він уже на максимумі чи порожній), беруть пресет нової довжини;
+ * при вилученні сходинки `removed` пропадає її власні рівень і позначка, решта неспалимих зсувається вниз разом зі своїми рівнями. Неспалимих на верхній сходинці й вище не лишається.
+ */
+export function resizeLadder(round: LadderRound, count: number, removed?: number): LadderRound {
+  const old = round.levels.length;
+  const preset = LADDER_PRESETS[old];
+  const presetSafe = ladderPresetSafe(round.levels);
+  const isPreset =
+    preset !== undefined &&
+    round.levels.every((level, i) => level === preset[i]) &&
+    round.safe.length === presetSafe.length &&
+    presetSafe.every((s) => round.safe.includes(s));
+  const target = LADDER_PRESETS[count];
+  if (isPreset && target !== undefined) {
+    const levels = [...target];
+    return { ...round, levels, safe: ladderPresetSafe(levels) };
+  }
+  let levels = round.levels.slice(0, count);
+  let safe = round.safe;
+  if (removed !== undefined && count < old) {
+    levels = round.levels.filter((_, i) => i !== removed);
+    safe = round.safe.filter((s) => s !== removed).map((s) => (s > removed ? s - 1 : s));
+  }
+  while (levels.length < count) {
+    const last = levels[levels.length - 1] ?? 0;
+    const next = Math.min(LIMITS.maxLadderLevel, last + 1000);
+    if (!(next > last) && target !== undefined) {
+      const levelsFromPreset = [...target];
+      return { ...round, levels: levelsFromPreset, safe: ladderPresetSafe(levelsFromPreset) };
+    }
+    levels = [...levels, next];
+  }
+  return { ...round, levels, safe: safe.filter((s) => s < count - 1) };
 }
 
 /** Новий раунд «Фінал»: одне запитання, автоматична перевірка, класичні ставки; правил балів у ньому немає. */
@@ -1054,6 +1120,20 @@ export function problemsOf(quiz: Quiz): string[] {
         problems.push(where(t('problemSurvivalTrial', { index: index + 1, problem })));
       });
     }
+    if (round.type === 'ladder') {
+      if (round.questions.length < LIMITS.minLadderQuestions) problems.push(where(t('problemLadderFew', { min: LIMITS.minLadderQuestions })));
+      if (round.questions.length > LIMITS.maxLadderQuestions) problems.push(where(t('problemLadderMany', { max: LIMITS.maxLadderQuestions })));
+      if (round.questions.some((question) => question.type !== 'single' || question.options.length !== LIMITS.ladderOptions)) {
+        problems.push(where(t('problemLadderType')));
+      }
+      const levelsBad =
+        round.levels.length !== round.questions.length ||
+        round.levels.some((level, i) => !Number.isInteger(level) || level < 1 || level > LIMITS.maxLadderLevel || (i > 0 && level <= round.levels[i - 1]));
+      if (levelsBad) problems.push(where(t('problemLadderLevels', { max: LIMITS.maxLadderLevel })));
+      if (new Set(round.safe).size !== round.safe.length || round.safe.some((s) => s >= round.questions.length - 1)) {
+        problems.push(where(t('problemLadderSafe')));
+      }
+    }
     round.questions.forEach((question, index) => {
       const key = problemKey(question, roundPlace(draft, roundIndex, index));
       if (key !== null) problems.push(where(problemText(key, index + 1, question)));
@@ -1080,6 +1160,10 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('too_many_questions')) problems.push(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
       if (messages.includes('duplicate_question_ids') || messages.includes('duplicate_round_ids')) problems.push(t('problemDuplicateIds'));
       if (messages.includes('survival_type')) problems.push(t('problemSurvivalType'));
+      if (messages.includes('ladder_type')) problems.push(t('problemLadderType'));
+      if (messages.includes('ladder_lifelines')) problems.push(t('problemLadderLifelines'));
+      if (messages.includes('ladder_levels')) problems.push(t('problemLadderLevels', { max: LIMITS.maxLadderLevel }));
+      if (messages.includes('ladder_safe')) problems.push(t('problemLadderSafe'));
       if (messages.includes('survival_trials')) problems.push(t('problemSurvivalTrials'));
       if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));

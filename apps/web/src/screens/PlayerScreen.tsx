@@ -42,6 +42,11 @@ import { SurvivalBoard } from './SurvivalBoard';
 import { SurvivalTrial } from './SurvivalTrial';
 import { WipeoutDecision } from './WipeoutDecision';
 import { WipeoutLadder } from './WipeoutLadder';
+import { LadderBoard } from './LadderBoard';
+import { LadderDecision } from './LadderDecision';
+import { LadderHall } from './LadderHall';
+import { LadderLifelines } from './LadderLifelines';
+import { ladderOutcomeText } from './LadderStatus';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 
 interface Props {
@@ -253,19 +258,27 @@ function Result({ view }: { view: PlayerView }) {
       </section>
     );
   }
+  // «Мільйонер»: учасник бачить сходинку, а не бали за запитання.
+  const climber = view.me.ladder?.role === 'contestant' ? view.ladder : null;
+  const stepLevel = climber === null ? null : (climber.steps[climber.current]?.level ?? null);
   const title =
-    result === null
+    climber !== null && result !== null
+      ? result.grade === 'correct' && stepLevel !== null
+        ? t('ladderStepRight', { level: num(stepLevel) })
+        : t('ladderStepWrong')
+      : result === null
       ? t('resultNone')
       : result.grade === 'correct'
         ? t('resultCorrect')
         : result.grade === 'partial'
           ? t('resultPartial')
           : t('resultWrong');
-  const tone = result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
+  // Учасник драбини завжди має 0 балів: тон — за правильністю.
+  const tone = climber !== null ? (result?.grade === 'correct' ? 'is-correct' : 'is-wrong') : result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
   return (
     <section className={`result ${tone}`}>
       <h2>{title}</h2>
-      {view.me.wipeout !== null ? (
+      {climber !== null ? null : view.me.wipeout !== null ? (
         // «Ва-банк»: результат запитання — це банк, а не бали за нього.
         <p className="wipeout-bank">{view.me.wipeout.status === 'burned' ? t('wipeoutBurned') : t('wipeoutBank', { bank: num(view.me.wipeout.bank) })}</p>
       ) : (
@@ -664,6 +677,15 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
           <RoundFacts round={view.round} total={view.total} />
           <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
+          {view.ladder !== null && me.ladder !== null && (
+            <p className="lead ladder-intro" role="status">
+              {view.ladder.contestant === null
+                ? t('ladderWaitPick')
+                : me.ladder.role === 'contestant'
+                  ? t('ladderYouClimb')
+                  : t('ladderWhoClimbs', { name: view.ladder.contestant.nickname })}
+            </p>
+          )}
           {board !== null && (
             <BoardIntro board={board} meId={me.id}>
               {board.dice !== null && !board.dice.done && (
@@ -741,6 +763,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
+            {me.ladder?.role === 'contestant' && (
+              <LadderLifelines view={view} offsetMs={offsetMs} onUse={(kind) => void decideGuard.run('player:lifeline', { kind })} />
+            )}
+            {me.ladder?.role === 'hall' && <LadderHall view={view} />}
             {survivalGhost && <p className="lead survival-ghost-banner">{t('survivalGhostBanner')}</p>}
             {wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
@@ -821,7 +847,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
               </>
             ) : me.answer !== null ? (
               <section className="sent">
-                <h2>{t(survivalGhost ? 'survivalGhostSent' : unscored ? 'voteSent' : me.answer.type === 'survey' ? 'surveySent' : 'answerSent')}</h2>
+                <h2>{t(me.ladder?.role === 'contestant' ? 'ladderFinalAnswer' : survivalGhost ? 'survivalGhostSent' : unscored ? 'voteSent' : me.answer.type === 'survey' ? 'surveySent' : 'answerSent')}</h2>
                 {me.answer.type === 'pin' && question.pin !== null ? (
                   <PinBoard
                     pin={question.pin}
@@ -841,8 +867,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
             ) : (
               // На паузі поле лишається на місці, інакше гравець втратив би вже введене.
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
-              <fieldset className="inputs" disabled={locked}>
-                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.removed} onSubmit={submit} />
+              <fieldset className="inputs" disabled={locked || me.ladder?.hallClosed === true}>
+                <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} />
               </fieldset>
             )}
           </DebuffZone>
@@ -962,6 +988,25 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         </>
       )}
 
+      {phase === 'leaderboard' && view.ladder !== null && (
+        <>
+          {view.ladder.decision === 'pending' && me.ladder?.role === 'contestant' ? (
+            <LadderDecision
+              info={view.ladder}
+              disabled={view.paused || !me.ladder.canDecide}
+              onDecide={(take) => void decideGuard.run('player:ladder', { take })}
+            />
+          ) : view.ladder.outcome !== null ? (
+            <p className="lead ladder-state">{ladderOutcomeText(view.ladder)}</p>
+          ) : view.ladder.decision === 'pending' ? (
+            <p className="lead ladder-state">{view.ladder.contestant === null ? t('ladderDecidingWait') : t('ladderDeciding', { name: view.ladder.contestant.nickname })}</p>
+          ) : (
+            <p className="lead ladder-state">{t('ladderPlayingOn')}</p>
+          )}
+          <LadderBoard info={view.ladder} size="phone" />
+        </>
+      )}
+
       {phase === 'leaderboard' && view.survival !== null && (
         <>
           {view.survival.trial !== null ? (
@@ -981,7 +1026,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         </>
       )}
 
-      {phase === 'leaderboard' && view.wipeout === null && view.survival === null && view.standings !== null && (
+      {phase === 'leaderboard' && view.wipeout === null && view.survival === null && view.ladder === null && view.standings !== null && (
         <>
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
@@ -993,6 +1038,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
           <h1 className="question">{t('roundResults', { index: (view.round?.index ?? 0) + 1 })}</h1>
           {me.wipeout !== null && <WipeoutDecision view={view} offsetMs={offsetMs} onDecide={() => undefined} />}
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
+          {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
         </>
@@ -1002,6 +1048,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send }: Props) {
         <>
           <h1 className="question">{t('gameOver')}</h1>
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
+          {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
           <MenuLinks role="player" />

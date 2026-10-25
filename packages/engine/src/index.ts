@@ -25,6 +25,7 @@ export * from './survey';
 export * from './bluff';
 export * from './wipeout';
 export * from './survival';
+export * from './ladder';
 export * from './duel';
 export * from './splash';
 export * from './restore';

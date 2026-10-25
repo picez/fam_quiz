@@ -1,7 +1,8 @@
 import type { Answer } from './answer';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
-import type { AnswerMode, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, TrialKind, Video, WagerMode } from './quiz';
+import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, TrialKind, Video, WagerMode } from './quiz';
 import type { GuidePage } from './guide';
+import type { LadderOutcomeKind } from './ladder';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
 import type { SurvivalStatus } from './survival';
@@ -628,6 +629,58 @@ export interface WipeoutInfo {
   decide: { endsAt: number | null; remainingMs: number | null; decided: number; total: number } | null;
 }
 
+/** Сходинка драбини «Мільйонера». */
+export interface LadderStep {
+  level: number;
+  safe: boolean;
+  /** passed — пройдена; current — поточна (запитання йде чи щойно розкрите); failed — на ній помилка; ahead — попереду. */
+  state: 'passed' | 'current' | 'failed' | 'ahead';
+}
+
+/** Підказка драбини: ready — можна (за станом, без часу), used — використана раніше, active — узята на цьому запитанні; не ввімкнені в раунді не показуються. */
+export interface LadderLifelineView {
+  kind: LifelineKind;
+  state: 'ready' | 'used' | 'active';
+}
+
+/** «Мільйонер» (10i). */
+export interface LadderInfo {
+  contestant: BlitzPlayer | null;
+  pick: LadderPick;
+  drawn: boolean;
+  /** Знизу вгору, у порядку сходинок. */
+  steps: LadderStep[];
+  /** Поточна сходинка (0-базова); -1 до першого запитання. */
+  current: number;
+  timer: boolean;
+  lifelines: LadderLifelineView[];
+  /** 50/50 на поточному запитанні: прибрані варіанти (бачать усі); null — не брали. */
+  fifty: string[] | null;
+  /** Зал: voting — лише скільки проголосували; closed — підсумок для всіх. */
+  audience: {
+    state: 'voting' | 'closed';
+    endsAt: number | null;
+    remainingMs: number | null;
+    voted: number;
+    total: number;
+    /** Лише після закриття; інакше null. */
+    tally: { cast: number; counts: Record<string, number> } | null;
+  } | null;
+  /** Підказка ведучого на поточному запитанні: стан без тексту (текст — лише учасникові й пульту). */
+  hint: 'waiting' | 'text' | 'aloud' | null;
+  /** Вибір учасника: сцена й телефони — з locked; пульт — наживо. */
+  contestantPick: string | null;
+  /** Зал на поточному запитанні: answered — наживо; right — лише з розкриття. */
+  hall: { answered: number; total: number; right: number | null };
+  /** На leaderboard: pending — учасник вирішує; go / take — вирішено; null — поза рішенням. */
+  decision: 'pending' | 'go' | 'take' | null;
+  /** Підсумок драбини — лише з leaderboard; null — триває. */
+  outcome: { kind: LadderOutcomeKind; passed: number; points: number } | null;
+  /** Що учасник має зараз (останній пройдений рівень) і гарантовано (неспалимий). */
+  banked: number;
+  guaranteed: number;
+}
+
 /** Рядок «Вибування»: гравець, стан, коли вибув, відповідь привида, випробування. */
 export interface SurvivalRow extends BlitzPlayer {
   /** edge — лише з розкриття до закриття випробування. */
@@ -797,6 +850,8 @@ interface BaseView {
   wipeout: WipeoutInfo | null;
   /** «Вибування»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   survival: SurvivalInfo | null;
+  /** «Мільйонер»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
+  ladder: LadderInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
   chain: ChainInfo | null;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -924,6 +979,22 @@ export interface PlayerView extends BaseView {
       result: 'safe' | 'out' | null;
       /** На round_end / finished — бонус, який гравець отримав; інакше null. */
       bonus: number | null;
+    } | null;
+    /** Власний стан у «Мільйонері»; null поза раундом. */
+    ladder: {
+      role: 'contestant' | 'hall';
+      /** Учасник: можна брати підказки зараз (question, не відповів, не пауза; заставку й час перевіряє телефон). */
+      canLifeline: boolean;
+      /** Учасник: текст підказки ведучого або її стан. */
+      hint: PlayerHint | null;
+      /** Учасник: рішення відкрите. */
+      canDecide: boolean;
+      /** Зал: голосування залу закрилося — відповідати пізно. */
+      hallClosed: boolean;
+      /** Зал: скільки дасть правильна відповідь на поточне запитання (hallPoints). */
+      hallPoints: number | null;
+      /** Учасник на round_end / finished: виграш; інакше null. */
+      won: number | null;
     } | null;
     /** null поза запитанням-ланцюжком. */
     chain: PlayerChain | null;

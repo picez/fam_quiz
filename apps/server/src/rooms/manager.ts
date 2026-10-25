@@ -47,6 +47,9 @@ import {
   removeBluffOption,
   pickBluff,
   decideWipeout,
+  decideLadder,
+  pickContestant,
+  useLifeline,
   answerTrial,
   pickDoor,
   writeLie,
@@ -66,7 +69,7 @@ import {
   type GameState,
   type Result,
 } from '@quiz/engine';
-import type { AckResult, Answer, BuffKind, DebuffKind, ErrorCode, GameView, Grade, Phase, Quiz, Role, SubmittedAnswer } from '@quiz/shared';
+import type { AckResult, Answer, BuffKind, DebuffKind, ErrorCode, GameView, Grade, LifelineKind, Phase, Quiz, Role, SubmittedAnswer } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -449,6 +452,30 @@ export class RoomManager {
   wipeout(room: Room, playerId: string, take: boolean): AckResult {
     if (!this.alive(room)) return this.gone();
     return this.apply(room, decideWipeout(room.state, playerId, take, this.now()));
+  }
+
+  /** «Мільйонер»: учасник бере підказку драбини (10i). */
+  lifeline(room: Room, playerId: string, kind: LifelineKind): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, useLifeline(room.state, playerId, kind, this.now(), this.rng));
+  }
+
+  /** «Мільйонер»: рішення учасника — «Граю далі» чи «Забрати» (10i). */
+  ladderDecide(room: Room, playerId: string, take: boolean): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, decideLadder(room.state, playerId, take, this.now()));
+  }
+
+  /** «Мільйонер»: ведучий вибирає учасника на заставці (10i). */
+  hostLadderPick(room: Room, playerId: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, pickContestant(room.state, playerId));
+  }
+
+  /** «Мільйонер»: ведучий вирішує замість учасника (10i). */
+  hostLadderDecide(room: Room, take: boolean): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, decideLadder(room.state, 'host', take, this.now()));
   }
 
   trial(room: Room, playerId: string, answer: Answer): AckResult {

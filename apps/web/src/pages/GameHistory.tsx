@@ -3,7 +3,7 @@ import { cloudKey, isUnscored, pinDistance, surveyHitsOf, surveyOrder, type Game
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
-import { t } from '../i18n';
+import { t, type TextKey } from '../i18n';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
 import { PinBoard, type PinBoardMark } from '../screens/PinBoard';
@@ -178,6 +178,42 @@ export function survivalBonusLines(adjustments: GameAdjustment[]): string[] {
     .map((adjustment) => t('historySurvivalBonus', { name: adjustment.nickname, points: num(adjustment.points) }));
 }
 
+/** «Мільйонер»: сходинка, підказки, зал, рішення й підсумок запитання. */
+export function ladderLines(ladder: NonNullable<GameQuestionResult['ladder']>, question: GameQuestionResult['question']): string[] {
+  const choices = choicesOf(question);
+  const text = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
+  const name = ladder.contestant;
+  const step = t('historyLadderStep', { name, n: ladder.step + 1, level: num(ladder.level) });
+  const lines = [ladder.safe ? `${step} ${t('historyLadderSafe')}` : step];
+  for (const lifeline of ladder.lifelines) {
+    if (lifeline.kind === 'fifty' && lifeline.removed !== null) {
+      lines.push(t('historyLadderFifty', { options: lifeline.removed.map(text).join(', ') }));
+    } else if (lifeline.kind === 'audience' && lifeline.tally !== null && lifeline.tally.cast > 0) {
+      const tally = lifeline.tally;
+      const list = choices.map((choice) => `${choice.text} ${Math.round(((tally.counts[choice.id] ?? 0) / tally.cast) * 100)} %`).join(', ');
+      lines.push(t('historyLadderAudience', { list }));
+    } else if (lifeline.kind === 'hint') {
+      if (lifeline.hint !== null) lines.push(t('historyLadderHint', { text: lifeline.hint }));
+      else if (lifeline.aloud) lines.push(t('historyLadderHintAloud'));
+    }
+  }
+  if (ladder.hall.answered > 0) lines.push(t('historyLadderHall', { right: ladder.hall.right, answered: ladder.hall.answered }));
+  if (ladder.outcome !== null) {
+    lines.push(t(`historyLadder${{ took: 'Took', wrong: 'Wrong', top: 'Top', stopped: 'Stopped' }[ladder.outcome.kind]}` as TextKey, { name, points: num(ladder.outcome.points) }));
+  } else if (ladder.decision === 'go') {
+    lines.push(t('historyLadderGo'));
+  }
+  return lines;
+}
+
+/** Рядки виграшу драбини (source 'ladder') за seq. */
+export function ladderPrizeLines(adjustments: GameAdjustment[]): string[] {
+  return adjustments
+    .filter((adjustment) => adjustment.source === 'ladder')
+    .sort((a, b) => a.seq - b.seq)
+    .map((adjustment) => t('historyLadderPrize', { name: adjustment.nickname, points: num(adjustment.points) }));
+}
+
 export function GameHistory() {
   const { id = '' } = useParams();
   const state = usePrivateData(() => getGame(id), id);
@@ -246,7 +282,7 @@ export function GameHistory() {
             const adjustments = roundAdjustments.filter((adjustment) => adjustment.source === 'host');
             const duels = duelLines(roundAdjustments);
             const purchases = debuffLines(roundAdjustments);
-            const bonuses = survivalBonusLines(roundAdjustments);
+            const bonuses = [...survivalBonusLines(roundAdjustments), ...ladderPrizeLines(roundAdjustments)];
             if (questions.length === 0 && roundAdjustments.length === 0) return null;
             return (
               <div key={roundIndex} className="round-group">
@@ -302,6 +338,15 @@ export function GameHistory() {
                         {question.survival !== undefined && (
                           <ul className="survival-history">
                             {survivalLines(question.survival).map((line, at) => (
+                              <li key={at} className="meta">
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {question.ladder !== undefined && (
+                          <ul className="ladder-history">
+                            {ladderLines(question.ladder, question.question).map((line, at) => (
                               <li key={at} className="meta">
                                 {line}
                               </li>
@@ -381,7 +426,7 @@ export function GameHistory() {
                   </p>
                 ))}
                 {bonuses.map((line, at) => (
-                  <p key={at} className="meta round-adjustments history-survival">
+                  <p key={at} className="meta round-adjustments history-bonus">
                     {line}
                   </p>
                 ))}

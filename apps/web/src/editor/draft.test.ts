@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { DEFAULT_RULES, LIMITS, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -1967,5 +1967,83 @@ describe('survival round (10h)', () => {
     };
     expect(questionsOf(quiz).length).toBe(198);
     expect(problemsOf(quiz)).toContain(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
+  });
+});
+
+describe('ladder round (10i)', () => {
+  it('a new ladder round has five four-option questions of 0, the preset levels, a safe 1000, a host pick, three lifelines and no timer', () => {
+    const round = newLadderRound();
+    expect(round.type).toBe('ladder');
+    expect(round.questions).toHaveLength(5);
+    expect(round.questions.every((q) => q.type === 'single' && q.options.length === 4 && q.points === 0)).toBe(true);
+    expect(round.levels).toEqual([...LADDER_PRESETS[5]]);
+    expect(round.safe).toEqual([2]);
+    expect([round.pick, round.timer]).toEqual(['host', false]);
+    expect(round.lifelines).toEqual([...LIFELINES]);
+    const fill = (question: Question): Question =>
+      question.type === 'single' ? { ...question, text: 'Запитання', options: question.options.map((o, i) => ({ ...o, text: `Варіант ${i + 1}` })), correctId: question.options[0].id } : question;
+    expect(roundSchema.safeParse({ ...round, questions: round.questions.map(fill) }).success).toBe(true);
+  });
+  it('a ladder round offers only the single type', () => {
+    expect(questionTypesFor('ladder')).toEqual(['single']);
+  });
+  const filledLadder = (patch: Partial<LadderRound> = {}): Quiz => {
+    const base = newLadderRound();
+    return { ...newQuiz(), title: 'Т', rounds: [{ ...base, questions: base.questions.map(filled), ...patch }] };
+  };
+  it('problemsOf passes a filled ladder round and counts the questions', () => {
+    expect(problemsOf(filledLadder())).toEqual([]);
+    const four = newLadderRound().questions.slice(0, 4).map(filled);
+    expect(problemsOf(filledLadder({ questions: four, levels: [100, 300, 1000, 10000], safe: [] }))).toContain(t('problemLadderFew', { min: LIMITS.minLadderQuestions }));
+    const many = Array.from({ length: 16 }, (_, i) => ({ ...filled(newLadderRound().questions[0]), id: `q${i}` }));
+    const levels = Array.from({ length: 16 }, (_, i) => (i + 1) * 100);
+    expect(problemsOf(filledLadder({ questions: many, levels, safe: [] }))).toContain(t('problemLadderMany', { max: LIMITS.maxLadderQuestions }));
+  });
+  it('problemsOf explains a question that is not four-option single', () => {
+    const base = newLadderRound().questions.map(filled);
+    const three = { ...base[4], options: base[4].type === 'single' ? base[4].options.slice(0, 3) : [] };
+    expect(problemsOf(filledLadder({ questions: [...base.slice(0, 4), three] }))).toContain(t('problemLadderType'));
+    expect(problemsOf(filledLadder({ questions: [...base.slice(0, 4), filled(newQuestion('multi'))] }))).toContain(t('problemLadderType'));
+  });
+  it('problemsOf explains levels that do not grow or pass the limit, and a safe top step', () => {
+    const levelsText = t('problemLadderLevels', { max: LIMITS.maxLadderLevel });
+    expect(problemsOf(filledLadder({ levels: [100, 300, 300, 3000, 10000] }))).toContain(levelsText);
+    expect(problemsOf(filledLadder({ levels: [100, 300, 1000, 3000, 10001] }))).toContain(levelsText);
+    expect(problemsOf(filledLadder({ levels: [100, 300, 1000, 3000, Number.NaN] }))).toContain(levelsText);
+    expect(problemsOf(filledLadder({ safe: [2, 4] }))).toContain(t('problemLadderSafe'));
+    expect(problemsOf(filledLadder({ safe: [2, 2] }))).toContain(t('problemLadderSafe'));
+  });
+  it('resizeLadder follows the preset when the levels are the preset', () => {
+    const six = resizeLadder({ ...newLadderRound(), questions: [...newLadderRound().questions, newQuestion('single')] }, 6);
+    expect(six.levels).toEqual([...LADDER_PRESETS[6]]);
+    expect(six.safe).toEqual(ladderPresetSafe(six.levels));
+  });
+  it('resizeLadder falls back to the preset when the top is at the cap or empty', () => {
+    const base = newLadderRound();
+    const atCap = resizeLadder({ ...base, levels: [100, 200, 300, 400, 10000], safe: [1] }, 6);
+    expect(atCap.levels).toEqual([...LADDER_PRESETS[6]]);
+    expect(atCap.safe).toEqual(ladderPresetSafe(atCap.levels));
+    const empty = resizeLadder({ ...base, levels: [100, 200, 300, 400, Number.NaN], safe: [] }, 6);
+    expect(empty.levels).toEqual([...LADDER_PRESETS[6]]);
+  });
+  it('resizeLadder removing a step drops its own level and safe mark and keeps the top', () => {
+    const base = { ...newLadderRound(), levels: [100, 200, 300, 400, 500], safe: [1, 3] };
+    const fewer = resizeLadder(base, 4, 1);
+    expect(fewer.levels).toEqual([100, 300, 400, 500]);
+    expect(fewer.safe).toEqual([2]);
+  });
+  it('resizeLadder adds last + 1000 (capped) to changed levels and drops the top one when removing', () => {
+    const base = newLadderRound();
+    const changed = { ...base, levels: [100, 200, 300, 400, 500], safe: [1, 3] };
+    const more = resizeLadder(changed, 6);
+    expect(more.levels).toEqual([100, 200, 300, 400, 500, 1500]);
+    expect(more.safe).toEqual([1, 3]);
+    const capped = resizeLadder({ ...changed, levels: [100, 200, 300, 400, 9800] }, 6);
+    expect(capped.levels[5]).toBe(LIMITS.maxLadderLevel);
+    const six = resizeLadder({ ...base, levels: [...LADDER_PRESETS[6]], safe: ladderPresetSafe(LADDER_PRESETS[6]).concat(4) }, 6);
+    const fewer = resizeLadder(six, 5);
+    expect(fewer.levels).toEqual([100, 250, 600, 1500, 4000]);
+    expect(fewer.safe.every((s) => s < 4)).toBe(true);
+    expect(fewer.safe).not.toContain(4);
   });
 });

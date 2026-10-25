@@ -1,13 +1,14 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 import { SURVIVAL_RIGHT, SURVIVAL_WRONG, TRIAL_RIGHT, TRIAL_WRONG } from './testing/survival-game';
+import { LADDER_RIGHT } from './testing/ladder-game';
 import { WIPEOUT_RIGHT } from './testing/wipeout-game';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -1008,6 +1009,67 @@ describe('wipeout over sockets (10g)', () => {
   });
 });
 
+
+describe('ladder over sockets (10i)', () => {
+  const ladderGame = async () => {
+    const created = (await startGame(ctx.app, makeRoundsQuiz([ladderRound('rl')]))).game;
+    return lobby(created);
+  };
+
+  it('host:ladder-pick chooses the contestant on the intro; it is host-only and checks the payload', async () => {
+    const { host, olena, olenaJoin } = await ladderGame();
+    await send(host, 'host:start');
+    expect(await send(olena, 'host:ladder-pick', { playerId: olenaJoin.playerId })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:ladder-pick', {})).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:ladder-pick', { playerId: 'ghost' })).toEqual({ ok: false, error: 'not_found' });
+    expect(await send(host, 'host:ladder-pick', { playerId: olenaJoin.playerId })).toEqual({ ok: true });
+    const view = await until(olena, (v) => v.ladder?.contestant?.playerId === olenaJoin.playerId);
+    expect(view.phase).toBe('intro');
+  });
+
+  it('player:lifeline takes a lifeline; it is player-only and checks the payload', async () => {
+    const { host, stage, olena, taras, olenaJoin } = await ladderGame();
+    await send(host, 'host:start');
+    await send(host, 'host:ladder-pick', { playerId: olenaJoin.playerId });
+    await send(host, 'host:next');
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'player:lifeline', { kind: 'fifty' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:lifeline', { kind: 'fifty' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:lifeline', { kind: 'double' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:lifeline')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(taras, 'player:lifeline', { kind: 'fifty' })).toEqual({ ok: false, error: 'not_allowed' });
+    // Без заставок (transitions вимкнено) запитання починається одразу — підказка береться.
+    expect(await send(olena, 'player:lifeline', { kind: 'fifty' })).toEqual({ ok: true });
+    const view = await until(olena, (v) => (v.ladder?.fifty?.length ?? 0) === 2);
+    expect(view.ladder?.lifelines.find((l) => l.kind === 'fifty')?.state).toBe('active');
+  });
+
+  it('player:ladder and host:ladder-decide take the decision; a spectator cannot', async () => {
+    const { host, olena, taras, olenaJoin } = await ladderGame();
+    await send(host, 'host:start');
+    await send(host, 'host:ladder-pick', { playerId: olenaJoin.playerId });
+    await send(host, 'host:next');
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:ladder', { take: true })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'player:answer', LADDER_RIGHT[0])).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', LADDER_RIGHT[0])).toEqual({ ok: true });
+    await until(host, inPhase('locked'));
+    await send(host, 'host:next');
+    await until(host, inPhase('reveal'));
+    await send(host, 'host:next');
+    await until(olena, inPhase('leaderboard'));
+    expect(await send(host, 'host:next')).toEqual({ ok: false, error: 'deciding' });
+    expect(await send(taras, 'player:ladder', { take: true })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(olena, 'player:ladder', { take: 'yes' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'host:ladder-decide', { take: false })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'player:ladder', { take: false })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:ladder-decide', { take: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:ladder-decide', { take: false })).toEqual({ ok: true });
+    expect(await send(olena, 'player:ladder', { take: true })).toEqual({ ok: false, error: 'already_answered' });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+  });
+});
 
 describe('survival over sockets (10h)', () => {
   /** Олена помилилася на s1, Тарас ні: до «Далі» на розкритті, відкрите випробування. */

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { newBoardRound, newClassicRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
+import { newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
 import { QuizEditor } from './QuizEditor';
 
 afterEach(() => {
@@ -21,7 +21,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ва-банк' | 'Вибування') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ва-банк' | 'Вибування' | 'Мільйонер') => {
   click('+ Раунд');
   click(type);
 };
@@ -2360,5 +2360,142 @@ describe('QuizEditor: survival round', () => {
     open();
     click('+ Раунд');
     expect(screen.getByRole('button', { name: 'Вибування' })).toBeTruthy();
+  });
+});
+
+describe('QuizEditor: ladder round', () => {
+  const removeButton = () => screen.getByRole('button', { name: /^Видалити запитання \d+$/ }) as HTMLButtonElement;
+  const chips = () => Array.from(document.querySelectorAll('.question-item-price')).map((el) => el.textContent?.replace(/\s+/g, ' ').trim());
+  const settings = () => document.querySelector('.round-settings') as HTMLElement;
+  const field = (label: string) => within(settings()).getByLabelText(label) as HTMLInputElement;
+  const fillLadder = () => {
+    const base = newLadderRound();
+    const fillQ = (q: Question, i: number): Question =>
+      q.type === 'single' ? { ...q, text: `Q${i}`, options: q.options.map((o, k) => ({ ...o, text: `V${k}` })) } : q;
+    return { ...newQuiz(), title: 'Т', rounds: [{ ...base, questions: base.questions.map(fillQ) }] } as Quiz;
+  };
+  const savedLadder = async (onSave: ReturnType<typeof open>['onSave']) => {
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const round = saved(onSave).rounds[0];
+    if (round.type !== 'ladder') throw new Error('not a ladder round');
+    return round;
+  };
+
+  it('a new ladder round has five questions with level chips and a shield at 1000', () => {
+    open();
+    addRound('Мільйонер');
+    expect(document.querySelectorAll('.question-item')).toHaveLength(5);
+    expect(chips()).toEqual(['100', '300', '🛡 1000', '3000', '10000']);
+  });
+
+  it('a question has only the single type, four options without add or remove, no price and no time', () => {
+    open();
+    addRound('Мільйонер');
+    const names = within(screen.getByRole('group', { name: t('questionType') }))
+      .getAllByRole('button')
+      .map((b) => b.textContent);
+    expect(names).toHaveLength(1);
+    expect(document.querySelectorAll('.answer-row')).toHaveLength(4);
+    expect(screen.queryByRole('button', { name: t('addOption') })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Прибрати варіант/ })).toBeNull();
+    expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
+    expect(screen.queryByLabelText(t('timeLimit'))).toBeNull();
+  });
+
+  it('adding a question takes the preset for six; removing is disabled at five', () => {
+    open();
+    addRound('Мільйонер');
+    expect(removeButton().disabled).toBe(true);
+    expect(removeButton().title).toBe(t('ladderMinHint', { min: 5 }));
+    click(t('addQuestion'));
+    expect(chips()).toEqual(['100', '250', '600', '🛡 1500', '4000', '10000']);
+    expect(removeButton().disabled).toBe(false);
+    fireEvent.click(removeButton());
+    expect(chips()).toEqual(['100', '300', '🛡 1000', '3000', '10000']);
+    expect(removeButton().disabled).toBe(true);
+  });
+
+  it('a question with a wrong option count gets add and remove buttons back', () => {
+    const quiz = fillLadder();
+    const round = quiz.rounds[0];
+    if (round.type !== 'ladder') throw new Error('x');
+    const first = round.questions[0];
+    if (first.type !== 'single') throw new Error('x');
+    open({ ...quiz, rounds: [{ ...round, questions: [{ ...first, options: first.options.slice(0, 3) }, ...round.questions.slice(1)] }] });
+    expect(screen.getByRole('button', { name: t('addOption') })).toBeTruthy();
+  });
+
+  it('adding stops at fifteen', () => {
+    open();
+    addRound('Мільйонер');
+    for (let i = 0; i < 10; i += 1) click(t('addQuestion'));
+    expect(document.querySelectorAll('.question-item')).toHaveLength(15);
+    expect((screen.getByRole('button', { name: t('addQuestion') }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the pick, the lifelines and the timer are saved', async () => {
+    const { onSave } = open(fillLadder());
+    fireEvent.click(within(settings()).getByLabelText(t('ladderPick_random')));
+    fireEvent.click(within(settings()).getByLabelText(t('ladderLifeline_audience')));
+    click('Зберегти');
+    const round = await savedLadder(onSave);
+    expect(round.pick).toBe('random');
+    expect(round.lifelines).toEqual(['fifty', 'hint']);
+    expect(round.timer).toBe(false);
+  });
+
+  it('the timer checkbox brings the time field into the question', () => {
+    open();
+    addRound('Мільйонер');
+    expect(screen.queryByLabelText(t('timeLimit'))).toBeNull();
+    fireEvent.click(within(settings()).getByLabelText(t('ladderTimer')));
+    expect(screen.getByLabelText(t('timeLimit'))).toBeTruthy();
+  });
+
+  it('a level, a safe mark and the preset button edit the table', async () => {
+    const { onSave } = open(fillLadder());
+    fireEvent.change(field(t('ladderLevel', { n: 3 })), { target: { value: '1200' } });
+    fireEvent.click(field(`${t('ladderSafeMark')} 4`));
+    expect(field(`${t('ladderSafeMark')} 5`).disabled).toBe(true);
+    click('Зберегти');
+    const round = await savedLadder(onSave);
+    expect(round.levels[2]).toBe(1200);
+    expect(round.safe).toContain(3);
+  });
+
+  it('the preset button brings back the preset sums and safe steps', () => {
+    open(fillLadder());
+    fireEvent.change(field(t('ladderLevel', { n: 3 })), { target: { value: '1200' } });
+    fireEvent.click(field(`${t('ladderSafeMark')} 4`));
+    fireEvent.click(within(settings()).getByRole('button', { name: t('ladderUsePreset') }));
+    expect(field(t('ladderLevel', { n: 3 })).value).toBe('1000');
+    expect(field(`${t('ladderSafeMark')} 4`).checked).toBe(false);
+    expect(field(`${t('ladderSafeMark')} 3`).checked).toBe(true);
+  });
+
+  it('broken levels name the problem and open the round settings', () => {
+    const { onSave } = open(fillLadder());
+    expect((settings() as HTMLDetailsElement).open).toBe(false);
+    fireEvent.change(field(t('ladderLevel', { n: 2 })), { target: { value: '50' } });
+    fireEvent.change(field(t('ladderLevel', { n: 1 })), { target: { value: '100' } });
+    fireEvent.change(field(t('ladderLevel', { n: 2 })), { target: { value: '100' } });
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(document.querySelector('.problems')?.textContent).toContain(t('problemLadderLevels', { max: 10000 }));
+    expect((settings() as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it('settings show no rule controls, only the note', () => {
+    open();
+    addRound('Мільйонер');
+    expect(screen.queryByLabelText(t('ruleMinus'))).toBeNull();
+    expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
+    expect(screen.getByText(t('ladderSettingsNote'))).toBeTruthy();
+  });
+
+  it('the round strip offers the ladder round', () => {
+    open();
+    click('+ Раунд');
+    expect(screen.getByRole('button', { name: 'Мільйонер' })).toBeTruthy();
   });
 });

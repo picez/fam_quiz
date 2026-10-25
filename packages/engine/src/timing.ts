@@ -16,16 +16,21 @@ export function isTimed(question: Question): boolean {
   return question.video == null;
 }
 
+/** Чи має запис таймер: isTimed(question) і не запитання драбини з ladder.timed === false. */
+export function timedPlay(play: Play): boolean {
+  return isTimed(play.question) && play.ladder?.timed !== false;
+}
+
 /** Повний час запитання (з довшим фрагментом аудіо) з урахуванням змін ведучого; null — без таймера. У фазі вибору блефу — choiceTime. */
 export function limitMsOf(play: Play): number | null {
   if (play.bluff?.stage === 'choice' && play.question.type === 'bluff') return play.question.choiceTime * 1000 + play.extraMs;
-  return isTimed(play.question) ? answerWindowMs(play.question) + play.extraMs : null;
+  return timedPlay(play) ? answerWindowMs(play.question) + play.extraMs : null;
 }
 
 /** Чи сплив час запитання на мить clock: без startedAt — так; без таймера — ніколи; інакше clock > endsAt (endsAt null — так). */
 export function timeOver(state: GameState, play: Play, clock: number): boolean {
   if (state.startedAt === null) return true;
-  if (!isTimed(play.question)) return false;
+  if (!timedPlay(play)) return false;
   return state.endsAt === null || clock > state.endsAt;
 }
 
@@ -102,7 +107,7 @@ export function deadlineOf(state: GameState, play: Play, playerId: string): numb
 /** Як timeOver, але з особистим кінцем гравця. */
 export function timeOverFor(state: GameState, play: Play, playerId: string, clock: number): boolean {
   if (state.startedAt === null) return true;
-  if (!isTimed(play.question)) return false;
+  if (!timedPlay(play)) return false;
   const deadline = deadlineOf(state, play, playerId);
   return deadline === null || clock > deadline;
 }

@@ -16,12 +16,14 @@ import {
   type Quiz,
   type BoardRound,
   type FinalRound,
+  type LadderOutcomeKind,
   type Round,
   type TrialKind,
   guidePages,
   newcomersOn,
   rulesOf,
   answerWindowMs,
+  hallPoints,
   proximityPartial,
   isUnscored,
 } from '@quiz/shared';
@@ -57,7 +59,7 @@ import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from '
 import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { splitBank, type BankOutcome } from './bank';
-import { closesAt, isTimed, limitMsOf, timeOver, timeOverFor, trimOvertime } from './timing';
+import { closesAt, isTimed, limitMsOf, timedPlay, timeOver, timeOverFor, trimOvertime } from './timing';
 import { presentPlayers } from './present';
 import { closeDecision, decisionOpen, dropUnstarted, markWipeoutEnd, openDecision, settleDecision, submitWipeoutAnswer, wipeoutIn, withWipeoutPoints } from './wipeout';
 import {
@@ -72,6 +74,21 @@ import {
   survivalOver,
   trialOpen,
 } from './survival';
+import {
+  audienceOpen,
+  closeAudience,
+  decisionPending,
+  drawContestant,
+  inLadderRound,
+  ladderAnswered,
+  ladderPlayOf,
+  passedSteps,
+  settleAudience,
+  settleStep,
+  shiftLadderClocks,
+  stopLadder,
+  submitLadderAnswer,
+} from './ladder';
 import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
@@ -164,6 +181,50 @@ export interface Play {
   wipeout?: WipeoutPlay;
   /** «Вибування»: відповіді привидів, хто «на межі», випробування й позначка кінця раунду (10h). */
   survival?: SurvivalPlay;
+  /** «Мільйонер»: учасник, сходинка, підказки, рішення й підсумок драбини (10i). */
+  ladder?: LadderPlay;
+}
+
+/** «Мільйонер»: учасник драбини поточного раунду. */
+export interface LadderState {
+  /** Учасник; null — ще не вибрано. */
+  contestantId: string | null;
+  /** Вибрано жеребом чи за найменшими балами (кнопкою «Вибрати учасника»), а не ведучим вручну. */
+  drawn: boolean;
+}
+
+/** «Мільйонер» у журналі. */
+export interface LadderPlay {
+  contestantId: string;
+  /** Сходинка (0-базова) = номер запитання в раунді. */
+  step: number;
+  /** Сума рівня сходинки (знімок round.levels[step]). */
+  level: number;
+  /** Знімок round.timer: false — запитання без таймера (timedPlay читає його без стану). */
+  timed: boolean;
+  /** Підказки, узяті на цьому запитанні. */
+  lifelines: LadderLifelines;
+  /** Рішення після цього запитання; null — ще не вирішено або не пропонувалось. */
+  decision: 'go' | 'take' | null;
+  /** Чим скінчилася драбина на цьому запитанні; null — триває. */
+  outcome: LadderOutcome | null;
+}
+
+export interface LadderLifelines {
+  /** 50/50: прибрані неправильні варіанти. */
+  fifty?: { removed: string[]; at: number };
+  /** Зал: кінець голосування, закрито чи ні, відповіді залу в мить закриття (до того {}). */
+  audience?: { endsAt: number; closed: boolean; ballots: Record<string, Answer>; at: number };
+  /** Підказка ведучого: text null — чекає ведучого; aloud — підказав уголос. */
+  hint?: { text: string | null; aloud: boolean; at: number };
+}
+
+export interface LadderOutcome {
+  kind: LadderOutcomeKind;
+  /** Скільки сходинок пройдено. */
+  passed: number;
+  /** Виграш (ladderPrize). */
+  points: number;
 }
 
 /** «Вибування» в журналі. */
@@ -494,6 +555,8 @@ export interface GameState {
    * (або його не вилучили), його чекають, як підключеного, — «усі відповіли» не закриває запитання без нього.
    */
   awaiting: string[];
+  /** «Мільйонер»: учасник драбини; ключ є лише в раунді «Мільйонер» (від intro до round_end) (10i). */
+  ladder?: LadderState;
 }
 
 export interface GameOptions {
@@ -577,7 +640,13 @@ export function addPlayer(state: GameState, player: { id: string; nickname: stri
 
 export function removePlayer(state: GameState, playerId: string): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
-  const plays = state.plays.map((play): Play => {
+  // «Мільйонер»: учасник, вилучений посеред драбини, зупиняє її без виграшу; запитання, що йде, зал дограє.
+  const ladderPlay = ladderPlayOf(state);
+  const ladderStop =
+    ladderPlay !== null && ladderPlay.ladder.contestantId === playerId && ladderPlay.ladder.outcome === null
+      ? { kind: 'stopped' as const, passed: passedSteps(state, state.phase !== 'question'), points: 0 }
+      : null;
+  const plays = state.plays.map((play, index): Play => {
     const { [playerId]: _removed, ...rest } = play.answers;
     const kept: Play = { ...play, answers: rest };
     if (play.chain !== undefined) {
@@ -616,6 +685,13 @@ export function removePlayer(state: GameState, playerId: string): Result {
         const { [playerId]: _fallback, ...fallback } = trial.fallback;
         kept.survival = { ...play.survival, ghosts, edge, trial: { ...trial, answers, traps, doors, fallback, out: without(trial.out) } };
       }
+    }
+    if (play.ladder !== undefined) {
+      const audience = play.ladder.lifelines.audience;
+      const ballots = audience === undefined ? {} : Object.fromEntries(Object.entries(audience.ballots).filter(([id]) => id !== playerId));
+      const lifelines = audience === undefined ? play.ladder.lifelines : { ...play.ladder.lifelines, audience: { ...audience, ballots } };
+      const outcome = index === state.questionIndex && ladderStop !== null ? ladderStop : play.ladder.outcome;
+      kept.ladder = { ...play.ladder, lifelines, outcome };
     }
     if (play.buffs !== undefined) {
       const { [playerId]: _buff, ...buffs } = play.buffs;
@@ -656,9 +732,12 @@ export function removePlayer(state: GameState, playerId: string): Result {
   const regained = inDuel && duel.opponentId === playerId && duel.stage !== 'result' ? duel.challengerId : null;
   const duelsDeclared = state.duelsDeclared.filter((id) => id !== playerId && id !== regained);
   const undueled = inDuel ? dropDuel(state) : state;
+  // «Мільйонер»: учасника вилучили на заставці раунду — вибирають заново.
+  const unpicked: GameState =
+    state.phase === 'intro' && state.ladder?.contestantId === playerId ? { ...undueled, ladder: { contestantId: null, drawn: false } } : undueled;
   // Без вилученого банк фіналу менший: бали решти перераховуються.
   const kicked = withTotals({
-    ...undueled,
+    ...unpicked,
     players: state.players.filter((p) => p.id !== playerId),
     plays,
     board,
@@ -670,7 +749,8 @@ export function removePlayer(state: GameState, playerId: string): Result {
   });
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   // «Ва-банк»: якщо вилучений був останнім, хто не вирішив, вікно закривається; «Вибування» — так само випробування.
-  return ok(settleTrial(settleDecision(autoLock(kicked.paused ? kicked : settleQueue(kicked, null)))));
+  // «Мільйонер»: якщо вилучений був останнім глядачем, що не відповів, голосування залу закривається.
+  return ok(settleTrial(settleDecision(autoLock(settleAudience(kicked.paused ? kicked : settleQueue(kicked, null))))));
 }
 
 /** Гравець зникає з меж, ставок, ва-банку й порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */
@@ -697,8 +777,8 @@ export function setConnected(state: GameState, playerId: string, connected: bool
   if (watched && state.board !== null && (connected || state.heldAt === null)) {
     return ok(autoLock({ ...changed, board: { ...state.board, awaySince: connected ? null : (state.board.awaySince ?? now) } }, now));
   }
-  // «Ва-банк»: відсутній гравець вікна рішення не тримає; «Вибування» — випробування.
-  return ok(settleTrial(settleDecision(autoLock(changed, now))));
+  // «Ва-банк»: відсутній гравець вікна рішення не тримає; «Вибування» — випробування; «Мільйонер» — голосування залу.
+  return ok(settleTrial(settleDecision(autoLock(settleAudience(changed), now))));
 }
 
 /** Гравець, чия відсутність закриває запитання: той, хто вибрав звичайну клітинку без таймера; інакше null. */
@@ -775,6 +855,12 @@ function nextQuestion(state: GameState): Question | undefined {
   if (round.type === 'wipeout' && wipeoutIn(state).length === 0) return undefined;
   // «Вибування»: щойно після вибування живих ≤ N, решта запитань лишається незіграною.
   if (round.type === 'survival' && survivalOver(state)) return undefined;
+  // «Мільйонер»: драбина скінчилася (підсумок на останньому записі раунду) або учасника вже немає — решта незіграна.
+  if (round.type === 'ladder') {
+    const last = state.plays.filter((p) => p.roundIndex === state.roundIndex).at(-1);
+    const contestantId = state.ladder?.contestantId ?? null;
+    if ((last?.ladder?.outcome ?? null) !== null || contestantId === null || !state.players.some((p) => p.id === contestantId)) return undefined;
+  }
   const played = new Set(state.plays.filter((p) => p.roundIndex === state.roundIndex).map((p) => p.question.id));
   return round.questions.find((question) => !played.has(question.id) && playable(state, question));
 }
@@ -802,6 +888,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       : {}),
     ...(round.type === 'wipeout' ? { wipeout: { took: [], stay: [], end: false } } : {}),
     ...(round.type === 'survival' ? { survival: { ghosts: {}, edge: null, trial: null, end: false } } : {}),
+    // «Мільйонер»: сходинка = кількість уже зіграних запитань раунду; рівень і таймер — знімки раунду.
+    ...(round.type === 'ladder' ? { ladder: ladderPlayFor(state, round.levels, round.timer) } : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
@@ -818,13 +906,20 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       plays: [...state.plays, play],
       presented: present(question, round.shuffleOptions, rng),
       startedAt: at,
-      endsAt: isTimed(question) ? at + answerWindowMs(question) : null,
+      // «Мільйонер» без таймера: запис ще не в стані, тож тут умова з раунду, а не timedPlay.
+      endsAt: isTimed(question) && !(round.type === 'ladder' && !round.timer) ? at + answerWindowMs(question) : null,
       remainingMs: null,
       heldAt: null,
     },
     now,
   );
   return fireDebuffs(opened, at);
+}
+
+/** Новий LadderPlay для запитання «Мільйонера», що відкривається. */
+function ladderPlayFor(state: GameState, levels: number[], timed: boolean): LadderPlay {
+  const step = state.plays.filter((p) => p.roundIndex === state.roundIndex).length;
+  return { contestantId: state.ladder?.contestantId ?? '', step, level: levels[step] ?? 0, timed, lifelines: {}, decision: null, outcome: null };
 }
 
 /** Відкриває запитання фіналу; ставка кожного гравця знімається на цю мить, хто не поставив — грає з 0. */
@@ -983,11 +1078,13 @@ function clearAway(board: BoardState | null): BoardState | null {
 
 /** Після останнього раунду гра закінчується (з now — заставка «Підсумки»), інакше показуються підсумки раунду. */
 function finishRound(input: GameState, now?: number): GameState {
+  // «Мільйонер»: підсумок драбини, якщо його ще немає, — до зміни фази, поки afterQuestion і roundIndex ще цього раунду.
+  const ladderStopped = stopLadder(input, now ?? 0);
   // «Ва-банк»: банки тих, хто в грі, переносяться в бали на останньому зіграному запитанні.
-  const marked = markWipeoutEnd(input);
+  const marked = markWipeoutEnd(ladderStopped);
   // «Вибування»: кожен живий отримує бонус виживання — до зміни фази, поки afterQuestion і roundIndex ще цього раунду.
   // Без now (старі виклики) мить коригування невідома — 0.
-  const state = awardSurvivalBonus(marked === input ? input : withTotals(marked), now ?? 0);
+  const state = awardSurvivalBonus(marked === ladderStopped ? ladderStopped : withTotals(marked), now ?? 0);
   const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
   const finished: GameState = { ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) };
   return isLastRound && now !== undefined ? withSplash(finished, 'podium', now) : finished;
@@ -1116,7 +1213,8 @@ export function lockNow(state: GameState): GameState {
   // Незавершена друга спроба зараховує першу відповідь.
   // Незакінчена стіна отримує записи за знайдені групи.
   // Блеф отримує записи лише тут: бали залежать від виборів усіх.
-  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(settleRetries(state))))))));
+  // Голосування залу «Мільйонера» закривається з відповідями залу на цю мить.
+  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(closeAudience(settleRetries(state)))))))));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
@@ -1145,6 +1243,8 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   if (state.plays[state.questionIndex]?.question.type === 'chain') return chainDone(state, now) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
+  // «Мільйонер»: чекають учасника й присутній зал; без учасника на зв'язку закриє ведучий чи таймер.
+  if (inLadderRound(state)) return ladderAnswered(state) ? lockNow(state) : state;
   // «Ва-банк»: чекають лише тих, хто в грі; без присутніх у грі запитання закриє таймер чи ведучий.
   // «Вибування»: так само лише живих — привиди запитання не тримають.
   const type = currentRound(state)?.type;
@@ -1212,6 +1312,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   const { question, roundIndex } = play;
   const round = state.quiz.rounds[roundIndex];
   if (round.type === 'wipeout') return submitWipeoutAnswer(state, playerId, answer, now);
+  if (round.type === 'ladder') return submitLadderAnswer(state, playerId, answer, now);
   if (play.blitz !== undefined) {
     // Усну відповідь голови черги оцінює ведучий, з телефона її не приймають.
     if (blitzRulesOf(state, play)?.check === 'voice') return fail('wrong_phase');
@@ -1470,10 +1571,12 @@ export function tick(state: GameState, now: number): GameState {
     const settled = settleQueue(opened, now);
     return blitzDone(settled, now) ? lockNow(settled) : settled;
   }
+  // «Мільйонер»: голосування залу, що сплило (з endsAt включно), закривається.
+  const voted = audienceOpen(opened) && now >= (ladderPlayOf(opened)?.ladder.lifelines.audience?.endsAt ?? Infinity) ? closeAudience(opened) : opened;
   // Запитання чекає на особистий кінець того, хто ще не відповів.
-  const closes = closesAt(opened);
+  const closes = closesAt(voted);
   const expired = closes !== null && now >= closes;
-  return expired ? lockNow(opened) : opened;
+  return expired ? lockNow(voted) : voted;
 }
 
 /** Етап вибору клітинки: стартує відлік для відключеного гравця й пропускає хід, коли 30 секунд сплило. */
@@ -1506,13 +1609,15 @@ function unansweredIsWrong(state: GameState): GameState {
   });
 }
 
-/** Ходи раунду поля й ставки фіналу починаються з нуля. */
-function enterRound(state: GameState): GameState {
+/** Ходи раунду поля, ставки фіналу й учасник «Мільйонера» починаються з нуля; ключ ladder є лише в раунді «Мільйонер». */
+function enterRound(input: GameState): GameState {
+  const { ladder: _ladder, ...state } = input;
   const type = state.quiz.rounds[state.roundIndex]?.type;
   return {
     ...state,
     board: type === 'board' ? initBoard(state) : null,
     final: type === 'final' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
+    ...(type === 'ladder' ? { ladder: { contestantId: null, drawn: false } } : {}),
   };
 }
 
@@ -1543,6 +1648,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
     case 'intro':
       if (currentRound(state)?.type === 'board') return dicePending(state.board) ? fail('dice_pending') : ok(enterBoard(state, now));
       if (state.final !== null) return ok(enterWager(state, state.final));
+      // «Мільйонер»: без учасника «Далі» — жереб чи «найменші бали» (етап лишається intro); з учасником — перше запитання.
+      if (inLadderRound(state) && (state.ladder?.contestantId ?? null) === null) return drawContestant(state, rng);
       return ok(advance(state, now, rng));
     case 'wager':
       return ok(openFinalQuestion(state, now, rng));
@@ -1564,6 +1671,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       // «Вибування»: після кожного запитання (і останнього) — сторінка «живі / привиди» з вердиктом чи випробуванням,
       // незалежно від налаштування leaderboard; кінець раунду — з неї.
       if (currentRound(state)?.type === 'survival') return ok(openTrialOrBoard(state, now, rng));
+      // «Мільйонер»: після кожного запитання (і останнього) — драбина з рішенням чи підсумком, незалежно від налаштування leaderboard.
+      if (inLadderRound(state)) return ok(settleStep(state, now));
       if (nextQuestion(state) === undefined) return ok(finishRound(state, now));
       // «Ва-банк»: драбина з вікном рішення після кожного запитання, крім останнього, незалежно від налаштування leaderboard.
       if (currentRound(state)?.type === 'wipeout') return ok(openDecision(state, now));
@@ -1571,6 +1680,12 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       return ok(advance(state, now, rng));
     case 'leaderboard':
       if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
+      // «Мільйонер»: підсумок — кінець раунду; поки учасник не вирішив, далі не можна; «Граю далі» — наступне запитання.
+      if (inLadderRound(state)) {
+        if ((ladderPlayOf(state)?.ladder.outcome ?? null) !== null) return ok(finishRound(state, now));
+        if (decisionPending(state)) return fail('deciding');
+        return ok(advance(state, now, rng));
+      }
       // «Ва-банк»: поки гравці вирішують, далі не можна; без тих, хто в грі, advance завершує раунд.
       if (decisionOpen(state)) return fail('deciding');
       // «Вибування»: відкрите випробування «Далі» закриває; інакше — наступне запитання або кінець раунду з бонусом.
@@ -1594,8 +1709,8 @@ export function endRound(state: GameState, now: number): Result {
   // «Вибування»: відкрите випробування закривається, як після кінця часу.
   const current =
     state.phase === 'duel' ? dropDuel(state) : decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now);
-  // Відкрите запитання спершу закривається й оцінюється, як при lock.
-  const closed = current.phase === 'question' ? lockNow(current) : current;
+  // Відкрите запитання спершу закривається й оцінюється, як при lock; «Мільйонер» — після підсумку: відкрите для учасника не рахується.
+  const closed = current.phase === 'question' ? lockNow(stopLadder(current, now)) : current;
   // Після відкриття запитання фіналу мовчання оцінюється, а всіх вважають розкритими.
   const settled = finalPlayOf(closed) !== undefined ? closeFinal(closed) : closed;
   return ok(finishRound({ ...settled, paused: false, startedAt: null, endsAt: null, remainingMs: null }, now));
@@ -1623,7 +1738,8 @@ export function resume(state: GameState, now: number): Result {
   // Заставка, що не скінчилася до паузи, стоїть разом із годинником і дограє після неї.
   const pausedAt = state.pausedAt ?? now;
   // «Ва-банк»: якщо на паузі вирішили (чи вилучили) останніх, вікно закривається; «Вибування» — так само випробування.
-  return ok(settleTrial(settleDecision(shiftSplash(result.state, pausedAt, now - pausedAt))));
+  // «Мільйонер»: якщо на паузі відповіли (чи вийшли) останні глядачі, голосування залу закривається.
+  return ok(settleTrial(settleDecision(settleAudience(shiftSplash(result.state, pausedAt, now - pausedAt)))));
 }
 
 function resumeClock(state: GameState, now: number): Result {
@@ -1654,9 +1770,9 @@ function resumeClock(state: GameState, now: number): Result {
     // Підвисання в сортуванні зсувається разом із годинником.
     const resumed = shiftSortLocks({ ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs }, shift);
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
-    return ok(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(resumed, shift), shift), shift), now), now));
+    return ok(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(shiftLadderClocks(resumed, shift), shift), shift), shift), now), now));
   }
-  if (state.phase === 'question' && !isTimed(state.plays[state.questionIndex].question)) {
+  if (state.phase === 'question' && !timedPlay(state.plays[state.questionIndex])) {
     // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
     const shift = now - (state.pausedAt ?? now);
     const resumed = {
@@ -1666,7 +1782,7 @@ function resumeClock(state: GameState, now: number): Result {
       startedAt: state.startedAt === null ? null : state.startedAt + shift,
     };
     // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
-    return ok(watchAway(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(resumed, shift), shift), shift), now), now), now));
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(shiftLadderClocks(resumed, shift), shift), shift), shift), now), now), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.
@@ -1766,6 +1882,14 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
     const graded: AnswerRecord = { ...record, accepted: correct, accuracy: correct ? 1 : 0, grade, basePoints: 0, streakBonus: 0, points: 0, overridden: true };
     return ok(withTotals(withRecord(state, playerId, graded)));
   }
+  // «Мільйонер»: лише правильно чи неправильно; учасник — 0 балів (підсумок фіксується на «Далі»), глядач — 10 % рівня.
+  if (round.type === 'ladder') {
+    if (grade === 'partial') return fail('partial_disabled');
+    const correct = grade === 'correct';
+    const points = correct && play.ladder !== undefined && playerId !== play.ladder.contestantId ? hallPoints(play.ladder.level) : 0;
+    const graded: AnswerRecord = { ...record, accepted: correct, accuracy: correct ? 1 : 0, grade, basePoints: points, streakBonus: 0, points, overridden: true };
+    return ok(withTotals(withRecord(state, playerId, graded)));
+  }
   if (grade === 'partial' && rulesOf(round).partial === null) return fail('partial_disabled');
   const accuracy = grade === 'correct' ? 1 : grade === 'partial' ? (rulesOf(round).partial ?? 0) / 100 : 0;
   const limit = answerLimitMs(play, playerId);
@@ -1803,7 +1927,11 @@ export function end(state: GameState, now?: number): Result {
   // Відкрите вікно рішення спершу закривається: невирішені забирають банк.
   // Запитання, чия заставка ще грає, незігране: хто в грі, доносить банк, а не згорає.
   // «Вибування»: відкрите випробування закривається, як після кінця часу.
-  const decided = decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now);
+  // «Мільйонер»: підсумок драбини, якщо його ще немає (відкрите запитання для учасника не рахується).
+  const decided = stopLadder(
+    decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
+    now ?? 0,
+  );
   const stopped: GameState = {
     ...dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(markWipeoutEnd(decided)))))),
     phase: 'finished',

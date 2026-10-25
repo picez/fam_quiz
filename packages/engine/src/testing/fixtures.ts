@@ -1,12 +1,14 @@
 import {
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
+  type Answer,
   type BlitzRound,
   type BoardRound,
   type BoardCell,
   type ClassicRound,
   type Duels,
   type FinalRound,
+  type LadderRound,
   type Question,
   type QuestionAudio,
   type Quiz,
@@ -355,6 +357,47 @@ export const wipeoutLadder: Question[] = [single, bool, numeric, text, slider].m
   id: `w${i + 1}`,
   points: (i + 1) * 100,
 }));
+
+/** П'ять запитань драбини l1…l5: single з варіантами a, b, c, d; правильні b, c, a, d, b; timeLimit 20; points 0. */
+export const ladderQuestions: Question[] = ['b', 'c', 'a', 'd', 'b'].map((correctId, i) => ({
+  ...base,
+  points: 0,
+  id: `l${i + 1}`,
+  type: 'single',
+  text: `Сходинка ${i + 1}?`,
+  options: [
+    { id: 'a', text: 'А' },
+    { id: 'b', text: 'Б' },
+    { id: 'c', text: 'В' },
+    { id: 'd', text: 'Г' },
+  ],
+  correctId,
+}));
+
+/** «Мільйонер»: типово title '', shuffleOptions false, levels [100, 300, 1000, 3000, 10000], safe [2], pick 'host', усі три підказки, timer false. */
+export function ladderRound(
+  id: string,
+  questions: Question[] = ladderQuestions,
+  options: Partial<Omit<LadderRound, 'id' | 'type' | 'questions'>> = {},
+): LadderRound {
+  return {
+    id,
+    type: 'ladder',
+    title: '',
+    shuffleOptions: false,
+    levels: [100, 300, 1000, 3000, 10000],
+    safe: [2],
+    pick: 'host',
+    lifelines: ['fifty', 'audience', 'hint'],
+    timer: false,
+    ...options,
+    questions,
+  };
+}
+
+/** Правильна й неправильна відповідь на l1…l5. */
+export const LADDER_RIGHT: Answer[] = ['b', 'c', 'a', 'd', 'b'].map((optionId) => ({ type: 'single', optionId }));
+export const LADDER_WRONG: Answer[] = ['a', 'a', 'b', 'a', 'a'].map((optionId) => ({ type: 'single', optionId }));
 
 /** «Вибування»: типово title '', speedBonus false, shuffleOptions false, DEFAULT_RULES, trial 'question', survivors 1, bonus 500. */
 export function survivalRound(

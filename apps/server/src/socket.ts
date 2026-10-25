@@ -22,6 +22,9 @@ import {
   lieSchema,
   bluffOptionSchema,
   wipeoutSchema,
+  lifelineSchema,
+  ladderDecideSchema,
+  ladderPickSchema,
   trialSchema,
   doorSchema,
   cloudHideSchema,
@@ -243,6 +246,18 @@ export function attachSockets(
       return payload.success ? manager.wipeout(room, identity.playerId, payload.data.take) : INVALID;
     });
 
+    on('player:lifeline', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = lifelineSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.lifeline(room, identity.playerId, payload.data.kind) : INVALID;
+    });
+
+    on('player:ladder', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = ladderDecideSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.ladderDecide(room, identity.playerId, payload.data.take) : INVALID;
+    });
+
     on('player:trial', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = trialSchema.safeParse(payloadOf(args));
@@ -375,6 +390,18 @@ export function attachSockets(
       if (!isHost) return FORBIDDEN;
       const payload = hintSchema.safeParse(payloadOf(args));
       return payload.success ? manager.hostHint(room, payload.data.playerId, payload.data.text) : INVALID;
+    });
+
+    on('host:ladder-pick', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = ladderPickSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.hostLadderPick(room, payload.data.playerId) : INVALID;
+    });
+
+    on('host:ladder-decide', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = ladderDecideSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.hostLadderDecide(room, payload.data.take) : INVALID;
     });
 
     on('host:debuff', (args) => {

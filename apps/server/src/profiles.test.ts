@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { bluff, blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, classicRound, clues, cloud, finalRound, makeQuiz, poll, wall, makeRoundsQuiz, pin, single, slider, survey, surveyCloud, text, withId, withReveal, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { createTestDb } from './testing/test-db';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
+import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { follow, game, participant, profile, user } from './db/schema';
@@ -510,5 +511,35 @@ describe('profile facts', () => {
     expect(await accuracy('Привид')).toBe(0);
     expect(await accuracy('Вибув')).toBe(50);
     expect(await accuracy('Дожив')).toBe(100);
+  });
+  it('ladder accuracy counts the contestant answers and only the hall answers given: a silent hall question is not a miss (10i)', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const quiz = makeRoundsQuiz([ladderRound('rl')]);
+    const { game: created } = await startGame(ctx.app, quiz, host.cookie);
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const people: Record<string, { playerId: string; email: string }> = {};
+    for (const name of ['Учасник', 'Глядач']) {
+      const player = await signUp(ctx.app, name);
+      const { playerId } = (await post(`/api/games/by-code/${created.code}/join`, { nickname: name }, player.cookie)).json() as { playerId: string };
+      ctx.manager.connect(room, { role: 'player', playerId });
+      people[name] = { playerId, email: player.email };
+    }
+    const id = (name: string) => people[name].playerId;
+    ctx.manager.host(room, { type: 'start' });
+    expect(ctx.manager.hostLadderPick(room, id('Учасник'))).toEqual({ ok: true });
+    // l1: обидва правильно; l2: Глядач мовчить; l3: Учасник помиляється, Глядач мовчить — і це кінець драбини.
+    playLadderQuestion(ctx.manager, room, { contestant: true, hall: { [id('Глядач')]: true } });
+    expect(ctx.manager.ladderDecide(room, id('Учасник'), false)).toEqual({ ok: true });
+    playLadderQuestion(ctx.manager, room, { contestant: true });
+    expect(ctx.manager.ladderDecide(room, id('Учасник'), false)).toEqual({ ok: true });
+    playLadderQuestion(ctx.manager, room, { contestant: false });
+    for (let guard = 0; guard < 4 && room.state.phase !== 'finished'; guard++) ctx.manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+    const accuracy = async (name: string) => (await profileFacts(db, await idOf(people[name].email))).stats.accuracy;
+    // Глядач: 1 з 1 (на l2 і l3 він мовчав); Учасник: 2 з 3.
+    expect(await accuracy('Глядач')).toBe(100);
+    expect(await accuracy('Учасник')).toBe(67);
   });
 });

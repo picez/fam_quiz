@@ -18,7 +18,7 @@ export interface GuideText {
   items: GuideItem[];
 }
 
-export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆', wipeout: '💰', survival: '🪦' };
+export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆', wipeout: '💰', survival: '🪦', ladder: '🪜' };
 
 export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   classic: 'roundTypeClassic',
@@ -27,6 +27,7 @@ export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   final: 'roundTypeFinal',
   wipeout: 'roundTypeWipeout',
   survival: 'roundTypeSurvival',
+  ladder: 'roundTypeLadder',
 };
 
 export const TYPE_ICONS: Record<Question['type'], string> = {
@@ -64,6 +65,8 @@ export function roundHow(brief: RoundBrief): string[] {
       return [t('roundHow_wipeout')];
     case 'survival':
       return [t('roundHow_survival')];
+    case 'ladder':
+      return [t('roundHow_ladder')];
   }
 }
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { answerSchema, type Answer } from './answer';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
-import { LIMITS } from './quiz';
+import { LIFELINES, LIMITS } from './quiz';
 import { DOOR_COUNT } from './survival';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
@@ -47,6 +47,12 @@ export const lieSchema = z.object({ text: z.string().max(LIMITS.bluffLie).refine
 export const bluffOptionSchema = z.object({ optionId: z.string().min(1).max(16).refine(isStorable, UNSTORABLE) });
 /** «Ва-банк»: «Забрати» (true) чи «Далі» (false). */
 export const wipeoutSchema = z.object({ take: z.boolean() });
+/** «Мільйонер»: учасник бере підказку драбини (10i). */
+export const lifelineSchema = z.object({ kind: z.enum(LIFELINES) });
+/** «Мільйонер»: «Забрати гроші» (take true) чи «Граю далі» (10i). */
+export const ladderDecideSchema = z.object({ take: z.boolean() });
+/** «Мільйонер»: ведучий вибирає учасника на заставці раунду (10i). */
+export const ladderPickSchema = z.object({ playerId });
 /** «Вибування»: відповідь на питання на виживання (10h). */
 export const trialSchema = z.object({ answer: answerSchema });
 /** «Вибування»: вибір дверей удачі (10h). */
@@ -103,6 +109,10 @@ export interface ClientToServerEvents {
   'player:bluff': (payload: z.infer<typeof bluffOptionSchema>, ack: Ack) => void;
   /** «Ва-банк»: рішення після розкриття (10g). */
   'player:wipeout': (payload: z.infer<typeof wipeoutSchema>, ack: Ack) => void;
+  /** «Мільйонер»: підказка драбини (10i). */
+  'player:lifeline': (payload: z.infer<typeof lifelineSchema>, ack: Ack) => void;
+  /** «Мільйонер»: «Граю далі» чи «Забрати» (10i). */
+  'player:ladder': (payload: z.infer<typeof ladderDecideSchema>, ack: Ack) => void;
   /** «Вибування»: відповідь на питання на виживання (10h). */
   'player:trial': (payload: z.infer<typeof trialSchema>, ack: Ack) => void;
   /** «Вибування»: вибір дверей удачі (10h). */
@@ -142,6 +152,10 @@ export interface ClientToServerEvents {
   'host:undebuff': (payload: z.infer<typeof undebuffSchema>, ack: Ack) => void;
   /** Підказка гравцеві: текстом або «Підказав уголос» (text: null). */
   'host:hint': (payload: z.infer<typeof hintSchema>, ack: Ack) => void;
+  /** «Мільйонер»: ведучий вибирає учасника (10i). */
+  'host:ladder-pick': (payload: z.infer<typeof ladderPickSchema>, ack: Ack) => void;
+  /** «Мільйонер»: ведучий вирішує замість учасника (10i). */
+  'host:ladder-decide': (payload: z.infer<typeof ladderDecideSchema>, ack: Ack) => void;
   'host:judge': (payload: z.infer<typeof judgeSchema>, ack: Ack) => void;
   'host:name': (payload: z.infer<typeof nameSchema>, ack: Ack) => void;
   'host:time': (payload: z.infer<typeof timeSchema>, ack: Ack) => void;

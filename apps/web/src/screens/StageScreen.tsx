@@ -1,7 +1,7 @@
 import { QRCodeSVG } from 'qrcode.react';
-import type { BoardInfo, Choice, FinalInfo, Question as FullQuestion, StageView, SurvivalInfo } from '@quiz/shared';
-import { LETTERS, answerText, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
-import { t } from '../i18n';
+import { hallPoints, type BoardInfo, type Choice, type FinalInfo, type Question as FullQuestion, type StageView, type SurvivalInfo } from '@quiz/shared';
+import { LETTERS, answerText, choiceLabel, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
+import { t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
@@ -28,6 +28,8 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { WipeoutLadder } from './WipeoutLadder';
 import { SurvivalBoard } from './SurvivalBoard';
+import { LadderBoard } from './LadderBoard';
+import { LadderAudience, LadderLifelineBadges, ladderOutcomeText } from './LadderStatus';
 import { SurvivalDoors } from './SurvivalDoors';
 import { MenuLinks } from './MenuLinks';
 import { ChainBoard, ChainWords, fullMask } from './ChainView';
@@ -421,6 +423,7 @@ function FinalStage({ view }: { view: StageView }) {
 function Intro({ view }: { view: StageView }) {
   if (view.round === null) return null;
   if (view.round.type === 'final') return <FinalStage view={view} />;
+  if (view.round.type === 'ladder' && view.ladder !== null) return <LadderIntro view={view} info={view.ladder} />;
   return (
     <div className={view.board !== null ? 'stage-board is-board-intro' : view.round.type === 'survival' ? 'stage-board stage-survival is-intro' : 'stage-board'}>
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
@@ -442,6 +445,123 @@ function Intro({ view }: { view: StageView }) {
           <BoardIntro board={view.board} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Заставка «Мільйонера»: зліва розклад раунду й картка учасника (до вибору — «Хто піде на драбину?»), справа драбина — усе на один екран. */
+function LadderIntro({ view, info }: { view: StageView; info: NonNullable<StageView['ladder']> }) {
+  if (view.round === null) return null;
+  return (
+    <div className="stage-board ladder-stage-intro">
+      <div className="ladder-intro-main">
+        {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
+        <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
+        <RoundFacts round={view.round} total={view.total} />
+        <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
+        <div className="ladder-contestant">
+          {info.contestant === null ? (
+            <p className="lead">{t('ladderStageWho')}</p>
+          ) : (
+            <>
+              <p className="question ladder-contestant-name">{info.contestant.nickname}</p>
+              {info.drawn && info.pick !== 'host' && <p className="meta">{t(`ladderStageDrawn_${info.pick}` as TextKey)}</p>}
+            </>
+          )}
+        </div>
+      </div>
+      <LadderBoard info={info} size="stage" />
+    </div>
+  );
+}
+
+/** Запитання «Мільйонера»: зліва запитання з варіантами й підказками, справа драбина; вибір учасника з locked, зал — на розкритті. */
+function LadderStage({ view, offsetMs, audioCommand }: { view: StageView; offsetMs: number; audioCommand: AudioCommand | null }) {
+  const info = view.ladder;
+  const { question, reveal } = view;
+  const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  if (info === null || question === null) return null;
+  const busy = view.phase === 'question' && splashNow?.splash.kind === 'question';
+  const correctId = reveal !== null && reveal.type === 'single' ? reveal.correctId : null;
+  const pick = info.contestantPick;
+  const level = info.steps[info.current]?.level ?? 0;
+  const hall = info.hall;
+  return (
+    <div className="stage-question stage-ladder" aria-busy={busy || undefined}>
+      <header className="bar">
+        <span>{questionLabel(view.round, view.questionIndex, view.total)}</span>
+        <span>{t('ladderStageHallCount', { answered: hall.answered, total: hall.total })}</span>
+      </header>
+      <div className="ladder-stage-body">
+        <div className="ladder-stage-main">
+          <div className="stage-main">
+            <h1 className={questionClass(question.text)}>{question.text}</h1>
+            {view.phase === 'question' && info.timer && (
+              <div className="stage-clock">
+                <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={publicLeadMs(question)} />
+              </div>
+            )}
+          </div>
+          <LadderLifelineBadges info={info} />
+          <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(1)} />
+          {question.audio?.clip != null && (
+            <QuestionAudio
+              key={`${view.round?.index ?? 0}:${view.questionIndex}`}
+              clip={question.audio.clip}
+              questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
+              ready={view.phase === 'question' && !busy && !view.paused}
+              paused={view.paused}
+              command={audioCommand}
+              elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
+              splash={busy}
+            />
+          )}
+          <YouTubePlayer video={question.video} masked={reveal === null} />
+          <ul className={choicesClass(question.choices)}>
+            {question.choices.map((choice, index) => {
+              // 50/50: прибраний варіант лишається на своєму місці з літерою — тьмяний і перекреслений, як на телефоні.
+              if (info.fifty?.includes(choice.id)) {
+                return (
+                  <li key={choice.id} className="choice is-removed" aria-label={t('choiceRemoved', { choice: choiceLabel(choice, index) })}>
+                    <ChoiceFace choice={choice} letter={LETTERS[index]} />
+                    <span className="removed-tag">{t('removedTag')}</span>
+                  </li>
+                );
+              }
+              const mine = pick === choice.id;
+              const tone = correctId === choice.id ? ' is-correct' : mine && correctId !== null ? ' is-wrong' : '';
+              return (
+                <li key={choice.id} className={`choice${tone}${mine ? ' is-picked' : ''}`}>
+                  <ChoiceFace choice={choice} letter={LETTERS[index]} />
+                  {mine && view.phase === 'locked' && <span className="tag ladder-final">{t('ladderStageFinal')}</span>}
+                </li>
+              );
+            })}
+          </ul>
+          <LadderAudience info={info} question={question} offsetMs={offsetMs} />
+          {reveal !== null && hall.right !== null && <p className="lead ladder-hall-hits">{t('ladderStageHall', { right: hall.right, answered: hall.answered, points: num(hallPoints(level)) })}</p>}
+        </div>
+        <LadderBoard info={info} size="stage" />
+      </div>
+    </div>
+  );
+}
+
+/** Між запитаннями «Мільйонера»: велика драбина, рішення учасника чи підсумок замість таблиці. */
+function LadderBetween({ view }: { view: StageView }) {
+  const info = view.ladder;
+  if (info === null) return null;
+  const name = info.contestant?.nickname ?? '';
+  return (
+    <div className="stage-board stage-ladder-between">
+      <h1 className="question ladder-between-line" role="status">
+        {info.outcome !== null
+          ? ladderOutcomeText(info)
+          : info.decision === 'pending'
+            ? t('ladderStageDeciding', { name, points: num(info.banked) })
+            : t('ladderPlayingOn')}
+      </h1>
+      <LadderBoard info={info} size="stage" />
     </div>
   );
 }
@@ -600,14 +720,16 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
       {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
-      {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && (
+      {phase === 'leaderboard' && view.ladder !== null && <LadderBetween view={view} />}
+      {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && (
         <div className={phase === 'finished' ? 'stage-board is-final' : 'stage-board'}>
           <h1 className="question">
             {phase === 'finished'

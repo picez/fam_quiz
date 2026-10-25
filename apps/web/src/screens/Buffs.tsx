@@ -355,7 +355,7 @@ function voteOptions(question: PublicQuestion): { id: string; text: string }[] {
 }
 
 /** Результати голосування: відсотки за варіантами або здогадки; правильної відповіді тут немає. */
-function VoteResults({ votes, question, offsetMs }: { votes: VoteTally; question: PublicQuestion; offsetMs: number }) {
+export function VoteResults({ votes, question, offsetMs }: { votes: VoteTally; question: PublicQuestion; offsetMs: number }) {
   const left = useLeftMs(votes, offsetMs);
   const over = votes.closed || left <= 0;
   // Повзунок — як введені відповіді: здогадки залу, а не відсотки за варіантами.

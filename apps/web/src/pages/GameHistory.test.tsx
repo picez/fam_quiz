@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debuffLines, survivalBonusLines, survivalLines, wipeoutLines } from './GameHistory';
+import { debuffLines, ladderLines, ladderPrizeLines, survivalBonusLines, survivalLines, wipeoutLines } from './GameHistory';
 
 describe('debuffLines', () => {
   it('lists purchases as «Оля купує 🌫️ Туман для гравця Петро: −200»', () => {
@@ -104,5 +104,66 @@ describe('survivalBonusLines', () => {
         { seq: 3, roundIndex: 0, afterQuestion: 3, nickname: 'Іра', points: 500, source: 'survival' },
       ]),
     ).toEqual(['Бонус виживання: Оля +500', 'Бонус виживання: Іра +500']);
+  });
+});
+
+describe('ladderLines', () => {
+  const choices = [
+    { id: 'a', text: 'Львів' },
+    { id: 'b', text: 'Київ' },
+    { id: 'c', text: 'Одеса' },
+    { id: 'd', text: 'Харків' },
+  ];
+  const question = { id: 'q1', type: 'single' as const, text: 'Столиця?', imageUrl: null, video: null, timeLimit: 20, points: 0, options: choices, correctId: 'b' };
+  const base = { contestant: 'Оля', step: 2, level: 1000, safe: true, lifelines: [], decision: null, outcome: null, hall: { answered: 3, right: 2 } };
+  const flat = (lines: string[]) => lines.map((line) => line.replace(/\s/g, ' '));
+
+  it('the step with its level and the safe mark, the hall hits', () => {
+    expect(flat(ladderLines(base, question))).toEqual(['Оля · сходинка 3 · 1000 (неспалима)', 'Зал: 2 з 3 відгадали']);
+    expect(flat(ladderLines({ ...base, safe: false }, question))[0]).toBe('Оля · сходинка 3 · 1000');
+  });
+
+  it('no hall line when nobody in the hall answered', () => {
+    expect(flat(ladderLines({ ...base, hall: { answered: 0, right: 0 } }, question))).toEqual(['Оля · сходинка 3 · 1000 (неспалима)']);
+  });
+
+  it('lifelines: 50/50 removed options, the hall percents, the host hint text or aloud', () => {
+    const lines = flat(
+      ladderLines(
+        {
+          ...base,
+          lifelines: [
+            { kind: 'fifty', removed: ['a', 'c'], tally: null, hint: null, aloud: false },
+            { kind: 'audience', removed: null, tally: { cast: 4, counts: { b: 3, d: 1 } }, hint: null, aloud: false },
+            { kind: 'hint', removed: null, tally: null, hint: 'Річка Дніпро', aloud: false },
+          ],
+        },
+        question,
+      ),
+    );
+    expect(lines).toContain('50/50: прибрано Львів, Одеса');
+    expect(lines).toContain('Зал: Львів 0 %, Київ 75 %, Одеса 0 %, Харків 25 %');
+    expect(lines).toContain('Підказка ведучого: Річка Дніпро');
+    expect(flat(ladderLines({ ...base, lifelines: [{ kind: 'hint', removed: null, tally: null, hint: null, aloud: true }] }, question))).toContain('Підказка ведучого — уголос');
+  });
+
+  it('the decision and the outcome', () => {
+    expect(flat(ladderLines({ ...base, decision: 'go' }, question))).toContain('Грає далі');
+    const out = (kind: 'took' | 'wrong' | 'top' | 'stopped', points: number) => flat(ladderLines({ ...base, outcome: { kind, passed: 2, points } }, question));
+    expect(out('took', 300)).toContain('Оля забрав(-ла) 300');
+    expect(out('wrong', 100)).toContain('Помилка — Оля отримує 100');
+    expect(out('top', 10000)).toContain('Оля пройшов(-ла) драбину: 10000');
+    expect(out('stopped', 300)).toContain('Драбину зупинено: 300');
+  });
+});
+
+describe('ladderPrizeLines', () => {
+  it('lists the ladder prize', () => {
+    expect(
+      ladderPrizeLines([
+        { seq: 1, roundIndex: 0, afterQuestion: 4, nickname: 'Оля', points: 100, source: 'host' },
+        { seq: 2, roundIndex: 0, afterQuestion: 4, nickname: 'Оля', points: 1000, source: 'ladder' },
+      ]).map((line) => line.replace(/\s/g, ' ')),
+    ).toEqual(['Виграш драбини: Оля +1000']);
   });
 });

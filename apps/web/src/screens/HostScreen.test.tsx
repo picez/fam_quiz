@@ -5,6 +5,7 @@ import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOption
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
+import { ladderInfo } from './ladder-fixtures';
 
 afterEach(() => {
   cleanup();
@@ -34,6 +35,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   final: null,
   wipeout: null,
   survival: null,
+  ladder: null,
   chain: null,
   sort: null,
   notice: null,
@@ -2221,6 +2223,61 @@ describe('HostScreen: bluff (10f)', () => {
       show(view({ phase: 'leaderboard', round: sRound, survival: sInfo() }));
       expect(screen.getAllByRole('button', { name: t('debuff') })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: t('points') })).toHaveLength(2);
+    });
+  });
+
+  describe('ladder', () => {
+    const lRound: RoundInfo = { index: 0, total: 2, title: '', type: 'ladder', partial: false, description: '', brief: emptyBrief('ladder'), times: null };
+    const lPlayers = [
+      { id: 'p1', nickname: 'Олена', connected: true, score: 0, streak: 0, debuff: null },
+      { id: 'p2', nickname: 'Петро', connected: true, score: 0, streak: 0, debuff: null },
+      { id: 'p3', nickname: 'Тарас', connected: false, score: 0, streak: 0, debuff: null },
+    ];
+    const lView = (over: Partial<HostView>) => view({ round: lRound, players: lPlayers, ...over });
+
+    it('intro with pick «host» and nobody picked: the main button is disabled «Виберіть учасника»', () => {
+      show(lView({ phase: 'intro', ladder: ladderInfo({ contestant: null, pick: 'host', current: -1 }) }));
+      expect(button('Виберіть учасника').disabled).toBe(true);
+    });
+
+    it('intro with random or lowest: «Вибрати учасника» sends next', () => {
+      const send = show(lView({ phase: 'intro', ladder: ladderInfo({ contestant: null, pick: 'random', current: -1 }) }));
+      const draw = button('Вибрати учасника');
+      expect(draw.disabled).toBe(false);
+      fireEvent.click(draw);
+      expect(send).toHaveBeenCalledWith('host:next', undefined);
+    });
+
+    it('intro with a contestant: «Почати драбину»', () => {
+      show(lView({ phase: 'intro', ladder: ladderInfo({ current: -1 }) }));
+      expect(button('Почати драбину').disabled).toBe(false);
+    });
+
+    it('leaderboard: «Учасник вирішує…» is disabled while the decision is open', () => {
+      show(lView({ phase: 'leaderboard', ladder: ladderInfo({ decision: 'pending' }) }));
+      expect(button('Учасник вирішує…').disabled).toBe(true);
+    });
+
+    it('leaderboard with an outcome: «Підсумки раунду», plain «Далі» in the last round', () => {
+      const done = ladderInfo({ decision: null, outcome: { kind: 'took', passed: 2, points: 300 } });
+      show(lView({ phase: 'leaderboard', ladder: done }));
+      expect(button('Підсумки раунду')).toBeTruthy();
+      cleanup();
+      show(lView({ phase: 'leaderboard', round: { ...lRound, total: 1 }, ladder: done }));
+      expect(screen.queryByRole('button', { name: 'Підсумки раунду' })).toBeNull();
+      expect(button('Далі')).toBeTruthy();
+    });
+
+    it('leaderboard with the next question open (decision go): «Наступне запитання»', () => {
+      show(lView({ phase: 'leaderboard', ladder: ladderInfo({ decision: 'go' }) }));
+      expect(button('Наступне запитання')).toBeTruthy();
+    });
+
+    it('no debuff buttons next to the players in the ladder round', () => {
+      // Рушій у «Мільйонері» віддає порожній allowed.debuffs (debuffsOff): меню біля гравців не з'являється.
+      show(lView({ phase: 'leaderboard', allowed: { debuffs: [], buffs: [] }, ladder: ladderInfo({ decision: 'pending' }) }));
+      expect(screen.queryAllByRole('button', { name: t('debuff') })).toHaveLength(0);
+      expect(screen.getAllByRole('button', { name: t('points') })).toHaveLength(3);
     });
   });
 });
