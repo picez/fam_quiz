@@ -154,6 +154,32 @@ describe('GameHistory', () => {
     for (const list of screen.getAllByRole('list')) expect(list.className).toContain('stacked');
   });
 
+  it('a team game is marked and every team shows its line-up', async () => {
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        teams: true,
+        standings: [
+          { participantId: 't1', nickname: 'Червоні', score: 2000, rank: 1, correct: 2, members: ['Оля', 'Петро'] },
+          { participantId: 't2', nickname: 'Сині', score: 0, rank: 2, correct: 0, members: [] },
+        ],
+      },
+    });
+    open('/history/g1');
+    expect(await screen.findByText('Командна гра')).toBeTruthy();
+    expect(screen.getByText('Склад: Оля, Петро')).toBeTruthy();
+    expect(screen.getAllByText(/^Склад:/)).toHaveLength(1);
+  });
+
+  it('a solo game has no team mark and no line-ups', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+    open('/history/g1');
+    await screen.findByRole('heading', { name: 'Географія' });
+    expect(screen.queryByText('Командна гра')).toBeNull();
+    expect(screen.queryByText(/^Склад:/)).toBeNull();
+  });
+
   it('shows a game without places or players without looking broken', async () => {
     vi.mocked(getGame).mockResolvedValue({
       ok: true,

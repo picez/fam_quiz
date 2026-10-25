@@ -75,6 +75,20 @@ describe('MyGames', () => {
     expect(screen.getByText('без місця')).toBeTruthy();
   });
 
+  it("a team game shows the player's team chip and the team's place", async () => {
+    vi.mocked(myHistory).mockResolvedValue({
+      ok: true,
+      data: [played({ gameId: 'g1', team: 'Сині', rank: 1, playerCount: 2 }), played({ gameId: 'g2', team: null })],
+    });
+    const { container } = open();
+    await screen.findAllByRole('heading', { name: 'Географія' });
+    expect(screen.getByText('Команда «Сині»')).toBeTruthy();
+    expect(screen.getAllByText('Команда «Сині»')).toHaveLength(1);
+    expect(screen.getByText('1 місце з 2')).toBeTruthy();
+    expect(stat('перемоги')).toContain('2');
+    expect(container.querySelectorAll('.team-chip')).toHaveLength(1);
+  });
+
   it('explains how games get here when there are none', async () => {
     vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [] });
     open();

@@ -9464,3 +9464,18 @@ button.wall-tile:disabled {
   font-size: 0.6em;
   font-weight: 500;
 }
+
+/* Історія командної гри: склад під назвою команди, чип команди біля місця. */
+.team-members {
+  display: block;
+  color: var(--dim);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.place .team-chip {
+  margin-left: 0.5rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  vertical-align: middle;
+}

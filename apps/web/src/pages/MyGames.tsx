@@ -51,6 +51,7 @@ export function MyGames() {
               <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}, ${t('playedAs', { nickname: game.nickname })}`}</p>
               <p className="place">
                 {game.rank === null ? t('noPlace') : t('placeOf', { rank: game.rank, total: game.playerCount })}
+                {game.team !== null && <span className="tag team-chip">{t('myGamesTeam', { name: game.team })}</span>}
               </p>
               <p>{t('yourResult', { score: game.score, points: countText('pointsWord', game.score), correct: game.correct, total: game.questionsPlayed })}</p>
             </li>
