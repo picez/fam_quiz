@@ -2362,6 +2362,151 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
     });
   });
 
+  describe('ladder (10i)', () => {
+    const ladderRound: RoundInfo = { index: 0, total: 1, title: '', type: 'ladder', partial: false, description: '', brief: emptyBrief('ladder'), times: null };
+    type Own = NonNullable<PlayerView['me']['ladder']>;
+    const own = (over: Partial<Own> = {}) => ({
+      ...me,
+      ladder: { role: 'contestant' as const, canLifeline: true, hint: null, canDecide: false, hallClosed: false, hallPoints: null, won: null, ...over },
+    });
+    const info = (over: Partial<NonNullable<PlayerView['ladder']>> = {}): NonNullable<PlayerView['ladder']> => ({
+      contestant: { playerId: 'p1', nickname: 'Олена' },
+      pick: 'host',
+      drawn: false,
+      steps: [
+        { level: 100, safe: false, state: 'passed' },
+        { level: 300, safe: false, state: 'passed' },
+        { level: 1000, safe: true, state: 'current' },
+        { level: 3000, safe: false, state: 'ahead' },
+        { level: 10000, safe: false, state: 'ahead' },
+      ],
+      current: 2,
+      timer: false,
+      lifelines: [
+        { kind: 'fifty', state: 'ready' },
+        { kind: 'audience', state: 'ready' },
+        { kind: 'hint', state: 'ready' },
+      ],
+      fifty: null,
+      audience: null,
+      hint: null,
+      contestantPick: null,
+      hall: { answered: 0, total: 1, right: null },
+      decision: null,
+      outcome: null,
+      banked: 300,
+      guaranteed: 1000,
+      ...over,
+    });
+    const standings = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 0, rank: 1 }];
+    const asked = (over: Partial<PlayerView> = {}) => onQuestion({ round: ladderRound, endsAt: null, ladder: info(), me: own(), ...over });
+
+    it('the contestant sees the lifelines and a field without the removed options, and no buff row', () => {
+      show(asked({ ladder: info({ fifty: ['a'] }) }));
+      expect(screen.getByRole('button', { name: '50/50' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Зал' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Підказка' })).toBeTruthy();
+      expect(document.querySelectorAll('.is-removed')).toHaveLength(1);
+      expect(document.querySelector('.buff-row')).toBeNull();
+    });
+
+    it('a lifeline tap sends player:lifeline', () => {
+      const send = show(asked());
+      fireEvent.click(screen.getByRole('button', { name: '50/50' }));
+      expect(send).toHaveBeenCalledWith('player:lifeline', { kind: 'fifty' });
+    });
+
+    it('the hall sees the banner with its points and no lifelines', () => {
+      show(asked({ me: own({ role: 'hall', canLifeline: false, hallPoints: 10 }) }));
+      expect(screen.getByText('Драбину проходить Олена. Відповідай за себе: правильно — +10.')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: '50/50' })).toBeNull();
+      expect(document.querySelector('.buff-row')).toBeNull();
+    });
+
+    it('the hall field is disabled once the hall has voted', () => {
+      show(asked({ me: own({ role: 'hall', canLifeline: false, hallClosed: true }) }));
+      expect(screen.getByText('Зал уже проголосував — на це запитання відповідати пізно.')).toBeTruthy();
+      expect(document.querySelector('fieldset.inputs')!.hasAttribute('disabled')).toBe(true);
+    });
+
+    it('the contestant gets a final-answer line after answering', () => {
+      show(asked({ me: { ...own({ canLifeline: false }), answer: { type: 'single', optionId: 'b' } } }));
+      expect(screen.getByText('Остаточна відповідь прийнята.')).toBeTruthy();
+    });
+
+    it('the intro names who climbs', () => {
+      show(view({ phase: 'intro', round: ladderRound, ladder: info(), me: own() }));
+      expect(screen.getByText('Ти йдеш на драбину!')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'intro', round: ladderRound, ladder: info(), me: own({ role: 'hall' }) }));
+      expect(screen.getByText('Драбину проходить Олена')).toBeTruthy();
+      cleanup();
+      show(view({ phase: 'intro', round: ladderRound, ladder: info({ contestant: null }), me: own({ role: 'hall' }) }));
+      expect(screen.getByText('Ведучий вибирає, хто піде на драбину…')).toBeTruthy();
+    });
+
+    it('the reveal shows the step, not points, to the contestant', () => {
+      const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 0 };
+      show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: ladderRound, ladder: info(), me: { ...own({ canLifeline: false }), result } }));
+      expect(screen.getByText('Правильно! Сходинка 1000.')).toBeTruthy();
+      expect(document.querySelector('.earned')).toBeNull();
+    });
+
+    it('a wrong answer says so without a sum', () => {
+      const result = { accepted: true, accuracy: 0, grade: 'wrong' as const, streakBonus: 0, points: 0 };
+      show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: ladderRound, ladder: info(), me: { ...own({ canLifeline: false }), result } }));
+      expect(screen.getByText('Неправильно.')).toBeTruthy();
+    });
+
+    it('the hall sees its points at the reveal as usual', () => {
+      const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 10 };
+      show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: ladderRound, ladder: info(), me: { ...own({ role: 'hall', canLifeline: false }), result } }));
+      expect(document.querySelector('.earned')!.textContent).toContain('10');
+    });
+
+    it('the leaderboard shows the decision and the ladder instead of the standings; take sends player:ladder', () => {
+      const send = show(view({ phase: 'leaderboard', round: ladderRound, ladder: info({ decision: 'pending', banked: 1000 }), me: own({ canDecide: true, canLifeline: false }), standings: null }));
+      expect(document.querySelector('.standings')).toBeNull();
+      expect(document.querySelector('.ladder-board')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Забрати 1000' }));
+      expect(send).toHaveBeenCalledWith('player:ladder', { take: true });
+    });
+
+    it('the decision stays on a pause but its buttons are disabled', () => {
+      show(view({ phase: 'leaderboard', paused: true, round: ladderRound, ladder: info({ decision: 'pending' }), me: own({ canDecide: false, canLifeline: false }), standings: null }));
+      expect(screen.getByRole('button', { name: 'Граю далі' }).hasAttribute('disabled')).toBe(true);
+    });
+
+    it('others wait while the contestant decides, then see the outcome from the guaranteed sum', () => {
+      show(view({ phase: 'leaderboard', round: ladderRound, ladder: info({ decision: 'pending' }), me: own({ role: 'hall' }), standings: null }));
+      expect(screen.getByText('Олена вирішує: грати далі чи забрати гроші…')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /Граю далі/ })).toBeNull();
+      cleanup();
+      // Після помилки — гарантована сума з підсумку, а не останній пройдений рівень (banked).
+      show(
+        view({
+          phase: 'leaderboard',
+          round: ladderRound,
+          ladder: info({ banked: 3000, guaranteed: 1000, outcome: { kind: 'wrong', passed: 4, points: 1000 } }),
+          me: own({ role: 'hall' }),
+          standings: null,
+        }),
+      );
+      expect(screen.getByText('Помилка — Олена отримує 1000')).toBeTruthy();
+      expect(document.querySelector('.ladder-state')!.textContent).not.toContain('3000');
+    });
+
+    it('play on shows the keep-going line', () => {
+      show(view({ phase: 'leaderboard', round: ladderRound, ladder: info({ decision: 'go' }), me: own({ canLifeline: false }), standings: null }));
+      expect(screen.getByText('Граємо далі!')).toBeTruthy();
+    });
+
+    it('the round end tells the contestant the prize', () => {
+      show(view({ phase: 'round_end', round: ladderRound, ladder: info(), me: own({ won: 1000, canLifeline: false }), standings }));
+      expect(screen.getByText('Твій виграш: 1000')).toBeTruthy();
+    });
+  });
+
   describe('survival', () => {
     const survivalRound: RoundInfo = { index: 0, total: 1, title: '', type: 'survival', partial: false, description: '', brief: emptyBrief('survival'), times: null };
     type Own = NonNullable<PlayerView['me']['survival']>;
