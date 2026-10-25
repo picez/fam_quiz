@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultTeams, type Answer, type Quiz } from '@quiz/shared';
 import { takeBuff } from './buffs';
 import { declareDuel, pickDuelCategory } from './duel';
-import { next, setConnected, type GameState } from './game';
+import { judge, next, setConnected, type GameState } from './game';
 import { actAnswer, actBuzz, pickDuelist } from './team-act';
 import { pickTeam, rollTeamDie, setTeamForm, startTeamDice } from './teams';
 import { hostView, playerView, stageView } from './views';
@@ -129,6 +129,24 @@ describe('team views: blitz', () => {
     expect(team(s, 'm1')).toMatchObject({ canAct: false, buzzerId: 'm2' });
     // інша команда не бачить чужого натиску як свого
     expect(team(s, 'm3')).toMatchObject({ canAct: true, buzzerId: null });
+  });
+
+  it('after a wrong attempt the buzzer is gone and nobody acts once the attempts are used up', () => {
+    let s = must(actBuzz(opened(quiz), 'm2', T0 + 1000));
+    s = must(actAnswer(s, 'm2', { type: 'text', value: 'Львів' }, T0 + 1500));
+    s = must(judge(s, 't1', false, T0 + 2000));
+    expect(team(s, 'm2')).toMatchObject({ canAct: false, buzzerId: null });
+    expect(team(s, 'm1')).toMatchObject({ canAct: false, buzzerId: null });
+    expect(team(s, 'm3')?.canAct).toBe(true);
+  });
+
+  it('instant blitz: once the team has answered nobody acts', () => {
+    let s = opened(teamQuiz([blitzRound('rb', [text, withId(text, 'q4b')])]));
+    expect(team(s, 'm1')?.canAct).toBe(true);
+    s = must(actAnswer(s, 'm2', { type: 'text', value: 'Львів' }, T0 + 1000));
+    expect(team(s, 'm1')?.canAct).toBe(false);
+    expect(team(s, 'm2')?.canAct).toBe(false);
+    expect(team(s, 'm3')?.canAct).toBe(true);
   });
 });
 

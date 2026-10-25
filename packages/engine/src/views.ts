@@ -1866,7 +1866,8 @@ function playerTeam(state: GameState, member: TeamMember): PlayerTeam {
     captainId,
     captain: captainId === member.id,
     canAct: teamId !== null && !lobby && canActNow(state, member.id, teamId),
-    buzzerId: teamId === null ? null : (play?.buzzers?.[teamId] ?? null),
+    // Натиснувший — лише поки команда в черзі: після оцінки спроби його вже немає.
+    buzzerId: teamId !== null && play?.blitz?.queue.some((e) => e.playerId === teamId) ? (play.buzzers?.[teamId] ?? null) : null,
     duelistId: duelling ? duelistOf(state, teamId) : null,
     canPickDuelist: duelling && captainId === member.id && (duel.stage === 'declared' || duel.stage === 'category'),
     canPick: lobby && state.teams?.form === 'pick',
@@ -1883,9 +1884,14 @@ function canActNow(state: GameState, memberId: string, teamId: string): boolean 
   }
   // Поза запитанням (поле, ставка, рішення) — капітан.
   if (state.phase !== 'question') return actorOf(state, memberId, 'captain').ok;
-  const play = state.plays[state.questionIndex];
-  // Натиснути може будь-хто, поки команди немає в черзі.
-  if (play?.blitz !== undefined && !play.blitz.queue.some((e) => e.playerId === teamId)) return true;
+  // Бліц: ті самі умови, що в кнопки й поля команди (спроби, час, уже відповіла).
+  const open = currentBlitz(state);
+  const own = playerBlitz(state, teamId);
+  if (open !== null && own !== null) {
+    // Миттєвий бліц — будь-хто, поки команда може відповісти; з кнопкою — натиснути може будь-хто, поки команди немає в черзі.
+    if (isInstant(open.rules)) return own.canAnswer;
+    if (own.position === null) return own.canBuzz;
+  }
   return actorOf(state, memberId, 'answer').ok;
 }
 
