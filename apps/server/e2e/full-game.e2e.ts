@@ -253,6 +253,8 @@ async function open(name: string, width: number, height: number, options: { redu
 }
 
 const click = (page: Page, name: string) => page.getByRole('button', { name, ...exact }).click();
+/** Рядок «Відповідей наживо» на пульті (11c). */
+const liveRow = (host: Page, name: string) => host.locator('#live-answers .live-row', { has: host.locator('.name', { hasText: name }) });
 /** Скільки мс кнопка була неактивною від цієї миті (11b): чекає, доки вона стане активною. */
 async function enabledAfter(button: Locator, timeout = 8000): Promise<number> {
   const from = Date.now();
@@ -1861,7 +1863,9 @@ async function chainGame() {
   const olyaBoard = stage.locator('.chain-board li', { hasText: 'Оля' });
   await olyaBoard.waitFor();
   expect(await olyaBoard.textContent()).toMatch(/\d+(,\d+)? с/);
-  await host.getByRole('heading', { name: 'Ланцюжок', exact: true }).waitFor();
+  // 11c: під час запитання поступ видно в «Відповідях наживо», окремої панелі «Ланцюжок» немає.
+  await host.locator('#live-answers').waitFor();
+  await liveRow(host, 'Оля').locator('.live-answer', { hasText: 'ланцюжок пройдено' }).waitFor();
   await shot(stage, 'chain-stage-progress');
   await shot(host, 'chain-host');
 
@@ -3863,14 +3867,15 @@ async function sortGame() {
   await shot(host, 'sort7f-host-progress');
   // Пульт на телефоні 375 px: рядок з довгим іменем і помилками не дає бічної прокрутки, тисне лише ім'я.
   await host.setViewportSize({ width: 375, height: 812 });
-  const petroRow = host.locator('.sort-board li', { hasText: 'Петро' });
+  // 11c: під час запитання поступ сортування — у рядку «Відповідей наживо».
+  const petroRow = liveRow(host, 'Петро');
   const petroName = petroRow.locator('.name');
   type NameCell = { textContent: string | null; dataset: Record<string, string | undefined>; scrollWidth: number; clientWidth: number };
   await petroName.evaluate((el: NameCell) => {
     el.dataset.was = el.textContent ?? '';
     el.textContent = 'Петро Довгопрізвищенко-Найдовшеімʼяненко';
   });
-  expect(await petroRow.innerText()).toContain('помилок: 1');
+  expect(await petroRow.innerText()).toContain('помилок 1');
   await expectNoSideScroll(host, 'sort7f-host-progress-375');
   expect(await petroName.evaluate((el: NameCell) => el.scrollWidth > el.clientWidth), 'the long name is cut with an ellipsis').toBe(true);
   await petroName.evaluate((el: NameCell) => {
@@ -4313,7 +4318,8 @@ async function duelGame() {
   await ira.getByText('Спроби: Оля 0 · Петро 1', exact).waitFor();
   await olya.getByText('Спроби: Оля 0 · Петро 1', exact).waitFor();
   await host.getByText('Прийнятні відповіді: Париж', exact).waitFor();
-  await host.getByText('Спроби Петро: Ліон', exact).waitFor();
+  // 11c: спроби дуелянтів на пульті — у рядках «Відповідей наживо» панелі дуелі.
+  await host.locator('.duel-host .live-row', { has: host.locator('.name', { hasText: 'Петро' }) }).getByText('спроби: Ліон', exact).waitFor();
   await host.getByRole('button', { name: 'Пропустити запитання', ...exact }).waitFor();
   await host.getByRole('button', { name: 'Скасувати дуель', ...exact }).waitFor();
   await host.getByRole('button', { name: 'Пауза', ...exact }).first().waitFor();
@@ -7395,6 +7401,8 @@ const revealStageOf = async (page: Page) => Number(await page.locator('[data-sta
 
 /** Бали гравця за запитання з рядка відповідей пульта. */
 async function scoreOf(host: Page, nickname: string): Promise<number> {
+  // 11c: до розкриття рядків відповідей немає (їх заступає панель наживо) — інакше .score знайшовся б у рядку «Гравці».
+  await host.locator('#live-answers').waitFor({ state: 'detached' });
   const text = await host.locator('li', { hasText: nickname }).locator('.score').first().textContent();
   return Number(text!.replace(/[^\d-]/g, ''));
 }
@@ -9905,6 +9913,8 @@ async function teamTotal(host: Page, name: string): Promise<number> {
 
 /** Бали команди за запитання з рядка відповідей пульта. */
 async function teamScore(host: Page, name: string): Promise<number> {
+  // 11c: до розкриття рядків відповідей немає (їх заступає панель наживо) — інакше .score знайшовся б у рядку «Гравці».
+  await host.locator('#live-answers').waitFor({ state: 'detached' });
   const text = await host.locator('li', { hasText: new RegExp(`^${name}`) }).locator('.score').first().textContent();
   return Number(text!.replace(/[^\d-]/g, ''));
 }
@@ -10847,5 +10857,298 @@ async function pacingGame11b() {
   await host.getByText('Гру завершено').first().waitFor();
 
   await noAlert();
+  expect(problems).toEqual([]);
+}
+
+it('part 11c: live answers on the host — the panel first under the question with answered N of M and waiting chips (an offline player grey), each answer with an auto-check verdict before the reveal and never on the stage or phones, the counter jumps to it on 375 px, a sort card and progress, bluff lies then picks; the plain responses come back on the reveal', async () => {
+  try {
+    await liveGame11c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+it('part 11c: team live answers — the captain draft in italics with who acts on the host only, then the team answer with its verdict', async () => {
+  try {
+    await teamLive11c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Чипи «Чекаємо» панелі наживо (лише імена, без позначки «поза зв’язком»). */
+async function liveChips(host: Page): Promise<string[]> {
+  const chips = host.locator('#live-answers .live-chip');
+  const names: string[] = [];
+  for (let i = 0; i < (await chips.count()); i++) names.push(((await chips.nth(i).evaluate((el) => el.firstChild?.textContent ?? '')) as string).trim());
+  return names;
+}
+
+async function liveGame11c() {
+  const host = await open('host11c', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host11c@example.com');
+
+  const common = { imageUrl: null, video: null };
+  const t1 = { ...common, id: 't1', type: 'text' as const, text: 'Яке місто називають перлиною біля моря?', accepted: ['Одеса'], timeLimit: 60, points: 100 };
+  const s1 = {
+    ...common,
+    id: 's1',
+    type: 'single' as const,
+    text: 'Яка річка найдовша в Україні?',
+    timeLimit: 60,
+    points: 100,
+    options: [
+      { id: 's1-a', text: 'Дніпро' },
+      { id: 's1-b', text: 'Дністер' },
+      { id: 's1-c', text: 'Десна' },
+    ],
+    correctId: 's1-a',
+  };
+  const so1 = {
+    ...common,
+    id: 'so1',
+    type: 'sort' as const,
+    text: 'Овочі й фрукти',
+    timeLimit: 60,
+    points: 100,
+    lockSeconds: 3,
+    categories: [
+      { id: 'so1-c0', text: 'Овочі' },
+      { id: 'so1-c1', text: 'Фрукти' },
+    ],
+    words: [
+      { id: 'so1-w0', text: 'Морква', categoryId: 'so1-c0' },
+      { id: 'so1-w1', text: 'Буряк', categoryId: 'so1-c0' },
+      { id: 'so1-w2', text: 'Яблуко', categoryId: 'so1-c1' },
+      { id: 'so1-w3', text: 'Груша', categoryId: 'so1-c1' },
+    ],
+  };
+  const b1 = {
+    ...common,
+    id: 'b1',
+    type: 'bluff' as const,
+    text: 'Найбільше природне озеро України — …',
+    points: 1000,
+    timeLimit: 60,
+    choiceTime: 30,
+    accepted: ['Ялпуг'],
+    lies: ['Світязь', 'Синевир', 'Кагул'],
+  };
+  const rc11c = classicRound('rc11c', [t1, s1, so1, b1] as never, { title: 'Наживо 11c', speedBonus: false, shuffleOptions: false });
+  const data = { ...makeRoundsQuiz([rc11c], { leaderboard: 'each' }), title: 'Наживо 11c' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Наживо 11c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11c', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya11c', 375, 812);
+  const petro = await open('petro11c', 375, 812);
+  const ira = await open('ira11c', 375, 812);
+  const petroFrames = socketFrames(petro);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').first().waitFor();
+
+  const panel = host.locator('#live-answers');
+  const toNext = async () => {
+    await click(host, 'Далі');
+    await click(host, 'Наступне запитання');
+    await afterSplash(host, stage, olya, petro);
+  };
+
+  // 1. Чекаємо: панель першою під запитанням, лічильник і чипи; Іра йде — її чип сірий.
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, olya, petro, ira);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, olya, petro, ira);
+  await panel.waitFor();
+  await panel.locator('.live-count').getByText('Відповіли 0 з 3', exact).waitFor();
+  expect(await liveChips(host)).toEqual(['Оля', 'Петро', 'Іра']);
+  const afterQuestion = await host.evaluate(`(() => {
+    const panels = [...document.querySelectorAll('main section.panel')];
+    const at = panels.findIndex((p) => p.querySelector('h1.question') !== null);
+    return at < 0 ? null : panels[at + 1]?.id ?? null;
+  })()`);
+  expect(afterQuestion, 'the live panel stands first after the question').toBe('live-answers');
+  await ira.context().close();
+  pages.delete('ira11c');
+  const iraChip = panel.locator('.live-chip.is-offline', { hasText: 'Іра' });
+  await iraChip.waitFor();
+  expect(await iraChip.innerText()).toContain('поза зв’язком');
+  await shot(host, 'p11c-host-waiting');
+
+  // 2. Рядок з відповіддю й вердиктом; сцена й телефони нічого з цього не бачать.
+  await numericAnswer(olya, 'Одеса');
+  await olya.getByText('Відповідь прийнято', exact).waitFor();
+  const olyaRow = liveRow(host, 'Оля');
+  await olyaRow.locator('.live-answer', { hasText: 'Одеса' }).waitFor();
+  await olyaRow.locator('.tag.is-correct').getByText('правильно', exact).waitFor();
+  await expect.poll(() => liveChips(host), POLL).toEqual(['Петро', 'Іра']);
+  await panel.locator('.live-count').getByText('Відповіли 1 з 3', exact).waitFor();
+  await shot(host, 'p11c-host-live-row');
+  expect(await stage.locator('#live-answers, .live-answers').count()).toBe(0);
+  expect(await stage.locator('.tag.is-correct, .tag.is-wrong').count()).toBe(0);
+  expect(await bodyText(stage)).not.toContain('Одеса');
+  expect(await bodyText(petro)).not.toContain('Одеса');
+  for (const [who, frames] of [['stage', stageFrames], ['petro', petroFrames]] as const) {
+    const text = frames.join(NL);
+    expect(text, `${who} received the live answers`).not.toContain('"live"');
+    expect(text, `${who} received an answer of Оля`).not.toContain('Одеса');
+  }
+  await numericAnswer(petro, 'Львів');
+  await liveRow(host, 'Петро').locator('.tag.is-wrong').getByText('ні', exact).waitFor();
+  // Іра поза зв’язком: запитання закривається само, панель лишається до розкриття.
+  await host.getByText('Запитання закрите').first().waitFor();
+  await panel.locator('.live-waiting').getByText('Не відповіли:', exact).waitFor();
+  expect(await liveChips(host)).toEqual(['Іра']);
+  await shot(host, 'p11c-host-locked');
+
+  // 3. Розкриття: панелі наживо немає, звичайні «Відповіді» з «Зарахувати» біля Петра.
+  await click(host, 'Показати відповідь');
+  await host.locator('.rows li', { hasText: 'Петро' }).getByRole('button', { name: 'Зарахувати', ...exact }).waitFor();
+  expect(await panel.count()).toBe(0);
+  await toNext();
+
+  // 4. Пульт на телефоні: панель видно без прокрутки, лічильник прокручує до неї.
+  await host.setViewportSize({ width: 375, height: 812 });
+  await panel.waitFor();
+  expect((await panel.boundingBox())!.y, 'the live panel is visible without scrolling on 375 px').toBeLessThan(812);
+  await host.evaluate('scrollTo(0, document.body.scrollHeight)');
+  const jump = host.getByRole('button', { name: 'До відповідей наживо', ...exact });
+  // Подія без прокрутки Playwright: прокручує сама кнопка.
+  await jump.dispatchEvent('click');
+  await expect.poll(async () => {
+    const y = (await panel.boundingBox())!.y;
+    return y >= 0 && y < 812;
+  }, POLL).toBe(true);
+  await expectNoSideScroll(host, 'p11c-host-375');
+  await shot(host, 'p11c-host-375-live');
+  await pickOption(olya, 'Дніпро');
+  await pickOption(petro, 'Десна');
+  await liveRow(host, 'Петро').locator('.tag.is-wrong').waitFor();
+  await host.setViewportSize({ width: 1280, height: 900 });
+  await host.getByText('Запитання закрите').first().waitFor();
+  await click(host, 'Показати відповідь');
+  await toNext();
+
+  // 5. Сортування: поточна картка й поступ у рядку, окремої панелі «Сортування» немає.
+  await olya.locator('.sort-card').waitFor();
+  const card = (await sortCard(olya))!;
+  await sortBy(olya, 'tap', ['Морква', 'Буряк'].includes(card) ? 'Овочі' : 'Фрукти');
+  await olya.locator('.sort-progress', { hasText: '1 з 4' }).waitFor();
+  const nextCard = (await sortCard(olya))!;
+  await expect.poll(() => liveRow(host, 'Оля').innerText(), POLL).toContain('розкладено 1 з 4');
+  expect(await liveRow(host, 'Оля').innerText()).toContain(`картка «${nextCard}»`);
+  expect(await host.locator('.sort-board').count(), 'no separate sort panel during the question').toBe(0);
+  await shot(host, 'p11c-host-sort');
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  await host.locator('.sort-board').waitFor();
+  await toNext();
+
+  // 6. Блеф: вигадка без вердикту, далі вибір з вердиктом; сцена вибору гравців не бачить.
+  await writeLie(olya, 'Шацьке');
+  await olya.getByText('Твоя вигадка: «Шацьке»', { exact: false }).waitFor();
+  await liveRow(host, 'Оля').getByText('вигадка: «Шацьке»', exact).waitFor();
+  expect(await liveRow(host, 'Оля').locator('.tag.is-correct, .tag.is-wrong, .tag.is-partial').count(), 'a lie has no verdict').toBe(0);
+  expect(await bodyText(petro)).not.toContain('Шацьке');
+  await shot(host, 'p11c-host-lies');
+  // Іра поза зв’язком: друга вигадка одразу відкриває вибір.
+  await writeLie(petro, 'Тилігул');
+  await pickBluff(olya, 'Тилігул');
+  await liveRow(host, 'Оля').getByText('вибрав «Тилігул»', exact).waitFor();
+  await liveRow(host, 'Оля').locator('.tag.is-wrong').getByText('ні', exact).waitFor();
+  await pickBluff(petro, 'Ялпуг');
+  await liveRow(host, 'Петро').getByText('вибрав «Ялпуг»', exact).waitFor();
+  await liveRow(host, 'Петро').locator('.tag.is-correct').getByText('правильно', exact).waitFor();
+  await shot(host, 'p11c-host-bluff');
+  expect(await bodyText(stage)).not.toContain('вибрав');
+
+  expect(problems).toEqual([]);
+}
+
+async function teamLive11c() {
+  const host = await open('host11ct', 1280, 900);
+  const hostFrames = socketFrames(host);
+  await register(host, 'host', 'Марта Ведуча', 'host11ct@example.com');
+
+  const t1 = { imageUrl: null, video: null, id: 't1', type: 'text' as const, text: 'Яке місто називають перлиною біля моря?', accepted: ['Одеса'], timeLimit: 90, points: 100 };
+  const rt11c = classicRound('rt11c', [t1] as never, { title: 'Команди 11c', speedBonus: false });
+  const data = { ...makeRoundsQuiz([rt11c], { leaderboard: 'each', teams: { count: 2, names: ['Червоні', 'Сині'] } }), title: 'Команди 11c' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Команди 11c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11ct', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya11ct', 375, 812);
+  const petro = await open('petro11ct', 375, 812);
+  const ira = await open('ira11ct', 375, 812);
+  const marko = await open('marko11ct', 375, 812);
+  const iraFrames = socketFrames(ira);
+  const markoFrames = socketFrames(marko);
+  const phones = [olya, petro, ira, marko];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Червоні'],
+    [petro, 'Петро', 'Червоні'],
+    [ira, 'Іра', 'Сині'],
+    [marko, 'Марко', 'Сині'],
+  ] as const) {
+    await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  await expect.poll(() => stageTeam(stage, 'Червоні'), POLL).toEqual(['Оля', 'Петро']);
+  await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Іра', 'Марко']);
+
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+
+  // 1. Чипи команд, рядків ще немає.
+  const panel = host.locator('#live-answers');
+  await panel.waitFor();
+  expect(await liveChips(host)).toEqual(['Червоні', 'Сині']);
+  expect(await panel.locator('.live-row').count()).toBe(0);
+
+  // 2. Чернетка капітана Червоних: курсивом, з «діє: Оля», лише на пульті й у товариша.
+  await field(olya, 'Ваша відповідь').fill('Одес');
+  const red = liveRow(host, 'Червоні');
+  await red.locator('.live-draft em', { hasText: 'Одес' }).waitFor({ timeout: 2000 });
+  await red.getByText('діє: Оля', exact).waitFor();
+  await red.locator('.live-draft .tag').getByText('чернетка', exact).waitFor();
+  await shot(host, 'p11c-host-draft');
+  expect(hostFrames.join(NL), 'the host receives the captain draft').toContain('Одес');
+  for (const [who, frames] of [['stage', stageFrames], ['ira', iraFrames], ['marko', markoFrames]] as const) {
+    expect(frames.join(NL), `${who} received the captain draft`).not.toContain('Одес');
+  }
+  await petro.locator('.team-draft', { hasText: 'Одес' }).waitFor({ timeout: 2000 });
+
+  // 3. Відповідь команди з вердиктом; чернетки більше немає.
+  await field(olya, 'Ваша відповідь').fill('Одеса');
+  await click(olya, 'Відповісти');
+  await olya.getByText('Відповідь прийнято', exact).waitFor();
+  await red.locator('.live-answer', { hasText: 'Одеса' }).waitFor();
+  await red.locator('.tag.is-correct').getByText('правильно', exact).waitFor();
+  expect(await red.locator('.live-draft').count()).toBe(0);
+  await numericAnswer(ira, 'Львів');
+  await liveRow(host, 'Сині').locator('.tag.is-wrong').getByText('ні', exact).waitFor();
+  await shot(host, 'p11c-host-team');
+
   expect(problems).toEqual([]);
 }
