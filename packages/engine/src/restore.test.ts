@@ -90,6 +90,7 @@ import { pickDoor } from './survival';
 import { decideWipeout } from './wipeout';
 import { decideLadder, pickContestant, useLifeline } from './ladder';
 import { rollTeamDie, setCaptain, setTeamForm, startTeamDice } from './teams';
+import { actAnswer, actBuzz } from './team-act';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
 const HOUR = 3_600_000;
@@ -728,10 +729,10 @@ function representative(): GameState[] {
   // 10j: лобі командної гри з кубиками посеред туру — GameState.teams, TeamsState, TeamMember, DiceState у teams.dice.
   let teamDice = must(setTeamForm(teamLobby(teamQuiz([classicRound('r1', [single])]), 'Оля', 'Петро', 'Віра'), 'dice'));
   teamDice = must(rollTeamDie(must(startTeamDice(teamDice)), 'm1', () => 0.5));
-  // 10j: командний бліц із натиском Петра за Червоних — Play.buzzers (так його запише задача 3); капітан Червоних — Петро.
-  let teamBuzz = teamGame(teamQuiz([blitzRound('b1', [single])]), [['Оля', 'Петро'], ['Віра']]);
-  teamBuzz = must(setCaptain(sendBlitz(must(next(teamBuzz, T0, () => 0)), 't1', kyiv, T0 + 1000), 't1', 'm2'));
-  teamBuzz = { ...teamBuzz, plays: teamBuzz.plays.map((p) => ({ ...p, buzzers: { t1: 'm2' } })) };
+  // 10j: командний бліц із натиском Петра за Червоних — Play.buzzers; капітан Червоних — Петро.
+  let teamBuzz = teamGame(teamQuiz([blitzRound('b1', [single], { check: 'manual' })]), [['Оля', 'Петро'], ['Віра']]);
+  teamBuzz = must(actBuzz(must(next(teamBuzz, T0, () => 0)), 'm2', T0 + 1000));
+  teamBuzz = must(setCaptain(must(actAnswer(teamBuzz, 'm2', kyiv, T0 + 1000)), 't1', 'm2'));
   return [
     teamDice,
     teamBuzz,

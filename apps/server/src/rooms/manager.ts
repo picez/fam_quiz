@@ -622,7 +622,7 @@ export class RoomManager {
   private kick(room: Room, playerId: string): AckResult {
     // Після фінішу подіум уже показано; вилучення переписало б результати.
     if (room.state.phase === 'finished') return { ok: false, error: 'wrong_phase' };
-    const removed = removePlayer(room.state, playerId);
+    const removed = removePlayer(room.state, playerId, this.now());
     if (!removed.ok) return { ok: false, error: removed.error };
     for (const [token, id] of room.playerTokens) {
       if (id === playerId) room.playerTokens.delete(token);

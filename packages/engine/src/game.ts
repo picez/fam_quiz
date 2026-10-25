@@ -690,11 +690,12 @@ export function addPlayer(state: GameState, player: { id: string; nickname: stri
 
 /**
  * Вилучення гравця. Командна гра: id людини — dropMember (остання людина забирає команду);
- * id команди — команда зникає разом зі своїми людьми, а далі як гравець.
+ * id команди — команда зникає разом зі своїми людьми, а далі як гравець. now (сервер) — для відліку відсутності команди,
+ * що лишилася без людей на зв'язку; соло-гра його не використовує.
  */
-export function removePlayer(state: GameState, playerId: string): Result {
+export function removePlayer(state: GameState, playerId: string, now?: number): Result {
   if (teamsOn(state)) {
-    if (memberOf(state, playerId) !== undefined) return dropMember(state, playerId);
+    if (memberOf(state, playerId) !== undefined) return dropMember(state, playerId, now);
     if (state.players.some((p) => p.id === playerId)) return removeFromGame(withoutTeam(state, playerId), playerId);
   }
   return removeFromGame(state, playerId);

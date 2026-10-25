@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { adjustScore } from './adjust';
-import { addPlayer, createGame, end, next, removePlayer, setConnected, start, type GameState } from './game';
+import { addPlayer, createGame, end, lock, next, recordOf, removePlayer, setConnected, start, submitAnswer, type GameState } from './game';
 import { suspend } from './restore';
-import { assignTeam, captainOf, dealTeams, pickTeam, setCaptain, setTeamForm } from './teams';
-import { boardRound, classicRound, makeRoundsQuiz, single, withId, withPoints } from './testing/fixtures';
+import { assignTeam, captainOf, dealTeams, pickTeam, rollTeamRest, setCaptain, setTeamForm, startTeamDice } from './teams';
+import { boardRound, classicRound, makeRoundsQuiz, single, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
+import { decideWipeout, decisionOpen, wipeoutTable } from './wipeout';
 import { must } from './testing/helpers';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
@@ -277,5 +278,91 @@ describe('team game: restart', () => {
     state = must(setConnected(state, 'm1', true, 2000));
     expect(state.awaiting).toEqual(['t2']);
     expect(state.players.map((p) => p.connected)).toEqual([true, false, false]);
+  });
+});
+
+describe('team game: removal keeps the team flow going', () => {
+  const field = boardRound('g1', [{ title: 'Міста', cells: [withPoints(withId(single, 'c11'), 100), withPoints(withId(single, 'c12'), 200)] }]);
+
+  it('kicking the only online member takes the team offline and starts the away countdown of its board turn', () => {
+    let state = must(next(teamGame(teamQuiz([field]), [['Анна', 'Богдан'], ['Віра']]), 1000));
+    state = must(setConnected(state, 'm1', false, 2000));
+    expect(state.board?.awaySince).toBeNull();
+    state = must(removePlayer(state, 'm2', 5000));
+    expect(state.players[0]).toMatchObject({ id: 't1', connected: false });
+    expect(state.board?.awaySince).toBe(5000);
+  });
+
+  it('an open wipeout window waiting only on a team whose last online member is kicked closes', () => {
+    const quiz = teamQuiz([wipeoutRound('rw', wipeoutLadder)], 3);
+    let state = must(next(teamGame(quiz, [['Анна'], ['Богдан'], ['Віра', 'Галина']]), 0, () => 0));
+    for (const id of ['t1', 't2', 't3']) state = must(submitAnswer(state, id, { type: 'single', optionId: 'b' }, 1000));
+    if (state.phase === 'question') state = must(lock(state));
+    state = must(next(must(next(state, 1500, () => 0)), 2000, () => 0));
+    expect(decisionOpen(state)).toBe(true);
+    state = must(decideWipeout(must(decideWipeout(state, 't1', false, 3000)), 't2', false, 3000));
+    state = must(setConnected(state, 'm3', false, 3200));
+    expect(decisionOpen(state)).toBe(true);
+    state = must(removePlayer(state, 'm4', 3500));
+    expect(decisionOpen(state)).toBe(false);
+    expect(wipeoutTable(state).t3.status).toBe('took');
+  });
+
+  it("the team's answer stays when a member is kicked", () => {
+    let state = must(next(teamGame(quiz2, [['Анна', 'Богдан'], ['Віра']]), 0, () => 0));
+    state = must(submitAnswer(state, 't1', { type: 'single', optionId: 'b' }, 1000));
+    state = must(removePlayer(state, 'm1', 2000));
+    expect(recordOf(state, 0, 't1')).toBeDefined();
+  });
+});
+
+describe('team game: stale captains', () => {
+  it('moving the chosen captain out of the team forgets the choice', () => {
+    let lobby = must(assignTeam(must(assignTeam(teamLobby(quiz2, 'Анна', 'Богдан'), 'm1', 't1')), 'm2', 't1'));
+    lobby = must(setCaptain(lobby, 't1', 'm2'));
+    expect(must(assignTeam(lobby, 'm2', 't2')).teams?.captains).toEqual({});
+    expect(must(assignTeam(lobby, 'm2', null)).teams?.captains).toEqual({});
+  });
+
+  it('a deal or the dice that move the chosen captain forget the choice; start keeps only valid captains', () => {
+    let lobby = must(assignTeam(must(assignTeam(teamLobby(quiz2, 'Анна', 'Богдан', 'Віра'), 'm1', 't1')), 'm2', 't1'));
+    lobby = must(setCaptain(lobby, 't1', 'm2'));
+    const dealt = must(dealTeams(must(setTeamForm(lobby, 'random')), seq(0.9, 0.9)));
+    const t1 = dealt.teams?.members.filter((m) => m.teamId === 't1').map((m) => m.id) ?? [];
+    // перемішування лишає порядок m1, m2, m3 → Червоні, Сині, Червоні: m2 пішов із Червоних
+    expect(t1).toEqual(['m1', 'm3']);
+    expect(dealt.teams?.captains).toEqual({});
+    const rolled = must(rollTeamRest(must(startTeamDice(must(setTeamForm(lobby, 'dice')))), seq(0.01, 0.99, 0.5)));
+    // m2 кинув 6 → перша смуга (Червоні) разом із m3 (4): вибір лишається; m1 (1) — у Синіх
+    expect(rolled.teams?.members.map((m) => m.teamId)).toEqual(['t2', 't1', 't1']);
+    expect(rolled.teams?.captains).toEqual({ t1: 'm2' });
+    const flipped = must(rollTeamRest(must(startTeamDice(must(setTeamForm(lobby, 'dice')))), seq(0.99, 0.01, 0.5)));
+    // тепер m2 кинув 1 → у Синіх: вибір Червоних забуто
+    expect(flipped.teams?.members.map((m) => m.teamId)).toEqual(['t1', 't2', 't1']);
+    expect(flipped.teams?.captains).toEqual({});
+    // вибір капітана, що вже не в цій команді (стан зібрано вручну): на старті його немає
+    const stale: GameState = { ...lobby, teams: { ...lobby.teams!, captains: { t1: 'm3' } } };
+    expect(must(start(stale)).teams?.captains).toEqual({});
+  });
+});
+
+describe('team game: guards', () => {
+  it('addPlayer and pickTeam after the start → wrong_phase', () => {
+    const game = teamGame(quiz2, [['Анна'], ['Богдан']]);
+    expect(addPlayer(game, { id: 'm9', nickname: 'Пізній' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(pickTeam(game, 'm1', 't2')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('setTeamForm and startTeamDice in a solo game → wrong_phase', () => {
+    const solo = createGame(makeRoundsQuiz([classicRound('r1', [single])]));
+    expect(setTeamForm(solo, 'dice')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(startTeamDice(solo)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('after a closed tour «dice» again keeps the throws for show, another form clears them', () => {
+    const closed = must(rollTeamRest(must(startTeamDice(must(setTeamForm(teamLobby(quiz2, 'Анна', 'Богдан'), 'dice')))), seq(0.9, 0.1)));
+    expect(closed.teams?.dice?.tour).toEqual([]);
+    expect(must(setTeamForm(closed, 'dice')).teams?.dice).toEqual(closed.teams?.dice);
+    expect(must(setTeamForm(closed, 'host')).teams?.dice).toBeNull();
   });
 });

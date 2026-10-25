@@ -18,7 +18,10 @@ import {
   type TeamMember,
   type TeamsState,
 } from './game';
+import { settleAudience } from './ladder';
 import { normalizeText } from './normalize';
+import { settleTrial } from './survival';
+import { settleDecision } from './wipeout';
 
 type TeamGame = GameState & { teams: TeamsState };
 
@@ -82,6 +85,11 @@ const dicePending = (dice: DiceState | null): boolean => dice !== null && dice.t
 const withoutValues = (record: Record<string, string>, ids: string[]): Record<string, string> =>
   Object.fromEntries(Object.entries(record).filter(([, id]) => !ids.includes(id)));
 
+/** Вибір ведучого лише для капітанів, що досі в тій самій команді (після переміщень, роздачі, кубиків, старту). */
+function keptCaptains(members: TeamMember[], captains: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(captains).filter(([team, id]) => members.some((m) => m.id === id && m.teamId === team)));
+}
+
 /**
  * Закриття туру кубиків лобі: у турі — учасники, що кидали або чекають кидка (хто прийшов пізніше — поза ним).
  * Тур закрито без нічиєї → учасники за спаданням кидків розкладаються смугами по командах.
@@ -98,7 +106,7 @@ function settleTeamDice(state: TeamGame, start: DiceState): GameState {
     at += size;
   });
   const members = state.teams.members.map((m) => (teamFor.has(m.id) ? { ...m, teamId: teamFor.get(m.id) ?? null } : m));
-  return withTeams(state, { dice, members });
+  return withTeams(state, { dice, members, captains: keptCaptains(members, state.teams.captains) });
 }
 
 /** Лобі, ведучий: спосіб формування; незакритий тур кубиків скасовується, склад лишається. wrong_phase поза лобі чи в соло-грі. */
@@ -126,7 +134,8 @@ export function assignTeam(state: GameState, memberId: string, teamId: string | 
 function moveMember(state: TeamGame, memberId: string, teamId: string | null): Result {
   if (memberOf(state, memberId) === undefined) return fail('not_found');
   if (teamId !== null && !state.teams.list.some((t) => t.id === teamId)) return fail('not_found');
-  return ok(withTeams(state, { members: state.teams.members.map((m) => (m.id === memberId ? { ...m, teamId } : m)) }));
+  const members = state.teams.members.map((m) => (m.id === memberId ? { ...m, teamId } : m));
+  return ok(withTeams(state, { members, captains: keptCaptains(members, state.teams.captains) }));
 }
 
 /** Лобі, ведучий: 'random' (team_form) — перемішати всіх і роздати по колу; учасників 0 → teams_few. */
@@ -136,7 +145,8 @@ export function dealTeams(state: GameState, rng: Rng): Result {
   if (state.teams.members.length === 0) return fail('teams_few');
   const list = state.teams.list;
   const teamFor = new Map(shuffle(state.teams.members.map((m) => m.id), rng).map((id, i) => [id, list[i % list.length].id]));
-  return ok(withTeams(state, { members: state.teams.members.map((m) => ({ ...m, teamId: teamFor.get(m.id) ?? null })) }));
+  const members = state.teams.members.map((m) => ({ ...m, teamId: teamFor.get(m.id) ?? null }));
+  return ok(withTeams(state, { members, captains: keptCaptains(members, state.teams.captains) }));
 }
 
 /** Лобі, ведучий: 'dice' (team_form) — тур для всіх учасників; < 2 → teams_few; тур уже триває → dice_pending. */
@@ -216,8 +226,12 @@ export function withoutTeam(state: GameState, teamId: string): GameState {
   );
 }
 
-/** Вилучення учасника: лобі — з members і кидків; у грі — ще голоси, капітан, дуелянт, натиснувший; останній у команді → removePlayer(teamId). */
-export function dropMember(state: GameState, memberId: string): Result {
+/**
+ * Вилучення учасника: лобі — з members і кидків; у грі — ще голоси, капітан, дуелянт, натиснувший; останній у команді → removePlayer(teamId).
+ * Пішла остання людина команди на зв'язку — команда поза зв'язком через setConnected (відлік відсутності, вікна рішень, зал);
+ * без now — без відліку (його поставить tick), але вікна й зал перевіряються.
+ */
+export function dropMember(state: GameState, memberId: string, now?: number): Result {
   if (!teamsOn(state)) return fail('not_found');
   const member = memberOf(state, memberId);
   if (member === undefined) return fail('not_found');
@@ -244,8 +258,12 @@ export function dropMember(state: GameState, memberId: string): Result {
     return ok(dicePending(dice) ? settleTeamDice(left, without) : withTeams(left, { dice: without }));
   }
   // Команда на зв'язку, поки хтось із її людей на зв'язку.
-  const players = left.players.map((p): PlayerState => (p.id === team ? { ...p, connected: members.some((m) => m.teamId === team && m.connected) } : p));
-  return ok(autoLock({ ...left, players }));
+  const present = members.some((m) => m.teamId === team && m.connected);
+  const player = left.players.find((p) => p.id === team);
+  if (team === null || player === undefined || player.connected === present) return ok(autoLock(left));
+  if (now !== undefined) return setConnected(left, team, present, now);
+  const players = left.players.map((p): PlayerState => (p.id === team ? { ...p, connected: present } : p));
+  return ok(settleTrial(settleDecision(autoLock(settleAudience({ ...left, players })))));
 }
 
 /** Зв'язок учасника; якщо змінилося «хтось із команди на зв'язку» — setConnected(команда); повернувся — команда зникає з awaiting. */
@@ -285,5 +303,5 @@ export function formTeams(state: GameState): Result {
       streak: 0,
     }),
   );
-  return ok(withTeams({ ...state, players }, { list: kept, members, dice: null }));
+  return ok(withTeams({ ...state, players }, { list: kept, members, captains: keptCaptains(members, state.teams.captains), dice: null }));
 }
