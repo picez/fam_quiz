@@ -140,6 +140,14 @@ describe('ladder lifelines: ask the hall', () => {
     expect(lifelines(s)?.audience).toMatchObject({ closed: true, ballots: { p1: opt('a') } });
   });
 
+  it('a timed vote closes at once when the whole hall already answered', () => {
+    let s = must(submitAnswer(climb({ timer: true }), 'p1', opt('b'), T + 500));
+    s = must(submitAnswer(s, 'p3', opt('c'), T + 600));
+    s = must(useLifeline(s, 'p2', 'audience', T + 1000, rng));
+    expect(lifelines(s)?.audience).toMatchObject({ closed: true, ballots: { p1: opt('b'), p3: opt('c') } });
+    expect(s.plays[s.questionIndex].overtime).toEqual({ p2: AUDIENCE_MS });
+  });
+
   it('no present hall means no audience', () => {
     let s = must(setConnected(climb(), 'p1', false, T + 500));
     s = must(setConnected(s, 'p3', false, T + 500));

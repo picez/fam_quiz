@@ -4,9 +4,10 @@ import { addAdjustment, afterQuestionNow } from './adjust';
 import { currentRound, fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
 import { isGhost, survivalAlive } from './survival';
 
-/** У раунді «Ва-банк» дебафів немає (14a): на його етапах, крім round_end. */
+/** У раундах «Ва-банк» і «Мільйонер» дебафів немає (14a): на їхніх етапах, крім round_end. */
 export function debuffsOff(state: GameState): boolean {
-  return currentRound(state)?.type === 'wipeout' && state.phase !== 'round_end';
+  const type = currentRound(state)?.type;
+  return (type === 'wipeout' || type === 'ladder') && state.phase !== 'round_end';
 }
 
 /** «Вибування»: ціль — привид на етапах раунду (крім round_end); дебаф на нього нічого не дає. */
@@ -118,9 +119,10 @@ export function fireDebuffs(state: GameState, now: number): GameState {
   const play = state.plays[state.questionIndex];
   // На опитуванні й хмарі дебаф не згорає даремно: ті, що чекають, чекають наступного запитання з балами.
   const type = play === undefined ? undefined : state.quiz.rounds[play.roundIndex]?.type;
+  // У «Ва-банк» і «Мільйонері» дебафів немає: той, що чекає, чекає наступного раунду.
   // У «Вибуванні» дебаф діє лише на живих: той, що чекає на привида, чекає наступного раунду.
   const answering = new Set(
-    play === undefined || isUnscored(play.question) || type === 'wipeout' ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
+    play === undefined || isUnscored(play.question) || type === 'wipeout' || type === 'ladder' ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
   );
   const connected = new Set(state.players.filter((p) => p.connected).map((p) => p.id));
   const debuffs: Record<string, DebuffState> = {};

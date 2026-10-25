@@ -279,9 +279,9 @@ export function useLifeline(state: GameState, playerId: string, kind: LifelineKi
   if (kind === 'hint') lifelines.hint = { text: play.question.hint ?? null, aloud: false, at: now };
   const taken = withCurrentPlay(state, { ...play, ladder: { ...play.ladder, lifelines } });
   // Поки зал голосує, учасник не втрачає часу: +15 с особистого, як баф 8b. Без таймера часу немає.
-  if (kind === 'audience' && timedPlay(play)) return ok(grantOvertime(taken, playerId, AUDIENCE_MS));
+  const granted = kind === 'audience' && timedPlay(play) ? grantOvertime(taken, playerId, AUDIENCE_MS) : taken;
   // Відповіді залу, що вже були, — теж голоси: якщо відповіли всі присутні, голосування одразу закривається.
-  return ok(kind === 'audience' ? settleAudience(taken) : taken);
+  return ok(kind === 'audience' ? settleAudience(granted) : granted);
 }
 
 /** Ведучий відповідає на запит підказки учасника: text або null («уголос»); not_found — немає запиту, що чекає. Пауза не заважає. */
