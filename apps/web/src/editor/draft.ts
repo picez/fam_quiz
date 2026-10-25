@@ -1029,6 +1029,20 @@ export function problemsOf(quiz: Quiz): string[] {
       const allowed: readonly string[] = WIPEOUT_TYPES;
       if (round.questions.some((question) => !allowed.includes(question.type))) problems.push(where(t('problemWipeoutType')));
     }
+    if (round.type === 'survival') {
+      if (round.questions.length < LIMITS.minSurvivalQuestions) problems.push(where(t('problemSurvivalFew', { min: LIMITS.minSurvivalQuestions })));
+      if (round.questions.length > LIMITS.maxSurvivalQuestions) problems.push(where(t('problemSurvivalMany', { max: LIMITS.maxSurvivalQuestions })));
+      const allowed: readonly string[] = SURVIVAL_TYPES;
+      if ([...round.questions, ...round.trials].some((question) => !allowed.includes(question.type))) problems.push(where(t('problemSurvivalType')));
+      if (round.trial === 'question' && round.trials.length === 0) problems.push(where(t('problemSurvivalTrials')));
+      round.trials.forEach((trial, index) => {
+        const key = problemKey(trial, roundPlace(draft, roundIndex, 0));
+        if (key === null) return;
+        // «Запитання N: текст» → «Питання на виживання N: текст».
+        const problem = problemText(key, index + 1, trial).replace(/^[^:]*:\s*/, '');
+        problems.push(where(t('problemSurvivalTrial', { index: index + 1, problem })));
+      });
+    }
     round.questions.forEach((question, index) => {
       const key = problemKey(question, roundPlace(draft, roundIndex, index));
       if (key !== null) problems.push(where(problemText(key, index + 1, question)));
@@ -1052,6 +1066,9 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
       if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
       if (messages.includes('wipeout_type')) problems.push(t('problemWipeoutType'));
+      if (messages.includes('survival_type')) problems.push(t('problemSurvivalType'));
+      if (messages.includes('survival_trials')) problems.push(t('problemSurvivalTrials'));
+      if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));

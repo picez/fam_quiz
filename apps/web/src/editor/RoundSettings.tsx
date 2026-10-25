@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { LIMITS, boardCells, cellAnswerMode, roundBrief, rulesOf, type Round, type RoundRules } from '@quiz/shared';
+import { LIMITS, SURVIVAL_TYPES, boardCells, cellAnswerMode, roundBrief, rulesOf, type Round, type RoundRules } from '@quiz/shared';
 import { ROUND_NAMES } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
 import { t } from '../i18n';
 import { RoundBriefing } from '../screens/RoundBriefing';
 import { applyRoundTime, withDefaultMode } from './draft';
+import { SparesEditor } from './SparesEditor';
 
 interface Props {
   round: Round;
@@ -189,6 +190,61 @@ export function RoundSettings({ round, index, onChange }: Props) {
           <span>{t('wipeoutSettingsNote')}</span>
           <HelpButton id="round.wipeout" />
         </p>
+      )}
+      {round.type === 'survival' && (
+        <fieldset className="survival-settings">
+          <legend className="with-help">
+            <span>{t('survivalLabel')}</span>
+            <HelpButton id="round.survival" />
+          </legend>
+          <div role="radiogroup" aria-label={t('survivalTrialKind')}>
+            <label className="check">
+              <input type="radio" name={`survival-trial-${round.id}`} checked={round.trial === 'question'} onChange={() => onChange({ ...round, trial: 'question' })} />
+              <span>{t('survivalTrialQuestionOpt')}</span>
+            </label>
+            <label className="check">
+              <input type="radio" name={`survival-trial-${round.id}`} checked={round.trial === 'luck'} onChange={() => onChange({ ...round, trial: 'luck' })} />
+              <span>{t('survivalTrialLuckOpt')}</span>
+            </label>
+          </div>
+          <label className="field">
+            <span>{t('survivalSurvivors')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={LIMITS.maxSurvivors}
+              value={Number.isNaN(round.survivors) ? '' : round.survivors}
+              onChange={(event) => onChange({ ...round, survivors: toNumber(event.target.value) })}
+            />
+          </label>
+          <label className="field">
+            <span>{t('survivalBonusLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={LIMITS.maxPoints}
+              step={50}
+              value={Number.isNaN(round.bonus) ? '' : round.bonus}
+              onChange={(event) => onChange({ ...round, bonus: toNumber(event.target.value) })}
+            />
+          </label>
+          <p className="meta">{t('survivalTrialsTitle')}</p>
+          {round.trial === 'luck' && <p className="meta">{t('survivalTrialsLuckNote')}</p>}
+          <SparesEditor
+            key={round.id}
+            spares={round.trials.length === 0 ? undefined : round.trials}
+            onChange={(next) => onChange({ ...round, trials: next ?? [] })}
+            types={SURVIVAL_TYPES}
+            showTime
+            max={LIMITS.maxSurvivalTrials}
+            hint={t('survivalTrialsHint')}
+            chipLabel={(i) => t('trialN', { index: i + 1 })}
+            addLabel={t('addTrial')}
+            removeLabel={t('removeTrial')}
+          />
+        </fieldset>
       )}
       {round.type !== 'final' && round.type !== 'wipeout' && (
         <>

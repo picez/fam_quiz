@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { newBoardRound, newClassicRound, newQuestion, newQuiz } from './draft';
+import { newBoardRound, newClassicRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
 import { QuizEditor } from './QuizEditor';
 
 afterEach(() => {
@@ -21,7 +21,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ва-банк') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ва-банк' | 'Вибування') => {
   click('+ Раунд');
   click(type);
 };
@@ -2236,5 +2236,107 @@ describe('QuizEditor: wipeout round', () => {
     click('Зберегти');
     await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('QuizEditor: survival round', () => {
+  const removeButton = () => screen.getByRole('button', { name: /^Видалити запитання \d+$/ }) as HTMLButtonElement;
+  const typeNames = (scope: HTMLElement) =>
+    within(within(scope).getByRole('group', { name: t('questionType') })).getAllByRole('button').map((b) => b.textContent);
+  const settings = () => document.querySelector('.round-settings') as HTMLElement;
+  const trialsBlock = () => document.querySelector('.survival-settings') as HTMLElement;
+  const questionItems = () => document.querySelectorAll('.question-item');
+  const savedRound = async (onSave: ReturnType<typeof open>['onSave']) => {
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const round = saved(onSave).rounds[0];
+    if (round.type !== 'survival') throw new Error('not a survival round');
+    return round;
+  };
+
+  it('a new survival round has three questions and two survival questions', () => {
+    open();
+    addRound('Вибування');
+    expect(questionItems()).toHaveLength(3);
+    expect(within(trialsBlock()).getByRole('button', { name: /^Питання 1/ })).toBeTruthy();
+    expect(within(trialsBlock()).getByRole('button', { name: /^Питання 2/ })).toBeTruthy();
+    expect(within(trialsBlock()).queryByRole('button', { name: /^Питання 3/ })).toBeNull();
+  });
+
+  it('the type choice has five types, in the survival questions too', () => {
+    open();
+    addRound('Вибування');
+    expect(typeNames(document.querySelector('.editor-stage') as HTMLElement)).toHaveLength(5);
+    expect(typeNames(trialsBlock())).toHaveLength(5);
+  });
+
+  it('adding a question gives a fourth one worth 100; removing is disabled at three', () => {
+    open();
+    addRound('Вибування');
+    expect(removeButton().disabled).toBe(true);
+    expect(removeButton().title).toBe(t('survivalMinHint', { min: 3 }));
+    click(t('addQuestion'));
+    expect(questionItems()).toHaveLength(4);
+    expect(removeButton().disabled).toBe(false);
+    expect((screen.getByLabelText(t('pointsLabel')) as HTMLInputElement).value).toBe('100');
+    fireEvent.click(removeButton());
+    expect(questionItems()).toHaveLength(3);
+    expect(removeButton().disabled).toBe(true);
+  });
+
+  it('adding stops at thirty questions', () => {
+    open();
+    addRound('Вибування');
+    for (let i = 0; i < 27; i += 1) click(t('addQuestion'));
+    expect(questionItems()).toHaveLength(30);
+    expect((screen.getByRole('button', { name: t('addQuestion') }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the trial kind, survivors and bonus are saved', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Т');
+    addRound('Вибування');
+    fireEvent.click(within(settings()).getByLabelText(t('survivalTrialLuckOpt')));
+    fireEvent.change(within(settings()).getByLabelText(t('survivalSurvivors')), { target: { value: '2' } });
+    fireEvent.change(within(settings()).getByLabelText(t('survivalBonusLabel')), { target: { value: '0' } });
+    // Порожні запитання не пройдуть перевірку, тож перевіряємо чернетку через повідомлення й стан полів.
+    expect((within(settings()).getByLabelText(t('survivalTrialLuckOpt')) as HTMLInputElement).checked).toBe(true);
+    expect((within(settings()).getByLabelText(t('survivalSurvivors')) as HTMLInputElement).value).toBe('2');
+    expect((within(settings()).getByLabelText(t('survivalBonusLabel')) as HTMLInputElement).value).toBe('0');
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('a filled survival round saves with luck, two survivors and no bonus', async () => {
+    const base = newSurvivalRound();
+    const fillQ = (q: Question, i: number): Question => (q.type === 'single' ? { ...q, text: `Q${i}`, options: q.options.map((o, k) => ({ ...o, text: `V${k}` })) } : q);
+    const initial: Quiz = { ...newQuiz(), title: 'Т', rounds: [{ ...base, questions: base.questions.map(fillQ), trials: base.trials.map(fillQ) }] };
+    const { onSave } = open(initial);
+    fireEvent.click(within(settings()).getByLabelText(t('survivalTrialLuckOpt')));
+    fireEvent.change(within(settings()).getByLabelText(t('survivalSurvivors')), { target: { value: '2' } });
+    fireEvent.change(within(settings()).getByLabelText(t('survivalBonusLabel')), { target: { value: '0' } });
+    click('Зберегти');
+    const round = await savedRound(onSave);
+    expect([round.trial, round.survivors, round.bonus]).toEqual(['luck', 2, 0]);
+  });
+
+  it('adding and removing a survival question', () => {
+    open();
+    addRound('Вибування');
+    click(t('addTrial'));
+    expect(within(trialsBlock()).getByRole('button', { name: /^Питання 3/ })).toBeTruthy();
+    fireEvent.click(within(trialsBlock()).getByRole('button', { name: t('removeTrial') }));
+    expect(within(trialsBlock()).queryByRole('button', { name: /^Питання 3/ })).toBeNull();
+  });
+
+  it('settings keep the classic penalty and speed bonus', () => {
+    open();
+    addRound('Вибування');
+    expect(screen.getByLabelText(t('ruleMinus'))).toBeTruthy();
+    expect(screen.getByLabelText(t('speedBonus'))).toBeTruthy();
+  });
+
+  it('the round strip offers the survival round with a help button', () => {
+    open();
+    click('+ Раунд');
+    expect(screen.getByRole('button', { name: 'Вибування' })).toBeTruthy();
   });
 });

@@ -1,4 +1,4 @@
-import { LIMITS, questionsOf, roundQuestions, type Question, type Quiz, type Round } from '@quiz/shared';
+import { LIMITS, questionsOf, roundQuestions, roundTrials, type Question, type Quiz, type Round } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
@@ -88,10 +88,12 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     if (round.type !== 'board') setRound({ ...round, questions: next });
   };
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
-  const total = questionsOf(quiz).length;
+  const total = questionsOf(quiz).length + quiz.rounds.reduce((sum, r) => sum + roundTrials(r).length, 0);
   const gaps = swapGaps(quiz);
   const roomForMore =
-    questions.length < (round.type === 'wipeout' ? LIMITS.maxWipeoutQuestions : LIMITS.maxQuestions) && total < LIMITS.maxQuizQuestions;
+    questions.length <
+      (round.type === 'wipeout' ? LIMITS.maxWipeoutQuestions : round.type === 'survival' ? LIMITS.maxSurvivalQuestions : LIMITS.maxQuestions) &&
+    total < LIMITS.maxQuizQuestions;
   const setNewcomers = (on: boolean) => {
     const { newcomers: _off, ...rest } = settings;
     update({ ...quiz, settings: on ? { ...rest, newcomers: true } : rest });
@@ -120,7 +122,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
 
   const add = () => {
-    setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : newQuestion('single')]);
+    setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : round.type === 'survival' ? { ...newQuestion('single'), points: 100 } : newQuestion('single')]);
     select(questions.length);
   };
 
@@ -434,8 +436,14 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 type="button"
                 className="btn btn-small btn-danger"
                 aria-label={t('removeQuestion', { index: selected + 1 })}
-                disabled={questions.length === 1 || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions)}
-                title={round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions }) : undefined}
+                disabled={questions.length === 1 || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions) || (round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions)}
+                title={
+                  round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions
+                    ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions })
+                    : round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions
+                      ? t('survivalMinHint', { min: LIMITS.minSurvivalQuestions })
+                      : undefined
+                }
                 onClick={remove}
               >
                 {t('remove')}

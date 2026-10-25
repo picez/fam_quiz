@@ -1,4 +1,4 @@
-import { LIMITS, SIMPLE_TYPES, type Question } from '@quiz/shared';
+import { LIMITS, SIMPLE_TYPES, type Question, type QuestionType } from '@quiz/shared';
 import { useState } from 'react';
 import { t } from '../i18n';
 import { newSpare } from './draft';
@@ -11,10 +11,20 @@ interface Props {
   max?: number;
   /** Підказка над чіпами (типово — про загальний пул). */
   hint?: string;
+  /** Дозволені типи (типово SIMPLE_TYPES). */
+  types?: readonly QuestionType[];
+  /** Показувати час (типово ні). */
+  showTime?: boolean;
+  /** Підпис чіпа (типово «Запасне N»). */
+  chipLabel?: (index: number) => string;
+  /** Підпис кнопки додавання (типово «Додати запасне»). */
+  addLabel?: string;
+  /** Підпис кнопки вилучення (типово «Видалити запасне»). */
+  removeLabel?: string;
 }
 
 /** Розділ «Запасні запитання»: чіпи запасних і редактор вибраного. Порожній пул — undefined. */
-export function SparesEditor({ spares, onChange, max = LIMITS.maxSpares, hint }: Props) {
+export function SparesEditor({ spares, onChange, max = LIMITS.maxSpares, hint, types = SIMPLE_TYPES, showTime = false, chipLabel, addLabel, removeLabel }: Props) {
   const [picked, setPicked] = useState(0);
   const list = spares ?? [];
   const at = Math.min(picked, list.length - 1);
@@ -41,11 +51,11 @@ export function SparesEditor({ spares, onChange, max = LIMITS.maxSpares, hint }:
             aria-pressed={index === at}
             onClick={() => setPicked(index)}
           >
-            {`${t('spareN', { index: index + 1 })} · ${t(`typeShort_${spare.type}`)}`}
+            {`${(chipLabel ?? ((i) => t('spareN', { index: i + 1 })))(index)} · ${t(`typeShort_${spare.type}`)}`}
           </button>
         ))}
         <button type="button" className="chip" disabled={list.length >= max} onClick={add}>
-          {t('addSpare')}
+          {addLabel ?? t('addSpare')}
         </button>
       </div>
       {at >= 0 && (
@@ -53,16 +63,16 @@ export function SparesEditor({ spares, onChange, max = LIMITS.maxSpares, hint }:
           <QuestionEditor
             key={list[at].id}
             question={list[at]}
-            types={SIMPLE_TYPES}
+            types={types}
             showPoints={false}
             showHint={false}
-            showTime={false}
+            showTime={showTime}
             showVideo={false}
             showAudio={false}
             onChange={(next) => onChange(list.map((spare, i) => (i === at ? next : spare)))}
           />
           <button type="button" className="btn btn-small btn-danger spare-remove" onClick={remove}>
-            {t('removeSpare')}
+            {removeLabel ?? t('removeSpare')}
           </button>
         </>
       )}

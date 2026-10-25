@@ -1924,4 +1924,28 @@ describe('survival round (10h)', () => {
     saveDraft('survival-draft', quiz);
     expect(loadDraft('survival-draft')!.rounds[0]).toEqual(quiz.rounds[0]);
   });
+  const survivalQuiz = (patch: Partial<ReturnType<typeof newSurvivalRound>>): Quiz => {
+    const base = newSurvivalRound();
+    return { ...newQuiz(), title: 'Т', rounds: [{ ...base, questions: base.questions.map(filled), trials: base.trials.map(filled), ...patch }] };
+  };
+  it('problemsOf counts the questions, checks the types and the trials', () => {
+    expect(problemsOf(survivalQuiz({}))).toEqual([]);
+    const three = newSurvivalRound().questions.map(filled);
+    expect(problemsOf(survivalQuiz({ questions: three.slice(0, 2) }))).toContain(t('problemSurvivalFew', { min: LIMITS.minSurvivalQuestions }));
+    const many = Array.from({ length: 31 }, (_, i) => ({ ...three[i % 3], id: `q${i}` }));
+    expect(problemsOf(survivalQuiz({ questions: many }))).toContain(t('problemSurvivalMany', { max: LIMITS.maxSurvivalQuestions }));
+    const multi = filled(newQuestion('multi'));
+    expect(problemsOf(survivalQuiz({ trials: [multi] }))).toContain(t('problemSurvivalType'));
+    expect(problemsOf(survivalQuiz({ questions: [...three.slice(0, 2), multi] }))).toContain(t('problemSurvivalType'));
+    expect(problemsOf(survivalQuiz({ trial: 'question', trials: [] }))).toContain(t('problemSurvivalTrials'));
+    expect(problemsOf(survivalQuiz({ trial: 'luck', trials: [] }))).toEqual([]);
+  });
+  it('problemsOf checks the trial questions too and names them', () => {
+    const problems = problemsOf(survivalQuiz({ trials: [newQuestion('single')] }));
+    expect(problems.some((p) => p.startsWith('Питання на виживання 1:'))).toBe(true);
+  });
+  it('problemsOf explains the media a trial question must not have', () => {
+    const withVideo = { ...filled(newQuestion('single')), video: { id: 'dQw4w9WgXcQ', start: 0 } };
+    expect(problemsOf(survivalQuiz({ trials: [withVideo] }))).toContain(t('problemSurvivalTrialMedia'));
+  });
 });
