@@ -326,4 +326,20 @@ describe('LiveAnswers: where the card is heading (11d)', () => {
     render(<LiveAnswers view={sortView()} live={live([fresh])} tilts={{}} />);
     expect(document.querySelector('.live-rows')).toBeNull();
   });
+
+  it('keeps the row while the finger tilts weakly or lets go, so it does not flicker; an older move hides it', () => {
+    const fresh = row({ id: 'p1', progress: { kind: 'sort', card: 'Буряк', cardId: 'w3', seq: 0, sorted: 0, total: 4, misses: 0 } });
+    for (const over of [{ toward: null, amount: 0 }, { amount: 0.1 }]) {
+      render(<LiveAnswers view={sortView()} live={live([fresh])} tilts={tilt({ seq: 0, ...over })} />);
+      expect(document.querySelector('.live-rows')?.textContent).toContain('Буряк');
+      expect(document.querySelector('.live-rows')?.textContent).not.toContain('→');
+      cleanup();
+    }
+    render(<LiveAnswers view={sortView()} live={live([fresh])} tilts={tilt({ seq: 1, toward: null, amount: 0 })} />);
+    expect(document.querySelector('.live-rows')).toBeNull();
+  });
+
+  it('a tilt of another card adds no arrow', () => {
+    expect(body(sortView(), tilt({ wordId: 'w1' }))).not.toContain('→');
+  });
 });

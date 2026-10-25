@@ -300,6 +300,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
             paused={view.paused}
             offsetMs={offsetMs}
             team={view.teams !== null}
+            headed={answering !== null}
           />
         ) : (
           <>

@@ -418,6 +418,55 @@ describe('tilt sending (11d)', () => {
       expect(send).toHaveBeenCalledTimes(2);
     });
 
+    it('a new move on the same word (a miss on the last one) sends the same tilt again', () => {
+      const send = okSend();
+      const { result, rerender } = renderHook(({ seq }) => useTiltSender(send, true, 'w1', seq), { initialProps: { seq: 3 } });
+      result.current(right);
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledTimes(1);
+      rerender({ seq: 4 });
+      result.current(right);
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledTimes(2);
+    });
+
+    it('a tilt the server found too soon is sent again with the next window', async () => {
+      const send = vi.fn<Send>().mockResolvedValueOnce({ ok: false, error: 'too_soon' }).mockResolvedValue({ ok: true });
+      const { result } = renderHook(() => useTiltSender(send, true, 'w1'));
+      result.current(right);
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(send).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(send).toHaveBeenLastCalledWith('player:sort-tilt', { wordId: 'w1', ...right });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(send).toHaveBeenCalledTimes(2);
+    });
+
+    it('after another refusal the same value is no repeat any more', async () => {
+      const send = vi.fn<Send>().mockResolvedValueOnce({ ok: false, error: 'sort_locked' }).mockResolvedValue({ ok: true });
+      const { result } = renderHook(() => useTiltSender(send, true, 'w1'));
+      result.current(right);
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(send).toHaveBeenCalledTimes(1);
+      result.current(right);
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(send).toHaveBeenCalledTimes(2);
+    });
+
     it('sends nothing when inactive, and a new word drops the tail', () => {
       const off = okSend();
       const inactive = renderHook(() => useTiltSender(off, false, 'w1'));
@@ -459,6 +508,38 @@ describe('tilt sending (11d)', () => {
         vi.advanceTimersByTime(300);
       });
       expect(send).not.toHaveBeenCalledWith('player:sort-tilt', expect.anything());
+    });
+
+    it('a refused move sends the card back to the centre for the watchers', async () => {
+      const send = vi.fn<Send>((event) => Promise.resolve(event === 'player:sort' ? { ok: false, error: 'sort_locked' } : { ok: true }));
+      play(2, playerSort({ watched: true }), send);
+      fireEvent.pointerDown(card(), { pointerId: 1, clientX: 100, clientY: 300 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 150, clientY: 300 });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(send).toHaveBeenLastCalledWith('player:sort-tilt', { wordId: 'w1', categoryId: 'c2', amount: 0.4 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 200, clientY: 300 });
+      await act(async () => {
+        fireEvent.pointerUp(card(), { pointerId: 1, clientX: 200, clientY: 300 });
+      });
+      expect(send).toHaveBeenCalledWith('player:sort', { wordId: 'w1', categoryId: 'c2' });
+      expect(send).toHaveBeenLastCalledWith('player:sort-tilt', { wordId: 'w1', categoryId: null, amount: 0 });
+    });
+
+    it('a drop on a zone that cannot take the move (paused mid-drag) releases the tilt', () => {
+      const send = okSend();
+      const { rerender } = play(2, playerSort({ watched: true }), send);
+      fireEvent.pointerDown(card(), { pointerId: 1, clientX: 100, clientY: 300 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 200, clientY: 300 });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(send).toHaveBeenLastCalledWith('player:sort-tilt', { wordId: 'w1', categoryId: 'c2', amount: 0.85 });
+      rerender(<SortPlay question={sortQuestion(2)} sort={playerSort({ watched: true })} paused offsetMs={0} send={send} />);
+      fireEvent.pointerUp(card(), { pointerId: 1, clientX: 200, clientY: 300 });
+      expect(send).not.toHaveBeenCalledWith('player:sort', expect.anything());
+      expect(send).toHaveBeenLastCalledWith('player:sort-tilt', { wordId: 'w1', categoryId: null, amount: 0 });
     });
 
     it('sends no tilt where nobody watches', () => {
@@ -515,7 +596,7 @@ describe('watching a live sort (11d)', () => {
     <SortWatch question={sortQuestion(2)} info={infoOf(live)} live={live} tilts={tilts} paused={paused} offsetMs={0} />
   );
   const liveCard = () => document.querySelector<HTMLElement>('.sort-live-card');
-  const zoneByText = (text: string) => [...document.querySelectorAll('.sort-zone')].find((el) => el.textContent === text)!;
+  const zoneByText = (text: string) => [...document.querySelectorAll('.sort-zone')].find((el) => el.querySelector('.sort-zone-name')?.firstChild?.textContent === text)!;
   const colByText = (text: string) => [...document.querySelectorAll('.sort-reveal-col')].find((el) => el.querySelector('h3')?.textContent === text)!;
 
   it('liveTilt gives the tilt only for the same move and word', () => {
@@ -560,7 +641,7 @@ describe('watching a live sort (11d)', () => {
     expect(zoneByText('Фрукти').classList.contains('is-toward')).toBe(false);
   });
 
-  it('columns fill during the play and the chips lose placed words', () => {
+  it('the zones count placed words, no columns while playing, the folded chips lose placed words and the card', () => {
     const live = liveOf({
       sorted: 1,
       columns: [
@@ -569,15 +650,25 @@ describe('watching a live sort (11d)', () => {
       ],
     });
     render(watch(live));
-    expect(document.querySelector('.sort-reveal.is-open')).toBeNull();
-    expect([...colByText('Овочі').querySelectorAll('li')].map((li) => li.textContent)).toEqual(['Морква']);
-    expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Яблуко']);
+    expect(document.querySelector('.sort-reveal')).toBeNull();
+    expect(zoneByText('Овочі').querySelector('.sort-zone-name')?.textContent).toBe('Овочі · 1');
+    expect(zoneByText('Фрукти').querySelector('.sort-zone-name')?.textContent).toBe('Фрукти · 0');
+    const rest = document.querySelector('details.sort-rest')!;
+    expect(rest.hasAttribute('open')).toBe(false);
+    expect(rest.querySelector('summary')?.textContent).toBe('Ще 2 слова');
+    expect([...rest.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Груша', 'Яблуко']);
+  });
+
+  it('the chips leave out the missed word during the lock', () => {
+    render(watch(liveOf({ card: { id: 'w2', text: 'Яблуко' }, missed: { id: 'w3', text: 'Буряк' }, misses: 1, lockedUntil: Date.now() + 3000 })));
+    expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Груша', 'Морква']);
+    expect(document.querySelector('summary')?.textContent).toBe('Ще 2 слова');
   });
 
   it('a hit flies into its column and lands with a tick', () => {
     const { rerender } = render(watch(liveOf({ seq: 1, last: { wordId: 'w1', text: 'Морква', to: 'c1', hit: true } })));
     expect(liveCard()?.classList.contains('is-flying')).toBe(false);
-    expect(document.querySelector('li.is-landed')).toBeNull();
+    expect(document.querySelector('.sort-zone-landed')).toBeNull();
     rerender(
       watch(
         liveOf({
@@ -595,17 +686,19 @@ describe('watching a live sort (11d)', () => {
     expect(liveCard()?.classList.contains('is-flying')).toBe(true);
     expect(liveCard()?.getAttribute('data-to')).toBe('c1');
     expect(liveCard()?.textContent).toBe('Буряк');
-    expect(colByText('Овочі').querySelector('li.is-landed')?.textContent).toContain('Буряк');
+    expect(zoneByText('Овочі').querySelector('.sort-zone-landed')?.textContent).toBe('Буряк✓');
+    expect(zoneByText('Овочі').querySelector('.sort-zone-name')?.textContent).toBe('Овочі · 1');
+    expect(zoneByText('Фрукти').querySelector('.sort-zone-landed')).toBeNull();
     act(() => {
       vi.advanceTimersByTime(450);
     });
     expect(liveCard()?.classList.contains('is-flying')).toBe(false);
     expect(liveCard()?.textContent).toBe('Яблуко');
-    expect(document.querySelector('li.is-landed')).not.toBeNull();
+    expect(document.querySelector('.sort-zone-landed')).not.toBeNull();
     act(() => {
       vi.advanceTimersByTime(1050);
     });
-    expect(document.querySelector('li.is-landed')).toBeNull();
+    expect(document.querySelector('.sort-zone-landed')).toBeNull();
   });
 
   it('a miss shakes red, lights the zone and shows the lock countdown', () => {
@@ -623,12 +716,21 @@ describe('watching a live sort (11d)', () => {
     );
     expect(liveCard()?.classList.contains('is-miss')).toBe(true);
     expect(zoneByText('Фрукти').classList.contains('is-toward')).toBe(true);
-    expect(document.querySelector('.sort-lock')?.textContent).toBe('Помилка! Підвисання: 3 с');
+    expect(document.querySelector('.sort-lock-text')?.textContent).toBe('Помилка! Підвисання: 3 с');
+    // Відлік глядача не озвучується щосекунди: статус — один раз, на початку підвисання.
+    expect(document.querySelector('.sort-lock')?.getAttribute('aria-live')).toBe('off');
+    expect(document.querySelector('.sort-lock-text')?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByRole('status').textContent).toBe('Помилка, підвисання 3 с');
     act(() => {
       vi.advanceTimersByTime(450);
     });
     expect(liveCard()?.classList.contains('is-miss')).toBe(false);
     expect(document.querySelector('.sort-lock')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(document.querySelector('.sort-lock-text')?.textContent).toBe('Помилка! Підвисання: 2 с');
+    expect(screen.getByRole('status').textContent).toBe('Помилка, підвисання 3 с');
   });
 
   it('no stale lock or shake once the card is gone', () => {
@@ -665,7 +767,7 @@ describe('watching a live sort (11d)', () => {
       ),
     );
     expect(liveCard()?.classList.contains('is-flying')).toBe(false);
-    expect(document.querySelector('li.is-landed')).not.toBeNull();
+    expect(document.querySelector('.sort-zone-landed')).not.toBeNull();
   });
 
   it('the reveal marks wrong tries and words left undone', () => {
@@ -709,7 +811,33 @@ describe('watching a live sort (11d)', () => {
       expect(root.querySelector('.sort-live-card')?.textContent).toBe('Буряк');
       expect(root.querySelector('.sort-reveal.is-live')).not.toBeNull();
       expect(root.querySelector('.sort-reveal.is-open')).toBeNull();
-      expect([...root.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Груша', 'Яблуко']);
+      // Слово на картці чипом не дублюється.
+      expect([...root.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Груша', 'Яблуко']);
+      expect(root.querySelector('.sort-watching')?.textContent).toBe('Анна сортує слова');
+    });
+
+    it('a flying word is no chip either, and the header-named stage has no strip line', () => {
+      const { rerender } = render(stage(liveOf({ seq: 1 })));
+      rerender(
+        <SortStage
+          question={sortQuestion(2)}
+          info={infoOf(liveOf())}
+          live={liveOf({ seq: 2, card: { id: 'w2', text: 'Яблуко' }, misses: 1, last: { wordId: 'w4', text: 'Груша', to: 'c1', hit: false } })}
+          reveal={null}
+          tilts={{}}
+          paused={false}
+          offsetMs={0}
+          headed
+        />,
+      );
+      expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Буряк', 'Морква']);
+      expect(document.querySelector('.sort-watching')).toBeNull();
+    });
+
+    it('the stage tilt nudges the card down only a little; the full reach is for the flight', () => {
+      expect(rule('.stage-sort-live .sort-live-card')).toContain('--tilt-y-cap: 0.5;');
+      expect(rule('.stage-sort-live .sort-live-card.is-flying')).toContain('--tilt-y-cap: 1;');
+      expect(css).toContain('min(var(--tilt, 0), var(--tilt-y-cap, 1))');
     });
 
     it('a tilt toward a column highlights it and sets the column offset', () => {

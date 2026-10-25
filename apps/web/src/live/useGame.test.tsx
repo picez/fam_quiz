@@ -149,4 +149,15 @@ describe('useGame tilts (11d)', () => {
     act(() => socket.fire('disconnect', 'transport close'));
     expect(result.current.tilts).toEqual({});
   });
+
+  it('forgets tilts when the question changes', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', { ...view, questionIndex: 0 }, meta()));
+    act(() => socket.fire('sort:tilt', tilt()));
+    act(() => socket.fire('state', { ...view, questionIndex: 0 }, meta()));
+    expect(result.current.tilts.p1).toBeDefined();
+    act(() => socket.fire('state', { ...view, questionIndex: 1 }, meta()));
+    expect(result.current.tilts).toEqual({});
+  });
 });

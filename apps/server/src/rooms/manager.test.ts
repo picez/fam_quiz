@@ -706,8 +706,9 @@ describe('sort tilt (11d)', () => {
     expect(room.state).toBe(state);
     expect(events.some((event) => event.type === 'changed')).toBe(false);
 
+    // Зарано: не дійшло, і телефон про це знає — надішле знову.
     scheduler.advance(50);
-    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 0.8 })).toEqual({ ok: true });
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 0.8 })).toEqual({ ok: false, error: 'too_soon' });
     expect(events).toHaveLength(1);
     scheduler.advance(50);
     expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 0.8 })).toEqual({ ok: true });
@@ -743,6 +744,46 @@ describe('sort tilt (11d)', () => {
     expect(room.tilts.size).toBe(1);
     expect(manager.host(room, { type: 'pause' })).toEqual({ ok: true });
     expect(room.tilts.size).toBe(0);
+  });
+
+  it('a kick and a new question clear the tilt', () => {
+    const { manager, room, anna } = boardSort();
+    const chooser = anna.playerId;
+    const head = sortOf(room.state, chooser).queue[0];
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c1', amount: 1 })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'kick', playerId: chooser })).toEqual({ ok: true });
+    expect(room.tilts.size).toBe(0);
+
+    // Нове запитання (тут — класика з двох): нахил минулого стирається, навіть якщо хід його не стер.
+    const scheduler = new FakeScheduler();
+    const classic = new RoomManager(scheduler, () => 0.5);
+    const two = classic.create(makeQuiz([sortQ, single]));
+    classic.connect(two, HOST);
+    enter(classic, two, 'Олена');
+    expect(classic.host(two, { type: 'start' })).toEqual({ ok: true });
+    expect(classic.host(two, { type: 'next' })).toEqual({ ok: true });
+    const at = two.state.questionIndex;
+    two.tilts.set('x', { questionIndex: at, seq: 0, by: 'x', wordId: 'w1', toward: 'c1', amount: 1, at: 0 });
+    scheduler.advance(10 * 60_000);
+    expect(two.tilts.size).toBe(1);
+    for (let step = 0; step < 4 && two.state.questionIndex === at; step++) {
+      scheduler.advance(10_000);
+      classic.host(two, { type: 'next' });
+    }
+    expect(two.state.questionIndex).not.toBe(at);
+    expect(two.tilts.size).toBe(0);
+  });
+
+  it('liveTilts gives a newcomer the tilt in force: same move, game on, with a direction', () => {
+    const { scheduler, manager, room, anna } = boardSort();
+    const chooser = anna.playerId;
+    const head = sortOf(room.state, chooser).queue[0];
+    expect(manager.liveTilts(room)).toEqual([]);
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: 'c2', amount: 0.5 })).toEqual({ ok: true });
+    expect(manager.liveTilts(room)).toEqual([{ tilt: { sorterId: chooser, wordId: head, toward: 'c2', amount: 0.5, seq: 0 }, by: chooser, audience: 'all' }]);
+    scheduler.advance(200);
+    expect(manager.tilt(room, chooser, { wordId: head, categoryId: null, amount: 0 })).toEqual({ ok: true });
+    expect(manager.liveTilts(room)).toEqual([]);
   });
 
   it('classic: refused, nothing relayed', () => {

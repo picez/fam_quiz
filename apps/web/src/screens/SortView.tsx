@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from 'react';
 import { SORT_TILT_MS, type Choice, PlayerSort, PublicQuestion, Question, SortColumn, SortInfo, SortLive, SortTilt, SortWordMark } from '@quiz/shared';
 import { secondsText, signed } from '../format';
-import { errorText, t } from '../i18n';
+import { countText, errorText, t } from '../i18n';
 import { secondsLeft } from '../clock';
 import { reducedMotion } from '../motion';
 import type { Send } from '../live/types';
@@ -74,8 +74,11 @@ export function tiltOf(
 type TiltValue = { categoryId: string | null; amount: number };
 export type TiltSender = ((tilt: TiltValue) => void) & { release: () => void; cancel: () => void };
 
-/** Нахил на сервер (11d): не частіше SORT_TILT_MS, з хвостом, без повторів; release — одразу «в центр»; wordId — поточна картка. */
-export function useTiltSender(send: Send, active: boolean, wordId: string | null): TiltSender {
+/**
+ * Нахил на сервер (11d): не частіше SORT_TILT_MS, з хвостом, без повторів; release — одразу «в центр»; wordId — поточна картка,
+ * seq — ходів зроблено (помилка на останньому слові лишає ту саму картку, але нахил треба слати заново).
+ */
+export function useTiltSender(send: Send, active: boolean, wordId: string | null, seq = 0): TiltSender {
   const pending = useRef<TiltValue | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sent = useRef('null:0');
@@ -95,14 +98,19 @@ export function useTiltSender(send: Send, active: boolean, wordId: string | null
     const key = `${tilt.categoryId}:${tilt.amount}`;
     if (word === null || key === sent.current) return;
     sent.current = key;
-    void sendRef.current('player:sort-tilt', { wordId: word, categoryId: tilt.categoryId, amount: tilt.amount });
+    void sendRef.current('player:sort-tilt', { wordId: word, categoryId: tilt.categoryId, amount: tilt.amount }).then((result) => {
+      // Відмова: значення до глядачів не дійшло, тож наступне таке саме піде знову; «зарано» (дросель сервера) — ще раз хвостом.
+      if (result.ok || sent.current !== key || wordRef.current !== word) return;
+      sent.current = '';
+      if (result.error === 'too_soon' && timer.current === null) sender.current?.(tilt);
+    });
   }, []);
-  // Нове слово чи втрата права сортувати: хвіст не йде, а на сервері нахил уже скинуто.
+  // Нове слово, новий хід чи втрата права сортувати: хвіст не йде, а на сервері нахил уже скинуто.
   useEffect(() => {
     sent.current = 'null:0';
     stop();
     return stop;
-  }, [wordId, active, stop]);
+  }, [wordId, active, seq, stop]);
   const sender = useRef<TiltSender | null>(null);
   if (sender.current === null) {
     const push = ((tilt: TiltValue) => {
@@ -176,7 +184,7 @@ export function SortPlay({
   const [shaking, setShaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
-  const tilt = useTiltSender(send, sort.watched && sort.canSort, sort.card?.id ?? null);
+  const tilt = useTiltSender(send, sort.watched && sort.canSort, sort.card?.id ?? null, sort.sorted + sort.misses);
   const prevMisses = useRef(sort.misses);
 
   // Секунди підвисання за годинником сервера; на паузі — збережений залишок.
@@ -226,17 +234,20 @@ export function SortPlay({
     fallbackRef.current = null;
   };
 
-  const moveTo = (pos: ZonePosition) => {
+  /** Хід у зону; false — хід не пішов (зайнято, підвисання, пауза). */
+  const moveTo = (pos: ZonePosition): boolean => {
     const index = positions.indexOf(pos);
     const category = index < 0 ? undefined : categories[index];
     const card = sort.card;
-    if (category === undefined || card === null || blocked()) return;
+    if (category === undefined || card === null || blocked()) return false;
     pendingRef.current = true;
     const token = ++tokenRef.current;
     fallbackRef.current = setTimeout(() => release(token), PENDING_FALLBACK_MS);
     if (!reducedMotion()) setFly({ wordId: card.id, pos });
     void send('player:sort', { wordId: card.id, categoryId: category.id })
       .then((result) => {
+        // Відмова: картка лишилася, тож глядачі не мають бачити її нахиленою.
+        if (!result.ok) tilt.release();
         if (!mountedRef.current || tokenRef.current !== token) return;
         setError(result.ok || QUIET.has(result.error) ? null : errorText(result.error));
       })
@@ -245,6 +256,7 @@ export function SortPlay({
         release(token);
         if (mountedRef.current) setFly(null);
       });
+    return true;
   };
 
   // Стрілки — на рівні документа, крім випадків, коли фокус у полі введення.
@@ -284,11 +296,8 @@ export function SortPlay({
     dragRef.current = null;
     setDrag(null);
     const pos = zoneAt(event.clientX, event.clientY) ?? swipeTarget(event.clientX - start.x, event.clientY - start.y, positions);
-    if (pos === null) tilt.release();
-    else {
-      tilt.cancel();
-      moveTo(pos);
-    }
+    if (pos !== null && moveTo(pos)) tilt.cancel();
+    else tilt.release();
   };
   const onPointerCancel = () => {
     dragRef.current = null;
@@ -450,6 +459,10 @@ export function SortLiveCard({
     const id = setTimeout(() => setTick((n) => n + 1), ((Math.max(1, left) - 1) % 1000) + 1);
     return () => clearTimeout(id);
   });
+  // Читач екрана чує підвисання глядача раз, на його початку (помилка — нова), а не щосекунди.
+  const announced = useRef<{ misses: number; seconds: number } | null>(null);
+  if (!locked) announced.current = null;
+  else if (announced.current?.misses !== live.misses) announced.current = { misses: live.misses, seconds: lockSeconds };
 
   const flyingHit = flight !== null && flight.hit && live.last !== null && live.last.wordId === flight.wordId ? live.last : null;
   const flyingMiss = flight !== null && !flight.hit && active;
@@ -484,8 +497,13 @@ export function SortLiveCard({
         {word.text}
       </div>
       {locked && (
-        <p className="sort-lock" role="status">
-          <span className="sort-lock-text">{t('sortLocked', { seconds: lockSeconds })}</span>
+        <p className="sort-lock" aria-live="off">
+          <span className="sort-lock-text" aria-hidden="true">
+            {t('sortLocked', { seconds: lockSeconds })}
+          </span>
+          <span className="sr-only" role="status">
+            {t('sortLockedOnce', { seconds: announced.current?.seconds ?? lockSeconds })}
+          </span>
         </p>
       )}
     </>
@@ -555,22 +573,41 @@ function SortWatchLive({
   const { flight, landed } = useSortFlight(live);
   const tilt = liveTilt(live, tilts, paused);
   const toward = flight !== null ? flight.to : (tilt?.toward ?? null);
+  // Наповнення — у самому «хресті»: лічильник у зоні й щойно влучене слово з галочкою; стовпці зі словами — лише на розкритті.
+  const landedIn = landed === null ? null : (live.columns.find((column) => column.words.some((word) => word.id === landed)) ?? null);
+  const landedWord = landedIn?.words.find((word) => word.id === landed) ?? null;
+  const rest = info.words === null ? null : waiting(info.words, live, flight);
   return (
-    <section className="sort-play is-watching">
+    <section className="sort-play is-watching is-live">
       <p className="sort-watching">{t(team ? 'sortWatchingTeam' : 'sortWatching', { name: live.nickname })}</p>
       <Arena
         categories={categories}
         zone={(category, pos) => (
           <div key={pos} className={category.id === toward ? 'sort-zone is-toward' : 'sort-zone'} data-pos={pos}>
-            {category.text}
+            <span className="sort-zone-name">
+              {category.text}
+              <span className="sort-zone-count">{t('sortZoneCount', { count: live.columns.find((column) => column.id === category.id)?.words.length ?? 0 })}</span>
+            </span>
+            {landedWord !== null && landedIn?.id === category.id && (
+              <span className="sort-zone-landed">
+                {landedWord.text}
+                <span className="sort-landed" aria-hidden="true">
+                  ✓
+                </span>
+              </span>
+            )}
           </div>
         )}
       >
         <SortLiveCard live={live} categories={categories} tilt={tilt} flight={flight} paused={paused} offsetMs={offsetMs} layout="phone" />
       </Arena>
       <p className="sort-progress">{t('sortProgress', { sorted: live.sorted, total: live.total })}</p>
-      <SortReveal categories={categories} question={null} total={live.total} placed={live.columns} landed={landed} />
-      {info.words !== null && <SortWords words={unplaced(info.words, live.columns)} />}
+      {rest !== null && rest.length > 0 && (
+        <details className="sort-rest">
+          <summary>{countText('sortRest', rest.length, { count: rest.length })}</summary>
+          <SortWords words={rest} />
+        </details>
+      )}
     </section>
   );
 }
@@ -579,6 +616,11 @@ function SortWatchLive({
 function unplaced(words: { id: string; text: string }[], columns: SortColumn[]): { id: string; text: string }[] {
   const placed = new Set(columns.flatMap((column) => column.words.map((word) => word.id)));
   return words.filter((word) => !placed.has(word.id));
+}
+
+/** Чипи глядача: ще не розкладені слова без того, що зараз на картці, помилкового й того, що летить. */
+function waiting(words: { id: string; text: string }[], live: SortLive, flight: Flight | null): { id: string; text: string }[] {
+  return unplaced(words, live.columns).filter((word) => word.id !== live.card?.id && word.id !== live.missed?.id && word.id !== flight?.wordId);
 }
 
 /** Сцена, звичайна клітинка поля (11d): смуга з карткою, стовпці й чипи нерозкладених; на розкритті — стовпці з позначками. */
@@ -591,6 +633,7 @@ export function SortStage({
   paused,
   offsetMs,
   team = false,
+  headed = false,
 }: {
   question: PublicQuestion;
   info: SortInfo;
@@ -600,6 +643,8 @@ export function SortStage({
   paused: boolean;
   offsetMs: number;
   team?: boolean;
+  /** Заголовок сцени вже каже «Відповідає …»: рядок «… сортує слова» зайвий. */
+  headed?: boolean;
 }) {
   const categories = question.sort?.categories ?? [];
   const { flight, landed } = useSortFlight(live);
@@ -615,13 +660,13 @@ export function SortStage({
   return (
     <div className="stage-sort-live">
       <div className="sort-live-strip">
-        <p className="sort-watching">{t(team ? 'sortWatchingTeam' : 'sortWatching', { name: live.nickname })}</p>
+        {!headed && <p className="sort-watching">{t(team ? 'sortWatchingTeam' : 'sortWatching', { name: live.nickname })}</p>}
         <div className="sort-live-slot">
           <SortLiveCard live={live} categories={categories} tilt={tilt} flight={flight} paused={paused} offsetMs={offsetMs} layout="stage" />
         </div>
       </div>
       <SortReveal categories={categories} question={null} total={live.total} placed={live.columns} toward={toward} landed={landed} />
-      {info.words !== null && <SortWords words={unplaced(info.words, live.columns)} />}
+      {info.words !== null && <SortWords words={waiting(info.words, live, flight)} />}
     </div>
   );
 }

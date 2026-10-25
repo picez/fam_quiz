@@ -949,7 +949,7 @@ describe('sort tilt over sockets (11d)', () => {
         { title: 'Річки', cells: filler('c') },
       ]),
     ]);
-    const { host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby((await startGame(ctx.app, board)).game);
+    const { game, host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby((await startGame(ctx.app, board)).game);
     expect(await send(host, 'host:start')).toEqual({ ok: true });
     expect(await send(host, 'host:next')).toEqual({ ok: true });
     expect(await send(host, 'host:pick', { cellId: sortQ.id })).toEqual({ ok: true });
@@ -972,6 +972,15 @@ describe('sort tilt over sockets (11d)', () => {
     expect(got.host).toEqual([tilt]);
     expect(got.other).toEqual([tilt]);
     expect(got.chooser).toEqual([]);
+
+    // Щойно підключений отримує нахил, що діє: палець стоїть, нового не буде; автор — ні.
+    const late = { stage: open({ code: game.code, role: 'stage', token: game.stageToken }), chooser: open({ code: game.code, role: 'player', token: (chooser === olena ? olenaJoin : tarasJoin).token }) };
+    const lateGot = { stage: listenTilt(late.stage), chooser: listenTilt(late.chooser) };
+    for (const who of [late.stage, late.chooser]) await until(who, inPhase('question'));
+    expect(await send(late.stage, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(late.chooser, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: true });
+    expect(lateGot.stage).toEqual([tilt]);
+    expect(lateGot.chooser).toEqual([]);
   });
 
   it('classic: refused with wrong_phase, nobody gets anything', async () => {

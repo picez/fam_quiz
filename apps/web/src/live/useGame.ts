@@ -51,6 +51,8 @@ export function useGame(auth: SocketAuth | null) {
     let gone = false;
     let restarting = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    // Запитання, на якому зібрано нахили: нове запитання їх скидає.
+    let tiltsAt: number | null = null;
     const again = () => {
       if (retry === null)
         retry = setTimeout(() => {
@@ -63,7 +65,8 @@ export function useGame(auth: SocketAuth | null) {
       // Заставка, що скінчилася до відправлення, відкидається за часом сервера, а не за годинником пристрою.
       restarting = false;
       setView(freshSplash(next, meta.serverNow));
-      if (next.paused) setTilts({});
+      if (next.paused || (tiltsAt !== null && tiltsAt !== next.questionIndex)) setTilts({});
+      tiltsAt = next.questionIndex;
       setHostOnline(meta.hostOnline);
       setStageOnline(meta.stageOnline ?? true);
       setOffsetMs(meta.serverNow - Date.now());

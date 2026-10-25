@@ -111,6 +111,13 @@ function towardOf(row: LiveRow, view: HostView, tilts: Record<string, SortTilt>)
   return category?.text ?? null;
 }
 
+/** Чи тягне той, хто сортує, картку цього ходу (будь-який нахил, і «в центр» теж): рядок не блимає, поки палець рухається й відпускає. */
+function tilting(row: LiveRow, tilts: Record<string, SortTilt>): boolean {
+  const progress = row.progress;
+  const tilt = tilts[row.id];
+  return progress !== null && progress.kind === 'sort' && tilt !== undefined && tilt.seq === progress.seq;
+}
+
 function Row({ row, view, tilts }: { row: LiveRow; view: HostView; tilts: Record<string, SortTilt> }) {
   const choices = view.question?.choices;
   const draftShown = !row.answered && row.draft !== null;
@@ -162,7 +169,7 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
   const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered);
   // Дуель: обидва дуелянти завжди, навіть без спроб.
   // Нахил першої картки (11d) теж показує рядок: ведучий бачить, куди її тягнуть, ще до першого ходу.
-  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null || towardOf(row, view, tilts) !== null);
+  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null || tilting(row, tilts));
   const queueShown = blitz !== undefined && blitz !== null;
   // Командний бліц: чернетки тих, хто ще не в черзі, — під чергою.
   const drafts = queueShown ? live.rows.filter((row) => !row.answered && row.draft !== null) : [];

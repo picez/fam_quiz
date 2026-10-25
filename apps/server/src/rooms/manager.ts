@@ -134,7 +134,7 @@ export interface Room {
   drafts: Map<string, Draft>;
   /**
    * Останні нахили картки сортування (11d): id того, хто сортує (гравця чи команди), → нахил. Лише в пам'яті:
-   * не в стані гри, не в збереженій кімнаті; після перезапуску порожньо. Хід і пауза стирають.
+   * не в стані гри, не в збереженій кімнаті; після перезапуску порожньо. Хід, пауза, нове запитання й вилучення стирають.
    */
   tilts: Map<string, Tilt>;
   /** Лічильник команд звуку; лише в пам'яті, у збережену кімнату не потрапляє; стартує з Date.now(), щоб після перезапуску клієнт не проґавив команду. */
@@ -157,6 +157,8 @@ export interface Draft {
 export interface Tilt {
   questionIndex: number;
   seq: number;
+  /** Людина, що шле (у команді — капітан): їй нахил не йде. */
+  by: string;
   wordId: string;
   toward: string | null;
   amount: number;
@@ -645,10 +647,23 @@ export class RoomManager {
     // Нахил іншого запитання, старого ходу чи іншої картки вважається відсутнім.
     const last = found !== undefined && found.questionIndex === room.state.questionIndex && found.seq === seq && found.wordId === tilt.wordId ? found : null;
     if (last !== null && last.toward === toward && last.amount === amount) return { ok: true };
-    if (last !== null && toward !== null && now - last.at < SORT_TILT_GAP_MS) return { ok: true };
-    room.tilts.set(who.id, { questionIndex: room.state.questionIndex, seq, wordId: tilt.wordId, toward, amount, at: now });
+    // Зарано після попереднього: не дійшло — телефон надішле це значення знову наступним вікном.
+    if (last !== null && toward !== null && now - last.at < SORT_TILT_GAP_MS) return { ok: false, error: 'too_soon' };
+    room.tilts.set(who.id, { questionIndex: room.state.questionIndex, seq, by: playerId, wordId: tilt.wordId, toward, amount, at: now });
     this.emit(room, { type: 'tilt', tilt: { sorterId: who.id, wordId: tilt.wordId, toward, amount, seq }, by: playerId, audience });
     return { ok: true };
+  }
+
+  /** Нахили, що діють зараз (11d), — для того, хто щойно підключився: те саме запитання й хід, гра йде, є напрям. */
+  liveTilts(room: Room): { tilt: SortTilt; by: string; audience: 'all' | 'team' }[] {
+    const state = room.state;
+    const play = state.plays[state.questionIndex];
+    if (state.phase !== 'question' || state.paused || play === undefined) return [];
+    const audience = sortAudience(state, play);
+    if (audience === null) return [];
+    return [...room.tilts]
+      .filter(([id, tilt]) => tilt.toward !== null && tilt.questionIndex === state.questionIndex && tilt.seq === sortSeq(sortOf(state, id)))
+      .map(([id, tilt]) => ({ tilt: { sorterId: id, wordId: tilt.wordId, toward: tilt.toward, amount: tilt.amount, seq: tilt.seq }, by: tilt.by, audience }));
   }
 
   wall(room: Room, playerId: string, tiles: number[]): AckResult {
@@ -914,6 +929,10 @@ export class RoomManager {
     for (const teamId of room.drafts.keys()) {
       if (!removed.state.players.some((p) => p.id === teamId)) room.drafts.delete(teamId);
     }
+    // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
+    for (const sorterId of room.tilts.keys()) {
+      if (!removed.state.players.some((p) => p.id === sorterId)) room.tilts.delete(sorterId);
+    }
     this.emit(room, { type: 'kicked', playerId });
     // Новою головою черги може стати гравець, чиє вікно вже сплило, поки чекали на ведучого;
     // таймер його вже минув, тож доводимо стан до поточної миті тут.
@@ -955,6 +974,8 @@ export class RoomManager {
 
   /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. */
   private commit(room: Room, state: GameState, at = this.now()): void {
+    // Нове запитання: нахили попереднього вже нічого не значать.
+    if (state.questionIndex !== room.state.questionIndex) room.tilts.clear();
     room.state = this.pacing ? stamp(room.state, state, at) : state;
     this.reschedule(room);
     this.emit(room, { type: 'changed' });

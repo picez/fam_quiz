@@ -3957,11 +3957,13 @@ async function sortGame() {
   await petro.locator('.sort-progress', { hasText: '0 з 4' }).waitFor();
   expect(await petro.locator('.sort-card').count()).toBe(0);
   expect(await petro.locator('button.sort-zone').count()).toBe(0);
-  // План 9a: на полі глядачі й сцена бачать усі слова — за абеткою, без категорій, доки немає розкриття.
-  const boardWords = [...s4Words].sort((a, b) => a.localeCompare(b, 'uk'));
+  // План 9a: на полі глядачі й сцена бачать усі слова — за абеткою, без категорій, доки немає розкриття
+  // (11d: крім слова на картці; на телефоні-глядачі вони згорнуті в «Ще N слів»).
+  const boardCard = (await sortCard(olya))!;
+  const boardWords = [...s4Words].sort((a, b) => a.localeCompare(b, 'uk')).filter((word) => word !== boardCard);
   for (const page of [petro, stage]) {
-    await page.locator('.sort-words li').first().waitFor();
-    expect(await page.locator('.sort-words li').allTextContents()).toEqual(boardWords);
+    await page.locator('.sort-words li').first().waitFor({ state: 'attached' });
+    await expect.poll(() => page.locator('.sort-words li').allTextContents(), POLL).toEqual(boardWords);
     expect(await page.locator('.sort-reveal.is-open').count(), 'the board reveal opened early').toBe(0);
   }
   await expectNoSideScroll(petro, 'sort7f-board-watch-phone');
@@ -6231,19 +6233,21 @@ async function afterThirdGame() {
   await shot(stage, 'buff9a-board-stage');
   await shot(olya, 'buff9a-board-375');
 
-  // 6. Оля сортує на полі; Петро, Іра й сцена бачать категорії й усі слова за абеткою; зони рівні.
-  const sortWords = ['Буряк', 'Груша', 'Малина', 'Морква', 'Смородина', 'Яблуко'];
+  // 6. Оля сортує на полі; Петро, Іра й сцена бачать категорії й усі слова за абеткою (11d: крім слова на картці); зони рівні.
   await cell(olya, 'Їжа', 150).click();
   await afterSplash(...all);
   await olya.locator('.sort-card').waitFor();
+  const firstCard = (await sortCard(olya))!;
+  const sortWords = ['Буряк', 'Груша', 'Малина', 'Морква', 'Смородина', 'Яблуко'];
+  const restWords = sortWords.filter((word) => word !== firstCard);
   for (const page of [petro, ira]) {
     await page.getByText('Оля сортує слова', exact).waitFor();
     expect(await page.locator('.sort-play.is-watching .sort-zone').count()).toBe(3);
     expect(await page.locator('button.sort-zone').count()).toBe(0);
-    expect(await page.locator('.sort-words li').allTextContents()).toEqual(sortWords);
+    await expect.poll(() => page.locator('.sort-words li').allTextContents(), POLL).toEqual(restWords);
   }
   await stage.locator('.sort-words li').first().waitFor();
-  expect(await stage.locator('.sort-words li').allTextContents()).toEqual(sortWords);
+  await expect.poll(() => stage.locator('.sort-words li').allTextContents(), POLL).toEqual(restWords);
   for (const page of [olya, petro]) {
     const zones = await sortZoneBoxes(page);
     expect(zones).toHaveLength(3);
@@ -6254,7 +6258,7 @@ async function afterThirdGame() {
   }
   // Слова глядачів під ареною, а не поверх неї.
   const arenaBottom = await petro.locator('.sort-arena').evaluate((el) => el.getBoundingClientRect().bottom);
-  const wordsTop = await petro.locator('.sort-words').evaluate((el) => el.getBoundingClientRect().top);
+  const wordsTop = await petro.locator('.sort-rest').evaluate((el) => el.getBoundingClientRect().top);
   expect(wordsTop, 'the words overlap the arena').toBeGreaterThanOrEqual(arenaBottom - 0.5);
   await expectNoSideScroll(petro, 'sort9a-watch-360');
   await expectNoSideScroll(olya, 'sort9a-play-375');
@@ -11337,10 +11341,20 @@ async function visibleSort11d() {
   await expect.poll(() => liveCard(petro), POLL).toBe(olyaCard);
   expect(await petro.locator('.sort-card').count()).toBe(0);
   expect(await petro.locator('button.sort-zone').count()).toBe(0);
-  expect(await stage.locator('.sort-words li').count()).toBe(20);
+  // Слово на картці чипом не дублюється: 19 з 20.
+  expect(await stage.locator('.sort-words li').count()).toBe(19);
+  expect(await stage.locator('.sort-words li', { hasText: olyaCard }).count()).toBe(0);
   expect(await stage.locator('.sort-reveal.is-open').count(), 'the board reveal opened early').toBe(0);
+  // «Оля сортує слова» на сцені зайве: заголовок уже каже «Відповідає Оля».
+  expect(await stage.locator('.stage-sort-live .sort-watching').count()).toBe(0);
   await stageFits('p11d-stage-start');
   await expectNoSideScroll(petro, 'p11d-watch-start');
+  // Телефон-глядач: стовпців під час гри немає, лічильники в зонах, решта слів згорнута — усе на одному екрані.
+  expect(await petro.locator('.sort-reveal').count(), 'the watcher shows columns while playing').toBe(0);
+  await petro.locator('.sort-zone', { hasText: `${categories[0]} · 0` }).waitFor();
+  await petro.locator('details.sort-rest summary', { hasText: 'Ще 19 слів' }).waitFor();
+  const restBottom = (await petro.evaluate("Math.round(document.querySelector('.sort-rest').getBoundingClientRect().bottom)")) as number;
+  expect(restBottom, 'the watcher does not fit one 812 px screen').toBeLessThanOrEqual(812);
   await shot(stage, 'p11d-stage-start');
   await shot(petro, 'p11d-watch-start');
 
@@ -11368,7 +11382,7 @@ async function visibleSort11d() {
   expect(await stage.locator('.sort-words li', { hasText: olyaCard }).count()).toBe(0);
   const second = await sortCard(olya);
   await expect.poll(() => liveCard(stage), POLL).toBe(second);
-  await sortColumn(petro, zone).locator('li', { hasText: olyaCard }).waitFor();
+  await petro.locator('.sort-zone', { hasText: `${zone} · 1` }).waitFor();
   await expect.poll(() => liveCard(petro), POLL).toBe(second);
 
   // 5. Помилка: у глядачів підвисання з відліком і помилкове слово на картці.
@@ -11383,7 +11397,8 @@ async function visibleSort11d() {
   await olya.locator('.sort-lock').waitFor({ state: 'detached', timeout: 5000 });
   for (let i = 0; i < 3; i++) await sortBy(olya, 'tap', where[(await sortCard(olya))!]!);
   await olya.locator('.sort-progress', { hasText: '4 з 20' }).waitFor();
-  await expect.poll(() => stage.locator('.sort-words li').count(), POLL).toBe(16);
+  // 4 у стовпцях, 1 на картці.
+  await expect.poll(() => stage.locator('.sort-words li').count(), POLL).toBe(15);
   expect(await stage.locator('.sort-reveal.is-live li').count()).toBe(4);
 
   // 6. Розкриття: усі слова в стовпцях, «✗1» на помилковому, 16 «не встиг» — на сцені, у Петра й в Олі.
@@ -11472,9 +11487,9 @@ async function teamSort11d() {
 
   // 3. Хід капітана: слово в стовпці товариша; у Синіх стовпці порожні, на сцені картки немає.
   await sortBy(olya, 'tap', zone);
-  await sortColumn(petro, zone).locator('li', { hasText: card }).waitFor();
-  await marko.locator('.sort-reveal.is-live').waitFor();
-  expect(await marko.locator('.sort-reveal.is-live li').count(), 'the other team sees the red columns').toBe(0);
+  await petro.locator('.sort-zone', { hasText: `${zone} · 1` }).waitFor();
+  await marko.locator('.sort-zone', { hasText: `${zone} · 0` }).waitFor();
+  expect(await marko.locator('.sort-zone-count', { hasText: '1' }).count(), 'the other team sees the red columns').toBe(0);
   expect(await stage.locator('.sort-live-card').count()).toBe(0);
   for (const [who, frames] of [['stage', stageFrames], ['ira', iraFrames], ['marko', markoFrames]] as const) {
     expect(frames.join(NL), `${who} received the red captain tilt`).not.toContain('sort:tilt');

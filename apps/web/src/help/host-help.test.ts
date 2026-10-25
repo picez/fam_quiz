@@ -121,7 +121,7 @@ describe('host help', () => {
   });
 
   it('11d sorting help tells who watches the card, the marks and the captain watchers', () => {
-    for (const part of ['куди він її тягне', 'не встиг', '✗2', 'чужої картки й руху не бачить ніхто']) expect(text('question.sort')).toContain(part);
+    for (const part of ['куди він її тягне', 'не встиг', '✗2', 'чужої картки й руху не бачить ніхто', '«Відповідях наживо»', '«→ категорія»']) expect(text('question.sort')).toContain(part);
     expect(text('team.captain')).toContain('картку капітана');
   });
 

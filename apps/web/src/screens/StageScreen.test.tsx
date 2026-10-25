@@ -1966,6 +1966,14 @@ describe('StageScreen: live sort (11d)', () => {
     const col = [...document.querySelectorAll('.sort-reveal-col')].find((el) => el.querySelector('h3')?.textContent === 'Овочі')!;
     expect(col.textContent).toContain('Морква');
     expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).not.toContain('Морква');
+    // Слово на картці теж не дублюється чипом.
+    expect([...document.querySelectorAll('.sort-words li')].map((li) => li.textContent)).toEqual(['Груша', 'Яблуко']);
+  });
+
+  it('the header already names who answers, so the strip has no «сортує слова» line', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: sortQ, board, endsAt: Date.now() + 20_000, sort: info(live()) }));
+    expect(screen.getByText('Відповідає Анна')).toBeTruthy();
+    expect(document.querySelector('.stage-sort-live .sort-watching')).toBeNull();
   });
 
   it('a tilt highlights the column', () => {

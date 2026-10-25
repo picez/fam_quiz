@@ -158,7 +158,7 @@ describe('TeamWatch: live sort (11d)', () => {
     const tilts = { 'team-b': { sorterId: 'team-b', wordId: 'w4', toward: 'c2', amount: 0.8, seq: 0 } };
     render(<TeamWatch view={view} tilts={tilts} />);
     expect(document.querySelector('.sort-live-card')?.textContent).toBe('Груша');
-    const zone = [...document.querySelectorAll('.sort-zone')].find((el) => el.textContent === 'Фрукти')!;
+    const zone = [...document.querySelectorAll('.sort-zone')].find((el) => el.textContent?.startsWith('Фрукти · '))!;
     expect(zone.classList.contains('is-toward')).toBe(true);
   });
 });

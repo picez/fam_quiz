@@ -45,6 +45,7 @@ import {
   type AckResult,
   type ClientToServerEvents,
   type ServerToClientEvents,
+  type SortTilt,
 } from '@quiz/shared';
 import { teamOf } from '@quiz/engine';
 import { Server, type Socket } from 'socket.io';
@@ -72,6 +73,14 @@ const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-ro
 function reply(args: unknown[], result: AckResult): void {
   const ack = args.at(-1);
   if (typeof ack === 'function') ack(result);
+}
+
+/** Нахил — лише там, де сортує одна сторона (11d): на полі — усім, крім автора; у команді — його команді й пульту. */
+function seesTilt(socket: GameSocket, room: Room, tilt: { tilt: SortTilt; by: string; audience: 'all' | 'team' }): boolean {
+  const { role, playerId } = socket.data.identity;
+  if (playerId !== null && playerId === tilt.by) return false;
+  if (tilt.audience === 'all') return true;
+  return role === 'host' || (role === 'player' && playerId !== null && teamOf(room.state, playerId) === tilt.tilt.sorterId);
 }
 
 /** Перший аргумент події, якщо це дані, а не функція підтвердження. */
@@ -173,15 +182,7 @@ export function attachSockets(
       return;
     }
     if (event.type === 'tilt') {
-      // Нахил — лише там, де сортує одна сторона: на полі — усім, крім автора; у команді — його команді й пульту.
-      members
-        .filter((socket) => {
-          const { role, playerId } = socket.data.identity;
-          if (playerId !== null && playerId === event.by) return false;
-          if (event.audience === 'all') return true;
-          return role === 'host' || (role === 'player' && playerId !== null && teamOf(room.state, playerId) === event.tilt.sorterId);
-        })
-        .forEach((socket) => socket.emit('sort:tilt', event.tilt));
+      members.filter((socket) => seesTilt(socket, room, event)).forEach((socket) => socket.emit('sort:tilt', event.tilt));
       return;
     }
     if (event.type === 'audio') {
@@ -218,6 +219,8 @@ export function attachSockets(
     }
     manager.connect(room, identity);
     push(socket);
+    // Щойно підключений бачить і нахил, що вже діє: палець може стояти, тож нового нахилу не буде.
+    for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
     socket.on('disconnect', () => manager.disconnect(room, identity));
 
     // Обробники приймають довільні аргументи: типи подій описують чесного клієнта, а не будь-якого.

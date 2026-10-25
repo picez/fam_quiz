@@ -4340,7 +4340,7 @@ button.sort-zone:disabled {
   pointer-events: none;
   transform: translate(
       calc(var(--tilt-x, 0) * var(--tilt, 0) * var(--tilt-reach, 3rem)),
-      calc(var(--tilt-y, 0) * var(--tilt, 0) * var(--tilt-reach, 3rem))
+      calc(var(--tilt-y, 0) * min(var(--tilt, 0), var(--tilt-y-cap, 1)) * var(--tilt-reach-y, var(--tilt-reach, 3rem)))
     )
     rotate(calc(var(--tilt-x, 0) * var(--tilt, 0) * 12deg));
   transition: transform 120ms linear;
@@ -4424,6 +4424,45 @@ button.sort-zone:disabled {
   color: var(--dim);
   text-align: center;
   overflow-wrap: anywhere;
+}
+
+/* 11d: телефон-глядач — «хрест» нижчий, щоб усе вміщалося на один екран 375 px; наповнення — у зонах. */
+.sort-play.is-watching.is-live .sort-arena {
+  height: min(48vh, 420px);
+}
+
+.sort-play.is-watching.is-live .sort-zone {
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.sort-zone-count {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.sort-zone-landed {
+  max-width: 100%;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  background: var(--sort-landed);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.sort-rest {
+  text-align: center;
+}
+
+.sort-rest summary {
+  color: var(--dim);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sort-rest[open] summary {
+  margin-bottom: 0.5rem;
 }
 
 .sort-progress {
@@ -4697,8 +4736,16 @@ button.sort-zone:disabled {
 
 .stage-sort-live .sort-live-card {
   --tilt-reach: 18rem;
+  /* Нахил донизу ледь зачіпає стовпці й не закриває їхніх слів; до стовпця картка летить лише після ходу. */
+  --tilt-y-cap: 0.5;
+  --tilt-reach-y: 6rem;
   padding: 0.5rem 2rem;
   font-size: clamp(1.5rem, 2.5vw, 2.5rem);
+}
+
+.stage-sort-live .sort-live-card.is-flying {
+  --tilt-y-cap: 1;
+  --tilt-reach-y: 18rem;
 }
 
 .stage-sort-live .sort-lock {
