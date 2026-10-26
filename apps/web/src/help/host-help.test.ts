@@ -120,6 +120,17 @@ describe('host help', () => {
     expect(searchHelp('наживо')).toContain('setting.live');
   });
 
+  it('11f scores entry follows «live» and tells who sees the per-round columns and the breakdown', () => {
+    const ids = helpIds('settings');
+    expect(ids.indexOf('setting.scores')).toBe(ids.indexOf('setting.live') + 1);
+    filled('setting.scores');
+    const body = text('setting.scores');
+    for (const part of ['Р1', '+ / −', 'Чужу розбивку гравець не бачить', '+N за раунд', 'найбільший ривок']) expect(body).toContain(part);
+    expect(text('setting.leaderboard')).toContain('Колонки раундів');
+    expect(text('team.play')).toContain('п’єдестал');
+    expect(searchHelp('за раундами')).toContain('setting.scores');
+  });
+
   it('11d sorting help tells who watches the card, the marks and the captain watchers', () => {
     for (const part of ['куди він її тягне', 'не встиг', '✗2', 'чужої картки й руху не бачить ніхто', '«Відповідях наживо»', '«→ категорія»']) expect(text('question.sort')).toContain(part);
     expect(text('team.captain')).toContain('картку капітана');
