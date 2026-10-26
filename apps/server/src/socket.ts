@@ -48,6 +48,7 @@ import {
   type SortTilt,
 } from '@quiz/shared';
 import { teamOf } from '@quiz/engine';
+import type { HostAction } from './rooms/manager';
 import { Server, type Socket } from 'socket.io';
 import type { Identity, Room, RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
@@ -63,6 +64,7 @@ type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<stri
 /** Формат коду кімнати (RoomManager видає шість цифр). */
 const ROOM_CODE = /^\d{6}$/;
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
+const NOT_ALLOWED: AckResult = { ok: false, error: 'not_allowed' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
@@ -231,6 +233,9 @@ export function attachSockets(
       );
     };
     const isHost = identity.role === 'host';
+    // Хто доходить до обробників host:*: пульт; у грі без ведучого — і гравець (manager.author відповідає not_allowed чужим і зайвим діям).
+    const hostSide = isHost || (identity.role === 'player' && identity.playerId !== null && room.state.autopilot !== undefined);
+    const run = (action: HostAction): AckResult => (isHost ? manager.host(room, action) : manager.author(room, identity.playerId!, action));
 
     on('player:answer', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
@@ -397,135 +402,135 @@ export function attachSockets(
     });
 
     for (const type of SIMPLE_HOST_ACTIONS) {
-      on(`host:${type}`, () => (isHost ? manager.host(room, { type }) : FORBIDDEN));
+      on(`host:${type}`, () => (hostSide ? run({ type }) : FORBIDDEN));
     }
 
     on('host:override', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = overrideSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'override', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'override', ...payload.data }) : INVALID;
     });
 
     on('host:pick', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = pickSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'pick', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'pick', ...payload.data }) : INVALID;
     });
 
     on('host:duel-category', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = duelPickSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'duel-category', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'duel-category', ...payload.data }) : INVALID;
     });
 
     on('host:order', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = orderSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'order', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'order', ...payload.data }) : INVALID;
     });
 
     on('host:cloud-hide', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = cloudHideSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'cloud-hide', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'cloud-hide', ...payload.data }) : INVALID;
     });
 
     on('host:bluff-remove', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = bluffOptionSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'bluff-remove', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'bluff-remove', ...payload.data }) : INVALID;
     });
 
     on('host:kick', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = kickSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'kick', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'kick', ...payload.data }) : INVALID;
     });
 
     on('host:adjust', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = adjustSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'adjust', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'adjust', ...payload.data }) : INVALID;
     });
 
     on('host:hint', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = hintSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.hostHint(room, payload.data.playerId, payload.data.text) : INVALID;
+      return payload.success ? (isHost ? manager.hostHint(room, payload.data.playerId, payload.data.text) : NOT_ALLOWED) : INVALID;
     });
 
     on('host:ladder-pick', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = ladderPickSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.hostLadderPick(room, payload.data.playerId) : INVALID;
+      return payload.success ? (isHost ? manager.hostLadderPick(room, payload.data.playerId) : NOT_ALLOWED) : INVALID;
     });
 
     on('host:ladder-decide', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = ladderDecideSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.hostLadderDecide(room, payload.data.take) : INVALID;
+      return payload.success ? (isHost ? manager.hostLadderDecide(room, payload.data.take) : NOT_ALLOWED) : INVALID;
     });
 
     on('host:debuff', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = debuffSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'debuff', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'debuff', ...payload.data }) : INVALID;
     });
 
     on('host:undebuff', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = undebuffSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'undebuff', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'undebuff', ...payload.data }) : INVALID;
     });
 
     on('host:judge', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = judgeSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'judge', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'judge', ...payload.data }) : INVALID;
     });
 
     on('host:name', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = nameSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'name', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'name', ...payload.data }) : INVALID;
     });
 
     for (const type of ['accept', 'repick'] as const) {
       on(`host:${type}`, (args) => {
-        if (!isHost) return FORBIDDEN;
+        if (!hostSide) return FORBIDDEN;
         const payload = pendingSchema.safeParse(payloadOf(args));
-        return payload.success ? manager.host(room, { type, ...payload.data }) : INVALID;
+        return payload.success ? run({ type, ...payload.data }) : INVALID;
       });
     }
 
     on('host:team-form', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = teamFormSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'team-form', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'team-form', ...payload.data }) : INVALID;
     });
 
     on('host:team-assign', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = teamAssignSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'team-assign', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'team-assign', ...payload.data }) : INVALID;
     });
 
     on('host:captain', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = captainSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'captain', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'captain', ...payload.data }) : INVALID;
     });
 
     on('host:audio', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = audioCommandSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.audio(room, payload.data.action) : INVALID;
+      return payload.success ? (isHost ? manager.audio(room, payload.data.action) : NOT_ALLOWED) : INVALID;
     });
 
     on('host:time', (args) => {
-      if (!isHost) return FORBIDDEN;
+      if (!hostSide) return FORBIDDEN;
       const payload = timeSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.host(room, { type: 'time', ...payload.data }) : INVALID;
+      return payload.success ? run({ type: 'time', ...payload.data }) : INVALID;
     });
   });
 

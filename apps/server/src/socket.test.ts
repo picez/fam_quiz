@@ -5,7 +5,7 @@ import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud,
 import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { TEST_AUTH, startGame, type StartedGame } from './testing/accounts';
+import { TEST_AUTH, signUp, startGame, type StartedGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { SURVIVAL_RIGHT, SURVIVAL_WRONG, TRIAL_RIGHT, TRIAL_WRONG } from './testing/survival-game';
@@ -1322,5 +1322,88 @@ describe('teams over sockets (10j)', () => {
     // Сині отримують лише нахил власного капітана Іри, а не червоних.
     expect(got.marko.every((t) => t.sorterId === blue)).toBe(true);
     expect(got.ira).toEqual([]);
+  });
+});
+
+describe('autopilot sockets (11g)', () => {
+  async function autopilotRoom() {
+    const account = await signUp(ctx.app, 'Марта');
+    const saved = await ctx.app.inject({ method: 'POST', url: '/api/quizzes', payload: makeQuiz([single, text]), headers: { cookie: account.cookie } });
+    const { id: quizId } = saved.json() as { id: string };
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/games',
+      payload: { quizId, autopilot: true, nickname: 'Марта' },
+      headers: { cookie: account.cookie },
+    });
+    const game = created.json() as { code: string; token: string; playerId: string; stageToken: string };
+    const other = await join(game.code, 'Тарас');
+    const frames: string[] = [];
+    const metas: boolean[] = [];
+    const author = open({ code: game.code, role: 'player', token: game.token });
+    const taras = open({ code: game.code, role: 'player', token: other.token });
+    const stage = open({ code: game.code, role: 'stage', token: game.stageToken });
+    for (const t of [author, taras, stage]) {
+      t.socket.on('state', (view, meta) => {
+        frames.push(JSON.stringify(view));
+        metas.push(meta.hostOnline);
+      });
+    }
+    await until(stage, (view) => view.role === 'stage' && view.phase === 'lobby' && JSON.stringify(view).includes('Тарас'));
+    await until(taras, (view) => view.role === 'player');
+    await until(stage, (view) => view.role === 'stage');
+    return { game, author, taras, stage, other, frames, metas };
+  }
+
+  it('refuses a host socket, whatever the token', async () => {
+    const { game } = await autopilotRoom();
+    for (const token of ['nope', 'x'.repeat(40)]) {
+      const socket: Client = connect(url, { auth: { code: game.code, role: 'host', token }, transports: ['websocket'], reconnection: false });
+      sockets.push(socket);
+      const error = await new Promise<Error>((resolve) => socket.on('connect_error', resolve));
+      expect(error.message).toBe('unauthorized');
+    }
+  });
+
+  it('lets only the author run author actions from the phone', async () => {
+    const { author, taras, stage, other } = await autopilotRoom();
+    expect(await send(taras, 'host:start')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(stage, 'host:start')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(author, 'host:next')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:adjust', { playerId: other.playerId, points: 50 })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:time', { seconds: 15 })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:kick', { player: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(taras, 'host:kick', { playerId: other.playerId })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:start')).toEqual({ ok: true });
+    await until(taras, (view) => view.phase !== 'lobby');
+  });
+
+  it('lets the author kick another player but not themselves', async () => {
+    const { game, author, taras, other } = await autopilotRoom();
+    const closed = new Promise<string>((resolve) => taras.socket.on('closed', resolve));
+    expect(await send(author, 'host:kick', { playerId: game.playerId })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:kick', { playerId: other.playerId })).toEqual({ ok: true });
+    expect(await closed).toBe('kicked');
+  });
+
+  it('shows no host in any frame and reports the host as online', async () => {
+    const { author, taras, frames, metas } = await autopilotRoom();
+    await send(author, 'host:start');
+    await until(taras, (view) => view.phase !== 'lobby');
+    const view = await until(author, (v) => v.phase !== 'lobby');
+    expect(view.autopilot).toBe(true);
+    expect(frames.length).toBeGreaterThan(3);
+    expect(metas.every(Boolean)).toBe(true);
+    for (const frame of frames) {
+      expect(frame).not.toContain('"role":"host"');
+      expect(frame).not.toContain('"live":{');
+      expect(frame).not.toContain('"responses":');
+    }
+  });
+
+  it('keeps forbidden for players of an ordinary room', async () => {
+    const { olena } = await lobby();
+    expect(await send(olena, 'host:start')).toEqual({ ok: false, error: 'forbidden' });
   });
 });

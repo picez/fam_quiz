@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { quizSchema, upgradeQuiz } from '@quiz/shared';
+import { autopilotCheck, joinSchema, quizSchema, upgradeQuiz } from '@quiz/shared';
 import { createQuiz, deleteQuiz, getQuiz, listQuizzes, updateQuiz } from './quizzes';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -120,6 +120,14 @@ export async function registerAccountRoutes(
     return { id: request.params.id, ...found };
   });
 
+  app.get<WithId>('/api/quizzes/:id/autopilot', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const found = await getQuiz(db, user.id, request.params.id);
+    if (found === null) return reply.code(404).send(NOT_FOUND);
+    return autopilotCheck(found);
+  });
+
   app.put<WithId>('/api/quizzes/:id', async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
@@ -139,7 +147,14 @@ export async function registerAccountRoutes(
   const { manager, locate, maxRooms } = deps;
   const RESTARTING = { error: 'restarting' };
   const CREATE_LIMIT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
-  const fromSaved = z.object({ quizId: z.string().min(1).max(64) }).strict();
+  const fromSaved = z
+    .object({
+      quizId: z.string().min(1).max(64),
+      /** Гра без ведучого (11g): автор — гравець з цим нікнеймом. */
+      autopilot: z.literal(true).optional(),
+      nickname: joinSchema.shape.nickname.optional(),
+    })
+    .strict();
 
   app.post('/api/games', CREATE_LIMIT, async (request, reply) => {
     // Гру веде лише ведучий з акаунтом і лише зі своєї збереженої вікторини.
@@ -147,12 +162,25 @@ export async function registerAccountRoutes(
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const saved = fromSaved.safeParse(request.body);
     if (!saved.success) return reply.code(400).send(INVALID);
+    // Нікнейм потрібен автопілоту й лише йому.
+    if ((saved.data.autopilot === true) !== (saved.data.nickname !== undefined)) return reply.code(400).send(INVALID);
     const quiz = await getQuiz(db, user.id, saved.data.quizId);
     if (quiz === null) return reply.code(404).send(NOT_FOUND);
 
     if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
     // На зупинці нова кімната вже не записалася б у базу.
     if (manager.frozen) return reply.code(503).send(RESTARTING);
+    if (saved.data.autopilot === true && saved.data.nickname !== undefined) {
+      const made = manager.createAutopilot(quiz, user.id, saved.data.quizId, saved.data.nickname);
+      if (!made.ok) return reply.code(made.error === 'restarting' ? 503 : 409).send({ error: made.error });
+      return reply.code(201).send({
+        gameId: made.room.id,
+        code: made.room.code,
+        stageToken: made.room.stageToken,
+        token: made.token,
+        playerId: made.playerId,
+      });
+    }
     const room = manager.create(quiz, user.id, saved.data.quizId);
     return reply.code(201).send({
       gameId: room.id,
@@ -168,7 +196,8 @@ export async function registerAccountRoutes(
     const user = await currentUser(request);
     const room = manager.get(request.params.code);
     // Однакова відповідь для «немає гри» і «не ваша гра», щоб не підтверджувати існування коду.
-    if (user === null || room === undefined || room.hostUserId !== user.id) {
+    // Гра без ведучого токена ведучого не має: та сама відповідь.
+    if (user === null || room === undefined || room.hostUserId !== user.id || room.state.autopilot !== undefined) {
       return reply.code(404).send({ error: 'game_not_found' });
     }
     return { hostToken: room.hostToken, stageToken: room.stageToken };
