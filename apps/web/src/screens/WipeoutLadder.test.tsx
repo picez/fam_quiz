@@ -6,7 +6,7 @@ import { WipeoutLadder, WipeoutPlayers } from './WipeoutLadder';
 
 afterEach(cleanup);
 
-const row = (id: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname: `Гравець ${id}`, status: 'in', bank: 0, step: null, decision: null, ...over });
+const row = (id: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname: `Гравець ${id}`, status: 'in', bank: 0, step: null, decision: null, choice: null, prev: null, ...over });
 
 const wipeoutInfo = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
   ladder: [100, 200, 300, 400, 500],
@@ -15,6 +15,7 @@ const wipeoutInfo = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
   rows: [row('a', { bank: 600 }), row('b', { status: 'took', bank: 300, step: 1 }), row('c', { status: 'burned', step: 2 })],
   inCount: 1,
   decide: null,
+  decisions: false,
   ...over,
 });
 

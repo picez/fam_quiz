@@ -2355,9 +2355,10 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       ladder: [100, 200, 300],
       current: 2,
       done: 3,
-      rows: [{ playerId: 'p1', nickname: 'Олена', status: 'in', bank: 300, step: null, decision: null }],
+      rows: [{ playerId: 'p1', nickname: 'Олена', status: 'in', bank: 300, step: null, decision: null, choice: null, prev: null }],
       inCount: 1,
       decide: { endsAt: Date.now() + 8_000, remainingMs: null, decided: 0, total: 1 },
+      decisions: false,
       ...over,
     });
     const own = (over: Partial<NonNullable<PlayerView['me']['wipeout']>> = {}) => ({ ...me, wipeout: { status: 'in' as const, bank: 300, decision: null, canDecide: true, ...over } });
@@ -2401,7 +2402,7 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
     });
 
     it('a player who left earlier sees no verdict on a later reveal', () => {
-      const gone = ladder({ decide: null, rows: [{ playerId: 'p1', nickname: 'Олена', status: 'took', bank: 300, step: 0, decision: null }] });
+      const gone = ladder({ decide: null, rows: [{ playerId: 'p1', nickname: 'Олена', status: 'took', bank: 300, step: 0, decision: null, choice: null, prev: null }] });
       show(view({ phase: 'reveal', questionIndex: 1, question: publicQuestion, round: wipeoutRound, wipeout: gone, me: own({ status: 'took', canDecide: false }) }));
       expect(screen.getByText('Ти дивишся')).toBeTruthy();
       expect(screen.queryByText('Неправильно')).toBeNull();
@@ -2409,7 +2410,7 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
     });
 
     it('a player burned on this very step still sees the burn', () => {
-      const burnt = ladder({ decide: null, rows: [{ playerId: 'p1', nickname: 'Олена', status: 'burned', bank: 0, step: 2, decision: null }] });
+      const burnt = ladder({ decide: null, rows: [{ playerId: 'p1', nickname: 'Олена', status: 'burned', bank: 0, step: 2, decision: null, choice: null, prev: null }] });
       show(view({ phase: 'reveal', questionIndex: 2, question: publicQuestion, round: wipeoutRound, wipeout: burnt, me: own({ status: 'burned', bank: 0, canDecide: false }) }));
       expect(screen.getByText('Банк згорів')).toBeTruthy();
       expect(screen.queryByText('Ти дивишся')).toBeNull();
@@ -2828,9 +2829,10 @@ describe('PlayerScreen: teams', () => {
       ladder: [100, 200, 300],
       current: 2,
       done: 3,
-      rows: [{ playerId: 'team-b', nickname: 'Сині', status: 'in' as const, bank: 300, step: null, decision: null }],
+      rows: [{ playerId: 'team-b', nickname: 'Сині', status: 'in' as const, bank: 300, step: null, decision: null, choice: null, prev: null }],
       inCount: 1,
       decide: { endsAt: Date.now() + 8_000, remainingMs: null, decided: 0, total: 1 },
+      decisions: false,
     };
     const own = { ...baseMe, wipeout: { status: 'in' as const, bank: 300, decision: null, canDecide: true } };
     show(teamPlayerView({ phase: 'leaderboard', round, wipeout: ladder, me: own }, noCaptain));

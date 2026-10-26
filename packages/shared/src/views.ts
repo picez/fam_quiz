@@ -731,6 +731,10 @@ export interface WipeoutRow extends BlitzPlayer {
   step: number | null;
   /** Лише у вікні рішення й лише для тих, хто в грі: сцена й телефони — pending / decided; пульт — pending / stay / take. Інакше null. */
   decision: 'pending' | 'decided' | 'stay' | 'take' | null;
+  /** Екран рішень (11e): що вибрав гравець, який був у грі на початку вікна; усім однаково. Поки вікно відкрите й поза екраном — null. */
+  choice: WipeoutChoice | null;
+  /** Розкриття (11e): банк на початку поточного запитання, якщо гравець його грав; інакше null (і завжди null до розкриття). */
+  prev: number | null;
 }
 
 /** «Ва-банк» (10g). */
@@ -747,6 +751,8 @@ export interface WipeoutInfo {
   inCount: number;
   /** Вікно «Далі / Забрати»; null — вікна немає. */
   decide: { endsAt: number | null; remainingMs: number | null; decided: number; total: number } | null;
+  /** Екран рішень після закриття вікна (11e). */
+  decisions: boolean;
 }
 
 /** Сходинка драбини «Мільйонера». */

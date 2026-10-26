@@ -6,7 +6,7 @@ import { HostWipeout } from './HostWipeout';
 
 afterEach(cleanup);
 
-const row = (id: string, nickname: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname, status: 'in', bank: 300, step: null, decision: null, ...over });
+const row = (id: string, nickname: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname, status: 'in', bank: 300, step: null, decision: null, choice: null, prev: null, ...over });
 const info = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
   ladder: [100, 200, 300],
   current: 2,
@@ -14,6 +14,7 @@ const info = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
   rows: [row('a', 'Оля', { decision: 'take' }), row('b', 'Петро', { decision: 'pending' })],
   inCount: 2,
   decide: { endsAt: Date.now() + 10_000, remainingMs: null, decided: 1, total: 2 },
+  decisions: false,
   ...over,
 });
 const host = (wipeout: WipeoutInfo | null) => ({ wipeout }) as unknown as HostView;

@@ -13,6 +13,7 @@ const wipeoutInfo = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
   rows: [],
   inCount: 2,
   decide: null,
+  decisions: false,
   ...over,
 });
 

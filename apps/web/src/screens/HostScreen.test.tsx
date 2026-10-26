@@ -2185,7 +2185,7 @@ describe('HostScreen: bluff (10f)', () => {
   });
 
   describe('wipeout', () => {
-    const wRow = (id: string, nickname: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname, status: 'in', bank: 300, step: null, decision: null, ...over });
+    const wRow = (id: string, nickname: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname, status: 'in', bank: 300, step: null, decision: null, choice: null, prev: null, ...over });
     const wInfo = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
       ladder: [100, 200, 300, 400, 500],
       current: 2,
@@ -2193,6 +2193,7 @@ describe('HostScreen: bluff (10f)', () => {
       rows: [wRow('p1', 'Олена', { decision: 'take' }), wRow('p2', 'Тарас', { decision: 'pending' })],
       inCount: 2,
       decide: { endsAt: Date.now() + 10_000, remainingMs: null, decided: 1, total: 2 },
+      decisions: false,
       ...over,
     });
     const wRound: RoundInfo = { index: 0, total: 1, title: '', type: 'wipeout', partial: false, description: '', brief: emptyBrief('wipeout'), times: null };

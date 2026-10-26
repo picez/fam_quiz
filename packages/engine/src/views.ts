@@ -101,7 +101,7 @@ import { lastNotice } from './adjust';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
 import { contestantOf, decisionPending, inLadderRound, lifelinesUsed } from './ladder';
-import { decisionOpen, inWipeoutRound, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
+import { decisionOpen, decisionsShown, inWipeoutRound, wipeoutChoiceOf, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
 import {
   answerLimitMs,
   buffBlock,
@@ -1247,6 +1247,9 @@ function wipeoutInfo(state: GameState, forHost: boolean): WipeoutInfo | null {
   const current = state.plays.slice(0, state.questionIndex + 1).filter((p) => p.roundIndex === state.roundIndex).length - 1;
   const play = wipeoutPlayOf(state);
   const windowOpen = play !== null && decisionOpen(state);
+  const shown = play !== null && decisionsShown(state);
+  // Банк на початку поточного запитання — лише на розкритті (до нього банк після відповіді не показуємо).
+  const before = state.phase === 'reveal' ? wipeoutTable(state, state.roundIndex, state.questionIndex) : null;
   const rows = state.players.map((p): WipeoutRow => {
     const standing = (forHost ? real : hidden)[p.id];
     const wasIn = hidden[p.id]?.status === 'in';
@@ -1262,7 +1265,9 @@ function wipeoutInfo(state: GameState, forHost: boolean): WipeoutInfo | null {
               ? 'stay'
               : 'decided'
             : 'pending';
-    return { ...blitzPlayer(state, p.id), status: standing.status, bank: standing.bank, step: standing.step, decision };
+    const choice = shown ? wipeoutChoiceOf(play, p.id) : null;
+    const prev = before !== null && before[p.id]?.status === 'in' ? before[p.id].bank : null;
+    return { ...blitzPlayer(state, p.id), status: standing.status, bank: standing.bank, step: standing.step, decision, choice, prev };
   });
   const total = state.players.filter((p) => hidden[p.id]?.status === 'in').length;
   return {
@@ -1274,6 +1279,7 @@ function wipeoutInfo(state: GameState, forHost: boolean): WipeoutInfo | null {
     decide: windowOpen
       ? { endsAt: state.endsAt, remainingMs: state.remainingMs, decided: rows.filter((r) => r.decision !== null && r.decision !== 'pending').length, total }
       : null,
+    decisions: shown,
   };
 }
 
