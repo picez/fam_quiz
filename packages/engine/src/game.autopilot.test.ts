@@ -163,6 +163,15 @@ describe('author pause (11g)', () => {
     expect(authorResume(hosted, T0)).toEqual({ ok: false, error: 'not_allowed' });
   });
 
+  it('pausing during a «nobody» pause makes it the author pause, keeping the time left', () => {
+    const paused = must(authorPause(atReveal(), T0 + 2000));
+    const nobody: GameState = { ...paused, autopilot: { authorId: 'a', at: T0 + 5000, hold: 'nobody', left: 1200 } };
+    const held = must(authorPause(nobody, T0 + 3000));
+    expect(held.paused).toBe(true);
+    expect(held.pausedAt).toBe(paused.pausedAt);
+    expect(held.autopilot).toEqual({ authorId: 'a', at: null, hold: 'author', left: 1200 });
+  });
+
   it('resumes without hold and left, after either kind of pause', () => {
     const paused = must(authorPause(atReveal(), T0 + 2000));
     const withLeft: GameState = { ...paused, autopilot: { ...paused.autopilot!, left: 1500 } };

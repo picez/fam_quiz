@@ -1,4 +1,4 @@
-import { autopilotQuiz, type Quiz } from '@quiz/shared';
+import { autopilotQuiz, type Quiz, type TeamForm } from '@quiz/shared';
 import {
   addPlayer,
   createGame,
@@ -13,7 +13,7 @@ import {
   type Result,
   type Rng,
 } from './game';
-import { dealTeams, startTeamDice, teamsOn } from './teams';
+import { dealTeams, setTeamForm, startTeamDice, teamsOn } from './teams';
 
 // Гра без ведучого (11g). Кроки йдуть тими самими функціями рушія, що й кнопки ведучого; правила — план 11g.
 
@@ -69,8 +69,8 @@ export function autopilotStart(state: GameState, now: number, rng: Rng): Result 
     if (!dealt.ok) return dealt;
     return startNow({ ...dealt.state, teams: { ...dealt.state.teams!, form } }, now);
   }
-  if (form === 'dice' && dice === null && members.length >= 2 && members.some((m) => m.teamId === null)) {
-    // Спершу тур кубиків; гра стартує сама, щойно він закриється (крок автопілота).
+  if (form === 'dice' && dice === null && members.some((m) => m.teamId === null)) {
+    // Спершу тур кубиків; гра стартує сама, щойно він закриється (крок автопілота). Менше двох учасників → teams_few.
     const tour = startTeamDice(state);
     if (!tour.ok) return tour;
     return ok(withPilot(tour.state, (pilot) => ({ ...pilot, starting: true })));
@@ -78,9 +78,26 @@ export function autopilotStart(state: GameState, now: number, rng: Rng): Result 
   return startNow(state, now);
 }
 
-/** Пауза від автора: pause + hold 'author' (left/at ставить planAutopilot); не автопілот → not_allowed. */
+/** Спосіб формування команд від автора: setTeamForm і starting геть (незакритий тур скасовано, тож старт після нього теж). */
+export function authorTeamForm(state: GameState, form: TeamForm): Result {
+  if (state.autopilot === undefined) return fail('not_allowed');
+  const changed = setTeamForm(state, form);
+  if (!changed.ok) return changed;
+  return ok(
+    withPilot(changed.state, (pilot) => {
+      const { starting: _starting, ...rest } = pilot;
+      return rest;
+    }),
+  );
+}
+
+/**
+ * Пауза від автора: pause + hold 'author' (left/at ставить planAutopilot); не автопілот → not_allowed.
+ * На паузі «нікого» пауза стає паузою автора (at геть, left лишається): сама гра вже не продовжиться.
+ */
 export function authorPause(state: GameState, now: number): Result {
   if (state.autopilot === undefined) return fail('not_allowed');
+  if (state.paused && state.autopilot.hold === 'nobody') return ok(withPilot(state, (pilot) => ({ ...pilot, at: null, hold: 'author' })));
   const paused = pause(state, now);
   if (!paused.ok) return paused;
   return ok(withPilot(paused.state, (pilot) => ({ ...pilot, hold: 'author' })));

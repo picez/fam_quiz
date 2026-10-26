@@ -1055,6 +1055,29 @@ describe('the saved state', () => {
     expect(roundTrip(suspended)).toEqual(suspended);
   });
 
+  it('a running autopilot game with nothing due suspends with hold nobody and no time left', () => {
+    const suspended = suspend(pilotReveal(), T0 + 2000);
+    expect(suspended.autopilot).toEqual({ authorId: 'p1', at: null, hold: 'nobody' });
+    expect('left' in (suspended.autopilot ?? {})).toBe(false);
+  });
+
+  it('an autopilot step already due at the save leaves 0', () => {
+    const s: GameState = { ...pilotReveal(), autopilot: { authorId: 'p1', at: T0 + 1500 } };
+    expect(suspend(s, T0 + 2000).autopilot).toEqual({ authorId: 'p1', at: null, hold: 'nobody', left: 0 });
+  });
+
+  it('a team autopilot game suspends with hold nobody and every member offline', () => {
+    let s = must(createAutopilotGame(teamQuiz([classicRound('r1', [single])]), { id: 'm1', nickname: 'Оля' }));
+    s = must(addPlayer(s, { id: 'm2', nickname: 'Петро' }));
+    s = must(next(must(start(s, T0)), T0, () => 0));
+    expect(s.phase).toBe('question');
+    const suspended = suspend({ ...s, autopilot: { authorId: 'm1', at: T0 + 3000 } }, T0 + 1000);
+    expect(suspended.paused).toBe(true);
+    expect(suspended.autopilot).toEqual({ authorId: 'm1', at: null, hold: 'nobody', left: 2000 });
+    expect(suspended.teams?.members.every((m) => !m.connected)).toBe(true);
+    expect(roundTrip(suspended)).toEqual(suspended);
+  });
+
   it('an autopilot game paused by the author stays paused by the author', () => {
     const paused = must(pause(pilotReveal(), T0 + 2000));
     const s: GameState = { ...paused, autopilot: { authorId: 'p1', at: null, hold: 'author', left: 2500 } };
