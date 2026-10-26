@@ -3,7 +3,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { DEFAULT_RULES } from '@quiz/shared';
+import { DEFAULT_RULES, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
@@ -12167,3 +12167,463 @@ async function longRoundEnds11f(sockets: Socket[]) {
 
   expect(problems).toEqual([]);
 }
+
+// ——— 11g: гра без ведучого. Учасники — сокети без браузера, сцена — сторінка 1280 × 720. ———
+
+const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+type PilotAck = { ok: true } | { ok: false; error: string };
+/** Допуск проміжків 11g: ранній таймер (PACE_GRACE_MS) і мережа з перемальовуванням. */
+const EARLY = 150;
+const LATE = 1500;
+
+/** Учасник гри без браузера (11g): сокет за токеном, усі кадри state (at — час сервера в мить надсилання), дії з підтвердженням; reconnect — новий сокет з тим самим токеном. */
+async function pilotSocket(sockets: Socket[], code: string, token: string, nickname: string) {
+  const frames: { view: PlayerView; meta: StateMeta; at: number }[] = [];
+  const raw: string[] = [];
+  let socket!: Socket;
+  const connectOnce = () =>
+    new Promise<void>((done, fail) => {
+      const next = connectSocket(base, { auth: { code, role: 'player', token }, transports: ['websocket'], reconnection: false });
+      sockets.push(next);
+      next.on('state', (view: PlayerView, meta: StateMeta) => {
+        frames.push({ view, meta, at: meta.serverNow });
+        raw.push(JSON.stringify(view));
+      });
+      next.once('connect', () => {
+        socket = next;
+        done();
+      });
+      next.once('connect_error', (error) => {
+        next.close();
+        fail(error);
+      });
+    });
+  const connect = async () => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await connectOnce();
+      } catch (error) {
+        if (attempt >= 5) throw error;
+        await sleep(300);
+      }
+    }
+  };
+  await connect();
+  return {
+    nickname,
+    frames,
+    raw,
+    emit: (event: string, payload?: unknown) =>
+      new Promise<PilotAck>((done) => {
+        const timer = setTimeout(() => done({ ok: false, error: 'no_ack' }), 5000);
+        const ack = (result: PilotAck) => {
+          clearTimeout(timer);
+          done(result);
+        };
+        if (payload === undefined) socket.emit(event, ack);
+        else socket.emit(event, payload, ack);
+      }),
+    close: () => socket.close(),
+    reconnect: async () => {
+      socket.close();
+      await connect();
+    },
+  };
+}
+type Pilot = Awaited<ReturnType<typeof pilotSocket>>;
+
+/** Вхід через API (/join) → pilotSocket. */
+async function pilotPlayer(sockets: Socket[], code: string, nickname: string): Promise<Pilot> {
+  const response = await fetch(`${base}/api/games/by-code/${code}/join`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  });
+  expect(response.status, nickname).toBe(201);
+  const { token } = (await response.json()) as { token: string };
+  return pilotSocket(sockets, code, token, nickname);
+}
+
+/** Чекає кадру, що задовольняє умову (серед кадрів з індексу from), і повертає його. */
+async function frame(player: Pilot, test: (view: PlayerView) => boolean, from = 0, timeout = 90_000) {
+  const find = () => {
+    const index = player.frames.findIndex((f, i) => i >= from && test(f.view));
+    return index < 0 ? null : { ...player.frames[index]!, index };
+  };
+  await expect.poll(() => find() !== null, { timeout, interval: 25, message: `${player.nickname} never got the frame` }).toBe(true);
+  return find()!;
+}
+
+/** Мить (час сервера) першого кадру з етапом phase з індексу from. */
+function phaseAt(player: Pilot, phase: string, from = 0): number {
+  const found = player.frames.find((f, i) => i >= from && f.view.phase === phase);
+  if (found === undefined) throw new Error(`${player.nickname} has no ${phase} frame`);
+  return found.at;
+}
+
+/** Дія учасника, що має вдатися (кадр міг прийти раніше, ніж сервер відкрив крок: до 5 с повторів). */
+async function emitOk(player: Pilot, event: string, payload?: unknown) {
+  const until = Date.now() + 5000;
+  let result = await player.emit(event, payload);
+  while (!result.ok && Date.now() < until) {
+    await sleep(100);
+    result = await player.emit(event, payload);
+  }
+  expect(result, `${player.nickname} ${event}`).toEqual({ ok: true });
+}
+
+/** Проміжок у допуску: від −150 мс (ранній таймер) до +late. */
+function expectGap(gap: number, wanted: number, label: string, late = LATE) {
+  const note = `${label}: ${gap} ms, wanted ${wanted} −${EARLY} … +${late}`;
+  expect(gap, note).toBeGreaterThanOrEqual(wanted - EARLY);
+  expect(gap, note).toBeLessThanOrEqual(wanted + late);
+}
+
+/** Кадри state сторінки сцени з часом сервера (через перепідключення теж). */
+function stageTimeline(page: Page): { view: StageView; meta: StateMeta; at: number }[] {
+  const list: { view: StageView; meta: StateMeta; at: number }[] = [];
+  page.on('websocket', (socket) =>
+    socket.on('framereceived', (data) => {
+      const payload = String(data.payload);
+      if (!payload.startsWith('42["state",')) return;
+      try {
+        const [, view, meta] = JSON.parse(payload.slice(2)) as [string, StageView, StateMeta];
+        list.push({ view, meta, at: meta.serverNow });
+      } catch {
+        // Не кадр state.
+      }
+    }),
+  );
+  return list;
+}
+
+/** Кімната-автопілот зі збереженої вікторини: токена ведучого немає, автор — гравець. */
+async function createAutopilot(author: Page, quizId: string) {
+  const created = await author.request.post(`${base}/api/games`, { data: { quizId, autopilot: true, nickname: 'Марта' } });
+  expect(created.status()).toBe(201);
+  const room = (await created.json()) as { code: string; token: string; stageToken: string; hostToken?: string };
+  expect(room.hostToken, 'an autopilot room has no host token').toBeUndefined();
+  return room;
+}
+
+/** Жоден кадр не віддає пульт: ні ролі ведучого, ні відповідей наживо. */
+function expectNoHostFrames(label: string, frames: string[]) {
+  for (const text of frames) {
+    for (const needle of ['"role":"host"', '"live":{', '"responses":[']) expect(text.includes(needle), `${label} got ${needle}`).toBe(false);
+  }
+}
+
+async function autopilot11g(sockets: Socket[]) {
+  const author = await open('author11g', 1280, 900);
+  await register(author, 'host', 'Марта Авторка', 'author11g@example.com');
+
+  const common = { imageUrl: null, video: null };
+  const g1 = { ...common, id: 'g1', type: 'boolean' as const, text: 'Говерла — найвища гора України', points: 100, timeLimit: 20, correct: true };
+  const g2 = { ...common, id: 'g2', type: 'wordcloud' as const, text: 'Одне слово про літо', points: 0, timeLimit: 20, words: 1 };
+  const answers = new Map<string, string>();
+  const column = (title: string, rows: [string, string][]) => ({
+    title,
+    cells: rows.map(([question, answer], index) => {
+      const id = `${title}-${(index + 1) * 100}`;
+      answers.set(id, answer.toLowerCase());
+      return { ...withPoints(withId(textQ, id), (index + 1) * 100), text: question, accepted: [answer] };
+    }),
+  });
+  const description = 'Карпати — найбільший гірський масив України: верхи Чорногори, ліси з буків і смерек, полонини, швидкі потоки й десятки рідкісних птахів.';
+  const rounds = [
+    classicRound('r1', [g1, g2] as never, { title: 'Розминка', description, speedBonus: false, shuffleOptions: false } as never),
+    boardRound(
+      'r2',
+      [
+        column('Річки', [['Яка річка тече через Київ?', 'Дніпро'], ['Яка річка тече через Ужгород?', 'Уж'], ['Яка річка тече через Вінницю?', 'Південний Буг']]),
+        column('Гори', [['Яка найвища гора України?', 'Говерла'], ['Який гірський масив займає захід України?', 'Карпати'], ['Яка найвища гора Кримських гір?', 'Роман-Кош']]),
+        column('Міста', [['Яке місто називають містом Лева?', 'Львів'], ['Яке місто — найбільший порт України на Чорному морі?', 'Одеса'], ['Яке місто стоїть на Дніпрі поруч із островом Хортиця?', 'Запоріжжя']]),
+      ],
+      { title: 'Поле', answerMode: 'voice', check: 'manual' },
+    ),
+    finalRound('r3', { ...withPoints(withId(textQ, 'f1'), 100), text: 'Яке місто — столиця України?', accepted: ['Київ'] } as never, { title: 'Фінал', check: 'manual', wagerMode: 'classic' }),
+  ];
+  const data = { ...makeRoundsQuiz(rounds as never, { leaderboard: 'end' }), title: 'Автопілот 11g' };
+  const saved = await author.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const quizId = ((await saved.json()) as { id: string }).id;
+
+  // Сумісність: поле «вголос» і ручні перевірки поля й фіналу будуть змінені.
+  const check = await author.request.get(`${base}/api/quizzes/${quizId}/autopilot`);
+  expect(await check.json()).toEqual({
+    blocked: [],
+    changed: [
+      { code: 'voice', rounds: [1] },
+      { code: 'manual', rounds: [1, 2] },
+    ],
+  });
+
+  // Кімната: токена ведучого немає, а сокет ролі host не підключається.
+  const room = await createAutopilot(author, quizId);
+  const { code } = room;
+  const hostSocket = connectSocket(base, { auth: { code, role: 'host', token: 'x'.repeat(32) }, transports: ['websocket'], reconnection: false });
+  sockets.push(hostSocket);
+  await new Promise<void>((done, fail) => {
+    hostSocket.once('connect', () => fail(new Error('a host socket connected to an autopilot room')));
+    hostSocket.once('connect_error', () => done());
+  });
+  const marta = await pilotSocket(sockets, code, room.token, 'Марта');
+  const vira = await pilotPlayer(sockets, code, 'Віра');
+  const petro = await pilotPlayer(sockets, code, 'Петро');
+  const everyone = [marta, vira, petro];
+
+  const stage = await open('stage11g', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(`${base}/stage/${code}#${room.stageToken}`);
+  await stage.getByText('Петро').waitFor();
+
+  // 1. Не автор не починає гру, зайва дія автора відхилена, автор починає з телефона.
+  expect(await vira.emit('host:start')).toEqual({ ok: false, error: 'not_allowed' });
+  expect(await marta.emit('host:next')).toEqual({ ok: false, error: 'not_allowed' });
+  expect(await marta.emit('host:start')).toEqual({ ok: true });
+
+  // 2. Заставка раунду, потім опис (11 с) від кінця заставки, потім запитання.
+  const intro = await frame(vira, (v) => v.phase === 'intro');
+  const question1 = await frame(vira, (v) => v.phase === 'question', intro.index);
+  const splashEnd = intro.view.splash?.kind === 'round' ? Math.max(intro.view.splash.until, intro.at) : intro.at;
+  expectGap(question1.at - splashEnd, 11_000, 'intro to the first question', 2000);
+  await stage.getByText('Говерла — найвища гора України', exact).waitFor();
+  await shot(stage, 'p11g-stage-question');
+
+  // 3. g1: усі «Так» → закрито → розкриття через 1,5 с → таблиці немає (leaderboard 'end'), g2 через 6 с.
+  for (const player of everyone) await emitOk(player, 'player:answer', { type: 'boolean', value: true });
+  const locked1 = await frame(vira, (v) => v.phase === 'locked', question1.index);
+  const reveal1 = await frame(vira, (v) => v.phase === 'reveal', locked1.index);
+  expectGap(reveal1.at - locked1.at, 1500, 'locked to reveal', 1000);
+  const question2 = await frame(vira, (v) => v.phase === 'question', reveal1.index);
+  expectGap(question2.at - reveal1.at, 6000, 'reveal to the next question');
+  expect(vira.frames.slice(reveal1.index, question2.index).some((f) => f.view.phase === 'leaderboard'), 'no table between questions').toBe(false);
+
+  // 4. «Хмара»: слова бачить лише автор; сховати слово може тільки він.
+  await emitOk(vira, 'player:answer', { type: 'wordcloud', words: ['сонце'] });
+  await emitOk(petro, 'player:answer', { type: 'wordcloud', words: ['сонце'] });
+  await emitOk(marta, 'player:answer', { type: 'wordcloud', words: ['море'] });
+  const cloud = await frame(marta, (v) => v.phase === 'reveal' && v.author?.cloud != null, question2.index);
+  const words = cloud.view.author!.cloud!;
+  expect(words.find((w) => w.key === 'сонце')).toMatchObject({ count: 2, hidden: false });
+  expect(words.find((w) => w.key === 'море')).toMatchObject({ count: 1, hidden: false });
+  const viraCloud = await frame(vira, (v) => v.phase === 'reveal', question2.index);
+  expect(viraCloud.view.author, 'a plain player has no author view').toBeNull();
+  expect(await vira.emit('host:cloud-hide', { key: 'море', hidden: true })).toEqual({ ok: false, error: 'not_allowed' });
+  expect(await marta.emit('host:cloud-hide', { key: 'море', hidden: true })).toEqual({ ok: true });
+  const cloudText = async () => (await stage.locator('.word-cloud').innerText().catch(() => '')).toLowerCase();
+  await expect.poll(async () => (await cloudText()).includes('сонце') && !(await cloudText()).includes('море'), { timeout: 4000 }).toBe(true);
+  await shot(stage, 'p11g-stage-cloud');
+
+  // 5. Кінець раунду → 8 с → заставка «Поля».
+  const roundEnd = await frame(vira, (v) => v.phase === 'round_end', viraCloud.index);
+  const intro2 = await frame(vira, (v) => v.phase === 'intro', roundEnd.index);
+  expectGap(phaseAt(vira, 'intro', roundEnd.index) - phaseAt(vira, 'round_end', cloud.index), 8000, 'round end to the next round');
+
+  // 6. Кубики кидаються самі: Віра й Петро кидають, Марта ні — за неї кине сервер через 10 с.
+  const diceStart = await frame(vira, (v) => v.phase === 'intro' && v.board?.dice != null && !v.board.dice.done, intro2.index);
+  expect(diceStart.view.board!.dice!.rows).toHaveLength(3);
+  rigged.push(6, 4, 2);
+  await emitOk(vira, 'player:roll');
+  await emitOk(petro, 'player:roll');
+  const diceDone = await frame(vira, (v) => v.board?.dice?.done === true, diceStart.index);
+  expectGap(diceDone.at - diceStart.at, 10_000, 'dice tour');
+  expect(diceDone.view.board!.dice!.tieBreak).toBe(false);
+  const board1 = await frame(vira, (v) => v.phase === 'board', diceDone.index);
+  // Результат кубиків видно 4 с після закриття туру, але не раніше кінця опису заставки (8 с).
+  expectGap(board1.at - Math.max(intro2.at + 8000, diceDone.at + 4000), 0, 'dice result stays 4 s, the intro 8 s', 1500);
+
+  // 7. Усне поле з телефона: хто ходить, той вибирає клітинку й пише відповідь; Петро вперше помиляється.
+  const byName = new Map(everyone.map((p) => [p.nickname, p]));
+  // Розминка вже дала по 100 (g1); поле додає лише ціну клітинки.
+  const scores = new Map(everyone.map((p) => [p.nickname, p.frames.at(-1)!.view.me.score]));
+  expect([...scores.values()]).toEqual([100, 100, 100]);
+  let cursor = board1.index;
+  let petroWrong = false;
+  for (let played = 0; played < 9; played++) {
+    const turn = await frame(vira, (v) => v.phase === 'board' && v.board?.turn != null && v.board.categories.flatMap((c) => c.cells).filter((c) => c.played).length === played, cursor);
+    const name = turn.view.board!.turn!.nickname;
+    const chooser = byName.get(name)!;
+    const open = turn.view.board!.categories.flatMap((c) => c.cells).find((c) => !c.played)!;
+    const mark = chooser.frames.length;
+    await emitOk(chooser, 'player:pick', { cellId: open.id });
+    const asked = await frame(chooser, (v) => v.phase === 'question', mark);
+    const wrong = name === 'Петро' && !petroWrong;
+    if (wrong) petroWrong = true;
+    await emitOk(chooser, 'player:answer', { type: 'text', value: wrong ? 'нептун' : answers.get(open.id)! });
+    const shown = await frame(chooser, (v) => v.phase === 'reveal', asked.index);
+    const before = scores.get(name)!;
+    const gain = wrong ? 0 : open.price;
+    expect(shown.view.me.result?.accepted, `${name} on ${open.id}`).toBe(!wrong);
+    expect(shown.view.me.score - before, `${name} score on ${open.id}`).toBe(gain);
+    scores.set(name, before + gain);
+    if (played === 0) {
+      await stage.getByText('Яка річка тече через Київ?', exact).waitFor();
+      await expectStageInView(stage, 'p11g-stage-board');
+      await shot(stage, 'p11g-stage-board');
+    }
+    cursor = vira.frames.length;
+  }
+  expect(petroWrong, 'Петро answered wrongly once').toBe(true);
+
+  // 8. Фінал: ручну перевірку замінив ключ; ставки → запитання саме; кожен гравець розкривається через 3 с.
+  const wagerFrame = await frame(vira, (v) => v.phase === 'wager', cursor);
+  const wagers: [Pilot, number][] = [[marta, 0], [vira, 100], [petro, 50]];
+  const beforeFinal = new Map<string, number>();
+  for (const [player, amount] of wagers) {
+    const own = await frame(player, (v) => v.phase === 'wager', 0);
+    beforeFinal.set(player.nickname, own.view.me.score);
+    expect(own.view.me.score, `${player.nickname} can stake ${amount}`).toBeGreaterThanOrEqual(amount);
+  }
+  for (const [player, amount] of wagers) await emitOk(player, 'player:wager', { amount });
+  const finalQuestion = await frame(vira, (v) => v.phase === 'question' && v.final !== null, wagerFrame.index);
+  await emitOk(marta, 'player:answer', { type: 'text', value: 'київ' });
+  await emitOk(vira, 'player:answer', { type: 'text', value: 'київ' });
+  await emitOk(petro, 'player:answer', { type: 'text', value: 'Львів' });
+  await frame(vira, (v) => v.phase === 'reveal' && (v.final?.shown.length ?? 0) >= 3, finalQuestion.index);
+  const steps = vira.frames
+    .slice(finalQuestion.index)
+    .filter((f) => f.view.phase === 'reveal' && (f.view.final?.shown.length ?? 0) >= 1)
+    .filter((f, i, all) => i === 0 || f.view.final!.shown.length !== all[i - 1]!.view.final!.shown.length);
+  expect(steps.length).toBeGreaterThanOrEqual(3);
+  for (let i = 1; i < steps.length; i++) expectGap(steps[i]!.at - steps[i - 1]!.at, 3000, `final reveal step ${i}`);
+
+  await frame(vira, (v) => v.phase === 'finished', finalQuestion.index);
+  const finalScore = async (player: Pilot) => (await frame(player, (v) => v.phase === 'finished', 0)).view.me.score;
+  expect((await finalScore(marta)) - beforeFinal.get('Марта')!).toBe(0);
+  expect((await finalScore(vira)) - beforeFinal.get('Віра')!).toBe(100);
+  expect((await finalScore(petro)) - beforeFinal.get('Петро')!).toBe(-50);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await expectStageFits(stage, 'p11g-stage-podium');
+  await shot(stage, 'p11g-stage-podium');
+  expect(await bodyText(stage)).not.toContain('Чекаємо ведучого');
+
+  // 9. Таємність: пульта немає в жодному кадрі; чужі гравці не бачать меню автора; ведучий «на зв'язку» завжди.
+  for (const player of everyone) expectNoHostFrames(player.nickname, player.raw);
+  expectNoHostFrames('stage', stageFrames);
+  for (const player of [vira, petro]) {
+    for (const text of player.raw) expect(text.includes('"author":{'), `${player.nickname} got the author view`).toBe(false);
+  }
+  for (const player of everyone) expect(player.frames.every((f) => f.meta.hostOnline), `${player.nickname}: hostOnline`).toBe(true);
+  expect(stageFrames.length).toBeGreaterThan(0);
+
+  // 10.
+  expect(problems).toEqual([]);
+}
+
+it('part 11g: autopilot — no host token or view, the author starts from the phone, the server opens, closes, reveals and moves on by the stage times on top of 11b, voice board cells and manual checks go by the key from the phone, dice start and finish by themselves, the author hides a cloud word on the 1280 × 720 stage while others get not_allowed, the game reaches the podium', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await autopilot11g(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 600_000);
+
+async function autopilotPauses11g(sockets: Socket[]) {
+  const author = await open('author11g-pause', 1280, 900);
+  await register(author, 'host', 'Марта Пауза', 'pause11g@example.com');
+  const common = { imageUrl: null, video: null, points: 100, timeLimit: 20, correct: true };
+  const questions = ['Дніпро впадає в Чорне море', 'Карпати — гори', 'Світязь — озеро'].map((text, i) => ({ ...common, id: `p${i + 1}`, type: 'boolean' as const, text }));
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', questions as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })], { leaderboard: 'each' }),
+    title: 'Пауза 11g',
+  };
+  const saved = await author.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const room = await createAutopilot(author, ((await saved.json()) as { id: string }).id);
+  const { code } = room;
+  const marta = await pilotSocket(sockets, code, room.token, 'Марта');
+  const vira = await pilotPlayer(sockets, code, 'Віра');
+  const stage = await open('stage11g-pause', 1280, 720);
+  const timeline = stageTimeline(stage);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(`${base}/stage/${code}#${room.stageToken}`);
+  await stage.getByText('Віра').waitFor();
+  const both = [marta, vira];
+
+  // 1. Старт; нікого на зв'язку → пауза; через 5 с ще пауза; повернулася Віра → гра йде через 3 с.
+  expect(await marta.emit('host:start')).toEqual({ ok: true });
+  const question1 = await frame(vira, (v) => v.phase === 'question');
+  for (const player of both) player.close();
+  const closedAt = Date.now();
+  await expect.poll(() => timeline.some((f) => f.view.paused && f.at >= closedAt - 500), { timeout: 5000 }).toBe(true);
+  await sleep(5000);
+  expect(timeline.at(-1)!.view.paused, 'still paused after 5 s with nobody online').toBe(true);
+  const viraMark = vira.frames.length;
+  await vira.reconnect();
+  const back = await frame(vira, () => true, viraMark);
+  const resumed = await expect.poll(() => timeline.find((f) => f.at > back.at && !f.view.paused) ?? null, { timeout: 8000 }).not.toBeNull().then(() => timeline.find((f) => f.at > back.at && !f.view.paused)!);
+  expectGap(resumed.at - back.at, 3000, 'the first player returns');
+  await marta.reconnect();
+
+  // 2. Обоє відповіли → розкриття; через 2 с розкриття сервер перезапускається.
+  const asked = await frame(vira, (v) => v.phase === 'question' && !v.paused, vira.frames.length - 1);
+  expect(asked.view.questionIndex).toBe(question1.view.questionIndex);
+  for (const player of both) await emitOk(player, 'player:answer', { type: 'boolean', value: true });
+  const reveal = await frame(marta, (v) => v.phase === 'reveal', 0);
+  await sleep(Math.max(0, reveal.at + 2000 - Date.now()));
+  const restartedAt = Date.now();
+  await restart();
+  await sleep(2000);
+  // Сцена перепідключається сама й показує паузу, поки ніхто не повернувся.
+  await expect.poll(() => timeline.some((f) => f.view.paused && f.at >= restartedAt), { timeout: 20_000 }).toBe(true);
+  const pausedCount = timeline.length;
+  const martaMark = marta.frames.length;
+  await marta.reconnect();
+  const martaBack = await frame(marta, () => true, martaMark);
+  const goOn = await expect
+    .poll(() => timeline.slice(pausedCount - 1).find((f) => f.at > martaBack.at && !f.view.paused) ?? null, { timeout: 10_000 })
+    .not.toBeNull()
+    .then(() => timeline.slice(pausedCount - 1).find((f) => f.at > martaBack.at && !f.view.paused)!);
+  expectGap(goOn.at - martaBack.at, 3000, 'after the restart the first player returns');
+  const leaderboard = await frame(marta, (v) => v.phase === 'leaderboard', 0);
+  expectGap(leaderboard.at - goOn.at, 4000, 'the rest of the reveal after the restart', 2000);
+  expect(leaderboard.at - goOn.at).toBeGreaterThanOrEqual(3500);
+  await vira.reconnect();
+
+  // 3. Таблиця між запитаннями → наступне запитання через 5 с.
+  const question2 = await frame(vira, (v) => v.phase === 'question' && v.questionIndex === 1, 0);
+  expectGap(question2.at - leaderboard.at, 5000, 'table to the next question');
+
+  // 4. Пауза автора тримається, поки автор не продовжить; Віра не може.
+  for (const player of both) await emitOk(player, 'player:answer', { type: 'boolean', value: true });
+  const reveal2 = await frame(marta, (v) => v.phase === 'reveal' && v.questionIndex === 1, question2.index);
+  expect(await marta.emit('host:pause')).toEqual({ ok: true });
+  await expect.poll(() => timeline.at(-1)!.view.paused, { timeout: 4000 }).toBe(true);
+  await sleep(8000);
+  expect(timeline.at(-1)!.view.paused, 'the author pause holds').toBe(true);
+  expect(timeline.at(-1)!.view.phase).toBe('reveal');
+  expect(await vira.emit('host:resume')).toEqual({ ok: false, error: 'not_allowed' });
+  const resumeAt = Date.now();
+  expect(await marta.emit('host:resume')).toEqual({ ok: true });
+  const leaderboard2 = await frame(marta, (v) => v.phase === 'leaderboard' && v.questionIndex === 1, reveal2.index);
+  expect(leaderboard2.at - resumeAt, 'the reveal goes on with the time left').toBeGreaterThanOrEqual(3000);
+  expect(leaderboard2.at - resumeAt).toBeLessThanOrEqual(6500);
+
+  // 5. Третє запитання, до подіуму.
+  const question3 = await frame(vira, (v) => v.phase === 'question' && v.questionIndex === 2, 0);
+  for (const player of both) await emitOk(player, 'player:answer', { type: 'boolean', value: true });
+  await frame(vira, (v) => v.phase === 'finished', question3.index);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await expectStageFits(stage, 'p11g-stage-pause-podium');
+  await shot(stage, 'p11g-stage-pause-podium');
+  expectNoHostFrames('stage', stageFrames);
+  for (const player of both) expectNoHostFrames(player.nickname, player.raw);
+  expect(problems).toEqual([]);
+}
+
+it('part 11g: autopilot pauses with nobody online and after a restart, goes on 3 s after the first player returns with the time left, and the author pause holds until the author resumes', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await autopilotPauses11g(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 600_000);
