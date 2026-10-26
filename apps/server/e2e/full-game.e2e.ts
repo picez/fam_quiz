@@ -8885,6 +8885,16 @@ async function ladderGroupOf(page: Page, nickname: string): Promise<string> {
   return (await group.locator('h3').first().textContent())!.trim();
 }
 
+/** Текст позначки вибору гравця на екрані «Рішення»; null — його там немає. */
+async function choiceOf(page: Page, nickname: string): Promise<string | null> {
+  const li = page.locator('.wipeout-group.is-choices li').filter({ has: page.locator('.name', { hasText: new RegExp(`^${nickname}$`) }) });
+  return (await li.count()) === 0 ? null : (await li.locator('.wipeout-choice').textContent())!.trim();
+}
+/** Рядок гравця в колонці сцени чи списку сходинки. */
+const sideRow = (page: Page, nickname: string) => page.locator('.wipeout-side li, .wipeout-step-list li').filter({ has: page.locator('.name', { hasText: new RegExp(`^${nickname}$`) }) });
+/** Сокетні кадри з відкритим вибором (11e). */
+const CHOICE = /"choice":"(took|stay|auto)"/;
+
 const NL = '\n';
 
 /** Кадри від позиції from до першого розкриття після неї (для перевірки витоку одного запитання). */
@@ -9061,7 +9071,10 @@ async function wipeoutGame() {
   await decide(vira, false);
   await host.getByRole('button', { name: 'Наступне запитання', ...exact }).waitFor();
   await expect.poll(() => stage.locator('[role=timer]').count(), POLL).toBe(0);
-  expect(await ladderGroupOf(stage, 'Петро')).toBe('У грі');
+  // Після вікна сцена показує екран «Рішення» (11e): Петро в групі вибору, а не «У грі».
+  await stage.locator('.wipeout-group.is-choices').waitFor();
+  expect(await ladderGroupOf(stage, 'Петро')).toBe('Рішення');
+  expect(await choiceOf(stage, 'Петро')).toBe('Далі з 100');
 
   const fromW2 = { stage: stageFrames.length, petro: petroFrames.length, vira: viraFrames.length };
   await click(host, 'Наступне запитання');
@@ -9118,6 +9131,8 @@ async function wipeoutGame() {
   await vira.getByText('Банк: 600', exact).waitFor();
   for (const page of [olya, petro]) await page.getByText('Ти дивишся', exact).first().waitFor();
   for (const [who, page] of [['stage', stage], ['olya', olya], ['petro', petro]] as const) expect(await bodyText(page), `${who} sees the bank of Vira`).not.toContain('Банк: 600');
+  // Банки інших тепер видно всім (11e): у списку сходинки Віри — «300 → 600».
+  await sideRow(olya, 'Віра').getByText('300 → 600', exact).waitFor();
   await click(host, 'Далі');
   await decide(vira, false);
   await click(host, 'Наступне запитання');
@@ -11495,6 +11510,304 @@ async function teamSort11d() {
     expect(frames.join(NL), `${who} received the red captain tilt`).not.toContain('sort:tilt');
   }
   await shot(petro, 'p11d-team-watch-column');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 11e: wipeout decisions — banks of everyone in beside the question on the 1280 × 720 stage and in a phone strip, right and burned banks on the reveal for players and watchers, choices hidden while the 10 s window runs, then «Рішення» on the stage, phones and host with taken, going on and taken by default, the host waits 3 s, the round end groups as before', async () => {
+  try {
+    await wipeoutDecisions11e();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+it('part 11e: team wipeout decisions — teammates see the strip with team banks and «Рішення» with both teams after the captains decide', async () => {
+  try {
+    await teamWipeout11e();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Запитання «Ва-банк» 11e: ціни 100…500. */
+function wipeoutQuestions11e() {
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const e1 = {
+    ...common,
+    id: 'e1',
+    type: 'single' as const,
+    text: 'Яка планета найближча до Сонця?',
+    points: 100,
+    options: [{ id: 'e1-a', text: 'Меркурій' }, { id: 'e1-b', text: 'Венера' }, { id: 'e1-c', text: 'Марс' }],
+    correctId: 'e1-a',
+  };
+  const e2 = { ...common, id: 'e2', type: 'boolean' as const, text: 'Кит — ссавець', points: 200, correct: true };
+  const e3 = { ...common, id: 'e3', type: 'numeric' as const, text: 'Скільки ніг у павука?', points: 300, correct: 8, tolerance: 0 };
+  const e4 = { ...common, id: 'e4', type: 'text' as const, text: 'Столиця Японії?', points: 400, accepted: ['Токіо'] };
+  const e5 = { ...common, id: 'e5', type: 'slider' as const, text: 'Скільки хвилин у годині?', points: 500, min: 0, max: 120, step: 1, correct: 60, tolerance: 2 };
+  return [e1, e2, e3, e4, e5];
+}
+
+/** Смужка банків телефону (11e), коли вона з'явилася. */
+async function stripOf(page: Page): Promise<string> {
+  const strip = page.locator('.wipeout-strip-phone');
+  await strip.waitFor();
+  return (await strip.innerText()).trim();
+}
+
+/** Колонка банків сцени не налазить на запитання й варіанти і не виходить за низ екрана. */
+async function expectSideApart(stage: Page, name: string) {
+  const box = (await stage.evaluate(`(() => {
+    const side = document.querySelector('aside.wipeout-side').getBoundingClientRect();
+    const h1 = document.querySelector('.stage-main h1').getBoundingClientRect();
+    const choices = [...document.querySelectorAll('.stage-question li.choice')].map((el) => el.getBoundingClientRect().right);
+    return { left: side.left, bottom: side.bottom, h1: h1.right, choices };
+  })()`)) as { left: number; bottom: number; h1: number; choices: number[] };
+  expect(box.left, `${name}: the bank column covers the question`).toBeGreaterThanOrEqual(box.h1);
+  for (const right of box.choices) expect(box.left, `${name}: the bank column covers an option`).toBeGreaterThanOrEqual(right);
+  expect(box.bottom, `${name}: the bank column below the screen edge`).toBeLessThanOrEqual(720);
+}
+
+async function wipeoutDecisions11e() {
+  const host = await open('host11e', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host11e@example.com');
+
+  const data = {
+    ...makeRoundsQuiz([wipeoutRound('rw11e', wipeoutQuestions11e() as never, { title: 'Драбина 11e', shuffleOptions: false })], { leaderboard: 'end' }),
+    title: 'Ва-банк 11e',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Ва-банк 11e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11e', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya11e', 375, 812);
+  const petro = await open('petro11e', 375, 812);
+  const vira = await open('vira11e', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const viraFrames = socketFrames(vira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(vira, code, 'Віра', false);
+  const phones = [olya, petro, vira];
+  const all = [host, stage, ...phones];
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  const fromE1 = { stage: stageFrames.length, vira: viraFrames.length };
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 1. e1: банки всіх у грі збоку від запитання й у смужці телефонів.
+  await stage.getByText('Яка планета найближча до Сонця?', exact).waitFor();
+  const side = stage.locator('aside.wipeout-side');
+  await side.getByText('У грі · 3', exact).waitFor();
+  expect(await side.locator('li .score').allTextContents()).toEqual(['0', '0', '0']);
+  await expectStageInView(stage, 'p11e-stage-question');
+  await expectSideApart(stage, 'p11e-stage-question');
+  for (const page of phones) {
+    const strip = await stripOf(page);
+    expect(strip.startsWith('У грі:'), strip).toBe(true);
+    for (const pair of ['Оля 0', 'Петро 0', 'Віра 0']) expect(strip).toContain(pair);
+  }
+  await expectNoSideScroll(olya, 'p11e-phone-strip');
+  await shot(stage, 'p11e-stage-question');
+  await shot(olya, 'p11e-phone-strip');
+
+  // 2. Розкриття e1: «✓ 0 → 100» у колонці сцени й у списку сходинки телефонів; банк після відповіді до розкриття не приходив.
+  for (const page of phones) await pickOption(page, 'Меркурій');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  for (const nick of ['Оля', 'Петро', 'Віра']) {
+    const row = sideRow(stage, nick);
+    await row.getByText('0 → 100', exact).waitFor();
+    expect(await row.locator('.wipeout-verdict').textContent()).toBe('✓');
+  }
+  for (const [who, frames, from] of [['stage', stageFrames, fromE1.stage], ['vira', viraFrames, fromE1.vira]] as const) {
+    const text = framesUntilNextReveal(frames, from).join(NL);
+    const at = text.search(/"prev":\d/);
+    expect(at < 0, `${who} got a bank before the reveal: ${text.slice(Math.max(0, at - 150), at + 150)}`).toBe(true);
+  }
+  for (const page of phones) await expect.poll(() => page.locator('.wipeout-step-list li.is-right').count(), POLL).toBe(3);
+  await expectStageInView(stage, 'p11e-stage-reveal');
+  await expectNoSideScroll(olya, 'p11e-phone-reveal');
+  await shot(stage, 'p11e-stage-reveal');
+  await shot(olya, 'p11e-phone-reveal');
+
+  // 3. Вікно рішення: Оля забирає, Петро йде далі, Віра чекає таймера; вибір інших прихований.
+  await click(host, 'Далі');
+  await stage.getByText('Вирішили 0 з 3', exact).waitFor();
+  const from = { stage: stageFrames.length, olya: olyaFrames.length, vira: viraFrames.length };
+  await decide(olya, true);
+  await decide(petro, false);
+  await stage.getByText('Вирішили 2 з 3', exact).waitFor();
+  for (const [who, page] of [['stage', stage], ['vira', vira]] as const) {
+    expect(await page.locator('.wipeout-group.is-choices').count(), `${who} shows choices while the window is open`).toBe(0);
+    const text = await bodyText(page);
+    expect(text, `${who} sees a choice`).not.toContain('Забрано 100');
+    expect(text, `${who} sees a choice`).not.toContain('Далі з 100');
+  }
+  await host.locator('.host-wipeout li', { hasText: 'Оля' }).getByText('забирає', exact).waitFor();
+  await host.locator('.host-wipeout li', { hasText: 'Петро' }).getByText('іде далі', exact).waitFor();
+  await shot(stage, 'p11e-stage-window');
+
+  // 4. Екран «Рішення» після таймера: три різні позначки скрізь, пульт чекає 3 с.
+  await stage.locator('.wipeout-group.is-choices').waitFor({ timeout: 15_000 });
+  const shownAt = Date.now();
+  const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+  await next.waitFor();
+  expect(await next.isDisabled(), 'the host waits on the decisions screen').toBe(true);
+  const waited = expect
+    .poll(() => next.isEnabled(), { timeout: 6000 })
+    .toBe(true)
+    .then(() => Date.now() - shownAt);
+  for (const [who, frames, start] of [['stage', stageFrames, from.stage], ['olya', olyaFrames, from.olya], ['vira', viraFrames, from.vira]] as const) {
+    for (const frame of frames.slice(start)) {
+      if (CHOICE.test(frame)) expect(frame, `${who} got a choice while the window was open`).toContain('"decide":null');
+    }
+  }
+  await stage.locator('h1', { hasText: 'Рішення' }).waitFor();
+  const choices: [string, string][] = [
+    ['Оля', 'Забрано 100'],
+    ['Петро', 'Далі з 100'],
+    ['Віра', 'Без вибору — забрано 100'],
+  ];
+  for (const [who, page] of [['stage', stage], ['olya', olya], ['host', host]] as const) {
+    await page.locator('.wipeout-group.is-choices').waitFor();
+    for (const [nick, text] of choices) expect(await choiceOf(page, nick), `${who}: ${nick}`).toBe(text);
+  }
+  expect(await petro.locator('.wipeout-group.is-choices li.is-me .name').textContent()).toBe('Петро');
+  await petro.getByText('Ти йдеш далі з 100', exact).waitFor();
+  await vira.locator('p.wipeout-state', { hasText: 'Без вибору — забрано 100' }).waitFor();
+  await expectStageInView(stage, 'p11e-stage-decisions');
+  await expectNoSideScroll(petro, 'p11e-phone-decisions');
+  await shot(stage, 'p11e-stage-decisions');
+  await shot(petro, 'p11e-phone-decisions');
+  await shot(vira, 'p11e-phone-decisions-auto');
+  await shot(host, 'p11e-host-decisions');
+  expect(await waited, 'the decisions screen minimum').toBeGreaterThanOrEqual(2500);
+
+  // 5. e2: грає лише Петро — і його помилку бачать сцена та Віра.
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+  await stage.getByText('Кит — ссавець', exact).waitFor();
+  await side.getByText('У грі · 1', exact).waitFor();
+  expect(await sideRow(stage, 'Петро').locator('.score').textContent()).toBe('100');
+  await side.getByText('Забрали: 2 · Згоріли: 0', exact).waitFor();
+  expect(await stripOf(olya)).toBe('У грі: Петро 100');
+  await expectStageInView(stage, 'p11e-stage-e2');
+  await expectSideApart(stage, 'p11e-stage-e2');
+  await pickOption(petro, '(^|\\s)Ні$');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  for (const page of [stage, vira]) {
+    const row = sideRow(page, 'Петро');
+    await row.getByText('банк 100 згорів', exact).waitFor();
+    expect(await row.locator('.wipeout-verdict').textContent()).toBe('✗');
+  }
+  await expectStageInView(stage, 'p11e-stage-burned');
+  await shot(stage, 'p11e-stage-burned');
+  await shot(vira, 'p11e-phone-burned-watch');
+
+  // 6. Нікого в грі: раунд (тут і гра) закінчується без вікна й без «Рішення»; забране лишається, згоріле — ні.
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  for (const page of [stage, ...phones]) expect(await page.locator('.wipeout-group.is-choices').count()).toBe(0);
+  for (const [nick, score] of [['Оля', 100], ['Віра', 100], ['Петро', 0]] as const) await expect.poll(() => podiumScore(host, nick), POLL).toBe(score);
+  await shot(stage, 'p11e-stage-round-end');
+
+  expect(problems).toEqual([]);
+}
+
+async function teamWipeout11e() {
+  const host = await open('host11et', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host11et@example.com');
+
+  const data = {
+    ...makeRoundsQuiz([wipeoutRound('rt11e', wipeoutQuestions11e() as never, { title: 'Команди 11e', shuffleOptions: false })], {
+      leaderboard: 'end',
+      teams: { count: 2, names: ['Червоні', 'Сині'] },
+    }),
+    title: 'Команди 11e',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Команди 11e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11et', 1280, 720);
+  await stage.goto(stageUrl);
+  const olya = await open('olya11et', 375, 812);
+  const petro = await open('petro11et', 375, 812);
+  const ira = await open('ira11et', 375, 812);
+  const marko = await open('marko11et', 375, 812);
+  const phones = [olya, petro, ira, marko];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Червоні'],
+    [petro, 'Петро', 'Червоні'],
+    [ira, 'Іра', 'Сині'],
+    [marko, 'Марко', 'Сині'],
+  ] as const) {
+    await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  await expect.poll(() => stageTeam(stage, 'Червоні'), POLL).toEqual(['Оля', 'Петро']);
+  await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Іра', 'Марко']);
+
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+
+  // 1. Товариші бачать смужку з банками команд; на сцені — обидві команди.
+  await stage.getByText('Яка планета найближча до Сонця?', exact).waitFor();
+  for (const page of [petro, marko]) expect(await stripOf(page)).toBe('У грі: Червоні 0 · Сині 0');
+  await expect.poll(() => stage.locator('aside.wipeout-side li .name').allTextContents(), POLL).toEqual(['Червоні', 'Сині']);
+  await expectStageInView(stage, 'p11e-team-stage');
+  await expectNoSideScroll(petro, 'p11e-team-strip');
+  await shot(petro, 'p11e-team-strip');
+
+  // 2. Капітани відповідають; у товариша список сходинки з обома командами.
+  for (const page of [olya, ira]) {
+    await pickOption(page, 'Меркурій');
+    await click(page, 'Відповісти');
+  }
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  for (const team of ['Червоні', 'Сині']) await sideRow(petro, team).getByText('0 → 100', exact).waitFor();
+
+  // 3. Вирішують капітани; обидва вирішили — вікно закривається одразу.
+  await click(host, 'Далі');
+  await petro.getByText('Капітан вирішує за команду…', exact).waitFor();
+  await decide(olya, true);
+  await decide(ira, false);
+
+  // 4. «Рішення» з обома командами в товаришів.
+  for (const [who, page] of [['petro', petro], ['marko', marko]] as const) {
+    await page.locator('.wipeout-group.is-choices').waitFor();
+    expect(await choiceOf(page, 'Червоні'), `${who}: Червоні`).toBe('Забрано 100');
+    expect(await choiceOf(page, 'Сині'), `${who}: Сині`).toBe('Далі з 100');
+  }
+  expect(await petro.locator('.wipeout-group.is-choices li.is-me .name').textContent()).toBe('Червоні');
+  expect(await petro.getByText('Капітан вирішує за команду…', exact).count()).toBe(0);
+  await expectNoSideScroll(marko, 'p11e-team-decisions');
+  await shot(marko, 'p11e-team-decisions');
+
+  // 5. Кінець гри.
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
 
   expect(problems).toEqual([]);
 }

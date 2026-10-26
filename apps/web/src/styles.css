@@ -8689,7 +8689,7 @@ button.wall-tile:disabled {
 /* Екран рішень (11e): позначка вибору після закриття вікна. */
 .wipeout-choice {
   color: var(--correct);
-  font-size: 0.875rem;
+  font-size: 0.875em;
   text-align: right;
   overflow-wrap: anywhere;
 }
@@ -8749,7 +8749,7 @@ button.wall-tile:disabled {
 }
 
 .wipeout-step-list .wipeout-change {
-  font-size: 0.875rem;
+  font-size: 0.875em;
   text-align: right;
 }
 
@@ -8763,13 +8763,14 @@ button.wall-tile:disabled {
 }
 
 .wipeout-step-list.is-stage li {
-  font-size: 1rem;
+  font-size: 1em;
 }
 
 /* Колонка сцени поруч із запитанням (11e): лише вигляд рядків, розміщення — у сцені. */
 .wipeout-side {
   min-width: 0;
   overflow: hidden;
+  font-size: clamp(0.875rem, 2.6vh, 1.375rem);
 }
 
 .wipeout-side ul {
