@@ -276,6 +276,13 @@ describe('host help', () => {
     }
   });
 
+  it('11e wipeout help tells the banks for everyone, the «Рішення» screen and its 3 s minimum', () => {
+    const wipeout = text('round.wipeout');
+    for (const part of ['смужку «У грі', 'екран «Рішення»', 'Без вибору', '3 секунди']) expect(wipeout, part).toContain(part);
+    expect(wipeout).not.toContain('драбину з тим, хто вцілів і скільки в банку, вона покаже після «Далі»');
+    expect(text('setting.pacing')).toContain('екран «Рішення»');
+  });
+
   it('10g wipeout entries tell the engine numbers and the isolation', () => {
     const wipeout = text('round.wipeout');
     expect(wipeout).toContain(String(LIMITS.wipeoutDecideSeconds));
