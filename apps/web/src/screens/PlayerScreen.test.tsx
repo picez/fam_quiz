@@ -1842,6 +1842,15 @@ describe('PlayerScreen: table and menu', () => {
     expect(screen.getByRole('link', { name: 'До меню' }).getAttribute('href')).toBe('/');
   });
 
+  it('the own breakdown reaches the «Таблиця» sheet', () => {
+    const myBreakdown = { parts: [{ source: 'answers' as const, plus: 700, minus: 0 }], plus: 700, minus: 0 };
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true }, myBreakdown }));
+    fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
+    fireEvent.click(screen.getByRole('dialog').querySelector('button.score-row-toggle')!);
+    expect(screen.getByText('Відповіді')).toBeTruthy();
+    expect(screen.getByText('+700')).toBeTruthy();
+  });
+
   it('the header has «Дебафи» only when the view has a shop, between «Дуель» and «Таблиця»; purchases toast on the phone', () => {
     show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
     expect(screen.queryByRole('button', { name: 'Дебафи' })).toBeNull();
