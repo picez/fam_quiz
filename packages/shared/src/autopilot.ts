@@ -26,6 +26,8 @@ export const AUTOPILOT_MS = {
   wager: 30_000,
   boardTurn: 30_000,
   boardDice: 10_000,
+  /** Поле: результат кубиків видно щонайменше стільки після закриття туру. */
+  diceShown: 4000,
   teamDice: 15_000,
   duelCategory: 15_000,
   duelAnswer: 4000,

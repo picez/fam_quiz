@@ -5,6 +5,7 @@ import { chooserOf } from './board-turns';
 import { bluffOrder, bluffPlayOf } from './bluff';
 import { cancelDuel, duelCategoriesLeft, pickDuelCategory } from './duel';
 import {
+  acceptAnswer,
   addPlayer,
   createGame,
   currentRound,
@@ -21,6 +22,7 @@ import {
   type Result,
   type Rng,
 } from './game';
+import { pendingOf } from './hold';
 import { decideLadder, decisionPending } from './ladder';
 import { paceWindow, stepKey, type PacedAction } from './pacing';
 import { splashUntil } from './splash';
@@ -60,16 +62,25 @@ function running(pilot: AutopilotState): AutopilotState {
   return rest;
 }
 
+/** Автопілот без starting. */
+function notStarting(state: GameState): GameState {
+  return withPilot(state, (pilot) => {
+    const { starting: _starting, ...rest } = pilot;
+    return rest;
+  });
+}
+
 /** start із прибраним starting (гра вже йде). */
 function startNow(state: GameState, now: number): Result {
   const started = start(state, now);
   if (!started.ok) return started;
-  return ok(
-    withPilot(started.state, (pilot) => {
-      const { starting: _starting, ...rest } = pilot;
-      return rest;
-    }),
-  );
+  return ok(notStarting(started.state));
+}
+
+/** Старт після туру кубиків команд: не вдався (teams_few після вилучення тощо) — starting геть, гра лишається в лобі. */
+function startAfterTour(state: GameState, now: number): Result {
+  const started = startNow(state, now);
+  return started.ok ? started : ok(notStarting(state));
 }
 
 /** «Почати гру» від автора (правила — план 11g, «Автор»); не автопілот → not_allowed; поза лобі → wrong_phase. */
@@ -98,12 +109,7 @@ export function authorTeamForm(state: GameState, form: TeamForm): Result {
   if (state.autopilot === undefined) return fail('not_allowed');
   const changed = setTeamForm(state, form);
   if (!changed.ok) return changed;
-  return ok(
-    withPilot(changed.state, (pilot) => {
-      const { starting: _starting, ...rest } = pilot;
-      return rest;
-    }),
-  );
+  return ok(notStarting(changed.state));
 }
 
 /**
@@ -182,7 +188,10 @@ function introMove(state: GameState, from: number): Move {
   }
   if (round?.type === 'ladder' && (state.ladder?.contestantId ?? null) !== null) return nextAt(from + AUTOPILOT_MS.introDrawn);
   const shown = paceWindow(state, 'next')?.from ?? from;
-  return nextAt(shown + (round === null ? AUTOPILOT_MS.intro : autopilotIntroMs(round)));
+  const at = shown + (round === null ? AUTOPILOT_MS.intro : autopilotIntroMs(round));
+  // Кубики поля вже кинуто: результат видно щонайменше diceShown після закриття туру.
+  const dice = round?.type === 'board' && (state.board?.dice ?? null) !== null;
+  return nextAt(dice ? Math.max(at, from + AUTOPILOT_MS.diceShown) : at);
 }
 
 function leaderboardMove(state: GameState, from: number): Move | null {
@@ -211,7 +220,7 @@ function moveOf(state: GameState, from: number): Move | null {
   switch (state.phase) {
     case 'lobby':
       if (teamTourOn(state)) return { at: from + AUTOPILOT_MS.teamDice, pace: null, act: (s, _now, rng) => rollTeamRest(s, rng) };
-      return state.autopilot?.starting === true ? { at: from, pace: null, act: (s, now) => startNow(s, now) } : null;
+      return state.autopilot?.starting === true ? { at: from, pace: null, act: (s, now) => startAfterTour(s, now) } : null;
     case 'guide':
       return nextAt(from + AUTOPILOT_MS.guide);
     case 'intro':
@@ -220,6 +229,9 @@ function moveOf(state: GameState, from: number): Move | null {
       return nextAt(from + AUTOPILOT_MS.wager);
     case 'question': {
       // Запитання з таймером закриває рушій (таймер чи «відповіли всі»); без таймера — автопілот через timeLimit від старту.
+      // Відповідь, що чекала б «Прийняти» ведучого (поле, бліц за ключем), автопілот приймає одразу (розділ 11 п. 3).
+      const pending = pendingOf(state);
+      if (pending !== null) return { at: from, pace: null, act: (s, now) => acceptAnswer(s, pending.playerId, now) };
       const play = state.plays[state.questionIndex];
       if (play === undefined || timedPlay(play)) return null;
       const limit: unknown = play.question.timeLimit;
@@ -248,7 +260,8 @@ const notBefore = (state: GameState, move: Move, at: number): number =>
   Math.max(at, move.pace === null ? 0 : (paceWindow(state, move.pace)?.until ?? 0));
 
 /**
- * Ключ підкроку автопілота: stepKey + тури кубиків поля й команд (номер, чи триває) + starting + той, чий хід на полі;
+ * Ключ підкроку автопілота: stepKey + тури кубиків поля й команд (номер, чи триває) + starting + той, чий хід на полі
+ * + чия відповідь чекає «Прийняти» і скільки спроб бліцу розглянуто (відповідь на полі ставить утримання, stepKey його не бачить);
  * без paused/at/left/hold. Хід на полі — бо вилучення гравця, чий хід, stepKey не змінює, а відлік ходу має початися знову.
  */
 export function pilotKey(state: GameState): string {
@@ -260,6 +273,8 @@ export function pilotKey(state: GameState): string {
     teamTourOn(state),
     state.autopilot?.starting === true,
     chooserOf(state),
+    pendingOf(state)?.playerId,
+    state.plays[state.questionIndex]?.blitz?.attempts.length,
   ]
     .map((part) => (part === undefined || part === null ? '' : String(part)))
     .join('|');

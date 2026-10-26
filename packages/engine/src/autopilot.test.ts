@@ -13,13 +13,15 @@ import {
 } from './autopilot';
 import { dicePending, rollDie } from './board-dice';
 import { bluffOrder, bluffPlayOf } from './bluff';
-import { skipTurn } from './board';
+import { pickCell, skipTurn } from './board';
 import { declareDuel } from './duel';
 import { placeWager } from './final';
 import { addPlayer, createGame, end, lock, removePlayer, setConnected, submitAnswer, tick, type GameState, type Result, type Rng } from './game';
 import { tooSoon, stamp, type PacedAction } from './pacing';
+import { suspend } from './restore';
 import { duelQuiz } from './testing/duel';
 import {
+  blitzRound,
   boardRound,
   bluff,
   classicRound,
@@ -120,7 +122,7 @@ describe('stage times (11g)', () => {
     expect(atOf(s)).toBeNull();
   });
 
-  it('board intro with two players: the dice start at once, the rest roll after 10 s, then the intro and 30 s a turn', () => {
+  it('board intro with two players: the dice start at once, the rest roll after 10 s, the result shows 4 s, then 30 s a turn', () => {
     let s = begin(boardQuiz());
     expect(s.board?.dice).toBeNull();
     expect(atOf(s)).toBe(T);
@@ -133,12 +135,13 @@ describe('stage times (11g)', () => {
     s = step(s, T + 10_000, () => 0.9);
     expect(dicePending(s.board)).toBe(false);
     expect(s.board?.circle).toEqual(['p2', 'a']);
-    expect(atOf(s)).toBe(T + 8000);
-    paced(s, 'next', T + 8000);
-    s = step(s, T + 10_000);
+    // Заставка раунду вже минула (T + 8000), але результат кубиків видно ще 4 с.
+    expect(atOf(s)).toBe(T + 14_000);
+    paced(s, 'next', T + 14_000, false);
+    s = step(s, T + 14_000);
     expect(s.phase).toBe('board');
-    expect(atOf(s)).toBe(T + 40_000);
-    paced(s, 'skip', T + 40_000);
+    expect(atOf(s)).toBe(T + 44_000);
+    paced(s, 'skip', T + 44_000);
     s = go(s);
     expect(s.phase).toBe('board');
     expect(s.board?.done).toBe(1);
@@ -537,10 +540,10 @@ describe('pause and resume (11g)', () => {
     let i = 0;
     const faces = [0, 0.5, 0.9];
     s = step(s, T + 10_000, () => faces[i++ % faces.length]);
-    s = step(s, T + 10_000);
+    s = step(s, T + 14_000);
     expect(s.phase).toBe('board');
     // Автора вилучити не можна: хід переходить до наступного.
-    if (s.board!.circle[s.board!.done] === 'a') s = act(s, skipTurn(s, T + 11_000), T + 11_000);
+    if (s.board!.circle[s.board!.done] === 'a') s = act(s, skipTurn(s, T + 15_000), T + 15_000);
     const victim = s.board!.circle[s.board!.done];
     expect(victim).not.toBe('a');
     const turnAt = atOf(s)!;
@@ -585,5 +588,125 @@ describe('no loops (11g)', () => {
     const hosted = createGame(classicQuiz());
     expect(pilotStep(hosted, T, rng)).toBe(hosted);
     expect(planAutopilot(hosted, hosted, T)).toBe(hosted);
+  });
+});
+
+describe('task 4 review (11g)', () => {
+  it('a board cell answered from the phone is accepted by the key at once and reaches the reveal', () => {
+    let s = begin(boardQuiz(), []);
+    s = go(s);
+    expect(s.phase).toBe('board');
+    const t = T + 9000;
+    s = act(s, pickCell(s, 'a', 'b1', t, rng), t);
+    const answered = s.startedAt! + 1000;
+    s = act(s, submitAnswer(s, 'a', RIGHT, answered), answered);
+    expect(s.heldAt).not.toBeNull();
+    expect(atOf(s)).toBe(answered);
+    // «Прийняти» на полі одразу розкриває відповідь.
+    s = go(s);
+    expect(s.phase).toBe('reveal');
+    expect(s.plays[s.questionIndex].answers.a).toMatchObject({ grade: 'correct', overridden: false, points: 1000 });
+    expect(atOf(s)).not.toBeNull();
+  });
+
+  it('a board in a team game: the captain answers, the autopilot accepts at once', () => {
+    let s = must(createAutopilotGame(teamQuiz([boardRound('g1', [{ title: 'Ріки', cells: [withId(single, 'b1'), withId(single, 'b2')] }])]), { id: 'a', nickname: 'Марта' }));
+    s = must(addPlayer(s, { id: 'm2', nickname: 'Ігор' }));
+    s = must(authorTeamForm(s, 'random'));
+    s = act(s, autopilotStart(s, T, rng), T);
+    expect(s.players).toHaveLength(2);
+    s = step(s, T);
+    expect(dicePending(s.board)).toBe(true);
+    let face = 0;
+    s = go(s, () => [0, 0.9][face++ % 2]);
+    expect(dicePending(s.board)).toBe(false);
+    s = go(s);
+    expect(s.phase).toBe('board');
+    const team = s.board!.circle[s.board!.done];
+    const t = atOf(s)! - 20_000;
+    s = act(s, pickCell(s, team, 'b1', t, rng), t);
+    const answered = s.startedAt! + 1000;
+    s = act(s, submitAnswer(s, team, RIGHT, answered), answered);
+    expect(atOf(s)).toBe(answered);
+    s = go(s);
+    expect(s.phase).toBe('reveal');
+    expect(s.plays[s.questionIndex].answers[team]).toMatchObject({ grade: 'correct', points: 1000 });
+  });
+
+  it('a manual blitz turned «by the key»: the queue is judged at once, wrong then right', () => {
+    let s = begin(makeRoundsQuiz([blitzRound('b1', [single], { check: 'manual' })]), ['Ігор']);
+    s = go(s);
+    const t = s.startedAt! + 1000;
+    s = act(s, submitAnswer(s, 'a', WRONG, t), t);
+    s = act(s, submitAnswer(s, 'p2', RIGHT, t), t);
+    expect(atOf(s)).toBe(t);
+    s = go(s);
+    expect(atOf(s)).toBe(t);
+    s = go(s);
+    expect(s.phase).toBe('locked');
+    expect(s.plays[0].blitz?.attempts.map((x) => [x.playerId, x.grade])).toEqual([
+      ['a', 'wrong'],
+      ['p2', 'correct'],
+    ]);
+  });
+
+  it('wipeout and survival: locked, reveal and the table are paced', () => {
+    for (const quiz of [makeRoundsQuiz([wipeoutRound('w1', wipeoutLadder)]), makeRoundsQuiz([survivalRound('s1', survivalQuestions, survivalTrials)])]) {
+      let s = begin(quiz);
+      s = go(s);
+      const t = s.startedAt! + 1000;
+      s = answerAll(s, RIGHT, t);
+      expect(s.phase).toBe('locked');
+      paced(s, 'next', atOf(s)!);
+      s = go(s);
+      expect(s.phase).toBe('reveal');
+      paced(s, 'next', atOf(s)!);
+      s = go(s);
+      expect(s.phase).toBe('leaderboard');
+    }
+  });
+
+  it('the game starts no more after the team dice tour fails: starting is dropped', () => {
+    let s = must(createAutopilotGame(teamQuiz([classicRound('r1', [single])]), { id: 'a', nickname: 'Марта' }));
+    s = must(addPlayer(s, { id: 'm2', nickname: 'Ігор' }));
+    s = must(authorTeamForm(s, 'dice'));
+    s = act(s, autopilotStart(s, T, rng), T);
+    s = step(s, T + 15_000, (() => {
+      let i = 0;
+      return () => [0, 0.9][i++ % 2];
+    })());
+    expect(s.autopilot?.starting).toBe(true);
+    s = act(s, removePlayer(s, 'm2'), T + 15_000);
+    s = step(s, T + 15_000);
+    expect(s.phase).toBe('lobby');
+    expect(s.autopilot).toEqual({ authorId: 'a', at: null });
+  });
+
+  it('suspend → restore → the first one back: resume 3 s later with the time left', () => {
+    const { s: reveal, R } = toReveal();
+    const saved = suspend(reveal, R + 2000);
+    expect(saved.autopilot).toEqual({ authorId: 'a', at: null, hold: 'nobody', left: 4000 });
+    const back = R + 100_000;
+    let s = act(saved, setConnected(saved, 'p2', true, back), back);
+    expect(s.autopilot).toEqual({ authorId: 'a', at: back + 3000, hold: 'nobody', left: 4000 });
+    s = go(s);
+    expect(s.paused).toBe(false);
+    expect(s.autopilot).toEqual({ authorId: 'a', at: back + 7000 });
+    s = go(s);
+    expect(s.phase).not.toBe('reveal');
+  });
+
+  it('an untimed question paused and resumed keeps the time left', () => {
+    let s = begin(classicQuiz({ ...withVideo(single), timeLimit: 20 }));
+    s = go(s);
+    const at = s.startedAt! + 20_000;
+    expect(atOf(s)).toBe(at);
+    s = act(s, authorPause(s, at - 15_000), at - 15_000);
+    expect(s.autopilot).toMatchObject({ hold: 'author', left: 15_000, at: null });
+    const now = at + 60_000;
+    s = act(s, authorResume(s, now), now);
+    expect(atOf(s)).toBe(now + 15_000);
+    s = go(s);
+    expect(s.phase).toBe('locked');
   });
 });
