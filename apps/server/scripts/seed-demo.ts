@@ -1,12 +1,12 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
  * party-media також потребує SITE_URL: картинки з Вікіпедії завантажуються на сайт
  * через тимчасовий акаунт, який потім видаляється. showcase з SITE_URL так само завантажує дві картинки,
- * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими.
+ * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими. grand так само завантажує три картинки.
  */
 import { randomBytes } from 'node:crypto';
 import { quizSchema, type Quiz } from '@quiz/shared';
@@ -27,6 +27,7 @@ import { schoolQuiz } from './school-quiz';
 import { mosaicQuiz } from './mosaic-quiz';
 import { teamsQuiz } from './teams-quiz';
 import { SHOWCASE_IMAGES, showcaseQuiz } from './showcase-quiz';
+import { GRAND_IMAGES, grandQuiz } from './grand-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -50,6 +51,8 @@ const ARTICLES: Record<string, string> = {
   mazepa: 'Ivan_Mazepa',
   saturn: 'Saturn',
   vatican: 'Vatican_City',
+  pillars: 'Pillars_of_Creation',
+  petrykivka: 'Petrykivka_painting',
 };
 
 const UA = { 'user-agent': 'fam-quiz-seed/1.0 (demo content)' };
@@ -109,7 +112,7 @@ async function uploadImages(site: string, db: Db, keys: readonly string[] = Obje
   }
 }
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -138,6 +141,9 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
     case 'showcase':
       if (!site) console.warn('No SITE_URL: the revealing pictures stay plain text questions');
       return showcaseQuiz(site ? await uploadImages(site, db, SHOWCASE_IMAGES) : {});
+    case 'grand':
+      if (!site) console.warn('No SITE_URL: the revealing pictures stay plain text questions');
+      return grandQuiz(site ? await uploadImages(site, db, GRAND_IMAGES) : {});
     case 'party-media': {
       const base = partyQuiz(await uploadImages(site!, db));
       return { ...base, title: `${base.title} (з картинками)` };
