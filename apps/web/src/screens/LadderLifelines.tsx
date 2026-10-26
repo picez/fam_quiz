@@ -27,6 +27,7 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
             type="button"
             className={`ladder-lifeline is-${state}`}
             disabled={state !== 'ready' || !allowed}
+            title={state === 'off' ? t('ladderLifelineOff') : undefined}
             aria-pressed={state === 'active' ? true : undefined}
             onClick={() => onUse(kind)}
           >
@@ -35,6 +36,7 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
             </span>
             <span className="ladder-lifeline-name">{t(`ladderLifeline_${kind}` as TextKey)}</span>
             {state === 'used' && <span className="sr-only"> {t('ladderLifelineUsed')}</span>}
+            {state === 'off' && <span className="sr-only"> {t('ladderLifelineOff')}</span>}
           </button>
         ))}
       </div>

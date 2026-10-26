@@ -4,7 +4,7 @@ import { num } from '../format';
 import { t, type TextKey } from '../i18n';
 import { VoteResults } from './Buffs';
 
-/** Значки підказок драбини для сцени й пульта: ввімкнені в раунді, використані перекреслені, узята тут — підсвічена. */
+/** Значки підказок драбини для сцени й пульта: ввімкнені в раунді, використані перекреслені, узята тут — підсвічена, недоступна без ведучого (11g) — притлумлена. */
 export function LadderLifelineBadges({ info }: { info: LadderInfo }) {
   if (info.lifelines.length === 0) return null;
   return (
@@ -13,6 +13,7 @@ export function LadderLifelineBadges({ info }: { info: LadderInfo }) {
         <li key={kind} className={`ladder-badge is-${state}`}>
           <span aria-hidden="true">{BUFF_ICONS[kind]}</span> {t(`ladderLifeline_${kind}` as TextKey)}
           {state === 'used' && <span className="sr-only"> {t('ladderLifelineUsed')}</span>}
+          {state === 'off' && <span className="sr-only"> {t('ladderLifelineOff')}</span>}
         </li>
       ))}
     </ul>

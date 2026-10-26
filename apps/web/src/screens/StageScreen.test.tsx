@@ -18,6 +18,7 @@ const full: Question = { id: 'q1', type: 'single', text: question.text, imageUrl
 
 const view = (over: Partial<StageView> = {}): StageView => ({
   role: 'stage',
+  autopilot: false,
   phase: 'lobby',
   paused: false,
   blitz: null,

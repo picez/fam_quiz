@@ -5,7 +5,9 @@ import { chooserOf } from './board-turns';
 import { adjustScore } from './adjust';
 import { buyDebuff, setDebuff } from './debuffs';
 import { placeWager } from './final';
+import { createAutopilotGame } from './autopilot';
 import {
+  addPlayer,
   end,
   lock,
   next,
@@ -49,6 +51,7 @@ import {
   type TeamMember,
   type TeamsState,
   type TrialAnswer,
+  type AutopilotState,
   type WallProgress,
   type WipeoutPlay,
 } from './game';
@@ -274,7 +277,7 @@ const STATE_SHAPE: Record<string, string> = {
     [
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
-      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt',
+      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot',
     ],
     true,
   ),
@@ -322,6 +325,7 @@ const STATE_SHAPE: Record<string, string> = {
   DuelQuestionPlay: keysOf<DuelQuestionPlay>()(['questionId', 'tries', 'winnerId', 'answer', 'timeMs'], true),
   ScoreAdjustment: keysOf<ScoreAdjustment>()(['seq', 'playerId', 'points', 'roundIndex', 'afterQuestion', 'source', 'at', 'target', 'debuff'], true),
   Splash: keysOf<Splash>()(['kind', 'at', 'until'], true),
+  AutopilotState: keysOf<AutopilotState>()(['authorId', 'at', 'left', 'hold', 'starting', 'skips', 'skipPlays', 'retries'], true),
 };
 
 /** Записана форма кожної версії; запис старої версії не змінюють. */
@@ -748,7 +752,58 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  14: {
+    GameState: 'adjustmentSeq,adjustments,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,missedInto,misses,queue,sorted,wordMisses',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'auto,end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'captains,dice,duelists,form,list,members',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+    AutopilotState: 'at,authorId,hold,left,retries,skipPlays,skips,starting',
+  },
 };
+
+/** 11g: автопілот (автор Оля p1, Петро p2) на розкритті класичного запитання. */
+function pilotReveal(): GameState {
+  let s = must(createAutopilotGame(makeRoundsQuiz([classicRound('r1', [single])]), { id: 'p1', nickname: 'Оля' }));
+  s = must(addPlayer(s, { id: 'p2', nickname: 'Петро' }));
+  s = must(next(must(start(s, T0)), T0, () => 0));
+  s = must(next(must(lock(s)), T0 + 1000, () => 0));
+  return s;
+}
 
 /** 11b: класика після «Почати гру» через stamp сервера — GameState.stepAt. */
 function stamped(): GameState {
@@ -882,6 +937,8 @@ function representative(): GameState[] {
   let sorting = toSort();
   sorting = must(sortWord(sorting, 'p1', head(sorting, 'p1'), wrong(head(sorting, 'p1')), 2000));
   sorting = must(sortWord(sorting, 'p2', head(sorting, 'p2'), right(head(sorting, 'p2')), 2000));
+  // 11g: автопілот на паузі автора — залишок, причина паузи, старт після кубиків, пропуски поля й повтори (кожен ключ AutopilotState).
+  const piloted: GameState = { ...pilotReveal(), paused: true, pausedAt: T0 + 3000, autopilot: { authorId: 'p1', at: null, left: 2500, hold: 'author', starting: true, skips: 1, skipPlays: 2, retries: 3 } };
   return [
     teamDice,
     teamBuzz,
@@ -912,6 +969,7 @@ function representative(): GameState[] {
     final,
     buzzed,
     acceptAll(buzzed, T0 + 1000),
+    piloted,
   ];
 }
 
@@ -986,6 +1044,64 @@ describe('the saved state', () => {
     expect(['p1', 'p2', 'p3'].map((id) => wipeoutChoiceOf(play!, id))).toEqual(['stay', 'took', 'took']);
   });
 
+  it('an autopilot game that was running is suspended with hold nobody and the time left', () => {
+    const running = pilotReveal();
+    expect(running.phase).toBe('reveal');
+    const s: GameState = { ...running, autopilot: { authorId: 'p1', at: T0 + 4000 } };
+    const suspended = suspend(s, T0);
+    expect(suspended.paused).toBe(true);
+    expect(suspended.autopilot).toEqual({ authorId: 'p1', at: null, hold: 'nobody', left: 4000 });
+    expect(suspended.players.every((p) => !p.connected)).toBe(true);
+    expect(roundTrip(suspended)).toEqual(suspended);
+  });
+
+  it('a running autopilot game with nothing due suspends with hold nobody and no time left', () => {
+    const suspended = suspend(pilotReveal(), T0 + 2000);
+    expect(suspended.autopilot).toEqual({ authorId: 'p1', at: null, hold: 'nobody' });
+    expect('left' in (suspended.autopilot ?? {})).toBe(false);
+  });
+
+  it('an autopilot step already due at the save leaves 0', () => {
+    const s: GameState = { ...pilotReveal(), autopilot: { authorId: 'p1', at: T0 + 1500 } };
+    expect(suspend(s, T0 + 2000).autopilot).toEqual({ authorId: 'p1', at: null, hold: 'nobody', left: 0 });
+  });
+
+  it('a team autopilot game suspends with hold nobody and every member offline', () => {
+    let s = must(createAutopilotGame(teamQuiz([classicRound('r1', [single])]), { id: 'm1', nickname: 'Оля' }));
+    s = must(addPlayer(s, { id: 'm2', nickname: 'Петро' }));
+    s = must(next(must(start(s, T0)), T0, () => 0));
+    expect(s.phase).toBe('question');
+    const suspended = suspend({ ...s, autopilot: { authorId: 'm1', at: T0 + 3000 } }, T0 + 1000);
+    expect(suspended.paused).toBe(true);
+    expect(suspended.autopilot).toEqual({ authorId: 'm1', at: null, hold: 'nobody', left: 2000 });
+    expect(suspended.teams?.members.every((m) => !m.connected)).toBe(true);
+    expect(roundTrip(suspended)).toEqual(suspended);
+  });
+
+  it('an autopilot game paused by the author stays paused by the author', () => {
+    const paused = must(pause(pilotReveal(), T0 + 2000));
+    const s: GameState = { ...paused, autopilot: { authorId: 'p1', at: null, hold: 'author', left: 2500 } };
+    const suspended = suspend(s, T0 + 9000);
+    expect(suspended.autopilot).toEqual({ authorId: 'p1', at: null, hold: 'author', left: 2500 });
+    expect(suspended.pausedAt).toBe(T0 + 2000);
+  });
+
+  it('an autopilot lobby drops its moment (planned again when someone returns), keeping starting; the finished game is left as it is', () => {
+    const lobby = must(createAutopilotGame(makeRoundsQuiz([classicRound('r1', [single])]), { id: 'p1', nickname: 'Оля' }));
+    const s: GameState = { ...lobby, autopilot: { authorId: 'p1', at: T0 + 5000, starting: true } };
+    expect(suspend(s, T0).autopilot).toEqual({ authorId: 'p1', at: null, starting: true });
+    expect(suspend(s, T0).paused).toBe(false);
+    const finished: GameState = { ...must(end(pilotReveal(), T0 + 2000)), autopilot: { authorId: 'p1', at: null } };
+    expect(suspend(finished, T0 + 3000).autopilot).toEqual({ authorId: 'p1', at: null });
+  });
+
+  it('a version 13 state (no autopilot) restores as a hosted game', () => {
+    const hosted = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро'), T0);
+    const restored = roundTrip(suspend(roundTrip(hosted), T0 + 1000));
+    expect('autopilot' in restored).toBe(false);
+    expect(restored.paused).toBe(true);
+  });
+
   it('the state format is pinned to GAME_STATE_VERSION', () => {
     // Перелік ключів кожного типу стану: компілятор (pnpm typecheck) вимагає рівно всі ключі типу, тож нове поле
     // не пройде непоміченим, а тест порівнює перелік із KEYS поточної версії.
@@ -996,7 +1112,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -1049,6 +1165,7 @@ describe('the saved state', () => {
       add('BluffPick', s.plays.flatMap((p) => Object.values(p.bluff?.picks ?? {})));
       add('BluffOption', s.plays.flatMap((p) => p.bluff?.options ?? []));
       add('SortProgress', s.plays.flatMap((p) => Object.values(p.sort ?? {})));
+      add('AutopilotState', [s.autopilot]);
       // стан без змін переживає JSON
       expect(roundTrip(s)).toEqual(s);
     }

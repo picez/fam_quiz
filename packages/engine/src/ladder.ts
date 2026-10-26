@@ -264,7 +264,7 @@ export function lifelinesUsed(state: GameState): LifelineKind[] {
  * Учасник бере підказку. Помилки за порядком: wrong_phase, not_found, not_allowed (не учасник або не ввімкнено), buff_used,
  * paused, not_started, already_answered, time_over, buff_unfit (зал без присутніх глядачів).
  * fifty — pickRemoved(question, rng); audience — endsAt = now + AUDIENCE_MS, за timedPlay — grantOvertime(учасник, AUDIENCE_MS);
- * hint — text = question.hint ?? null. Кілька підказок на одне запитання можна. Бафи вікторини тут не важать.
+ * hint — text = question.hint ?? null; у грі без ведучого підказка без тексту — buff_unfit (11g). Кілька підказок на одне запитання можна. Бафи вікторини тут не важать.
  */
 export function useLifeline(state: GameState, playerId: string, kind: LifelineKind, now: number, rng: Rng): Result {
   const round = ladderRoundOf(state);
@@ -278,6 +278,7 @@ export function useLifeline(state: GameState, playerId: string, kind: LifelineKi
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (kind === 'audience' && presentHall(state, playerId).length === 0) return fail('buff_unfit');
+  if (kind === 'hint' && state.autopilot !== undefined && play.question.hint === undefined) return fail('buff_unfit');
   const lifelines = { ...play.ladder.lifelines };
   if (kind === 'fifty') lifelines.fifty = { removed: pickRemoved(play.question, rng), at: now };
   if (kind === 'audience') lifelines.audience = { endsAt: now + AUDIENCE_MS, closed: false, ballots: {}, at: now };

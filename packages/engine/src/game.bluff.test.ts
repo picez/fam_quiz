@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUFF_KINDS, DEFAULT_RULES, type Question, type RoundRules } from '@quiz/shared';
 import { adjustTime, limitMsOf } from './timing';
+import { nextDeadline } from './blitz';
 import { bluffOrder, bluffPlayOf, bluffShown, pickBluff, removeBluffOption, revealBluffAll, seededRng, writeLie } from './bluff';
 import { buffBlock, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
@@ -566,5 +567,17 @@ describe('bluff: the reveal', () => {
     expect(s.phase).toBe('finished');
     expect(['p1', 'p2', 'p3'].map((id) => recordOf(s, 0, id)?.points)).toEqual([500, 1500, 0]);
     expect(s.players.map((p) => p.score)).toEqual([500, 1500, 0]);
+  });
+});
+
+describe('bluff lies deadline (11g soak)', () => {
+  it('nextDeadline of the lies stage is 1 ms after its end, where tick switches to the choice — a timer exactly on time does not stall', () => {
+    const s = openClassic([bluff]);
+    const ends = s.endsAt!;
+    expect(nextDeadline(s, T)).toBe(ends + 1);
+    expect(bluffPlayOf(tick(s, ends))?.bluff.stage).toBe('lies');
+    const switched = tick(s, nextDeadline(s, T)!);
+    expect(bluffPlayOf(switched)?.bluff.stage).toBe('choice');
+    expect(nextDeadline(switched, ends + 1)).toBe(switched.endsAt);
   });
 });

@@ -3,7 +3,7 @@ import { blitzRound, classicRound, makeQuiz, makeRoundsQuiz, single, text } from
 import { defaultTeams, type Round } from '@quiz/shared';
 import { GAME_STATE_VERSION } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
-import { HOST_ABSENCE_MS, RoomManager, isSavedRoom, type Identity, type Room, type RoomEvent } from './manager';
+import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, RoomManager, isSavedRoom, type Identity, type Room, type RoomEvent } from './manager';
 
 // Коди кімнат: черга підставлених значень randomInt, далі — справжній.
 const codes = vi.hoisted(() => [] as number[]);
@@ -265,5 +265,99 @@ describe('a team room restored after a restart (10j)', () => {
     next.connect(back, { role: 'player', playerId: taras.playerId });
     expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
     expect(next.answer(back, taras.playerId, correct)).toEqual({ ok: true });
+  });
+});
+
+describe('an autopilot room restored after a restart (11g)', () => {
+  /** Автопілот на розкритті першого запитання, 2 с з 6: до кроку лишається 4000 мс. */
+  function autopilotReveal() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const created = manager.createAutopilot(makeQuiz([single, text], { leaderboard: 'each' }), 'u1', 'q1', 'Марта');
+    if (!created.ok) throw new Error(created.error);
+    const { room } = created;
+    const taras = manager.join(room.code, 'Тарас');
+    if (!taras.ok) throw new Error(taras.error);
+    for (const playerId of [created.playerId, taras.playerId]) manager.connect(room, { role: 'player', playerId });
+    expect(manager.author(room, created.playerId, { type: 'start' })).toEqual({ ok: true });
+    scheduler.advance(8000);
+    manager.answer(room, created.playerId, correct);
+    manager.answer(room, taras.playerId, correct);
+    scheduler.advance(1500);
+    expect(room.state.phase).toBe('reveal');
+    scheduler.advance(2000);
+    expect(room.state.autopilot?.at).toBe(scheduler.now() + 4000);
+    return { scheduler, manager, room, author: created, taras };
+  }
+
+  it('comes back paused for nobody with the time left, waits 30 min for anyone (not 10 for a host), and goes on 3 s after someone returns', () => {
+    const { scheduler, manager, room, taras } = autopilotReveal();
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    expect(isSavedRoom(saved)).toBe(true);
+
+    scheduler.advance(60_000);
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.phase).toBe('reveal');
+    expect(back.state.paused).toBe(true);
+    expect(back.state.autopilot).toMatchObject({ hold: 'nobody', left: 4000, at: null });
+    expect(scheduler.pending()).toEqual([AUTOPILOT_EMPTY_MS]);
+    expect(next.identify(room.code, 'host', room.hostToken)).toBeNull();
+    expect(next.hostOnline(back)).toBe(true);
+
+    next.connect(back, { role: 'player', playerId: taras.playerId });
+    expect(scheduler.pending()).toEqual([3000]);
+    scheduler.advance(2999);
+    expect(back.state.paused).toBe(true);
+    scheduler.advance(1);
+    expect(back.state.paused).toBe(false);
+    scheduler.advance(3999);
+    expect(back.state.phase).toBe('reveal');
+    scheduler.advance(1);
+    expect(back.state.phase).toBe('leaderboard');
+  });
+
+  it('ends the game when nobody comes back in 30 minutes', () => {
+    const { scheduler, manager, room } = autopilotReveal();
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    scheduler.advance(AUTOPILOT_EMPTY_MS - 1);
+    expect(back.state.phase).toBe('reveal');
+    scheduler.advance(1);
+    expect(back.state.phase).toBe('finished');
+  });
+
+  it('an author pause stays an author pause after the restart', () => {
+    const { scheduler, manager, room, author } = autopilotReveal();
+    expect(manager.author(room, author.playerId, { type: 'pause' })).toEqual({ ok: true });
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.autopilot).toMatchObject({ hold: 'author', left: 4000 });
+    next.connect(back, { role: 'player', playerId: author.playerId });
+    scheduler.advance(10_000);
+    expect(back.state.paused).toBe(true);
+    expect(next.author(back, author.playerId, { type: 'resume' })).toEqual({ ok: true });
+    scheduler.advance(4000);
+    expect(back.state.phase).toBe('leaderboard');
+  });
+
+  it('a room of state version 13 (no autopilot) comes back hosted: paused, 10 minutes for the host', () => {
+    const { scheduler, manager, room, taras } = midQuestion();
+    const saved = { ...viaJson(manager.snapshot(room)), stateVersion: 13 };
+    manager.freeze();
+    expect(isSavedRoom(saved)).toBe(true);
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.autopilot).toBeUndefined();
+    expect(back.state.paused).toBe(true);
+    expect(scheduler.pending()).toEqual([HOST_ABSENCE_MS]);
+    next.connect(back, { role: 'player', playerId: taras.playerId });
+    expect(back.state.paused).toBe(true);
+    expect(next.identify(room.code, 'host', room.hostToken)?.room).toBe(back);
   });
 });

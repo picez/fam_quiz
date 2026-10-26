@@ -57,6 +57,8 @@ export const playerTeam = (over: Partial<PlayerTeam> = {}): PlayerTeam => ({
 /** Зріз команди «Сині»; team перекриває поля учасника, over — решту зрізу. */
 export const teamPlayerView = (over: Partial<PlayerView> = {}, team: Partial<PlayerTeam> = {}): PlayerView => ({
   role: 'player',
+  autopilot: false,
+  author: null,
   phase: 'lobby',
   paused: false,
   blitz: null,

@@ -647,6 +647,7 @@ describe('StageBuffs', () => {
     expect(whyOf(blockedOf('fifty', 'unfit_type'), '50/50')).toBe('50/50 діє лише на запитаннях з варіантами.');
     expect(whyOf(blockedOf('retry', 'unfit_voice'), 'Друга спроба')).toBe('Друга спроба не діє, коли відповідаєте вголос.');
     expect(whyOf(blockedOf('swap', 'spares_out'), 'Заміна запитання')).toBe('Запасні запитання закінчилися.');
+    expect(whyOf(blockedOf('hint', 'unfit_host'), 'Підказка ведучого')).toBe('У грі без ведучого підказки немає.');
   });
 
   it('swap on a cell of a category without spares explains why', () => {

@@ -28,6 +28,7 @@ const players = [
 
 const view = (over: Partial<HostView> = {}): HostView => ({
   role: 'host',
+  autopilot: false,
   phase: 'lobby',
   paused: false,
   blitz: null,

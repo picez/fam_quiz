@@ -1,3 +1,4 @@
+import { suspendAutopilot } from './autopilot';
 import { pause, setConnected, tick, type GameState } from './game';
 
 /** Версія формату GameState для збережених кімнат (9b). Піднімати, коли змінюється форма стану; кімнати іншої версії не відновлюються.
@@ -13,8 +14,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 11 — 11b: GameState.stepAt (мить останньої зміни кроку для мінімального часу перед кроком ведучого).
  * 12 — 11d: SortProgress.wordMisses (помилки по словах) і SortProgress.missedInto (зона останньої помилки).
  * 13 — 11e: WipeoutPlay.auto (хто забрав банк за замовчуванням, коли вікно закрилося).
+ * 14 — 11g: GameState.autopilot (автор, мить наступного кроку автопілота, залишок і причина паузи, старт після кубиків).
  */
-export const GAME_STATE_VERSION = 13;
+export const GAME_STATE_VERSION = 14;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -40,17 +42,21 @@ export const GAME_STATE_VERSION = 13;
  * і загальне число помилок), а помилка без зони не летить. Тож кімната, збережена до розгортання 11d, теж відновлюється.
  * 12 → 13 лише додала необов'язкове WipeoutPlay.auto. Без нього екран рішень показує всіх, хто забрав, як «Забрано …»,
  * без «Без вибору». Тож кімната, збережена до розгортання 11e, теж відновлюється.
+ * 13 → 14 лише додала необов'язкове GameState.autopilot. Без нього гра — з ведучим, як і була. Тож кімната, збережена
+ * до розгортання 11g, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті
  * (крім лобі й фінішу; уже поставлений на паузу лишається як був), усі гравці поза зв'язком.
  * Простій нікому не коштує часу: resume зсуне годинники на всю тривалість паузи.
+ * Автопілот (11g): гра, що йшла, чекає, поки хтось повернеться, і пам'ятає залишок до кроку (suspendAutopilot).
  */
 export function suspend(state: GameState, at: number): GameState {
   // Дедлайни, що сплили до збереження, застосовуються першими.
   let s = tick(state, at);
+  const wasPaused = s.paused;
   if (s.phase !== 'lobby' && s.phase !== 'finished' && !s.paused) {
     const paused = pause(s, at);
     if (paused.ok) s = paused.state;
@@ -69,5 +75,6 @@ export function suspend(state: GameState, at: number): GameState {
     awaiting.push(...s.teams.members.filter((m) => m.connected && !awaiting.includes(m.id)).map((m) => m.id));
     s = { ...s, teams: { ...s.teams, members: s.teams.members.map((m) => ({ ...m, connected: false })) } };
   }
-  return { ...s, awaiting };
+  s = { ...s, awaiting };
+  return s.autopilot === undefined ? s : suspendAutopilot(s, at, wasPaused);
 }

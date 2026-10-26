@@ -193,8 +193,10 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
     case 'shield':
       return rulesOf(round).penalty === 'none' ? 'unfit_penalty' : null;
     case 'double':
-    case 'hint':
       return null;
+    case 'hint':
+      // Без ведучого підказку нікому сказати: вона працює лише там, де автор написав текст.
+      return state.autopilot !== undefined && question.hint === undefined ? 'unfit_host' : null;
     case 'audience':
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
       // Командна гра: голосують люди інших команд.
