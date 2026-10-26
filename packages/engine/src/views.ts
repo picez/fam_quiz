@@ -26,6 +26,7 @@ import {
   type PlayerChain,
   type AuthorBluffOption,
   type AuthorCloudWord,
+  type AuthorPerson,
   type AuthorView,
   type CloudWord,
   type HostCloudWord,
@@ -1024,10 +1025,16 @@ function authorBluff(state: GameState): AuthorBluffOption[] | null {
   return play.bluff.options.filter((o) => !o.removed).map((o) => ({ id: o.id, text: o.text }));
 }
 
+/** Люди кімнати, крім автора, у порядку входу: соло — гравці, командна гра — учасники команд. */
+function authorPeople(state: GameState, personId: string): AuthorPerson[] {
+  const list = state.teams !== null && state.teams !== undefined ? state.teams.members : state.players;
+  return list.filter((p) => p.id !== personId).map(({ id, nickname, connected }) => ({ id, nickname, connected }));
+}
+
 /** Те, що бачить лише автор автопілота; null — глядач не автор чи гра з ведучим. */
 function authorView(state: GameState, personId: string): AuthorView | null {
   if (!isAuthor(state, personId)) return null;
-  return { cloud: authorCloud(state), bluff: authorBluff(state) };
+  return { cloud: authorCloud(state), bluff: authorBluff(state), people: authorPeople(state, personId) };
 }
 
 /** Уся хмара для пульта: зі схованими словами й нікнеймами авторів. */

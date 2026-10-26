@@ -61,7 +61,7 @@ describe('autopilot flag in views', () => {
 describe('author view', () => {
   it('only the author gets an object, in the lobby too; a hosted game gives null to all', () => {
     const s = pilotLobby([single]);
-    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null });
+    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
     expect(playerView(s, 'p2')!.author).toBeNull();
     const hosted = lobbyWith(quizOf([single]), 'Оля', 'Петро');
     expect(playerView(hosted, 'p1')!.author).toBeNull();
@@ -80,7 +80,7 @@ describe('author view', () => {
       { key: 'ліс', text: 'ліс', count: 1, hidden: false },
       { key: 'море', text: 'море', count: 1, hidden: false },
     ]);
-    const json = JSON.stringify(view);
+    const json = JSON.stringify(view.cloud);
     expect(json).not.toContain('"by"');
     expect(json).not.toContain('"playerIds"');
     for (const name of ['Петро', 'Віра', 'p2', 'p3']) expect(json).not.toContain(name);
@@ -129,14 +129,14 @@ describe('author view', () => {
     const quiz = teamQuiz([classicRound('r1', [single])]);
     let s = must(createAutopilotGame(quiz, { id: 'm1', nickname: 'Оля' }));
     for (const [id, nickname] of [['m2', 'Петро'], ['m3', 'Віра'], ['m4', 'Іван']]) s = must(addPlayer(s, { id, nickname }));
-    expect(playerView(s, 'm1')!.author).toEqual({ cloud: null, bluff: null });
+    expect(playerView(s, 'm1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
     expect(playerView(s, 'm2')!.author).toBeNull();
     s = must(assignTeam(s, 'm1', 't1'));
     s = must(assignTeam(s, 'm2', 't1'));
     s = must(assignTeam(s, 'm3', 't2'));
     s = must(assignTeam(s, 'm4', 't2'));
     s = must(start(s));
-    expect(playerView(s, 'm1')!.author).toEqual({ cloud: null, bluff: null });
+    expect(playerView(s, 'm1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
     expect(playerView(s, 'm2')!.author).toBeNull();
     expect(playerView(s, 'm1')!.autopilot).toBe(true);
   });
@@ -169,7 +169,7 @@ describe('author view gaps (11g task 6 review)', () => {
     let s = pilotOpen([single]);
     s = must(setConnected(s, 'p1', false, T + 1000));
     s = must(setConnected(s, 'p1', true, T + 2000));
-    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null });
+    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
     const lobby = must(removePlayer(pilotLobby([single]), 'p1'));
     expect(playerView(lobby, 'p1')).toBeNull();
     for (const id of ['p2', 'p3']) expect(playerView(lobby, id)!.author).toBeNull();
@@ -183,7 +183,7 @@ describe('author view gaps (11g task 6 review)', () => {
     expect(playerView(s, 'p1')!.author!.cloud).toBeNull();
     s = must(end(s, T + 6000));
     expect(s.phase).toBe('finished');
-    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null });
+    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
   });
 
   it('a hidden word stays in the author list whether it was inside or outside the stage cap; hiding inside pulls the next one in', () => {
@@ -221,5 +221,49 @@ describe('author view gaps (11g task 6 review)', () => {
     s = must(start(s));
     expect(JSON.stringify(playerView(s, 'm2'))).toContain('"author":null');
     expect(JSON.stringify(playerView(s, 'm3'))).toContain('"author":null');
+  });
+});
+
+describe('author people list (11h)', () => {
+  const marta = { id: 'a1', nickname: 'Марта' };
+  function solo(): GameState {
+    let s = must(createAutopilotGame(quizOf([single]), marta));
+    s = must(addPlayer(s, { id: 'a2', nickname: 'Віра' }));
+    s = must(addPlayer(s, { id: 'a3', nickname: 'Петро' }));
+    return must(setConnected(s, 'a3', false, T));
+  }
+
+  it('lists the others in join order with exactly id, nickname and connected', () => {
+    const people = playerView(solo(), 'a1')!.author!.people;
+    expect(people).toEqual([
+      { id: 'a2', nickname: 'Віра', connected: true },
+      { id: 'a3', nickname: 'Петро', connected: false },
+    ]);
+    for (const p of people) expect(Object.keys(p)).toEqual(['id', 'nickname', 'connected']);
+  });
+
+  it('is the same in the lobby and mid-game, and a removed player drops out', () => {
+    const lobby = solo();
+    const lobbyPeople = playerView(lobby, 'a1')!.author!.people;
+    const live = must(next(must(start(lobby)), T, rng));
+    expect(live.phase).toBe('question');
+    expect(playerView(live, 'a1')!.author!.people).toEqual(lobbyPeople);
+    const gone = must(removePlayer(lobby, 'a2'));
+    expect(playerView(gone, 'a1')!.author!.people.map((p) => p.id)).toEqual(['a3']);
+  });
+
+  it('a team game lists the other members, not the teams', () => {
+    let s = must(createAutopilotGame(teamQuiz([classicRound('r1', [single])]), { id: 'm1', nickname: 'Марта' }));
+    for (const [id, nickname] of [['m2', 'Віра'], ['m3', 'Петро']]) s = must(addPlayer(s, { id, nickname }));
+    s = must(assignTeam(s, 'm1', 't1'));
+    s = must(assignTeam(s, 'm3', 't2'));
+    expect(playerView(s, 'm1')!.author!.people).toEqual([
+      { id: 'm2', nickname: 'Віра', connected: true },
+      { id: 'm3', nickname: 'Петро', connected: true },
+    ]);
+  });
+
+  it('other players still get null', () => {
+    expect(playerView(solo(), 'a2')!.author).toBeNull();
   });
 });
