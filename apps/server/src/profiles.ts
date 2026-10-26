@@ -119,7 +119,7 @@ export async function profileFacts(
   const [hosted] = await db
     .select({ n: count() })
     .from(game)
-    .where(and(eq(game.hostId, userId), eq(game.status, 'finished')));
+    .where(and(eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false)));
 
   const played = games.map((g) => g.played);
   const stats = { ...gameStats(played), ...podiumStats(played), quizzes: quizzes.n, hosted: hosted.n };

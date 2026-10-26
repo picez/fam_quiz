@@ -21,6 +21,7 @@ const played = (over: Partial<PlayedGame>): PlayedGame => ({
   answered: 5,
   questionsPlayed: 5,
   team: null,
+  autopilot: false,
   ...over,
 });
 

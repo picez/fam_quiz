@@ -21,6 +21,8 @@ export interface GameSummary {
   questionCount: number;
   /** Командна гра (10j): є рядки команд. */
   teams: boolean;
+  /** Гра без ведучого (11h): «Провів бот». */
+  autopilot: boolean;
 }
 
 export interface GameStanding {
@@ -163,6 +165,8 @@ export interface PlayedGame {
   gameId: string;
   title: string;
   status: GameStatus;
+  /** Гра без ведучого (11h). */
+  autopilot: boolean;
   startedAt: string;
   nickname: string;
   score: number;

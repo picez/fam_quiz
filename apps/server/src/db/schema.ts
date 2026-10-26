@@ -151,6 +151,8 @@ export const game = pgTable(
     questionsPlayed: integer('questions_played').notNull().default(0),
     startedAt: at('started_at').notNull(),
     finishedAt: at('finished_at'),
+    /** Гру вів автопілот (11h); старі ігри — false. */
+    autopilot: boolean('autopilot').notNull().default(false),
   },
   (table) => [index('game_host_idx').on(table.hostId)],
 );

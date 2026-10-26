@@ -20,6 +20,7 @@ const summary: GameSummary = {
   questionsPlayed: 6,
   questionCount: 6,
   teams: false,
+  autopilot: false,
 };
 
 const base = { imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -56,6 +57,7 @@ const detail: GameDetail = {
   finishedAt: summary.finishedAt,
   questionsPlayed: 2,
   questionCount: 2,
+  autopilot: false,
   rounds: [{ title: 'Раунд 1', type: 'classic' }],
   standings: [
     { participantId: 'p1', nickname: 'Олена', score: 2000, rank: 1, correct: 2, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } },

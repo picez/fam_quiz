@@ -340,6 +340,7 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
     questionsPlayed: row.questionsPlayed,
     questionCount: questionCountOf(row.quizSnapshot),
     teams: teamGames.has(row.id),
+    autopilot: row.autopilot,
   }));
 }
 
@@ -472,6 +473,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     finishedAt: row.finishedAt?.toISOString() ?? null,
     questionsPlayed: row.questionsPlayed,
     questionCount: questionCountOf(row.quizSnapshot),
+    autopilot: row.autopilot,
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
     questions,
@@ -615,6 +617,7 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
         gameId: row.game.id,
         title: row.game.title,
         status: row.game.status,
+        autopilot: row.game.autopilot,
         startedAt: row.game.startedAt.toISOString(),
         nickname: row.participant.nickname,
         score: row.participant.score,

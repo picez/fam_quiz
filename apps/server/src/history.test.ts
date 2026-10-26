@@ -4,7 +4,7 @@ import { breakdownOf, DEFAULT_RULES, defaultTeams, type Answer, type Question } 
 import { LADDER_RIGHT, LADDER_WRONG, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
-import { gameTables, hostGame, playerGames } from './history';
+import { gameTables, hostGame, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -1895,5 +1895,19 @@ describe('host history: points per round and plus / minus (11f)', () => {
       expect(s.breakdown).toEqual(breakdownOf(scoreLines(room.state).filter((l) => l.playerId === s.participantId)));
       expect(s.rounds.reduce((sum, n) => sum + n, 0)).toBe(s.score);
     }
+  });
+});
+
+describe('games without a host in the history (11h)', () => {
+  it('the host list, the details and the played games carry the flag', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values([{ id: 'author', name: 'Марта', email: 'author@example.com' }]);
+    const bot = await seedGame(db, { hostId: 'author', autopilot: true, startedAt: new Date(2000), players: [{ userId: 'author', nickname: 'Марта', score: 3, rank: 1 }] });
+    const plain = await seedGame(db, { hostId: 'author', startedAt: new Date(1000), players: [{ userId: null, nickname: 'Гість', score: 3, rank: 1 }] });
+    const listed = await hostGames(db, 'author');
+    expect(listed.map((g) => [g.id, g.autopilot])).toEqual([[bot.gameId, true], [plain.gameId, false]]);
+    expect((await hostGame(db, 'author', bot.gameId))?.autopilot).toBe(true);
+    expect((await hostGame(db, 'author', plain.gameId))?.autopilot).toBe(false);
+    expect((await playerGames(db, 'author', null)).map((g) => [g.played.gameId, g.played.autopilot])).toEqual([[bot.gameId, true]]);
   });
 });
