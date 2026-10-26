@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { SocketAuth } from '@quiz/shared';
 import { joinGame } from '../api';
@@ -72,10 +72,12 @@ export function Play() {
   const game = useGame(auth);
 
   // Токен більше не діє: гру закрито або гравця вилучено. Повертаємо форму входу.
+  const wasAutopilot = useRef(false);
+  if (game.view !== null && game.view.role === 'player') wasAutopilot.current = game.view.autopilot;
   const lost = token !== null && (game.status === 'unauthorized' || game.closed !== null);
   useEffect(() => {
     if (!lost) return;
-    setNotice(t(game.closed === 'kicked' ? 'kicked' : 'gameGone'));
+    setNotice(t(game.closed === 'kicked' ? (wasAutopilot.current ? 'kickedByAuthor' : 'kicked') : 'gameGone'));
     clearPlayer(code);
     setToken(null);
   }, [lost, game.closed, code]);

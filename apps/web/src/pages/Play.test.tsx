@@ -34,6 +34,7 @@ vi.mock('socket.io-client', () => ({
   },
 }));
 vi.mock('../api', () => ({ joinGame: vi.fn(), me: vi.fn() }));
+vi.mock('../screens/PlayerScreen', () => ({ PlayerScreen: () => <p>screen</p> }));
 
 beforeEach(() => {
   localStorage.clear();
@@ -83,6 +84,21 @@ describe('Play', () => {
     expect(screen.queryByLabelText('Ваше ім’я')).toBeNull();
     expect(screen.getByText('Підключаємося…')).toBeTruthy();
     expect(joinGame).toHaveBeenCalledTimes(1);
+  });
+
+  it('a player removed from a game with no host is told the author did it; in a hosted game, the host', async () => {
+    savePlayer('123456', 'old-token');
+    open();
+    act(() => sockets[0].fire('state', { role: 'player', autopilot: true, paused: false, questionIndex: -1, splash: null }, { serverNow: Date.now(), hostOnline: true, stageOnline: true }));
+    act(() => sockets[0].fire('closed', 'kicked'));
+    expect(await screen.findByText('Автор гри вилучив вас із гри.')).toBeTruthy();
+    cleanup();
+    sockets.length = 0;
+    savePlayer('123456', 'old-token');
+    open();
+    act(() => sockets[0].fire('state', { role: 'player', autopilot: false, paused: false, questionIndex: -1, splash: null }, { serverNow: Date.now(), hostOnline: true, stageOnline: true }));
+    act(() => sockets[0].fire('closed', 'kicked'));
+    expect(await screen.findByText('Ведучий вилучив вас із гри.')).toBeTruthy();
   });
 
   it('lets a player with a token that no longer works join again', async () => {

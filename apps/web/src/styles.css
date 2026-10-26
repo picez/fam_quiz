@@ -10592,3 +10592,9 @@ button.wall-tile:disabled {
 .author-start {
   width: 100%;
 }
+
+.stage-bot {
+  margin: 0 0 1vh;
+  color: var(--amber);
+  font-weight: 700;
+}

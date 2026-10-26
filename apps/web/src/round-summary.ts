@@ -27,7 +27,7 @@ export function roundSummary(brief: RoundBrief): string[] {
   if (brief.type === 'ladder' && brief.ladder !== null) {
     const { top, pick, lifelines } = brief.ladder;
     lines.push(t('summaryLadderContestant', { top }), t(`summaryLadderPick_${pick}`), t('summaryLadderHall'));
-    if (lifelines.length > 0) lines.push(t('summaryLadderLifelines', { list: lifelines.map(buffName).join(', ') }));
+    if (lifelines.length > 0) lines.push(t('summaryLadderLifelines', { list: lifelines.map((kind) => buffName(kind)).join(', ') }));
     return lines;
   }
   if (brief.type === 'survival' && brief.survival !== null) {

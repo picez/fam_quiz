@@ -2093,3 +2093,13 @@ describe('StageScreen: live sort (11d)', () => {
     expect(document.querySelector('.sort-reveal.is-open')).not.toBeNull();
   });
 });
+
+describe('StageScreen lobby of a game with no host', () => {
+  it('says the bot hosts the game; a hosted lobby does not', () => {
+    show(view({ autopilot: true }));
+    expect(screen.getByText('🤖 Гру веде бот')).toBeTruthy();
+    cleanup();
+    show(view({ autopilot: false }));
+    expect(screen.queryByText(/Гру веде бот/)).toBeNull();
+  });
+});

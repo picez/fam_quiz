@@ -70,3 +70,15 @@ describe('teams guide page (10j)', () => {
     expect(text.lead.join(' ')).toContain('Команд: 3');
   });
 });
+
+describe('guide texts without a host', () => {
+  it('the phone page, the debuffs lead, the buff line and the board line name no host', () => {
+    expect(guidePageText({ kind: 'phone' }, true).lead).toContain('Правильну відповідь і бали покаже сцена; ваш рахунок — угорі телефона.');
+    expect(guidePageText({ kind: 'phone' }).lead.join(' ')).toContain('покаже ведучий');
+    expect(roundHow(emptyBrief('board'), true)).toEqual(['Спершу черга: кожен кидає кубик у телефоні. У свій хід виберіть клітинку — категорію й ціну.']);
+    expect(roundHow(emptyBrief('board'))[0]).toContain('ведучий');
+    expect(guidePageText({ kind: 'debuffs', debuffs: ['mirror'] } as GuidePage, true).lead).toEqual(['Перешкоду на одне запитання можна купити суперникові за бали (кнопка 😈). Відповісти все одно можна.']);
+    expect(guidePageText({ kind: 'buffs', buffs: ['hint'] } as GuidePage, true).items[0].line).toBe('Підказка з вікторини лише вам.');
+    expect(guidePageText({ kind: 'buffs', buffs: ['hint'] } as GuidePage).items[0].line).toBe('Підказка від ведучого лише вам.');
+  });
+});

@@ -10,13 +10,13 @@ function namesOf(names: string[], clamp: boolean): string {
   return clamp && names.length > MAX_NAMES ? `${names.slice(0, MAX_NAMES).join(', ')} ${t('bluffMore', { n: names.length - MAX_NAMES })}` : names.join(', ');
 }
 
-function metaOf(option: BluffOptionView, clamp: boolean) {
+function metaOf(option: BluffOptionView, clamp: boolean, autopilot: boolean) {
   if (option.kind === null) return null;
   const label =
     option.kind === 'truth'
       ? t('bluffTruth')
       : option.kind === 'spare'
-        ? t('bluffSpare')
+        ? t(autopilot ? 'bluffSpareQuiz' : 'bluffSpare')
         : t('bluffLieBy', { names: namesOf(option.authors ?? [], clamp) });
   const by = option.pickedBy ?? [];
   return (
@@ -31,7 +31,7 @@ function metaOf(option: BluffOptionView, clamp: boolean) {
  * Варіанти блефу: текст; у відкритих — «Правда» / «Вигадка {authors}» / «Запасна вигадка ведучого» і «Купилися: {names}» або «Ніхто не купився».
  * Щойно відкритий перегортається (.is-flipping, без анімації за prefers-reduced-motion). big — сцена; host — пульт бачить усе й «прибрано».
  */
-export function BluffBoard({ info, big = false, host = false }: { info: BluffInfo; big?: boolean; host?: boolean }) {
+export function BluffBoard({ info, big = false, host = false, autopilot = false }: { info: BluffInfo; big?: boolean; host?: boolean; autopilot?: boolean }) {
   // Перегортається лише варіант, що відкрився на очах: перший показ усе відкрите не анімує.
   const seen = useRef<Set<string> | null>(null);
   const [flipping, setFlipping] = useState<string[]>([]);
@@ -84,7 +84,7 @@ export function BluffBoard({ info, big = false, host = false }: { info: BluffInf
             <li key={option.id} className={rowClasses.join(' ')}>
               <span className="bluff-text">{option.text}</span>
               {!open && info.stage === 'reveal' && <span className="sr-only">{t('bluffClosed')}</span>}
-              {host && option.removed ? <span className="bluff-meta">{t('bluffRemoved')}</span> : open && metaOf(option, big)}
+              {host && option.removed ? <span className="bluff-meta">{t('bluffRemoved')}</span> : open && metaOf(option, big, autopilot)}
             </li>
           );
         })}

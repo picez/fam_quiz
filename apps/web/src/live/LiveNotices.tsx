@@ -72,6 +72,7 @@ export interface BuffToastView {
   questionIndex: number;
   splash: SplashView | null;
   paused: boolean;
+  autopilot?: boolean;
 }
 
 /**
@@ -85,7 +86,7 @@ export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; off
   if (shown.questionIndex !== view.questionIndex || shown.playerId === selfId) return null;
   return (
     <div className="live-notice is-buff" role="status" aria-live="polite">
-      {t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind) })}
+      {t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind, view.autopilot === true) })}
     </div>
   );
 }

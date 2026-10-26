@@ -205,7 +205,7 @@ function BluffPlay({ view, paused, send }: { view: PlayerView; paused: boolean; 
   return (
     <section className="bluff-play">
       <p className="bluff-stage">{t('bluffStageChoice')}</p>
-      {picked === null && lost && <p className="meta bluff-lost" role="status">{t('bluffPickRemoved')}</p>}
+      {picked === null && lost && <p className="meta bluff-lost" role="status">{t(view.autopilot ? 'bluffPickRemovedAuthor' : 'bluffPickRemoved')}</p>}
       {picked === null ? (
         <fieldset className="inputs" disabled={paused}>
           <BluffChoice options={bluff.options} own={mine.own} send={send} />
@@ -229,7 +229,7 @@ function BluffResult({ view }: { view: PlayerView }) {
   const tone = result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
   return (
     <section className={open && took ? `result ${tone}` : 'result'}>
-      <BluffBoard info={bluff} />
+      <BluffBoard info={bluff} autopilot={view.autopilot} />
       {open ? (
         <>
           <h2>{took ? t(me.bluff.truth ? 'bluffTruthYes' : me.bluff.pick === null ? 'bluffNoChoice' : 'bluffTruthNo') : t('bluffSilent')}</h2>
@@ -687,7 +687,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
     <main className="app player" aria-busy={notStarted || undefined}>
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
-      <DuelBanner duel={view.duel} phase={view.phase} />
+      <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
         <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
@@ -729,7 +729,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       )}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
 
-      {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" />}
+      {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" autopilot={view.autopilot} />}
 
       {phase === 'duel' && view.duel !== null && <DuelPlay view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
@@ -738,11 +738,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
           <RoundFacts round={view.round} total={view.total} />
-          <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
+          <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} />
           {view.ladder !== null && me.ladder !== null && (
             <p className="lead ladder-intro" role="status">
               {view.ladder.contestant === null
-                ? t('ladderWaitPick')
+                ? t(view.autopilot ? 'ladderWaitDraw' : 'ladderWaitPick')
                 : me.ladder.role === 'contestant'
                   ? t('ladderYouClimb')
                   : t('ladderWhoClimbs', { name: view.ladder.contestant.nickname })}
@@ -829,7 +829,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
             {question.clues !== null && <CluesNow clues={question.clues} offsetMs={offsetMs} />}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
-            {me.buffs !== null && captain && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} send={send} onError={setError} />}
+            {me.buffs !== null && captain && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} autopilot={view.autopilot} send={send} onError={setError} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}

@@ -77,7 +77,7 @@ export function TeamLobby({ view, send, onError }: { view: PlayerView; send: Sen
 
   return (
     <section className="team-lobby">
-      {yours ?? <p className="lead">{t('teamWaitHost')}</p>}
+      {yours ?? <p className="lead">{t(view.autopilot ? 'teamWaitBot' : 'teamWaitHost')}</p>}
     </section>
   );
 }

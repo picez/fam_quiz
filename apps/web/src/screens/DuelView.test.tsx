@@ -365,3 +365,16 @@ describe('duelLines', () => {
     expect(duelLines([row(1, 'Іра', 300, 'duel'), row(2, 'Оля', -200, 'duel')])).toEqual(['Дуель: Іра +300', 'Дуель: Оля −200']);
   });
 });
+
+describe('DuelBanner without a host', () => {
+  it('after the reveal the duel starts «after this screen»; with a host, when the host continues', () => {
+    const text = (autopilot: boolean) => {
+      const { container, unmount } = render(<DuelBanner duel={duelInfo({ stage: 'declared' })} phase="reveal" autopilot={autopilot} />);
+      const content = container.querySelector('.duel-banner')?.textContent;
+      unmount();
+      return content;
+    };
+    expect(text(true)).toBe('⚔ Дуель: Оля — Петро. Почнеться після цього екрана.');
+    expect(text(false)).toBe('⚔ Дуель: Оля — Петро. Почнеться, щойно ведучий продовжить гру.');
+  });
+});
