@@ -1647,7 +1647,7 @@ describe('StageScreen: bluff (10f)', () => {
   });
 
   describe('wipeout', () => {
-    const wRow = (id: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname: `Гравець ${id}`, status: 'in', bank: 0, step: null, decision: null, ...over });
+    const wRow = (id: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname: `Гравець ${id}`, status: 'in', bank: 0, step: null, decision: null, choice: null, prev: null, ...over });
     const wInfo = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
       ladder: [100, 200, 300, 400, 500],
       current: 1,
@@ -1655,6 +1655,7 @@ describe('StageScreen: bluff (10f)', () => {
       rows: [wRow('a', { bank: 300, decision: 'decided' }), wRow('b', { bank: 300, decision: 'pending' })],
       inCount: 2,
       decide: { endsAt: Date.now() + 10_000, remainingMs: null, decided: 1, total: 2 },
+      decisions: false,
       ...over,
     });
     const wRound: RoundInfo = { index: 0, total: 1, title: '', type: 'wipeout', partial: false, description: '', brief: emptyBrief('wipeout'), times: null };
@@ -1683,6 +1684,52 @@ describe('StageScreen: bluff (10f)', () => {
       show(view({ phase: 'question', round: wRound, questionIndex: 1, question, wipeout: wInfo({ decide: null }) }));
       expect(screen.getByText('Сходинка 2 з 5 · 200')).toBeTruthy();
       expect(document.querySelector('.wipeout-ladder')).toBeNull();
+    });
+
+    it('question: a bank column beside the question with the players who are in', () => {
+      show(view({ phase: 'question', round: wRound, questionIndex: 1, question, wipeout: wInfo({ decide: null, rows: [wRow('a', { bank: 300 }), wRow('b', { bank: 200 })] }) }));
+      expect(document.querySelector('.stage-question.has-wipeout-side')).not.toBeNull();
+      const side = document.querySelector('aside.wipeout-side') as HTMLElement;
+      expect(side.textContent).toContain('У грі · 2');
+      expect(side.textContent).toContain('Гравець a');
+      expect(side.textContent).toContain('300');
+      expect(side.textContent).toContain('Гравець b');
+      expect(side.textContent).toContain('200');
+    });
+
+    it('reveal: the rung list sits in the side column', () => {
+      show(view({ phase: 'reveal', round: wRound, questionIndex: 1, question, reveal: full, wipeout: wInfo({ decide: null, rows: [wRow('a', { bank: 300, prev: 100 })] }) }));
+      const side = document.querySelector('aside.wipeout-side') as HTMLElement;
+      expect(side.querySelector('.wipeout-step-list.is-stage')).not.toBeNull();
+      expect(side.textContent).toContain('100 → 300');
+      expect(side.querySelector('h2')?.textContent).toBe('Як пройшли сходинку');
+    });
+
+    it('reveal: when the only player left burns, the bar counts those who played the rung', () => {
+      const rows = [wRow('a', { status: 'burned', step: 1, prev: 100 }), wRow('b', { status: 'took', bank: 100, step: 0 })];
+      show(view({ phase: 'reveal', round: wRound, questionIndex: 1, question, reveal: full, answeredCount: 1, wipeout: wInfo({ decide: null, inCount: 0, rows }) }));
+      expect(screen.getByText('Відповіли 1 з 1')).toBeTruthy();
+    });
+
+    it('a classic question has no side column', () => {
+      show(view({ phase: 'question', questionIndex: 0, question }));
+      expect(document.querySelector('.has-wipeout-side')).toBeNull();
+      expect(document.querySelector('aside.wipeout-side')).toBeNull();
+    });
+
+    it('leaderboard once the window closed: «Рішення» with the choices group', () => {
+      const rows = [wRow('a', { bank: 300, choice: 'took' })];
+      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo({ decide: null, decisions: true, rows }) }));
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Рішення');
+      expect(document.querySelector('.wipeout-group.is-choices')).not.toBeNull();
+      expect(document.querySelector('.wipeout-players.is-decisions')).not.toBeNull();
+      expect(screen.getAllByText('Рішення')).toHaveLength(1);
+    });
+
+    it('leaderboard with the window open keeps «Драбина» and the timer', () => {
+      show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo() }));
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Драбина');
+      expect(screen.getByRole('timer')).toBeTruthy();
     });
   });
 

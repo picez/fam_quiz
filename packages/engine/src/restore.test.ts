@@ -91,7 +91,7 @@ import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
 import { pickDoor } from './survival';
-import { decideWipeout } from './wipeout';
+import { decideWipeout, wipeoutChoiceOf, wipeoutPlayOf } from './wipeout';
 import { decideLadder, pickContestant, useLifeline } from './ladder';
 import { rollTeamDie, setCaptain, setTeamForm, startTeamDice } from './teams';
 import { actAnswer, actBuzz } from './team-act';
@@ -298,7 +298,7 @@ const STATE_SHAPE: Record<string, string> = {
   WallProgress: keysOf<WallProgress>()(['found', 'mistakes', 'tried'], true),
   SurveyPlay: keysOf<SurveyPlay>()(['source', 'shown'], true),
   BluffPlay: keysOf<BluffPlay>()(['stage', 'seed', 'lies', 'options', 'picks', 'shown'], true),
-  WipeoutPlay: keysOf<WipeoutPlay>()(['took', 'stay', 'end'], true),
+  WipeoutPlay: keysOf<WipeoutPlay>()(['took', 'stay', 'end', 'auto'], true),
   SurvivalPlay: keysOf<SurvivalPlay>()(['ghosts', 'edge', 'trial', 'end'], true),
   GhostAnswer: keysOf<GhostAnswer>()(['answer', 'correct', 'timeMs'], true),
   SurvivalTrial: keysOf<SurvivalTrial>()(
@@ -707,12 +707,63 @@ const KEYS: Record<number, Record<string, string>> = {
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
   },
+  13: {
+    GameState: 'adjustmentSeq,adjustments,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,missedInto,misses,queue,sorted,wordMisses',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'auto,end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'captains,dice,duelists,form,list,members',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
+    Splash: 'at,kind,until',
+  },
 };
 
 /** 11b: класика після «Почати гру» через stamp сервера — GameState.stepAt. */
 function stamped(): GameState {
   const lobby = lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро');
   return stamp(lobby, must(start(lobby, T0)), T0);
+}
+
+/** 11e: «Ва-банк» на трьох — усі відповіли правильно, Оля «Далі», Петро «Забрати», Віра нічого; вікно закрив таймер. */
+function wipeoutTimedOut(): GameState {
+  let s = openAt(lobbyWith(makeRoundsQuiz([wipeoutRound('rw', wipeoutLadder)]), 'Оля', 'Петро', 'Віра'), T0, () => 0);
+  for (const id of ['p1', 'p2']) s = must(submitAnswer(s, id, kyiv, T0 + 1000));
+  s = must(next(must(submitAnswer(s, 'p3', kyiv, T0 + 1000)), T0 + 2000, () => 0));
+  s = must(decideWipeout(must(next(s, T0 + 2500, () => 0)), 'p1', false, T0 + 2600));
+  s = must(decideWipeout(s, 'p2', true, T0 + 2700));
+  return tick(s, s.endsAt ?? 0);
 }
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -774,6 +825,8 @@ function representative(): GameState[] {
   wiped = must(decideWipeout(must(next(wiped, T0 + 2500, () => 0)), 'p2', true, T0 + 2600));
   wiped = must(next(must(decideWipeout(wiped, 'p1', false, T0 + 2700)), T0 + 3000, () => 0));
   wiped = must(next(must(submitAnswer(wiped, 'p1', { type: 'boolean', value: true }, T0 + 4000)), T0 + 5000, () => 0));
+  // 11e: вікно «Ва-банк» закрив таймер — Петро не вирішив і забрав за замовчуванням: WipeoutPlay.auto.
+  const timedOut = wipeoutTimedOut();
   // 10h: «Вибування» на розкритті другого запитання — Play.survival: Віра вибула після першого й відповідає привидом.
   let survived = openAt(lobbyWith(makeRoundsQuiz([survivalRound('rs', survivalQuestions, survivalTrials)]), 'Оля', 'Петро', 'Віра'), T0, () => 0);
   survived = must(submitAnswer(survived, 'p1', kyiv, T0 + 1000));
@@ -840,6 +893,7 @@ function representative(): GameState[] {
     luck,
     survived,
     wiped,
+    timedOut,
     // Вікно «Далі / Забрати» відкрите: на leaderboard є startedAt / endsAt.
     must(next(wiped, T0 + 6000, () => 0)),
     chosen,
@@ -919,6 +973,19 @@ describe('the saved state', () => {
     );
   });
 
+  it('a wipeout play of version 12 (no auto) restores and shows every take as a plain take', () => {
+    const s = wipeoutTimedOut();
+    expect(s.phase).toBe('leaderboard');
+    expect(s.plays[0].wipeout).toEqual({ took: ['p2', 'p3'], stay: ['p1'], end: false, auto: ['p3'] });
+    const old = { took: ['p2', 'p3'], stay: ['p1'], end: false };
+    const saved: GameState = { ...s, plays: s.plays.map((p, i) => (i === 0 ? { ...p, wipeout: old } : p)) };
+    const restored = roundTrip(suspend(roundTrip(saved), T0 + 20_000));
+    expect(restored.plays[0].wipeout).toEqual(old);
+    const play = wipeoutPlayOf(restored);
+    expect(play).not.toBeNull();
+    expect(['p1', 'p2', 'p3'].map((id) => wipeoutChoiceOf(play!, id))).toEqual(['stay', 'took', 'took']);
+  });
+
   it('the state format is pinned to GAME_STATE_VERSION', () => {
     // Перелік ключів кожного типу стану: компілятор (pnpm typecheck) вимагає рівно всі ключі типу, тож нове поле
     // не пройде непоміченим, а тест порівнює перелік із KEYS поточної версії.
@@ -929,7 +996,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {

@@ -27,7 +27,7 @@ import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { StageTeams } from './StageTeams';
-import { WipeoutLadder } from './WipeoutLadder';
+import { WipeoutLadder, WipeoutSide } from './WipeoutLadder';
 import { SurvivalBoard } from './SurvivalBoard';
 import { LadderBoard } from './LadderBoard';
 import { LadderAudience, LadderLifelineBadges, ladderOutcomeText } from './LadderStatus';
@@ -197,7 +197,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
   const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'clues' ? t('cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
-    <div className="stage-question" aria-busy={busy || undefined}>
+    <div className={view.wipeout !== null ? 'stage-question has-wipeout-side' : 'stage-question'} aria-busy={busy || undefined}>
       <header className="bar">
         <span>{questionLabel(view.round, view.questionIndex, view.total)}</span>
         {view.board === null && (
@@ -214,7 +214,8 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
               ? // Записи з'являються й у тих, хто не встиг, на locked: рахуємо лише тих, хто відсортував усе.
                 t('sortFinishedOf', { finished: view.sort.rows.filter((row) => row.timeMs !== null).length, total: view.playerCount })
               : view.wipeout !== null
-              ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
+              ? // На розкритті згорілі вже не «в грі»: рахуємо тих, хто грав сходинку.
+                t('answeredOf', { answered: view.answeredCount, total: view.phase === 'reveal' ? view.wipeout.rows.filter((row) => row.prev !== null).length : view.wipeout.inCount })
               : view.survival !== null
               ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount })
               : view.blitz === null
@@ -427,6 +428,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
       )}
       {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
       {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {view.wipeout !== null && <WipeoutSide info={view.wipeout} reveal={view.phase === 'reveal'} />}
     </div>
   );
 }
@@ -604,7 +606,7 @@ function WipeoutBetween({ view, offsetMs }: { view: StageView; offsetMs: number 
   const decide = info.decide;
   return (
     <div className="stage-board stage-wipeout">
-      <h1 className="question">{t('wipeoutLadderTitle')}</h1>
+      <h1 className="question">{t(info.decisions ? 'wipeoutDecisionsTitle' : 'wipeoutLadderTitle')}</h1>
       {decide !== null && (decide.endsAt !== null || decide.remainingMs !== null) && (
         <div className="stage-clock">
           <Timer view={decide} offsetMs={offsetMs} status={timerStatus(view)} />

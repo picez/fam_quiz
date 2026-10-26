@@ -45,7 +45,7 @@ import { useGuardedSend } from '../live/useGuardedSend';
 import { SurvivalBoard } from './SurvivalBoard';
 import { SurvivalTrial } from './SurvivalTrial';
 import { WipeoutDecision } from './WipeoutDecision';
-import { WipeoutLadder } from './WipeoutLadder';
+import { WipeoutLadder, WipeoutStepList, WipeoutStrip } from './WipeoutLadder';
 import { LadderBoard } from './LadderBoard';
 import { LadderDecision } from './LadderDecision';
 import { LadderHall } from './LadderHall';
@@ -247,6 +247,7 @@ function Result({ view }: { view: PlayerView }) {
     return (
       <section className="result">
         <h2>{t('wipeoutWatching')}</h2>
+        {view.phase === 'reveal' && wipeout !== null && <WipeoutStepList info={wipeout} size="phone" highlightId={view.me.id} />}
       </section>
     );
   }
@@ -293,6 +294,7 @@ function Result({ view }: { view: PlayerView }) {
           {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
         </>
       )}
+      {view.phase === 'reveal' && wipeout !== null && view.me.wipeout !== null && <WipeoutStepList info={wipeout} size="phone" highlightId={view.me.id} />}
       {view.me.chain !== null && (
         <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
       )}
@@ -819,6 +821,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
             )}
             {me.ladder?.role === 'hall' && <LadderHall view={view} />}
             {survivalGhost && <p className="lead survival-ghost-banner">{t('survivalGhostBanner')}</p>}
+            {view.wipeout !== null && (phase === 'question' || phase === 'locked') && <WipeoutStrip info={view.wipeout} highlightId={me.id} />}
             {teamWatching ? (
               <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
             ) : wipeoutWatching ? (

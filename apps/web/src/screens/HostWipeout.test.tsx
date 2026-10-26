@@ -6,7 +6,7 @@ import { HostWipeout } from './HostWipeout';
 
 afterEach(cleanup);
 
-const row = (id: string, nickname: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname, status: 'in', bank: 300, step: null, decision: null, ...over });
+const row = (id: string, nickname: string, over: Partial<WipeoutRow> = {}): WipeoutRow => ({ playerId: id, nickname, status: 'in', bank: 300, step: null, decision: null, choice: null, prev: null, ...over });
 const info = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
   ladder: [100, 200, 300],
   current: 2,
@@ -14,6 +14,7 @@ const info = (over: Partial<WipeoutInfo> = {}): WipeoutInfo => ({
   rows: [row('a', 'Оля', { decision: 'take' }), row('b', 'Петро', { decision: 'pending' })],
   inCount: 2,
   decide: { endsAt: Date.now() + 10_000, remainingMs: null, decided: 1, total: 2 },
+  decisions: false,
   ...over,
 });
 const host = (wipeout: WipeoutInfo | null) => ({ wipeout }) as unknown as HostView;
@@ -25,6 +26,14 @@ describe('HostWipeout', () => {
     expect(lines.some((line) => line.includes('Оля') && line.includes('забирає'))).toBe(true);
     expect(lines.some((line) => line.includes('Петро') && line.includes('думає…'))).toBe(true);
     expect(screen.getByText(/Гравці вирішують… \d+ с/)).toBeTruthy();
+  });
+
+  it('shows each choice in the «Рішення» group once the window closed', () => {
+    const rows = [row('a', 'Оля', { choice: 'stay', bank: 600 }), row('b', 'Петро', { status: 'took', choice: 'took', bank: 300 })];
+    render(<HostWipeout view={host(info({ decide: null, decisions: true, rows }))} offsetMs={0} />);
+    const group = document.querySelector('.host-wipeout .wipeout-group.is-choices') as HTMLElement;
+    expect(group.textContent).toContain('Далі з 600');
+    expect(group.textContent).toContain('Забрано 300');
   });
 
   it('has the «ⓘ» of the round', () => {

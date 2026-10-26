@@ -1,4 +1,4 @@
-import { LIMITS, wipeoutStandings, type Answer, type Question, type WipeoutStanding, type WipeoutStep } from '@quiz/shared';
+import { LIMITS, wipeoutStandings, type Answer, type Question, type WipeoutChoice, type WipeoutStanding, type WipeoutStep } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; звертання лише під час виклику функцій.
 import { autoLock, currentRound, fail, ok, recordOf, withCurrentPlay, withRecord, withTotals, type GameState, type Play, type Result, type WipeoutPlay } from './game';
 import { checkAnswer } from './check';
@@ -172,13 +172,31 @@ export function decideWipeout(state: GameState, playerId: string, take: boolean,
   return ok(settleDecision(withTotals(withCurrentPlay(state, { ...play, wipeout }))));
 }
 
-/** Закриває вікно: невирішені в грі → took (типово «Забрати»), startedAt/endsAt/remainingMs null; підсумок — withTotals. */
+/**
+ * Закриває вікно: невирішені в грі → took (типово «Забрати») і auto (11e: auto лише непорожній),
+ * startedAt/endsAt/remainingMs null; підсумок — withTotals.
+ */
 export function closeDecision(state: GameState): GameState {
   const play = wipeoutPlayOf(state);
   const cleared: GameState = { ...state, startedAt: null, endsAt: null, remainingMs: null };
   if (play === null) return cleared;
-  const took = [...play.wipeout.took, ...undecided(state, play)];
-  return withTotals(withCurrentPlay(cleared, { ...play, wipeout: { ...play.wipeout, took } }));
+  const rest = undecided(state, play);
+  const took = [...play.wipeout.took, ...rest];
+  const auto = rest.length === 0 ? {} : { auto: [...(play.wipeout.auto ?? []), ...rest] };
+  return withTotals(withCurrentPlay(cleared, { ...play, wipeout: { ...play.wipeout, took, ...auto } }));
+}
+
+/** Екран рішень (11e): leaderboard «Ва-банк» із записом поточного запитання після закриття вікна. */
+export function decisionsShown(state: GameState): boolean {
+  return state.phase === 'leaderboard' && inWipeoutRound(state) && wipeoutPlayOf(state) !== null && !decisionOpen(state);
+}
+
+/** Відкритий вибір гравця в записі запитання (11e): stay → 'stay', auto → 'auto', took → 'took', інакше null. */
+export function wipeoutChoiceOf(play: Play & { wipeout: WipeoutPlay }, playerId: string): WipeoutChoice | null {
+  if (play.wipeout.stay.includes(playerId)) return 'stay';
+  if ((play.wipeout.auto ?? []).includes(playerId)) return 'auto';
+  if (play.wipeout.took.includes(playerId)) return 'took';
+  return null;
 }
 
 /**

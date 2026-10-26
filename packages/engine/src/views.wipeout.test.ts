@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { Answer } from '@quiz/shared';
+import { defaultTeams, type Answer } from '@quiz/shared';
 import { lock, next, pause, start, submitAnswer, tick, type GameState } from './game';
+import { actAnswer, actorOf } from './team-act';
 import { classicRound, makeRoundsQuiz, single, wipeoutLadder, wipeoutRound } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
+import { teamGame, teamQuiz } from './testing/teams';
 import { hostView, playerView, stageView } from './views';
-import { decideWipeout } from './wipeout';
+import { decideWipeout, decisionOpen } from './wipeout';
 
 const rng = () => 0;
 const quiz = makeRoundsQuiz([wipeoutRound('rw', wipeoutLadder), classicRound('r2', [single])], { debuffs: ['fog', 'mud'] });
@@ -189,5 +191,138 @@ describe('wipeout views (10g)', () => {
     expect(s.phase).toBe('question');
     expect(phone(s, 'p1').me.tip).toBe('boolean');
     expect(phone(s, 'p2').me.tip).toBeNull();
+  });
+});
+
+describe('wipeout decisions and banks for everyone (11e)', () => {
+  const choices = (info: ReturnType<typeof stage>['wipeout']) => info?.rows.map((r) => r.choice);
+  const views = (s: GameState) => [stage(s), phone(s, 'p3'), phone(s, 'p1'), hostView(s)];
+
+  it('the window stays secret, paused too: no choice anywhere, the host still sees take', () => {
+    let s = windowOpen();
+    s = must(decideWipeout(s, 'p1', true, 3000));
+    s = must(decideWipeout(s, 'p2', false, 3500));
+    for (const state of [s, must(pause(s, 4000))]) {
+      expect(stage(state).wipeout?.decisions).toBe(false);
+      for (const view of views(state)) expect(choices(view.wipeout)).toEqual([null, null, null]);
+      expect(JSON.stringify(stage(state))).not.toContain('"choice":"');
+      expect(JSON.stringify(phone(state, 'p3'))).not.toContain('"choice":"');
+      expect(hostView(state).wipeout?.rows[0].decision).toBe('take');
+    }
+  });
+
+  it('once the window closes everyone gets the same choices: took, stay, by default', () => {
+    let s = windowOpen();
+    s = must(decideWipeout(s, 'p1', true, 3000));
+    s = must(decideWipeout(s, 'p2', false, 3500));
+    s = tick(s, 12_000);
+    for (const view of [stage(s), phone(s, 'p2'), hostView(s)]) {
+      expect(view.wipeout?.decisions).toBe(true);
+      expect(view.wipeout?.rows.map((r) => [r.playerId, r.status, r.bank, r.choice])).toEqual([
+        ['p1', 'took', 100, 'took'],
+        ['p2', 'in', 100, 'stay'],
+        ['p3', 'took', 100, 'auto'],
+      ]);
+      expect(view.wipeout?.rows.map((r) => r.decision)).toEqual([null, null, null]);
+      expect(view.wipeout?.decide).toBeNull();
+    }
+    // наступне запитання — вибору вже немає
+    const following = must(next(s, 13_000, rng));
+    expect(following.phase).toBe('question');
+    expect(stage(following).wipeout?.decisions).toBe(false);
+    expect(choices(stage(following).wipeout)).toEqual([null, null, null]);
+    expect(choices(hostView(following).wipeout)).toEqual([null, null, null]);
+  });
+
+  it('a player who decided to take is took, not auto', () => {
+    let s = windowOpen();
+    s = must(decideWipeout(s, 'p1', false, 3000));
+    s = must(decideWipeout(s, 'p2', false, 3000));
+    s = must(decideWipeout(s, 'p3', true, 3000));
+    expect(stage(s).wipeout?.decisions).toBe(true);
+    expect(choices(stage(s).wipeout)).toEqual(['stay', 'stay', 'took']);
+  });
+
+  it('a player out before the window has no choice', () => {
+    let s = windowOpen({ p1: RIGHT[0], p2: RIGHT[0], p3: WRONG });
+    s = must(decideWipeout(s, 'p1', false, 3000));
+    s = must(decideWipeout(s, 'p2', false, 3000));
+    const p3 = stage(s).wipeout?.rows.find((r) => r.playerId === 'p3');
+    expect(p3?.status).toBe('burned');
+    expect(p3?.choice).toBeNull();
+  });
+
+  it('the reveal carries each bank before the rung; question and locked never do', () => {
+    let s = windowOpen();
+    for (const id of ['p1', 'p2', 'p3']) s = must(decideWipeout(s, id, false, 3000));
+    s = must(next(s, 13_000, rng));
+    s = answered(s, { p1: RIGHT[1], p2: { type: 'boolean', value: false } }, 14_000);
+    expect(s.phase).toBe('locked');
+    for (const view of views(s)) expect(view.wipeout?.rows.map((r) => r.prev)).toEqual([null, null, null]);
+    expect(JSON.stringify(stage(s))).not.toContain('"prev":1');
+    s = must(next(s, 15_000, rng));
+    expect(s.phase).toBe('reveal');
+    for (const view of views(s))
+      expect(view.wipeout?.rows.map((r) => [r.playerId, r.status, r.prev, r.bank])).toEqual([
+        ['p1', 'in', 100, 300],
+        ['p2', 'burned', 100, 0],
+        ['p3', 'burned', 100, 0],
+      ]);
+    // вікно, p1 «Далі», наступна сходинка — prev знову null
+    s = must(next(s, 16_000, rng));
+    s = must(decideWipeout(s, 'p1', false, 17_000));
+    s = must(next(s, 18_000, rng));
+    expect(s.phase).toBe('question');
+    expect(stage(s).wipeout?.rows.map((r) => r.prev)).toEqual([null, null, null]);
+  });
+
+  it('a player out on the first rung has no bank before the second', () => {
+    let s = windowOpen({ p1: RIGHT[0], p2: RIGHT[0], p3: WRONG });
+    s = must(decideWipeout(s, 'p1', false, 3000));
+    s = must(decideWipeout(s, 'p2', false, 3000));
+    s = must(next(s, 13_000, rng));
+    s = answered(s, { p1: RIGHT[1], p2: RIGHT[1] }, 14_000);
+    s = must(next(s, 15_000, rng));
+    expect(s.phase).toBe('reveal');
+    expect(stage(s).wipeout?.rows.map((r) => [r.playerId, r.prev])).toEqual([
+      ['p1', 100],
+      ['p2', 100],
+      ['p3', null],
+    ]);
+  });
+
+  it('a version 12 room without auto shows everyone who took as took', () => {
+    let s = windowOpen();
+    s = must(decideWipeout(s, 'p1', true, 3000));
+    s = must(decideWipeout(s, 'p2', false, 3500));
+    s = tick(s, 12_000);
+    const play = s.plays[s.questionIndex];
+    expect(play.wipeout?.auto).toEqual(['p3']);
+    const { auto: _auto, ...old } = play.wipeout ?? { took: [], stay: [], end: false };
+    const v12: GameState = { ...s, plays: s.plays.map((p) => (p === play ? { ...p, wipeout: old } : p)) };
+    expect(choices(stage(v12).wipeout)).toEqual(['took', 'stay', 'took']);
+  });
+
+  it('a team game: rows are teams, the choice is by team id, the same for every member', () => {
+    const tq = teamQuiz([wipeoutRound('rw', wipeoutLadder)]);
+    let s = must(next(teamGame(tq, [['Оля', 'Петро'], ['Іра', 'Марко']]), 0, rng));
+    s = must(actAnswer(s, 'm1', RIGHT[0], 1000));
+    s = must(actAnswer(s, 'm3', RIGHT[0], 1000));
+    s = s.phase === 'question' ? must(lock(s)) : s;
+    s = must(next(s, 1500, rng));
+    s = must(next(s, 2000, rng));
+    expect(decisionOpen(s)).toBe(true);
+    const actor = actorOf(s, 'm1', 'captain');
+    if (!actor.ok) throw new Error('not captain');
+    s = must(decideWipeout(s, actor.id, true, 3000));
+    s = tick(s, s.endsAt ?? 0);
+    for (const id of ['m2', 'm4']) {
+      const rows = playerView(s, id)?.wipeout?.rows ?? [];
+      expect(rows.map((r) => [r.playerId, r.choice])).toEqual([
+        ['t1', 'took'],
+        ['t2', 'auto'],
+      ]);
+      expect(rows.map((r) => r.nickname)).toEqual(defaultTeams(2).names);
+    }
   });
 });

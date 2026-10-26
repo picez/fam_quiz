@@ -22,7 +22,7 @@ import {
 import { suspend } from './restore';
 import { classicRound, makeRoundsQuiz, single, wipeoutLadder, wipeoutRound } from './testing/fixtures';
 import { lobbyWith, lobbyWithSplash, must, startRound } from './testing/helpers';
-import { decideWipeout, decisionOpen, wipeoutCorrect, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
+import { decideWipeout, decisionOpen, decisionsShown, wipeoutChoiceOf, wipeoutCorrect, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
 
 const rng = () => 0;
 const quiz = makeRoundsQuiz([wipeoutRound('rw', wipeoutLadder), classicRound('r2', [single])]);
@@ -315,7 +315,7 @@ describe('decisions (10g)', () => {
     expect(decideWipeout(s, 'p2', false, 12_000)).toEqual({ ok: false, error: 'wrong_phase' });
     s = tick(s, 12_000);
     expect(decisionOpen(s)).toBe(false);
-    expect(s.plays[0].wipeout).toEqual({ took: ['p2'], stay: ['p1'], end: false });
+    expect(s.plays[0].wipeout).toEqual({ took: ['p2'], stay: ['p1'], end: false, auto: ['p2'] });
     expect(wipeoutTable(s).p2).toEqual({ status: 'took', bank: 100, step: 0 });
     expect(score(s, 'p2')).toBe(100);
   });
@@ -326,7 +326,7 @@ describe('decisions (10g)', () => {
     s = decide(s, 'p1', false);
     s = decide(s, 'p2', false);
     expect(decisionOpen(s)).toBe(false);
-    expect(s.plays[0].wipeout).toEqual({ took: ['p3'], stay: ['p1', 'p2'], end: false });
+    expect(s.plays[0].wipeout).toEqual({ took: ['p3'], stay: ['p1', 'p2'], end: false, auto: ['p3'] });
     expect(score(s, 'p3')).toBe(100);
   });
 
@@ -391,7 +391,7 @@ describe('decisions (10g)', () => {
     s = decide(s, 'p1', false);
     s = must(endRound(s, 4000));
     expect(s.phase).toBe('round_end');
-    expect(s.plays[0].wipeout).toEqual({ took: ['p2'], stay: ['p1'], end: true });
+    expect(s.plays[0].wipeout).toEqual({ took: ['p2'], stay: ['p1'], end: true, auto: ['p2'] });
     expect(wipeoutTable(s).p2).toEqual({ status: 'took', bank: 100, step: 0 });
     expect(wipeoutTable(s).p1).toEqual({ status: 'survived', bank: 100, step: 0 });
     expect(s.players.map((p) => p.score)).toEqual([100, 100, 0]);
@@ -468,6 +468,92 @@ describe('decisions (10g)', () => {
     s = must(next(s, 4000, rng));
     expect(s.phase).toBe('question');
     expect(wipeoutIn(s)).toEqual(['p1']);
+  });
+
+  describe('decisions screen (11e)', () => {
+    const choices = (s: GameState) => {
+      const play = wipeoutPlayOf(s);
+      if (play === null) throw new Error('no wipeout play');
+      return ['p1', 'p2', 'p3'].map((id) => wipeoutChoiceOf(play, id));
+    };
+
+    it('is not up while the window is open (even paused) or on the reveal', () => {
+      expect(decisionsShown(revealed())).toBe(false);
+      const s = must(next(revealed(), 2000, rng));
+      expect(decisionsShown(s)).toBe(false);
+      expect(decisionsShown(must(pause(s, 2500)))).toBe(false);
+    });
+
+    it('a window closed by the timer remembers who took by default', () => {
+      let s = must(next(revealed(), 2000, rng));
+      s = decide(s, 'p1', false);
+      s = decide(s, 'p2', true);
+      s = tick(s, 12_000);
+      expect(s.plays[0].wipeout).toEqual({ took: ['p2', 'p3'], stay: ['p1'], end: false, auto: ['p3'] });
+      expect(decisionsShown(s)).toBe(true);
+      expect(choices(s)).toEqual(['stay', 'took', 'auto']);
+      expect(score(s, 'p3')).toBe(100);
+    });
+
+    it('when everybody decided there is no auto key', () => {
+      let s = must(next(revealed(), 2000, rng));
+      s = decide(s, 'p1', false);
+      s = decide(s, 'p2', false);
+      s = decide(s, 'p3', true);
+      expect(decisionOpen(s)).toBe(false);
+      expect('auto' in (s.plays[0].wipeout ?? {})).toBe(false);
+      expect(decisionsShown(s)).toBe(true);
+      expect(choices(s)).toEqual(['stay', 'stay', 'took']);
+    });
+
+    it('an absent player is taken by default', () => {
+      let s = must(next(revealed(), 2000, rng));
+      s = must(setConnected(s, 'p3', false, 2500));
+      s = decide(s, 'p1', false);
+      s = decide(s, 'p2', false);
+      expect(s.plays[0].wipeout?.auto).toEqual(['p3']);
+      expect(choices(s)).toEqual(['stay', 'stay', 'auto']);
+    });
+
+    it('is gone after the next step', () => {
+      let s = must(next(revealed(), 2000, rng));
+      s = decide(s, 'p1', false);
+      s = tick(s, 12_000);
+      expect(decisionsShown(s)).toBe(true);
+      s = must(next(s, 20_000, rng));
+      expect(s.phase).toBe('question');
+      expect(decisionsShown(s)).toBe(false);
+    });
+
+    it('ending the round mid-window goes to round_end without the screen, auto keeps the undecided', () => {
+      let s = must(next(revealed(), 2000, rng));
+      s = decide(s, 'p1', false);
+      s = must(endRound(s, 4000));
+      expect(s.phase).toBe('round_end');
+      expect(decisionsShown(s)).toBe(false);
+      expect(s.plays[0].wipeout?.auto).toEqual(['p2', 'p3']);
+    });
+
+    it('kicking the only player taken by default drops the empty auto key', () => {
+      let s = must(next(revealed(), 2000, rng));
+      s = decide(s, 'p1', false);
+      s = decide(s, 'p2', true);
+      s = tick(s, 12_000);
+      s = must(removePlayer(s, 'p3'));
+      expect(s.plays[0].wipeout).toEqual({ took: ['p2'], stay: ['p1'], end: false });
+      expect('auto' in (s.plays[0].wipeout ?? {})).toBe(false);
+    });
+
+    it('a version 12 play without auto: the screen is up and everyone who took shows as took', () => {
+      let s = must(next(revealed(), 2000, rng));
+      s = decide(s, 'p1', false);
+      s = tick(s, 12_000);
+      const { auto: _auto, ...old } = s.plays[0].wipeout ?? { took: [], stay: [], end: false };
+      const v12: GameState = { ...s, plays: s.plays.map((p, i) => (i === 0 ? { ...p, wipeout: old } : p)) };
+      expect('auto' in (v12.plays[0].wipeout ?? {})).toBe(false);
+      expect(decisionsShown(v12)).toBe(true);
+      expect(choices(v12)).toEqual(['stay', 'took', 'took']);
+    });
   });
 });
 

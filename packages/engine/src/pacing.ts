@@ -5,7 +5,7 @@ import type { GameState } from './game';
 import { decisionPending } from './ladder';
 import { surveyPlayOf } from './survey';
 import { trialOpen } from './survival';
-import { decisionOpen } from './wipeout';
+import { decisionOpen, decisionsShown } from './wipeout';
 
 /** Кроки ведучого з мінімальним часом (11b). */
 export type PacedAction = 'next' | 'lock' | 'skip';
@@ -76,6 +76,8 @@ export function paceWindow(state: GameState, action: PacedAction): PaceWindow | 
       if (trialOpen(state)) return span(state.startedAt ?? at, PACE_MS.lock);
       // Рушій сам відповість deciding.
       if (decisionOpen(state) || decisionPending(state)) return null;
+      // Екран рішень «Ва-банк» (11e): усі мають прочитати, хто що вибрав.
+      if (decisionsShown(state)) return span(at, PACE_MS.decisions);
       return span(at, PACE_MS.step);
     case 'intro': {
       const splash = state.splash;
