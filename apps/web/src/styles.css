@@ -9703,6 +9703,15 @@ button.wall-tile:disabled {
   text-decoration: line-through;
 }
 
+/* Без ведучого підказки без тексту немає (11g): притлумлена, як використана, але не перекреслена. */
+.ladder-lifeline.is-off,
+.ladder-lifeline.is-off:disabled {
+  opacity: 1;
+  border-color: var(--buff-used);
+  border-style: dashed;
+  color: var(--buff-used);
+}
+
 .ladder-lifeline-info {
   display: grid;
   gap: 0.25rem;
@@ -9807,6 +9816,12 @@ button.wall-tile:disabled {
   border-color: var(--buff-used);
   color: var(--buff-used);
   text-decoration: line-through;
+}
+
+.ladder-badge.is-off {
+  border-color: var(--buff-used);
+  border-style: dashed;
+  color: var(--buff-used);
 }
 
 .stage .choice.is-removed {

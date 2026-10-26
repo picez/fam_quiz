@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, LIMITS, type Answer, type Question } from '@quiz/shared';
 import { createAutopilotGame } from './autopilot';
 import { pickBluff, removeBluffOption, writeLie } from './bluff';
-import { addPlayer, next, start, submitAnswer, type GameState, type Rng } from './game';
+import { addPlayer, end, next, removePlayer, setConnected, start, submitAnswer, type GameState, type Rng } from './game';
 import { assignTeam } from './teams';
 import { hideCloudWord } from './votes';
 import { hostView, playerView, stageView } from './views';
@@ -161,5 +161,65 @@ describe('nothing the author view adds leaks', () => {
     const stage = stageView(s).cloud!;
     expect(author.filter((w) => !w.hidden).map(({ key, text, count }) => ({ key, text, count }))).toEqual(stage);
     expect(JSON.stringify(playerView(s, 'p2')!)).not.toContain('"hidden":true');
+  });
+});
+
+describe('author view gaps (11g task 6 review)', () => {
+  it('stays with the author after a reconnect; a removed author has no view', () => {
+    let s = pilotOpen([single]);
+    s = must(setConnected(s, 'p1', false, T + 1000));
+    s = must(setConnected(s, 'p1', true, T + 2000));
+    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null });
+    const lobby = must(removePlayer(pilotLobby([single]), 'p1'));
+    expect(playerView(lobby, 'p1')).toBeNull();
+    for (const id of ['p2', 'p3']) expect(playerView(lobby, id)!.author).toBeNull();
+  });
+
+  it('the cloud is gone on the table and at the finish', () => {
+    let s = cloudReveal();
+    expect(playerView(s, 'p1')!.author!.cloud).not.toBeNull();
+    s = must(next(s, T + 5000, rng));
+    expect(s.phase).not.toBe('reveal');
+    expect(playerView(s, 'p1')!.author!.cloud).toBeNull();
+    s = must(end(s, T + 6000));
+    expect(s.phase).toBe('finished');
+    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null });
+  });
+
+  it('a hidden word stays in the author list whether it was inside or outside the stage cap; hiding inside pulls the next one in', () => {
+    const many = Array.from({ length: LIMITS.cloudShown + 3 }, (_, i) => `слово${i}`);
+    let s = pilotOpen([{ ...cloud, words: many.length }, single]);
+    s = must(submitAnswer(s, 'p1', words(...many), T + 1000));
+    s = must(submitAnswer(s, 'p2', words(many[0]), T + 2000));
+    s = must(submitAnswer(s, 'p3', words(many[0]), T + 3000));
+    s = must(next(s, T + 4000, rng));
+    const before = stageView(s).cloud!.map((w) => w.key);
+    const outside = many.map((w) => w.toLowerCase()).find((key) => !before.includes(key))!;
+    expect(outside).toBeDefined();
+    s = must(hideCloudWord(s, outside, true));
+    const author = playerView(s, 'p1')!.author!.cloud!;
+    expect(author.find((w) => w.key === outside)?.hidden).toBe(true);
+    expect(author.filter((w) => !w.hidden).map((w) => w.key)).toEqual(before);
+    const inside = before[0];
+    s = must(hideCloudWord(s, inside, true));
+    const stage = stageView(s).cloud!.map((w) => w.key);
+    expect(stage).toHaveLength(LIMITS.cloudShown);
+    expect(stage).not.toContain(inside);
+    const after = playerView(s, 'p1')!.author!.cloud!;
+    expect(after.filter((w) => w.hidden).map((w) => w.key).sort()).toEqual([inside, outside].sort());
+    expect(after.filter((w) => !w.hidden).map((w) => w.key)).toEqual(stage);
+  });
+
+  it('a teammate of the author gets author: null in the JSON', () => {
+    const quiz = teamQuiz([classicRound('r1', [single])]);
+    let s = must(createAutopilotGame(quiz, { id: 'm1', nickname: 'Оля' }));
+    s = must(addPlayer(s, { id: 'm2', nickname: 'Петро' }));
+    s = must(addPlayer(s, { id: 'm3', nickname: 'Віра' }));
+    s = must(assignTeam(s, 'm1', 't1'));
+    s = must(assignTeam(s, 'm2', 't1'));
+    s = must(assignTeam(s, 'm3', 't2'));
+    s = must(start(s));
+    expect(JSON.stringify(playerView(s, 'm2'))).toContain('"author":null');
+    expect(JSON.stringify(playerView(s, 'm3'))).toContain('"author":null');
   });
 });

@@ -9,6 +9,7 @@ import {
   createAutopilotGame,
   pilotKey,
   pilotStep,
+  pilotTry,
   planAutopilot,
 } from './autopilot';
 import { dicePending, rollDie } from './board-dice';
@@ -569,7 +570,7 @@ describe('pause and resume (11g)', () => {
 });
 
 describe('no loops (11g)', () => {
-  it('a step that fails clears at, and the plan sets none again', () => {
+  it('a step with nothing to do (the wipeout window is open) clears at, and the plan sets none again', () => {
     let s = begin(makeRoundsQuiz([wipeoutRound('w1', wipeoutLadder)]));
     s = go(s);
     const t = s.startedAt! + 1000;
@@ -580,6 +581,29 @@ describe('no loops (11g)', () => {
     const stepped = pilotStep(planted, t + 20_000, rng);
     expect(stepped).toEqual({ ...s, autopilot: { ...s.autopilot!, at: null } });
     expect(atOf(plan(planted, stepped, t + 20_000))).toBeNull();
+  });
+
+  it('a step the engine refuses is retried 5 s later with the error, never at once', () => {
+    const { s } = toReveal();
+    const now = T * 2;
+    // Поле без поля: skipTurn рушій відхиляє щоразу.
+    const broken: GameState = { ...s, phase: 'board', board: null, autopilot: { ...s.autopilot!, at: now } };
+    const tried = pilotTry(broken, now, rng);
+    expect(tried.error).toEqual(expect.any(String));
+    expect(tried.state).toEqual({ ...broken, autopilot: { ...broken.autopilot!, at: now + 5000 } });
+    expect(atOf(plan(broken, tried.state, now))).toBe(now + 5000);
+    expect(pilotTry(tried.state, now + 4999, rng).state).toBe(tried.state);
+    const again = pilotTry(tried.state, now + 5000, rng);
+    expect(again.error).toBe(tried.error);
+    expect(atOf(again.state)).toBe(now + 10_000);
+    expect(pilotStep(broken, now, rng)).toEqual(tried.state);
+  });
+
+  it('a step that works carries no error', () => {
+    const { s } = toReveal();
+    const tried = pilotTry(s, atOf(s)!, rng);
+    expect(tried.error).toBeNull();
+    expect(tried.state.phase).not.toBe('reveal');
   });
 
   it('before at, without at or in a hosted game: the same object', () => {
@@ -721,6 +745,45 @@ describe('task 4 review (11g)', () => {
     expect(s.autopilot).toEqual({ authorId: 'a', at: back + 7000 });
     s = go(s);
     expect(s.phase).not.toBe('reveal');
+  });
+
+  it('a lobby restored mid dice tour waits for someone to return, then rolls 15 s later and starts', () => {
+    let s = must(createAutopilotGame(teamQuiz([classicRound('r1', [single])]), { id: 'a', nickname: 'Марта' }, { transitions: false }));
+    s = must(addPlayer(s, { id: 'm2', nickname: 'Ігор' }));
+    s = must(authorTeamForm(s, 'dice'));
+    s = act(s, autopilotStart(s, T, rng), T);
+    expect(atOf(s)).toBe(T + 15_000);
+    const saved = suspend(s, T + 5000);
+    expect(saved.autopilot).toEqual({ authorId: 'a', at: null, starting: true });
+    // Ніхто не повернувся: кроку немає й на зміну, що не повертає людей.
+    expect(pilotStep(saved, T + 60_000, rng)).toBe(saved);
+    const back = T + 100_000;
+    s = act(saved, setConnected(saved, 'm2', true, back), back);
+    expect(atOf(s)).toBe(back + 15_000);
+    let i = 0;
+    s = step(s, back + 15_000, () => [0, 0.9][i++ % 2]);
+    expect(s.teams?.dice?.tour).toEqual([]);
+    expect(atOf(s)).toBe(back + 15_000);
+    s = go(s);
+    expect(s.phase).toBe('intro');
+  });
+
+  it('a lobby restored after the tour closed starts only when someone returns', () => {
+    let s = must(createAutopilotGame(teamQuiz([classicRound('r1', [single])]), { id: 'a', nickname: 'Марта' }, { transitions: false }));
+    s = must(addPlayer(s, { id: 'm2', nickname: 'Ігор' }));
+    s = must(authorTeamForm(s, 'dice'));
+    s = act(s, autopilotStart(s, T, rng), T);
+    let i = 0;
+    s = step(s, T + 15_000, () => [0, 0.9][i++ % 2]);
+    expect(atOf(s)).toBe(T + 15_000);
+    const saved = suspend(s, T + 15_000);
+    expect(saved.phase).toBe('lobby');
+    expect(atOf(saved)).toBeNull();
+    const back = T + 200_000;
+    s = act(saved, setConnected(saved, 'a', true, back), back);
+    expect(atOf(s)).toBe(back);
+    s = go(s);
+    expect(s.phase).toBe('intro');
   });
 
   it('an untimed question paused and resumed keeps the time left', () => {

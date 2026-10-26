@@ -1678,6 +1678,26 @@ describe('pacing (11b)', () => {
     expect(rows.room.state.plays[0]?.survey?.shown).toBe(2);
   });
 
+  it('a hosted bluff moves on time by the server timers: the lies phase closes into the choice, the choice into locked', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeQuiz([bluff, single]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.lie(room, olena.playerId, 'Рим')).toEqual({ ok: true });
+    const stage = () => room.state.plays[0]?.bluff?.stage;
+    scheduler.advance(bluff.timeLimit * 1000 - 1);
+    expect(stage()).toBe('lies');
+    scheduler.advance(2);
+    expect(stage()).toBe('choice');
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(bluff.choiceTime * 1000 + 1);
+    expect(room.state.phase).toBe('locked');
+  });
+
   it('«open all» bluff options waits for the reveal window', () => {
     const { scheduler, manager, room, olena, taras } = pacedPlaying(makeQuiz([bluff]));
     scheduler.advance(3000);

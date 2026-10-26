@@ -3,16 +3,20 @@ import { autopilotQuiz, BUFF_KINDS, type Quiz } from '@quiz/shared';
 import {
   anyonePresent,
   authorPause,
+  authorRemoveBluff,
   authorResume,
+  authorTeamForm,
   autopilotStart,
   createAutopilotGame,
   isAuthor,
 } from './autopilot';
+import { bluffPlayOf, pickBluff, writeLie } from './bluff';
+import { pickCell } from './board';
 import { buffBlock, takeBuff } from './buffs';
 import { pickContestant, useLifeline } from './ladder';
 import { addPlayer, createGame, lock, next, setConnected, start, type GameState, type Rng } from './game';
-import { captainOf, dealTeams, rollTeamRest, setTeamForm, teamMembers } from './teams';
-import { boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { captainOf, dealTeams, pickTeam, rollTeamRest, setTeamForm, teamMembers } from './teams';
+import { bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
 
@@ -212,6 +216,23 @@ describe('host hint in autopilot (11g)', () => {
     expect(taken.plays[taken.questionIndex].buffs?.a?.hint?.text).toBeNull();
   });
 
+  it('a board cell: the hint buff is unfit without the text and fine with it', () => {
+    const cellQuiz = (hint?: string): Quiz =>
+      makeRoundsQuiz([boardRound('g1', [{ title: 'Ріки', cells: [{ ...withId(single, 'b1'), ...(hint === undefined ? {} : { hint }) }, withId(single, 'b2')] }])], {
+        buffs: [...BUFF_KINDS],
+      });
+    const atCell = (quiz: Quiz): GameState => {
+      // Один гравець: кубиків немає, після заставки — поле, хід автора.
+      const board = open(must(autopilotStart(pilotLobby(quiz), T0, rng)));
+      expect(board.phase).toBe('board');
+      return must(pickCell(board, 'a', 'b1', T0 + 1000, rng));
+    };
+    const bare = atCell(cellQuiz());
+    expect(bare.phase).toBe('question');
+    expect(buffBlock(bare, 'a', 'hint')).toBe('unfit_host');
+    expect(buffBlock(atCell(cellQuiz('Про воду')), 'a', 'hint')).toBeNull();
+  });
+
   it('a ladder hint lifeline needs the text in autopilot', () => {
     const climb = (questions: typeof ladderQuestions) => {
       const lobby = must(addPlayer(pilotLobby(makeRoundsQuiz([ladderRound('rl', questions)]), 'Ігор'), { id: 'p3', nickname: 'Віра' }));
@@ -222,5 +243,88 @@ describe('host hint in autopilot (11g)', () => {
     const written = climb(ladderQuestions.map((q) => ({ ...q, hint: 'Нагадування' })));
     const used = must(useLifeline(written, 'p2', 'hint', T0 + 5000, rng));
     expect(used.plays[used.questionIndex].ladder?.lifelines.hint?.text).toBe('Нагадування');
+  });
+});
+
+describe('author bluff removal (11g final review)', () => {
+  const bluffQuiz = (teams = false): Quiz =>
+    teams ? teamQuiz([classicRound('r1', [bluff, single])]) : makeRoundsQuiz([classicRound('r1', [bluff, single])]);
+  const options = (s: GameState) => bluffPlayOf(s)!.bluff.options;
+  const option = (s: GameState, text: string) => options(s).find((o) => o.text === text)!;
+  const kind = (s: GameState, k: 'truth' | 'spare') => options(s).find((o) => o.kind === k)!;
+  const PICK_FIRST = { ok: false, error: 'pick_first' };
+  const NOT_ALLOWED = { ok: false, error: 'not_allowed' };
+
+  /** Автор a, Ігор p2, Віра p3 написали «Рим», «Мілан», «Париж» — фаза вибору. */
+  function soloChoice(): GameState {
+    let s = must(next(must(autopilotStart(pilotLobby(bluffQuiz(), 'Ігор', 'Віра'), T0, rng)), T0, rng));
+    for (const [id, lie] of [['a', 'Рим'], ['p2', 'Мілан'], ['p3', 'Париж']]) s = must(writeLie(s, id, lie, T0 + 1000));
+    expect(bluffPlayOf(s)?.bluff.stage).toBe('choice');
+    return s;
+  }
+
+  it('before the author picks, every removal is refused alike, so the truth cannot be told apart', () => {
+    let s = soloChoice();
+    // Інші вже вибрали — однаково: важить лише вибір автора.
+    s = must(pickBluff(s, 'p2', option(s, 'Париж').id, T0 + 2000));
+    for (const o of options(s)) expect(authorRemoveBluff(s, o.id)).toEqual(PICK_FIRST);
+    expect(authorRemoveBluff(s, 'b99')).toEqual(PICK_FIRST);
+  });
+
+  it('after the pick a lie is removed; the truth, a spare and the own pick are not; the author keeps the pick', () => {
+    let s = soloChoice();
+    const milan = option(s, 'Мілан');
+    const paris = option(s, 'Париж');
+    s = must(pickBluff(s, 'a', milan.id, T0 + 2000));
+    s = must(pickBluff(s, 'p2', paris.id, T0 + 2000));
+    expect(authorRemoveBluff(s, kind(s, 'truth').id)).toEqual(NOT_ALLOWED);
+    expect(authorRemoveBluff(s, kind(s, 'spare').id)).toEqual(NOT_ALLOWED);
+    // Свій вибір прибрати не можна: інакше автор вибрав би знову.
+    expect(authorRemoveBluff(s, milan.id)).toEqual(NOT_ALLOWED);
+    const removed = must(authorRemoveBluff(s, paris.id));
+    expect(option(removed, 'Париж').removed).toBe(true);
+    const picks = bluffPlayOf(removed)!.bluff.picks;
+    expect(picks.a.optionId).toBe(milan.id);
+    // Хто вибрав прибраний варіант, вибирає знову; автор — ні.
+    expect(Object.hasOwn(picks, 'p2')).toBe(false);
+    expect(pickBluff(removed, 'a', kind(removed, 'truth').id, T0 + 3000)).toEqual({ ok: false, error: 'already_answered' });
+  });
+
+  it('a team game: the pick of the author team counts, not of another team', () => {
+    let s = pilotLobby(bluffQuiz(true));
+    s = must(addPlayer(s, { id: 'm2', nickname: 'Ігор' }));
+    s = must(authorTeamForm(s, 'pick'));
+    s = must(pickTeam(s, 'a', 't1'));
+    s = must(pickTeam(s, 'm2', 't2'));
+    s = must(next(must(autopilotStart(s, T0, rng)), T0, rng));
+    s = must(writeLie(s, 't1', 'Рим', T0 + 1000));
+    s = must(writeLie(s, 't2', 'Мілан', T0 + 1000));
+    expect(bluffPlayOf(s)?.bluff.stage).toBe('choice');
+    s = must(pickBluff(s, 't2', option(s, 'Рим').id, T0 + 2000));
+    expect(authorRemoveBluff(s, option(s, 'Мілан').id)).toEqual(PICK_FIRST);
+    s = must(pickBluff(s, 't1', option(s, 'Мілан').id, T0 + 2000));
+    expect(s.phase).toBe('locked');
+  });
+
+  it('a team game: after the author team picked, a lie of the other team is removed', () => {
+    let s = pilotLobby(bluffQuiz(true));
+    for (const [id, nickname] of [['m2', 'Ігор'], ['m3', 'Віра']]) s = must(addPlayer(s, { id, nickname }));
+    s = must(authorTeamForm(s, 'pick'));
+    s = must(pickTeam(s, 'a', 't1'));
+    s = must(pickTeam(s, 'm2', 't2'));
+    s = must(pickTeam(s, 'm3', 't2'));
+    s = must(next(must(autopilotStart(s, T0, rng)), T0, rng));
+    s = must(writeLie(s, 't1', 'Рим', T0 + 1000));
+    s = must(writeLie(s, 't2', 'Мілан', T0 + 1000));
+    s = must(pickBluff(s, 't1', kind(s, 'spare').id, T0 + 2000));
+    const removed = must(authorRemoveBluff(s, option(s, 'Мілан').id));
+    expect(option(removed, 'Мілан').removed).toBe(true);
+    expect(bluffPlayOf(removed)!.bluff.picks.t1.optionId).toBe(kind(s, 'spare').id);
+  });
+
+  it('a hosted game: not_allowed', () => {
+    const s = soloChoice();
+    const { autopilot: _pilot, ...hosted } = s;
+    expect(authorRemoveBluff(hosted, option(s, 'Мілан').id)).toEqual(NOT_ALLOWED);
   });
 });

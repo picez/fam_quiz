@@ -1326,9 +1326,9 @@ describe('teams over sockets (10j)', () => {
 });
 
 describe('autopilot sockets (11g)', () => {
-  async function autopilotRoom() {
+  async function autopilotRoom(quiz: object = makeQuiz([single, text])) {
     const account = await signUp(ctx.app, 'Марта');
-    const saved = await ctx.app.inject({ method: 'POST', url: '/api/quizzes', payload: makeQuiz([single, text]), headers: { cookie: account.cookie } });
+    const saved = await ctx.app.inject({ method: 'POST', url: '/api/quizzes', payload: quiz, headers: { cookie: account.cookie } });
     const { id: quizId } = saved.json() as { id: string };
     const created = await ctx.app.inject({
       method: 'POST',
@@ -1357,7 +1357,9 @@ describe('autopilot sockets (11g)', () => {
 
   it('refuses a host socket, whatever the token', async () => {
     const { game } = await autopilotRoom();
-    for (const token of ['nope', 'x'.repeat(40)]) {
+    // Зокрема справжній hostToken кімнати: він ніде не видається, але й не відкриває пульта.
+    const real = ctx.manager.get(game.code)!.hostToken;
+    for (const token of ['nope', 'x'.repeat(40), real]) {
       const socket: Client = connect(url, { auth: { code: game.code, role: 'host', token }, transports: ['websocket'], reconnection: false });
       sockets.push(socket);
       const error = await new Promise<Error>((resolve) => socket.on('connect_error', resolve));
@@ -1385,6 +1387,36 @@ describe('autopilot sockets (11g)', () => {
     expect(await send(author, 'host:kick', { playerId: game.playerId })).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:kick', { playerId: other.playerId })).toEqual({ ok: true });
     expect(await closed).toBe('kicked');
+    // Старий токен вилученого більше не пускає.
+    const again: Client = connect(url, { auth: { code: game.code, role: 'player', token: other.token }, transports: ['websocket'], reconnection: false });
+    sockets.push(again);
+    const error = await new Promise<Error>((resolve) => again.on('connect_error', resolve));
+    expect(error.message).toBe('unauthorized');
+  });
+
+  it('the author who reconnects keeps the author actions', async () => {
+    const { game, author, taras } = await autopilotRoom();
+    expect(await send(author, 'host:start')).toEqual({ ok: true });
+    await until(taras, (view) => view.phase !== 'lobby');
+    const gone = new Promise<void>((resolve) => author.socket.on('disconnect', () => resolve()));
+    author.socket.close();
+    await gone;
+    const back = open({ code: game.code, role: 'player', token: game.token });
+    await until(back, (view) => view.role === 'player' && view.phase !== 'lobby');
+    expect(await send(back, 'host:pause')).toEqual({ ok: true });
+    await until(taras, (view) => view.paused);
+    expect(await send(taras, 'host:resume')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(back, 'host:resume')).toEqual({ ok: true });
+  });
+
+  it('a team game: the author member starts it, a member of the other team may not', async () => {
+    const { author, taras } = await autopilotRoom(makeRoundsQuiz([classicRound('r1', [single, text])], { teams: defaultTeams(2) }));
+    expect(await send(taras, 'host:start')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:start')).toEqual({ ok: true });
+    const view = await until(taras, (v) => v.phase !== 'lobby');
+    expect(view.role === 'player' && view.team?.teamId).toBeTruthy();
+    expect(await send(taras, 'host:pause')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:pause')).toEqual({ ok: true });
   });
 
   it('shows no host in any frame and reports the host as online', async () => {

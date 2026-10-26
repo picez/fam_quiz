@@ -12320,6 +12320,18 @@ async function autopilot11g(sockets: Socket[]) {
   const common = { imageUrl: null, video: null };
   const g1 = { ...common, id: 'g1', type: 'boolean' as const, text: 'Говерла — найвища гора України', points: 100, timeLimit: 20, correct: true };
   const g2 = { ...common, id: 'g2', type: 'wordcloud' as const, text: 'Одне слово про літо', points: 0, timeLimit: 20, words: 1 };
+  // Блеф без балів: рахунок розминки лишається 100 у кожного.
+  const g3 = {
+    ...common,
+    id: 'g3',
+    type: 'bluff' as const,
+    text: 'Ейфелеву вежу спершу пропонували поставити в …, але місто відмовилося.',
+    points: 0,
+    timeLimit: 60,
+    choiceTime: 30,
+    accepted: ['Барселона'],
+    lies: ['Мадрид', 'Лондон', 'Брюссель'],
+  };
   const answers = new Map<string, string>();
   const column = (title: string, rows: [string, string][]) => ({
     title,
@@ -12331,7 +12343,7 @@ async function autopilot11g(sockets: Socket[]) {
   });
   const description = 'Карпати — найбільший гірський масив України: верхи Чорногори, ліси з буків і смерек, полонини, швидкі потоки й десятки рідкісних птахів.';
   const rounds = [
-    classicRound('r1', [g1, g2] as never, { title: 'Розминка', description, speedBonus: false, shuffleOptions: false } as never),
+    classicRound('r1', [g1, g2, g3] as never, { title: 'Розминка', description, speedBonus: false, shuffleOptions: false } as never),
     boardRound(
       'r2',
       [
@@ -12414,6 +12426,26 @@ async function autopilot11g(sockets: Socket[]) {
   const cloudText = async () => (await stage.locator('.word-cloud').innerText().catch(() => '')).toLowerCase();
   await expect.poll(async () => (await cloudText()).includes('сонце') && !(await cloudText()).includes('море'), { timeout: 4000 }).toBe(true);
   await shot(stage, 'p11g-stage-cloud');
+
+  // 4b. Блеф: автор — гравець, тож вигадку прибирає лише після свого вибору; до нього відмова однакова для правди й вигадок.
+  const lies = await frame(vira, (v) => v.phase === 'question' && v.bluff?.stage === 'lies', viraCloud.index);
+  await emitOk(marta, 'player:lie', { text: 'Рим' });
+  await emitOk(vira, 'player:lie', { text: 'Мілан' });
+  await emitOk(petro, 'player:lie', { text: 'Париж' });
+  const choice = await frame(marta, (v) => v.phase === 'question' && (v.author?.bluff?.length ?? 0) > 0, cloud.index);
+  const optionOf = (text: string) => choice.view.author!.bluff!.find((o) => o.text === text)!.id;
+  expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Париж') })).toEqual({ ok: false, error: 'pick_first' });
+  expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Барселона') })).toEqual({ ok: false, error: 'pick_first' });
+  expect(await vira.emit('host:bluff-remove', { optionId: optionOf('Париж') })).toEqual({ ok: false, error: 'not_allowed' });
+  await emitOk(marta, 'player:bluff', { optionId: optionOf('Мілан') });
+  expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Барселона') })).toEqual({ ok: false, error: 'not_allowed' });
+  expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Мілан') })).toEqual({ ok: false, error: 'not_allowed' });
+  expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Париж') })).toEqual({ ok: true });
+  const trimmed = await frame(vira, (v) => v.bluff?.stage === 'choice' && v.bluff.options.length > 0 && !v.bluff.options.some((o) => o.text === 'Париж'), lies.index);
+  expect(trimmed.view.bluff!.options).toHaveLength(4);
+  await emitOk(vira, 'player:bluff', { optionId: optionOf('Барселона') });
+  await emitOk(petro, 'player:bluff', { optionId: optionOf('Барселона') });
+  await frame(vira, (v) => v.phase === 'reveal' && v.bluff != null, trimmed.index);
 
   // 5. Кінець раунду → 8 с → заставка «Поля».
   const roundEnd = await frame(vira, (v) => v.phase === 'round_end', viraCloud.index);
@@ -12511,7 +12543,7 @@ async function autopilot11g(sockets: Socket[]) {
   expect(problems).toEqual([]);
 }
 
-it('part 11g: autopilot — no host token or view, the author starts from the phone, the server opens, closes, reveals and moves on by the stage times on top of 11b, voice board cells and manual checks go by the key from the phone, dice start and finish by themselves, the author hides a cloud word on the 1280 × 720 stage while others get not_allowed, the game reaches the podium', async () => {
+it('part 11g: autopilot — no host token or view, the author starts from the phone, the server opens, closes, reveals and moves on by the stage times on top of 11b, voice board cells and manual checks go by the key from the phone, dice start and finish by themselves, the author hides a cloud word on the 1280 × 720 stage while others get not_allowed, the author removes a bluff lie only after their own pick, the game reaches the podium', async () => {
   const sockets: Socket[] = [];
   try {
     await autopilot11g(sockets);

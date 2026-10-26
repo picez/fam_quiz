@@ -171,6 +171,8 @@ export async function registerAccountRoutes(
     // На зупинці нова кімната вже не записалася б у базу.
     if (manager.frozen) return reply.code(503).send(RESTARTING);
     if (saved.data.autopilot === true && saved.data.nickname !== undefined) {
+      // Вікторину, яку автопілот провести не може, він і не починає.
+      if (autopilotCheck(quiz).blocked.length > 0) return reply.code(409).send({ error: 'autopilot_blocked' });
       const made = manager.createAutopilot(quiz, user.id, saved.data.quizId, saved.data.nickname);
       if (!made.ok) return reply.code(made.error === 'restarting' ? 503 : 409).send({ error: made.error });
       return reply.code(201).send({

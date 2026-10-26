@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+// Стилі — з диска (Vitest підміняє CSS порожнім рядком); типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerView } from '@quiz/shared';
 import { LadderLifelines } from './LadderLifelines';
+import { LadderLifelineBadges } from './LadderStatus';
 import { ladderInfo } from './ladder-fixtures';
 
 afterEach(cleanup);
@@ -111,5 +115,34 @@ describe('LadderLifelines', () => {
     const off = screen.getByRole('button', { name: /Підказка.*У грі без ведучого підказки немає\./ });
     expect(off.hasAttribute('disabled')).toBe(true);
     expect(off.classList.contains('is-off')).toBe(true);
+  });
+});
+
+const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+/** Тіло правила, у списку селекторів якого є selector. */
+function ruleWith(selector: string): string {
+  const found = css.match(/[^{}]*\{[^}]*\}/g)?.find((block) => block.split('{')[0].split(',').map((part) => part.trim()).includes(selector));
+  expect(found).toBeDefined();
+  return found!.slice(found!.indexOf('{') + 1);
+}
+
+describe('off lifelines (11g)', () => {
+  it('the stage and host badges say there is no hint without a host', () => {
+    const info = ladderInfo({ lifelines: [{ kind: 'hint', state: 'off' }, { kind: 'fifty', state: 'ready' }] });
+    render(<LadderLifelineBadges info={info} />);
+    const items = screen.getAllByRole('listitem');
+    expect(items[0].classList.contains('is-off')).toBe(true);
+    expect(items[0].textContent).toContain('У грі без ведучого підказки немає.');
+    expect(items[0].querySelector('.sr-only')?.textContent).toContain('У грі без ведучого підказки немає.');
+    expect(items[1].textContent).not.toContain('без ведучого');
+  });
+
+  it('an off lifeline button and badge are dimmed like a used one, without the strike', () => {
+    for (const selector of ['.ladder-lifeline.is-off:disabled', '.ladder-badge.is-off']) {
+      const body = ruleWith(selector);
+      expect(body).toContain('var(--buff-used)');
+      expect(body).not.toContain('line-through');
+    }
   });
 });

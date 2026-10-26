@@ -1086,10 +1086,13 @@ describe('the saved state', () => {
     expect(suspended.pausedAt).toBe(T0 + 2000);
   });
 
-  it('an autopilot lobby keeps its moment', () => {
+  it('an autopilot lobby drops its moment (planned again when someone returns), keeping starting; the finished game is left as it is', () => {
     const lobby = must(createAutopilotGame(makeRoundsQuiz([classicRound('r1', [single])]), { id: 'p1', nickname: 'Оля' }));
     const s: GameState = { ...lobby, autopilot: { authorId: 'p1', at: T0 + 5000, starting: true } };
-    expect(suspend(s, T0).autopilot).toEqual({ authorId: 'p1', at: T0 + 5000, starting: true });
+    expect(suspend(s, T0).autopilot).toEqual({ authorId: 'p1', at: null, starting: true });
+    expect(suspend(s, T0).paused).toBe(false);
+    const finished: GameState = { ...must(end(pilotReveal(), T0 + 2000)), autopilot: { authorId: 'p1', at: null } };
+    expect(suspend(finished, T0 + 3000).autopilot).toEqual({ authorId: 'p1', at: null });
   });
 
   it('a version 13 state (no autopilot) restores as a hosted game', () => {

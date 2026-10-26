@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { bluff, classicRound, cloud, makeQuiz, makeRoundsQuiz, single, sortQ, text } from '@quiz/engine/testing';
 import { paceWindow, sortOf, stageView, type GameState } from '@quiz/engine';
 import { defaultTeams, type Quiz } from '@quiz/shared';
@@ -16,9 +16,9 @@ function steppingRng(): () => number {
 }
 
 /** Кімната-автопілот: автор Марта на зв'язку, Тарас (і решта з names) увійшли й на зв'язку. */
-function autopilot(quiz: Quiz, options: { pacing?: boolean; names?: string[] } = {}) {
+function autopilot(quiz: Quiz, options: { pacing?: boolean; names?: string[]; warn?: (message: string) => void } = {}) {
   const scheduler = new FakeScheduler();
-  const manager = new RoomManager(scheduler, steppingRng(), { pacing: options.pacing ?? false });
+  const manager = new RoomManager(scheduler, steppingRng(), { pacing: options.pacing ?? false, warn: options.warn });
   const created = manager.createAutopilot(quiz, 'u1', 'q1', 'Марта');
   if (!created.ok) throw new Error(created.error);
   const { room } = created;
@@ -132,7 +132,7 @@ describe('author actions (11g)', () => {
     expect(stageView(room.state).cloud!.map((w) => w.key)).toContain('ліс');
   });
 
-  it('bluff lies are removed at the choice stage; the truth is not; at the reveal it is the wrong phase', () => {
+  it('bluff lies are removed at the choice stage only after the author picked; the truth is not; at the reveal it is the wrong phase', () => {
     const { scheduler, room, act, manager, authorId, others } = autopilot(makeQuiz([bluff, single]), { names: ['Тарас', 'Іра'] });
     const people = [authorId, ...others.map((o) => o.playerId)];
     act({ type: 'start' });
@@ -141,12 +141,19 @@ describe('author actions (11g)', () => {
     const options = () => room.state.plays[0].bluff!.options;
     expect(room.state.plays[0].bluff!.stage).toBe('choice');
     const milan = options().find((o) => o.text === 'Мілан')!;
+    const paris = options().find((o) => o.text === 'Париж')!;
     const truth = options().find((o) => o.kind === 'truth')!;
     expect(act({ type: 'bluff-remove', optionId: milan.id }, others[0].playerId)).toEqual({ ok: false, error: 'not_allowed' });
+    // Автор ще не вибрав: однакова відмова для вигадки й правди.
+    expect(act({ type: 'bluff-remove', optionId: milan.id })).toEqual({ ok: false, error: 'pick_first' });
+    expect(act({ type: 'bluff-remove', optionId: truth.id })).toEqual({ ok: false, error: 'pick_first' });
+    expect(manager.bluff(room, authorId, paris.id)).toEqual({ ok: true });
+    expect(act({ type: 'bluff-remove', optionId: paris.id })).toEqual({ ok: false, error: 'not_allowed' });
     expect(act({ type: 'bluff-remove', optionId: milan.id })).toEqual({ ok: true });
     expect(options().find((o) => o.id === milan.id)!.removed).toBe(true);
+    expect(room.state.plays[0].bluff!.picks[authorId].optionId).toBe(paris.id);
     expect(act({ type: 'bluff-remove', optionId: truth.id })).toEqual({ ok: false, error: 'not_allowed' });
-    for (const id of people) expect(manager.bluff(room, id, truth.id)).toEqual({ ok: true });
+    for (const id of people.slice(1)) expect(manager.bluff(room, id, truth.id)).toEqual({ ok: true });
     expect(room.state.phase).toBe('locked');
     scheduler.advance(1500);
     expect(room.state.phase).toBe('reveal');
@@ -431,6 +438,28 @@ describe('autopilot review fixes (11g)', () => {
     scheduler.fire(room.pilot);
     expect(room.state.phase).toBe('locked');
     expect(room.state.autopilot?.at).toBe(scheduler.now() + 1500);
+  });
+
+  it('a step the engine refuses is logged and retried every 5 s: the game neither stalls nor spins', () => {
+    const warn = vi.fn();
+    const { scheduler, room, act, manager, others } = autopilot(twoQuestions(), { warn });
+    act({ type: 'start' });
+    scheduler.advance(8000);
+    expect(room.state.phase).toBe('question');
+    // Поле без поля: skipTurn рушій відхиляє щоразу.
+    room.state = { ...room.state, phase: 'board', board: null, autopilot: { ...room.state.autopilot!, at: scheduler.now() + 1000 } };
+    manager.disconnect(room, others[0].identity);
+    expect(room.pilot).not.toBeNull();
+    scheduler.advance(1000);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain(room.code);
+    expect(room.state.phase).toBe('board');
+    expect(room.state.autopilot?.at).toBe(scheduler.now() + 5000);
+    scheduler.advance(4999);
+    expect(warn).toHaveBeenCalledTimes(1);
+    scheduler.advance(1);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(room.state.autopilot?.at).toBe(scheduler.now() + 5000);
   });
 
   it('tilts are cleared when nobody online pauses the game', () => {

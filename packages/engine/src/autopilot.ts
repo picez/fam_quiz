@@ -1,8 +1,8 @@
-import { AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, type Quiz, type TeamForm } from '@quiz/shared';
+import { AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, type ErrorCode, type Quiz, type TeamForm } from '@quiz/shared';
 import { pickCell, skipTurn } from './board';
 import { dicePending, rollForRest, startDice } from './board-dice';
 import { cellPlayed, chooserOf } from './board-turns';
-import { bluffOrder, bluffPlayOf } from './bluff';
+import { bluffOrder, bluffPlayOf, removeBluffOption } from './bluff';
 import { checkAnswer } from './check';
 import { cancelDuel, duelCategoriesLeft, pickDuelCategory } from './duel';
 import {
@@ -31,7 +31,7 @@ import { paceWindow, stepKey, type PacedAction } from './pacing';
 import { splashUntil } from './splash';
 import { surveyPlayOf } from './survey';
 import { trialOpen } from './survival';
-import { dealTeams, rollTeamRest, setTeamForm, startTeamDice, teamsOn } from './teams';
+import { dealTeams, rollTeamRest, setTeamForm, startTeamDice, teamOf, teamsOn } from './teams';
 import { timedPlay } from './timing';
 import { decisionOpen, decisionsShown } from './wipeout';
 
@@ -116,6 +116,22 @@ export function authorTeamForm(state: GameState, form: TeamForm): Result {
 }
 
 /**
+ * Автор прибирає вигадку (фаза вибору блефу). Автор — гравець, що набирає бали: прибирати вигадки до свого вибору він не може
+ * (інакше лишилася б правда). Тож до вибору автора (у командній грі — його команди) будь-який варіант → pick_first, однаково
+ * для правди й вигадок; свій вибраний варіант → not_allowed (інакше вибір знято б і автор вибрав би знову); далі — removeBluffOption.
+ */
+export function authorRemoveBluff(state: GameState, optionId: string): Result {
+  const pilot = state.autopilot;
+  if (pilot === undefined) return fail('not_allowed');
+  const play = bluffPlayOf(state);
+  if (state.phase !== 'question' || play === null || play.bluff.stage !== 'choice') return fail('wrong_phase');
+  const picker = teamsOn(state) ? teamOf(state, pilot.authorId) : pilot.authorId;
+  if (picker === null || !Object.hasOwn(play.bluff.picks, picker)) return fail('pick_first');
+  if (play.bluff.picks[picker].optionId === optionId) return fail('not_allowed');
+  return removeBluffOption(state, optionId);
+}
+
+/**
  * Пауза від автора: pause + hold 'author' (left/at ставить planAutopilot); не автопілот → not_allowed.
  * На паузі «нікого» пауза стає паузою автора (at геть, left лишається): сама гра вже не продовжиться.
  */
@@ -135,9 +151,13 @@ export function authorResume(state: GameState, now: number): Result {
   return ok(withPilot(resumed.state, running));
 }
 
-/** Для suspend: гра, що йшла (wasPaused false, не лобі й не фініш) → hold 'nobody', left = max(0, at − savedAt), at null; уже на паузі → at null; лобі — без змін. */
+/**
+ * Для suspend: гра, що йшла (wasPaused false, не лобі й не фініш) → hold 'nobody', left = max(0, at − savedAt), at null; уже на паузі → at null;
+ * лобі → at null (тур кубиків чи старт після нього planAutopilot спланує наново, щойно хтось повернеться); фініш — без змін.
+ */
 export function suspendAutopilot(state: GameState, savedAt: number, wasPaused: boolean): GameState {
-  if (state.phase === 'lobby' || state.phase === 'finished') return state;
+  if (state.phase === 'finished') return state;
+  if (state.phase === 'lobby') return withPilot(state, (pilot) => ({ ...pilot, at: null }));
   return withPilot(state, (pilot) => {
     if (wasPaused) return { ...pilot, at: null };
     const { left: _left, ...rest } = pilot;
@@ -356,7 +376,9 @@ export function planAutopilot(prev: GameState, next: GameState, now: number): Ga
   const pilot = next.autopilot;
   if (pilot === undefined) return next;
   if (!next.paused) {
-    const at = runningAt(prev, next, now);
+    const kept = runningAt(prev, next, now);
+    // Лобі без миті (відновлене після перезапуску): план наново, щойно хтось на зв'язку.
+    const at = kept === null && next.phase === 'lobby' && anyonePresent(next) ? autopilotDue(next, now) : kept;
     if (next.phase !== 'lobby' && next.phase !== 'finished' && !anyonePresent(next)) {
       const paused = pause(next, now);
       if (paused.ok) return withPilot(paused.state, (p) => ({ ...running(p), at: null, hold: 'nobody', ...leftOf(at, now) }));
@@ -373,26 +395,41 @@ export function planAutopilot(prev: GameState, next: GameState, now: number): Ga
   return { ...next, autopilot: { ...rest, ...left, at } };
 }
 
+/** Крок автопілота й помилка дії, коли та не вдалася (сервер її записує в журнал). */
+export interface PilotStep {
+  state: GameState;
+  error: ErrorCode | null;
+}
+
 /**
  * Крок у мить now ≥ autopilot.at: продовження з паузи «нікого» або дія з таблиці тими самими функціями рушія, що й кнопки ведучого.
- * Завжди повертає стан з at: null (і коли дія не вдалася); now < at, at null чи не автопілот → той самий об'єкт.
+ * Дія, яку рушій відхилив, — повтор через AUTOPILOT_MS.retry (той самий підкрок, тож planAutopilot мить лишає) і помилка в error:
+ * гра не стає, а дія, що не вдається завжди, повторюється не частіше. Інакше at: null (нову мить ставить planAutopilot).
+ * now < at, at null чи не автопілот → той самий об'єкт.
  */
-export function pilotStep(state: GameState, now: number, rng: Rng): GameState {
+export function pilotTry(state: GameState, now: number, rng: Rng): PilotStep {
   const pilot = state.autopilot;
-  if (pilot === undefined || pilot.at === null || now < pilot.at) return state;
+  if (pilot === undefined || pilot.at === null || now < pilot.at) return { state, error: null };
   const idle = withPilot(state, (p) => ({ ...p, at: null }));
   if (state.paused) {
-    if (pilot.hold !== 'nobody' || !anyonePresent(state)) return idle;
+    if (pilot.hold !== 'nobody' || !anyonePresent(state)) return { state: idle, error: null };
     // Залишок (left) поверне planAutopilot.
     const resumed = resume(idle, now);
-    if (!resumed.ok) return idle;
-    return withPilot(resumed.state, (p) => {
-      const { hold: _hold, ...kept } = p;
-      return kept;
+    if (!resumed.ok) return { state: idle, error: resumed.error };
+    const kept = withPilot(resumed.state, (p) => {
+      const { hold: _hold, ...rest } = p;
+      return rest;
     });
+    return { state: kept, error: null };
   }
   const move = moveOf(state, now);
-  if (move === null) return idle;
+  if (move === null) return { state: idle, error: null };
   const done = move.act(idle, now, rng);
-  return done.ok ? done.state : idle;
+  if (done.ok) return { state: done.state, error: null };
+  return { state: withPilot(state, (p) => ({ ...p, at: now + AUTOPILOT_MS.retry })), error: done.error };
+}
+
+/** pilotTry без помилки. */
+export function pilotStep(state: GameState, now: number, rng: Rng): GameState {
+  return pilotTry(state, now, rng).state;
 }

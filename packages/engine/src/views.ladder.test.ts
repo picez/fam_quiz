@@ -288,4 +288,47 @@ describe('ladder hint lifeline in autopilot (11g)', () => {
     expect(hintOf(hintState(ladderQuestions.map((q) => ({ ...q, hint: 'Ось' })), true))).toEqual({ kind: 'hint', state: 'ready' });
     expect(hintOf(hintState(ladderQuestions, false))).toEqual({ kind: 'hint', state: 'ready' });
   });
+
+  const OFF = { kind: 'hint', state: 'off' };
+  const READY = { kind: 'hint', state: 'ready' };
+  /** Текст підказки лише в запитаннях з цими номерами. */
+  const hintedAt = (...indexes: number[]): Question[] => ladderQuestions.map((q, i) => (indexes.includes(i) ? { ...q, hint: 'Ось' } : q));
+  const pilotIntro = (questions: Question[]): GameState => {
+    const quiz = makeRoundsQuiz([ladderRound('rl', questions)]);
+    const lobby = must(addPlayer(must(addPlayer(must(createAutopilotGame(quiz, { id: 'p1', nickname: 'Оля' })), { id: 'p2', nickname: 'Петро' })), { id: 'p3', nickname: 'Віра' }));
+    return must(autopilotStart(lobby, T, rng));
+  };
+
+  it('the intro looks at the first question, the reveal at the current one, the table at the next one', () => {
+    expect(pilotIntro(hintedAt(0)).phase).toBe('intro');
+    expect(hintOf(pilotIntro(hintedAt(0)))).toEqual(READY);
+    expect(hintOf(pilotIntro(hintedAt(1)))).toEqual(OFF);
+    let s = hintState(hintedAt(0), true);
+    expect(hintOf(s)).toEqual(READY);
+    s = toReveal(must(submitAnswer(s, 'p2', LADDER_RIGHT[0], T + 1000)));
+    expect(s.phase).toBe('reveal');
+    expect(hintOf(s)).toEqual(READY);
+    s = must(next(s, T + 6000, rng));
+    expect(s.phase).toBe('leaderboard');
+    expect(hintOf(s)).toEqual(OFF);
+    // І навпаки: без тексту зараз, з текстом далі.
+    let back = hintState(hintedAt(1), true);
+    expect(hintOf(back)).toEqual(OFF);
+    back = must(next(toReveal(must(submitAnswer(back, 'p2', LADDER_RIGHT[0], T + 1000))), T + 6000, rng));
+    expect(back.phase).toBe('leaderboard');
+    expect(hintOf(back)).toEqual(READY);
+  });
+
+  it('a taken or used hint stays active or used, not off', () => {
+    let s = must(useLifeline(hintState(hintedAt(0), true), 'p2', 'hint', T + 1000, rng));
+    expect(hintOf(s)).toEqual({ kind: 'hint', state: 'active' });
+    s = must(next(toReveal(must(submitAnswer(s, 'p2', LADDER_RIGHT[0], T + 2000))), T + 6000, rng));
+    expect(s.phase).toBe('leaderboard');
+    // Наступне запитання без тексту, але підказку взято на цьому.
+    expect(hintOf(s)).toEqual({ kind: 'hint', state: 'active' });
+    s = must(decideLadder(s, 'p2', false, T + 7000));
+    s = must(next(s, T + 8000, rng));
+    expect(s.phase).toBe('question');
+    expect(hintOf(s)).toEqual({ kind: 'hint', state: 'used' });
+  });
 });

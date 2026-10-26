@@ -184,6 +184,67 @@ describe('autopilotCheck and autopilotQuiz', () => {
     expect(codes(quiz([final('r0')], buffs))).toEqual([]);
   });
 
+  it('the hint buff with swap also needs a hint on the spares that can come in', () => {
+    const hinted = (id: string) => single(id, { hint: 'Річка' });
+    const withSpares = (rounds: object[], settings: object, spares?: object[]): Quiz =>
+      quizSchema.parse({ title: 'Т', description: '', settings: { leaderboard: 'each', ...settings }, rounds, ...(spares === undefined ? {} : { spares }) });
+    // Загальні запасні — для класики (і поля, коли в категоріях запасних немає).
+    const general = { buffs: ['hint', 'swap'] };
+    expect(codes(withSpares([classic('r0', [hinted('a')])], general, [single('s1')]))).toEqual([{ code: 'hint', rounds: [0] }]);
+    expect(codes(withSpares([classic('r0', [hinted('a')])], general, [hinted('s1')]))).toEqual([]);
+    // Без swap запасні не приходять.
+    expect(codes(withSpares([classic('r0', [hinted('a')])], { buffs: ['hint'] }, [single('s1')]))).toEqual([]);
+    // Поле з запасними в категоріях: пул — категорії цього поля, загальні запасні не важать.
+    const hintedBoard = (id: string, spare?: object) => {
+      const round = board(id);
+      return {
+        ...round,
+        categories: round.categories.map((c, i) => ({
+          ...c,
+          cells: c.cells.map((cell) => ({ ...cell, question: { ...cell.question, hint: 'Річка' } })),
+          ...(i === 0 && spare !== undefined ? { spares: [spare] } : {}),
+        })),
+      };
+    };
+    expect(codes(withSpares([hintedBoard('r0', single('s1'))], general))).toEqual([{ code: 'hint', rounds: [0] }]);
+    expect(codes(withSpares([hintedBoard('r0', hinted('s1'))], general, [single('s2')]))).toEqual([]);
+    // Поле без запасних у категоріях бере загальні.
+    expect(codes(withSpares([hintedBoard('r1')], general, [single('s3')]))).toEqual([{ code: 'hint', rounds: [0] }]);
+    expect(codes(withSpares([hintedBoard('r1')], general, [hinted('s3')]))).toEqual([]);
+  });
+
+  it('every conversion leaves its input unchanged', () => {
+    const q = quiz([
+      board('r0', { answerMode: 'voice', check: 'manual' }, [{ answerMode: 'voice' }, { kind: 'blitz', penalty: 'all' }]),
+      blitz('r1', { check: 'manual' }),
+      ladder('r2', { pick: 'host' }),
+      final('r3', { check: 'manual' }),
+    ]);
+    const before = JSON.parse(JSON.stringify(q)) as Quiz;
+    const out = autopilotQuiz(q);
+    expect(out).not.toBe(q);
+    expect(q).toEqual(before);
+  });
+
+  it('a blitz cell of a manual board keeps its kind and penalty', () => {
+    const q = quiz([board('r0', { check: 'manual' }, [{ kind: 'blitz', penalty: 'all', answerMode: 'voice' }])]);
+    const cell = (autopilotQuiz(q).rounds[0] as Extract<Round, { type: 'board' }>).categories[0].cells[0];
+    expect(cell).toMatchObject({ kind: 'blitz', penalty: 'all', answerMode: 'phone' });
+  });
+
+  it('a video on a board cell is reported as untimed and kept', () => {
+    const q = quiz([board('r0', {}, [])]);
+    const round = q.rounds[0] as Extract<Round, { type: 'board' }>;
+    const withVideo: Quiz = {
+      ...q,
+      rounds: [{ ...round, categories: round.categories.map((c, i) => (i === 0 ? { ...c, cells: c.cells.map((cell, j) => (j === 0 ? { ...cell, question: { ...cell.question, video: { id: 'dQw4w9WgXcQ', start: 0 } } } : cell)) } : c)) }],
+    };
+    const parsed = quizSchema.parse(withVideo);
+    expect(codes(parsed)).toEqual([{ code: 'untimed', rounds: [0] }]);
+    const kept = (autopilotQuiz(parsed).rounds[0] as Extract<Round, { type: 'board' }>).categories[0].cells[0].question.video;
+    expect(kept).toEqual({ id: 'dQw4w9WgXcQ', start: 0 });
+  });
+
   it('a ladder hint lifeline needs a hint on every question', () => {
     expect(codes(quiz([classic('r0', list('a', 1)), ladder('r1', { lifelines: ['hint'] })]))).toEqual([{ code: 'hint', rounds: [1] }]);
     expect(codes(quiz([ladder('r0', { lifelines: ['hint'] }, { hint: 'Підказка' })]))).toEqual([]);

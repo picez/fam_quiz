@@ -1,4 +1,4 @@
-import { allowedBuffs, type BoardRound, type Question, type Quiz, type Round, roundQuestions } from './quiz';
+import { allowedBuffs, boardSpareSource, type BoardRound, type Question, type Quiz, type Round, roundQuestions } from './quiz';
 
 /** Час етапів гри без ведучого, мс (11g; розділ 11 п. 2 специфікації й рішення плану 11g). Відлік — від початку підкроку, не раніше вікна 11b. */
 export const AUTOPILOT_MS = {
@@ -36,6 +36,8 @@ export const AUTOPILOT_MS = {
   ladderDecision: 30_000,
   /** Після повернення першого гравця на паузі «нікого». */
   resume: 3000,
+  /** Крок, який рушій відхилив, повторюється через стільки (гра не стає й не крутиться без пауз). */
+  retry: 5000,
 } as const;
 
 /**
@@ -62,14 +64,26 @@ export interface AutopilotCheck {
 const hasVoice = (round: BoardRound): boolean =>
   round.answerMode === 'voice' || round.categories.some((c) => c.cells.some((cell) => cell.answerMode === 'voice'));
 
+/**
+ * Запасні, які «Заміна запитання» може принести в раунд (як sparePool рушія): поле з запасними в категоріях — запасні його категорій,
+ * класика й поле без них — загальні; без бафу swap — жодних.
+ */
+function swapSpares(quiz: Quiz, round: Round): Question[] {
+  if (!allowedBuffs(quiz).includes('swap')) return [];
+  if (round.type === 'board' && boardSpareSource(quiz) === 'category') return round.categories.flatMap((c) => c.spares ?? []);
+  return round.type === 'classic' || round.type === 'board' ? (quiz.spares ?? []) : [];
+}
+
 /** Зміни, яких потребує один раунд. */
-function roundChanges(round: Round, hintBuff: boolean): Set<AutopilotChange> {
+function roundChanges(quiz: Quiz, round: Round, hintBuff: boolean): Set<AutopilotChange> {
   const found = new Set<AutopilotChange>();
   const questions: Question[] = roundQuestions(round);
   if (round.type === 'board' && hasVoice(round)) found.add('voice');
   if ((round.type === 'blitz' || round.type === 'board' || round.type === 'final') && round.check === 'manual') found.add('manual');
   if (round.type === 'ladder' && round.pick === 'host') found.add('ladder_pick');
-  if (hintBuff && (round.type === 'classic' || round.type === 'board') && questions.some((q) => q.hint === undefined)) found.add('hint');
+  if (hintBuff && (round.type === 'classic' || round.type === 'board') && [...questions, ...swapSpares(quiz, round)].some((q) => q.hint === undefined)) {
+    found.add('hint');
+  }
   if (round.type === 'ladder' && round.lifelines.includes('hint') && questions.some((q) => q.hint === undefined)) found.add('hint');
   if (questions.some((q) => q.video !== null) || (round.type === 'ladder' && !round.timer)) found.add('untimed');
   return found;
@@ -78,7 +92,7 @@ function roundChanges(round: Round, hintBuff: boolean): Set<AutopilotChange> {
 /** Перевірка сумісності (11g): блокування (зараз завжди []) і зміни за таблицею плану 11g. */
 export function autopilotCheck(quiz: Quiz): AutopilotCheck {
   const hintBuff = allowedBuffs(quiz).includes('hint');
-  const perRound = quiz.rounds.map((round) => roundChanges(round, hintBuff));
+  const perRound = quiz.rounds.map((round) => roundChanges(quiz, round, hintBuff));
   const changed = AUTOPILOT_CHANGES.flatMap((code) => {
     const rounds = perRound.flatMap((found, index) => (found.has(code) ? [index] : []));
     return rounds.length === 0 ? [] : [{ code, rounds }];

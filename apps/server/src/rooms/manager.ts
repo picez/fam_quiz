@@ -4,13 +4,14 @@ import {
   acceptAnswer,
   anyonePresent,
   authorPause,
+  authorRemoveBluff,
   authorResume,
   authorTeamForm,
   autopilotStart,
   createAutopilotGame,
   isAuthor,
   pilotKey,
-  pilotStep,
+  pilotTry,
   planAutopilot,
   actAnswer,
   actBuzz,
@@ -283,6 +284,8 @@ export interface RoomManagerOptions {
   transitions?: boolean;
   /** Мінімальний час перед кроками ведучого (11b); типово вимкнено, справжній сервер (main.ts) вмикає. */
   pacing?: boolean;
+  /** Журнал кроку автопілота, який рушій відхилив (11g); типово console.warn. */
+  warn?: (message: string) => void;
 }
 
 /** Кроки ведучого з мінімальним часом (11b) і вікно, яке їх стереже. Решта дій не затримується ніколи. */
@@ -327,6 +330,7 @@ export class RoomManager {
   private readonly rng: () => number;
   private readonly transitions: boolean;
   private readonly pacing: boolean;
+  private readonly warn: (message: string) => void;
   private readonly live = new Map<string, Room>();
   /** Коди кімнат із бази, яких немає в пам'яті. */
   private reserved = new Set<string>();
@@ -338,6 +342,7 @@ export class RoomManager {
     this.rng = rng;
     this.transitions = options.transitions ?? false;
     this.pacing = options.pacing ?? false;
+    this.warn = options.warn ?? ((message) => console.warn(message));
   }
 
   now(): number {
@@ -910,7 +915,8 @@ export class RoomManager {
         if (state.phase !== 'reveal') return { ok: false, error: 'wrong_phase' };
         return this.apply(room, hideCloudWord(state, action.key, action.hidden));
       case 'bluff-remove':
-        return this.apply(room, removeBluffOption(state, action.optionId));
+        // Автор — гравець: прибирати вигадки лише після свого вибору (authorRemoveBluff).
+        return this.apply(room, authorRemoveBluff(state, action.optionId));
       case 'team-form':
         return this.apply(room, authorTeamForm(state, action.form));
     }
@@ -1158,11 +1164,13 @@ export class RoomManager {
       room.pilot = this.scheduler.setTimeout(() => {
         room.pilot = null;
         room.tickedTo = Math.max(this.now(), pilotAt);
-        // Спершу дедлайни рушія до цієї миті, потім крок автопілота; pilotStep скидає at, нову мить ставить planAutopilot у commit.
+        // Спершу дедлайни рушія до цієї миті, потім крок автопілота; pilotTry скидає at (чи ставить повтор), нову мить ставить planAutopilot у commit.
         const ticked = tick(room.state, room.tickedTo);
         // Таймер запізнився й рушій уже перейшов на інший підкрок: крок для нього не планувався — commit спланує новий.
         if (pilotKey(ticked) !== pilotKey(room.state)) return this.commit(room, ticked, room.tickedTo);
-        const stepped = pilotStep(ticked, room.tickedTo, this.rng);
+        const { state: stepped, error } = pilotTry(ticked, room.tickedTo, this.rng);
+        // Відхилений крок рушій повторить через AUTOPILOT_MS.retry; помилка — у журнал.
+        if (error !== null) this.warn(`Автопілот ${room.code}: крок у фазі ${ticked.phase} відхилено (${error}), повтор.`);
         if (stepped !== room.state) this.commit(room, stepped, room.tickedTo);
         else this.reschedule(room);
       }, Math.max(0, pilotAt - this.now()));

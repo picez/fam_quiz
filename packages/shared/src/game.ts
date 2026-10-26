@@ -139,4 +139,6 @@ export type ErrorCode =
   | 'not_duelist'
   | 'not_started'
   /** Крок ведучого раніше за мінімальний час (11b). */
-  | 'too_soon';
+  | 'too_soon'
+  /** Автопілот: автор прибирає вигадку лише після свого вибору (11g). */
+  | 'pick_first';
