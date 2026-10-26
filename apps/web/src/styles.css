@@ -6881,6 +6881,22 @@ label.powers-price {
   gap: 0.25rem;
 }
 
+/* 9–16 рядків — два стовпчики: спершу вниз перший (8 рядків), потім другий. */
+.stage .stage-board:has(.standings li:nth-child(9)) {
+  width: min(100%, 90rem);
+}
+
+.stage .stage-board .standings:has(li:nth-child(9)) {
+  grid-auto-flow: column;
+  grid-template-rows: repeat(8, auto);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 2vw;
+}
+
+.standings .standings-more {
+  color: var(--dim);
+}
+
 .stage .stage-board:has(.standings li:nth-child(8)) .standings .name {
   min-width: 0;
   overflow: hidden;

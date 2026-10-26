@@ -1799,6 +1799,7 @@ const uk = {
   scoreSum: 'Плюс {plus} · мінус {minus}',
   scoreEmpty: 'Балів ще немає.',
   roundGain: '{points} за раунд',
+  standingsMore: '…і ще {count}',
   roundBest_one: 'Найкращий у раунді: {names} · {points}',
   roundBest_other: 'Найкращі в раунді: {names} · {points}',
   roundClimb_one: 'Найбільший ривок: {names} · +{count} місце',

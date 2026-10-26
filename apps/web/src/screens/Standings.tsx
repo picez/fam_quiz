@@ -12,9 +12,11 @@ interface Props {
   teams?: TeamsView | null;
   /** Приріст раунду за id учасника (11f): «+300 за раунд» перед рахунком. */
   gains?: Record<string, number>;
+  /** Скільки рядків не поміщається на сцені (11i): останній рядок «…і ще N». */
+  more?: number;
 }
 
-export function Standings({ standings, highlightId, limit, streaks, teams, gains }: Props) {
+export function Standings({ standings, highlightId, limit, streaks, teams, gains, more }: Props) {
   const shown = limit === undefined ? standings : standings.slice(0, limit);
   return (
     <ol className="standings">
@@ -36,6 +38,7 @@ export function Standings({ standings, highlightId, limit, streaks, teams, gains
           </li>
         );
       })}
+      {more !== undefined && more > 0 && <li className="standings-more">{t('standingsMore', { count: more })}</li>}
     </ol>
   );
 }
