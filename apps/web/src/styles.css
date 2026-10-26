@@ -10575,6 +10575,12 @@ button.wall-tile:disabled {
   max-width: 100%;
 }
 
+/* Сценічне правило .qr svg міряє QR у vw (на телефоні 28vw = 105 px): телефон автора має читабельний код. */
+.author-qr svg {
+  width: min(168px, 100%);
+  height: auto;
+}
+
 .author-stage {
   display: grid;
   gap: 0.5rem;

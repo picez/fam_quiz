@@ -83,6 +83,11 @@ describe('roundSummary', () => {
     const none = { ...brief, penalty: false, survival: { trial: 'question' as const, survivors: 1, bonus: 0 } };
     expect(roundSummary(none)).toEqual([t('summarySurvival'), t('summarySurvivalTrial_question')]);
   });
+  it('the ladder hint is not «від ведучого» in a game with no host', () => {
+    const brief = { ...emptyBrief('ladder'), ladder: { pick: 'random' as const, lifelines: ['fifty' as const, 'hint' as const], top: 10000, timer: true } };
+    expect(roundSummary(brief).join(' ')).toContain('Підказка ведучого');
+    expect(roundSummary(brief, true).join(' ')).not.toMatch(/ведуч/i);
+  });
   it('a ladder round explains the contestant, the pick, the hall and the lifelines, with no modifiers', () => {
     const ladder = { pick: 'lowest' as const, lifelines: ['fifty' as const, 'audience' as const], top: 10000, timer: false };
     const brief = { ...emptyBrief('ladder'), ladder };

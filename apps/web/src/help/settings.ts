@@ -1,10 +1,10 @@
-import { AUDIO_LIMITS, LIMITS, PACE_MS, REVEAL_MIN_SHARE } from '@quiz/shared';
+import { AUDIO_LIMITS, AUTOPILOT_MS, LIMITS, PACE_MS, REVEAL_MIN_SHARE } from '@quiz/shared';
 import type { HelpEntry } from './types';
 
 const s = (ms: number) => `${ms / 1000} с`;
 
 /** Налаштування з довідкою в порядку довідника. */
-export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'pacing', 'live', 'scores', 'description', 'speedBonus', 'spares', 'debuffShop', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal'] as const;
+export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'pacing', 'live', 'scores', 'description', 'speedBonus', 'spares', 'debuffShop', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal', 'autopilot'] as const;
 export type SettingHelpKey = (typeof SETTING_HELP_KEYS)[number];
 
 export const SETTING_HELP: Record<SettingHelpKey, HelpEntry> = {
@@ -228,5 +228,21 @@ export const SETTING_HELP: Record<SettingHelpKey, HelpEntry> = {
       'Не разом із відео. Друга спроба недоступна.',
       'Хитрий гравець з інструментами розробника може побачити оригінал картинки.',
     ],
+  },
+  autopilot: {
+    title: 'Гра без ведучого',
+    what: 'Гру веде бот: автор грає як звичайний гравець зі свого телефона, пульта ведучого немає.',
+    how: [
+      'Запуск: «Провести ботом» у списку вікторин → зміни, які знадобляться → «Створити кімнату». Ви на телефоні як гравець; у лобі — код, QR, посилання на сцену й «Почати гру».',
+      `Бот сам відкриває й закриває запитання, розкриває відповіді, показує таблицю й іде далі. Кубики кидає за тих, хто не кинув (поле — через ${s(AUTOPILOT_MS.boardDice)}, команди — через ${s(AUTOPILOT_MS.teamDice)}); пропускає хід на полі, вибирає категорію дуелі, тягне жереб «Мільйонера», за відсутності рішення за ${s(AUTOPILOT_MS.ladderDecision)} «Забирає» гроші, а команди з «Розподіляю сам» складає випадково на старті.`,
+      `Час етапів: «Як грати» — ${s(AUTOPILOT_MS.guide)}; заставка раунду — ${s(AUTOPILOT_MS.intro)} і ще ${s(AUTOPILOT_MS.introPerChars)} на кожні ${AUTOPILOT_MS.introChars} символів опису, але не більше ${s(AUTOPILOT_MS.introMax)}; від закриття до розкриття — ${s(AUTOPILOT_MS.locked)}; розкриття — ${s(AUTOPILOT_MS.reveal)}; рядок «100 до 1» чи варіант блефу — ${s(AUTOPILOT_MS.row)}, після останнього ще ${s(AUTOPILOT_MS.rowsTail)}; таблиця — ${s(AUTOPILOT_MS.leaderboard)}; рішення «Ва-банк» — ${s(AUTOPILOT_MS.decisions)}; кінець раунду — ${s(AUTOPILOT_MS.roundEnd)}; у фіналі кожен гравець — ${s(AUTOPILOT_MS.finalRow)}. Менше за мінімальний час 11b не буває.`,
+      'Що змінюється у форматах, вікно запуску перелічує за раундами: «вголос» пишуть з телефона, ручну перевірку замінює ключ, учасника «Мільйонера» вибирає жереб, підказка діє лише з текстом у запитанні, запитання без таймера закриваються через свій час.',
+      'Меню «⋯» автора: пауза й продовження, вилучення гравця, завершення гри, у лобі командної гри — як формуємо команди, на «хмарі слів» і блефі — «Приховати…». Вигадку блефу можна прибрати лише після власного вибору.',
+      `Нікого на зв’язку — гра стає на паузу; щойно хтось повернувся, вона йде далі через ${s(AUTOPILOT_MS.resume)}. Після перезапуску сервера так само.`,
+      'Звук грає на сцені, а коли сцени немає, — на телефонах гравців.',
+    ],
+    points: ['Результат автора рахується, як у будь-якого гравця. «Проведені ігри» й досягнення ведучого за таку гру не додаються: гра в історії має позначку «Провів бот».'],
+    tip: ['Відкрийте сцену на телевізорі за посиланням з лобі. Ви знаєте відповіді — грайте чесно.'],
+    limits: ['Ні оцінок, ні коригування балів, ні дебафів від ведучого, ні «±15 с», ні повтору звуку.', 'Підказка «Мільйонера» є лише тоді, коли її текст написано в запитанні.', 'Ручну перевірку замінює ключ відповіді.'],
   },
 };

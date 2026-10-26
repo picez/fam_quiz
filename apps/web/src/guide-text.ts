@@ -102,7 +102,7 @@ export function guidePageText(page: GuidePage, autopilot = false): GuideText {
           icon: ROUND_ICONS[brief.type],
           name: t(ROUND_NAMES[brief.type]),
           line: roundHow(brief, autopilot).join(' '),
-          details: roundSummary(brief),
+          details: roundSummary(brief, autopilot),
         })),
       };
     case 'questions':

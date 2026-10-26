@@ -45,7 +45,7 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
 
   useEffect(() => {
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeRef.current();
+      if (event.key === 'Escape' && document.querySelector('.help-pop') === null) closeRef.current();
     };
     document.addEventListener('keydown', onEscape);
     return () => document.removeEventListener('keydown', onEscape);
@@ -79,7 +79,7 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
       <form className="table-card autopilot-card" onClick={(event) => event.stopPropagation()} onSubmit={(event) => void submit(event)}>
         <div className="autopilot-head">
           <h2>{t('autopilotTitle')}</h2>
-          <HelpButton id="setting.pacing" />
+          <HelpButton id="setting.autopilot" />
         </div>
         <p className="meta">{quiz.title}</p>
         <p>{t('autopilotLead')}</p>

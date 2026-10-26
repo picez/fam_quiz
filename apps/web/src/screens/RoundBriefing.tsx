@@ -102,7 +102,7 @@ export function RoundBriefing({ brief, description, newcomers = false, fit = fal
         </div>
       )}
       <ul className="round-brief-lines" aria-label={t('roundBriefTitle')}>
-        {roundSummary(brief).map((line, index) => (
+        {roundSummary(brief, autopilot).map((line, index) => (
           <li key={`${index}-${line}`}>{line}</li>
         ))}
       </ul>

@@ -12180,6 +12180,8 @@ const LATE = 1500;
 async function pilotSocket(sockets: Socket[], code: string, token: string, nickname: string) {
   const frames: { view: PlayerView; meta: StateMeta; at: number }[] = [];
   const raw: string[] = [];
+  /** Причини, з якими сервер закрив гру для цього учасника ('kicked' після вилучення). */
+  const closed: string[] = [];
   let socket!: Socket;
   const connectOnce = () =>
     new Promise<void>((done, fail) => {
@@ -12189,6 +12191,7 @@ async function pilotSocket(sockets: Socket[], code: string, token: string, nickn
         frames.push({ view, meta, at: meta.serverNow });
         raw.push(JSON.stringify(view));
       });
+      next.on('closed', (reason: string) => closed.push(reason));
       next.once('connect', () => {
         socket = next;
         done();
@@ -12213,6 +12216,7 @@ async function pilotSocket(sockets: Socket[], code: string, token: string, nickn
     nickname,
     frames,
     raw,
+    closed,
     emit: (event: string, payload?: unknown) =>
       new Promise<PilotAck>((done) => {
         const timer = setTimeout(() => done({ ok: false, error: 'no_ack' }), 5000);
@@ -12659,3 +12663,491 @@ it('part 11g: autopilot pauses with nobody online and after a restart, goes on 3
     for (const socket of sockets) socket.close();
   }
 }, 600_000);
+
+// ——— 11h: інтерфейс гри без ведучого. Автор і Віра — справжні сторінки (телефони 375 × 812), Петро — сокет, сцена — 1280 × 720. ———
+
+/** Видимий текст сторінки (innerText body, title й aria-label усіх елементів) не згадує ведучого, крім причини неактивної підказки (план 11h). */
+async function expectNoHost(page: Page, where: string): Promise<void> {
+  const seen = (await page.evaluate(`(() => {
+    const parts = [document.title, document.body.innerText];
+    for (const element of document.querySelectorAll('[title],[aria-label],[placeholder],[alt]'))
+      for (const name of ['title', 'aria-label', 'placeholder', 'alt']) parts.push(element.getAttribute(name) ?? '');
+    return parts.join('\\n');
+  })()`)) as string;
+  const lines = seen.split('\n').filter((line) => /ведуч/i.test(line) && !/підказки немає/i.test(line));
+  expect(lines, `${where}: the page names a host`).toEqual([]);
+}
+
+/** Кадри state з необроблених кадрів сокета сторінки. */
+function stateViews(frames: string[]): PlayerView[] {
+  const views: PlayerView[] = [];
+  for (const text of frames) {
+    if (!text.startsWith('42["state",')) continue;
+    try {
+      views.push((JSON.parse(text.slice(2)) as [string, PlayerView])[1]);
+    } catch {
+      // Кадр обрізано.
+    }
+  }
+  return views;
+}
+
+/**
+ * Телефон автора на своїй ширині: без прокрутки вбік, шапка в один рядок (усе в ній на одній висоті, шапка не вища за свої рядки тексту, тож «⋯» її не збільшує).
+ * Нижньої панелі меню на сторінці гри немає, тому expectPhoneFit тут не підходить.
+ */
+async function expectPhonePlay(page: Page, name: string): Promise<void> {
+  const fit = (await page.evaluate(`(() => {
+    const bar = document.querySelector('header.bar');
+    const button = document.querySelector('.author-menu-btn');
+    const centers = bar ? [...bar.children].map((child) => { const r = child.getBoundingClientRect(); return r.top + r.height / 2; }) : [];
+    return {
+      wide: document.documentElement.scrollWidth <= innerWidth,
+      width: innerWidth,
+      rects: bar ? [...bar.children, bar].map((c) => c.className + ':' + Math.round(c.getBoundingClientRect().top) + '+' + Math.round(c.getBoundingClientRect().height)).join(' | ') : '',
+      oneRow: centers.length === 0 || Math.max(...centers) - Math.min(...centers) <= 6,
+      // Кнопки шапки мають від'ємні поля, тож шапка не вища за свої рядки тексту: поява «⋯» не зсуває екран.
+      tall: bar && button ? bar.getBoundingClientRect().height <= Math.max(...[...bar.children].filter((c) => !c.matches('button')).map((c) => c.getBoundingClientRect().height)) + 2 : true,
+    };
+  })()`)) as { wide: boolean; width: number; rects: string; oneRow: boolean; tall: boolean };
+  expect(fit.width, `${name}: a phone`).toBe(375);
+  expect(fit.wide, `${name}: horizontal scroll`).toBe(true);
+  expect(fit.oneRow, `${name}: the header wraps`).toBe(true);
+  expect(fit.tall, `${name}: the «⋯» makes the header taller than its row (${fit.rects})`).toBe(true);
+  await shot(page, name);
+}
+
+/** Меню автора: відкрити «⋯». */
+const authorMenu = async (page: Page) => {
+  await page.getByRole('button', { name: 'Меню автора', ...exact }).click();
+  const sheet = page.getByRole('dialog', { name: 'Меню автора', ...exact });
+  await sheet.waitFor();
+  return sheet;
+};
+
+/** «Провести ботом» у списку вікторин → нікнейм → «Створити кімнату»; повертає код кімнати. */
+async function launchBot11h(page: Page, title: string, nickname: string): Promise<string> {
+  await page.goto(`${base}/quizzes`);
+  await page.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести ботом', ...exact }).click();
+  const dialog = page.getByRole('dialog', { name: 'Гра без ведучого', ...exact });
+  await dialog.getByLabel('Твій нікнейм у грі').fill(nickname);
+  await dialog.getByRole('button', { name: 'Створити кімнату', ...exact }).click();
+  await page.waitForURL(/\/play\/[^/]+$/);
+  return page.url().split('/').pop()!;
+}
+
+/** Гість заходить у кімнату формою на /play/<code>. */
+async function joinBy11h(page: Page, code: string, nickname: string): Promise<void> {
+  await page.goto(`${base}/play/${code}`);
+  await field(page, 'Ваше ім’я').fill(nickname);
+  await click(page, 'Увійти в гру');
+  await page.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+}
+
+async function authorInterface11h(sockets: Socket[]) {
+  const marta = await open('marta11h', 375, 812);
+  const martaFrames = socketFrames(marta);
+  await register(marta, 'host', 'Марта Авторка', 'marta11h@example.com');
+
+  const common = { imageUrl: null, video: null };
+  const b1 = { ...common, id: 'b1', type: 'boolean' as const, text: 'Говерла — найвища гора України', points: 100, timeLimit: 20, correct: true };
+  const c1 = { ...common, id: 'c1', type: 'wordcloud' as const, text: 'Одне слово про осінь', points: 0, timeLimit: 20, words: 1 };
+  // Південний Буг (806 км) — найдовша річка лише в Україні.
+  const f1 = {
+    ...common,
+    id: 'f1',
+    type: 'bluff' as const,
+    text: 'Найдовша річка, що тече лише Україною, — …',
+    points: 0,
+    timeLimit: 60,
+    choiceTime: 30,
+    accepted: ['Південний Буг'],
+    lies: ['Сула', 'Псел'],
+  };
+  const rounds = [
+    classicRound('r1', [b1, c1, f1] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false }),
+    finalRound('r2', { ...withPoints(withId(textQ, 'q1'), 100), text: 'Яке місто — столиця України?', accepted: ['Київ'] } as never, { title: 'Фінал', check: 'manual', wagerMode: 'classic' }),
+  ];
+  const data = { ...makeRoundsQuiz(rounds as never, { leaderboard: 'end', newcomers: false }), title: 'Бот веде 11h' };
+  const saved = await marta.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1–2. Вікно запуску на телефоні: зміни, «грай чесно», нікнейм профілю, довідка.
+  await marta.goto(`${base}/quizzes`);
+  await marta.locator('.quiz-list li', { hasText: 'Бот веде 11h' }).getByRole('button', { name: 'Провести ботом', ...exact }).click();
+  const dialog = marta.getByRole('dialog', { name: 'Гра без ведучого', ...exact });
+  await dialog.locator('.autopilot-changes li').first().waitFor();
+  const changes = await dialog.locator('.autopilot-changes li').allTextContents();
+  expect(changes).toHaveLength(1);
+  expect(changes[0]).toContain('Ручну перевірку замінить ключ відповіді');
+  expect(changes[0]).toContain('Раунд 2');
+  await dialog.getByText('Ти автор і знаєш відповіді — грай чесно.', exact).waitFor();
+  const profileNickname = ((await (await marta.request.get(`${base}/api/me/profile`)).json()) as { nickname: string }).nickname;
+  await expect.poll(() => dialog.getByLabel('Твій нікнейм у грі').inputValue()).toBe(profileNickname);
+  await dialog.getByRole('button', { name: 'Довідка: Гра без ведучого', ...exact }).click();
+  await marta.locator('.help-pop').getByRole('heading', { name: 'Гра без ведучого', ...exact }).waitFor();
+  // Escape закриває довідку, а не вікно запуску.
+  await marta.keyboard.press('Escape');
+  await marta.locator('.help-pop').waitFor({ state: 'detached' });
+  await dialog.waitFor();
+  await expectPhoneFit(marta, 'p11h-launch-375');
+
+  // 3. Нікнейм «Марта» → кімната: код, QR, посилання на сцену, «Почати гру».
+  await dialog.getByLabel('Твій нікнейм у грі').fill('Марта');
+  await dialog.getByRole('button', { name: 'Створити кімнату', ...exact }).click();
+  await marta.waitForURL(/\/play\/[^/]+$/);
+  const code = marta.url().split('/').pop()!;
+  await expect.poll(() => marta.locator('.author-code').textContent()).toBe(`${code.slice(0, 3)} ${code.slice(3)}`);
+  const qr = marta.locator('.author-qr svg');
+  await qr.waitFor();
+  expect((await qr.boundingBox())!.width, 'the QR is readable').toBeGreaterThanOrEqual(150);
+  const stageHref = (await marta.locator('.author-stage a', { hasText: 'Відкрити' }).getAttribute('href'))!;
+  expect(stageHref).toMatch(new RegExp(`/stage/${code}#.+`));
+  await marta.getByText(stageHref, exact).waitFor();
+  await marta.getByRole('button', { name: 'Почати гру', ...exact }).waitFor();
+  await expectNoHost(marta, 'author lobby');
+  await expectPhonePlay(marta, 'p11h-author-lobby-375');
+
+  // 4. Сцена за посиланням: «Гру веде бот».
+  const stage = await open('stage11h', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageHref);
+  await stage.getByText('Гру веде бот').waitFor();
+  await expectNoHost(stage, 'stage lobby');
+  await expectStageFits(stage, 'p11h-stage-lobby');
+  await shot(stage, 'p11h-stage-lobby');
+
+  // 5. Віра заходить формою: ні «Почати гру», ні «⋯». Петро — сокет.
+  const vira = await open('vira11h', 375, 812);
+  const viraFrames = socketFrames(vira);
+  await joinBy11h(vira, code, 'Віра');
+  expect(await vira.getByRole('button', { name: 'Почати гру', ...exact }).count()).toBe(0);
+  expect(await vira.getByRole('button', { name: 'Меню автора', ...exact }).count()).toBe(0);
+  await expectNoHost(vira, 'player lobby');
+  const petro = await pilotPlayer(sockets, code, 'Петро');
+  await stage.getByText('Петро').waitFor();
+
+  // 6. Старт автором: заставка → b1 на сцені й телефонах.
+  await marta.getByRole('button', { name: 'Почати гру', ...exact }).click();
+  for (const page of [stage, marta, vira]) await page.getByText('Говерла — найвища гора України', exact).waitFor({ timeout: 60_000 });
+  await expectNoHost(stage, 'stage question');
+  await expectNoHost(marta, 'author question');
+  await expectNoHost(vira, 'player question');
+  await expectPhonePlay(marta, 'p11h-author-question-375');
+
+  // 7. Пауза з меню: Віра й сцена бачать «Пауза», через 4 с ще пауза, банер автора має «Продовжити».
+  const sheet = await authorMenu(marta);
+  await expectNoHost(marta, 'author menu');
+  await shot(marta, 'p11h-author-menu-375');
+  await sheet.getByRole('button', { name: 'Пауза', ...exact }).click();
+  await vira.locator('.banner', { hasText: 'Пауза' }).waitFor();
+  await expect.poll(async () => (await bodyText(stage)).includes('Пауза')).toBe(true);
+  await expectNoHost(marta, 'author pause');
+  await expectNoHost(vira, 'player pause');
+  await sleep(4000);
+  expect(await vira.locator('.banner', { hasText: 'Пауза' }).count(), 'still paused after 4 s').toBe(1);
+  await marta.locator('.author-paused').getByRole('button', { name: 'Продовжити', ...exact }).click();
+  await expect.poll(() => vira.locator('.banner', { hasText: 'Пауза' }).count()).toBe(0);
+  await click(marta, 'Так');
+  await click(vira, 'Так');
+  await emitOk(petro, 'player:answer', { type: 'boolean', value: true });
+
+  // 8. «Хмара»: Марта «море», Віра й Петро «сонце»; на розкритті гру ставлять на паузу, автор ховає «море».
+  await field(marta, 'Слово 1').waitFor({ timeout: 60_000 });
+  await field(vira, 'Слово 1').waitFor();
+  await field(marta, 'Слово 1').fill('море');
+  await click(marta, 'Відповісти');
+  await field(vira, 'Слово 1').fill('сонце');
+  await click(vira, 'Відповісти');
+  await emitOk(petro, 'player:answer', { type: 'wordcloud', words: ['сонце'] });
+  await frame(petro, (v) => v.phase === 'reveal' && v.questionIndex === 1, 0);
+  await (await authorMenu(marta)).getByRole('button', { name: 'Пауза', ...exact }).click();
+  const hide = await authorMenu(marta);
+  await hide.getByRole('button', { name: 'Приховати…', ...exact }).click();
+  const cloudWord = (word: string) => hide.locator('.host-cloud').getByRole('button', { name: word, ...exact });
+  await cloudWord('море').waitFor();
+  await cloudWord('сонце').waitFor();
+  expect(await cloudWord('море').getAttribute('aria-pressed')).toBe('false');
+  expect(await hide.locator('.host-cloud-by').count(), 'the menu does not show who wrote a word').toBe(0);
+  const cloudText = async () => (await stage.locator('.word-cloud').innerText().catch(() => '')).toLowerCase();
+  await expect.poll(async () => (await cloudText()).includes('море')).toBe(true);
+  await cloudWord('море').click();
+  await expect.poll(() => cloudWord('море').getAttribute('aria-pressed')).toBe('true');
+  await expect.poll(async () => !(await cloudText()).includes('море') && (await cloudText()).includes('сонце')).toBe(true);
+  await expectNoHost(marta, 'author hides a cloud word');
+  await shot(marta, 'p11h-author-hide-cloud-375');
+  await marta.keyboard.press('Escape');
+  await hide.waitFor({ state: 'detached' });
+  await marta.locator('.author-paused').getByRole('button', { name: 'Продовжити', ...exact }).click();
+  await expectNoHost(vira, 'player cloud reveal');
+
+  // 9. Блеф: вигадки, відмова до власного вибору, вибір, прибрати вигадку, вибраний варіант не прибирається.
+  await field(marta, 'Твоя вигадка').waitFor({ timeout: 60_000 });
+  await writeLie(marta, 'Орель');
+  await writeLie(vira, 'Інгулець');
+  await emitOk(petro, 'player:lie', { text: 'Рось' });
+  await marta.locator('.bluff-choice button').first().waitFor();
+  await expect.poll(() => stage.locator('.bluff-text', { hasText: 'Рось' }).count()).toBe(1);
+  const refuse = await authorMenu(marta);
+  await refuse.getByRole('button', { name: 'Приховати…', ...exact }).click();
+  await refuse.getByRole('button', { name: 'Прибрати «Рось»', ...exact }).click();
+  await refuse.getByRole('alert').filter({ hasText: 'Спершу зробіть свій вибір.' }).waitFor();
+  await expectNoHost(marta, 'author bluff refusal');
+  await shot(marta, 'p11h-author-hide-bluff-375');
+  await marta.keyboard.press('Escape');
+  await refuse.waitFor({ state: 'detached' });
+  await pickBluff(marta, 'Південний Буг');
+  const trim = await authorMenu(marta);
+  await trim.getByRole('button', { name: 'Приховати…', ...exact }).click();
+  const choiceMark = petro.frames.length;
+  await trim.getByRole('button', { name: 'Прибрати «Рось»', ...exact }).click();
+  await trim.getByRole('button', { name: 'Прибрати «Рось»', ...exact }).waitFor({ state: 'detached' });
+  await expect.poll(() => stage.locator('.bluff-text', { hasText: 'Рось' }).count()).toBe(0);
+  expect(await vira.locator('.bluff-choice button', { hasText: 'Рось' }).count(), 'the removed lie left the phone of another player').toBe(0);
+  const trimmed = await frame(petro, (v) => v.bluff?.stage === 'choice' && v.bluff.options.length > 0 && !v.bluff.options.some((o) => o.text === 'Рось'), choiceMark);
+  expect(petro.frames.slice(trimmed.index).some((f) => f.view.bluff?.options.some((o) => o.text === 'Рось')), 'Петро never sees the removed lie again').toBe(false);
+  await trim.getByRole('button', { name: 'Прибрати «Південний Буг»', ...exact }).click();
+  await trim.getByRole('alert').filter({ hasText: 'Цей варіант прибрати не можна.' }).waitFor();
+  await shot(marta, 'p11h-author-hide-bluff-refused-375');
+  await marta.keyboard.press('Escape');
+  await trim.waitFor({ state: 'detached' });
+  await pickBluff(vira, 'Південний Буг');
+  await emitOk(petro, 'player:bluff', { optionId: trimmed.view.bluff!.options.find((o) => o.text === 'Південний Буг')!.id });
+  await expectNoHost(marta, 'author bluff reveal');
+  await expectNoHost(vira, 'player bluff reveal');
+
+  // 10. Вилучення: на кінці раунду Марта вилучає Петра; у списку лишається Віра.
+  await frame(petro, (v) => v.phase === 'round_end', trimmed.index);
+  const kick = await authorMenu(marta);
+  await kick.getByRole('button', { name: 'Вилучити гравця', ...exact }).click();
+  const people = await kick.locator('.author-menu-people button').allTextContents();
+  expect(people.join(' ')).toContain('Віра');
+  expect(people.join(' ')).toContain('Петро');
+  await kick.locator('.author-menu-people button', { hasText: 'Петро' }).click();
+  await expect.poll(() => petro.closed).toEqual(['kicked']);
+  await expect.poll(async () => (await kick.locator('.author-menu-people button').allTextContents()).join(' ')).toContain('Віра');
+  expect((await kick.locator('.author-menu-people button').allTextContents()).join(' ')).not.toContain('Петро');
+  await marta.keyboard.press('Escape');
+  await kick.waitFor({ state: 'detached' });
+
+  // 11. Фінал: ставки (Марта 0, Віра 100) → «київ» → подіум.
+  const bet = async (page: Page, amount: number) => {
+    await page.getByRole('button', { name: /^Поставити/ }).first().waitFor({ timeout: 90_000 });
+    await page.getByLabel('Ставка', exact).fill(String(amount));
+    await page.getByRole('button', { name: /^Поставити/ }).first().click();
+  };
+  await bet(marta, 0);
+  await bet(vira, 100);
+  await expectNoHost(marta, 'author final');
+  for (const page of [marta, vira]) {
+    await field(page, 'Ваша відповідь').fill('київ');
+    await click(page, 'Відповісти');
+  }
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor({ timeout: 90_000 });
+  await expectStageFits(stage, 'p11h-stage-podium');
+  await shot(stage, 'p11h-stage-podium');
+  await expectNoHost(stage, 'stage podium');
+  await expectNoHost(marta, 'author podium');
+  await expectNoHost(vira, 'player podium');
+
+  // 13. Історія: «Провів бот» у списку, деталях і «Моїх іграх»; «Проведені ігри» — 0, перша гра в досягненнях гравця.
+  const mark = marta.locator('.panel', { hasText: 'Бот веде 11h' }).locator('.autopilot-mark');
+  await expect
+    .poll(
+      async () => {
+        await marta.goto(`${base}/history`);
+        await marta.getByText('Завантажуємо…').waitFor({ state: 'detached' });
+        return (await mark.allTextContents()).join();
+      },
+      { timeout: 15_000 },
+    )
+    .toBe('Провів бот');
+  await expectPhoneFit(marta, 'p11h-history-375');
+  await marta.getByRole('link', { name: 'Бот веде 11h', ...exact }).click();
+  await marta.locator('.autopilot-mark').waitFor();
+  expect(await marta.locator('.autopilot-mark').textContent()).toBe('Провів бот');
+  await marta.goto(`${base}/me`);
+  await mark.waitFor();
+  expect(await mark.textContent()).toBe('Провів бот');
+  const profile = (await (await marta.request.get(`${base}/api/me/profile`)).json()) as { stats: { hosted: number; games: number }; achievements: { id: string; earned: boolean }[] };
+  expect(profile.stats.hosted, 'a game with no host is not a hosted game').toBe(0);
+  expect(profile.stats.games).toBe(1);
+  expect(profile.achievements.find((a) => a.id === 'host')?.earned).toBe(false);
+  expect(profile.achievements.find((a) => a.id === 'first_game')?.earned).toBe(true);
+
+  // 14. Таємність: Віра й Петро не отримали вигляду автора; кадри Марти без авторів слів і без видів вигадок.
+  for (const text of viraFrames) expect(text.includes('"author":{'), 'Віра got the author view').toBe(false);
+  for (const text of petro.raw) expect(text.includes('"author":{'), 'Петро got the author view').toBe(false);
+  const mine = stateViews(martaFrames);
+  expect(mine.some((v) => v.author?.cloud != null)).toBe(true);
+  expect(mine.some((v) => (v.author?.bluff?.length ?? 0) > 0)).toBe(true);
+  for (const view of mine) {
+    for (const word of view.author?.cloud ?? []) expect('by' in word, 'a cloud word carries its authors').toBe(false);
+    for (const option of view.author?.bluff ?? []) expect('kind' in option, 'a bluff option carries its kind').toBe(false);
+  }
+  expectNoHostFrames('stage', stageFrames);
+  expect(problems).toEqual([]);
+}
+
+it('part 11h: the author launches a game with no host from the quiz list on a 375 phone — the changes and «грай чесно», the lobby with code, QR, stage link and «Почати гру», «Гру веде бот» on the 1280 × 720 stage, the «⋯» menu pauses, hides a cloud word, refuses a bluff lie before the own pick and removes one after it, kicks a player; no screen names a host; the history says «Провів бот» and hosted games stay 0', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await authorInterface11h(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 900_000);
+
+async function noStageInterface11h(sockets: Socket[]) {
+  const marta = await open('marta11h-b', 375, 812);
+  await register(marta, 'host', 'Марта Авторка', 'marta11h-b@example.com');
+  const audio = await marta.request.post(`${base}/api/uploads/audio`, { data: silentMp3(), headers: { 'content-type': 'audio/mpeg' } });
+  expect(audio.status(), await audio.text()).toBe(201);
+  const audioUrl = ((await audio.json()) as { url: string }).url;
+
+  const common = { imageUrl: null, video: null };
+  const choice = (id: string, text: string, options: string[]) => ({
+    ...common,
+    id,
+    type: 'single' as const,
+    text,
+    points: 100,
+    timeLimit: 30,
+    options: options.map((option, i) => ({ id: `${id}-${i}`, text: option })),
+    correctId: `${id}-0`,
+  });
+  const a1 = { ...choice('a1', 'Що звучить?', ['Тиша', 'Дощ', 'Вітер']), audio: { source: 'file' as const, url: audioUrl, start: 0, duration: 2 } };
+  const a2 = { ...common, id: 'a2', type: 'boolean' as const, text: 'Світязь — озеро', points: 100, timeLimit: 20, correct: true };
+  const ladder = [
+    choice('l1', 'Яка річка тече через Київ?', ['Дніпро', 'Сена', 'Дунай', 'Тиса']),
+    choice('l2', 'Яке місто називають містом Лева?', ['Львів', 'Одеса', 'Харків', 'Луцьк']),
+    choice('l3', 'Яка найвища гора України?', ['Говерла', 'Роман-Кош', 'Піп Іван', 'Бребенескул']),
+    choice('l4', 'Яке море омиває південь України?', ['Чорне', 'Балтійське', 'Біле', 'Червоне']),
+    choice('l5', 'Яка річка тече через Ужгород?', ['Уж', 'Дніпро', 'Прип’ять', 'Дністер']),
+  ];
+  const quiz = makeRoundsQuiz(
+    [
+      classicRound('r1', [a1, a2] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false }),
+      ladderRound('r2', ladder as never, { title: 'Драбина', pick: 'host', lifelines: ['fifty', 'hint'], timer: true, safe: [1] }),
+    ],
+    { leaderboard: 'end', newcomers: false },
+  );
+  const saved = await marta.request.post(`${base}/api/quizzes`, { data: { ...quiz, title: 'Без сцени 11h' } });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const quizId = ((await saved.json()) as { id: string }).id;
+
+  // 1. Перевірка: жереб і підказка змінюються в раунді 2.
+  const check = (await (await marta.request.get(`${base}/api/quizzes/${quizId}/autopilot`)).json()) as { blocked: unknown[]; changed: { code: string; rounds: number[] }[] };
+  expect(check.blocked).toEqual([]);
+  expect(check.changed.find((c) => c.code === 'ladder_pick')?.rounds).toEqual([1]);
+  expect(check.changed.find((c) => c.code === 'hint')?.rounds).toEqual([1]);
+
+  // 2. Кімната з вікна запуску, Віра входить формою, сцени немає.
+  const code = await launchBot11h(marta, 'Без сцени 11h', 'Марта');
+  const vira = await open('vira11h-b', 375, 812);
+  const viraFrames = socketFrames(vira);
+  await joinBy11h(vira, code, 'Віра');
+  await marta.getByText('Віра').first().waitFor().catch(() => undefined);
+  const stageHref = (await marta.locator('.author-stage a', { hasText: 'Відкрити' }).getAttribute('href'))!;
+
+  // 3. Старт: після кінця заставки запитання без сцени — звук на обох телефонах.
+  await marta.getByRole('button', { name: 'Почати гру', ...exact }).click();
+  const phones = [marta, vira];
+  for (const page of phones) await page.getByText('Що звучить?', exact).waitFor({ timeout: 60_000 });
+  for (const page of phones) await expect.poll(() => page.locator('audio').count(), { timeout: 15_000 }).toBe(1);
+  for (const page of phones) expect(await page.locator('audio').getAttribute('src')).toBe(audioUrl);
+  await expectNoHost(vira, 'player audio question');
+  await expectPhonePlay(vira, 'p11h-phone-audio-375');
+
+  // 4. Сцена відкрилась: у кадрах Віри clip стає null, а звук зникає з телефонів.
+  const stage = await open('stage11h-b', 1280, 720);
+  const opened = viraFrames.length;
+  await stage.goto(stageHref);
+  await stage.getByText('Що звучить?', exact).waitFor({ timeout: 30_000 });
+  await expect
+    .poll(() => stateViews(viraFrames.slice(opened)).some((v) => v.question?.audio != null && v.question.audio.clip === null), { timeout: 2000 })
+    .toBe(true);
+  for (const page of phones) await expect.poll(() => page.locator('audio').count(), { timeout: 2000 }).toBe(0);
+  for (const view of stateViews(viraFrames.slice(opened)).filter((v) => v.question?.audio != null)) expect(view.question!.audio!.clip, 'a phone never gets the source while a stage is open').toBeNull();
+
+  // 5. Сцену закрито. a1 і a2 → кінець раунду → жереб «Мільйонера» без «ведучого».
+  await stage.close();
+  for (const page of phones) await page.getByRole('button', { name: /Тиша/ }).click();
+  for (const page of phones) await page.getByRole('button', { name: 'Так', ...exact }).waitFor({ timeout: 60_000 });
+  for (const page of phones) await page.getByRole('button', { name: 'Так', ...exact }).click();
+  // Заставка «Мільйонера»: жереб вибирає учасника (текст без «ведучого»), учасник чує «Ти йдеш на драбину!».
+  const draw = /Жереб вибирає, хто піде на драбину…|Ти йдеш на драбину!/;
+  await expect.poll(async () => draw.test(await bodyText(marta)) || draw.test(await bodyText(vira)), { timeout: 120_000, interval: 100 }).toBe(true);
+  await expectNoHost(marta, 'ladder draw, author');
+  await expectNoHost(vira, 'ladder draw, player');
+  await expect.poll(async () => (await marta.locator('.ladder-lifeline').count()) + (await vira.locator('.ladder-lifeline').count()), { timeout: 60_000 }).toBeGreaterThan(0);
+  const climber = (await marta.locator('.ladder-lifeline').count()) > 0 ? marta : vira;
+  const other = climber === marta ? vira : marta;
+  await expectNoHost(climber, 'climber');
+  await expectNoHost(other, 'ladder spectator');
+  const off = climber.locator('.ladder-lifeline.is-off');
+  await off.waitFor();
+  expect(await off.isDisabled(), 'the off hint cannot be pressed').toBe(true);
+  expect(await off.textContent()).toContain('Підказка');
+  const why = climber.locator('.ladder-lifeline-off');
+  expect(await why.isVisible(), 'the reason is visible text, not sr-only').toBe(true);
+  expect(await why.textContent()).toBe('У цій грі підказки немає.');
+  await expectNoHost(climber, 'ladder hint off');
+  await expectPhonePlay(climber, 'p11h-ladder-off-375');
+
+  // 6. До кінця: правильно на першому запитанні, потім «Забрати».
+  await climber.getByRole('button', { name: /Дніпро/ }).click();
+  await climber.getByRole('button', { name: /^Забрати \d/ }).click({ timeout: 60_000 });
+  await expect.poll(() => stateViews(viraFrames).some((v) => v.phase === 'finished'), { timeout: 90_000 }).toBe(true);
+  expect(viraFrames.length).toBeGreaterThan(0);
+
+  // 7. Команди: окрема кімната.
+  const teamQuiz = makeRoundsQuiz([classicRound('t1', [a2] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })], {
+    leaderboard: 'end',
+    newcomers: false,
+    teams: { count: 2, names: ['Червоні', 'Сині'] },
+  });
+  const teamSaved = await marta.request.post(`${base}/api/quizzes`, { data: { ...teamQuiz, title: 'Команди 11h' } });
+  expect(teamSaved.ok(), await teamSaved.text()).toBe(true);
+  const teamCode = await launchBot11h(marta, 'Команди 11h', 'Марта');
+  await joinBy11h(vira, teamCode, 'Віра');
+  // Спосіб за замовчуванням — «Гравці обирають»: автор у меню вибирає «Випадково», і Віра читає, що команди розподілить бот.
+  await vira.getByText('Обери команду', exact).waitFor();
+  await expectNoHost(vira, 'team lobby, players pick');
+  await expectNoHost(marta, 'author team lobby');
+  await expectPhonePlay(vira, 'p11h-team-lobby-375');
+  const forms = await authorMenu(marta);
+  await forms.getByRole('button', { name: 'Як формуємо команди', ...exact }).click();
+  expect(await forms.getByRole('button', { name: 'Розподіляю сам', ...exact }).count(), 'no separate «Розподіляю сам» for a bot').toBe(0);
+  expect(await forms.getByRole('button', { name: 'Гравці обирають', ...exact }).getAttribute('aria-pressed')).toBe('true');
+  await forms.getByRole('button', { name: 'Випадково', ...exact }).click();
+  await expect.poll(() => forms.getByRole('button', { name: 'Випадково', ...exact }).getAttribute('aria-pressed')).toBe('true');
+  await expectPhonePlay(marta, 'p11h-team-form-375');
+  await vira.getByText('Команди розподілить бот, щойно автор почне гру.', exact).waitFor();
+  await expectNoHost(vira, 'team lobby, the bot deals');
+  await forms.getByRole('button', { name: 'Кубик', ...exact }).click();
+  await expect.poll(() => forms.getByRole('button', { name: 'Кубик', ...exact }).getAttribute('aria-pressed')).toBe('true');
+  await marta.keyboard.press('Escape');
+  await forms.waitFor({ state: 'detached' });
+  await marta.getByRole('button', { name: 'Почати гру', ...exact }).click();
+  await vira.getByText('Кидаємо кубики: найбільші — в одну команду', exact).waitFor({ timeout: 30_000 });
+  await expectNoHost(vira, 'team dice');
+  await expectNoHost(marta, 'author team dice');
+  await expectPhonePlay(vira, 'p11h-team-dice-375');
+  expect(problems).toEqual([]);
+}
+
+it('part 11h: with no stage the question sound plays on the 375 phones and stops coming once a stage opens, a ladder hint lifeline that is off says why in visible text, and team lobby texts name the bot', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await noStageInterface11h(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 900_000);
