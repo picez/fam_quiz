@@ -10518,6 +10518,7 @@ button.wall-tile:disabled {
 .autopilot-card {
   width: min(100%, 28rem);
   max-height: 90vh;
+  max-height: 90dvh;
 }
 
 .autopilot-head {

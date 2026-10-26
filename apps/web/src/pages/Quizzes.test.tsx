@@ -197,4 +197,15 @@ describe('Quizzes: when the session check fails', () => {
     const banner = await screen.findByRole('link', { name: /123 456/ });
     expect(banner.getAttribute('href')).toBe('/play/123456');
   });
+
+  it('a reused code with an old author key and a newer hosted game goes to the console', async () => {
+    // Ключ автора лишився від давньої гри з тим самим кодом (його записано напряму, повз saveHost).
+    localStorage.setItem('quiz:author:123456', JSON.stringify({ stageToken: 'old' }));
+    localStorage.setItem('quiz:host:123456', JSON.stringify({ hostToken: 'h', stageToken: 's' }));
+    saveLastGame('123456');
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Географія' });
+    open();
+    const banner = await screen.findByRole('link', { name: /123 456/ });
+    expect(banner.getAttribute('href')).toBe('/host/123456');
+  });
 });

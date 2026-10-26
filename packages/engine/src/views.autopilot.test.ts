@@ -5,7 +5,9 @@ import { pickBluff, removeBluffOption, writeLie } from './bluff';
 import { addPlayer, end, next, removePlayer, setConnected, start, submitAnswer, type GameState, type Rng } from './game';
 import { assignTeam } from './teams';
 import { hideCloudWord } from './votes';
-import { hostView, playerView, stageView } from './views';
+import { hostView, phoneAudioOf, playerView, stageView } from './views';
+import { takeBuff } from './buffs';
+import { toOthersCell, toOthersQuestion, T0 } from './testing/buffs';
 import { bluff, classicRound, cloud, makeQuiz, single } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
@@ -265,5 +267,56 @@ describe('author people list (11h)', () => {
 
   it('other players still get null', () => {
     expect(playerView(solo(), 'a2')!.author).toBeNull();
+  });
+
+  it('the stage and host JSON never carry the people list', () => {
+    const s = solo();
+    expect(JSON.stringify(stageView(s))).not.toContain('"people"');
+    expect(JSON.stringify(hostView(s))).not.toContain('"people"');
+  });
+
+  it('is empty while the author is alone', () => {
+    expect(playerView(must(createAutopilotGame(quizOf([single]), marta)), 'a1')!.author!.people).toEqual([]);
+  });
+
+  it('leaves out the author wherever the author stands in the join order', () => {
+    const s = solo();
+    const moved: GameState = { ...s, players: [s.players[1], s.players[0], s.players[2]] };
+    expect(playerView(moved, 'a1')!.author!.people.map((p) => p.id)).toEqual(['a2', 'a3']);
+  });
+
+  it('a removed team member drops out of the list', () => {
+    let s = must(createAutopilotGame(teamQuiz([classicRound('r1', [single])]), { id: 'm1', nickname: 'Марта' }));
+    for (const [id, nickname] of [['m2', 'Віра'], ['m3', 'Петро']]) s = must(addPlayer(s, { id, nickname }));
+    s = must(assignTeam(s, 'm2', 't1'));
+    s = must(removePlayer(s, 'm2'));
+    expect(playerView(s, 'm1')!.author!.people.map((p) => p.id)).toEqual(['m3']);
+  });
+});
+
+describe('phoneAudioOf (11h)', () => {
+  const MAIN = { source: 'file', url: '/uploads/0123456789abcdef.mp3', start: 0, duration: 2 } as const;
+  const SPARE = { source: 'file', url: '/uploads/fedcba9876543210.mp3', start: 0, duration: 3 } as const;
+  /** Звук у запасному s1 і, якщо main, у поточному запитанні (play.question — копія, тож правимо й її). */
+  function withSounds(s: GameState, main: boolean): GameState {
+    const spares = s.quiz.spares!.map((q) => (q.id === 's1' ? { ...q, audio: SPARE } : q));
+    const plays = s.plays.map((play, i) => (main && i === s.questionIndex ? { ...play, question: { ...play.question, audio: MAIN } } : play));
+    return { ...s, quiz: { ...s.quiz, spares }, plays };
+  }
+
+  it('classic: the player on their own spare gets the spare clip, the rest the main one', () => {
+    const s = must(takeBuff(withSounds(toOthersQuestion(), true), 'p1', 'swap', T0 + 1000, () => 0));
+    expect(phoneAudioOf(s, 'p1')).toEqual(SPARE);
+    expect(phoneAudioOf(s, 'p2')).toEqual(MAIN);
+  });
+
+  it('board: everyone sees the chooser spare, so everyone gets its clip', () => {
+    const s = must(takeBuff(withSounds(toOthersCell(), false), 'p1', 'swap', T0 + 1000, () => 0));
+    expect(phoneAudioOf(s, 'p1')).toEqual(SPARE);
+    expect(phoneAudioOf(s, 'p2')).toEqual(SPARE);
+  });
+
+  it('nothing outside the question, locked and reveal phases', () => {
+    expect(phoneAudioOf(pilotLobby([single]), 'p1')).toBeNull();
   });
 });

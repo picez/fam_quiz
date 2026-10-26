@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { joinGame, me } from '../api';
-import { loadPlayer, savePlayer } from '../storage';
+import { loadAuthor, loadPlayer, saveAuthor, savePlayer } from '../storage';
 import { Play } from './Play';
 
 const { sockets, FakeSocket } = vi.hoisted(() => {
@@ -101,6 +101,24 @@ describe('Play', () => {
     expect(await screen.findByText('Ведучий вилучив вас із гри.')).toBeTruthy();
   });
 
+  it('a game with no host that is gone says so without a host and forgets the author key with the token', async () => {
+    savePlayer('123456', 'old-token');
+    saveAuthor('123456', { stageToken: 's' });
+    open();
+    act(() => sockets[0].fire('state', { role: 'player', autopilot: true, paused: false, questionIndex: -1, splash: null }, { serverNow: Date.now(), hostOnline: true, stageOnline: true }));
+    act(() => sockets[0].fire('closed', 'ended'));
+    expect(await screen.findByText('Цієї гри вже немає. Перевірте код або попросіть автора гри створити нову.')).toBeTruthy();
+    expect(loadPlayer('123456')).toBeNull();
+    expect(loadAuthor('123456')).toBeNull();
+  });
+
+  it('a hosted game that is gone still names the host', async () => {
+    savePlayer('123456', 'old-token');
+    open();
+    act(() => sockets[0].fire('connect_error', new Error('unauthorized')));
+    expect(await screen.findByText('Цієї гри вже немає. Перевірте код або попросіть ведучого створити нову.')).toBeTruthy();
+  });
+
   it('lets a player with a token that no longer works join again', async () => {
     savePlayer('123456', 'stale-token');
     vi.mocked(joinGame).mockResolvedValue({ ok: true, token: 'fresh-token', playerId: 'p9' });
@@ -120,7 +138,7 @@ describe('Play', () => {
     open();
     submitNickname('Олена');
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'Ця гра вже почалася, приєднатися до неї не можна. Попросіть ведучого створити нову.',
+      'Ця гра вже почалася, приєднатися до неї не можна. Попросіть того, хто її запустив, створити нову.',
     );
   });
 });

@@ -310,6 +310,15 @@ export function audioOf(state: GameState): QuestionAudio | null {
   return shownQuestion(state)?.question.audio ?? null;
 }
 
+/** Звук запитання, яке бачить сам гравець: власне запасне в класиці або те, що бачать усі (11h, телефони автопілота без сцени). */
+export function phoneAudioOf(state: GameState, playerId: string): QuestionAudio | null {
+  if (!audioPhase(state)) return null;
+  const spare = ownSpare(state, playerId);
+  return (spare ?? shownQuestion(state))?.question.audio ?? null;
+}
+
+const audioPhase = (state: GameState) => state.phase === 'question' || state.phase === 'locked' || state.phase === 'reveal';
+
 /**
  * Позначки гравців на шкалі повзунка: за відстанню до правильного, далі за нікнеймом. null поза запитанням-повзунком і у фіналі.
  * Сцена — лише на reveal (раніше вони видали б правильність), ведучий — з етапу question.
@@ -1027,7 +1036,7 @@ function authorBluff(state: GameState): AuthorBluffOption[] | null {
 
 /** Люди кімнати, крім автора, у порядку входу: соло — гравці, командна гра — учасники команд. */
 function authorPeople(state: GameState, personId: string): AuthorPerson[] {
-  const list = state.teams !== null && state.teams !== undefined ? state.teams.members : state.players;
+  const list = teamsOn(state) ? state.teams.members : state.players;
   return list.filter((p) => p.id !== personId).map(({ id, nickname, connected }) => ({ id, nickname, connected }));
 }
 

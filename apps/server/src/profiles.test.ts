@@ -708,6 +708,7 @@ describe('games without a host (11h)', () => {
     expect(hosted(facts.stats)).toBe(1);
     expect(facts.stats.games).toBe(1);
     expect(facts.stats.wins).toBe(1);
+    expect(facts.stats.podium).toEqual({ first: 1, second: 0, third: 0 });
     expect(earnedIds(facts.achievements)).toEqual(expect.arrayContaining(['host', 'first_game', 'first_win']));
     expect((await publicProfile(db, 'author', null))?.stats.hosted).toBe(1);
   });

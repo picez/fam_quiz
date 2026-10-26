@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearPlayer, loadAuthor, loadHost, loadPlayer, saveAuthor, saveHost, savePlayer } from './storage';
+import { clearAuthor, clearPlayer, loadAuthor, loadHost, loadPlayer, saveAuthor, saveHost, savePlayer } from './storage';
 
 beforeEach(() => localStorage.clear());
 
@@ -30,6 +30,20 @@ describe('storage', () => {
     localStorage.setItem('quiz:host:654321', '{"hostToken":1}');
     expect(loadHost('123456')).toBeNull();
     expect(loadHost('654321')).toBeNull();
+  });
+
+  it('a hosted game on a reused code forgets the old author key for that code', () => {
+    saveAuthor('123456', { stageToken: 's' });
+    saveAuthor('654321', { stageToken: 'kept' });
+    saveHost('123456', { hostToken: 'h', stageToken: 's2' });
+    expect(loadAuthor('123456')).toBeNull();
+    expect(loadAuthor('654321')).toEqual({ stageToken: 'kept' });
+  });
+
+  it('forgets the author key', () => {
+    saveAuthor('123456', { stageToken: 's' });
+    clearAuthor('123456');
+    expect(loadAuthor('123456')).toBeNull();
   });
 
   it('remembers the author stage token apart from host tokens', () => {

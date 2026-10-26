@@ -116,9 +116,13 @@ describe('LadderLifelines', () => {
     expect(off.hasAttribute('disabled')).toBe(true);
     expect(off.classList.contains('is-off')).toBe(true);
     const why = container.querySelector('.ladder-lifeline-info .ladder-lifeline-off');
-    expect(why?.textContent).toBe('У цій грі підказки немає.');
+    expect(why?.textContent).toBe('Для цього запитання підказки немає.');
     expect(why?.closest('.sr-only')).toBeNull();
     expect(off.querySelector('.sr-only')).toBeNull();
+    // Причину читалка називає разом із кнопкою.
+    expect(why?.id).toBeTruthy();
+    expect(off.getAttribute('aria-describedby')).toBe(why?.id);
+    expect(screen.getByRole('button', { name: /50/ }).hasAttribute('aria-describedby')).toBe(false);
   });
 
   it('without an off lifeline there is no reason line', () => {
@@ -137,13 +141,13 @@ function ruleWith(selector: string): string {
 }
 
 describe('off lifelines (11g)', () => {
-  it('the stage and host badges say there is no hint in this game', () => {
+  it('the stage and host badges say there is no hint for this question', () => {
     const info = ladderInfo({ lifelines: [{ kind: 'hint', state: 'off' }, { kind: 'fifty', state: 'ready' }] });
     render(<LadderLifelineBadges info={info} />);
     const items = screen.getAllByRole('listitem');
     expect(items[0].classList.contains('is-off')).toBe(true);
-    expect(items[0].textContent).toContain('У цій грі підказки немає.');
-    expect(items[0].querySelector('.sr-only')?.textContent).toContain('У цій грі підказки немає.');
+    expect(items[0].textContent).toContain('Для цього запитання підказки немає.');
+    expect(items[0].querySelector('.sr-only')?.textContent).toContain('Для цього запитання підказки немає.');
     expect(items[1].textContent).not.toContain('підказки немає');
   });
 

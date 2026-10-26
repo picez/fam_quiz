@@ -1504,6 +1504,23 @@ describe('recorder: games without a host (11h)', () => {
     expect((await ctx.db.select().from(game))[0]!.autopilot).toBe(false);
   });
 
+  it('a room restored after a restart saves again still marked as a bot game', async () => {
+    const ctx = await autopilotRoom();
+    expect(ctx.manager.author(ctx.room, ctx.authorId, { type: 'start' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    const saved = ctx.manager.snapshot(ctx.room);
+    ctx.manager.evict(ctx.room);
+    await ctx.db.delete(game);
+    const restored = ctx.manager.restore(saved);
+    expect(restored).not.toBeNull();
+    expect(restored!.state.autopilot).toBeDefined();
+    await ctx.recorder.idle();
+    const games = await ctx.db.select().from(game);
+    expect(games).toHaveLength(1);
+    expect(games[0]).toMatchObject({ hostId: 'author-user', autopilot: true });
+    expect(ctx.errors).toEqual([]);
+  });
+
   it('a game with a host is not marked', async () => {
     const ctx = await setup();
     ctx.host('start');

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { AUTOPILOT_CHANGES, type AutopilotCheck } from '@quiz/shared';
@@ -20,8 +20,14 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  const cardRef = useRef<HTMLFormElement | null>(null);
+  // Поки кімната створюється, аркуш не закривається: інакше перехід у гру спрацює з уже закритого вікна.
+  const busyRef = useRef(false);
+  const close = () => {
+    if (!busyRef.current) onClose();
+  };
+  const closeRef = useRef(close);
+  closeRef.current = close;
 
   useEffect(() => {
     let current = true;
@@ -58,10 +64,12 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
     event.preventDefault();
     if (!canCreate) return;
     setBusy(true);
+    busyRef.current = true;
     setError(null);
     const result = await createAutopilotGame(quiz.id, nickname.trim());
     if (!result.ok) {
       setBusy(false);
+      busyRef.current = false;
       if (result.error === 'unauthorized') navigate('/login?next=%2Fquizzes', { replace: true });
       else setError(errorText(result.error));
       return;
@@ -74,9 +82,26 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
 
   const shownError = error ?? (check.state === 'failed' ? errorText(check.error) : null);
 
+  // Tab і Shift+Tab ходять колом усередині аркуша (aria-modal).
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab') return;
+    const items = [...(cardRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])') ?? [])];
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const here = document.activeElement;
+    if (event.shiftKey && (here === first || !cardRef.current?.contains(here))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (here === last || !cardRef.current?.contains(here))) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   return createPortal(
-    <div className="table-sheet" role="dialog" aria-modal="true" aria-label={t('autopilotTitle')} tabIndex={-1} onClick={onClose}>
-      <form className="table-card autopilot-card" onClick={(event) => event.stopPropagation()} onSubmit={(event) => void submit(event)}>
+    <div className="table-sheet" role="dialog" aria-modal="true" aria-label={t('autopilotTitle')} tabIndex={-1} onClick={close} onKeyDown={onKeyDown}>
+      <form ref={cardRef} className="table-card autopilot-card" onClick={(event) => event.stopPropagation()} onSubmit={(event) => void submit(event)}>
         <div className="autopilot-head">
           <h2>{t('autopilotTitle')}</h2>
           <HelpButton id="setting.autopilot" />
@@ -127,7 +152,7 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
           <button type="submit" className="btn btn-primary" disabled={!canCreate}>
             {t('autopilotCreate')}
           </button>
-          <button ref={cancelRef} type="button" className="btn" onClick={onClose}>
+          <button ref={cancelRef} type="button" className="btn" onClick={close} disabled={busy}>
             {t('cancel')}
           </button>
         </div>

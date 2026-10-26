@@ -146,6 +146,15 @@ interface Screen {
   stage?: StageView;
 }
 
+const pendingSpot = { playerId: 'p1', nickname: 'Олена', answer: { choiceIds: ['b'] } as never, grade: null };
+const manualBlitz = { queue: [{ playerId: 'p1', nickname: 'Олена' }], winner: null, instant: false, rows: [] };
+const mineBlitz = { position: 1, attemptsUsed: 1, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null };
+const manualBoard: BoardInfo = {
+  ...board(null),
+  turn: { playerId: 'p1', nickname: 'Олена' },
+  cell: { id: 'c1', category: 'Міста', price: 100, mark: 'none', kind: 'normal', answerMode: 'phone', penalty: 'none' },
+};
+
 const noTeam = { ...teamPlayerView().team!, teamId: null, canPick: false };
 const open = { endsAt: Date.now() + 20_000 };
 
@@ -223,6 +232,78 @@ const screens: Screen[] = [
     stage: stageBase({ phase: 'question', questionIndex: 0, question: publicQuestion, paused: true, endsAt: null, remainingMs: 12_000 }),
   },
   { name: 'finished', phone: (a) => phoneBase(a, { phase: 'finished' }), stage: stageBase({ phase: 'finished' }) },
+  {
+    name: 'a hint buff toast',
+    phone: (a) =>
+      phoneBase(a, {
+        phase: 'question',
+        questionIndex: 0,
+        question: publicQuestion,
+        ...open,
+        buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'hint', questionIndex: 0 },
+      }),
+  },
+  // Ручний бліц і ручна клітинка лишаються ручними: автопілот оцінює відповідь за ключем на крок пізніше, тож очікування видно.
+  {
+    name: 'manual blitz, own answer pending',
+    phone: (a) =>
+      phoneBase(a, {
+        phase: 'question',
+        round: round('blitz'),
+        questionIndex: 0,
+        question: publicQuestion,
+        ...open,
+        held: true,
+        blitz: manualBlitz,
+        spotlight: pendingSpot,
+        me: { ...baseMe, id: 'p1', nickname: 'Олена', blitz: mineBlitz },
+      }),
+    stage: stageBase({ phase: 'question', round: round('blitz'), questionIndex: 0, question: publicQuestion, ...open, held: true, blitz: manualBlitz, spotlight: pendingSpot }),
+  },
+  {
+    name: 'manual blitz, another player pending',
+    phone: (a) =>
+      phoneBase(a, {
+        phase: 'question',
+        round: round('blitz'),
+        questionIndex: 0,
+        question: publicQuestion,
+        ...open,
+        held: true,
+        blitz: manualBlitz,
+        spotlight: { ...pendingSpot, playerId: 'p2', nickname: 'Петро' },
+        me: { ...baseMe, id: 'p1', nickname: 'Олена', blitz: { ...mineBlitz, position: null, canBuzz: false } },
+      }),
+  },
+  {
+    name: 'instant blitz, own answer being checked',
+    phone: (a) =>
+      phoneBase(a, {
+        phase: 'question',
+        round: round('blitz'),
+        questionIndex: 0,
+        question: publicQuestion,
+        ...open,
+        blitz: { ...manualBlitz, instant: true, rows: [{ playerId: 'p1', nickname: 'Олена', timeMs: 1200, grade: null, answer: null }] },
+        me: { ...baseMe, id: 'p1', nickname: 'Олена', blitz: mineBlitz },
+      }),
+  },
+  {
+    name: 'manual board cell, own answer pending',
+    phone: (a) =>
+      phoneBase(a, {
+        phase: 'question',
+        round: round('board'),
+        questionIndex: 0,
+        question: publicQuestion,
+        ...open,
+        held: true,
+        board: manualBoard,
+        spotlight: pendingSpot,
+        me: { ...baseMe, id: 'p1', nickname: 'Олена' },
+      }),
+    stage: stageBase({ phase: 'question', round: round('board'), questionIndex: 0, question: publicQuestion, ...open, held: true, board: manualBoard, spotlight: pendingSpot }),
+  },
 ];
 
 /** Увесь текст екрана: вміст, title й aria-label усіх елементів. */
@@ -243,7 +324,7 @@ describe('a game with no host never says «ведучий»', () => {
       for (const isAuthor of [true, false]) {
         it(`phone (${isAuthor ? 'author' : 'player'}): ${screen.name}`, () => {
           const { container } = phone(make(isAuthor));
-          expect(textOf(container)).not.toMatch(WORD);
+          expect(textOf(container).match(/.{0,40}ведуч.{0,40}/gi)).toBeNull();
         });
       }
     }
@@ -251,7 +332,7 @@ describe('a game with no host never says «ведучий»', () => {
       const view = screen.stage;
       it(`stage: ${screen.name}`, () => {
         const { container } = stage(view);
-        expect(textOf(container)).not.toMatch(WORD);
+        expect(textOf(container).match(/.{0,40}ведуч.{0,40}/gi)).toBeNull();
       });
     }
   }
@@ -268,9 +349,26 @@ describe('a game with no host never says «ведучий»', () => {
   it('the blocked hint buff explains itself on a tap and in the help sheet without the word', () => {
     const { container } = phone(phoneBase(false, { phase: 'question', questionIndex: 0, question: publicQuestion, ...open, me: { ...baseMe, buffs: hintBuffs } }));
     fireEvent.click(dom.getByRole('button', { name: 'Підказка' }));
-    expect(container.querySelector('.buff-why')?.textContent).toBe('У цій грі підказки немає.');
+    expect(container.querySelector('.buff-why')?.textContent).toBe('Для цього запитання підказки немає.');
     fireEvent.click(dom.getByRole('button', { name: 'Що роблять бафи' }));
     expect(textOf(document.body)).not.toMatch(WORD);
+  });
+
+  it('a pending answer under the autopilot says it is checked by the key, on the phone and the timer', () => {
+    const view = screens.find((one) => one.name === 'manual blitz, own answer pending')!.phone!(false);
+    phone(view);
+    expect(dom.getByText('Перевіряємо відповідь за ключем…')).toBeTruthy();
+    expect(document.querySelector('.timer-status')?.textContent).toBe('Перевіряємо за ключем');
+    cleanup();
+    phone(screens.find((one) => one.name === 'instant blitz, own answer being checked')!.phone!(false));
+    expect(dom.getByText('Перевіряємо вашу відповідь за ключем…')).toBeTruthy();
+  });
+
+  it('a retry buff blocked on a manual board cell explains itself without the word', () => {
+    const buffs = { slots: [{ kind: 'retry', state: 'blocked', block: 'unfit_manual' }], active: null } as unknown as NonNullable<PlayerView['me']['buffs']>;
+    const { container } = phone(phoneBase(false, { phase: 'question', round: round('board'), questionIndex: 0, question: publicQuestion, ...open, board: manualBoard, me: { ...baseMe, id: 'p1', nickname: 'Олена', buffs } }));
+    fireEvent.click(dom.getByRole('button', { name: 'Друга спроба' }));
+    expect(container.querySelector('.buff-why')?.textContent).toBe('Відповідь тут перевіряють після здачі — другої спроби немає.');
   });
 
   it('the guard sees the word: the same team lobby with a host says «Ведучий»', () => {

@@ -545,10 +545,10 @@ function FinalResult({ view }: { view: PlayerView }) {
 }
 
 /** Рядок стану миттєвого бліцу під варіантами: власне місце в черзі чи вердикт. */
-function instantStatus(blitz: PlayerBlitz, timeOver: boolean): string {
+function instantStatus(blitz: PlayerBlitz, timeOver: boolean, autopilot: boolean): string {
   if (blitz.canAnswer && timeOver) return t('blitzTimeOver');
   if (blitz.canAnswer && blitz.position === 1) return t('blitzRepickAgain');
-  if (blitz.position === 1) return t('blitzMineChecking');
+  if (blitz.position === 1) return t(autopilot ? 'blitzMineCheckingAuto' : 'blitzMineChecking');
   if (blitz.position !== null) return t('blitzMineQueued', { position: blitz.position });
   if (blitz.grade === 'wrong') return t('blitzMineWrong');
   if (blitz.grade === 'correct') return t('blitzMineCorrect');
@@ -607,6 +607,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   // Гра без ведучого й без сцени: звук запитання грає на телефонах (сервер шле джерело лише тоді).
   const stageGone = useStageGone(stageOnline);
   const clip = view.autopilot ? (question?.audio?.clip ?? null) : null;
+  // Власне запасне (заміна): свій фрагмент із нового програвача, час — від появи запасного (особистий годинник).
+  const onSpare = me.buffs?.active?.kind === 'swap';
 
   const submit = async (answer: Answer) => {
     // До старту сервер однаково відмовив би: дотик, що проскочив крізь вимкнене поле, нічого не надсилає.
@@ -884,14 +886,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                   {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
                     <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
                   )}
-                  <p className="blitz-status">{instantStatus(me.blitz, timeOver)}</p>
+                  <p className="blitz-status">{instantStatus(me.blitz, timeOver, view.autopilot)}</p>
                 </div>
                 {queue}
               </>
             ) : myPending ? (
               <section className="sent">
                 <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
-                <p className="lead">{t('pendingWait')}</p>
+                <p className="lead">{t(view.autopilot ? 'pendingWaitAuto' : 'pendingWait')}</p>
               </section>
             ) : me.blitz !== null ? (
               <>
@@ -1161,13 +1163,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       {clip !== null && stageGone && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <div className="player-audio">
           <QuestionAudio
-            key={`${view.round?.index ?? 0}:${view.questionIndex}`}
+            key={`${view.round?.index ?? 0}:${view.questionIndex}:${onSpare ? 'spare' : 'main'}`}
             clip={clip}
-            questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
+            questionKey={`${view.round?.index ?? 0}:${view.questionIndex}:${onSpare ? 'spare' : 'main'}`}
             ready={phase === 'question' && !notStarted && !view.paused}
             paused={view.paused}
             command={null}
-            elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
+            elapsedMs={() => questionElapsedMs(onSpare && myClock !== null ? { ...view, ...myClock } : view, Date.now() + offsetMs)}
             splash={notStarted}
           />
         </div>

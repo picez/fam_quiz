@@ -24,7 +24,7 @@ export function Quizzes() {
   useEffect(() => {
     if (!signedIn) return;
     const code = loadLastGame();
-    if (code === null || loadHost(code) === null && loadAuthor(code) === null) return;
+    if (code === null || (loadHost(code) === null && loadAuthor(code) === null)) return;
     let current = true;
     void checkCode(code).then((result) => {
       if (!current) return;
@@ -109,7 +109,7 @@ export function Quizzes() {
       <h1 className="brand">{t('quizzesTitle')}</h1>
 
       {running !== null && (
-        <Link className="banner" to={loadAuthor(running) !== null ? `/play/${running}` : `/host/${running}`}>
+        <Link className="banner" to={loadHost(running) === null && loadAuthor(running) !== null ? `/play/${running}` : `/host/${running}`}>
           {t('backToGame', { code: `${running.slice(0, 3)} ${running.slice(3)}` })}
         </Link>
       )}

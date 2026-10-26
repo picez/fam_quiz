@@ -149,7 +149,17 @@ describe('LiveNotices', () => {
     questionIndex: 0,
     splash: null,
     paused: false,
+    autopilot: false,
     ...over,
+  });
+
+  it('a hint buff toast in a game with no host does not name a host', () => {
+    const hint = { ...buffView().buffNotice!, kind: 'hint' as const };
+    render(<BuffToast view={buffView({ buffNotice: hint, autopilot: true })} offsetMs={0} />);
+    expect(document.querySelector('.live-notice')?.textContent).not.toMatch(/ведуч/i);
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: hint })} offsetMs={0} />);
+    expect(document.querySelector('.live-notice')?.textContent).toMatch(/ведуч/i);
   });
 
   it('buff toast shows «Оля: 50/50» for four seconds', () => {

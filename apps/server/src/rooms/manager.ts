@@ -1,6 +1,7 @@
 import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   audioOf,
+  phoneAudioOf,
   acceptAnswer,
   anyonePresent,
   authorPause,
@@ -603,7 +604,8 @@ export class RoomManager {
   /** Автопілот без сцени (11h): звук нема де грати, крім телефонів — гравці дістають джерело поточного запитання. */
   private withPhoneClip(room: Room, view: PlayerView): PlayerView {
     if (room.state.autopilot === undefined || this.stageOnline(room) || view.question?.audio == null) return view;
-    const clip = audioOf(room.state);
+    // Гравець на власному запасному чує його звук, а не звук основного запитання.
+    const clip = phoneAudioOf(room.state, view.me.id);
     if (clip === null) return view;
     return { ...view, question: { ...view.question, audio: { ...view.question.audio, clip } } };
   }

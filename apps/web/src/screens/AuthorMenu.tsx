@@ -20,6 +20,8 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
   const [screen, setScreen] = useState<Screen>('main');
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
+  const [pending, setPending] = useState(false);
+  const fallback = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const wasOpen = useRef(false);
@@ -27,8 +29,17 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
   const author = view.author;
   const lobby = view.phase === 'lobby';
   const canHide = author !== null && (author.cloud !== null || author.bluff !== null);
+  const hidden = author === null || view.phase === 'finished';
 
+  /** Звільняє аркуш: відповідь прийшла, минуло 3 с без відповіді (перепідключення) або аркуш закрито. */
+  const release = () => {
+    if (fallback.current !== null) clearTimeout(fallback.current);
+    fallback.current = null;
+    busy.current = false;
+    setPending(false);
+  };
   const close = () => {
+    release();
     setOpen(false);
     setScreen('main');
     setError(null);
@@ -45,9 +56,18 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
       focusable(cardRef.current)[0]?.focus();
     } else if (wasOpen.current) {
       wasOpen.current = false;
-      triggerRef.current?.focus();
+      // Гра скінчилася з відкритим аркушем: «⋯» уже немає — фокус на екран, а не в нікуди.
+      if (triggerRef.current !== null) triggerRef.current.focus();
+      else focusScreen();
     }
   }, [open, screen]);
+  // Гра скінчилася, поки аркуш відкрито: закрити його (фокус переходить на екран).
+  useEffect(() => {
+    if (hidden && open) close();
+  }, [hidden, open]);
+  useEffect(() => () => {
+    if (fallback.current !== null) clearTimeout(fallback.current);
+  }, []);
   // Escape закриває, поки аркуш відкрито; відкриту довідку ⓘ Escape закриває першою.
   useEffect(() => {
     if (!open) return;
@@ -63,12 +83,14 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
     if (screen === 'hide' && !canHide) go('main');
   }, [screen, canHide]);
 
-  if (author === null || view.phase === 'finished') return null;
+  if (hidden) return null;
 
   /** Один запит за раз; помилка — у рядку аркуша (refused — свій текст для not_allowed). */
   const run = async (event: Parameters<Send>[0], payload?: unknown, refused?: TextKey): Promise<boolean> => {
     if (busy.current) return false;
     busy.current = true;
+    setPending(true);
+    fallback.current = setTimeout(release, 3000);
     try {
       const result = await send(event, payload);
       if (result.ok) {
@@ -81,7 +103,7 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
       setError(errorText('unknown'));
       return false;
     } finally {
-      busy.current = false;
+      release();
     }
   };
   const runAndClose = (event: Parameters<Send>[0]) => {
@@ -138,20 +160,20 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
               {screen === 'main' && (
                 <div className="author-menu-items">
                   {!lobby && (
-                    <button type="button" className="author-menu-item" onClick={() => runAndClose(view.paused ? 'host:resume' : 'host:pause')}>
+                    <button type="button" className="author-menu-item" disabled={pending} onClick={() => runAndClose(view.paused ? 'host:resume' : 'host:pause')}>
                       {t(view.paused ? 'authorResume' : 'authorPause')}
                     </button>
                   )}
-                  <button type="button" className="author-menu-item" onClick={() => go('kick')}>
+                  <button type="button" className="author-menu-item" disabled={pending} onClick={() => go('kick')}>
                     {t('authorKick')}
                   </button>
                   {lobby && view.teams !== null && (
-                    <button type="button" className="author-menu-item" onClick={() => go('teams')}>
+                    <button type="button" className="author-menu-item" disabled={pending} onClick={() => go('teams')}>
                       {t('teamFormLabel')}
                     </button>
                   )}
                   {canHide && (
-                    <button type="button" className="author-menu-item" onClick={() => go('hide')}>
+                    <button type="button" className="author-menu-item" disabled={pending} onClick={() => go('hide')}>
                       {t('authorHide')}
                     </button>
                   )}
@@ -159,6 +181,7 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
                     <button
                       type="button"
                       className="author-menu-item is-danger"
+                      disabled={pending}
                       onClick={() => {
                         if (window.confirm(t('endConfirm'))) runAndClose('host:end');
                       }}
@@ -180,6 +203,7 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
                           <button
                             type="button"
                             className={person.connected ? 'author-menu-item' : 'author-menu-item is-away'}
+                            disabled={pending}
                             onClick={() => {
                               if (window.confirm(t('kickConfirm', { name: person.nickname }))) void run('host:kick', { playerId: person.id });
                             }}
@@ -203,6 +227,7 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
                         <button
                           type="button"
                           className="author-menu-item"
+                          disabled={pending}
                           aria-pressed={view.teams?.form === form}
                           onClick={() => void run('host:team-form', { form })}
                         >
@@ -233,6 +258,7 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
                             <button
                               type="button"
                               className="author-menu-item"
+                              disabled={pending}
                               aria-label={t('bluffRemoveLabel', { text: option.text })}
                               onClick={() => {
                                 if (window.confirm(t('bluffRemoveConfirm', { text: option.text }))) {
@@ -257,7 +283,7 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
                 </p>
               )}
               <button type="button" className="btn btn-small" onClick={close}>
-                {t('buffHelpClose')}
+                {t('authorClose')}
               </button>
             </div>
           </div>,
@@ -265,6 +291,14 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
         )}
     </>
   );
+}
+
+/** Фокус на екран гри (main), коли кнопки «⋯» вже немає. */
+function focusScreen(): void {
+  const main = document.querySelector<HTMLElement>('main');
+  if (main === null) return;
+  if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+  main.focus({ preventScroll: true });
 }
 
 /** Доступні для фокуса кнопки аркуша, у порядку документа. */

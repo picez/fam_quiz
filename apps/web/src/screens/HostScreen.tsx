@@ -23,8 +23,6 @@ import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
 import { STAGE_GONE_MS, useStageGone } from '../live/useStageGone';
 import { QuestionAudio } from './QuestionAudio';
-
-export { STAGE_GONE_MS };
 import { SliderScale } from './SliderScale';
 import { PinBoard } from './PinBoard';
 import { publicLeadMs, questionElapsedMs, useRevealProgress } from '../reveal';
@@ -48,6 +46,8 @@ import { GuidePageView } from '../live/Guide';
 import { HostDuelPanel } from './DuelView';
 import { HelpButton } from '../help/HelpButton';
 import { cellHelpId } from '../help/host-help';
+
+export { STAGE_GONE_MS };
 
 interface Props {
   view: HostView;

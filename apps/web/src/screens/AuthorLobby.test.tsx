@@ -34,14 +34,14 @@ describe('AuthorLobby', () => {
     show();
     expect(screen.getByText(stageUrl)).toBeTruthy();
     expect(screen.getByText('Сцена для телевізора')).toBeTruthy();
-    const open = screen.getByRole('link', { name: 'Відкрити' });
+    const open = screen.getByRole('link', { name: 'Відкрити сцену на цьому екрані' });
     expect(open.getAttribute('href')).toBe(stageUrl);
     expect(open.getAttribute('target')).toBe('_blank');
     expect(open.getAttribute('rel')).toBe('noopener');
     cleanup();
     show({ stageUrl: null });
     expect(screen.queryByText('Сцена для телевізора')).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Відкрити' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Відкрити/ })).toBeNull();
     expect(screen.getByText('123 456')).toBeTruthy();
   });
 
@@ -59,6 +59,30 @@ describe('AuthorLobby', () => {
       vi.advanceTimersByTime(2100);
     });
     expect(screen.getByRole('button', { name: 'Копіювати' })).toBeTruthy();
+  });
+
+  it('a clipboard failure says so in a live line and the button stays «Копіювати»', async () => {
+    const writeText = vi.fn(async () => {
+      throw new Error('denied');
+    });
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    show();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Копіювати' }));
+    });
+    expect(screen.getByRole('button', { name: 'Копіювати' })).toBeTruthy();
+    const status = document.querySelector('.author-stage [aria-live="polite"]');
+    expect(status?.textContent).toBe('Не вдалося скопіювати — виділіть посилання вручну.');
+  });
+
+  it('«Почати гру» is free again after a refusal', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'teams_few' }));
+    show({ send });
+    const button = screen.getByRole('button', { name: 'Почати гру' }) as HTMLButtonElement;
+    fireEvent.click(button);
+    await waitFor(() => expect(button.disabled).toBe(false));
+    fireEvent.click(button);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
   it('«Почати гру» sends host:start once for a double tap', async () => {

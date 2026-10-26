@@ -12666,7 +12666,7 @@ it('part 11g: autopilot pauses with nobody online and after a restart, goes on 3
 
 // ——— 11h: інтерфейс гри без ведучого. Автор і Віра — справжні сторінки (телефони 375 × 812), Петро — сокет, сцена — 1280 × 720. ———
 
-/** Видимий текст сторінки (innerText body, title й aria-label усіх елементів) не згадує ведучого, крім причини неактивної підказки (план 11h). */
+/** Видимий текст сторінки (innerText body, title й aria-label усіх елементів) не згадує ведучого (план 11h). */
 async function expectNoHost(page: Page, where: string): Promise<void> {
   const seen = (await page.evaluate(`(() => {
     const parts = [document.title, document.body.innerText];
@@ -12674,7 +12674,7 @@ async function expectNoHost(page: Page, where: string): Promise<void> {
       for (const name of ['title', 'aria-label', 'placeholder', 'alt']) parts.push(element.getAttribute(name) ?? '');
     return parts.join('\\n');
   })()`)) as string;
-  const lines = seen.split('\n').filter((line) => /ведуч/i.test(line) && !/підказки немає/i.test(line));
+  const lines = seen.split('\n').filter((line) => /ведуч/i.test(line));
   expect(lines, `${where}: the page names a host`).toEqual([]);
 }
 
@@ -13094,7 +13094,7 @@ async function noStageInterface11h(sockets: Socket[]) {
   expect(await off.textContent()).toContain('Підказка');
   const why = climber.locator('.ladder-lifeline-off');
   expect(await why.isVisible(), 'the reason is visible text, not sr-only').toBe(true);
-  expect(await why.textContent()).toBe('У цій грі підказки немає.');
+  expect(await why.textContent()).toBe('Для цього запитання підказки немає.');
   await expectNoHost(climber, 'ladder hint off');
   await expectPhonePlay(climber, 'p11h-ladder-off-375');
 

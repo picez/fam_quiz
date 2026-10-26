@@ -23,6 +23,7 @@ export function AuthorLobby({
 }) {
   const guard = useGuardedSend(send, onError);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (timer.current !== null) clearTimeout(timer.current);
@@ -33,8 +34,10 @@ export function AuthorLobby({
     try {
       await navigator.clipboard.writeText(stageUrl);
     } catch {
+      setCopyFailed(true);
       return;
     }
+    setCopyFailed(false);
     setCopied(true);
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), COPIED_MS);
@@ -63,6 +66,9 @@ export function AuthorLobby({
                 {t('authorOpen')}
               </a>
             </div>
+            <p className="meta" aria-live="polite">
+              {copyFailed ? t('authorCopyFailed') : ''}
+            </p>
           </div>
         )}
       </section>

@@ -133,4 +133,70 @@ describe('AutopilotLaunch', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('Escape with the ⓘ help open does not close the sheet', async () => {
+    open();
+    await screen.findByText(t('autopilotNoChanges'));
+    const pop = document.createElement('div');
+    pop.className = 'help-pop';
+    document.body.append(pop);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    pop.remove();
+  });
+
+  it('a nickname error from the server is shown', async () => {
+    vi.mocked(createAutopilotGame).mockResolvedValue({ ok: false, error: 'nickname_invalid' });
+    open();
+    await ready();
+    fireEvent.click(create());
+    expect((await screen.findByRole('alert')).textContent).toBe(t('err_nickname_invalid'));
+  });
+
+  it('Tab and Shift+Tab stay inside the sheet', async () => {
+    open();
+    await ready();
+    const dialog = screen.getByRole('dialog');
+    const cancel = screen.getByRole('button', { name: t('cancel') });
+    expect(document.activeElement).toBe(cancel);
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    const first = document.activeElement as HTMLElement;
+    expect(dialog.contains(first)).toBe(true);
+    expect(first).not.toBe(cancel);
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(cancel);
+  });
+
+  it('focus goes back to the button that opened the sheet', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    trigger.focus();
+    const view = open();
+    await ready();
+    expect(document.activeElement).not.toBe(trigger);
+    view.unmount();
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+  });
+
+  it('the stage token never lands in the page', async () => {
+    let finish: (value: { ok: true; gameId: string; code: string; stageToken: string; token: string; playerId: string }) => void = () => undefined;
+    vi.mocked(createAutopilotGame).mockReturnValue(new Promise((resolve) => (finish = resolve)) as never);
+    open();
+    await ready();
+    fireEvent.click(create());
+    finish({ ok: true, gameId: 'g', code: '123456', stageToken: 'secret-stage-token', token: 't', playerId: 'p' });
+    expect(await screen.findByText('гра')).toBeTruthy();
+    expect(document.body.innerHTML).not.toContain('secret-stage-token');
+  });
+
+  it('a tap past the card or Escape while the room is being created does not close the sheet', async () => {
+    vi.mocked(createAutopilotGame).mockReturnValue(new Promise(() => undefined) as never);
+    open();
+    await ready();
+    fireEvent.click(create());
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('dialog'));
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

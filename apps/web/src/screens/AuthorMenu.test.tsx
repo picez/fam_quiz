@@ -206,4 +206,75 @@ describe('AuthorMenu', () => {
     fireEvent.click(sheet);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  it('the game ends while the sheet is open: the sheet closes and focus goes to the screen, not lost on the body', () => {
+    const Main = ({ children }: { children: React.ReactNode }) => <main>{children}</main>;
+    const { rerender } = render(<AuthorMenu view={soloView({ phase: 'question' })} send={okSend()} />, { wrapper: Main });
+    openMenu();
+    rerender(<AuthorMenu view={soloView({ phase: 'finished' })} send={okSend()} />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Меню автора' })).toBeNull();
+    expect(document.activeElement).toBe(document.querySelector('main'));
+  });
+
+  it('a request with no answer does not lock the sheet: items are disabled while it is out, freed after 3 s and on close', async () => {
+    vi.useFakeTimers();
+    try {
+      const send = vi.fn(() => new Promise<never>(() => {}));
+      show(soloView({ phase: 'question' }), send as unknown as Send);
+      let sheet = openMenu();
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Пауза' }));
+      expect(send).toHaveBeenCalledTimes(1);
+      expect((within(sheet).getByRole('button', { name: 'Пауза' }) as HTMLButtonElement).disabled).toBe(true);
+      expect((within(sheet).getByRole('button', { name: 'Вилучити гравця' }) as HTMLButtonElement).disabled).toBe(true);
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect((within(sheet).getByRole('button', { name: 'Пауза' }) as HTMLButtonElement).disabled).toBe(false);
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Пауза' }));
+      expect(send).toHaveBeenCalledTimes(2);
+      // Закриття звільняє одразу.
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Закрити' }));
+      sheet = openMenu();
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Пауза' }));
+      expect(send).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Tab and Shift+Tab go round the sheet buttons', () => {
+    show(soloView({ phase: 'question' }));
+    const sheet = openMenu();
+    const buttons = within(sheet).getAllByRole('button');
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    expect(document.activeElement).toBe(first);
+    last.focus();
+    fireEvent.keyDown(sheet, { key: 'Tab' });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(sheet, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  it('Escape with the ⓘ help open leaves the sheet open', () => {
+    show(soloView({ teams: teamsView({ form: 'pick' }), team: null }));
+    const sheet = openMenu();
+    const pop = document.createElement('div');
+    pop.className = 'help-pop';
+    document.body.append(pop);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByRole('dialog')).toBe(sheet);
+    pop.remove();
+  });
+
+  it('a refused kick shows the reason in the sheet', async () => {
+    const send = vi.fn().mockResolvedValue({ ok: false, error: 'not_found' });
+    show(soloView(), send as unknown as Send);
+    const sheet = openMenu();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Вилучити гравця' }));
+    fireEvent.click(within(sheet).getByRole('button', { name: /Оля/ }));
+    expect(send).toHaveBeenCalledWith('host:kick', { playerId: 'p2' });
+    expect((await within(sheet).findByRole('alert')).textContent).not.toBe('');
+  });
 });

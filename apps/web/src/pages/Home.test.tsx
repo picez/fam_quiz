@@ -27,7 +27,7 @@ function enter(code: string) {
   fireEvent.click(screen.getByRole('button', { name: 'Увійти' }));
 }
 
-const STARTED = 'Ця гра вже почалася, приєднатися до неї не можна. Попросіть ведучого створити нову.';
+const STARTED = 'Ця гра вже почалася, приєднатися до неї не можна. Попросіть того, хто її запустив, створити нову.';
 
 describe('Home', () => {
   it('opens the game page when the game is waiting in the lobby', async () => {

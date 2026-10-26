@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { secondsLeft } from '../clock';
 import { t } from '../i18n';
 
-export type TimerStatus = 'paused' | 'held' | 'listening' | null;
+export type TimerStatus = 'paused' | 'held' | 'heldAuto' | 'listening' | null;
 
-/** Чому годинник стоїть: пауза гри або відповідь, що чекає на ведучого. */
-export function timerStatus(view: { paused: boolean; held: boolean }): TimerStatus {
-  return view.paused ? 'paused' : view.held ? 'held' : null;
+/** Чому годинник стоїть: пауза гри або відповідь, що чекає на ведучого (у грі без ведучого — на перевірку за ключем). */
+export function timerStatus(view: { paused: boolean; held: boolean; autopilot?: boolean }): TimerStatus {
+  return view.paused ? 'paused' : view.held ? (view.autopilot === true ? 'heldAuto' : 'held') : null;
 }
+
+const STATUS_TEXT = { paused: 'timerPaused', listening: 'timerListening', held: 'timerHeld', heldAuto: 'timerHeldAuto' } as const;
 
 interface Props {
   view: { endsAt: number | null; remainingMs: number | null };
@@ -60,7 +62,7 @@ export function Timer({ view, offsetMs, total = null, status: given = null, lead
       {(total !== null || status !== null) && (
         <span className="timer-label" data-held={t('timerHeld')} data-total={totalText}>
           {status !== null ? (
-            <span className="timer-status">{t(status === 'paused' ? 'timerPaused' : status === 'listening' ? 'timerListening' : 'timerHeld')}</span>
+            <span className="timer-status">{t(STATUS_TEXT[status])}</span>
           ) : (
             <span className="timer-total">{totalText}</span>
           )}

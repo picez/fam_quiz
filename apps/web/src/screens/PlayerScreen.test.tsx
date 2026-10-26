@@ -147,6 +147,82 @@ describe('PlayerScreen audio without a stage', () => {
     expect(audioEl()).not.toBeNull();
     expect(play).not.toHaveBeenCalled();
   });
+
+  it('starts once the splash is over, pauses with the game and goes on after it', () => {
+    vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const splash = { kind: 'question' as const, at: Date.now(), until: Date.now() + 1000 };
+    const current = withClip({ splash });
+    const { rerender } = render(screenOf(current, false));
+    expect(play).not.toHaveBeenCalled();
+    act(() => void vi.advanceTimersByTime(1100));
+    rerender(screenOf({ ...current, splash: null }, false));
+    expect(play).toHaveBeenCalledTimes(1);
+    rerender(screenOf({ ...current, splash: null, paused: true, endsAt: null, remainingMs: 15_000 }, false));
+    expect(pause).toHaveBeenCalled();
+    rerender(screenOf({ ...current, splash: null }, false));
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+
+  it('goes away when the stage comes back, at the leaderboard and on unmount', () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const current = withClip();
+    const { rerender } = render(screenOf(current, false));
+    expect(audioEl()).not.toBeNull();
+    rerender(screenOf(current, true));
+    expect(audioEl()).toBeNull();
+    expect(pause).toHaveBeenCalled();
+    cleanup();
+    const again = render(screenOf(current, false));
+    again.rerender(screenOf({ ...current, phase: 'leaderboard', question: null }, false));
+    expect(audioEl()).toBeNull();
+    cleanup();
+    pause.mockClear();
+    const last = render(screenOf(current, false));
+    expect(audioEl()).not.toBeNull();
+    last.unmount();
+    expect(pause).toHaveBeenCalled();
+  });
+
+  it('a stage that flaps back for a moment restarts the 3 s wait', () => {
+    vi.useFakeTimers();
+    const current = withClip();
+    const { rerender } = render(screenOf(current, true));
+    rerender(screenOf(current, false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS - 500));
+    rerender(screenOf(current, true));
+    rerender(screenOf(current, false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS - 500));
+    expect(audioEl()).toBeNull();
+    act(() => void vi.advanceTimersByTime(600));
+    expect(audioEl()).not.toBeNull();
+  });
+
+  it('a blocked browser shows «Увімкнути звук» and says so to a screen reader; a tap plays', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValueOnce(Object.assign(new Error('no'), { name: 'NotAllowedError' })).mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    render(screenOf(withClip(), false));
+    const unlock = await screen.findByRole('button', { name: '🔊 Увімкнути звук' });
+    expect(document.querySelector('.audio-card [role="status"]')?.textContent).toBe('Браузер не дав увімкнути звук — торкніться кнопки.');
+    fireEvent.click(unlock);
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+
+  it('a player who takes a swap hears the spare clip from a fresh player', () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const spareClip = { ...clip, url: '/uploads/fedcba9876543210.mp3' };
+    const current = withClip();
+    const { rerender } = render(screenOf(current, false));
+    const first = audioEl();
+    const active = { kind: 'swap' as const, removed: [], retry: null, first: null, hint: null };
+    const swapped = withClip({ me: { ...me, buffs: { slots: [], active } as never } }, spareClip);
+    rerender(screenOf(swapped, false));
+    expect(audioEl()?.getAttribute('src')).toBe(spareClip.url);
+    expect(audioEl()).not.toBe(first);
+  });
 });
 
 describe('PlayerScreen', () => {

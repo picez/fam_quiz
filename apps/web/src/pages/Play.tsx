@@ -5,7 +5,7 @@ import { joinGame } from '../api';
 import { errorText, t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
 import { PlayerScreen } from '../screens/PlayerScreen';
-import { clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
+import { clearAuthor, clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
 import { useAccount } from '../useAccount';
 
 function JoinForm({ code, notice, onJoined }: { code: string; notice: string | null; onJoined: (token: string) => void }) {
@@ -77,8 +77,10 @@ export function Play() {
   const lost = token !== null && (game.status === 'unauthorized' || game.closed !== null);
   useEffect(() => {
     if (!lost) return;
-    setNotice(t(game.closed === 'kicked' ? (wasAutopilot.current ? 'kickedByAuthor' : 'kicked') : 'gameGone'));
+    const auto = wasAutopilot.current;
+    setNotice(t(game.closed === 'kicked' ? (auto ? 'kickedByAuthor' : 'kicked') : auto ? 'gameGoneAuto' : 'gameGone'));
     clearPlayer(code);
+    clearAuthor(code);
     setToken(null);
   }, [lost, game.closed, code]);
 
