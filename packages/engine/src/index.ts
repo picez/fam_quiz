@@ -34,3 +34,4 @@ export * from './teams';
 export * from './team-act';
 export * from './pacing';
 export * from './restore';
+export * from './autopilot';
