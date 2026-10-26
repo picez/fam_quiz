@@ -21,7 +21,10 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
 import { QuestionImage } from './QuestionImage';
+import { STAGE_GONE_MS, useStageGone } from '../live/useStageGone';
 import { QuestionAudio } from './QuestionAudio';
+
+export { STAGE_GONE_MS };
 import { SliderScale } from './SliderScale';
 import { PinBoard } from './PinBoard';
 import { publicLeadMs, questionElapsedMs, useRevealProgress } from '../reveal';
@@ -183,23 +186,6 @@ function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView;
     return <p className="banner is-away">{t(view.phase === 'question' ? 'answererAwayClose' : 'chooserAwaySkip', { name, seconds })}</p>;
   }
   return view.paused && view.phase === 'board' ? <p className="banner is-away">{t('chooserAwayPaused', { name })}</p> : null;
-}
-
-/** Сцена, якої нема вже STAGE_GONE_MS: короткий розрив (перепідключення, оновлення сцени) не вмикає звук на пульті. */
-export const STAGE_GONE_MS = 3000;
-
-function useStageGone(stageOnline: boolean): boolean {
-  // Якщо сцени немає вже при відкритті пульту, чекати нічого.
-  const [gone, setGone] = useState(!stageOnline);
-  useEffect(() => {
-    if (stageOnline) {
-      setGone(false);
-      return;
-    }
-    const id = setTimeout(() => setGone(true), STAGE_GONE_MS);
-    return () => clearTimeout(id);
-  }, [stageOnline]);
-  return gone && !stageOnline;
 }
 
 /** Згорнута панель «Бали за раундами» (11f): таблиця монтується лише відкритою. */

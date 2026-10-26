@@ -172,6 +172,22 @@ const screens: Screen[] = [
     stage: stageBase({ phase: 'question', questionIndex: 0, question: publicQuestion, ...open }),
   },
   {
+    name: 'ladder question with an off hint',
+    phone: (a) => {
+      const own = { role: 'contestant', canLifeline: true, hint: null, canDecide: false, hallClosed: false, hallPoints: null, won: null } as never;
+      return phoneBase(a, {
+        phase: 'question',
+        round: round('ladder'),
+        questionIndex: 0,
+        question: publicQuestion,
+        ...open,
+        ladder: ladderInfo({ lifelines: [{ kind: 'fifty', state: 'ready' }, { kind: 'hint', state: 'off' }] }),
+        me: { ...baseMe, ladder: own },
+      });
+    },
+    stage: stageBase({ phase: 'question', round: round('ladder'), questionIndex: 0, question: publicQuestion, ...open, ladder: ladderInfo({ lifelines: [{ kind: 'fifty', state: 'ready' }, { kind: 'hint', state: 'off' }] }) }),
+  },
+  {
     name: 'bluff choice',
     phone: (a) =>
       phoneBase(a, {

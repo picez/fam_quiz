@@ -18,6 +18,7 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
   const allowed = own.canLifeline && !view.paused && !notStarted && !timeOver;
   const audience = info.audience;
   const hint = own.hint;
+  const anyOff = info.lifelines.some(({ state }) => state === 'off');
   return (
     <section className="ladder-lifelines">
       <div className="ladder-lifeline-row" role="group" aria-label={t('ladderLifelinesLabel')}>
@@ -36,12 +37,12 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
             </span>
             <span className="ladder-lifeline-name">{t(`ladderLifeline_${kind}` as TextKey)}</span>
             {state === 'used' && <span className="sr-only"> {t('ladderLifelineUsed')}</span>}
-            {state === 'off' && <span className="sr-only"> {t('ladderLifelineOff')}</span>}
           </button>
         ))}
       </div>
       {/* Усе, що з'являється після дотику, — в одному місці під рядом кнопок. */}
       <div className="ladder-lifeline-info" aria-live="polite">
+        {anyOff && <p className="meta ladder-lifeline-off">{t('ladderLifelineOff')}</p>}
         {audience !== null &&
           (audience.state === 'closed' ? (
             audience.tally !== null && view.question !== null && (

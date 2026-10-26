@@ -9,7 +9,7 @@ import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
-import { publicWindowMs, revealStage, useRevealProgress } from '../reveal';
+import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
@@ -44,6 +44,8 @@ import { DebuffShop } from './DebuffShop';
 import { TableButton } from './TableSheet';
 import { AuthorMenu } from './AuthorMenu';
 import { useGuardedSend } from '../live/useGuardedSend';
+import { useStageGone } from '../live/useStageGone';
+import { QuestionAudio } from './QuestionAudio';
 import { SurvivalBoard } from './SurvivalBoard';
 import { SurvivalTrial } from './SurvivalTrial';
 import { WipeoutDecision } from './WipeoutDecision';
@@ -576,7 +578,7 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null }: Props) {
+export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
   const decideGuard = useGuardedSend(send, setError);
@@ -602,6 +604,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   const locked = view.paused || notStarted;
   // Під будь-якою заставкою (раунд, фінал, підсумки) кнопки шапки й вступу вимкнені: крізь шар їх не натиснути наосліп.
   const splashUp = splashNow !== null;
+  // Гра без ведучого й без сцени: звук запитання грає на телефонах (сервер шле джерело лише тоді).
+  const stageGone = useStageGone(stageOnline);
+  const clip = view.autopilot ? (question?.audio?.clip ?? null) : null;
 
   const submit = async (answer: Answer) => {
     // До старту сервер однаково відмовив би: дотик, що проскочив крізь вимкнене поле, нічого не надсилає.
@@ -1151,6 +1156,21 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
           <MenuLinks role="player" />
         </>
+      )}
+
+      {clip !== null && stageGone && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
+        <div className="player-audio">
+          <QuestionAudio
+            key={`${view.round?.index ?? 0}:${view.questionIndex}`}
+            clip={clip}
+            questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
+            ready={phase === 'question' && !notStarted && !view.paused}
+            paused={view.paused}
+            command={null}
+            elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
+            splash={notStarted}
+          />
+        </div>
       )}
 
       {error !== null && (

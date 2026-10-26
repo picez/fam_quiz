@@ -557,7 +557,7 @@ const uk = {
   ladderLifeline_audience: 'Зал',
   ladderLifeline_hint: 'Підказка',
   ladderLifelineUsed: 'використано',
-  ladderLifelineOff: 'У грі без ведучого підказки немає.',
+  ladderLifelineOff: 'У цій грі підказки немає.',
   ladderLifelinesLabel: 'Підказки',
   ladderHallVoting: 'Зал голосує: {voted} з {total}',
   ladderHallResult: 'Що каже зал',

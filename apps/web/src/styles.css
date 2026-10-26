@@ -7294,6 +7294,15 @@ label.powers-price {
   pointer-events: none;
 }
 
+.player-audio {
+  margin-top: 0.75rem;
+}
+
+.ladder-lifeline-off {
+  margin: 0.25rem 0 0;
+  text-align: center;
+}
+
 .host-audio .panel-actions {
   margin-top: 0.5rem;
 }

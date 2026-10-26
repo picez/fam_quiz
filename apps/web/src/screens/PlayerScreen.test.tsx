@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
+import { STAGE_GONE_MS } from '../live/useStageGone';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS } from './verdict-blink';
 import { baseMe, teamPlayerView } from './team-test-view';
@@ -93,6 +94,60 @@ function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send;
   render(<PlayerScreen view={current} hostOnline={options.hostOnline ?? true} offsetMs={0} send={send} code={options.code} stageUrl={options.stageUrl} />);
   return send;
 }
+
+describe('PlayerScreen audio without a stage', () => {
+  const clip = { source: 'file' as const, url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 10 };
+  const withClip = (over: Partial<PlayerView> = {}, clipValue: typeof clip | null = clip) =>
+    onQuestion({ autopilot: true, question: { ...publicQuestion, audio: { duration: 10, clip: clipValue } } as never, ...over });
+  const screenOf = (current: PlayerView, stageOnline: boolean) => (
+    <PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} stageOnline={stageOnline} />
+  );
+  const audioEl = () => document.querySelector('audio');
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('plays the clip after the stage has been gone for STAGE_GONE_MS, not before', () => {
+    vi.useFakeTimers();
+    const current = withClip();
+    const { rerender } = render(screenOf(current, true));
+    expect(audioEl()).toBeNull();
+    rerender(screenOf(current, false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS - 100));
+    expect(audioEl()).toBeNull();
+    act(() => void vi.advanceTimersByTime(200));
+    expect(audioEl()?.getAttribute('src')).toBe(clip.url);
+    expect(document.querySelector('.player-audio')).not.toBeNull();
+  });
+
+  it('is silent while the stage is online, without a clip, and in a hosted game', () => {
+    vi.useFakeTimers();
+    const online = render(screenOf(withClip(), true));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS * 2));
+    expect(audioEl()).toBeNull();
+    online.unmount();
+    render(screenOf(withClip({}, null), false));
+    expect(audioEl()).toBeNull();
+    cleanup();
+    render(screenOf(withClip({ autopilot: false }), false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS * 2));
+    expect(audioEl()).toBeNull();
+  });
+
+  it('under the question splash the audio is mounted but does not start', () => {
+    vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const splash = { kind: 'question' as const, at: Date.now(), until: Date.now() + 5000 };
+    const current = withClip({ splash });
+    const { rerender } = render(screenOf(current, true));
+    rerender(screenOf(current, false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS + 100));
+    expect(audioEl()).not.toBeNull();
+    expect(play).not.toHaveBeenCalled();
+  });
+});
 
 describe('PlayerScreen', () => {
   it('a debuffed question wraps the answer area; other phones get the same zone without a debuff', () => {

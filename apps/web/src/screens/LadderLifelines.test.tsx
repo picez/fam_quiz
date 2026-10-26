@@ -109,12 +109,21 @@ describe('LadderLifelines', () => {
     expect(none.container.firstChild).toBeNull();
   });
 
-  it('an off lifeline is disabled and says there is no hint without a host', () => {
-    const view = lifelineView({ lifelines: [{ kind: 'hint', state: 'off' }, { kind: 'fifty', state: 'ready' }] });
-    render(<LadderLifelines view={view} offsetMs={0} onUse={vi.fn()} />);
-    const off = screen.getByRole('button', { name: /Підказка.*У грі без ведучого підказки немає\./ });
+  it('an off lifeline is disabled and says in visible text why it is off', () => {
+    const view = lifelineView({ lifelines: [{ kind: 'fifty', state: 'ready' }, { kind: 'hint', state: 'off' }] });
+    const { container } = render(<LadderLifelines view={view} offsetMs={0} onUse={vi.fn()} />);
+    const off = screen.getByRole('button', { name: 'Підказка' });
     expect(off.hasAttribute('disabled')).toBe(true);
     expect(off.classList.contains('is-off')).toBe(true);
+    const why = container.querySelector('.ladder-lifeline-info .ladder-lifeline-off');
+    expect(why?.textContent).toBe('У цій грі підказки немає.');
+    expect(why?.closest('.sr-only')).toBeNull();
+    expect(off.querySelector('.sr-only')).toBeNull();
+  });
+
+  it('without an off lifeline there is no reason line', () => {
+    const { container } = render(<LadderLifelines view={lifelineView()} offsetMs={0} onUse={vi.fn()} />);
+    expect(container.querySelector('.ladder-lifeline-off')).toBeNull();
   });
 });
 
@@ -128,14 +137,14 @@ function ruleWith(selector: string): string {
 }
 
 describe('off lifelines (11g)', () => {
-  it('the stage and host badges say there is no hint without a host', () => {
+  it('the stage and host badges say there is no hint in this game', () => {
     const info = ladderInfo({ lifelines: [{ kind: 'hint', state: 'off' }, { kind: 'fifty', state: 'ready' }] });
     render(<LadderLifelineBadges info={info} />);
     const items = screen.getAllByRole('listitem');
     expect(items[0].classList.contains('is-off')).toBe(true);
-    expect(items[0].textContent).toContain('У грі без ведучого підказки немає.');
-    expect(items[0].querySelector('.sr-only')?.textContent).toContain('У грі без ведучого підказки немає.');
-    expect(items[1].textContent).not.toContain('без ведучого');
+    expect(items[0].textContent).toContain('У цій грі підказки немає.');
+    expect(items[0].querySelector('.sr-only')?.textContent).toContain('У цій грі підказки немає.');
+    expect(items[1].textContent).not.toContain('підказки немає');
   });
 
   it('an off lifeline button and badge are dimmed like a used one, without the strike', () => {
