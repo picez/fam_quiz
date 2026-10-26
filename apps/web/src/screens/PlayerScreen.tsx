@@ -42,6 +42,7 @@ import { TeamWatch, useDraftSender } from './TeamWatch';
 import { MenuLinks } from './MenuLinks';
 import { DebuffShop } from './DebuffShop';
 import { TableButton } from './TableSheet';
+import { AuthorMenu } from './AuthorMenu';
 import { useGuardedSend } from '../live/useGuardedSend';
 import { SurvivalBoard } from './SurvivalBoard';
 import { SurvivalTrial } from './SurvivalTrial';
@@ -579,6 +580,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
   const decideGuard = useGuardedSend(send, setError);
+  const resumeGuard = useGuardedSend(send, setError);
   // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере бафи, дебафи й крамницю.
   const team = view.team;
   const acting = team === null || team.canAct;
@@ -702,13 +704,19 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
         <DuelButton duel={captain || me.duel === null ? me.duel : { ...me.duel, rights: null }} paused={view.paused || splashUp} send={send} onError={setError} />
         {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
+        <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
         <strong className="score">{num(me.score)}</strong>
       </header>
 
       {view.paused && (
-        <p className="banner" role="status">
+        <p className={view.author !== null ? 'banner author-paused' : 'banner'} role="status">
           {t(hostOnline ? 'paused' : 'waitingHost')}
+          {view.author !== null && view.phase !== 'finished' && (
+            <button type="button" className="btn btn-small" disabled={resumeGuard.busy} onClick={() => void resumeGuard.run('host:resume', undefined)}>
+              {t('authorResume')}
+            </button>
+          )}
         </p>
       )}
 

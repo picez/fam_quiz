@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
@@ -135,6 +135,24 @@ describe('PlayerScreen', () => {
     expect(screen.queryByText('Ви в грі. Чекаємо на старт.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
     expect(send).toHaveBeenCalledWith('host:start', undefined);
+  });
+
+  it('the author header has «⋯»; another player header does not', () => {
+    show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [] } }), { code: '123456' });
+    expect(document.querySelector('header.bar')!.querySelector('button.author-menu-btn')).not.toBeNull();
+    cleanup();
+    show(view({ autopilot: true, author: null }), { code: '123456' });
+    expect(screen.queryByRole('button', { name: 'Меню автора' })).toBeNull();
+  });
+
+  it('the author pause banner has «Продовжити» that resumes; other players only see «Пауза»', () => {
+    const send = show(onQuestion({ autopilot: true, author: { cloud: null, bluff: null, people: [] }, paused: true, endsAt: null, remainingMs: 12_000 }));
+    const banner = document.querySelector('.banner')!;
+    fireEvent.click(within(banner as HTMLElement).getByRole('button', { name: 'Продовжити' }));
+    expect(send).toHaveBeenCalledWith('host:resume', undefined);
+    cleanup();
+    show(onQuestion({ autopilot: true, author: null, paused: true, endsAt: null, remainingMs: 12_000 }));
+    expect(document.querySelector('.banner')!.querySelector('button')).toBeNull();
   });
 
   it('another player in an autopilot lobby and a hosted lobby see the usual line, no start button', () => {
