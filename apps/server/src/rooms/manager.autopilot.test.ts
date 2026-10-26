@@ -510,3 +510,61 @@ class ManualScheduler implements Scheduler {
     fn();
   }
 }
+
+describe('audio on the phones of a game with no host and no stage (11h)', () => {
+  const CLIP = { source: 'file', url: '/uploads/0123456789abcdef.mp3', start: 0, duration: 2 } as const;
+  const withAudio = () => makeQuiz([{ ...single, audio: CLIP }, text], { leaderboard: 'each' });
+  const clipOf = (view: ReturnType<RoomManager['view']>) => {
+    const question = (view as { question: { audio: { clip: unknown } | null } | null } | null)?.question;
+    return question?.audio === undefined || question?.audio === null ? undefined : question.audio.clip;
+  };
+  const phones = (ctx: ReturnType<typeof atQuestion>) => [ctx.author, ctx.others[0].identity];
+
+  it('the author and the other player get the source at the question and at the reveal', () => {
+    const ctx = atQuestion(withAudio());
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toEqual(CLIP);
+    toReveal(ctx);
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toEqual(CLIP);
+  });
+
+  it('a stage that connects takes the source away; once it leaves the phones get it again', () => {
+    const ctx = atQuestion(withAudio());
+    const stage: Identity = { role: 'stage', playerId: null };
+    const events: string[] = [];
+    ctx.manager.onEvent((_room, event) => events.push(event.type));
+    ctx.manager.connect(ctx.room, stage);
+    expect(events).toContain('changed');
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toBeNull();
+    ctx.manager.disconnect(ctx.room, stage);
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toEqual(CLIP);
+  });
+
+  it('there is no audio in the lobby or at the leaderboard, and a question without audio stays so', () => {
+    const lobby = autopilot(withAudio());
+    expect(clipOf(lobby.manager.view(lobby.room, lobby.author))).toBeUndefined();
+    const ctx = atQuestion(withAudio());
+    toReveal(ctx);
+    ctx.scheduler.advance(6000);
+    expect(ctx.room.state.phase).toBe('leaderboard');
+    expect(clipOf(ctx.manager.view(ctx.room, ctx.author)) ?? null).toBeNull();
+    ctx.scheduler.advance(5000);
+    expect(ctx.room.state.questionIndex).toBe(1);
+    expect(ctx.manager.view(ctx.room, ctx.author)).toMatchObject({ question: { audio: null } });
+  });
+
+  it('a hosted room never gives phones the source, stage or not; the stage and host views are unchanged', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const room = manager.create(withAudio());
+    const joined = manager.join(room.code, 'Анна');
+    if (!joined.ok) throw new Error(joined.error);
+    const phone: Identity = { role: 'player', playerId: joined.playerId };
+    manager.connect(room, phone);
+    manager.connect(room, { role: 'host', playerId: null });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('question');
+    expect(clipOf(manager.view(room, phone))).toBeNull();
+    expect(clipOf(manager.view(room, { role: 'stage', playerId: null }))).toEqual(CLIP);
+    expect(clipOf(manager.view(room, { role: 'host', playerId: null }))).toEqual(CLIP);
+  });
+});

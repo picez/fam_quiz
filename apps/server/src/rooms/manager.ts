@@ -104,7 +104,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostView, type LifelineKind, type Phase, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostView, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -593,10 +593,19 @@ export class RoomManager {
     if (identity.role === 'stage') return stageView(room.state);
     if (identity.playerId === null) return null;
     const view = playerView(room.state, identity.playerId);
-    const team = view?.team ?? null;
-    if (view === null || team === null || team.teamId === null) return view;
+    if (view === null) return null;
+    const team = view.team;
+    if (team === null || team.teamId === null) return this.withPhoneClip(room, view);
     const draft = this.currentDraft(room, team.teamId, identity.playerId);
-    return draft === null ? view : { ...view, team: { ...team, draft } };
+    return this.withPhoneClip(room, draft === null ? view : { ...view, team: { ...team, draft } });
+  }
+
+  /** Автопілот без сцени (11h): звук нема де грати, крім телефонів — гравці дістають джерело поточного запитання. */
+  private withPhoneClip(room: Room, view: PlayerView): PlayerView {
+    if (room.state.autopilot === undefined || this.stageOnline(room) || view.question?.audio == null) return view;
+    const clip = audioOf(room.state);
+    if (clip === null) return view;
+    return { ...view, question: { ...view.question, audio: { ...view.question.audio, clip } } };
   }
 
   /** Пульт бачить живі чернетки команд у «Відповідях наживо» (11c); у стан гри вони не потрапляють. */
