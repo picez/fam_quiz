@@ -710,3 +710,20 @@ describe('task 4 review (11g)', () => {
     expect(s.phase).toBe('locked');
   });
 });
+
+describe('silent board (11g soak)', () => {
+  it('after a whole circle of skipped turns the cell of the next turn is drawn by lot, 30 s into the turn', () => {
+    let s = begin(boardQuiz(), []);
+    s = go(s);
+    expect(s.phase).toBe('board');
+    const first = atOf(s)!;
+    s = go(s);
+    expect(s.phase).toBe('board');
+    expect(s.board?.circleNo).toBe(2);
+    expect(atOf(s)).toBe(first + 30_000);
+    paced(s, 'skip', first + 30_000);
+    s = go(s, () => 0.5);
+    expect(s.phase).toBe('question');
+    expect(s.plays[s.questionIndex].board).toMatchObject({ cellId: 'b2', chooserId: 'a' });
+  });
+});

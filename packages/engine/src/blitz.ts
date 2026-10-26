@@ -213,8 +213,10 @@ export function nextDeadline(state: GameState, now: number): number | null {
   // Особистий дедлайн ланцюжка раніший за endsAt на штраф гравця; хто вже пройшов, не чекає.
   const chainers = Object.keys(play?.chain ?? {}).filter((id) => !Object.hasOwn(play.answers, id));
   // Спільний кінець або пізніший особистий кінець того, хто ще не відповів (додатковий час).
+  const closes = closesAt(state);
   const times = [
-    closesAt(state),
+    // Фаза вигадок блефу перемикається строго після кінця (рівно на кінці ще можна писати): тік — на мілісекунду пізніше.
+    closes !== null && play?.bluff?.stage === 'lies' ? closes + 1 : closes,
     away === null ? null : away + BOARD_AWAY_MS,
     ...(play?.blitz?.queue.map((e) => e.deadline) ?? []),
     ...chainers.map((id) => chainDeadline(state, id)),
