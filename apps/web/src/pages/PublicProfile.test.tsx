@@ -12,7 +12,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   id: 'u2',
   nickname: 'Тарас',
   avatar: null,
-  stats: { games: 3, wins: 1, accuracy: 70, quizzes: 2, hosted: 0 },
+  stats: { games: 3, wins: 1, accuracy: 70, quizzes: 2, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
   achievements: [{ id: 'first_game', earned: true }],
   following: false,
   ...over,

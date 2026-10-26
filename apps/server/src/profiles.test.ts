@@ -10,7 +10,7 @@ import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { follow, game, participant, profile, user } from './db/schema';
-import { ensureProfile, profileFacts, saveProfile } from './profiles';
+import { ensureProfile, profileFacts, publicProfile, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
 import type { Room } from './rooms/manager';
 import { defaultTeams, questionsOf } from '@quiz/shared';
@@ -156,16 +156,70 @@ describe('profile facts', () => {
     const { hostId, olenaId, gameId } = await playedGame();
 
     const olena = await profileFacts(db, olenaId);
-    expect(olena.stats).toEqual({ games: 1, wins: 1, accuracy: 100, quizzes: 0, hosted: 0 });
+    expect(olena.stats).toEqual({
+      games: 1,
+      wins: 1,
+      accuracy: 100,
+      quizzes: 0,
+      hosted: 0,
+      podium: { first: 1, second: 0, third: 0 },
+      top3: 100,
+      bestScore: 2000,
+      avgPlace: 1,
+    });
     expect(olena.wins).toEqual([{ gameId, title: 'Тестова вікторина', startedAt: expect.any(String), rank: 1 }]);
     expect(Date.parse(olena.wins[0].startedAt)).not.toBeNaN();
     expect(earned(olena.achievements)).toEqual(['first_game', 'first_win']);
     expect(olena.achievements).toHaveLength(16);
 
     const host = await profileFacts(db, hostId);
-    expect(host.stats).toEqual({ games: 0, wins: 0, accuracy: null, quizzes: 2, hosted: 1 });
+    expect(host.stats).toEqual({
+      games: 0,
+      wins: 0,
+      accuracy: null,
+      quizzes: 2,
+      hosted: 1,
+      podium: { first: 0, second: 0, third: 0 },
+      top3: null,
+      bestScore: null,
+      avgPlace: null,
+    });
     expect(host.wins).toEqual([]);
     expect(earned(host.achievements)).toEqual(['host']);
+  });
+
+  it('profile counts the podium, the top-3 share, the best score and the average place from stored games (11f)', async () => {
+    const hostId = randomUUID();
+    const me = randomUUID();
+    await db.insert(user).values([
+      { id: hostId, name: 'Ведуча', email: `${hostId}@example.com` },
+      { id: me, name: 'Гравець', email: `${me}@example.com` },
+    ]);
+    // Ті самі ігри, що A–H у shared/profile.test.ts: місце, бали, учасники, статус.
+    const games: { rank: number | null; score: number; playerCount: number; status?: 'aborted' }[] = [
+      { rank: 1, score: 100, playerCount: 2 },
+      { rank: 2, score: 50, playerCount: 3 },
+      { rank: 3, score: 30, playerCount: 4 },
+      { rank: 2, score: 40, playerCount: 2 },
+      { rank: 3, score: 20, playerCount: 3 },
+      { rank: null, score: 10, playerCount: 3, status: 'aborted' },
+      { rank: 2, score: 0, playerCount: 3 },
+      { rank: 1, score: 500, playerCount: 1 },
+    ];
+    for (const [i, g] of games.entries()) {
+      await seedGame(db, {
+        hostId,
+        status: g.status ?? 'finished',
+        startedAt: new Date(Date.UTC(2026, 1, 1 + i)),
+        players: [
+          { userId: me, nickname: 'Я', score: g.score, rank: g.rank },
+          ...Array.from({ length: g.playerCount - 1 }, (_, j) => ({ userId: null, nickname: `Гість ${j}`, score: 7 * j, rank: g.rank === null ? null : j + 10 })),
+        ],
+      });
+    }
+    const { stats } = await profileFacts(db, me);
+    expect(stats).toMatchObject({ games: 8, wins: 1, podium: { first: 1, second: 1, third: 1 }, top3: 50, bestScore: 500, avgPlace: 2.2 });
+    expect((await publicProfile(db, me, null))?.stats).toMatchObject({ podium: { first: 1, second: 1, third: 1 }, top3: 50, bestScore: 500, avgPlace: 2.2 });
   });
 
   it('profileFacts earns blitz, final, comeback and friends achievements from stored games', async () => {
@@ -585,7 +639,7 @@ describe('profile: teams (10j)', () => {
   it("a member gets the team's place, win and accuracy from the team's answers, even when not the captain; their cloud vote is not an answer", async () => {
     const t = await teamGame();
     const olya = await profileFacts(t.db, TEAM_USERS['Оля']);
-    expect(olya.stats).toMatchObject({ games: 1, wins: 1, accuracy: 67 });
+    expect(olya.stats).toMatchObject({ games: 1, wins: 1, accuracy: 67, podium: { first: 1, second: 0, third: 0 }, bestScore: 2000, avgPlace: 1 });
     expect(olya.wins).toHaveLength(1);
     const [played] = await playerGames(t.db, TEAM_USERS['Оля'], null);
     expect(played.played).toMatchObject({ nickname: 'Оля', team: 'Червоні', rank: 1, score: 2000, playerCount: 2, correct: 2, answered: 3, questionsPlayed: 3 });
@@ -599,7 +653,8 @@ describe('profile: teams (10j)', () => {
     expect(played.marks).toHaveLength(3);
 
     const vira = await profileFacts(t.db, TEAM_USERS['Віра']);
-    expect(vira.stats).toMatchObject({ games: 1, wins: 0, accuracy: 33 });
+    // Дві команди: другого місця немає (учасників < 3), середнє місце — місце команди.
+    expect(vira.stats).toMatchObject({ games: 1, wins: 0, accuracy: 33, podium: { first: 0, second: 0, third: 0 }, top3: 0, bestScore: 1000, avgPlace: 2 });
     const [viraGame] = await playerGames(t.db, TEAM_USERS['Віра'], null);
     expect(viraGame.played).toMatchObject({ team: 'Сині', rank: 2, playerCount: 2 });
   });

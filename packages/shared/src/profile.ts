@@ -26,7 +26,7 @@ export interface Achievement {
   earned: boolean;
 }
 
-export interface ProfileStats {
+export interface ProfileStats extends PodiumStats {
   games: number;
   wins: number;
   /** Відсоток зарахованих від зіграних запитань; null — запитань не було. */

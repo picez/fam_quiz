@@ -198,7 +198,18 @@ describe('score adjustments (migration 0006)', () => {
     await migrateRest();
 
     const after = await hostGame(db, 'u1', gameId);
-    expect(after?.standings).toEqual([{ participantId, nickname: 'Тарас', score: 1000, rank: 1, correct: 1 }]);
+    // 11f: колонки й розбивка старої гри — з її рядків answer.
+    expect(after?.standings).toEqual([
+      {
+        participantId,
+        nickname: 'Тарас',
+        score: 1000,
+        rank: 1,
+        correct: 1,
+        rounds: [1000],
+        breakdown: { parts: [{ source: 'answers', plus: 1000, minus: 0 }], plus: 1000, minus: 0 },
+      },
+    ]);
     expect(after?.adjustments).toEqual([]);
     expect(after?.questions).toMatchObject([{ index: 0, roundIndex: 0, answered: 1, accepted: 1 }]);
   });

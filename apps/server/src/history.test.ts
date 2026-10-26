@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { defaultTeams, type Answer, type Question } from '@quiz/shared';
+import { breakdownOf, DEFAULT_RULES, defaultTeams, type Answer, type Question } from '@quiz/shared';
 import { LADDER_RIGHT, LADDER_WRONG, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
-import { rankPlayers, sortOf } from '@quiz/engine';
+import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { gameTables, hostGame, playerGames } from './history';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, answer, game, participant, user, VOTE_ATTEMPT } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { playToEnd } from './testing/final-game';
 import { playLadderQuestion } from './testing/ladder-game';
@@ -208,6 +208,10 @@ describe('host history: rounds', () => {
     const detail = (await get(`/api/games/${gameId}`, host.cookie)).json() as Record<string, unknown>;
     expect(detail.rounds).toEqual([{ title: '', type: 'classic' }]);
     expect(detail.standings).toMatchObject([{ nickname: 'Тарас', score: 1000, rank: 1, correct: 1 }]);
+    // 11f: колонки й розбивка — з рядків answer; коригувань у такій грі немає, і це не помилка.
+    expect(detail.standings).toMatchObject([
+      { rounds: [1000], breakdown: { parts: [{ source: 'answers', plus: 1000, minus: 0 }], plus: 1000, minus: 0 } },
+    ]);
     expect(detail.questions).toMatchObject([
       { index: 0, roundIndex: 0, text: single.text, type: 'single', answered: 1, accepted: 1, cell: null },
       { index: 1, roundIndex: 0, text: text.text, type: 'text', answered: 1, accepted: 0, cell: null },
@@ -296,8 +300,35 @@ describe('host history: broken snapshot', () => {
     expect(detail.json()).toMatchObject({
       rounds: [],
       questions: [],
-      standings: [{ nickname: 'Тарас', score: 5, rank: 1 }],
+      standings: [{ nickname: 'Тарас', score: 5, rank: 1, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } }],
     });
+  });
+
+  it('a broken snapshot still gives points per round and a breakdown; answer rows count as answers (11f)', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const { gameId } = await seedGame(db, {
+      hostId: account.id,
+      startedAt: new Date(),
+      snapshot: { title: 'Зіпсована', rounds: [{ id: 'r1', type: 'final', questions: [{}] }, { id: 'r2', type: 'wipeout', questions: [{}] }] },
+      players: [
+        {
+          userId: null,
+          nickname: 'Тарас',
+          score: 700,
+          rank: 1,
+          rows: [
+            { questionIndex: 0, roundIndex: 0, accepted: true, points: 1000 },
+            { questionIndex: 1, roundIndex: 1, accepted: false, points: -300 },
+          ],
+        },
+      ],
+    });
+    const detail = await hostGame(db, account.id, gameId);
+    expect(detail?.questions).toEqual([]);
+    expect(detail?.standings.map((s) => [s.nickname, s.rounds, s.breakdown])).toEqual([
+      ['Тарас', [1000, -300], { parts: [{ source: 'answers', plus: 1000, minus: -300 }], plus: 1000, minus: -300 }],
+    ]);
   });
 });
 
@@ -1696,6 +1727,13 @@ describe('history: teams (10j)', () => {
       ['Червоні', ['Оля', 'Петро'], 1, 2],
       ['Сині', ['Віра', 'Ігор'], 2, 0],
     ]);
+    // 11f: рядки команд мають колонки раундів і розбивку; Σ колонок = рахунок.
+    for (const s of detail?.standings ?? []) {
+      expect(s.rounds).toHaveLength(2);
+      expect(s.rounds.reduce((sum, n) => sum + n, 0)).toBe(s.score);
+      expect(s.breakdown.plus + s.breakdown.minus).toBe(s.score);
+    }
+    expect(detail?.standings[0].breakdown.plus).toBeGreaterThan(0);
     const [classic, votes, blitz] = detail?.questions ?? [];
     expect(classic.responses.map((r) => [r.nickname, r.accepted])).toEqual([
       ['Червоні', true],
@@ -1733,6 +1771,129 @@ describe('history: teams (10j)', () => {
     const { gameId } = await seedGame(db, { hostId: account.id, startedAt: new Date(), players: [{ userId: null, nickname: 'Тарас', score: 0, rank: 1 }] });
     const detail = await hostGame(db, account.id, gameId);
     expect(detail?.teams).toBe(false);
-    expect(detail?.standings).toEqual([{ participantId: expect.any(String), nickname: 'Тарас', score: 0, rank: 1, correct: 0 }]);
+    expect(detail?.standings).toEqual([
+      { participantId: expect.any(String), nickname: 'Тарас', score: 0, rank: 1, correct: 0, rounds: [0], breakdown: { parts: [], plus: 0, minus: 0 } },
+    ]);
+  });
+});
+
+describe('host history: points per round and plus / minus (11f)', () => {
+  it('builds the columns and the breakdown from answer rows (no votes) and adjustments', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const snapshot = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')]), wipeoutRound('r2', wipeoutLadder), finalRound('r3', withId(single, 'f1'))]);
+    const { gameId } = await seedGame(db, {
+      hostId: account.id,
+      startedAt: new Date(),
+      snapshot,
+      players: [
+        {
+          userId: null,
+          nickname: 'Оля',
+          score: 250,
+          rank: 2,
+          rows: [
+            { questionIndex: 0, roundIndex: 0, accepted: true, points: 1000 },
+            { questionIndex: 1, roundIndex: 0, accepted: false, points: -500 },
+            { questionIndex: 2, roundIndex: 1, accepted: true, points: 300 },
+            { questionIndex: 3, roundIndex: 2, attempt: PENALTY_ATTEMPT, accepted: false, points: -200 },
+            { questionIndex: 1, roundIndex: 0, attempt: VOTE_ATTEMPT, accepted: false, points: 0 },
+          ],
+          adjustments: [
+            { seq: 1, roundIndex: 0, points: 50, source: 'host' },
+            { seq: 2, roundIndex: 1, points: -300, source: 'duel' },
+            { seq: 3, roundIndex: 1, points: -100, source: 'debuff', debuff: 'fog' },
+          ],
+        },
+        {
+          userId: null,
+          nickname: 'Тарас',
+          score: 1300,
+          rank: 1,
+          rows: [{ questionIndex: 0, roundIndex: 0, accepted: true, points: 1000 }],
+          adjustments: [{ seq: 4, roundIndex: 1, points: 300, source: 'duel' }],
+        },
+      ],
+    });
+
+    const detail = await hostGame(db, account.id, gameId);
+    const standings = detail?.standings ?? [];
+    expect(standings.map((s) => [s.nickname, s.rounds])).toEqual([
+      ['Тарас', [1000, 300, 0]],
+      ['Оля', [550, -100, -200]],
+    ]);
+    expect(standings.find((s) => s.nickname === 'Оля')?.breakdown).toEqual({
+      parts: [
+        { source: 'answers', plus: 1000, minus: -500 },
+        { source: 'final', plus: 0, minus: -200 },
+        { source: 'duel', plus: 0, minus: -300 },
+        { source: 'debuff', plus: 0, minus: -100 },
+        { source: 'host', plus: 50, minus: 0 },
+        { source: 'wipeout', plus: 300, minus: 0 },
+      ],
+      plus: 1350,
+      minus: -1100,
+    });
+    expect(standings.find((s) => s.nickname === 'Тарас')?.breakdown).toEqual({
+      parts: [
+        { source: 'answers', plus: 1000, minus: 0 },
+        { source: 'duel', plus: 300, minus: 0 },
+      ],
+      plus: 1300,
+      minus: 0,
+    });
+  });
+
+  it('the breakdown of a recorded game equals the engine breakdown of its final state', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const [account] = await db.select().from(user).where(eq(user.email, host.email));
+    const quiz = makeQuiz([single, text], { speedBonus: false, rules: { ...DEFAULT_RULES, penalty: 'minus' } });
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const joinAs = async (nickname: string) =>
+      ((await post(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
+    const olenaId = await joinAs('Олена');
+    const tarasId = await joinAs('Тарас');
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    for (const playerId of [olenaId, tarasId]) ctx.manager.connect(room, { role: 'player', playerId });
+    const step = (type: 'start' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+
+    step('start');
+    step('next');
+    ctx.manager.answer(room, olenaId, { type: 'single', optionId: 'b' });
+    ctx.manager.answer(room, tarasId, { type: 'single', optionId: 'a' });
+    step('next');
+    expect(ctx.manager.host(room, { type: 'adjust', playerId: tarasId, points: 75 })).toEqual({ ok: true });
+    step('next');
+    step('next');
+    ctx.manager.answer(room, olenaId, { type: 'text', value: 'Одеса' });
+    ctx.manager.answer(room, tarasId, { type: 'text', value: 'Львів' });
+    step('next');
+    step('next');
+    expect(room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+
+    const detail = await hostGame(db, account.id, created.gameId);
+    const standings = detail?.standings ?? [];
+    expect(standings.map((s) => [s.nickname, s.rounds, s.breakdown])).toEqual([
+      ['Олена', [2000], { parts: [{ source: 'answers', plus: 2000, minus: 0 }], plus: 2000, minus: 0 }],
+      [
+        'Тарас',
+        [-1925],
+        {
+          parts: [
+            { source: 'answers', plus: 0, minus: -2000 },
+            { source: 'host', plus: 75, minus: 0 },
+          ],
+          plus: 75,
+          minus: -2000,
+        },
+      ],
+    ]);
+    for (const s of standings) {
+      expect(s.breakdown).toEqual(breakdownOf(scoreLines(room.state).filter((l) => l.playerId === s.participantId)));
+      expect(s.rounds.reduce((sum, n) => sum + n, 0)).toBe(s.score);
+    }
   });
 });

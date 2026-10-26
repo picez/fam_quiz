@@ -29,7 +29,7 @@ describe('profile parts', () => {
   });
 
   it('StatsView shows five numbers with the right word forms', () => {
-    const { container } = render(<StatsView stats={{ games: 1, wins: 2, accuracy: null, quizzes: 5, hosted: 1 }} />);
+    const { container } = render(<StatsView stats={{ games: 1, wins: 2, accuracy: null, quizzes: 5, hosted: 1, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null }} />);
     const stats = [...container.querySelectorAll('.stat')].map((el) => [el.querySelector('dd')?.textContent, el.querySelector('dt')?.textContent]);
     expect(stats).toEqual([
       ['1', 'гра'],

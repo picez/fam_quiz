@@ -2,6 +2,7 @@ import { normalizeText } from '@quiz/engine';
 import {
   LIMITS,
   gameStats,
+  podiumStats,
   isWin,
   nicknameSchema,
   type Achievement,
@@ -121,7 +122,7 @@ export async function profileFacts(
     .where(and(eq(game.hostId, userId), eq(game.status, 'finished')));
 
   const played = games.map((g) => g.played);
-  const stats = { ...gameStats(played), quizzes: quizzes.n, hosted: hosted.n };
+  const stats = { ...gameStats(played), ...podiumStats(played), quizzes: quizzes.n, hosted: hosted.n };
   const tables = await gameTables(
     db,
     played.map((g) => g.gameId),

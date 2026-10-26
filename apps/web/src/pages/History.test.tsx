@@ -58,8 +58,8 @@ const detail: GameDetail = {
   questionCount: 2,
   rounds: [{ title: 'Раунд 1', type: 'classic' }],
   standings: [
-    { participantId: 'p1', nickname: 'Олена', score: 2000, rank: 1, correct: 2 },
-    { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0 },
+    { participantId: 'p1', nickname: 'Олена', score: 2000, rank: 1, correct: 2, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } },
+    { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } },
   ],
   questions: [
     { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
@@ -171,8 +171,8 @@ describe('GameHistory', () => {
         ...detail,
         teams: true,
         standings: [
-          { participantId: 't1', nickname: 'Червоні', score: 2000, rank: 1, correct: 2, members: ['Оля', 'Петро'] },
-          { participantId: 't2', nickname: 'Сині', score: 0, rank: 2, correct: 0, members: [] },
+          { participantId: 't1', nickname: 'Червоні', score: 2000, rank: 1, correct: 2, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 }, members: ['Оля', 'Петро'] },
+          { participantId: 't2', nickname: 'Сині', score: 0, rank: 2, correct: 0, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 }, members: [] },
         ],
       },
     });
@@ -197,7 +197,7 @@ describe('GameHistory', () => {
         ...detail,
         status: 'aborted',
         questionsPlayed: 1,
-        standings: [{ participantId: 'p1', nickname: 'Олена', score: 500, rank: null, correct: 1 }],
+        standings: [{ participantId: 'p1', nickname: 'Олена', score: 500, rank: null, correct: 1, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } }],
         questions: detail.questions.slice(0, 1),
       },
     });
