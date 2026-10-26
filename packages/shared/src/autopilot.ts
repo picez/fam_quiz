@@ -38,7 +38,10 @@ export const AUTOPILOT_MS = {
   resume: 3000,
 } as const;
 
-/** Що автопілот змінює у вікторині (розділ 11 п. 6), у порядку списку. */
+/**
+ * Що автопілот змінює у вікторині (розділ 11 п. 6), у порядку списку. manual — ручну перевірку замінює ключ:
+ * фінал перетворено на «за ключем», а бліц і поле лишають ручну перевірку (кнопка, черга, спроби), і відповідь оцінює автопілот за ключем.
+ */
 export const AUTOPILOT_CHANGES = ['voice', 'manual', 'ladder_pick', 'hint', 'untimed'] as const;
 export type AutopilotChange = (typeof AUTOPILOT_CHANGES)[number];
 /** Чого автопілот не може провести: у наявних форматах нічого; майбутній формат додає своє слово сюди. */
@@ -89,13 +92,12 @@ function convert(round: Round): Round {
       return {
         ...round,
         answerMode: 'phone',
-        check: 'auto',
+        // Перевірка лишається: ручну відповідь (і чергу бліц-клітинки) автопілот оцінює за ключем тими самими функціями ведучого.
         categories: round.categories.map((category) => ({
           ...category,
           cells: category.cells.map((cell) => (cell.answerMode === 'voice' ? { ...cell, answerMode: 'phone' as const } : cell)),
         })),
       };
-    case 'blitz':
     case 'final':
       return round.check === 'manual' ? { ...round, check: 'auto' } : round;
     case 'ladder':
@@ -105,7 +107,7 @@ function convert(round: Round): Round {
   }
 }
 
-/** Вікторина для автопілота: «вголос» → «з телефона», ручна перевірка → за ключем, «ведучий вибирає» учасника → жереб; решта без змін (новий об'єкт, вхід не змінюється). */
+/** Вікторина для автопілота: «вголос» → «з телефона», ручна перевірка фіналу → за ключем (бліц і поле лишають ручну: черга, спроби й вікно відповіді як з ведучим, а відповідь оцінює автопілот за ключем), «ведучий вибирає» учасника → жереб; решта без змін (новий об'єкт, вхід не змінюється). */
 export function autopilotQuiz(quiz: Quiz): Quiz {
   return { ...quiz, rounds: quiz.rounds.map(convert) };
 }

@@ -137,7 +137,7 @@ describe('autopilotCheck and autopilotQuiz', () => {
     expect(autopilotQuiz(q)).toEqual(q);
   });
 
-  it('turns a voice, manual board into phone and key', () => {
+  it('turns a voice board into phone; a manual board keeps its check (the autopilot judges by the key)', () => {
     const q = quiz([
       classic('r0', list('a', 1)),
       board('r1', { answerMode: 'voice', check: 'manual' }, [{ answerMode: 'phone' }, { kind: 'blitz' }]),
@@ -150,7 +150,7 @@ describe('autopilotCheck and autopilotQuiz', () => {
     const out = autopilotQuiz(q);
     const round = out.rounds[1] as Extract<Round, { type: 'board' }>;
     expect(round.answerMode).toBe('phone');
-    expect(round.check).toBe('auto');
+    expect(round.check).toBe('manual');
     expect(round.categories.flatMap((c) => c.cells).some((cell) => cell.answerMode === 'voice')).toBe(false);
     expect(q).toEqual(before);
   });
@@ -162,11 +162,11 @@ describe('autopilotCheck and autopilotQuiz', () => {
     expect(round.categories[0].cells[2].answerMode).toBe('phone');
   });
 
-  it('manual blitz and final become automatic', () => {
+  it('a manual final becomes automatic; a manual blitz keeps its buzzer and check (judged by the key)', () => {
     const q = quiz([blitz('r0', { check: 'manual' }), classic('r1', list('a', 1)), final('r2', { check: 'manual' })]);
     expect(codes(q)).toEqual([{ code: 'manual', rounds: [0, 2] }]);
     const out = autopilotQuiz(q);
-    expect(out.rounds.map((r) => ('check' in r ? r.check : null))).toEqual(['auto', null, 'auto']);
+    expect(out.rounds.map((r) => ('check' in r ? r.check : null))).toEqual(['manual', null, 'auto']);
   });
 
   it('a host-picked ladder contestant is drawn, the lowest stays', () => {
@@ -221,7 +221,8 @@ describe('autopilotCheck and autopilotQuiz', () => {
       final('r6', { check: 'manual' }),
     ]);
     expect(() => quizSchema.parse(autopilotQuiz(q))).not.toThrow();
-    expect(codes(autopilotQuiz(q))).toEqual([]);
+    // Лишається лише ручна перевірка бліцу й поля: її автопілот оцінює за ключем без перетворення.
+    expect(codes(autopilotQuiz(q))).toEqual([{ code: 'manual', rounds: [1, 2] }]);
   });
 });
 

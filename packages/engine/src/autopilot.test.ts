@@ -12,6 +12,7 @@ import {
   planAutopilot,
 } from './autopilot';
 import { dicePending, rollDie } from './board-dice';
+import { buzz } from './blitz';
 import { bluffOrder, bluffPlayOf } from './bluff';
 import { pickCell, skipTurn } from './board';
 import { declareDuel } from './duel';
@@ -34,6 +35,7 @@ import {
   survivalQuestions,
   survivalRound,
   survivalTrials,
+  text,
   wipeoutLadder,
   wipeoutRound,
   withId,
@@ -633,21 +635,46 @@ describe('task 4 review (11g)', () => {
     expect(s.plays[s.questionIndex].answers[team]).toMatchObject({ grade: 'correct', points: 1000 });
   });
 
-  it('a manual blitz turned «by the key»: the queue is judged at once, wrong then right', () => {
-    let s = begin(makeRoundsQuiz([blitzRound('b1', [single], { check: 'manual' })]), ['Ігор']);
+  it('a manual blitz keeps its buzzer under the autopilot: a wrong head is judged by the key, the next one answers right and wins', () => {
+    let s = begin(makeRoundsQuiz([blitzRound('b1', [single, text], { check: 'manual', attempts: 1 })]), ['Ігор']);
+    expect(s.quiz.rounds[0].type === 'blitz' && s.quiz.rounds[0].check).toBe('manual');
     s = go(s);
     const t = s.startedAt! + 1000;
-    s = act(s, submitAnswer(s, 'a', WRONG, t), t);
-    s = act(s, submitAnswer(s, 'p2', RIGHT, t), t);
-    expect(atOf(s)).toBe(t);
+    // Кнопка «Відповісти» є: спершу натискання, тоді відповідь голови черги.
+    s = act(s, buzz(s, 'a', t), t);
+    s = act(s, buzz(s, 'p2', t + 100), t + 100);
+    expect(s.plays[0].blitz?.queue.map((e) => e.playerId)).toEqual(['a', 'p2']);
+    s = act(s, submitAnswer(s, 'a', WRONG, t + 200), t + 200);
+    expect(s.heldAt).not.toBeNull();
+    expect(atOf(s)).toBe(t + 200);
     s = go(s);
-    expect(atOf(s)).toBe(t);
+    expect(s.phase).toBe('question');
+    expect(s.plays[0].blitz?.attempts.map((x) => [x.playerId, x.grade])).toEqual([['a', 'wrong']]);
+    // Тепер голова — p2 з вікном відповіді.
+    expect(s.plays[0].blitz?.queue[0]).toMatchObject({ playerId: 'p2' });
+    expect(s.plays[0].blitz?.queue[0].deadline).not.toBeNull();
+    expect(atOf(s)).toBeNull();
+    s = act(s, submitAnswer(s, 'p2', RIGHT, t + 3000), t + 3000);
+    expect(atOf(s)).toBe(t + 3000);
     s = go(s);
     expect(s.phase).toBe('locked');
     expect(s.plays[0].blitz?.attempts.map((x) => [x.playerId, x.grade])).toEqual([
       ['a', 'wrong'],
       ['p2', 'correct'],
     ]);
+    expect(s.plays[0].answers.p2).toMatchObject({ grade: 'correct', points: 1000 });
+  });
+
+  it('a manual board cell is judged by the key at once (no override mark)', () => {
+    let s = begin(makeRoundsQuiz([boardRound('g1', [{ title: 'Ріки', cells: [withId(text, 'b1'), withId(text, 'b2')] }], { check: 'manual' })]), []);
+    s = go(s);
+    s = act(s, pickCell(s, 'a', 'b1', T + 9000, rng), T + 9000);
+    const answered = s.startedAt! + 1000;
+    s = act(s, submitAnswer(s, 'a', { type: 'text', value: 'Одеса' }, answered), answered);
+    expect(atOf(s)).toBe(answered);
+    s = go(s);
+    expect(s.phase).toBe('reveal');
+    expect(s.plays[0].answers.a).toMatchObject({ grade: 'correct', overridden: false, points: 1000 });
   });
 
   it('wipeout and survival: locked, reveal and the table are paced', () => {

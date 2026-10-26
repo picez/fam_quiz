@@ -3,6 +3,7 @@ import { pickCell, skipTurn } from './board';
 import { dicePending, rollForRest, startDice } from './board-dice';
 import { cellPlayed, chooserOf } from './board-turns';
 import { bluffOrder, bluffPlayOf } from './bluff';
+import { checkAnswer } from './check';
 import { cancelDuel, duelCategoriesLeft, pickDuelCategory } from './duel';
 import {
   acceptAnswer,
@@ -10,9 +11,11 @@ import {
   createGame,
   currentRound,
   fail,
+  judge,
   lock,
   next,
   ok,
+  override,
   pause,
   resume,
   start,
@@ -22,7 +25,7 @@ import {
   type Result,
   type Rng,
 } from './game';
-import { pendingOf } from './hold';
+import { pendingOf, type Pending } from './hold';
 import { decideLadder, decisionPending } from './ladder';
 import { paceWindow, stepKey, type PacedAction } from './pacing';
 import { splashUntil } from './splash';
@@ -239,6 +242,23 @@ function boardTurnMove(state: GameState, now: number, rng: Rng): Result {
   return ok(withPilot(skipped.state, (pilot) => ({ ...pilot, skips: skips + 1, skipPlays: skipped.state.plays.length })));
 }
 
+/**
+ * Відповідь, що чекає ведучого, — за ключем тими самими функціями, що й кнопки пульта: «Прийняти» (автоматична перевірка,
+ * «100 до 1»); ручна перевірка бліцу (і бліц-клітинки) — оцінка голови черги judge; ручна перевірка клітинки поля — override.
+ */
+function judgeByKey(state: GameState, pending: Pending, now: number): Result {
+  const accepted = acceptAnswer(state, pending.playerId, now);
+  if (accepted.ok) return accepted;
+  const play = state.plays[state.questionIndex];
+  if (play === undefined) return accepted;
+  const accuracy = checkAnswer(play.question, pending.answer).accuracy;
+  if (play.blitz !== undefined) return judge(state, pending.playerId, accuracy === 1, now);
+  if (accuracy >= 1) return override(state, pending.playerId, 'correct', now);
+  // Частково — лише за правилом раунду (partial_disabled → неправильно).
+  const partial = accuracy > 0 ? override(state, pending.playerId, 'partial', now) : null;
+  return partial?.ok === true ? partial : override(state, pending.playerId, 'wrong', now);
+}
+
 /** Таблиця плану 11g, «Час етапів»: крок для стану, що йде, з підкроком від from; null — чекати нічого. */
 function moveOf(state: GameState, from: number): Move | null {
   switch (state.phase) {
@@ -255,7 +275,7 @@ function moveOf(state: GameState, from: number): Move | null {
       // Запитання з таймером закриває рушій (таймер чи «відповіли всі»); без таймера — автопілот через timeLimit від старту.
       // Відповідь, що чекала б «Прийняти» ведучого (поле, бліц за ключем), автопілот приймає одразу (розділ 11 п. 3).
       const pending = pendingOf(state);
-      if (pending !== null) return { at: from, pace: null, act: (s, now) => acceptAnswer(s, pending.playerId, now) };
+      if (pending !== null) return { at: from, pace: null, act: (s, now) => judgeByKey(s, pending, now) };
       const play = state.plays[state.questionIndex];
       if (play === undefined || timedPlay(play)) return null;
       const limit: unknown = play.question.timeLimit;

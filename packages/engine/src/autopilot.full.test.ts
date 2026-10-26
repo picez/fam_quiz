@@ -205,8 +205,9 @@ describe('autopilot: scores and defaults', () => {
     expect(doubled.answers[doubled.board!.chooserId]).toMatchObject({ grade: 'correct', overridden: false, points: 600 });
   });
 
-  it('a manual blitz judges by the key at once: wrong is «no», right is counted', () => {
+  it('a manual blitz keeps its buzzer and is judged by the key at once: wrong is «no», the next one right wins', () => {
     const { state } = play(blitzQuiz, answerAs({ wrong: ['a'] }));
+    expect(state.quiz.rounds[0].type === 'blitz' && state.quiz.rounds[0].check).toBe('manual');
     for (const id of ['q1', 'q4', 'q3']) {
       const attempts = state.plays.find((p) => p.question.id === id)?.blitz?.attempts ?? [];
       expect(attempts.map((x) => [x.playerId, x.grade])).toEqual([
