@@ -2,6 +2,15 @@ import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto
 import {
   audioOf,
   acceptAnswer,
+  anyonePresent,
+  authorPause,
+  authorResume,
+  authorTeamForm,
+  autopilotStart,
+  createAutopilotGame,
+  isAuthor,
+  pilotStep,
+  planAutopilot,
   actAnswer,
   actBuzz,
   actorOf,
@@ -99,6 +108,8 @@ import type { Scheduler } from './scheduler';
 export const HOST_ABSENCE_MS = 10 * 60_000;
 export const LOBBY_TTL_MS = 2 * 60 * 60_000;
 export const FINISHED_TTL_MS = 30 * 60_000;
+/** Кімната-автопілот без жодного гравця на зв'язку стільки часу (у грі) → «Завершити гру» (11g). */
+export const AUTOPILOT_EMPTY_MS = 30 * 60_000;
 
 export interface Identity {
   role: Role;
@@ -122,6 +133,8 @@ export interface Room {
   /** Кількість відкритих з'єднань: ключ 'host', 'stage' або id гравця. */
   connections: Map<string, number>;
   deadline: unknown;
+  /** Таймер кроку автопілота (11g) на state.autopilot.at; null — немає. */
+  pilot: unknown;
   /** Мить, до якої стан уже доведено таймером; дедлайни після неї ще належить обробити. */
   tickedTo: number;
   absence: unknown;
@@ -199,11 +212,20 @@ export type HostAction =
   | { type: 'team-deal' | 'team-dice' | 'team-roll' }
   | { type: 'captain'; teamId: string; memberId: string };
 
+/** Дії, які автор кімнати-автопілота шле з телефона (11g); решта — not_allowed. */
+// Прості дії лежать у HostAction одним членом з іншими (lock, next, …), тож Extract їх не виділяє.
+export type AuthorAction = { type: 'start' | 'pause' | 'resume' | 'end' } | Extract<HostAction, { type: 'kick' | 'cloud-hide' | 'bluff-remove' | 'team-form' }>;
+
+const AUTHOR_ACTIONS: ReadonlySet<HostAction['type']> = new Set<AuthorAction['type']>(['start', 'pause', 'resume', 'end', 'kick', 'cloud-hide', 'bluff-remove', 'team-form']);
+const isAuthorAction = (action: HostAction): action is AuthorAction => AUTHOR_ACTIONS.has(action.type);
+
 export type JoinResult =
   | { ok: true; token: string; playerId: string }
   | { ok: false; error: ErrorCode | 'game_not_found' | 'restarting' };
 
 const GONE: AckResult = { ok: false, error: 'game_not_found' };
+const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
+const NOT_ALLOWED: AckResult = { ok: false, error: 'not_allowed' };
 const RESTARTING: AckResult = { ok: false, error: 'restarting' };
 
 export const SAVED_ROOM_VERSION = 1;
@@ -324,6 +346,8 @@ export class RoomManager {
   }
 
   hostOnline(room: Room): boolean {
+    // Автопілот: пульта немає, телефони й сцена не чекають ведучого (11g).
+    if (room.state.autopilot !== undefined) return true;
     return (room.connections.get('host') ?? 0) > 0;
   }
 
@@ -337,6 +361,36 @@ export class RoomManager {
   }
 
   create(quiz: Quiz, hostUserId: string | null = null, quizId: string | null = null): Room {
+    return this.open(createGame(quiz, this.gameOptions(quiz)), hostUserId, quizId);
+  }
+
+  /** Кімната-автопілот: createAutopilotGame з автором-гравцем (поза зв'язком до сокета), токен гравця; hostToken — випадковий і ніде не видається. */
+  createAutopilot(
+    quiz: Quiz,
+    hostUserId: string,
+    quizId: string | null,
+    nickname: string,
+  ): { ok: true; room: Room; token: string; playerId: string } | { ok: false; error: ErrorCode | 'restarting' } {
+    if (this.isFrozen) return { ok: false, error: 'restarting' };
+    const playerId = randomUUID();
+    const created = createAutopilotGame(quiz, { id: playerId, nickname }, this.gameOptions(quiz));
+    if (!created.ok) return created;
+    // Автор стає підключеним, коли відкриє сокет.
+    const offline = setConnected(created.state, playerId, false, this.now());
+    if (!offline.ok) return offline;
+    const room = this.open(offline.state, hostUserId, quizId);
+    const token = newToken();
+    room.playerTokens.set(token, playerId);
+    room.playerUsers.set(playerId, hostUserId);
+    return { ok: true, room, token, playerId };
+  }
+
+  private gameOptions(quiz: Quiz): { transitions: boolean; teamIds: string[] } {
+    // Рядок команди стає рядком participant в історії: id команд — uuid.
+    return { transitions: this.transitions, teamIds: Array.from({ length: quiz.settings.teams?.count ?? 0 }, () => randomUUID()) };
+  }
+
+  private open(state: GameState, hostUserId: string | null, quizId: string | null): Room {
     const room: Room = {
       id: randomUUID(),
       code: this.newCode(),
@@ -345,11 +399,11 @@ export class RoomManager {
       hostUserId,
       quizId,
       playerUsers: new Map(),
-      // Рядок команди стає рядком participant в історії: id команд — uuid.
-      state: createGame(quiz, { transitions: this.transitions, teamIds: Array.from({ length: quiz.settings.teams?.count ?? 0 }, () => randomUUID()) }),
+      state,
       playerTokens: new Map(),
       connections: new Map(),
       deadline: null,
+      pilot: null,
       tickedTo: 0,
       absence: null,
       expiry: null,
@@ -398,6 +452,7 @@ export class RoomManager {
       playerTokens: new Map(saved.playerTokens),
       connections: new Map(),
       deadline: null,
+      pilot: null,
       tickedTo: saved.tickedTo,
       absence: null,
       expiry: null,
@@ -409,7 +464,8 @@ export class RoomManager {
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
     // Пульт ще не підключений: як після відходу ведучого — 10 хв на повернення (стан уже на паузі).
-    this.hostLeft(room);
+    // Автопілот: пульта немає; стоїть на паузі «нікого», 30 хв на повернення будь-кого (commit → watchEmpty).
+    if (room.state.autopilot === undefined) this.hostLeft(room);
     this.commit(room, room.state);
     return room;
   }
@@ -468,6 +524,8 @@ export class RoomManager {
     const room = this.live.get(code);
     if (room === undefined) return null;
     if (role === 'host' || role === 'stage') {
+      // Автопілот: пульта немає, токен ведучого не підходить ніколи (11g).
+      if (role === 'host' && room.state.autopilot !== undefined) return null;
       const expected = role === 'host' ? room.hostToken : room.stageToken;
       return sameToken(token, expected) ? { room, identity: { role, playerId: null } } : null;
     }
@@ -821,9 +879,43 @@ export class RoomManager {
     return this.apply(room, placeWager(room.state, who.id, amount, this.now(), this.rng, allIn));
   }
 
+  /** Дія з телефона гравця подією host:* (11g): звичайна кімната → forbidden; не автор чи дія не з AuthorAction → not_allowed. */
+  author(room: Room, playerId: string, action: HostAction): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const state = room.state;
+    if (state.autopilot === undefined) return FORBIDDEN;
+    if (!isAuthor(state, playerId) || !isAuthorAction(action)) return NOT_ALLOWED;
+    // Затримки 11b для дій автора немає: жодна з них не «Далі».
+    switch (action.type) {
+      case 'start':
+        return this.apply(room, autopilotStart(state, this.now(), this.rng));
+      case 'pause': {
+        const paused = this.apply(room, authorPause(state, this.now()));
+        if (paused.ok) room.tilts.clear();
+        return paused;
+      }
+      case 'resume':
+        return this.apply(room, authorResume(state, this.now()));
+      case 'end':
+        return this.apply(room, end(state, this.now()));
+      case 'kick':
+        return action.playerId === playerId ? NOT_ALLOWED : this.kick(room, action.playerId);
+      case 'cloud-hide':
+        // Лише поки «хмару» видно на сцені.
+        if (state.phase !== 'reveal') return { ok: false, error: 'wrong_phase' };
+        return this.apply(room, hideCloudWord(state, action.key, action.hidden));
+      case 'bluff-remove':
+        return this.apply(room, removeBluffOption(state, action.optionId));
+      case 'team-form':
+        return this.apply(room, authorTeamForm(state, action.form));
+    }
+  }
+
   host(room: Room, action: HostAction): AckResult {
     if (!this.alive(room)) return this.gone();
     const state = room.state;
+    // Автопілот: ролі host немає (identify), тож сюди не дійти; для певності.
+    if (state.autopilot !== undefined) return FORBIDDEN;
     // На паузі рушій сам відповість paused; затримка — лише поки гра йде.
     const paced = PACED[action.type];
     if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now() + PACE_GRACE_MS)) return { ok: false, error: 'too_soon' };
@@ -952,6 +1044,24 @@ export class RoomManager {
     }, HOST_ABSENCE_MS);
   }
 
+  /**
+   * Автопілот (11g): у грі (не лобі, не фініш) нікого на зв'язку → AUTOPILOT_EMPTY_MS до «Завершити гру» (таймер не перезапускається);
+   * хтось повернувся, лобі чи фініш → таймер геть. hostLeft для автопілота не діє ніколи.
+   */
+  private watchEmpty(room: Room): void {
+    const { phase } = room.state;
+    if (phase === 'lobby' || phase === 'finished' || anyonePresent(room.state)) {
+      this.scheduler.clearTimeout(room.absence);
+      room.absence = null;
+      return;
+    }
+    if (room.absence !== null) return;
+    room.absence = this.scheduler.setTimeout(() => {
+      room.absence = null;
+      if (this.alive(room)) this.apply(room, end(room.state, this.now()));
+    }, AUTOPILOT_EMPTY_MS);
+  }
+
   private alive(room: Room): boolean {
     return !this.isFrozen && this.live.get(room.code) === room;
   }
@@ -962,8 +1072,8 @@ export class RoomManager {
   }
 
   private clearTimers(room: Room): void {
-    for (const handle of [room.deadline, room.absence, room.expiry]) this.scheduler.clearTimeout(handle);
-    room.deadline = room.absence = room.expiry = null;
+    for (const handle of [room.deadline, room.pilot, room.absence, room.expiry]) this.scheduler.clearTimeout(handle);
+    room.deadline = room.pilot = room.absence = room.expiry = null;
   }
 
   private apply(room: Room, result: Result): AckResult {
@@ -976,7 +1086,10 @@ export class RoomManager {
   private commit(room: Room, state: GameState, at = this.now()): void {
     // Нове запитання: нахили попереднього вже нічого не значать.
     if (state.questionIndex !== room.state.questionIndex) room.tilts.clear();
-    room.state = this.pacing ? stamp(room.state, state, at) : state;
+    // Автопілот: мітка кроку завжди (від неї рахуються заставки й вікна 11b), потім план наступного кроку (11g).
+    const stamped = this.pacing || state.autopilot !== undefined ? stamp(room.state, state, at) : state;
+    room.state = planAutopilot(room.state, stamped, at);
+    if (room.state.autopilot !== undefined) this.watchEmpty(room);
     this.reschedule(room);
     this.emit(room, { type: 'changed' });
   }
@@ -999,6 +1112,20 @@ export class RoomManager {
         if (ticked !== room.state) this.commit(room, ticked, room.tickedTo);
         else this.reschedule(room);
       }, Math.max(0, at - this.now()));
+    }
+
+    this.scheduler.clearTimeout(room.pilot);
+    room.pilot = null;
+    const pilotAt = room.state.autopilot?.at ?? null;
+    if (pilotAt !== null) {
+      room.pilot = this.scheduler.setTimeout(() => {
+        room.pilot = null;
+        room.tickedTo = Math.max(this.now(), pilotAt);
+        // Спершу дедлайни рушія до цієї миті, потім крок автопілота; pilotStep скидає at, нову мить ставить planAutopilot у commit.
+        const stepped = pilotStep(tick(room.state, room.tickedTo), room.tickedTo, this.rng);
+        if (stepped !== room.state) this.commit(room, stepped, room.tickedTo);
+        else this.reschedule(room);
+      }, Math.max(0, pilotAt - this.now()));
     }
 
     if (room.expiryPhase === phase) return;
