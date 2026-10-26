@@ -727,3 +727,41 @@ describe('silent board (11g soak)', () => {
     expect(s.plays[s.questionIndex].board).toMatchObject({ cellId: 'b2', chooserId: 'a' });
   });
 });
+
+describe('silent board: consecutive skips (11g task 5 review)', () => {
+  it('a player removed mid-round: the skips in a row still count against the shorter circle', () => {
+    let s = begin(boardQuiz(), ['Ігор', 'Іра']);
+    s = step(s, T);
+    let i = 0;
+    s = step(s, T + 10_000, () => [0, 0.5, 0.9][i++ % 3]);
+    s = go(s);
+    expect(s.phase).toBe('board');
+    expect(s.board?.circle).toHaveLength(3);
+    s = go(s);
+    s = go(s);
+    expect(s.phase).toBe('board');
+    expect(s.board?.done).toBe(2);
+    expect(s.autopilot?.skips).toBe(2);
+    const victim = s.board!.circle.slice(0, 2).find((id) => id !== 'a')!;
+    s = act(s, removePlayer(s, victim), atOf(s)! - 1000);
+    expect(s.board?.circle).toHaveLength(2);
+    // Два пропуски поспіль — ціле нове коло: наступний хід — клітинка жеребом.
+    s = go(s, () => 0);
+    expect(s.phase).toBe('question');
+    expect(s.plays[s.questionIndex].board?.cellId).toBe('b1');
+  });
+
+  it('a picked cell starts the count again', () => {
+    let s = begin(boardQuiz(), []);
+    s = go(s);
+    s = act(s, pickCell(s, 'a', 'b1', T + 9000, rng), T + 9000);
+    const t = s.startedAt! + 1000;
+    s = act(s, submitAnswer(s, 'a', RIGHT, t), t);
+    s = go(go(s));
+    while (s.phase !== 'board') s = go(s);
+    expect(s.autopilot?.skips ?? 0).toBe(0);
+    s = go(s);
+    expect(s.phase).toBe('board');
+    expect(s.autopilot?.skips).toBe(1);
+  });
+});

@@ -1,21 +1,22 @@
 import { boardCells, type Answer, type Question } from '@quiz/shared';
 import { planAutopilot, pilotStep } from '../autopilot';
-import { nextDeadline, buzz } from '../blitz';
+import { attemptsUsed, blitzRulesOf, buzz, isInstant, nextDeadline } from '../blitz';
 import { bluffPlayOf, pickBluff, writeLie } from '../bluff';
 import { pickCell } from '../board';
 import { rollDie } from '../board-dice';
 import { cellPlayed, chooserOf } from '../board-turns';
 import { guessWord, chainOf } from '../chain';
-import { answerDuel, declareDuel, duelCategoriesLeft, duelQuestionOf, pickDuelCategory } from '../duel';
+import { answerDuel, declareDuel, duelCategoriesLeft, duelQuestionOf, duelWindowOpen, pickDuelCategory } from '../duel';
 import { placeWager } from '../final';
 import { currentRound, recordOf, submitAnswer, tick, type GameState, type Result, type Rng } from '../game';
 import { contestantOf, decideLadder, decisionPending, ladderPlayOf } from '../ladder';
 import { stamp } from '../pacing';
 import { sortOf, sortWord } from '../sort';
-import { answerTrial, pickDoor, trialOpen, trialQuestionOf } from '../survival';
+import { notStarted } from '../splash';
+import { answerTrial, isGhost, pickDoor, survivalPlayOf, trialOpen, trialQuestionOf } from '../survival';
 import { pickTeam, rollTeamDie } from '../teams';
 import { guessWall } from '../wall';
-import { decideWipeout, decisionOpen } from '../wipeout';
+import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
 
 // Наскрізні ігри без ведучого (11g, задача 5): драйвер, що імітує сервер, і «люди» з телефонами.
 
@@ -95,9 +96,6 @@ export function drive(start: GameState, options: DriveOptions): { state: GameSta
 /** Люди на зв'язку, що нічого не роблять. */
 export const silent: People = (state) => state;
 
-/** Результат дії, якщо вона вдалася; інакше той самий стан. */
-const tryAct = (state: GameState, result: Result): GameState => (result.ok ? result.state : state);
-
 /** Правильна відповідь з телефона на запитання (null — типу, що йде окремими ходами). */
 export function rightAnswer(question: Question): Answer | null {
   switch (question.type) {
@@ -122,7 +120,7 @@ export function rightAnswer(question: Question): Answer | null {
     case 'wordcloud':
       return { type: 'wordcloud', words: ['Весна'] };
     case 'survey':
-      return question.rows.length === 0 ? { type: 'survey', values: ['Весна'] } : { type: 'survey', values: [question.rows[0].text] };
+      return question.rows.length === 0 ? { type: 'survey', values: ['Весна'] } : { type: 'survey', values: question.rows.slice(0, question.answers).map((row) => row.text) };
     case 'order':
       return { type: 'order', itemIds: question.items.map((item) => item.id) };
     case 'match':
@@ -150,39 +148,48 @@ export function wrongAnswer(question: Question): Answer | null {
   }
 }
 
+/** Дія людини: вдалася — новий стан; не вдалася — помилка (strict, люди, що відповідають) чи той самий стан. */
+type Act = (state: GameState, result: Result, what: string) => GameState;
+
+const strictAct: Act = (state, result, what) => {
+  if (!result.ok) throw new Error(`${what} failed: ${result.error} (${state.phase}, question ${state.questionIndex})`);
+  return result.state;
+};
+
+const looseAct: Act = (state, result) => (result.ok ? result.state : state);
+
 /** Один гравець відповідає на поточне запитання: окремі ходи для ланцюжка, сортування, стіни й блефу, інакше submitAnswer. */
-function answerQuestion(state: GameState, playerId: string, wrong: boolean, now: number): GameState {
+function answerQuestion(state: GameState, playerId: string, wrong: boolean, now: number, act: Act): GameState {
   const play = state.plays[state.questionIndex];
-  if (play === undefined || recordOf(state, state.questionIndex, playerId) !== undefined) return state;
+  if (state.phase !== 'question' || play === undefined || notStarted(state, now)) return state;
+  if (recordOf(state, state.questionIndex, playerId) !== undefined) return state;
+  const round = currentRound(state);
+  if (round?.type === 'survival' && isGhost(state, playerId)) return state;
+  if (round?.type === 'wipeout' && !wipeoutIn(state).includes(playerId)) return state;
+  if (play.board !== undefined && play.blitz === undefined && (play.board.chooserId !== playerId || play.board.answer !== null)) return state;
   const question = play.question;
+  const what = `${playerId} on ${question.id}`;
   switch (question.type) {
     case 'chain': {
       let s = state;
-      for (let i = chainOf(s, playerId).solved + 1; i < question.words.length; i++) {
-        const done = guessWord(s, playerId, question.words[i], now);
-        if (!done.ok) break;
-        s = done.state;
-      }
+      for (let i = chainOf(s, playerId).solved + 1; i < question.words.length; i++) s = act(s, guessWord(s, playerId, question.words[i], now), what);
       return s;
     }
     case 'sort': {
       let s = state;
-      for (let guard = 0; guard < question.words.length && recordOf(s, s.questionIndex, playerId) === undefined; guard++) {
-        const head = sortOf(s, playerId).queue[0];
-        const word = question.words.find((w) => w.id === head);
+      while (s.phase === 'question' && recordOf(s, s.questionIndex, playerId) === undefined) {
+        const word = question.words.find((w) => w.id === sortOf(s, playerId).queue[0]);
         if (word === undefined) break;
-        const done = sortWord(s, playerId, word.id, word.categoryId, now);
-        if (!done.ok) break;
-        s = done.state;
+        s = act(s, sortWord(s, playerId, word.id, word.categoryId, now), what);
       }
       return s;
     }
     case 'wall': {
       let s = state;
       for (const group of question.groups) {
-        const positions = group.tiles.map((t) => s.presented.indexOf(t.id));
-        s = tryAct(s, guessWall(s, playerId, positions, now));
-        if (recordOf(s, s.questionIndex, playerId) !== undefined) break;
+        if (s.phase !== 'question' || recordOf(s, s.questionIndex, playerId) !== undefined) break;
+        const current = s;
+        s = act(s, guessWall(s, playerId, group.tiles.map((t) => current.presented.indexOf(t.id)), now), what);
       }
       return s;
     }
@@ -190,21 +197,27 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       const bluff = bluffPlayOf(state);
       if (bluff === null) return state;
       if (bluff.bluff.stage === 'lies') {
-        if (Object.hasOwn(bluff.bluff.lies, playerId)) return state;
-        return tryAct(state, writeLie(state, playerId, `Вигадка ${playerId}`, now));
+        return Object.hasOwn(bluff.bluff.lies, playerId) ? state : act(state, writeLie(state, playerId, `Вигадка ${playerId}`, now), what);
       }
+      if (Object.hasOwn(bluff.bluff.picks, playerId)) return state;
       const truth = bluff.bluff.options.find((o) => o.kind === 'truth' && !o.removed);
-      return truth === undefined ? state : tryAct(state, pickBluff(state, playerId, truth.id, now));
+      return truth === undefined ? state : act(state, pickBluff(state, playerId, truth.id, now), what);
     }
     default: {
       const answer = wrong ? wrongAnswer(question) : rightAnswer(question);
       if (answer === null) return state;
-      // Бліц з кнопкою: спершу натискання (у миттєвому бліці й поза бліцом не вдасться — і не треба).
-      const queued = play.blitz === undefined ? state : tryAct(state, buzz(state, playerId, now));
-      return tryAct(queued, submitAnswer(queued, playerId, answer, now));
+      if (play.blitz === undefined) return act(state, submitAnswer(state, playerId, answer, now), what);
+      // Бліц: одна спроба на гравця; з кнопкою — спершу натискання.
+      if (attemptsUsed(play, playerId) > 0 || play.blitz.queue.some((e) => e.playerId === playerId)) return state;
+      const rules = blitzRulesOf(state, play);
+      const queued = rules !== null && isInstant(rules) ? state : act(state, buzz(state, playerId, now), what);
+      return act(queued, submitAnswer(queued, playerId, answer, now), what);
     }
   }
 }
+
+/** Кубик i-го в черзі: різні грані (2, 4, 6, …), щоб тур не повторювався без кінця. */
+const face = (i: number): Rng => () => (((i + 1) * 0.29) % 1);
 
 /** Перша незіграна клітинка поточного поля. */
 function firstCell(state: GameState): string | null {
@@ -215,34 +228,40 @@ function firstCell(state: GameState): string | null {
 
 /** Що вміють люди, які відповідають: хто помиляється, чи вирішують «Далі», чи оголошують дуель. */
 export interface Answering {
-  /** Гравці, що відповідають неправильно (лише на звичайних запитаннях). */
+  /** Гравці, що відповідають неправильно (на звичайних запитаннях і питаннях на виживання). */
   wrong?: string[];
+  /** Гравці, що мовчать (нічого не роблять). */
+  idle?: string[];
   /** «Далі» на першому вікні «Ва-банку» й першому рішенні «Мільйонера» (типово так); false — ніколи не вирішують. */
   decide?: boolean;
-  /** Оголосити одну дуель на першому reveal (типово так, якщо є пул дуелей); false — ні. */
+  /** Оголосити одну дуель, щойно це можна (типово так, якщо є пул дуелей); false — ні. */
   duel?: boolean;
   /** Лише оголосити дуель і більше нічого (для перевірки жеребу категорії). */
   onlyDuel?: boolean;
+  /** Дія, що не вдалася, — помилка тесту (типово так). */
+  strict?: boolean;
 }
 
 /** Люди, що відповідають, з налаштуваннями. */
 export function answerAs(config: Answering = {}): People {
-  const { wrong = [], decide = true, duel = true, onlyDuel = false } = config;
+  const { wrong = [], idle = [], decide = true, duel = true, onlyDuel = false, strict = true } = config;
+  const act: Act = strict ? strictAct : looseAct;
   return (state, now) => {
     let s = state;
-    const ids = s.players.map((p) => p.id);
-    // Дуель: перший гравець оголошує другому на першому reveal, вибирає першу категорію й відповідає правильно.
-    if (duel && s.quiz.duels !== undefined && s.phase === 'reveal' && s.duelsDeclared.length === 0 && s.duel === null && ids.length >= 2) {
-      s = tryAct(s, declareDuel(s, ids[0], ids[1]));
+    const ids = s.players.map((p) => p.id).filter((id) => !idle.includes(id));
+    // Дуель: перший гравець оголошує другому, щойно вікно дуелей відкрите, вибирає першу категорію й відповідає правильно.
+    if (duel && s.quiz.duels !== undefined && s.duelsDeclared.length === 0 && s.duel === null && s.players.length >= 2 && duelWindowOpen(s)) {
+      s = act(s, declareDuel(s, s.players[0].id, s.players[1].id), 'declare a duel');
     }
     if (onlyDuel) return s;
     if (s.duel !== null && s.phase === 'duel') {
       if (s.duel.stage === 'category') {
         const category = duelCategoriesLeft(s).find((c) => c.left > 0);
-        if (category !== undefined) for (const id of ids) s = tryAct(s, pickDuelCategory(s, id, category.id, now, () => 0));
-      } else if (s.duel.stage === 'question') {
+        if (category !== undefined) s = act(s, pickDuelCategory(s, s.duel.challengerId, category.id, now, () => 0), 'pick a duel category');
+      } else if (s.duel.stage === 'question' && !notStarted(s, now)) {
         const question = duelQuestionOf(s);
-        if (question !== null) s = tryAct(s, answerDuel(s, s.duel.challengerId, question.accepted[0], now));
+        const current = s.duel.questions[s.duel.questions.length - 1];
+        if (question !== null && current?.winnerId === null) s = act(s, answerDuel(s, s.duel.challengerId, question.accepted[0], now), 'answer the duel');
       }
       return s;
     }
@@ -251,44 +270,54 @@ export function answerAs(config: Answering = {}): People {
         const teams = s.teams;
         if (teams === undefined) return s;
         if (teams.dice !== null && teams.dice.waiting.length > 0) {
-          for (const id of teams.dice.waiting) s = tryAct(s, rollTeamDie(s, id, () => 0.5));
+          teams.dice.waiting.forEach((id, i) => {
+            s = act(s, rollTeamDie(s, id, face(i)), `${id} rolls for a team`);
+          });
         } else if (teams.form === 'pick') {
           teams.members.forEach((m, i) => {
-            if (m.teamId === null) s = tryAct(s, pickTeam(s, m.id, teams.list[i % teams.list.length].id));
+            if (m.teamId === null) s = act(s, pickTeam(s, m.id, teams.list[i % teams.list.length].id), `${m.id} picks a team`);
           });
         }
         return s;
       }
       case 'intro': {
-        const waiting = s.board?.dice?.waiting ?? [];
-        for (const id of waiting) s = tryAct(s, rollDie(s, id, () => 0.5));
+        (s.board?.dice?.waiting ?? []).forEach((id, i) => {
+          if (ids.includes(id)) s = act(s, rollDie(s, id, face(i)), `${id} rolls for the board`);
+        });
         return s;
       }
       case 'board': {
         const chooser = chooserOf(s);
         const cell = firstCell(s);
-        return chooser === null || cell === null ? s : tryAct(s, pickCell(s, chooser, cell, now, () => 0));
+        return chooser === null || cell === null || !ids.includes(chooser) ? s : act(s, pickCell(s, chooser, cell, now, () => 0), `${chooser} picks a cell`);
       }
       case 'wager':
-        for (const id of ids) if (!Object.hasOwn(s.final?.wagers ?? {}, id)) s = tryAct(s, placeWager(s, id, 0, now, () => 0));
+        for (const id of ids) if (!Object.hasOwn(s.final?.wagers ?? {}, id)) s = act(s, placeWager(s, id, 0, now, () => 0), `${id} bets`);
         return s;
       case 'question': {
         const contestant = contestantOf(s);
-        for (const id of ids) if (contestant === null || contestant === id) s = answerQuestion(s, id, wrong.includes(id), now);
+        for (const id of ids) if (contestant === null || contestant === id) s = answerQuestion(s, id, wrong.includes(id), now, act);
         return s;
       }
       case 'leaderboard': {
         // Перше вікно раунду: «Ва-банк» — після першого запитання раунду, «Мільйонер» — після першої сходинки.
         const firstOfRound = s.plays.findIndex((p) => p.roundIndex === s.roundIndex) === s.questionIndex;
         if (decisionOpen(s)) {
-          if (decide && firstOfRound) for (const id of ids) s = tryAct(s, decideWipeout(s, id, false, now));
+          const play = s.plays[s.questionIndex];
+          const decided = [...(play.wipeout?.took ?? []), ...(play.wipeout?.stay ?? [])];
+          const open = wipeoutIn(s).filter((id) => ids.includes(id) && !decided.includes(id));
+          if (decide && firstOfRound) for (const id of open) if (decisionOpen(s)) s = act(s, decideWipeout(s, id, false, now), `${id} decides`);
         } else if (decisionPending(s)) {
           const contestant = contestantOf(s);
-          if (decide && contestant !== null && ladderPlayOf(s)?.ladder.step === 0) s = tryAct(s, decideLadder(s, contestant, false, now));
-        } else if (trialOpen(s)) {
-          const trial = trialQuestionOf(s);
-          const answer = trial === null ? null : rightAnswer(trial);
-          for (const id of ids) s = tryAct(s, answer === null ? pickDoor(s, id, 0, now) : answerTrial(s, id, answer, now));
+          if (decide && contestant !== null && ids.includes(contestant) && ladderPlayOf(s)?.ladder.step === 0) s = act(s, decideLadder(s, contestant, false, now), 'the contestant decides');
+        } else if (trialOpen(s) && !notStarted(s, now)) {
+          const question = trialQuestionOf(s);
+          for (const id of survivalPlayOf(s)?.survival.edge ?? []) {
+            const trial = survivalPlayOf(s)?.survival.trial ?? null;
+            if (!ids.includes(id) || trial === null || !trialOpen(s) || Object.hasOwn(trial.answers, id) || Object.hasOwn(trial.doors, id)) continue;
+            const answer = question === null ? null : wrong.includes(id) ? wrongAnswer(question) : rightAnswer(question);
+            s = act(s, answer === null ? pickDoor(s, id, 0, now) : answerTrial(s, id, answer, now), `${id} on the trial`);
+          }
         }
         return s;
       }

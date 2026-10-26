@@ -614,6 +614,10 @@ export interface AutopilotState {
   hold?: 'nobody' | 'author';
   /** Автор натиснув «Почати гру» з кубиками команд: старт, щойно тур закриється. */
   starting?: true;
+  /** Поле: скільки ходів поспіль автопілот пропустив без вибору клітинки (дійсне, поки plays.length === skipPlays). */
+  skips?: number;
+  /** Поле: plays.length у мить останнього пропуску; нова клітинка (новий запис у plays) скидає лічильник. */
+  skipPlays?: number;
 }
 
 export interface GameOptions {

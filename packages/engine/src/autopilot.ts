@@ -215,27 +215,28 @@ function duelMove(state: GameState, from: number): Move | null {
   }
 }
 
-/** Ходи раунду поля, пропущені без вибору клітинки: ходи, що відбулися, мінус зіграні клітинки раунду. */
-function skippedTurns(state: GameState): number {
-  const board = state.board;
-  if (board === null) return 0;
-  const turns = (board.circleNo - 1) * board.circle.length + board.done;
-  const cells = state.plays.filter((p) => p.roundIndex === state.roundIndex && p.board !== undefined).length;
-  return turns - cells;
+/** Ходи поля, пропущені автопілотом поспіль з останньої вибраної клітинки (будь-яка нова клітинка дає новий запис у plays). */
+function skipsInRow(state: GameState): number {
+  const pilot = state.autopilot;
+  return pilot?.skips !== undefined && pilot.skipPlays === state.plays.length ? pilot.skips : 0;
 }
 
 /**
- * Хід на полі через 30 с: skipTurn. Щоб поле з гравцями, що мовчать, не крутилося без кінця: коли в раунді вже пропущено
- * ходів на ціле коло, клітинку тому, чий хід, вибирає жереб (pickCell від ведучого, by null).
+ * Хід на полі через 30 с: skipTurn. Щоб поле з гравцями, що мовчать, не крутилося без кінця: коли поспіль пропущено
+ * стільки ходів, скільки людей у колі, клітинку тому, чий хід, вибирає жереб (pickCell від ведучого, by null).
  */
 function boardTurnMove(state: GameState, now: number, rng: Rng): Result {
   const round = currentRound(state);
   const circle = state.board?.circle.length ?? 0;
-  if (round?.type !== 'board' || circle === 0 || skippedTurns(state) < circle) return skipTurn(state, now);
-  const open = boardCells(round).filter(({ cell }) => !cellPlayed(state, cell.question.id));
-  if (open.length === 0) return skipTurn(state, now);
-  const cell = open[Math.min(open.length - 1, Math.floor(rng() * open.length))].cell;
-  return pickCell(state, null, cell.question.id, now, rng);
+  const skips = skipsInRow(state);
+  const open = round?.type === 'board' ? boardCells(round).filter(({ cell }) => !cellPlayed(state, cell.question.id)) : [];
+  if (round?.type === 'board' && circle > 0 && skips >= circle && open.length > 0) {
+    const cell = open[Math.min(open.length - 1, Math.floor(rng() * open.length))].cell;
+    return pickCell(state, null, cell.question.id, now, rng);
+  }
+  const skipped = skipTurn(state, now);
+  if (!skipped.ok) return skipped;
+  return ok(withPilot(skipped.state, (pilot) => ({ ...pilot, skips: skips + 1, skipPlays: skipped.state.plays.length })));
 }
 
 /** Таблиця плану 11g, «Час етапів»: крок для стану, що йде, з підкроком від from; null — чекати нічого. */
