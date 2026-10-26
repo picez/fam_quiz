@@ -8805,6 +8805,20 @@ button.wall-tile:disabled {
   margin-top: 0.5rem;
 }
 
+.stage-question.has-wipeout-side {
+  position: relative;
+  padding-right: calc(var(--wipeout-side-w, 17rem) + 1.5rem);
+}
+
+.stage-question.has-wipeout-side > .wipeout-side {
+  position: absolute;
+  top: 4.5rem;
+  right: 0;
+  bottom: 0;
+  width: var(--wipeout-side-w, 17rem);
+  overflow: hidden;
+}
+
 /* Сцена «Ва-банк»: драбина зліва, гравці справа; усе на екран без прокрутки. */
 .wipeout-strip {
   text-align: center;

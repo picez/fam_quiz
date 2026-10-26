@@ -28,6 +28,14 @@ describe('HostWipeout', () => {
     expect(screen.getByText(/Гравці вирішують… \d+ с/)).toBeTruthy();
   });
 
+  it('shows each choice in the «Рішення» group once the window closed', () => {
+    const rows = [row('a', 'Оля', { choice: 'stay', bank: 600 }), row('b', 'Петро', { status: 'took', choice: 'took', bank: 300 })];
+    render(<HostWipeout view={host(info({ decide: null, decisions: true, rows }))} offsetMs={0} />);
+    const group = document.querySelector('.host-wipeout .wipeout-group.is-choices') as HTMLElement;
+    expect(group.textContent).toContain('Далі з 600');
+    expect(group.textContent).toContain('Забрано 300');
+  });
+
   it('has the «ⓘ» of the round', () => {
     render(<HostWipeout view={host(info({ decide: null }))} offsetMs={0} />);
     expect(document.querySelector('.host-wipeout h2 button')).not.toBeNull();

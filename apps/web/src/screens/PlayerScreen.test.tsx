@@ -2379,6 +2379,57 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(document.querySelector('.wipeout-ladder')).not.toBeNull();
     });
 
+    const twoRows = [
+      { playerId: 'p1', nickname: 'Олена', status: 'in' as const, bank: 300, step: null, decision: null, choice: null, prev: null },
+      { playerId: 'p2', nickname: 'Петро', status: 'in' as const, bank: 600, step: null, decision: null, choice: null, prev: null },
+    ];
+
+    it('the question shows a bank strip above the answer field', () => {
+      show(onQuestion({ round: wipeoutRound, wipeout: ladder({ decide: null, rows: twoRows, inCount: 2 }), me: own({ canDecide: false }) }));
+      const strip = document.querySelector('.wipeout-strip-phone') as HTMLElement;
+      expect(strip.textContent).toContain('У грі:');
+      expect(strip.textContent).toContain('Петро 600');
+      expect(strip.querySelector('.is-me')?.textContent).toBe('Олена 300');
+      const inputs = document.querySelector('.inputs') as HTMLElement;
+      expect(strip.compareDocumentPosition(inputs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('a burned player sees the strip together with the watching line', () => {
+      show(onQuestion({ round: wipeoutRound, wipeout: ladder({ decide: null, rows: twoRows, inCount: 2 }), me: own({ status: 'burned', bank: 0, canDecide: false }) }));
+      expect(document.querySelector('.wipeout-strip-phone')).not.toBeNull();
+      expect(screen.getByText('Ти вже не граєш у цьому раунді — дивись.')).toBeTruthy();
+    });
+
+    it('a classic question has no bank strip', () => {
+      show(onQuestion({}));
+      expect(document.querySelector('.wipeout-strip-phone')).toBeNull();
+    });
+
+    it('the reveal lists the rung under the bank', () => {
+      const rows = [{ ...twoRows[0], prev: 100 }, { ...twoRows[1], prev: 300 }];
+      show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, round: wipeoutRound, wipeout: ladder({ decide: null, rows, inCount: 2 }), me: { ...own({ canDecide: false }), result: { accepted: true, accuracy: 1, grade: 'correct', streakBonus: 0, points: 300 } } }));
+      const list = document.querySelector('.wipeout-step-list.is-phone') as HTMLElement;
+      expect(list).not.toBeNull();
+      expect(list.textContent).toContain('100 → 300');
+      expect(list.querySelector('li.is-me')).not.toBeNull();
+      const bank = screen.getByText('Банк: 300');
+      expect(bank.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('a watcher gets the rung list on the reveal too', () => {
+      const rows = [{ ...twoRows[0], status: 'took' as const, step: 0 }, { ...twoRows[1], prev: 300 }];
+      show(view({ phase: 'reveal', questionIndex: 1, question: publicQuestion, round: wipeoutRound, wipeout: ladder({ decide: null, rows, inCount: 1 }), me: own({ status: 'took', canDecide: false }) }));
+      expect(screen.getByText('Ти дивишся')).toBeTruthy();
+      expect(document.querySelector('.wipeout-step-list')).not.toBeNull();
+    });
+
+    it('the decisions screen shows my own line and the choices group', () => {
+      const rows = [{ ...twoRows[0], choice: 'stay' as const, bank: 600 }, { ...twoRows[1], status: 'took' as const, choice: 'took' as const }];
+      show(view({ phase: 'leaderboard', round: wipeoutRound, wipeout: ladder({ decide: null, decisions: true, rows }), me: own({ bank: 600, canDecide: false }), standings: null }));
+      expect(screen.getByText('Ти йдеш далі з 600')).toBeTruthy();
+      expect(document.querySelector('.wipeout-group.is-choices li.is-me')).not.toBeNull();
+    });
+
     it('a burned player watches instead of answering', () => {
       show(onQuestion({ round: wipeoutRound, wipeout: ladder({ decide: null }), me: own({ status: 'burned', bank: 0, canDecide: false }) }));
       expect(screen.getByText('Ти вже не граєш у цьому раунді — дивись.')).toBeTruthy();
@@ -2841,6 +2892,23 @@ describe('PlayerScreen: teams', () => {
     cleanup();
     show(teamPlayerView({ phase: 'leaderboard', round, wipeout: ladder, me: own }));
     expect(screen.getByRole('button', { name: 'Забрати 300' })).toBeTruthy();
+  });
+
+  it('a teammate sees the choices group, not the captain line, once the window closed', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'wipeout', partial: false, description: '', brief: emptyBrief('wipeout'), times: null };
+    const ladder = {
+      ladder: [100, 200, 300],
+      current: 2,
+      done: 3,
+      rows: [{ playerId: 'team-b', nickname: 'Сині', status: 'in' as const, bank: 300, step: null, decision: null, choice: 'stay' as const, prev: null }],
+      inCount: 1,
+      decide: null,
+      decisions: true,
+    };
+    const own = { ...baseMe, wipeout: { status: 'in' as const, bank: 300, decision: null, canDecide: false } };
+    show(teamPlayerView({ phase: 'leaderboard', round, wipeout: ladder, me: own }, noCaptain));
+    expect(screen.queryByText('Капітан вирішує за команду…')).toBeNull();
+    expect(document.querySelector('.wipeout-group.is-choices')).not.toBeNull();
   });
 
   it('a teammate sees the captain place the final wager', () => {
