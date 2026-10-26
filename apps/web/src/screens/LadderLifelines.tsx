@@ -1,4 +1,5 @@
 import type { LifelineKind, PlayerView } from '@quiz/shared';
+import { useId } from 'react';
 import { BUFF_ICONS } from '../buff-meta';
 import { t, type TextKey } from '../i18n';
 import { useSplash } from '../live/Splash';
@@ -13,11 +14,13 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
   // Хуки — до будь-якого виходу: заставку й кінець часу телефон перевіряє сам (сервер каже лише canLifeline).
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
   const timeOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
+  const offId = useId();
   if (info === null || own === null || own.role !== 'contestant' || info.lifelines.length === 0) return null;
   const notStarted = splashNow !== null && splashNow.splash.kind === 'question';
   const allowed = own.canLifeline && !view.paused && !notStarted && !timeOver;
   const audience = info.audience;
   const hint = own.hint;
+  const anyOff = info.lifelines.some(({ state }) => state === 'off');
   return (
     <section className="ladder-lifelines">
       <div className="ladder-lifeline-row" role="group" aria-label={t('ladderLifelinesLabel')}>
@@ -28,6 +31,7 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
             className={`ladder-lifeline is-${state}`}
             disabled={state !== 'ready' || !allowed}
             title={state === 'off' ? t('ladderLifelineOff') : undefined}
+            aria-describedby={state === 'off' ? offId : undefined}
             aria-pressed={state === 'active' ? true : undefined}
             onClick={() => onUse(kind)}
           >
@@ -36,12 +40,12 @@ export function LadderLifelines({ view, offsetMs, onUse }: { view: PlayerView; o
             </span>
             <span className="ladder-lifeline-name">{t(`ladderLifeline_${kind}` as TextKey)}</span>
             {state === 'used' && <span className="sr-only"> {t('ladderLifelineUsed')}</span>}
-            {state === 'off' && <span className="sr-only"> {t('ladderLifelineOff')}</span>}
           </button>
         ))}
       </div>
       {/* Усе, що з'являється після дотику, — в одному місці під рядом кнопок. */}
       <div className="ladder-lifeline-info" aria-live="polite">
+        {anyOff && <p id={offId} className="meta ladder-lifeline-off">{t('ladderLifelineOff')}</p>}
         {audience !== null &&
           (audience.state === 'closed' ? (
             audience.tally !== null && view.question !== null && (

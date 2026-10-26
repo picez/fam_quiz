@@ -23,17 +23,25 @@ const MINE: Partial<Record<BuffKind, string>> = {
   hint: t('hintMine'),
 };
 
+/** Текст за ключем; у грі без ведучого — його «…Auto», якщо такий є. */
+function autoText(key: string, autopilot: boolean): string {
+  const own = `${key}Auto`;
+  return t((autopilot && hasText(own) ? own : key) as TextKey);
+}
+
 /** Причина неактивної кнопки словами. */
-function whyText(block: BuffBlock, kind: BuffKind): string {
+function whyText(block: BuffBlock, kind: BuffKind, autopilot = false): string {
   const specific = `buffWhy_${block}_${kind}`;
-  return hasText(specific) ? t(specific) : t(`buffWhy_${block}` as TextKey, { name: buffName(kind) });
+  const own = `buffWhy_${block}Auto`;
+  if (autopilot && hasText(own)) return t(own as TextKey);
+  return hasText(specific) ? t(specific) : t(`buffWhy_${block}` as TextKey, { name: buffName(kind, autopilot) });
 }
 
 /**
  * Кнопка «?» і аркуш: що робить кожен дозволений баф і де діє. Нічого не надсилає — працює й на паузі.
  * Кнопка стоїть поза .buff-row: кнопок бафів лишається рівно стільки, скільки дозволено.
  */
-export function BuffHelp({ kinds }: { kinds: BuffKind[] }) {
+export function BuffHelp({ kinds, autopilot = false }: { kinds: BuffKind[]; autopilot?: boolean }) {
   const [open, setOpen] = useState(false);
   const openerRef = useRef<HTMLSpanElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
@@ -105,10 +113,10 @@ export function BuffHelp({ kinds }: { kinds: BuffKind[] }) {
                 {kinds.map((kind) => (
                   <li key={kind}>
                     <strong>
-                      <span aria-hidden="true">{BUFF_ICONS[kind]}</span> {buffName(kind)}
+                      <span aria-hidden="true">{BUFF_ICONS[kind]}</span> {buffName(kind, autopilot)}
                     </strong>
-                    <span>{t(`buffGuide_${kind}` as TextKey)}</span>
-                    <span className="buff-where">{t(`buffWhere_${kind}` as TextKey)}</span>
+                    <span>{autoText(`buffGuide_${kind}`, autopilot)}</span>
+                    <span className="buff-where">{autoText(`buffWhere_${kind}`, autopilot)}</span>
                   </li>
                 ))}
               </ul>
@@ -148,6 +156,7 @@ export function BuffRow({
   paused,
   timeOver = false,
   notStarted = false,
+  autopilot = false,
   send,
   onError,
 }: {
@@ -157,6 +166,8 @@ export function BuffRow({
   timeOver?: boolean;
   /** Ще йде заставка запитання чи клітинки: запитання на сервері ще не почалося. */
   notStarted?: boolean;
+  /** Гра без ведучого: підказка бафу — з вікторини. */
+  autopilot?: boolean;
   send: Send;
   onError: (message: string | null) => void;
 }) {
@@ -194,11 +205,11 @@ export function BuffRow({
     }
     const block = shownBlock(slot, paused, timeOver, notStarted);
     if (block !== null) {
-      say(whyText(block, slot.kind), null);
+      say(whyText(block, slot.kind, autopilot), null);
       return;
     }
     if (note?.confirm !== slot.kind) {
-      say(t('buffConfirm', { name: buffName(slot.kind) }), slot.kind);
+      say(t('buffConfirm', { name: buffName(slot.kind, autopilot) }), slot.kind);
       return;
     }
     clear();
@@ -220,8 +231,8 @@ export function BuffRow({
     return (
       <div className="buff-bar is-off">
         <div className="buff-line">
-          <BuffHelp kinds={kinds} />
-          <p className="buff-off">{whyText(blitzOff.block, blitzOff.kind)}</p>
+          <BuffHelp kinds={kinds} autopilot={autopilot} />
+          <p className="buff-off">{whyText(blitzOff.block, blitzOff.kind, autopilot)}</p>
         </div>
       </div>
     );
@@ -234,7 +245,7 @@ export function BuffRow({
       ? ''
       : active.retry === 'again'
         ? t('retryAgain')
-        : (MINE[active.kind] ?? t('buffTaken', { icon: BUFF_ICONS[active.kind], name: buffName(active.kind) }));
+        : (MINE[active.kind] ?? t('buffTaken', { icon: BUFF_ICONS[active.kind], name: buffName(active.kind, autopilot) }));
 
   return (
     <div className="buff-bar">
@@ -250,10 +261,10 @@ export function BuffRow({
               type="button"
               key={slot.kind}
               className={classes.join(' ')}
-              aria-label={buffName(slot.kind)}
+              aria-label={buffName(slot.kind, autopilot)}
               aria-disabled={slot.state === 'active' || block !== null}
               aria-pressed={slot.state === 'active'}
-              title={buffName(slot.kind)}
+              title={buffName(slot.kind, autopilot)}
               onClick={() => tap(slot)}
             >
               <span aria-hidden="true">{BUFF_ICONS[slot.kind]}</span>
@@ -262,7 +273,7 @@ export function BuffRow({
         })}
       </div>
       <div className="buff-line">
-        <BuffHelp kinds={kinds} />
+        <BuffHelp kinds={kinds} autopilot={autopilot} />
         <p className="buff-why" aria-live="polite">
           {note?.text ?? idle}
         </p>
@@ -582,7 +593,7 @@ export function SharedOvertime({ view, offsetMs }: { view: { endsAt: number | nu
  * Заміна в класиці — лише «⇄ Оля відповідає на запасне» (запасного в зрізі сцени немає);
  * на полі запасне вже на сцені як запитання клітинки — «⇄ Оля: запасне запитання».
  */
-export function StageBuffs({ buffs, board = false }: { buffs: BuffTag[]; board?: boolean }) {
+export function StageBuffs({ buffs, board = false, autopilot = false }: { buffs: BuffTag[]; board?: boolean; autopilot?: boolean }) {
   if (buffs.length === 0) return null;
   const text = (tag: BuffTag) =>
     tag.kind === 'swap'
@@ -591,7 +602,7 @@ export function StageBuffs({ buffs, board = false }: { buffs: BuffTag[]; board?:
   return (
     <ul className="stage-buffs" aria-label={t('stageBuffsLabel')}>
       {buffs.map((tag) => (
-        <li key={tag.playerId} className={tag.kind === 'swap' ? 'is-swap' : undefined} title={buffName(tag.kind)}>
+        <li key={tag.playerId} className={tag.kind === 'swap' ? 'is-swap' : undefined} title={buffName(tag.kind, autopilot)}>
           {text(tag)}
         </li>
       ))}

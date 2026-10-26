@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUDIO_LIMITS, REVEAL_MIN_SHARE, clueShare, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES, wallShare } from '@quiz/shared';
+import { AUDIO_LIMITS, AUTOPILOT_MS, REVEAL_MIN_SHARE, clueShare, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES, wallShare } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { debuffName } from '../debuff-meta';
 import { ROUND_NAMES } from '../guide-text';
@@ -107,6 +107,15 @@ describe('host help', () => {
     for (const part of ['2 с', '1 с', '3 с', 'Завершити раунд', 'вилучення гравця', '«Закрити випробування» у «Вибуванні» — через 3 с', '«Почати драбину» в «Мільйонері» — через 3 с']) expect(body).toContain(part);
     expect(searchHelp('мінімальний час')).toContain('setting.pacing');
     expect(searchHelp('пауза')).not.toContain('setting.pacing');
+  });
+
+  it('11h autopilot entry follows «reveal» and tells the stage times and what the author menu does', () => {
+    expect(helpIds('settings').at(-1)).toBe('setting.autopilot');
+    expect(helpIds('settings').at(-2)).toBe('setting.reveal');
+    filled('setting.autopilot');
+    const body = text('setting.autopilot');
+    for (const part of [`${AUTOPILOT_MS.reveal / 1000} с`, `${AUTOPILOT_MS.leaderboard / 1000} с`, `${AUTOPILOT_MS.resume / 1000} с`, 'Приховати', 'Провести ботом']) expect(body).toContain(part);
+    expect(helpEntry('setting.autopilot').title).toBe(t('autopilotTitle'));
   });
 
   it('11c live answers entry follows «pacing» and the captain line tells the host sees the draft', () => {

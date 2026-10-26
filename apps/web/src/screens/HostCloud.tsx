@@ -1,8 +1,8 @@
-import type { HostCloudWord } from '@quiz/shared';
+import type { AuthorCloudWord, HostCloudWord } from '@quiz/shared';
 import { t } from '../i18n';
 
-/** Хмара для пульта: кожне слово — кнопка (aria-pressed = сховано), поруч кількість і автори — видимі й на дотик. */
-export function HostCloud({ words, onHide }: { words: HostCloudWord[]; onHide: (key: string, hidden: boolean) => void }) {
+/** Хмара для пульта й меню автора: кожне слово — кнопка (aria-pressed = сховано), поруч кількість і автори (лише на пульті) — видимі й на дотик. */
+export function HostCloud({ words, onHide }: { words: (HostCloudWord | AuthorCloudWord)[]; onHide: (key: string, hidden: boolean) => void }) {
   return (
     <ul className="host-cloud">
       {words.map((word) => (
@@ -17,7 +17,7 @@ export function HostCloud({ words, onHide }: { words: HostCloudWord[]; onHide: (
           >
             <span className="host-cloud-text">{word.text}</span>
             <span className="host-cloud-count">{word.count}</span>
-            <span className="host-cloud-by">{word.by.join(', ')}</span>
+            {'by' in word && <span className="host-cloud-by">{word.by.join(', ')}</span>}
           </button>
         </li>
       ))}

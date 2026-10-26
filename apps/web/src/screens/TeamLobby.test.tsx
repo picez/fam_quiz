@@ -96,3 +96,11 @@ describe('TeamLobby', () => {
     expect(playerTeam().canRoll).toBe(false);
   });
 });
+
+describe('TeamLobby without a host', () => {
+  it('form «host»: a game with no host says the bot splits the teams', () => {
+    show(teamPlayerView({ autopilot: true, teams: teamsView({ form: 'host' }) }, { teamId: null, canPick: false }));
+    expect(screen.getByText('Команди розподілить бот, щойно автор почне гру.')).toBeTruthy();
+    expect(screen.queryByText('Ведучий розподіляє команди…')).toBeNull();
+  });
+});

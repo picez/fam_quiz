@@ -3,8 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { roundQuestions } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, me } from '../api';
-import { loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
+import { checkCode, createGame, createQuiz, deleteQuiz, getAutopilotCheck, getMyProfile, listQuizzes, me } from '../api';
+import { t } from '../i18n';
+import { loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame } from '../storage';
 import { Quizzes } from './Quizzes';
 
 vi.mock('../api', () => ({
@@ -14,6 +15,9 @@ vi.mock('../api', () => ({
   createQuiz: vi.fn(),
   deleteQuiz: vi.fn(),
   createGame: vi.fn(),
+  getAutopilotCheck: vi.fn(),
+  getMyProfile: vi.fn(),
+  createAutopilotGame: vi.fn(),
 }));
 
 const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com' };
@@ -37,6 +41,7 @@ const open = () =>
         <Route path="/quizzes" element={<Quizzes />} />
         <Route path="/login" element={<p>сторінка входу</p>} />
         <Route path="/host/:code" element={<p>пульт</p>} />
+        <Route path="/play/:code" element={<p>телефон</p>} />
         <Route path="/" element={<p>головна</p>} />
       </Routes>
     </MemoryRouter>,
@@ -166,5 +171,41 @@ describe('Quizzes: when the session check fails', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
     expect(screen.queryByText('сторінка входу')).toBeNull();
     expect(listQuizzes).not.toHaveBeenCalled();
+  });
+
+  it('opens the no-host launch for the quiz from «Провести ботом» and leaves «Грати» alone', async () => {
+    vi.mocked(getAutopilotCheck).mockResolvedValue({ ok: true, blocked: [], changed: [] });
+    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { nickname: 'Олена' } as never });
+    vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g', code: '123456', hostToken: 'h', stageToken: 's' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: t('autopilotLaunch') }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('Географія');
+    expect(createGame).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: t('play') }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(createGame).toHaveBeenCalledWith('q1');
+  });
+
+  it('sends the back-to-game banner of an author game to the phone screen', async () => {
+    saveAuthor('123456', { stageToken: 's' });
+    saveLastGame('123456');
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Географія' });
+    open();
+    const banner = await screen.findByRole('link', { name: /123 456/ });
+    expect(banner.getAttribute('href')).toBe('/play/123456');
+  });
+
+  it('a reused code with an old author key and a newer hosted game goes to the console', async () => {
+    // Ключ автора лишився від давньої гри з тим самим кодом (його записано напряму, повз saveHost).
+    localStorage.setItem('quiz:author:123456', JSON.stringify({ stageToken: 'old' }));
+    localStorage.setItem('quiz:host:123456', JSON.stringify({ hostToken: 'h', stageToken: 's' }));
+    saveLastGame('123456');
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Географія' });
+    open();
+    const banner = await screen.findByRole('link', { name: /123 456/ });
+    expect(banner.getAttribute('href')).toBe('/host/123456');
   });
 });

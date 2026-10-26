@@ -354,6 +354,10 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
         />
       )}
       {playing && <span className="audio-listen">{t('audioListen')}</span>}
+      {/* Живий регіон стоїть завжди: читалка почує, коли браузер заблокував звук. */}
+      <span className="sr-only" role="status">
+        {state === 'blocked' ? t('audioBlocked') : ''}
+      </span>
       {state === 'blocked' && (
         <button type="button" className="btn btn-primary" onClick={unlock}>
           {t('audioUnlock')}

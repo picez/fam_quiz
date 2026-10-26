@@ -21,6 +21,7 @@ const played = (over: Partial<PlayedGame>): PlayedGame => ({
   answered: 5,
   questionsPlayed: 5,
   team: null,
+  autopilot: false,
   ...over,
 });
 
@@ -48,6 +49,17 @@ const open = () =>
 const stat = (label: string) => screen.getByText(label).closest('.stat')?.textContent;
 
 describe('MyGames', () => {
+  it('marks the game a bot ran and only that one', async () => {
+    vi.mocked(myHistory).mockResolvedValue({
+      ok: true,
+      data: [played({ gameId: 'g1', title: 'Бот', autopilot: true }), played({ gameId: 'g2', title: 'Людина' })],
+    });
+    open();
+    await screen.findByRole('heading', { name: 'Бот' });
+    expect(screen.getAllByText('Провів бот')).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Бот' }).closest('li')?.textContent).toContain('Провів бот');
+  });
+
   it('lists played games with the place and the result', async () => {
     vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [played({})] });
     open();

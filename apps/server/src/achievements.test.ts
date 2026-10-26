@@ -10,6 +10,7 @@ const played = (status: PlayedGame['status'] = 'finished'): PlayedGame => ({
   gameId: 'g1',
   title: 'Гра',
   status,
+  autopilot: false,
   startedAt: new Date(0).toISOString(),
   nickname: 'Олена',
   score: 0,

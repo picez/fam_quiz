@@ -72,6 +72,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
   return (
     <div className="stage-lobby">
       <div className="invite">
+        {view.autopilot && <p className="meta stage-bot">{`🤖 ${t('stageBotHosts')}`}</p>}
         <p className="meta">{t('joinAt')}</p>
         <p className="address">{hostOf(joinUrl)}</p>
         <p className="meta">{t('joinCode')}</p>
@@ -333,7 +334,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           ) : (
             <>
               {view.bluff.stage === 'choice' && <p className="lead">{t('bluffChoiceHint')}</p>}
-              <BluffBoard info={view.bluff} big />
+              <BluffBoard info={view.bluff} big autopilot={view.autopilot} />
               {view.bluff.stage === 'choice' && <p className="meta">{t('bluffPickedCount', { n: view.bluff.picked, total: view.playerCount })}</p>}
             </>
           )}
@@ -443,7 +444,7 @@ function FinalStage({ view }: { view: StageView }) {
     <div className="stage-board">
       <p className="meta">{t('finalLabel')}</p>
       <h1 className="question wager-theme">{theme}</h1>
-      {view.phase === 'intro' && <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} fit />}
+      {view.phase === 'intro' && <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} fit />}
       {view.phase === 'wager' && <p className="lead">{t('finalStageWagers', { placed: final.placed, total: final.total })}</p>}
     </div>
   );
@@ -458,7 +459,7 @@ function Intro({ view }: { view: StageView }) {
       {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
-      <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} fit />
+      <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} fit />
     </>
   );
   return (
@@ -493,7 +494,7 @@ function LadderIntro({ view, info }: { view: StageView; info: NonNullable<StageV
         {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
         <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
         <RoundFacts round={view.round} total={view.total} />
-        <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} fit />
+        <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} fit />
         <div className="ladder-contestant">
           {info.contestant === null ? (
             <p className="lead">{t('ladderStageWho')}</p>
@@ -739,7 +740,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
   const highlighted = highlights !== null && (highlights.best !== null || highlights.climb !== null);
   return (
     <main className="app stage">
-      <DuelBanner duel={view.duel} phase={view.phase} />
+      <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
         <BuffToast view={view} offsetMs={offsetMs} />
@@ -749,7 +750,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
       <Splash view={view} offsetMs={offsetMs} size="stage" />
       {/* Значки бафів і дебафів — один стовпчик у кутку, position: fixed. */}
       <div className="stage-tags">
-        {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} board={view.board !== null} />}
+        {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} board={view.board !== null} autopilot={view.autopilot} />}
         <StageDebuffs debuffs={view.debuffs} />
       </div>
       {view.paused && (
@@ -758,7 +759,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
         </p>
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
-      {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" />}
+      {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" autopilot={view.autopilot} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}

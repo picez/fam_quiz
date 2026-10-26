@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, Versus } from '@quiz/shared';
+import type { AutopilotCheck, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -102,6 +102,11 @@ export const deleteQuiz = (id: string) => request<object>(quizUrl(id), { method:
 
 export const createGame = (quizId: string) =>
   request<{ gameId: string; code: string } & HostTokens>('/api/games', { body: { quizId } });
+export const getAutopilotCheck = (quizId: string) => request<AutopilotCheck>(`${quizUrl(quizId)}/autopilot`);
+export const createAutopilotGame = (quizId: string, nickname: string) =>
+  request<{ gameId: string; code: string; stageToken: string; token: string; playerId: string }>('/api/games', {
+    body: { quizId, autopilot: true, nickname },
+  });
 export const hostAccess = (code: string) => request<HostTokens>(`${gameUrl(code)}/host-access`);
 export const checkCode = (code: string) => request<{ phase: Phase; title: string }>(gameUrl(code));
 export const joinGame = (code: string, nickname: string) =>

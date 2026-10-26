@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { bluff, classicRound, cloud, makeQuiz, makeRoundsQuiz, single, sortQ, text } from '@quiz/engine/testing';
+import { bluff, bool, classicRound, cloud, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId } from '@quiz/engine/testing';
 import { paceWindow, sortOf, stageView, type GameState } from '@quiz/engine';
 import { defaultTeams, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
@@ -510,3 +510,102 @@ class ManualScheduler implements Scheduler {
     fn();
   }
 }
+
+describe('audio on the phones of a game with no host and no stage (11h)', () => {
+  const CLIP = { source: 'file', url: '/uploads/0123456789abcdef.mp3', start: 0, duration: 2 } as const;
+  const withAudio = () => makeQuiz([{ ...single, audio: CLIP }, text], { leaderboard: 'each' });
+  const clipOf = (view: ReturnType<RoomManager['view']>) => {
+    const question = (view as { question: { audio: { clip: unknown } | null } | null } | null)?.question;
+    return question?.audio === undefined || question?.audio === null ? undefined : question.audio.clip;
+  };
+  const phones = (ctx: ReturnType<typeof atQuestion>) => [ctx.author, ctx.others[0].identity];
+
+  it('the author and the other player get the source at the question and at the reveal', () => {
+    const ctx = atQuestion(withAudio());
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toEqual(CLIP);
+    toReveal(ctx);
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toEqual(CLIP);
+  });
+
+  it('a stage that connects takes the source away; once it leaves the phones get it again', () => {
+    const ctx = atQuestion(withAudio());
+    const stage: Identity = { role: 'stage', playerId: null };
+    const events: string[] = [];
+    ctx.manager.onEvent((_room, event) => events.push(event.type));
+    ctx.manager.connect(ctx.room, stage);
+    expect(events).toContain('changed');
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toBeNull();
+    ctx.manager.disconnect(ctx.room, stage);
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toEqual(CLIP);
+  });
+
+  it('there is no audio in the lobby or at the leaderboard, and a question without audio stays so', () => {
+    const lobby = autopilot(withAudio());
+    expect(clipOf(lobby.manager.view(lobby.room, lobby.author))).toBeUndefined();
+    const ctx = atQuestion(withAudio());
+    toReveal(ctx);
+    ctx.scheduler.advance(6000);
+    expect(ctx.room.state.phase).toBe('leaderboard');
+    expect(clipOf(ctx.manager.view(ctx.room, ctx.author)) ?? null).toBeNull();
+    ctx.scheduler.advance(5000);
+    expect(ctx.room.state.questionIndex).toBe(1);
+    expect(ctx.manager.view(ctx.room, ctx.author)).toMatchObject({ question: { audio: null } });
+  });
+
+  it('a player on their own spare question gets the spare source; the rest keep the main one', () => {
+    const SPARE = { source: 'file', url: '/uploads/fedcba9876543210.mp3', start: 0, duration: 3 } as const;
+    const swapQuiz = (spareAudio: typeof SPARE | undefined, mainAudio: typeof CLIP | undefined = CLIP) => ({
+      ...makeQuiz([{ ...single, audio: mainAudio }, text], { leaderboard: 'each', buffs: ['swap'] }),
+      spares: [{ ...withId(bool, 's1'), audio: spareAudio }],
+    });
+    const ctx = atQuestion(swapQuiz(SPARE));
+    expect(ctx.manager.buff(ctx.room, ctx.authorId, 'swap')).toEqual({ ok: true });
+    expect(clipOf(ctx.manager.view(ctx.room, ctx.author))).toEqual(SPARE);
+    expect(clipOf(ctx.manager.view(ctx.room, ctx.others[0].identity))).toEqual(CLIP);
+    // Запасне без звуку — тиша, а не звук основного запитання.
+    const silent = atQuestion(swapQuiz(undefined));
+    expect(silent.manager.buff(silent.room, silent.authorId, 'swap')).toEqual({ ok: true });
+    expect(clipOf(silent.manager.view(silent.room, silent.author)) ?? null).toBeNull();
+    // Основне без звуку, запасне зі звуком — звук запасного.
+    const spareOnly = atQuestion(swapQuiz(SPARE, undefined));
+    expect(spareOnly.manager.buff(spareOnly.room, spareOnly.authorId, 'swap')).toEqual({ ok: true });
+    expect(clipOf(spareOnly.manager.view(spareOnly.room, spareOnly.author))).toEqual(SPARE);
+  });
+
+  it('two stage tabs: the phones stay silent until the last one leaves', () => {
+    const ctx = atQuestion(withAudio());
+    const stage: Identity = { role: 'stage', playerId: null };
+    ctx.manager.connect(ctx.room, stage);
+    ctx.manager.connect(ctx.room, stage);
+    ctx.manager.disconnect(ctx.room, stage);
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toBeNull();
+    ctx.manager.disconnect(ctx.room, stage);
+    for (const who of phones(ctx)) expect(clipOf(ctx.manager.view(ctx.room, who))).toEqual(CLIP);
+  });
+
+  it('team members (the live-draft path) get the source too', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [{ ...single, audio: CLIP }])], { teams: defaultTeams(2) });
+    const ctx = autopilot(quiz, { names: ['Тарас', 'Іра', 'Оля'] });
+    expect(ctx.act({ type: 'team-form', form: 'random' })).toEqual({ ok: true });
+    expect(ctx.act({ type: 'start' })).toEqual({ ok: true });
+    for (let i = 0; i < 40 && ctx.room.state.phase !== 'question'; i++) ctx.scheduler.advance(1000);
+    expect(ctx.room.state.phase).toBe('question');
+    for (const who of [ctx.author, ...ctx.others.map((o) => o.identity)]) expect(clipOf(ctx.manager.view(ctx.room, who))).toEqual(CLIP);
+  });
+
+  it('a hosted room never gives phones the source, stage or not; the stage and host views are unchanged', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const room = manager.create(withAudio());
+    const joined = manager.join(room.code, 'Анна');
+    if (!joined.ok) throw new Error(joined.error);
+    const phone: Identity = { role: 'player', playerId: joined.playerId };
+    manager.connect(room, phone);
+    manager.connect(room, { role: 'host', playerId: null });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    manager.host(room, { type: 'next' });
+    expect(room.state.phase).toBe('question');
+    expect(clipOf(manager.view(room, phone))).toBeNull();
+    expect(clipOf(manager.view(room, { role: 'stage', playerId: null }))).toEqual(CLIP);
+    expect(clipOf(manager.view(room, { role: 'host', playerId: null }))).toEqual(CLIP);
+  });
+});

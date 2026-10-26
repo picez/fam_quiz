@@ -92,6 +92,13 @@
       "when": 1792906901433,
       "tag": "0012_teams",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793032041694,
+      "tag": "0013_game_autopilot",
+      "breakpoints": true
     }
   ]
 }

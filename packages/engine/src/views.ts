@@ -26,6 +26,7 @@ import {
   type PlayerChain,
   type AuthorBluffOption,
   type AuthorCloudWord,
+  type AuthorPerson,
   type AuthorView,
   type CloudWord,
   type HostCloudWord,
@@ -308,6 +309,15 @@ export function audioOf(state: GameState): QuestionAudio | null {
   if (state.phase !== 'question' && state.phase !== 'locked' && state.phase !== 'reveal') return null;
   return shownQuestion(state)?.question.audio ?? null;
 }
+
+/** Звук запитання, яке бачить сам гравець: власне запасне в класиці або те, що бачать усі (11h, телефони автопілота без сцени). */
+export function phoneAudioOf(state: GameState, playerId: string): QuestionAudio | null {
+  if (!audioPhase(state)) return null;
+  const spare = ownSpare(state, playerId);
+  return (spare ?? shownQuestion(state))?.question.audio ?? null;
+}
+
+const audioPhase = (state: GameState) => state.phase === 'question' || state.phase === 'locked' || state.phase === 'reveal';
 
 /**
  * Позначки гравців на шкалі повзунка: за відстанню до правильного, далі за нікнеймом. null поза запитанням-повзунком і у фіналі.
@@ -1024,10 +1034,16 @@ function authorBluff(state: GameState): AuthorBluffOption[] | null {
   return play.bluff.options.filter((o) => !o.removed).map((o) => ({ id: o.id, text: o.text }));
 }
 
+/** Люди кімнати, крім автора, у порядку входу: соло — гравці, командна гра — учасники команд. */
+function authorPeople(state: GameState, personId: string): AuthorPerson[] {
+  const list = teamsOn(state) ? state.teams.members : state.players;
+  return list.filter((p) => p.id !== personId).map(({ id, nickname, connected }) => ({ id, nickname, connected }));
+}
+
 /** Те, що бачить лише автор автопілота; null — глядач не автор чи гра з ведучим. */
 function authorView(state: GameState, personId: string): AuthorView | null {
   if (!isAuthor(state, personId)) return null;
-  return { cloud: authorCloud(state), bluff: authorBluff(state) };
+  return { cloud: authorCloud(state), bluff: authorBluff(state), people: authorPeople(state, personId) };
 }
 
 /** Уся хмара для пульта: зі схованими словами й нікнеймами авторів. */

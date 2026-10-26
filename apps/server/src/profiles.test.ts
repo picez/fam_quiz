@@ -685,3 +685,50 @@ describe('profile: teams (10j)', () => {
     expect(played.played).toMatchObject({ team: null, playerCount: 2, rank: 1 });
   });
 });
+
+describe('games without a host (11h)', () => {
+  const hosted = (stats: { hosted: number }) => stats.hosted;
+  const earnedIds = (list: { id: string; earned: boolean }[]) => list.filter((a) => a.earned).map((a) => a.id);
+
+  it('the author’s bot game is not a hosted game, but counts as a played one', async () => {
+    const db = await createTestDb();
+    await addUser(db, 'author', 'Марта');
+    await addUser(db, 'friend', 'Тарас');
+    await seedGame(db, { hostId: 'author', startedAt: new Date(1000), players: [{ userId: 'friend', nickname: 'Тарас', score: 5, rank: 1 }] });
+    await seedGame(db, {
+      hostId: 'author',
+      autopilot: true,
+      startedAt: new Date(2000),
+      players: [
+        { userId: 'author', nickname: 'Марта', score: 20, rank: 1 },
+        { userId: 'friend', nickname: 'Тарас', score: 5, rank: 2 },
+      ],
+    });
+    const facts = await profileFacts(db, 'author');
+    expect(hosted(facts.stats)).toBe(1);
+    expect(facts.stats.games).toBe(1);
+    expect(facts.stats.wins).toBe(1);
+    expect(facts.stats.podium).toEqual({ first: 1, second: 0, third: 0 });
+    expect(earnedIds(facts.achievements)).toEqual(expect.arrayContaining(['host', 'first_game', 'first_win']));
+    expect((await publicProfile(db, 'author', null))?.stats.hosted).toBe(1);
+  });
+
+  it('with only bot games there is no hosted game and no host achievement', async () => {
+    const db = await createTestDb();
+    await addUser(db, 'author', 'Марта');
+    await seedGame(db, { hostId: 'author', autopilot: true, startedAt: new Date(), players: [{ userId: 'author', nickname: 'Марта', score: 20, rank: 1 }] });
+    const facts = await profileFacts(db, 'author');
+    expect(hosted(facts.stats)).toBe(0);
+    expect(earnedIds(facts.achievements)).not.toContain('host');
+    expect(earnedIds(facts.achievements)).toContain('first_game');
+  });
+
+  it('ten bot games do not earn host_10', async () => {
+    const db = await createTestDb();
+    await addUser(db, 'author', 'Марта');
+    for (let i = 0; i < 10; i++) await seedGame(db, { hostId: 'author', autopilot: true, startedAt: new Date(i), players: [{ userId: 'author', nickname: 'Марта', score: 1, rank: 1 }] });
+    const facts = await profileFacts(db, 'author');
+    expect(hosted(facts.stats)).toBe(0);
+    expect(earnedIds(facts.achievements)).not.toContain('host_10');
+  });
+});

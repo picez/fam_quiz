@@ -9,13 +9,15 @@ import { t } from "../i18n";
 export function GuidePageView({
   guide,
   size,
+  autopilot = false,
 }: {
   guide: GuideView;
   size: "stage" | "phone" | "host";
+  autopilot?: boolean;
 }) {
   const page = guide.pages[guide.page];
   if (page === undefined) return null;
-  const text = guidePageText(page);
+  const text = guidePageText(page, autopilot);
   const stage = size === "stage";
   const host = size === "host";
   return (

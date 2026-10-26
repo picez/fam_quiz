@@ -142,7 +142,7 @@ export function TeamWatch({ view, tilts = {}, offsetMs = 0 }: { view: PlayerView
       )}
       {question.type === 'wall' && question.wall !== null && <WallGrid wall={question.wall} found={me.wall?.found ?? []} />}
       {question.type === 'chain' && question.chain !== null && me.chain !== null && <ChainWords first={question.chain.first} masks={me.chain.masks} />}
-      {question.type === 'bluff' && view.bluff !== null && view.bluff.stage === 'choice' && <BluffBoard info={view.bluff} />}
+      {question.type === 'bluff' && view.bluff !== null && view.bluff.stage === 'choice' && <BluffBoard info={view.bluff} autopilot={view.autopilot} />}
       {question.type === 'bluff' && <p className="meta">{t('teamCaptainDecides')}</p>}
       {question.type === 'boolean' ? (
         <DraftBoolean draft={draft} mark={mark} />

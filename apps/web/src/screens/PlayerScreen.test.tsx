@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
+import { STAGE_GONE_MS } from '../live/useStageGone';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS } from './verdict-blink';
 import { baseMe, teamPlayerView } from './team-test-view';
@@ -88,11 +89,141 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
 const onQuestion = (over: Partial<PlayerView> = {}) =>
   view({ phase: 'question', questionIndex: 0, question: publicQuestion, endsAt: Date.now() + 20_000, ...over });
 
-function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send } = {}) {
+function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send; code?: string; stageUrl?: string | null } = {}) {
   const send: Send = options.send ?? vi.fn(async () => ({ ok: true as const }));
-  render(<PlayerScreen view={current} hostOnline={options.hostOnline ?? true} offsetMs={0} send={send} />);
+  render(<PlayerScreen view={current} hostOnline={options.hostOnline ?? true} offsetMs={0} send={send} code={options.code} stageUrl={options.stageUrl} />);
   return send;
 }
+
+describe('PlayerScreen audio without a stage', () => {
+  const clip = { source: 'file' as const, url: '/uploads/abcdef0123456789.mp3', start: 0, duration: 10 };
+  const withClip = (over: Partial<PlayerView> = {}, clipValue: typeof clip | null = clip) =>
+    onQuestion({ autopilot: true, question: { ...publicQuestion, audio: { duration: 10, clip: clipValue } } as never, ...over });
+  const screenOf = (current: PlayerView, stageOnline: boolean) => (
+    <PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} stageOnline={stageOnline} />
+  );
+  const audioEl = () => document.querySelector('audio');
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('plays the clip after the stage has been gone for STAGE_GONE_MS, not before', () => {
+    vi.useFakeTimers();
+    const current = withClip();
+    const { rerender } = render(screenOf(current, true));
+    expect(audioEl()).toBeNull();
+    rerender(screenOf(current, false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS - 100));
+    expect(audioEl()).toBeNull();
+    act(() => void vi.advanceTimersByTime(200));
+    expect(audioEl()?.getAttribute('src')).toBe(clip.url);
+    expect(document.querySelector('.player-audio')).not.toBeNull();
+  });
+
+  it('is silent while the stage is online, without a clip, and in a hosted game', () => {
+    vi.useFakeTimers();
+    const online = render(screenOf(withClip(), true));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS * 2));
+    expect(audioEl()).toBeNull();
+    online.unmount();
+    render(screenOf(withClip({}, null), false));
+    expect(audioEl()).toBeNull();
+    cleanup();
+    render(screenOf(withClip({ autopilot: false }), false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS * 2));
+    expect(audioEl()).toBeNull();
+  });
+
+  it('under the question splash the audio is mounted but does not start', () => {
+    vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const splash = { kind: 'question' as const, at: Date.now(), until: Date.now() + 5000 };
+    const current = withClip({ splash });
+    const { rerender } = render(screenOf(current, true));
+    rerender(screenOf(current, false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS + 100));
+    expect(audioEl()).not.toBeNull();
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it('starts once the splash is over, pauses with the game and goes on after it', () => {
+    vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const splash = { kind: 'question' as const, at: Date.now(), until: Date.now() + 1000 };
+    const current = withClip({ splash });
+    const { rerender } = render(screenOf(current, false));
+    expect(play).not.toHaveBeenCalled();
+    act(() => void vi.advanceTimersByTime(1100));
+    rerender(screenOf({ ...current, splash: null }, false));
+    expect(play).toHaveBeenCalledTimes(1);
+    rerender(screenOf({ ...current, splash: null, paused: true, endsAt: null, remainingMs: 15_000 }, false));
+    expect(pause).toHaveBeenCalled();
+    rerender(screenOf({ ...current, splash: null }, false));
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+
+  it('goes away when the stage comes back, at the leaderboard and on unmount', () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const current = withClip();
+    const { rerender } = render(screenOf(current, false));
+    expect(audioEl()).not.toBeNull();
+    rerender(screenOf(current, true));
+    expect(audioEl()).toBeNull();
+    expect(pause).toHaveBeenCalled();
+    cleanup();
+    const again = render(screenOf(current, false));
+    again.rerender(screenOf({ ...current, phase: 'leaderboard', question: null }, false));
+    expect(audioEl()).toBeNull();
+    cleanup();
+    pause.mockClear();
+    const last = render(screenOf(current, false));
+    expect(audioEl()).not.toBeNull();
+    last.unmount();
+    expect(pause).toHaveBeenCalled();
+  });
+
+  it('a stage that flaps back for a moment restarts the 3 s wait', () => {
+    vi.useFakeTimers();
+    const current = withClip();
+    const { rerender } = render(screenOf(current, true));
+    rerender(screenOf(current, false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS - 500));
+    rerender(screenOf(current, true));
+    rerender(screenOf(current, false));
+    act(() => void vi.advanceTimersByTime(STAGE_GONE_MS - 500));
+    expect(audioEl()).toBeNull();
+    act(() => void vi.advanceTimersByTime(600));
+    expect(audioEl()).not.toBeNull();
+  });
+
+  it('a blocked browser shows «Увімкнути звук» and says so to a screen reader; a tap plays', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValueOnce(Object.assign(new Error('no'), { name: 'NotAllowedError' })).mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    render(screenOf(withClip(), false));
+    const unlock = await screen.findByRole('button', { name: '🔊 Увімкнути звук' });
+    expect(document.querySelector('.audio-card [role="status"]')?.textContent).toBe('Браузер не дав увімкнути звук — торкніться кнопки.');
+    fireEvent.click(unlock);
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+
+  it('a player who takes a swap hears the spare clip from a fresh player', () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const spareClip = { ...clip, url: '/uploads/fedcba9876543210.mp3' };
+    const current = withClip();
+    const { rerender } = render(screenOf(current, false));
+    const first = audioEl();
+    const active = { kind: 'swap' as const, removed: [], retry: null, first: null, hint: null };
+    const swapped = withClip({ me: { ...me, buffs: { slots: [], active } as never } }, spareClip);
+    rerender(screenOf(swapped, false));
+    expect(audioEl()?.getAttribute('src')).toBe(spareClip.url);
+    expect(audioEl()).not.toBe(first);
+  });
+});
 
 describe('PlayerScreen', () => {
   it('a debuffed question wraps the answer area; other phones get the same zone without a debuff', () => {
@@ -127,6 +258,42 @@ describe('PlayerScreen', () => {
     expect(screen.getByText('Олена')).toBeTruthy();
     expect(screen.getByText('1250')).toBeTruthy();
     expect(screen.getByText('Ви в грі. Чекаємо на старт.')).toBeTruthy();
+  });
+
+  it('the author sees the author lobby with the code and «Почати гру» instead of the waiting line', () => {
+    const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [] } }), { code: '123456', stageUrl: null });
+    expect(screen.getByText('123 456')).toBeTruthy();
+    expect(screen.queryByText('Ви в грі. Чекаємо на старт.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
+    expect(send).toHaveBeenCalledWith('host:start', undefined);
+  });
+
+  it('the author header has «⋯»; another player header does not', () => {
+    show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [] } }), { code: '123456' });
+    expect(document.querySelector('header.bar')!.querySelector('button.author-menu-btn')).not.toBeNull();
+    cleanup();
+    show(view({ autopilot: true, author: null }), { code: '123456' });
+    expect(screen.queryByRole('button', { name: 'Меню автора' })).toBeNull();
+  });
+
+  it('the author pause banner has «Продовжити» that resumes; other players only see «Пауза»', () => {
+    const send = show(onQuestion({ autopilot: true, author: { cloud: null, bluff: null, people: [] }, paused: true, endsAt: null, remainingMs: 12_000 }));
+    const banner = document.querySelector('.banner')!;
+    fireEvent.click(within(banner as HTMLElement).getByRole('button', { name: 'Продовжити' }));
+    expect(send).toHaveBeenCalledWith('host:resume', undefined);
+    cleanup();
+    show(onQuestion({ autopilot: true, author: null, paused: true, endsAt: null, remainingMs: 12_000 }));
+    expect(document.querySelector('.banner')!.querySelector('button')).toBeNull();
+  });
+
+  it('another player in an autopilot lobby and a hosted lobby see the usual line, no start button', () => {
+    show(view({ autopilot: true, author: null }), { code: '123456' });
+    expect(screen.getByText('Ви в грі. Чекаємо на старт.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Почати гру' })).toBeNull();
+    cleanup();
+    show(view({ autopilot: false, author: null }));
+    expect(screen.getByText('Ви в грі. Чекаємо на старт.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Почати гру' })).toBeNull();
   });
 
   it('lets the player answer an open question', () => {

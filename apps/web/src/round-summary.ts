@@ -13,8 +13,8 @@ function modifiers(brief: RoundBrief, lead: string[], penaltyKey: 'summaryPenalt
   return parts.join(' · ');
 }
 
-/** 2–4 рядки простою мовою: як цей раунд рахує бали. */
-export function roundSummary(brief: RoundBrief): string[] {
+/** 2–4 рядки простою мовою: як цей раунд рахує бали. autopilot: підказка «Мільйонера» в грі без ведучого — без слова «ведучого». */
+export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
   const lines: string[] = [];
   if (brief.type === 'final') {
     lines.push(t('summaryFinal'), t(brief.wagerMode === 'bank' ? 'summaryFinalBank' : 'summaryFinalScore'));
@@ -27,7 +27,7 @@ export function roundSummary(brief: RoundBrief): string[] {
   if (brief.type === 'ladder' && brief.ladder !== null) {
     const { top, pick, lifelines } = brief.ladder;
     lines.push(t('summaryLadderContestant', { top }), t(`summaryLadderPick_${pick}`), t('summaryLadderHall'));
-    if (lifelines.length > 0) lines.push(t('summaryLadderLifelines', { list: lifelines.map(buffName).join(', ') }));
+    if (lifelines.length > 0) lines.push(t('summaryLadderLifelines', { list: lifelines.map((kind) => buffName(kind, autopilot)).join(', ') }));
     return lines;
   }
   if (brief.type === 'survival' && brief.survival !== null) {

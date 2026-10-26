@@ -1470,3 +1470,60 @@ describe('recorder: teams (10j)', () => {
     expect(ctx.errors).toEqual([]);
   });
 });
+
+describe('recorder: games without a host (11h)', () => {
+  async function autopilotRoom() {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'author-user', name: 'Марта', email: 'marta@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, db, (error) => errors.push(error));
+    const created = manager.createAutopilot(makeQuiz([single, text], { speedBonus: false }), 'author-user', null, 'Марта');
+    if (!created.ok) throw new Error(created.error);
+    manager.connect(created.room, { role: 'player', playerId: created.playerId });
+    return { db, manager, recorder, room: created.room, authorId: created.playerId, errors };
+  }
+
+  it('marks a game the bot ran; the author is the host user and a player row', async () => {
+    const ctx = await autopilotRoom();
+    expect(ctx.manager.author(ctx.room, ctx.authorId, { type: 'start' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    const games = await ctx.db.select().from(game);
+    expect(games).toHaveLength(1);
+    expect(games[0]).toMatchObject({ hostId: 'author-user', autopilot: true });
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('does not rewrite the mark when the game is saved again', async () => {
+    const ctx = await autopilotRoom();
+    expect(ctx.manager.author(ctx.room, ctx.authorId, { type: 'start' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    await ctx.db.update(game).set({ autopilot: false }).where(eq(game.id, ctx.room.id));
+    expect(ctx.manager.author(ctx.room, ctx.authorId, { type: 'next' })).toMatchObject({});
+    await ctx.recorder.idle();
+    expect((await ctx.db.select().from(game))[0]!.autopilot).toBe(false);
+  });
+
+  it('a room restored after a restart saves again still marked as a bot game', async () => {
+    const ctx = await autopilotRoom();
+    expect(ctx.manager.author(ctx.room, ctx.authorId, { type: 'start' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    const saved = ctx.manager.snapshot(ctx.room);
+    ctx.manager.evict(ctx.room);
+    await ctx.db.delete(game);
+    const restored = ctx.manager.restore(saved);
+    expect(restored).not.toBeNull();
+    expect(restored!.state.autopilot).toBeDefined();
+    await ctx.recorder.idle();
+    const games = await ctx.db.select().from(game);
+    expect(games).toHaveLength(1);
+    expect(games[0]).toMatchObject({ hostId: 'author-user', autopilot: true });
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a game with a host is not marked', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    expect((await ctx.saved()).games[0]).toMatchObject({ autopilot: false });
+  });
+});

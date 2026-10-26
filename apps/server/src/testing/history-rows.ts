@@ -20,7 +20,7 @@ let codes = 0;
 /** Вставляє гру з учасниками, рядками answer і коригуваннями; повертає id гри й учасників у порядку players. */
 export async function seedGame(
   db: Db,
-  spec: { hostId: string; status?: GameStatus; startedAt: Date; snapshot?: unknown; questionsPlayed?: number; title?: string; players: SeedPlayer[] },
+  spec: { hostId: string; status?: GameStatus; startedAt: Date; snapshot?: unknown; questionsPlayed?: number; title?: string; autopilot?: boolean; players: SeedPlayer[] },
 ): Promise<{ gameId: string; participantIds: string[] }> {
   const gameId = randomUUID();
   codes += 1;
@@ -33,6 +33,7 @@ export async function seedGame(
     quizSnapshot: spec.snapshot ?? makeQuiz([single]),
     questionsPlayed: spec.questionsPlayed ?? 1,
     startedAt: spec.startedAt,
+    autopilot: spec.autopilot ?? false,
   });
   const participantIds = spec.players.map(() => randomUUID());
   for (const [i, p] of spec.players.entries()) {

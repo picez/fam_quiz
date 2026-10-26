@@ -129,18 +129,18 @@ export function DuelButton({
 }
 
 /** Коли почнеться оголошена дуель: після відкритого запитання, після наступного (з поля) або щойно ведучий продовжить. */
-function duelStartText(phase: Phase): TextKey {
+function duelStartText(phase: Phase, autopilot: boolean): TextKey {
   if (phase === 'question' || phase === 'locked') return 'duelStartsAfterQuestion';
   if (phase === 'board') return 'duelStartsAfterNext';
-  return 'duelStartsOnContinue';
+  return autopilot ? 'duelStartsSoon' : 'duelStartsOnContinue';
 }
 
 /** Закріплена смуга оголошеної дуелі (stage 'declared'); position: fixed — нічого не зсуває. */
-export function DuelBanner({ duel, phase }: { duel: DuelInfo | null; phase: Phase }) {
+export function DuelBanner({ duel, phase, autopilot = false }: { duel: DuelInfo | null; phase: Phase; autopilot?: boolean }) {
   if (duel === null || duel.stage !== 'declared') return null;
   return (
     <div className={reducedMotion() ? 'duel-banner' : 'duel-banner is-pulsing'} role="status" aria-live="polite">
-      {t('duelBanner', { challenger: duel.challenger.nickname, opponent: duel.opponent.nickname, start: t(duelStartText(phase)) })}
+      {t('duelBanner', { challenger: duel.challenger.nickname, opponent: duel.opponent.nickname, start: t(duelStartText(phase, autopilot)) })}
     </div>
   );
 }

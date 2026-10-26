@@ -195,6 +195,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         title: state.quiz.title,
         quizSnapshot: state.quiz,
         startedAt: snapshot.startedAt,
+        autopilot: state.autopilot !== undefined,
         ...progress,
       })
       // Кімната, піднята після перезапуску вже завершеною, пише гру ще раз: мить фінішу лишається першою.

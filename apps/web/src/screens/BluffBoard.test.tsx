@@ -87,3 +87,14 @@ describe('BluffBoard', () => {
     expect(screen.getAllByText('закрито')).toHaveLength(1);
   });
 });
+
+describe('BluffBoard without a host', () => {
+  it('the spare lie comes from the quiz in a game with no host', () => {
+    const options = [{ id: 'b2', text: 'Мілан', open: true, kind: 'spare' as const, authors: [], pickedBy: [], removed: false }];
+    render(<BluffBoard info={info(options)} autopilot />);
+    expect(screen.getByText('Запасна вигадка з вікторини')).toBeTruthy();
+    cleanup();
+    render(<BluffBoard info={info(options)} />);
+    expect(screen.getByText('Запасна вигадка ведучого')).toBeTruthy();
+  });
+});

@@ -84,7 +84,7 @@ function useStageFit(ref: RefObject<HTMLElement | null>, enabled: boolean, deps:
 }
 
 /** Опис автора (якщо є) і пояснення правил раунду; для заставки й попереднього перегляду в редакторі. `fit` — сцена: опис обрізається, щоб вона не прокручувалась, а довгому опису, якому лишилось менше п’яти рядків, поступаються правила (лише перший рядок). */
-export function RoundBriefing({ brief, description, newcomers = false, fit = false }: { brief: RoundBrief; description: string; newcomers?: boolean; fit?: boolean }) {
+export function RoundBriefing({ brief, description, newcomers = false, fit = false, autopilot = false }: { brief: RoundBrief; description: string; newcomers?: boolean; fit?: boolean; autopilot?: boolean }) {
   const noteRef = useRef<HTMLParagraphElement>(null);
   const hasNote = description.trim() !== '';
   useStageFit(noteRef, fit && hasNote, [description, newcomers]);
@@ -98,11 +98,11 @@ export function RoundBriefing({ brief, description, newcomers = false, fit = fal
       {newcomers && (
         <div className="round-brief-how">
           <h2>{t('roundHowTitle')}</h2>
-          <p>{roundHow(brief)[0]}</p>
+          <p>{roundHow(brief, autopilot)[0]}</p>
         </div>
       )}
       <ul className="round-brief-lines" aria-label={t('roundBriefTitle')}>
-        {roundSummary(brief).map((line, index) => (
+        {roundSummary(brief, autopilot).map((line, index) => (
           <li key={`${index}-${line}`}>{line}</li>
         ))}
       </ul>

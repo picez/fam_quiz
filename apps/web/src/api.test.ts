@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authProviders, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { authProviders, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -145,5 +145,23 @@ describe('sign-in with Google', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/me/friends/u%202', { method: 'PUT', headers: undefined, body: undefined });
     await unfollow('u 2');
     expect(fetchMock).toHaveBeenLastCalledWith('/api/me/friends/u%202', { method: 'DELETE', headers: undefined, body: undefined });
+  });
+});
+
+describe('autopilot', () => {
+  it('creates a no-host game with the author nickname', async () => {
+    const fetchMock = respond(201, { gameId: 'g', code: '123456', stageToken: 's', token: 't', playerId: 'p' });
+    const result = await createAutopilotGame('q1', 'Марта');
+    expect(result).toEqual({ ok: true, gameId: 'g', code: '123456', stageToken: 's', token: 't', playerId: 'p' });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/games');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ quizId: 'q1', autopilot: true, nickname: 'Марта' });
+  });
+
+  it('asks the server whether a quiz can run without a host', async () => {
+    const fetchMock = respond(200, { blocked: [], changed: [] });
+    expect(await getAutopilotCheck('q1')).toEqual({ ok: true, blocked: [], changed: [] });
+    expect(fetchMock).toHaveBeenCalledWith('/api/quizzes/q1/autopilot', { method: 'GET', headers: undefined, body: undefined });
   });
 });

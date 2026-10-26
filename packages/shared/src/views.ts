@@ -964,12 +964,21 @@ export interface AuthorBluffOption {
   text: string;
 }
 
+/** Людина кімнати-автопілота для меню автора (11h): лише те, що видно всім у лобі. */
+export interface AuthorPerson {
+  id: string;
+  nickname: string;
+  connected: boolean;
+}
+
 /** Що бачить лише автор кімнати-автопілота (11g); решту — як усі гравці. */
 export interface AuthorView {
   /** Розкриття «хмари слів»: слова сцени й сховані; інакше null. */
   cloud: AuthorCloudWord[] | null;
   /** Етап вибору блефу: неприбрані варіанти в порядку показу; інакше null. */
   bluff: AuthorBluffOption[] | null;
+  /** Люди кімнати, крім автора, у порядку входу (соло — players, команди — teams.members); для «Вилучити гравця». */
+  people: AuthorPerson[];
 }
 
 interface BaseView {

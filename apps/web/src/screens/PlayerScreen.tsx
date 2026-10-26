@@ -9,7 +9,7 @@ import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
-import { publicWindowMs, revealStage, useRevealProgress } from '../reveal';
+import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import { AnswerInput } from './AnswerInput';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
@@ -37,11 +37,15 @@ import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { DuelistPicker } from './DuelistPicker';
 import { TeamBar, buzzerOf, memberName } from './TeamBar';
 import { TeamLobby } from './TeamLobby';
+import { AuthorLobby } from './AuthorLobby';
 import { TeamWatch, useDraftSender } from './TeamWatch';
 import { MenuLinks } from './MenuLinks';
 import { DebuffShop } from './DebuffShop';
 import { TableButton } from './TableSheet';
+import { AuthorMenu } from './AuthorMenu';
 import { useGuardedSend } from '../live/useGuardedSend';
+import { useStageGone } from '../live/useStageGone';
+import { QuestionAudio } from './QuestionAudio';
 import { SurvivalBoard } from './SurvivalBoard';
 import { SurvivalTrial } from './SurvivalTrial';
 import { WipeoutDecision } from './WipeoutDecision';
@@ -60,6 +64,12 @@ interface Props {
   send: Send;
   /** Останній нахил картки сортування за тим, хто сортує (11d). */
   tilts?: Record<string, SortTilt>;
+  /** Код кімнати (з Play.tsx): для лобі автора. */
+  code?: string;
+  /** Посилання на сцену автора, якщо токен сцени є на цьому пристрої. */
+  stageUrl?: string | null;
+  /** Чи під'єднана сцена (звук без сцени — задача 8). */
+  stageOnline?: boolean;
 }
 
 /** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
@@ -197,7 +207,7 @@ function BluffPlay({ view, paused, send }: { view: PlayerView; paused: boolean; 
   return (
     <section className="bluff-play">
       <p className="bluff-stage">{t('bluffStageChoice')}</p>
-      {picked === null && lost && <p className="meta bluff-lost" role="status">{t('bluffPickRemoved')}</p>}
+      {picked === null && lost && <p className="meta bluff-lost" role="status">{t(view.autopilot ? 'bluffPickRemovedAuthor' : 'bluffPickRemoved')}</p>}
       {picked === null ? (
         <fieldset className="inputs" disabled={paused}>
           <BluffChoice options={bluff.options} own={mine.own} send={send} />
@@ -221,7 +231,7 @@ function BluffResult({ view }: { view: PlayerView }) {
   const tone = result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
   return (
     <section className={open && took ? `result ${tone}` : 'result'}>
-      <BluffBoard info={bluff} />
+      <BluffBoard info={bluff} autopilot={view.autopilot} />
       {open ? (
         <>
           <h2>{took ? t(me.bluff.truth ? 'bluffTruthYes' : me.bluff.pick === null ? 'bluffNoChoice' : 'bluffTruthNo') : t('bluffSilent')}</h2>
@@ -535,10 +545,10 @@ function FinalResult({ view }: { view: PlayerView }) {
 }
 
 /** Рядок стану миттєвого бліцу під варіантами: власне місце в черзі чи вердикт. */
-function instantStatus(blitz: PlayerBlitz, timeOver: boolean): string {
+function instantStatus(blitz: PlayerBlitz, timeOver: boolean, autopilot: boolean): string {
   if (blitz.canAnswer && timeOver) return t('blitzTimeOver');
   if (blitz.canAnswer && blitz.position === 1) return t('blitzRepickAgain');
-  if (blitz.position === 1) return t('blitzMineChecking');
+  if (blitz.position === 1) return t(autopilot ? 'blitzMineCheckingAuto' : 'blitzMineChecking');
   if (blitz.position !== null) return t('blitzMineQueued', { position: blitz.position });
   if (blitz.grade === 'wrong') return t('blitzMineWrong');
   if (blitz.grade === 'correct') return t('blitzMineCorrect');
@@ -568,10 +578,11 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS }: Props) {
+export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
   const decideGuard = useGuardedSend(send, setError);
+  const resumeGuard = useGuardedSend(send, setError);
   // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере бафи, дебафи й крамницю.
   const team = view.team;
   const acting = team === null || team.canAct;
@@ -593,6 +604,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   const locked = view.paused || notStarted;
   // Під будь-якою заставкою (раунд, фінал, підсумки) кнопки шапки й вступу вимкнені: крізь шар їх не натиснути наосліп.
   const splashUp = splashNow !== null;
+  // Гра без ведучого й без сцени: звук запитання грає на телефонах (сервер шле джерело лише тоді).
+  const stageGone = useStageGone(stageOnline);
+  const clip = view.autopilot ? (question?.audio?.clip ?? null) : null;
+  // Власне запасне (заміна): свій фрагмент із нового програвача, час — від появи запасного (особистий годинник).
+  const onSpare = me.buffs?.active?.kind === 'swap';
 
   const submit = async (answer: Answer) => {
     // До старту сервер однаково відмовив би: дотик, що проскочив крізь вимкнене поле, нічого не надсилає.
@@ -678,7 +694,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
     <main className="app player" aria-busy={notStarted || undefined}>
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
-      <DuelBanner duel={view.duel} phase={view.phase} />
+      <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
         <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
@@ -695,23 +711,32 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
         <DuelButton duel={captain || me.duel === null ? me.duel : { ...me.duel, rights: null }} paused={view.paused || splashUp} send={send} onError={setError} />
         {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
+        <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
         <strong className="score">{num(me.score)}</strong>
       </header>
 
       {view.paused && (
-        <p className="banner" role="status">
+        <p className={view.author !== null ? 'banner author-paused' : 'banner'} role="status">
           {t(hostOnline ? 'paused' : 'waitingHost')}
+          {view.author !== null && view.phase !== 'finished' && (
+            <button type="button" className="btn btn-small" disabled={resumeGuard.busy} onClick={() => void resumeGuard.run('host:resume', undefined)}>
+              {t('authorResume')}
+            </button>
+          )}
         </p>
       )}
 
       <TeamBar view={view} />
       <DuelistPicker view={view} send={send} onError={setError} />
 
-      {phase === 'lobby' && <p className="lead">{t('inLobby')}</p>}
+      {phase === 'lobby' && view.author === null && <p className="lead">{t('inLobby')}</p>}
+      {phase === 'lobby' && view.author !== null && (
+        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} />
+      )}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
 
-      {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" />}
+      {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" autopilot={view.autopilot} />}
 
       {phase === 'duel' && view.duel !== null && <DuelPlay view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
@@ -720,11 +745,11 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {view.round.total > 1 && <p className="meta">{t('roundOf', { index: view.round.index + 1, total: view.round.total })}</p>}
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
           <RoundFacts round={view.round} total={view.total} />
-          <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} />
+          <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} />
           {view.ladder !== null && me.ladder !== null && (
             <p className="lead ladder-intro" role="status">
               {view.ladder.contestant === null
-                ? t('ladderWaitPick')
+                ? t(view.autopilot ? 'ladderWaitDraw' : 'ladderWaitPick')
                 : me.ladder.role === 'contestant'
                   ? t('ladderYouClimb')
                   : t('ladderWhoClimbs', { name: view.ladder.contestant.nickname })}
@@ -811,7 +836,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
             {question.clues !== null && <CluesNow clues={question.clues} offsetMs={offsetMs} />}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
-            {me.buffs !== null && captain && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} send={send} onError={setError} />}
+            {me.buffs !== null && captain && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} autopilot={view.autopilot} send={send} onError={setError} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
@@ -861,14 +886,14 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                   {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
                     <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
                   )}
-                  <p className="blitz-status">{instantStatus(me.blitz, timeOver)}</p>
+                  <p className="blitz-status">{instantStatus(me.blitz, timeOver, view.autopilot)}</p>
                 </div>
                 {queue}
               </>
             ) : myPending ? (
               <section className="sent">
                 <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
-                <p className="lead">{t('pendingWait')}</p>
+                <p className="lead">{t(view.autopilot ? 'pendingWaitAuto' : 'pendingWait')}</p>
               </section>
             ) : me.blitz !== null ? (
               <>
@@ -1133,6 +1158,21 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
           <MenuLinks role="player" />
         </>
+      )}
+
+      {clip !== null && stageGone && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
+        <div className="player-audio">
+          <QuestionAudio
+            key={`${view.round?.index ?? 0}:${view.questionIndex}:${onSpare ? 'spare' : 'main'}`}
+            clip={clip}
+            questionKey={`${view.round?.index ?? 0}:${view.questionIndex}:${onSpare ? 'spare' : 'main'}`}
+            ready={phase === 'question' && !notStarted && !view.paused}
+            paused={view.paused}
+            command={null}
+            elapsedMs={() => questionElapsedMs(onSpare && myClock !== null ? { ...view, ...myClock } : view, Date.now() + offsetMs)}
+            splash={notStarted}
+          />
+        </div>
       )}
 
       {error !== null && (

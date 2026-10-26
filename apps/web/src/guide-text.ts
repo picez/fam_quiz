@@ -51,14 +51,14 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
 };
 
 /** Як проходить раунд — 1 рядок (у фіналі 2: ставка і режим ставок; пам'ятка бере лише перший). */
-export function roundHow(brief: RoundBrief): string[] {
+export function roundHow(brief: RoundBrief, autopilot = false): string[] {
   switch (brief.type) {
     case 'classic':
       return [t('roundHow_classic')];
     case 'blitz':
       return [t(brief.instant ? 'roundHow_blitzInstant' : 'roundHow_blitz')];
     case 'board':
-      return [t('roundHow_board')];
+      return [t(autopilot ? 'roundHow_boardAuto' : 'roundHow_board')];
     case 'final':
       return [t('roundHow_final'), t(brief.wagerMode === 'bank' ? 'summaryFinalBank' : 'summaryFinalScore')];
     case 'wipeout':
@@ -88,10 +88,10 @@ export function typeHow(type: Question['type'], top = ''): string {
 }
 
 /** Заголовок, вступні рядки й пункти сторінки «Як грати». */
-export function guidePageText(page: GuidePage): GuideText {
+export function guidePageText(page: GuidePage, autopilot = false): GuideText {
   switch (page.kind) {
     case 'phone':
-      return { title: t('guidePhoneTitle'), lead: [t('guidePhoneSee'), t('guidePhoneAnswer'), t('guidePhoneScore')], items: [] };
+      return { title: t('guidePhoneTitle'), lead: [t('guidePhoneSee'), t('guidePhoneAnswer'), t(autopilot ? 'guidePhoneScoreAuto' : 'guidePhoneScore')], items: [] };
     case 'teams':
       return { title: t('guideTeamsTitle'), lead: [t('guideTeamsBody', { count: page.count })], items: [] };
     case 'rounds':
@@ -101,8 +101,8 @@ export function guidePageText(page: GuidePage): GuideText {
         items: page.rounds.map((brief) => ({
           icon: ROUND_ICONS[brief.type],
           name: t(ROUND_NAMES[brief.type]),
-          line: roundHow(brief).join(' '),
-          details: roundSummary(brief),
+          line: roundHow(brief, autopilot).join(' '),
+          details: roundSummary(brief, autopilot),
         })),
       };
     case 'questions':
@@ -120,12 +120,12 @@ export function guidePageText(page: GuidePage): GuideText {
       return {
         title: t('guideBuffsTitle'),
         lead: [t('guideBuffsLead'), t('guideBuffsWhere')],
-        items: page.buffs.map((kind) => ({ icon: BUFF_ICONS[kind], name: buffName(kind), line: t(`buffGuide_${kind}` as TextKey), details: [] })),
+        items: page.buffs.map((kind) => ({ icon: BUFF_ICONS[kind], name: buffName(kind, autopilot), line: t((kind === 'hint' && autopilot ? 'buffGuide_hintAuto' : `buffGuide_${kind}`) as TextKey), details: [] })),
       };
     case 'debuffs':
       return {
         title: t('guideDebuffsTitle'),
-        lead: [t('guideDebuffsLead')],
+        lead: [t(autopilot ? 'guideDebuffsLeadAuto' : 'guideDebuffsLead')],
         items: page.debuffs.map((kind) => ({ icon: DEBUFF_ICONS[kind], name: debuffName(kind), line: t(`debuffGuide_${kind}` as TextKey), details: [] })),
       };
     case 'duels': {

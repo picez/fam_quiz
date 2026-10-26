@@ -13,6 +13,8 @@ export const BUFF_ICONS: Record<BuffKind, string> = {
   swap: '⇄',
 };
 
-export function buffName(kind: BuffKind): string {
+/** autopilot: у грі без ведучого підказка — з вікторини, тож «від ведучого» не пишемо. */
+export function buffName(kind: BuffKind, autopilot = false): string {
+  if (autopilot && kind === 'hint') return t('buff_hintAuto');
   return t(`buff_${kind}` as TextKey);
 }

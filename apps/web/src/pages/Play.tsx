@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { SocketAuth } from '@quiz/shared';
 import { joinGame } from '../api';
 import { errorText, t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
 import { PlayerScreen } from '../screens/PlayerScreen';
-import { clearPlayer, loadPlayer, savePlayer } from '../storage';
+import { clearAuthor, clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
 import { useAccount } from '../useAccount';
 
 function JoinForm({ code, notice, onJoined }: { code: string; notice: string | null; onJoined: (token: string) => void }) {
@@ -72,13 +72,20 @@ export function Play() {
   const game = useGame(auth);
 
   // Токен більше не діє: гру закрито або гравця вилучено. Повертаємо форму входу.
+  const wasAutopilot = useRef(false);
+  if (game.view !== null && game.view.role === 'player') wasAutopilot.current = game.view.autopilot;
   const lost = token !== null && (game.status === 'unauthorized' || game.closed !== null);
   useEffect(() => {
     if (!lost) return;
-    setNotice(t(game.closed === 'kicked' ? 'kicked' : 'gameGone'));
+    const auto = wasAutopilot.current;
+    setNotice(t(game.closed === 'kicked' ? (auto ? 'kickedByAuthor' : 'kicked') : auto ? 'gameGoneAuto' : 'gameGone'));
     clearPlayer(code);
+    clearAuthor(code);
     setToken(null);
   }, [lost, game.closed, code]);
+
+  const author = loadAuthor(code);
+  const stageUrl = author === null ? null : `${window.location.origin}/stage/${code}#${author.stageToken}`;
 
   if (token === null) {
     return (
@@ -110,7 +117,16 @@ export function Play() {
           {t(statusTextKey(game.status))}
         </p>
       )}
-      <PlayerScreen view={game.view} hostOnline={game.hostOnline} offsetMs={game.offsetMs} send={game.send} tilts={game.tilts} />
+      <PlayerScreen
+        view={game.view}
+        hostOnline={game.hostOnline}
+        offsetMs={game.offsetMs}
+        send={game.send}
+        tilts={game.tilts}
+        code={code}
+        stageUrl={stageUrl}
+        stageOnline={game.stageOnline}
+      />
     </>
   );
 }

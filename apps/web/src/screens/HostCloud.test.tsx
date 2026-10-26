@@ -29,4 +29,10 @@ describe('HostCloud', () => {
     fireEvent.click(button);
     expect(onHide).toHaveBeenCalledWith('борщ', false);
   });
+
+  it('a word without authors (the author menu) has no authors line', () => {
+    render(<HostCloud words={[{ key: 'сонце', text: 'сонце', count: 2, hidden: false }]} onHide={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'сонце' })).toBeTruthy();
+    expect(document.querySelector('.host-cloud-by')).toBeNull();
+  });
 });
