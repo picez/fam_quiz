@@ -24,6 +24,9 @@ import {
   type ChainInfo,
   type DebuffKind,
   type PlayerChain,
+  type AuthorBluffOption,
+  type AuthorCloudWord,
+  type AuthorView,
   type CloudWord,
   type HostCloudWord,
   type PlayerSort,
@@ -124,8 +127,9 @@ import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
+import { isAuthor } from './autopilot';
 import { cloudTally, cloudVoters } from './votes';
-import { bluffOrder, bluffShown } from './bluff';
+import { bluffOrder, bluffPlayOf, bluffShown } from './bluff';
 import { skippedSurveys, surveyShown } from './survey';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
@@ -999,6 +1003,33 @@ function stageCloud(state: GameState): CloudWord[] | null {
     .map(({ key, text, count }) => ({ key, text, count }));
 }
 
+/** Хмара для автора: слова сцени (несховані, найчастіші) і сховані ним, без авторів слів. */
+function authorCloud(state: GameState): AuthorCloudWord[] | null {
+  const play = currentCloud(state);
+  if (play === null || !isRevealed(state)) return null;
+  const tally = cloudTally(play, voterList(state));
+  const visible = new Set(
+    tally
+      .filter((entry) => !entry.hidden)
+      .slice(0, LIMITS.cloudShown)
+      .map((entry) => entry.key),
+  );
+  return tally.filter((entry) => entry.hidden || visible.has(entry.key)).map(({ key, text, count, hidden }) => ({ key, text, count, hidden }));
+}
+
+/** Варіанти блефу для автора: етап вибору, неприбрані, у порядку показу, без kind і авторів. */
+function authorBluff(state: GameState): AuthorBluffOption[] | null {
+  const play = bluffPlayOf(state);
+  if (play === null || state.phase !== 'question' || play.bluff.stage !== 'choice') return null;
+  return play.bluff.options.filter((o) => !o.removed).map((o) => ({ id: o.id, text: o.text }));
+}
+
+/** Те, що бачить лише автор автопілота; null — глядач не автор чи гра з ведучим. */
+function authorView(state: GameState, personId: string): AuthorView | null {
+  if (!isAuthor(state, personId)) return null;
+  return { cloud: authorCloud(state), bluff: authorBluff(state) };
+}
+
 /** Уся хмара для пульта: зі схованими словами й нікнеймами авторів. */
 function hostCloud(state: GameState): HostCloudWord[] | null {
   const play = currentCloud(state);
@@ -1559,6 +1590,7 @@ function base(state: GameState, forHost: boolean) {
   const round = currentRound(state);
   const play = state.plays[state.questionIndex];
   return {
+    autopilot: state.autopilot !== undefined,
     phase: state.phase,
     paused: state.paused,
     round: roundInfo(state),
@@ -1899,7 +1931,7 @@ function blitzAnswer(state: GameState, playerId: string): Answer | null | undefi
 export function playerView(state: GameState, playerId: string): PlayerView | null {
   if (!teamsOn(state)) {
     const view = ownView(state, playerId);
-    return view === null ? null : { ...view, team: null };
+    return view === null ? null : { ...view, team: null, author: authorView(state, playerId) };
   }
   const member = memberOf(state, playerId);
   if (member === undefined) return null;
@@ -1908,7 +1940,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   if (view === null) return lobbyView(state, member, team);
   // Опитування й «хмару» кожен проходить сам: власний голос, а не запис команди (його немає).
   const vote = unscoredNow(state) ? publicAnswer(recordOf(state, state.questionIndex, member.id)?.answer ?? null, isRevealed(state)) : view.me.answer;
-  return { ...view, me: { ...view.me, answer: vote, vote: votePrompt(state, member.id) }, team };
+  return { ...view, me: { ...view.me, answer: vote, vote: votePrompt(state, member.id) }, team, author: authorView(state, member.id) };
 }
 
 /** Учасник без команди (лобі): спільна частина й порожній me. */
@@ -1948,6 +1980,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
     table: null,
     myBreakdown: null,
     team,
+    author: authorView(state, member.id),
   };
 }
 
@@ -1997,10 +2030,10 @@ function canActNow(state: GameState, memberId: string, teamId: string): boolean 
 }
 
 /** Зрізи ownView на стан: члени команди отримують один і той самий зріз команди. */
-const ownViewCache = new WeakMap<GameState, Map<string, Omit<PlayerView, 'team'> | null>>();
+const ownViewCache = new WeakMap<GameState, Map<string, Omit<PlayerView, 'team' | 'author'> | null>>();
 
 /** Зріз гравця рушія (соло-гравця або команди) без поля team; кеш за станом і id. */
-function ownView(state: GameState, playerId: string): Omit<PlayerView, 'team'> | null {
+function ownView(state: GameState, playerId: string): Omit<PlayerView, 'team' | 'author'> | null {
   let views = ownViewCache.get(state);
   if (views === undefined) {
     views = new Map();
@@ -2012,7 +2045,7 @@ function ownView(state: GameState, playerId: string): Omit<PlayerView, 'team'> |
   return view;
 }
 
-function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'team'> | null {
+function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'team' | 'author'> | null {
   const player = state.players.find((p) => p.id === playerId);
   if (player === undefined) return null;
   const record = currentRecord(state, playerId);

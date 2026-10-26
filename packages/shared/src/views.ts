@@ -950,6 +950,28 @@ export interface PlayerBuffs {
   active: PlayerActiveBuff | null;
 }
 
+/** Слово «хмари» для меню автора (11g): лише те, що сцена показує, і сховане ним; без авторів слів. */
+export interface AuthorCloudWord {
+  key: string;
+  text: string;
+  count: number;
+  hidden: boolean;
+}
+
+/** Варіант блефу для меню автора (11g): без позначки правди й авторів. */
+export interface AuthorBluffOption {
+  id: string;
+  text: string;
+}
+
+/** Що бачить лише автор кімнати-автопілота (11g); решту — як усі гравці. */
+export interface AuthorView {
+  /** Розкриття «хмари слів»: слова сцени й сховані; інакше null. */
+  cloud: AuthorCloudWord[] | null;
+  /** Етап вибору блефу: неприбрані варіанти в порядку показу; інакше null. */
+  bluff: AuthorBluffOption[] | null;
+}
+
 interface BaseView {
   phase: Phase;
   paused: boolean;
@@ -1014,6 +1036,8 @@ interface BaseView {
   newcomers: boolean;
   /** Командна гра (10j); null у соло-грі. */
   teams: TeamsView | null;
+  /** Гру веде автопілот (11g): сцена покаже «Гру веде бот» (11h). */
+  autopilot: boolean;
 }
 
 /** «Як грати»: поточна сторінка й усі сторінки цієї вікторини. */
@@ -1162,6 +1186,8 @@ export interface PlayerView extends BaseView {
   table: PlayerTable | null;
   /** Своя розбивка «+ / −» (11f): свій учасник рушія (у командній грі — команда), без балів, яких ще не видно в таблиці; null у лобі. Чужих розбивок телефон не отримує. */
   myBreakdown: ScoreBreakdown | null;
+  /** Лише автор кімнати-автопілота (і в лобі); інакше null. */
+  author: AuthorView | null;
   /** Командна гра: про себе (10j); null у соло-грі. */
   team: PlayerTeam | null;
 }

@@ -39,6 +39,8 @@ const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: nul
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
+  autopilot: false,
+  author: null,
   phase: 'lobby',
   paused: false,
   blitz: null,
