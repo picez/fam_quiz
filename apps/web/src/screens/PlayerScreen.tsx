@@ -37,6 +37,7 @@ import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { DuelistPicker } from './DuelistPicker';
 import { TeamBar, buzzerOf, memberName } from './TeamBar';
 import { TeamLobby } from './TeamLobby';
+import { AuthorLobby } from './AuthorLobby';
 import { TeamWatch, useDraftSender } from './TeamWatch';
 import { MenuLinks } from './MenuLinks';
 import { DebuffShop } from './DebuffShop';
@@ -60,6 +61,12 @@ interface Props {
   send: Send;
   /** Останній нахил картки сортування за тим, хто сортує (11d). */
   tilts?: Record<string, SortTilt>;
+  /** Код кімнати (з Play.tsx): для лобі автора. */
+  code?: string;
+  /** Посилання на сцену автора, якщо токен сцени є на цьому пристрої. */
+  stageUrl?: string | null;
+  /** Чи під'єднана сцена (звук без сцени — задача 8). */
+  stageOnline?: boolean;
 }
 
 /** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
@@ -568,7 +575,7 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS }: Props) {
+export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
   const decideGuard = useGuardedSend(send, setError);
@@ -708,7 +715,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       <TeamBar view={view} />
       <DuelistPicker view={view} send={send} onError={setError} />
 
-      {phase === 'lobby' && <p className="lead">{t('inLobby')}</p>}
+      {phase === 'lobby' && view.author === null && <p className="lead">{t('inLobby')}</p>}
+      {phase === 'lobby' && view.author !== null && (
+        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} />
+      )}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
 
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" />}

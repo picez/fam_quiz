@@ -5,7 +5,7 @@ import { joinGame } from '../api';
 import { errorText, t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
 import { PlayerScreen } from '../screens/PlayerScreen';
-import { clearPlayer, loadPlayer, savePlayer } from '../storage';
+import { clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
 import { useAccount } from '../useAccount';
 
 function JoinForm({ code, notice, onJoined }: { code: string; notice: string | null; onJoined: (token: string) => void }) {
@@ -80,6 +80,9 @@ export function Play() {
     setToken(null);
   }, [lost, game.closed, code]);
 
+  const author = loadAuthor(code);
+  const stageUrl = author === null ? null : `${window.location.origin}/stage/${code}#${author.stageToken}`;
+
   if (token === null) {
     return (
       <JoinForm
@@ -110,7 +113,16 @@ export function Play() {
           {t(statusTextKey(game.status))}
         </p>
       )}
-      <PlayerScreen view={game.view} hostOnline={game.hostOnline} offsetMs={game.offsetMs} send={game.send} tilts={game.tilts} />
+      <PlayerScreen
+        view={game.view}
+        hostOnline={game.hostOnline}
+        offsetMs={game.offsetMs}
+        send={game.send}
+        tilts={game.tilts}
+        code={code}
+        stageUrl={stageUrl}
+        stageOnline={game.stageOnline}
+      />
     </>
   );
 }

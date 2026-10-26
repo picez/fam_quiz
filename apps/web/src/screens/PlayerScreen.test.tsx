@@ -88,9 +88,9 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
 const onQuestion = (over: Partial<PlayerView> = {}) =>
   view({ phase: 'question', questionIndex: 0, question: publicQuestion, endsAt: Date.now() + 20_000, ...over });
 
-function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send } = {}) {
+function show(current: PlayerView, options: { hostOnline?: boolean; send?: Send; code?: string; stageUrl?: string | null } = {}) {
   const send: Send = options.send ?? vi.fn(async () => ({ ok: true as const }));
-  render(<PlayerScreen view={current} hostOnline={options.hostOnline ?? true} offsetMs={0} send={send} />);
+  render(<PlayerScreen view={current} hostOnline={options.hostOnline ?? true} offsetMs={0} send={send} code={options.code} stageUrl={options.stageUrl} />);
   return send;
 }
 
@@ -127,6 +127,24 @@ describe('PlayerScreen', () => {
     expect(screen.getByText('Олена')).toBeTruthy();
     expect(screen.getByText('1250')).toBeTruthy();
     expect(screen.getByText('Ви в грі. Чекаємо на старт.')).toBeTruthy();
+  });
+
+  it('the author sees the author lobby with the code and «Почати гру» instead of the waiting line', () => {
+    const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [] } }), { code: '123456', stageUrl: null });
+    expect(screen.getByText('123 456')).toBeTruthy();
+    expect(screen.queryByText('Ви в грі. Чекаємо на старт.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
+    expect(send).toHaveBeenCalledWith('host:start', undefined);
+  });
+
+  it('another player in an autopilot lobby and a hosted lobby see the usual line, no start button', () => {
+    show(view({ autopilot: true, author: null }), { code: '123456' });
+    expect(screen.getByText('Ви в грі. Чекаємо на старт.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Почати гру' })).toBeNull();
+    cleanup();
+    show(view({ autopilot: false, author: null }));
+    expect(screen.getByText('Ви в грі. Чекаємо на старт.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Почати гру' })).toBeNull();
   });
 
   it('lets the player answer an open question', () => {
