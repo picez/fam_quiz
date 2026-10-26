@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autopilotQuiz, type Quiz } from '@quiz/shared';
+import { autopilotQuiz, BUFF_KINDS, type Quiz } from '@quiz/shared';
 import {
   anyonePresent,
   authorPause,
@@ -8,9 +8,11 @@ import {
   createAutopilotGame,
   isAuthor,
 } from './autopilot';
+import { buffBlock, takeBuff } from './buffs';
+import { pickContestant, useLifeline } from './ladder';
 import { addPlayer, createGame, lock, next, setConnected, start, type GameState, type Rng } from './game';
 import { captainOf, dealTeams, rollTeamRest, setTeamForm, teamMembers } from './teams';
-import { boardRound, classicRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
 
@@ -172,5 +174,44 @@ describe('author pause (11g)', () => {
     expect(back.paused).toBe(false);
     expect(back.autopilot).toEqual({ authorId: 'a', at: null });
     expect(authorResume(atReveal(), T0)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});
+
+describe('host hint in autopilot (11g)', () => {
+  const hintQuiz = (hint?: string): Quiz =>
+    makeRoundsQuiz([classicRound('r1', [{ ...withId(single, 'q1'), ...(hint === undefined ? {} : { hint }) }])], { buffs: [...BUFF_KINDS] });
+  const open = (s: GameState): GameState => must(next(s, T0, rng));
+  const pilotOpen = (quiz: Quiz) => open(must(autopilotStart(pilotLobby(quiz, 'Ігор'), T0, rng)));
+
+  it('a hint buff is unfit without the text, and takeBuff refuses it', () => {
+    const s = pilotOpen(hintQuiz());
+    expect(buffBlock(s, 'a', 'hint')).toBe('unfit_host');
+    expect(takeBuff(s, 'a', 'hint', T0 + 5000, rng)).toEqual({ ok: false, error: 'buff_unfit' });
+  });
+
+  it('with the text the buff is taken and carries it', () => {
+    const s = pilotOpen(hintQuiz('Подумай про річки'));
+    expect(buffBlock(s, 'a', 'hint')).toBeNull();
+    const taken = must(takeBuff(s, 'a', 'hint', T0 + 5000, rng));
+    expect(taken.plays[taken.questionIndex].buffs?.a?.hint).toEqual({ text: 'Подумай про річки', aloud: false });
+  });
+
+  it('with a host and no text the buff is taken and waits for the host', () => {
+    const s = open(must(start(must(addPlayer(createGame(hintQuiz()), { id: 'a', nickname: 'Марта' })), T0)));
+    expect(buffBlock(s, 'a', 'hint')).toBeNull();
+    const taken = must(takeBuff(s, 'a', 'hint', T0 + 5000, rng));
+    expect(taken.plays[taken.questionIndex].buffs?.a?.hint?.text).toBeNull();
+  });
+
+  it('a ladder hint lifeline needs the text in autopilot', () => {
+    const climb = (questions: typeof ladderQuestions) => {
+      const lobby = must(addPlayer(pilotLobby(makeRoundsQuiz([ladderRound('rl', questions)]), 'Ігор'), { id: 'p3', nickname: 'Віра' }));
+      return must(next(must(pickContestant(must(autopilotStart(lobby, T0, rng)), 'p2')), T0, rng));
+    };
+    const bare = climb(ladderQuestions);
+    expect(useLifeline(bare, 'p2', 'hint', T0 + 5000, rng)).toEqual({ ok: false, error: 'buff_unfit' });
+    const written = climb(ladderQuestions.map((q) => ({ ...q, hint: 'Нагадування' })));
+    const used = must(useLifeline(written, 'p2', 'hint', T0 + 5000, rng));
+    expect(used.plays[used.questionIndex].ladder?.lifelines.hint?.text).toBe('Нагадування');
   });
 });

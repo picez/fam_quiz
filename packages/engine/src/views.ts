@@ -1349,6 +1349,9 @@ function ladderInfo(state: GameState, forHost: boolean): LadderInfo | null {
   const contestantId = last?.ladder.contestantId ?? contestantOf(state);
   const lifelines = last?.ladder.lifelines ?? {};
   const used = lifelinesUsed(state);
+  // Без ведучого підказка без тексту недоступна: дивимось на поточне запитання, а поза ним — на наступне, якщо воно відоме.
+  const hintQuestion = open && last !== null ? last.question : round.questions[last === null ? 0 : last.ladder.step + 1];
+  const hintOff = state.autopilot !== undefined && hintQuestion !== undefined && hintQuestion.hint === undefined;
   const audience = open ? lifelines.audience : undefined;
   const hall = last === null ? [] : ladderHall(state, last);
   const answered = last === null ? 0 : hall.filter((id) => Object.hasOwn(last.answers, id)).length;
@@ -1366,7 +1369,7 @@ function ladderInfo(state: GameState, forHost: boolean): LadderInfo | null {
     timer: round.timer,
     lifelines: LIFELINES.filter((kind) => round.lifelines.includes(kind)).map((kind) => ({
       kind,
-      state: lifelines[kind] !== undefined ? ('active' as const) : used.includes(kind) ? ('used' as const) : ('ready' as const),
+      state: lifelines[kind] !== undefined ? ('active' as const) : used.includes(kind) ? ('used' as const) : kind === 'hint' && hintOff ? ('off' as const) : ('ready' as const),
     })),
     fifty: open && lifelines.fifty !== undefined ? lifelines.fifty.removed : null,
     audience:

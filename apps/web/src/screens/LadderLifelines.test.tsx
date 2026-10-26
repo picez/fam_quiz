@@ -104,4 +104,12 @@ describe('LadderLifelines', () => {
     const none = render(<LadderLifelines view={lifelineView({ lifelines: [] })} offsetMs={0} onUse={vi.fn()} />);
     expect(none.container.firstChild).toBeNull();
   });
+
+  it('an off lifeline is disabled and says there is no hint without a host', () => {
+    const view = lifelineView({ lifelines: [{ kind: 'hint', state: 'off' }, { kind: 'fifty', state: 'ready' }] });
+    render(<LadderLifelines view={view} offsetMs={0} onUse={vi.fn()} />);
+    const off = screen.getByRole('button', { name: /Підказка.*У грі без ведучого підказки немає\./ });
+    expect(off.hasAttribute('disabled')).toBe(true);
+    expect(off.classList.contains('is-off')).toBe(true);
+  });
 });

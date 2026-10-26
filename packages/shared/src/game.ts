@@ -45,7 +45,9 @@ export type BuffBlock =
   /** «Вибування»: бафів немає (10h). */
   | 'off_survival'
   /** «Мільйонер»: бафів немає, свої підказки (10i). */
-  | 'off_ladder';
+  | 'off_ladder'
+  /** Гра без ведучого: підказки ведучого немає, а автор не написав тексту (11g). */
+  | 'unfit_host';
 
 /** Заставки переходів (частина 8c). */
 export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium' | 'trial';

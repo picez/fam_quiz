@@ -764,10 +764,13 @@ export interface LadderStep {
   state: 'passed' | 'current' | 'failed' | 'ahead';
 }
 
-/** Підказка драбини: ready — можна (за станом, без часу), used — використана раніше, active — узята на цьому запитанні; не ввімкнені в раунді не показуються. */
+/**
+ * Підказка драбини: ready — можна (за станом, без часу), used — використана раніше, active — узята на цьому запитанні;
+ * off — гра без ведучого, а в поточного запитання немає тексту підказки (11g); не ввімкнені в раунді не показуються.
+ */
 export interface LadderLifelineView {
   kind: LifelineKind;
-  state: 'ready' | 'used' | 'active';
+  state: 'ready' | 'used' | 'active' | 'off';
 }
 
 /** «Мільйонер» (10i). */
