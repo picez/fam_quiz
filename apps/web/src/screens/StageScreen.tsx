@@ -728,6 +728,9 @@ function BoardStage({ board }: { board: BoardInfo }) {
   );
 }
 
+/** Скільки рядків таблиці й подіуму вміщає сцена 1280 × 720 у два стовпчики; більше — 15 і «…і ще N». */
+const STAGE_ROWS_MAX = 16;
+
 export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS }: Props) {
   const { phase, standings } = view;
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
@@ -780,7 +783,8 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
           </h1>
           <Standings
             standings={standings}
-            limit={phase === 'finished' ? undefined : highlighted ? 7 : 8}
+            limit={phase === 'finished' || phase === 'leaderboard' ? (standings.length > STAGE_ROWS_MAX ? STAGE_ROWS_MAX - 1 : undefined) : highlighted ? 7 : 8}
+            more={(phase === 'finished' || phase === 'leaderboard') && standings.length > STAGE_ROWS_MAX ? standings.length - (STAGE_ROWS_MAX - 1) : undefined}
             streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
             teams={view.teams}
             gains={roundEndIndex !== null ? roundGains(standings, roundEndIndex) : undefined}
