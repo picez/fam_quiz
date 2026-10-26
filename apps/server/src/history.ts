@@ -1,5 +1,9 @@
 import {
+  adjustmentSource,
   allSpares,
+  answerSource,
+  breakdownOf,
+  roundTotals,
   LIFELINES,
   isUnscored,
   questionPrice,
@@ -24,6 +28,7 @@ import {
   type Question,
   type Quiz,
   type Round,
+  type ScoreLine,
 } from '@quiz/shared';
 import { orderBluffOptions } from '@quiz/engine';
 import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
@@ -354,6 +359,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
           .select({
             participantId: answer.participantId,
             questionIndex: answer.questionIndex,
+            roundIndex: answer.roundIndex,
             attempt: answer.attempt,
             payload: answer.payload,
             accepted: answer.accepted,
@@ -391,26 +397,43 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
       .filter((p) => p.teamId === teamId)
       .map((p) => ({ participantId: p.id, nickname: p.nickname }))
       .sort((a, b) => a.nickname.localeCompare(b.nickname));
+  const quiz = snapshotOf(row.quizSnapshot);
+  const played = quiz === null ? [] : playedQuestions(quiz, row.plays, row.questionsPlayed);
+  // Бали за раундами й «+ / −» (11f): з рядків answer (без голосів) і коригувань — працює й для старих ігор і зіпсованих знімків.
+  const answersOf = groupBy(answers, (a) => a.participantId);
+  const adjustmentsOf = groupBy(adjustments, (a) => a.participantId);
+  const lines = (participantId: string): ScoreLine[] => [
+    ...(answersOf.get(participantId) ?? [])
+      .filter((a) => a.attempt !== VOTE_ATTEMPT && a.points !== 0)
+      .map((a) => ({ roundIndex: a.roundIndex, source: answerSource(quiz?.rounds[a.roundIndex]?.type), points: a.points })),
+    ...(adjustmentsOf.get(participantId) ?? []).map((a) => ({ roundIndex: a.roundIndex, source: adjustmentSource(a.source), points: a.points })),
+  ];
+  const roundCount =
+    Math.max(-1, ...played.map((p) => p.roundIndex), ...answers.map((a) => a.roundIndex), ...adjustments.map((a) => a.roundIndex)) + 1;
   const standings = participants
     .filter((p) => p.teamId === null)
-    .map((p) => ({
-      participantId: p.id,
-      nickname: p.nickname,
-      score: p.score,
-      rank: p.rank,
-      correct: distinct(answers.filter((a) => a.participantId === p.id && a.accepted).map((a) => a.questionIndex)),
-      ...(p.isTeam ? { members: membersOf(p.id).map((m) => m.nickname) } : {}),
-    }))
+    .map((p) => {
+      const own = lines(p.id);
+      return {
+        participantId: p.id,
+        nickname: p.nickname,
+        score: p.score,
+        rank: p.rank,
+        correct: distinct((answersOf.get(p.id) ?? []).filter((a) => a.accepted).map((a) => a.questionIndex)),
+        rounds: roundTotals(own, roundCount),
+        breakdown: breakdownOf(own),
+        ...(p.isTeam ? { members: membersOf(p.id).map((m) => m.nickname) } : {}),
+      };
+    })
     // Спершу за місцем; до фінішу місць немає, тоді за балами.
     .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || b.score - a.score || a.nickname.localeCompare(b.nickname));
   // Голоси без балів у командній грі подають люди: їхні рядки йдуть командами за таблицею.
   const voters = teams ? standings.flatMap((s) => membersOf(s.participantId)) : standings;
 
-  const quiz = snapshotOf(row.quizSnapshot);
   // Усі рядки, і людей теж: голоси опитувань і хмари стоять на рядках людей.
   const nicknames = new Map(participants.map((p) => [p.id, p.nickname]));
   // Зіпсований знімок не валить деталі: турнірна таблиця є, запитань і раундів немає.
-  const questions = (quiz === null ? [] : playedQuestions(quiz, row.plays, row.questionsPlayed)).flatMap(({ roundIndex, question, ref }, index) => {
+  const questions = played.flatMap(({ roundIndex, question, ref }, index) => {
     // Знімок не змінюється, тож запитання з журналу в ньому є; перевірка лише від зіпсованого рядка.
     if (question === undefined) return [];
     const given = answers.filter((a) => a.questionIndex === index);

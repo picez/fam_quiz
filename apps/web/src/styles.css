@@ -1304,6 +1304,10 @@ a.banner {
   margin: 0;
 }
 
+.podium-stats {
+  margin-top: 0.75rem;
+}
+
 .stat {
   display: flex;
   flex-direction: column;
@@ -6703,6 +6707,182 @@ label.powers-price {
 .table-card h2,
 .table-card p {
   margin: 0;
+}
+
+/* Таблиця 11f: раунди прокручуються всередині обгортки, ім'я й Σ закріплені. */
+.score-table-wrap {
+  /* Непрозорий фон закріплених клітинок — як у контейнера: аркуш телефона чи панель пульта / історії. */
+  --score-bg: var(--stage);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.score-table-wrap.is-host,
+.score-table-wrap.is-history {
+  --score-bg: color-mix(in srgb, #fff 5%, var(--stage));
+}
+
+.score-table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-table th,
+.score-table td {
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.score-table .rank {
+  color: var(--amber);
+  font-weight: 800;
+  text-align: left;
+}
+
+.score-table .name {
+  position: sticky;
+  left: 0;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--score-bg);
+  font-weight: 600;
+  text-align: left;
+}
+
+.score-table .total {
+  position: sticky;
+  right: 0;
+  background: var(--score-bg);
+  font-weight: 800;
+}
+
+/* Однакова висота рядків: кнопка свого рядка не робить його вищим за інші (у таблиці height — мінімум). */
+.score-row > td,
+.score-row > th {
+  height: 2.75rem;
+}
+
+.score-row.has-breakdown {
+  cursor: pointer;
+}
+
+.score-table .name .standing-members {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--dim);
+}
+
+.score-row.is-me td,
+.score-row.is-me th {
+  background: rgb(255 179 0 / 0.14);
+}
+
+.score-row.is-me .name,
+.score-row.is-me .total {
+  background: color-mix(in srgb, var(--amber) 14%, var(--score-bg));
+}
+
+.score-row-toggle {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.score-breakdown-row td {
+  text-align: left;
+  white-space: normal;
+}
+
+/* Розбивка лишається на видноті, коли раунди прокручено вбік: липне ліворуч і вужча за видиму частину таблиці (аркуш телефона чи панель пульта на 375 px). */
+.score-breakdown-row td > * {
+  position: sticky;
+  left: 0.625rem;
+  max-width: min(20rem, calc(100vw - 7rem));
+}
+
+.score-breakdown ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.score-breakdown-sum {
+  margin: 0 0 0.375rem;
+  font-weight: 700;
+}
+
+.score-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.score-breakdown li.is-plus .value {
+  color: var(--correct);
+}
+
+.score-breakdown li.is-minus .value {
+  color: var(--signal);
+}
+
+/* Підсумки раунду (11f): приріст біля рядка, найкращий і ривок під таблицею, панель пульта. */
+.round-gain {
+  color: var(--dim);
+  font-size: 0.6em;
+  white-space: nowrap;
+}
+
+.round-gain.is-minus {
+  color: var(--signal);
+}
+
+.round-highlights {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 1vh;
+  color: var(--dim);
+  font-size: clamp(1rem, 1.6vw, 1.5rem);
+}
+
+.round-highlights p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Підсумки раунду: «+N за раунд» і рядок найкращих — рядки щільніші, щоб 8 (з найкращими — 7) довгих імен влізли в 1280 × 720. */
+.stage .stage-board.is-round-end .standings li {
+  font-size: clamp(1.25rem, 2.3vw, 2.5rem);
+  padding-block: 0.6vh;
+}
+
+.host-scores summary {
+  cursor: pointer;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.host-scores[open] summary {
+  margin-bottom: 0.5rem;
 }
 
 /* «😈» у шапці: лише значок, висота як у «Таблиця», тож шапка 375 px лишається в один рядок. */

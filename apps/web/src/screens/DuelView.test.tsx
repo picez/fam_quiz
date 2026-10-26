@@ -83,6 +83,7 @@ const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): Player
   reveal: null,
   standings: null,
   table: null,
+  myBreakdown: null,
   team: null,
 });
 

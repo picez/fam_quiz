@@ -1,4 +1,5 @@
 import type { Answer } from './answer';
+import type { ScoreBreakdown } from './breakdown';
 import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
 import type { LadderOutcomeKind } from './ladder';
 import type { CellKind, LifelineKind, Question, Round, TrialKind, WagerMode } from './quiz';
@@ -29,6 +30,10 @@ export interface GameStanding {
   rank: number | null;
   /** Скільки відповідей зараховано. */
   correct: number;
+  /** Бали за раундами 0…n−1 (11f), n — останній раунд із запитанням, відповіддю чи коригуванням + 1; однакова довжина для всіх рядків. */
+  rounds: number[];
+  /** «+ / −» за джерелами з рядків answer (без голосів) і коригувань (11f); у дуже старих іграх без коригувань — лише з відповідей. */
+  breakdown: ScoreBreakdown;
   /** Командна гра: нікнейми людей команди; немає — соло. */
   members?: string[];
 }

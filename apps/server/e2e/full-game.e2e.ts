@@ -6,6 +6,7 @@ import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool,
 import { DEFAULT_RULES } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
+import { io as connectSocket, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { TEST_AUTH } from '../src/testing/accounts';
@@ -6205,8 +6206,8 @@ async function afterThirdGame() {
   await ira.getByRole('button', { name: 'Таблиця', ...exact }).click();
   const table = ira.locator('.table-sheet');
   await table.getByRole('heading', { name: 'Таблиця', ...exact }).waitFor();
-  expect(await table.locator('.standings li').count()).toBe(1);
-  expect(await table.locator('.standings li').textContent()).toContain('Іра');
+  expect(await table.locator('.score-table tr.score-row').count()).toBe(1);
+  expect(await table.locator('.score-table tr.score-row').textContent()).toContain('Іра');
   await table.getByText('Повна таблиця — наприкінці гри.', exact).waitFor();
   await shot(ira, 'buff9a-table-390');
   await expectNoSideScroll(ira, 'buff9a-table-390');
@@ -11810,6 +11811,359 @@ async function teamWipeout11e() {
   // 5. Кінець гри.
   await click(host, 'Завершити гру');
   await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 11f: stats — round columns and the own plus / minus in the phone table (hidden until the reveal), «+N за раунд» with the best and the biggest climb on the 1280 × 720 stage round end, the folded host table opens anyone, the history shows participant × round with plus / minus, the profile counts the second place', async () => {
+  try {
+    await stats11f();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Клітинки раундів і Σ рядка учасника в таблиці 11f (аркуш телефона, пульт, історія). */
+async function scoreCells(scope: Locator, nickname: string): Promise<string[]> {
+  const row = scope.locator('tr.score-row').filter({ has: scope.page().locator('.name', { hasText: nickname }) });
+  return (await row.locator('td.round, td.total').allTextContents()).map((text) => text.trim());
+}
+
+/** Тексти рядків відкритої розбивки «мітка значення». */
+async function breakdownTexts(scope: Locator): Promise<string[]> {
+  return (await scope.locator('.score-breakdown li').allInnerTexts()).map((text) => text.replace(/\s+/g, ' ').trim());
+}
+
+/** Ключі розбивок у сокетних кадрах (11f). */
+const MY_BREAKDOWN = /"myBreakdown":\{/;
+const ALL_BREAKDOWNS = /"breakdowns":\{/;
+
+function statsQuestions11f() {
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const s1 = {
+    ...common,
+    id: 's1',
+    type: 'single' as const,
+    text: 'Яка найбільша планета Сонячної системи?',
+    points: 100,
+    options: [{ id: 's1-a', text: 'Юпітер' }, { id: 's1-b', text: 'Сатурн' }, { id: 's1-c', text: 'Марс' }],
+    correctId: 's1-a',
+  };
+  const s2 = { ...common, id: 's2', type: 'boolean' as const, text: 'Бджола — комаха', points: 200, correct: true };
+  const s3 = {
+    ...common,
+    id: 's3',
+    type: 'single' as const,
+    text: 'Скільки континентів на Землі?',
+    points: 500,
+    options: [{ id: 's3-a', text: '7' }, { id: 's3-b', text: '5' }, { id: 's3-c', text: '6' }],
+    correctId: 's3-a',
+  };
+  const s4 = { ...common, id: 's4', type: 'boolean' as const, text: 'Сонце — зірка', points: 100, correct: true };
+  return { s1, s2, s3, s4 };
+}
+
+async function stats11f() {
+  const host = await open('host11f', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host11f@example.com');
+
+  const { s1, s2, s3, s4 } = statsQuestions11f();
+  const options = { speedBonus: false, shuffleOptions: false, rules: { ...DEFAULT_RULES, penalty: 'minus' as const } };
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('r1', [s1, s2] as never, { ...options, title: 'Розминка' }),
+        classicRound('r2', [s3] as never, { ...options, title: 'Ривок' }),
+        classicRound('r3', [s4] as never, { ...options, title: 'Фініш' }),
+      ],
+      { leaderboard: 'each' },
+    ),
+    title: 'Статистика 11f',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Статистика 11f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11f', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya11f', 375, 812);
+  await register(olya, 'menu', 'Оля Гравець', 'olya11f@example.com');
+  const vira = await open('vira11f', 375, 812);
+  const petro = await open('petro11f', 375, 812);
+  const marko = await open('marko11f', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  await join(olya, code, 'Оля', false);
+  await join(vira, code, 'Віра', false);
+  await join(petro, code, 'Петро', false);
+  await join(marko, code, 'Марко', false);
+  await stage.getByText('Марко').waitFor();
+  const phones = [olya, vira, petro, marko];
+  const all = [host, stage, ...phones];
+
+  /** Відповіді гравців; запитання закривається само, коли відповіли всі. */
+  const answer = async (picks: [Page, string][]) => {
+    for (const [page, option] of picks) await pickOption(page, option);
+    await host.getByText('Запитання закрите').waitFor();
+  };
+  const yes = '(^|\\s)Так$';
+  const no = '(^|\\s)Ні$';
+  const sheet = olya.locator('.table-sheet');
+  const openSheet = async () => {
+    await olya.getByRole('button', { name: 'Таблиця', ...exact }).click();
+    await sheet.getByRole('heading', { name: 'Таблиця', ...exact }).waitFor();
+  };
+  const closeSheet = async () => {
+    await olya.keyboard.press('Escape');
+    await sheet.waitFor({ state: 'detached' });
+  };
+  const gains = () => stage.locator('.round-gain').allTextContents();
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 1. Раунд 1: s1 — Петро помиляється; s2 — помиляються Оля й Марко.
+  await stage.getByText('Яка найбільша планета Сонячної системи?', exact).waitFor();
+  await answer([[olya, 'Юпітер'], [vira, 'Юпітер'], [marko, 'Юпітер'], [petro, 'Сатурн']]);
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+  await stage.getByText('Бджола — комаха', exact).waitFor();
+  await answer([[olya, no], [marko, no], [vira, yes], [petro, yes]]);
+  await click(host, 'Показати відповідь');
+
+  // 2. Ведучий дає Олі +50 на розкритті s2.
+  const olyaRow = host.locator('.player-row', { hasText: 'Оля' });
+  await olyaRow.getByRole('button', { name: 'Бали', ...exact }).click();
+  await olyaRow.locator('.player-tools').waitFor();
+  await olyaRow.getByLabel('Своя сума', exact).fill('50');
+  await olyaRow.getByRole('button', { name: 'Нарахувати', ...exact }).click();
+  await expect.poll(async () => (await olyaRow.locator('.score').textContent())?.trim(), POLL).toBe('−50');
+
+  // 3. Підсумки раунду 1 на сцені: «+N за раунд», найкращий — Віра, ривка немає.
+  await click(host, 'Далі');
+  await expect.poll(gains, POLL).toEqual(['+300 за раунд', '+100 за раунд', '−50 за раунд', '−100 за раунд']);
+  expect(await stage.locator('.round-best').textContent()).toBe('Найкращий у раунді: Віра · +300');
+  expect(await stage.locator('.round-climb').count()).toBe(0);
+  await expectStageInView(stage, 'p11f-stage-round1');
+  await shot(stage, 'p11f-stage-round1');
+
+  // 4. Аркуш «Таблиця» на телефоні під час запитання раунду 2: колонки раундів і своя розбивка.
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+  await olya.getByText('Скільки континентів на Землі?', exact).waitFor();
+  await openSheet();
+  expect(await sheet.locator('thead th').allTextContents()).toEqual(['#', 'Учасник', 'Р1', 'Р2', 'Σ']);
+  expect(await scoreCells(sheet, 'Оля')).toEqual(['−50', '0', '−50']);
+  expect(await scoreCells(sheet, 'Віра')).toEqual(['300', '0', '300']);
+  const toggle = sheet.locator('button.score-row-toggle');
+  expect(await toggle.count()).toBe(1);
+  await toggle.click();
+  await sheet.locator('.score-breakdown').waitFor();
+  expect(await sheet.isVisible(), 'the own breakdown closed the sheet').toBe(true);
+  expect(await breakdownTexts(sheet)).toEqual(['Відповіді +100', 'Помилки −200', 'Ведучий +50']);
+  expect(await sheet.locator('.score-breakdown-sum').textContent()).toBe('Плюс 150 · мінус 200');
+  await expectNoSideScroll(olya, 'p11f-phone-table');
+  await shot(olya, 'p11f-phone-table');
+  await closeSheet();
+
+  // 5. Бали s3 сховані до розкриття — і в аркуші, і в сокетних кадрах.
+  await answer([[olya, '(^|\\s)7$'], [vira, '(^|\\s)7$'], [petro, '(^|\\s)5$'], [marko, '(^|\\s)5$']]);
+  await openSheet();
+  expect(await scoreCells(sheet, 'Оля'), 's3 points before the reveal').toEqual(['−50', '0', '−50']);
+  await closeSheet();
+  const lockedAt = olyaFrames.length;
+  await click(host, 'Показати відповідь');
+  await olya.locator('section.result').first().waitFor();
+  for (const frame of olyaFrames.slice(0, lockedAt)) expect(frame, 'Оля got the s3 round column before the reveal').not.toContain('"rounds":[-50,500]');
+  await openSheet();
+  await expect.poll(() => scoreCells(sheet, 'Оля'), POLL).toEqual(['−50', '500', '450']);
+  await closeSheet();
+
+  // 6. Підсумки раунду 2: двоє найкращих і ривок Олі.
+  await click(host, 'Далі');
+  await expect.poll(gains, POLL).toEqual(['+500 за раунд', '+500 за раунд', '−500 за раунд', '−500 за раунд']);
+  expect(await stage.locator('.round-best').textContent()).toBe('Найкращі в раунді: Віра, Оля · +500');
+  expect(await stage.locator('.round-climb').textContent()).toBe('Найбільший ривок: Оля · +1 місце');
+  await expectStageInView(stage, 'p11f-stage-round2');
+  await shot(stage, 'p11f-stage-round2');
+
+  // 7. Пульт: згорнута панель «Бали за раундами» відкриває будь-кого.
+  const panel = host.locator('details.host-scores');
+  expect(await panel.locator('tr.score-row').count(), 'the folded panel renders rows').toBe(0);
+  await panel.locator('summary').click();
+  await panel.locator('tr.score-row').first().waitFor();
+  expect(await scoreCells(panel, 'Петро')).toEqual(['100', '−500', '−400']);
+  await panel.locator('button.score-row-toggle', { hasText: 'Петро' }).click();
+  await panel.locator('.score-breakdown').waitFor();
+  expect(await breakdownTexts(panel)).toEqual(['Відповіді +200', 'Помилки −600']);
+  await shot(host, 'p11f-host-scores');
+  await panel.locator('summary').click();
+  await expect.poll(() => panel.locator('tr.score-row').count(), POLL).toBe(0);
+
+  // 8. Раунд 3: усі праві; подіум на сцені як раніше, без «+N за раунд».
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+  await stage.getByText('Сонце — зірка', exact).waitFor();
+  await answer(phones.map((page) => [page, yes] as [Page, string]));
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const first = (await stage.locator('.standings li').first().textContent())!;
+  expect(first).toContain('Віра');
+  expect(first).toContain('900');
+  expect(await stage.locator('.round-gain').count()).toBe(0);
+
+  // 9. Таємність у кадрах: сцена без розбивок, телефон — лише своя.
+  expect(stageFrames.length).toBeGreaterThan(0);
+  for (const frame of stageFrames) {
+    expect(MY_BREAKDOWN.test(frame), 'the stage got a breakdown').toBe(false);
+    expect(ALL_BREAKDOWNS.test(frame), 'the stage got the host breakdowns').toBe(false);
+  }
+  expect(olyaFrames.some((frame) => MY_BREAKDOWN.test(frame)), 'Оля never got her breakdown').toBe(true);
+  for (const frame of olyaFrames) {
+    expect(ALL_BREAKDOWNS.test(frame), 'Оля got the host breakdowns').toBe(false);
+    expect(frame, 'Оля got Віра’s breakdown').not.toContain('"plus":900');
+  }
+
+  // 10. Історія: учасник × раунд з «+ / −».
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Статистика 11f/ }).click();
+  const section = host.locator('section.history-scores');
+  await section.getByRole('heading', { name: 'Бали за раундами', ...exact }).waitFor();
+  expect(await section.locator('thead th.round').allTextContents()).toEqual(['Р1', 'Р2', 'Р3']);
+  expect(await scoreCells(section, 'Оля')).toEqual(['−50', '500', '100', '550']);
+  expect(await scoreCells(section, 'Віра')).toEqual(['300', '500', '100', '900']);
+  await section.locator('button.score-row-toggle', { hasText: 'Оля' }).click();
+  await section.locator('.score-breakdown').waitFor();
+  expect(await breakdownTexts(section)).toEqual(['Відповіді +700', 'Помилки −200', 'Ведучий +50']);
+  await shot(host, 'p11f-history');
+
+  // 11. Профіль Олі: друге місце, у трійці, найкращий рахунок, середнє місце; публічний профіль — те саме.
+  await olya.goto(`${base}/profile`);
+  await olya.getByRole('heading', { name: 'Статистика' }).waitFor();
+  expect(await stat(olya, '2-е місце').textContent()).toBe('12-е місце');
+  expect(await stat(olya, '1-е місце').textContent()).toBe('01-е місце');
+  expect(await stat(olya, 'у трійці').textContent()).toBe('100%у трійці');
+  expect(await stat(olya, 'найкращий рахунок').textContent()).toBe('550найкращий рахунок');
+  expect(await stat(olya, 'середнє місце').textContent()).toBe('2середнє місце');
+  expect(await stat(olya, 'гра').textContent()).toBe('1гра');
+  expect(await stat(olya, 'перемог').textContent()).toBe('0перемог');
+  await expectNoSideScroll(olya, 'p11f-profile');
+  await shot(olya, 'p11f-profile');
+  const olyaId = await myId(olya);
+  await host.goto(`${base}/profile/${olyaId}`);
+  await stat(host, '2-е місце').waitFor();
+  expect(await stat(host, '2-е місце').textContent()).toBe('12-е місце');
+  expect(await stat(host, 'середнє місце').textContent()).toBe('2середнє місце');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 11f: the 1280 × 720 stage round end fits eight long nicknames (seven rows shown) with «+N за раунд», a five- and a three-way best of the round and the biggest climb', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await longRoundEnds11f(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+});
+
+/** Гравець без браузера: вхід через API й сокет; сцені вистачає його рядка в таблиці. */
+async function socketPlayer(sockets: Socket[], code: string, nickname: string) {
+  const response = await fetch(`${base}/api/games/by-code/${code}/join`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  });
+  expect(response.status, nickname).toBe(201);
+  const { token } = (await response.json()) as { token: string };
+  const socket = connectSocket(base, { auth: { code, role: 'player', token }, transports: ['websocket'], reconnection: false });
+  sockets.push(socket);
+  await new Promise<void>((done, fail) => {
+    socket.once('connect', () => done());
+    socket.once('connect_error', fail);
+  });
+  return {
+    nickname,
+    answer: async (value: boolean) => {
+      const ack = await new Promise<{ ok: boolean }>((done) => socket.emit('player:answer', { type: 'boolean', value }, done));
+      expect(ack.ok, `${nickname} answers`).toBe(true);
+    },
+  };
+}
+
+async function longRoundEnds11f(sockets: Socket[]) {
+  const host = await open('host11f-long', 1280, 900);
+  await register(host, 'host', 'Марта Довга', 'host11f-long@example.com');
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const q1 = { ...common, id: 'l1', type: 'boolean' as const, text: 'Дніпро впадає в Чорне море', points: 100, correct: true };
+  const q2 = { ...common, id: 'l2', type: 'boolean' as const, text: 'Київ — столиця України', points: 500, correct: true };
+  // Третій раунд лише для того, щоб після другого йшли підсумки раунду, а не подіум.
+  const q3 = { ...common, id: 'l3', type: 'boolean' as const, text: 'Говерла — найвища гора України', points: 100, correct: true };
+  const options = { speedBonus: false, shuffleOptions: false };
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [q1] as never, { ...options, title: 'Перший' }), classicRound('r2', [q2] as never, { ...options, title: 'Другий' }), classicRound('r3', [q3] as never, { ...options, title: 'Третій' })], { leaderboard: 'each' }),
+    title: 'Довгі імена 11f',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Довгі імена 11f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11f-long', 1280, 720);
+  await stage.goto(stageUrl);
+
+  // Перші п'ятеро беруть раунд 1 (п'ятеро найкращих), останні троє — раунд 2 (троє найкращих і ривок).
+  const names = ['Анастасія Мельник', 'Святослав Ткаченко', 'Ярослава Кравченко', 'Станіслав Олійник', 'Мирослава Петренко', 'Олександра Коваленко', 'Христина Бондаренко', 'Володимир Шевченко'];
+  const players: Awaited<ReturnType<typeof socketPlayer>>[] = [];
+  for (const name of names) players.push(await socketPlayer(sockets, code, name));
+  await stage.getByText(names[7]).waitFor();
+  const play = async (text: string, right: (index: number) => boolean) => {
+    await stage.getByText(text, exact).waitFor();
+    for (const [index, player] of players.entries()) await player.answer(right(index));
+    await host.getByText('Запитання закрите').waitFor();
+    await click(host, 'Показати відповідь');
+    await click(host, 'Далі');
+    // З рядком найкращих сцена показує 7 рядків із 8, щоб не прокручуватись.
+    await expect.poll(() => stage.locator('.round-gain').count(), POLL).toBe(7);
+  };
+
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await play('Дніпро впадає в Чорне море', (index) => index < 5);
+  expect(await stage.locator('.round-best').textContent()).toBe(`Найкращі в раунді: ${names.slice(0, 5).join(', ')} · +100`);
+  await expectStageInView(stage, 'p11f-stage-long-round1');
+  await shot(stage, 'p11f-stage-long-round1');
+
+  await click(host, 'Наступний раунд');
+  await afterSplash(host, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await play('Київ — столиця України', (index) => index >= 5);
+  expect(await stage.locator('.round-best').textContent()).toBe(`Найкращі в раунді: ${names.slice(5).join(', ')} · +500`);
+  expect(await stage.locator('.round-climb').textContent()).toMatch(/^Найбільший ривок: /);
+  await expectStageInView(stage, 'p11f-stage-long-round2');
+  await shot(stage, 'p11f-stage-long-round2');
 
   expect(problems).toEqual([]);
 }

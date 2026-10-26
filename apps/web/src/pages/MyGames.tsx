@@ -1,8 +1,9 @@
-import { gameStats } from '@quiz/shared';
+import { gameStats, podiumStats } from '@quiz/shared';
 import { Navigate } from 'react-router-dom';
 import { myHistory } from '../api';
 import { formatDate } from '../format';
 import { countText, t } from '../i18n';
+import { PodiumStats } from '../profile/StatsView';
 import { usePrivateData } from '../usePrivateData';
 import { HistoryTabs } from './HistoryTabs';
 
@@ -26,21 +27,25 @@ export function MyGames() {
       )}
       {state.status === 'ready' && state.data.length === 0 && <p className="lead">{t('myGamesEmpty')}</p>}
 
-      {summary !== null && (
-        <dl className="stats">
-          <div className="stat">
-            <dd>{summary.games}</dd>
-            <dt>{countText('statGames', summary.games)}</dt>
-          </div>
-          <div className="stat">
-            <dd>{summary.wins}</dd>
-            <dt>{countText('statWins', summary.wins)}</dt>
-          </div>
-          <div className="stat">
-            <dd>{summary.accuracy === null ? '–' : `${summary.accuracy}%`}</dd>
-            <dt>{t('statAccuracy')}</dt>
-          </div>
-        </dl>
+      {summary !== null && state.status === 'ready' && (
+        <>
+          <dl className="stats">
+            <div className="stat">
+              <dd>{summary.games}</dd>
+              <dt>{countText('statGames', summary.games)}</dt>
+            </div>
+            <div className="stat">
+              <dd>{summary.wins}</dd>
+              <dt>{countText('statWins', summary.wins)}</dt>
+            </div>
+            <div className="stat">
+              <dd>{summary.accuracy === null ? '–' : `${summary.accuracy}%`}</dd>
+              <dt>{t('statAccuracy')}</dt>
+            </div>
+          </dl>
+          {/* П’єдестал рахується з того самого списку, що й зведення вище: playerHistory віддає лише останні 100 ігор (LIMIT), тож за довшої історії це «за останні 100», а повний — у профілі. */}
+          <PodiumStats stats={podiumStats(state.data)} />
+        </>
       )}
 
       {state.status === 'ready' && state.data.length > 0 && (

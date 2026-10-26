@@ -24,7 +24,7 @@ const mine: OwnProfile = {
   nickname: 'Олена',
   avatar: null,
   email: 'o@example.com',
-  stats: { games: 3, wins: 1, accuracy: 68, quizzes: 1, hosted: 0 },
+  stats: { games: 3, wins: 1, accuracy: 68, quizzes: 1, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
   achievements: ACHIEVEMENTS.map((id) => ({ id, earned: id === 'first_game' })),
   quizzes: [{ id: 'q1', title: 'Кіно 90-х' }],
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
@@ -59,6 +59,19 @@ const open = () =>
   );
 
 describe('Profile', () => {
+  it('shows the podium numbers of the own profile', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: { ...mine, stats: { ...mine.stats, podium: { first: 1, second: 2, third: 0 }, top3: 100, bestScore: 900, avgPlace: 1.7 } },
+    });
+    const { container } = open();
+    expect(await screen.findByText('o@example.com')).toBeTruthy();
+    const podium = container.querySelector('.podium-stats');
+    expect(podium?.textContent).toContain('2-е місце');
+    expect(screen.getByText('2-е місце').closest('.stat')?.querySelector('dd')?.textContent).toBe('2');
+    expect(screen.getByText('середнє місце').closest('.stat')?.querySelector('dd')?.textContent).toBe('1,7');
+  });
+
   it('shows the sections of the agreed layout in order', async () => {
     const { container } = open();
     expect(await screen.findByText('o@example.com')).toBeTruthy();

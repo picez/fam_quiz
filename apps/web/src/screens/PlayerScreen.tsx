@@ -695,7 +695,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
         <DuelButton duel={captain || me.duel === null ? me.duel : { ...me.duel, rights: null }} paused={view.paused || splashUp} send={send} onError={setError} />
         {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
-        {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} />}
+        {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
         <strong className="score">{num(me.score)}</strong>
       </header>
 

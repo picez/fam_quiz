@@ -68,6 +68,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   allowed: { debuffs: [...DEBUFF_KINDS], buffs: [] },
   hints: [],
   standings: [],
+  breakdowns: {},
   sliderMarks: null,
   pinMarks: null,
   wall: null,
@@ -1644,6 +1645,44 @@ describe('HostScreen: after the game', () => {
     cleanup();
     show(view({ phase: 'lobby' }));
     expect(screen.queryByRole('link', { name: 'До вікторин' })).toBeNull();
+  });
+});
+
+describe('HostScreen: points per round (11f)', () => {
+  const rows = [
+    { participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1, rounds: [1000, -250] },
+    { participantId: 'p2', nickname: 'Петро', score: 300, totalTimeMs: 1, rank: 2, rounds: [300, 0] },
+  ];
+  const breakdowns = {
+    p1: { parts: [{ source: 'answers' as const, plus: 1000, minus: -250 }], plus: 1000, minus: -250 },
+    p2: { parts: [{ source: 'answers' as const, plus: 300, minus: 0 }], plus: 300, minus: 0 },
+  };
+
+  it('the panel is folded and mounts the table only when opened; any row opens its plus / minus', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: publicOf(single), correct: single, standings: rows, breakdowns }));
+    const panel = document.querySelector('details.host-scores') as HTMLDetailsElement;
+    expect(panel.textContent).toContain('Бали за раундами');
+    expect(document.querySelector('.score-table')).toBeNull();
+    const summary = panel.querySelector('summary')!;
+    fireEvent.click(summary);
+    panel.open = true;
+    fireEvent(panel, new Event('toggle'));
+    expect(document.querySelectorAll('.score-table button.score-row-toggle')).toHaveLength(2);
+    fireEvent.click(within(panel).getByRole('button', { name: '«+ / −» для Петро' }));
+    expect(panel.querySelector('.score-breakdown')!.textContent).toContain('Відповіді +300');
+  });
+
+  it('there is no panel in the lobby, and there is one at the round end and after the game', () => {
+    show(view({ phase: 'lobby', standings: rows, breakdowns }));
+    expect(document.querySelector('details.host-scores')).toBeNull();
+    cleanup();
+    show(view({ phase: 'round_end', round: { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null }, standings: rows, breakdowns }));
+    expect(document.querySelector('details.host-scores')).not.toBeNull();
+    expect(screen.getByText('Підсумки раунду 1')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings: rows, breakdowns }));
+    expect(document.querySelector('details.host-scores')).not.toBeNull();
+    expect(screen.getAllByText('Гру завершено').length).toBeGreaterThan(0);
   });
 });
 

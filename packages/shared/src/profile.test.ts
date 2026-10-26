@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gameStats, profileUpdateSchema } from './profile';
+import { gameStats, podiumPlace, podiumStats, profileUpdateSchema } from './profile';
 import type { PlayedGame } from './history';
 
 function game(over: Partial<PlayedGame> = {}) {
@@ -38,5 +38,43 @@ describe('gameStats', () => {
   it('has no accuracy without played questions', () => {
     expect(gameStats([])).toEqual({ games: 0, wins: 0, accuracy: null });
     expect(gameStats([game({ questionsPlayed: 0, correct: 0 })]).accuracy).toBeNull();
+  });
+});
+
+describe('podium (11f)', () => {
+  it('places only finished games with enough rivals and points', () => {
+    expect(podiumPlace(game())).toBe(1);
+    expect(podiumPlace(game({ rank: 2, playerCount: 3, score: 50 }))).toBe(2);
+    expect(podiumPlace(game({ rank: 2, playerCount: 2 }))).toBeNull();
+    expect(podiumPlace(game({ rank: 3, playerCount: 4 }))).toBe(3);
+    expect(podiumPlace(game({ rank: 3, playerCount: 3 }))).toBeNull();
+    expect(podiumPlace(game({ rank: 2, playerCount: 3, score: 0 }))).toBeNull();
+    expect(podiumPlace(game({ rank: 2, playerCount: 5, status: 'aborted' }))).toBeNull();
+  });
+
+  const games = [
+    game({ rank: 1, score: 100, playerCount: 2 }),
+    game({ rank: 2, score: 50, playerCount: 3 }),
+    game({ rank: 3, score: 30, playerCount: 4 }),
+    game({ rank: 2, score: 40, playerCount: 2 }),
+    game({ rank: 3, score: 20, playerCount: 3 }),
+    game({ status: 'aborted', rank: null, score: 10, playerCount: 3 }),
+    game({ rank: 2, score: 0, playerCount: 3 }),
+    game({ rank: 1, score: 500, playerCount: 1 }),
+  ];
+
+  it('counts places, top-3 share, best score and average place', () => {
+    expect(podiumStats(games)).toEqual({ podium: { first: 1, second: 1, third: 1 }, top3: 50, bestScore: 500, avgPlace: 2.2 });
+    expect(podiumStats(games).podium.first).toBe(gameStats(games).wins);
+  });
+
+  it('is empty without games', () => {
+    expect(podiumStats([])).toEqual({ podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null });
+  });
+
+  it('ignores unfinished games for share and best score', () => {
+    const stats = podiumStats([game({ status: 'aborted', rank: null, score: 10 })]);
+    expect(stats.bestScore).toBeNull();
+    expect(stats.top3).toBeNull();
   });
 });

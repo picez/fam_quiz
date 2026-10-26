@@ -62,7 +62,7 @@ describe('public profile', () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'nickname', 'stats']);
-      expect(Object.keys(body.stats).sort()).toEqual(['accuracy', 'games', 'hosted', 'quizzes', 'wins']);
+      expect(Object.keys(body.stats).sort()).toEqual(['accuracy', 'avgPlace', 'bestScore', 'games', 'hosted', 'podium', 'quizzes', 'top3', 'wins']);
       expect(response.body).not.toContain(olena.email);
       expect(response.body).not.toContain('Таємна вікторина');
       expect(response.body).not.toContain('Тарас');
@@ -202,5 +202,24 @@ describe('versus', () => {
     expect(Object.keys(response.json()).sort()).toEqual(['myAccuracy', 'myAhead', 'recent', 'theirAccuracy', 'theirAhead', 'together']);
     expect(Object.keys(response.json().recent[0]).sort()).toEqual(['gameId', 'myRank', 'startedAt', 'theirRank', 'title']);
     for (const secret of ['Віра', veraId, olena.email, taras.email]) expect(response.body).not.toContain(secret);
+  });
+});
+
+describe('podium (11f)', () => {
+  it('both profiles give the podium, the top-3 share, the best score and the average place', async () => {
+    const oksana = await signUp(ctx.app, 'Оксана');
+    const oksanaId = await idOf(oksana.cookie);
+    await seedGame(db, {
+      hostId: tarasId,
+      startedAt: new Date(),
+      players: [
+        { userId: null, nickname: 'Гість', score: 900, rank: 1 },
+        { userId: oksanaId, nickname: 'Оксана', score: 600, rank: 2 },
+        { userId: null, nickname: 'Ще гість', score: 100, rank: 3 },
+      ],
+    });
+    const expected = { podium: { first: 0, second: 1, third: 0 }, top3: 100, bestScore: 600, avgPlace: 2 };
+    expect((await request('GET', `/api/profiles/${oksanaId}`)).json().stats).toMatchObject(expected);
+    expect((await request('GET', '/api/me/profile', oksana.cookie)).json().stats).toMatchObject(expected);
   });
 });

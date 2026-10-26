@@ -58,8 +58,8 @@ const detail: GameDetail = {
   questionCount: 2,
   rounds: [{ title: 'Раунд 1', type: 'classic' }],
   standings: [
-    { participantId: 'p1', nickname: 'Олена', score: 2000, rank: 1, correct: 2 },
-    { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0 },
+    { participantId: 'p1', nickname: 'Олена', score: 2000, rank: 1, correct: 2, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } },
+    { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } },
   ],
   questions: [
     { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
@@ -171,8 +171,8 @@ describe('GameHistory', () => {
         ...detail,
         teams: true,
         standings: [
-          { participantId: 't1', nickname: 'Червоні', score: 2000, rank: 1, correct: 2, members: ['Оля', 'Петро'] },
-          { participantId: 't2', nickname: 'Сині', score: 0, rank: 2, correct: 0, members: [] },
+          { participantId: 't1', nickname: 'Червоні', score: 2000, rank: 1, correct: 2, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 }, members: ['Оля', 'Петро'] },
+          { participantId: 't2', nickname: 'Сині', score: 0, rank: 2, correct: 0, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 }, members: [] },
         ],
       },
     });
@@ -180,6 +180,69 @@ describe('GameHistory', () => {
     expect(await screen.findByText('Командна гра')).toBeTruthy();
     expect(screen.getByText('Склад: Оля, Петро')).toBeTruthy();
     expect(screen.getAllByText(/^Склад:/)).toHaveLength(1);
+  });
+
+  describe('points per round (11f)', () => {
+    const scored: GameDetail = {
+      ...detail,
+      rounds: [
+        { title: 'Розминка', type: 'classic' },
+        { title: 'Ривок', type: 'classic' },
+        { title: 'Фінал', type: 'final' },
+      ],
+      standings: [
+        {
+          participantId: 'p1',
+          nickname: 'Оля',
+          score: 250,
+          rank: 1,
+          correct: 2,
+          rounds: [550, -100, -200],
+          breakdown: {
+            parts: [
+              { source: 'answers', plus: 1000, minus: -500 },
+              { source: 'final', plus: 0, minus: -200 },
+              { source: 'host', plus: 50, minus: 0 },
+            ],
+            plus: 1050,
+            minus: -700,
+          },
+        },
+        { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0, rounds: [0, 0, 0], breakdown: { parts: [], plus: 0, minus: 0 } },
+      ],
+    };
+
+    it('shows the participant × round table and opens a row plus / minus', async () => {
+      vi.mocked(getGame).mockResolvedValue({ ok: true, data: scored });
+      open('/history/g1');
+      await screen.findByRole('heading', { name: 'Географія' });
+      const section = document.querySelector('section.history-scores')!;
+      expect(section.querySelector('h2')!.textContent).toBe('Бали за раундами');
+      expect(Array.from(section.querySelectorAll('th.round')).map((th) => th.textContent)).toEqual(['Р1', 'Р2', 'Р3']);
+      expect(section.querySelector('th.round')!.getAttribute('title')).toBe('Розминка');
+      fireEvent.click(screen.getByRole('button', { name: '«+ / −» для Оля' }));
+      const text = section.querySelector('.score-breakdown')!.textContent!;
+      expect(text).toContain('Відповіді +1000');
+      expect(text).toContain('Помилки −500');
+      expect(text).toContain('Фінал −200');
+    });
+
+    it('has no table when no round has points', async () => {
+      vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+      open('/history/g1');
+      await screen.findByRole('heading', { name: 'Географія' });
+      expect(document.querySelector('section.history-scores')).toBeNull();
+    });
+
+    it('a team game shows the line-up under the name in the table', async () => {
+      vi.mocked(getGame).mockResolvedValue({
+        ok: true,
+        data: { ...scored, teams: true, standings: [{ ...scored.standings[0], nickname: 'Червоні', members: ['Оля', 'Петро'] }] },
+      });
+      open('/history/g1');
+      await screen.findByRole('heading', { name: 'Географія' });
+      expect(document.querySelector('section.history-scores .standing-members')!.textContent).toBe('Оля, Петро');
+    });
   });
 
   it('a solo game has no team mark and no line-ups', async () => {
@@ -197,7 +260,7 @@ describe('GameHistory', () => {
         ...detail,
         status: 'aborted',
         questionsPlayed: 1,
-        standings: [{ participantId: 'p1', nickname: 'Олена', score: 500, rank: null, correct: 1 }],
+        standings: [{ participantId: 'p1', nickname: 'Олена', score: 500, rank: null, correct: 1, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } }],
         questions: detail.questions.slice(0, 1),
       },
     });

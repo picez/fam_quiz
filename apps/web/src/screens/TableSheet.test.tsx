@@ -24,24 +24,59 @@ const rows: Standing[] = [
 
 describe('TableButton', () => {
   it('«Таблиця» opens all places over the screen and one tap closes it', () => {
-    render(<TableButton table={{ rows, full: true }} meId="p1" />);
+    render(<TableButton table={{ rows, full: true }} meId="p1" breakdown={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
     const sheet = screen.getByRole('dialog', { name: 'Таблиця' });
-    expect(within(sheet).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1Петро300', '2Оля100']);
+    expect(Array.from(sheet.querySelectorAll('tr.score-row')).map((tr) => tr.textContent)).toEqual(['1Петро300', '2Оля100']);
     expect(sheet.querySelector('.is-me')?.textContent).toContain('Оля');
     fireEvent.click(sheet);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('shows a column per round', () => {
+    const withRounds = rows.map((row, i) => ({ ...row, rounds: i === 0 ? [100, 200] : [50, 50] }));
+    render(<TableButton table={{ rows: withRounds, full: true }} meId="p1" breakdown={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
+    const sheet = screen.getByRole('dialog');
+    expect(Array.from(sheet.querySelectorAll('thead th')).map((th) => th.textContent)).toEqual(['#', 'Учасник', 'Р1', 'Р2', 'Σ']);
+  });
+
+  it('only the own row opens its breakdown and the sheet stays open', () => {
+    const breakdown = { parts: [{ source: 'answers' as const, plus: 400, minus: 0 }], plus: 400, minus: 0 };
+    render(<TableButton table={{ rows, full: true }} meId="p1" breakdown={breakdown} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
+    const sheet = screen.getByRole('dialog');
+    const toggles = sheet.querySelectorAll('button.score-row-toggle');
+    expect(toggles).toHaveLength(1);
+    expect(toggles[0].closest('tr')!.textContent).toContain('Оля');
+    fireEvent.click(toggles[0]);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(within(sheet).getByText('Відповіді')).toBeTruthy();
+    expect(sheet.querySelector('.score-breakdown-sum')!.textContent).toBe('Плюс 400 · мінус 0');
+  });
+
+  it('a tap on the sheet title still closes it', () => {
+    render(<TableButton table={{ rows, full: true }} meId="p1" breakdown={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
+    fireEvent.click(screen.getByRole('heading', { name: 'Таблиця' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('without a breakdown there is no button', () => {
+    render(<TableButton table={{ rows, full: true }} meId="p1" breakdown={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
+    expect(screen.getByRole('dialog').querySelector('button.score-row-toggle')).toBeNull();
+  });
+
   it('Escape closes the sheet', () => {
-    render(<TableButton table={{ rows, full: true }} meId="p1" />);
+    render(<TableButton table={{ rows, full: true }} meId="p1" breakdown={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('Escape closes the sheet even when focus has left it; the dialog itself can take focus', () => {
-    render(<TableButton table={{ rows, full: true }} meId="p1" />);
+    render(<TableButton table={{ rows, full: true }} meId="p1" breakdown={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
     expect(screen.getByRole('dialog').getAttribute('tabindex')).toBe('-1');
     (document.activeElement as HTMLElement).blur();
@@ -53,7 +88,7 @@ describe('TableButton', () => {
   });
 
   it('focus stays inside the open sheet: Tab and Shift+Tab come back to «Закрити»', () => {
-    render(<TableButton table={{ rows, full: true }} meId="p1" />);
+    render(<TableButton table={{ rows, full: true }} meId="p1" breakdown={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
     const sheet = screen.getByRole('dialog');
     const close = within(sheet).getByRole('button', { name: 'Закрити' });
@@ -69,16 +104,20 @@ describe('TableButton', () => {
   });
 
   it('with the table hidden till the end it shows only one’s own place', () => {
-    render(<TableButton table={{ rows: [rows[1]], full: false }} meId="p1" />);
+    const breakdown = { parts: [{ source: 'host' as const, plus: 100, minus: 0 }], plus: 100, minus: 0 };
+    render(<TableButton table={{ rows: [rows[1]], full: false }} meId="p1" breakdown={breakdown} />);
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
-    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    const sheet = screen.getByRole('dialog');
+    expect(sheet.querySelectorAll('tr.score-row')).toHaveLength(1);
     expect(screen.getByText('Повна таблиця — наприкінці гри.')).toBeTruthy();
+    fireEvent.click(sheet.querySelector('button.score-row-toggle')!);
+    expect(within(sheet).getByText('Ведучий')).toBeTruthy();
   });
 
   it('in a team game the people stand under the team name', () => {
-    render(<TableButton table={{ rows: [{ participantId: 'team-b', nickname: 'Сині', score: 300, totalTimeMs: 0, rank: 1 }], full: true }} meId="team-b" teams={teamsView()} />);
+    render(<TableButton table={{ rows: [{ participantId: 'team-b', nickname: 'Сині', score: 300, totalTimeMs: 0, rank: 1 }], full: true }} meId="team-b" teams={teamsView()} breakdown={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
-    const row = screen.getByRole('dialog').querySelector('.standings li')!;
+    const row = screen.getByRole('dialog').querySelector('.score-table tr.score-row')!;
     expect(row.querySelector('.standing-members')!.textContent).toBe('Оля, Петро, Ната');
   });
 

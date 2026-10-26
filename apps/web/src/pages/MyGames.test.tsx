@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayedGame } from '@quiz/shared';
@@ -87,6 +87,22 @@ describe('MyGames', () => {
     expect(screen.getByText('1 місце з 2')).toBeTruthy();
     expect(stat('перемоги')).toContain('2');
     expect(container.querySelectorAll('.team-chip')).toHaveLength(1);
+  });
+
+  it('sums up the podium of the played games', async () => {
+    vi.mocked(myHistory).mockResolvedValue({
+      ok: true,
+      data: [played({ gameId: 'g1', rank: 1, playerCount: 2 }), played({ gameId: 'g2', rank: 2, playerCount: 3 })],
+    });
+    const { container } = open();
+    await screen.findAllByRole('heading', { name: 'Географія' });
+    const podium = container.querySelector('.podium-stats');
+    expect(podium?.getAttribute('aria-label')).toBe('П’єдестал');
+    const cell = (label: string) => within(podium as HTMLElement).getByText(label).closest('.stat')?.querySelector('dd')?.textContent;
+    expect(cell('1-е місце')).toBe('1');
+    expect(cell('2-е місце')).toBe('1');
+    expect(cell('у трійці')).toBe('100%');
+    expect(cell('середнє місце')).toBe('1,5');
   });
 
   it('explains how games get here when there are none', async () => {
