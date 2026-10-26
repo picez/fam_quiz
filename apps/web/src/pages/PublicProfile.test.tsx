@@ -38,6 +38,17 @@ const open = () =>
   );
 
 describe('PublicProfile', () => {
+  it('shows the podium numbers of a public profile', async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ok: true,
+      data: profile({ stats: { games: 3, wins: 1, accuracy: 70, quizzes: 2, hosted: 0, podium: { first: 1, second: 2, third: 0 }, top3: 100, bestScore: 900, avgPlace: 1.7 } }),
+    });
+    open();
+    expect(await screen.findByText('Тарас')).toBeTruthy();
+    expect(screen.getByText('2-е місце').closest('.stat')?.querySelector('dd')?.textContent).toBe('2');
+    expect(screen.getByText('середнє місце').closest('.stat')?.querySelector('dd')?.textContent).toBe('1,7');
+  });
+
   it('shows a public profile without email and adds to friends', async () => {
     open();
     expect(await screen.findByText('Тарас')).toBeTruthy();

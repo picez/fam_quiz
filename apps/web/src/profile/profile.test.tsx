@@ -30,7 +30,7 @@ describe('profile parts', () => {
 
   it('StatsView shows five numbers with the right word forms', () => {
     const { container } = render(<StatsView stats={{ games: 1, wins: 2, accuracy: null, quizzes: 5, hosted: 1, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null }} />);
-    const stats = [...container.querySelectorAll('.stat')].map((el) => [el.querySelector('dd')?.textContent, el.querySelector('dt')?.textContent]);
+    const stats = [...container.querySelectorAll('dl.stats:not(.podium-stats) .stat')].map((el) => [el.querySelector('dd')?.textContent, el.querySelector('dt')?.textContent]);
     expect(stats).toEqual([
       ['1', 'гра'],
       ['2', 'перемоги'],
@@ -38,6 +38,28 @@ describe('profile parts', () => {
       ['5', 'вікторин'],
       ['1', 'проведена гра'],
     ]);
+  });
+
+  it('StatsView shows the podium numbers under the five', () => {
+    const base = { games: 5, wins: 3, accuracy: 70, quizzes: 0, hosted: 0 };
+    const cells = (container: HTMLElement) =>
+      [...container.querySelectorAll('.podium-stats .stat')].map((el) => [el.querySelector('dd')?.textContent, el.querySelector('dt')?.textContent]);
+    const { container, unmount } = render(
+      <StatsView stats={{ ...base, podium: { first: 3, second: 2, third: 1 }, top3: 60, bestScore: 4200, avgPlace: 2.4 }} />,
+    );
+    expect(container.querySelector('.podium-stats')?.getAttribute('aria-label')).toBe('П’єдестал');
+    expect(cells(container)).toEqual([
+      ['3', '1-е місце'],
+      ['2', '2-е місце'],
+      ['1', '3-є місце'],
+      ['60%', 'у трійці'],
+      ['4200', 'найкращий рахунок'],
+      ['2,4', 'середнє місце'],
+    ]);
+    unmount();
+
+    const empty = render(<StatsView stats={{ ...base, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null }} />);
+    expect(cells(empty.container).map(([value]) => value)).toEqual(['0', '0', '0', '–', '–', '–']);
   });
 
   it('AchievementList shows earned and locked achievements', () => {

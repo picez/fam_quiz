@@ -1304,6 +1304,10 @@ a.banner {
   margin: 0;
 }
 
+.podium-stats {
+  margin-top: 0.75rem;
+}
+
 .stat {
   display: flex;
   flex-direction: column;
