@@ -590,13 +590,37 @@ describe('no loops (11g)', () => {
     const broken: GameState = { ...s, phase: 'board', board: null, autopilot: { ...s.autopilot!, at: now } };
     const tried = pilotTry(broken, now, rng);
     expect(tried.error).toEqual(expect.any(String));
-    expect(tried.state).toEqual({ ...broken, autopilot: { ...broken.autopilot!, at: now + 5000 } });
+    expect(tried.state).toEqual({ ...broken, autopilot: { ...broken.autopilot!, at: now + 5000, retries: 1 } });
     expect(atOf(plan(broken, tried.state, now))).toBe(now + 5000);
     expect(pilotTry(tried.state, now + 4999, rng).state).toBe(tried.state);
     const again = pilotTry(tried.state, now + 5000, rng);
     expect(again.error).toBe(tried.error);
     expect(atOf(again.state)).toBe(now + 10_000);
     expect(pilotStep(broken, now, rng)).toEqual(tried.state);
+  });
+
+  it('after 12 retries in a row the game goes on an author pause; a step that works resets the count', () => {
+    const { s } = toReveal();
+    let now = T * 2;
+    let state: GameState = { ...s, phase: 'board', board: null, autopilot: { ...s.autopilot!, at: now } };
+    for (let retry = 1; retry <= 12; retry++) {
+      const tried = pilotTry(state, now, rng);
+      expect(tried.error).toEqual(expect.any(String));
+      expect(tried.state.paused).toBe(false);
+      expect(tried.state.autopilot).toMatchObject({ at: now + 5000, retries: retry });
+      state = tried.state;
+      now += 5000;
+    }
+    const held = pilotTry(state, now, rng);
+    expect(held.error).toEqual(expect.any(String));
+    expect(held.state.paused).toBe(true);
+    expect(held.state.autopilot).toEqual({ authorId: 'a', at: null, hold: 'author' });
+    expect(atOf(plan(state, held.state, now))).toBeNull();
+    // Успішний крок скидає лічильник.
+    const counted: GameState = { ...s, autopilot: { ...s.autopilot!, retries: 7 } };
+    const done = pilotTry(counted, atOf(s)!, rng);
+    expect(done.error).toBeNull();
+    expect(done.state.autopilot?.retries).toBeUndefined();
   });
 
   it('a step that works carries no error', () => {

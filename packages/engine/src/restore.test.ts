@@ -325,7 +325,7 @@ const STATE_SHAPE: Record<string, string> = {
   DuelQuestionPlay: keysOf<DuelQuestionPlay>()(['questionId', 'tries', 'winnerId', 'answer', 'timeMs'], true),
   ScoreAdjustment: keysOf<ScoreAdjustment>()(['seq', 'playerId', 'points', 'roundIndex', 'afterQuestion', 'source', 'at', 'target', 'debuff'], true),
   Splash: keysOf<Splash>()(['kind', 'at', 'until'], true),
-  AutopilotState: keysOf<AutopilotState>()(['authorId', 'at', 'left', 'hold', 'starting', 'skips', 'skipPlays'], true),
+  AutopilotState: keysOf<AutopilotState>()(['authorId', 'at', 'left', 'hold', 'starting', 'skips', 'skipPlays', 'retries'], true),
 };
 
 /** Записана форма кожної версії; запис старої версії не змінюють. */
@@ -792,7 +792,7 @@ const KEYS: Record<number, Record<string, string>> = {
     DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
     ScoreAdjustment: 'afterQuestion,at,debuff,playerId,points,roundIndex,seq,source,target',
     Splash: 'at,kind,until',
-    AutopilotState: 'at,authorId,hold,left,skipPlays,skips,starting',
+    AutopilotState: 'at,authorId,hold,left,retries,skipPlays,skips,starting',
   },
 };
 
@@ -937,8 +937,8 @@ function representative(): GameState[] {
   let sorting = toSort();
   sorting = must(sortWord(sorting, 'p1', head(sorting, 'p1'), wrong(head(sorting, 'p1')), 2000));
   sorting = must(sortWord(sorting, 'p2', head(sorting, 'p2'), right(head(sorting, 'p2')), 2000));
-  // 11g: автопілот на паузі автора — залишок, причина паузи, старт після кубиків і пропуски поля (кожен ключ AutopilotState).
-  const piloted: GameState = { ...pilotReveal(), paused: true, pausedAt: T0 + 3000, autopilot: { authorId: 'p1', at: null, left: 2500, hold: 'author', starting: true, skips: 1, skipPlays: 2 } };
+  // 11g: автопілот на паузі автора — залишок, причина паузи, старт після кубиків, пропуски поля й повтори (кожен ключ AutopilotState).
+  const piloted: GameState = { ...pilotReveal(), paused: true, pausedAt: T0 + 3000, autopilot: { authorId: 'p1', at: null, left: 2500, hold: 'author', starting: true, skips: 1, skipPlays: 2, retries: 3 } };
   return [
     teamDice,
     teamBuzz,

@@ -618,6 +618,8 @@ export interface AutopilotState {
   skips?: number;
   /** Поле: plays.length у мить останнього пропуску; нова клітинка (новий запис у plays) скидає лічильник. */
   skipPlays?: number;
+  /** Скільки разів поспіль рушій відхилив крок (повтор через AUTOPILOT_MS.retry); успішний крок прибирає. */
+  retries?: number;
 }
 
 export interface GameOptions {

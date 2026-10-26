@@ -1,4 +1,4 @@
-import { AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, type ErrorCode, type Quiz, type TeamForm } from '@quiz/shared';
+import { AUTOPILOT_MAX_RETRIES, AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, type ErrorCode, type Quiz, type TeamForm } from '@quiz/shared';
 import { pickCell, skipTurn } from './board';
 import { dicePending, rollForRest, startDice } from './board-dice';
 import { cellPlayed, chooserOf } from './board-turns';
@@ -118,7 +118,7 @@ export function authorTeamForm(state: GameState, form: TeamForm): Result {
 /**
  * Автор прибирає вигадку (фаза вибору блефу). Автор — гравець, що набирає бали: прибирати вигадки до свого вибору він не може
  * (інакше лишилася б правда). Тож до вибору автора (у командній грі — його команди) будь-який варіант → pick_first, однаково
- * для правди й вигадок; свій вибраний варіант → not_allowed (інакше вибір знято б і автор вибрав би знову); далі — removeBluffOption.
+ * для правди й вигадок; варіант, який хтось уже вибрав (і сам автор), → not_allowed (вибір не знімається); далі — removeBluffOption.
  */
 export function authorRemoveBluff(state: GameState, optionId: string): Result {
   const pilot = state.autopilot;
@@ -127,7 +127,8 @@ export function authorRemoveBluff(state: GameState, optionId: string): Result {
   if (state.phase !== 'question' || play === null || play.bluff.stage !== 'choice') return fail('wrong_phase');
   const picker = teamsOn(state) ? teamOf(state, pilot.authorId) : pilot.authorId;
   if (picker === null || !Object.hasOwn(play.bluff.picks, picker)) return fail('pick_first');
-  if (play.bluff.picks[picker].optionId === optionId) return fail('not_allowed');
+  // Вибраний варіант (свій чи чужий) не прибирається: чужий вибір не знімається, і ніхто не вибирає вдруге.
+  if (Object.values(play.bluff.picks).some((pick) => pick.optionId === optionId)) return fail('not_allowed');
   return removeBluffOption(state, optionId);
 }
 
@@ -401,11 +402,38 @@ export interface PilotStep {
   error: ErrorCode | null;
 }
 
+/** Автопілот без лічильника повторів (крок вдався). */
+function noRetries(state: GameState): GameState {
+  return withPilot(state, (pilot) => {
+    const { retries: _retries, ...rest } = pilot;
+    return rest;
+  });
+}
+
+/**
+ * Рушій відхилив крок: повтор через AUTOPILOT_MS.retry (той самий підкрок, тож planAutopilot мить лишає), retries + 1.
+ * Після AUTOPILOT_MAX_RETRIES повторів поспіль — пауза автора (hold 'author', at null, лічильник геть; пауза «нікого» лишає залишок):
+ * далі гру веде автор, а сервер знімає її за 10 хв без автора й закінчує за 30 хв без нікого.
+ */
+function retryLater(state: GameState, now: number, error: ErrorCode): PilotStep {
+  const retries = (state.autopilot?.retries ?? 0) + 1;
+  if (retries > AUTOPILOT_MAX_RETRIES) {
+    const held = state.paused ? ok(state) : pause(state, now);
+    if (held.ok) {
+      const pilot = withPilot(held.state, (p) => {
+        const { retries: _retries, left, ...rest } = p;
+        return { ...rest, ...(state.paused && left !== undefined ? { left } : {}), at: null, hold: 'author' as const };
+      });
+      return { state: pilot, error };
+    }
+  }
+  return { state: withPilot(state, (p) => ({ ...p, at: now + AUTOPILOT_MS.retry, retries: Math.min(retries, AUTOPILOT_MAX_RETRIES) })), error };
+}
+
 /**
  * Крок у мить now ≥ autopilot.at: продовження з паузи «нікого» або дія з таблиці тими самими функціями рушія, що й кнопки ведучого.
- * Дія, яку рушій відхилив, — повтор через AUTOPILOT_MS.retry (той самий підкрок, тож planAutopilot мить лишає) і помилка в error:
- * гра не стає, а дія, що не вдається завжди, повторюється не частіше. Інакше at: null (нову мить ставить planAutopilot).
- * now < at, at null чи не автопілот → той самий об'єкт.
+ * Відхилене рушієм (дія чи продовження) — retryLater з помилкою в error: гра не стає й не крутиться без пауз.
+ * Інакше at: null (нову мить ставить planAutopilot) і лічильник повторів геть. now < at, at null чи не автопілот → той самий об'єкт.
  */
 export function pilotTry(state: GameState, now: number, rng: Rng): PilotStep {
   const pilot = state.autopilot;
@@ -415,18 +443,18 @@ export function pilotTry(state: GameState, now: number, rng: Rng): PilotStep {
     if (pilot.hold !== 'nobody' || !anyonePresent(state)) return { state: idle, error: null };
     // Залишок (left) поверне planAutopilot.
     const resumed = resume(idle, now);
-    if (!resumed.ok) return { state: idle, error: resumed.error };
+    if (!resumed.ok) return retryLater(state, now, resumed.error);
     const kept = withPilot(resumed.state, (p) => {
       const { hold: _hold, ...rest } = p;
       return rest;
     });
-    return { state: kept, error: null };
+    return { state: noRetries(kept), error: null };
   }
   const move = moveOf(state, now);
-  if (move === null) return { state: idle, error: null };
+  if (move === null) return { state: noRetries(idle), error: null };
   const done = move.act(idle, now, rng);
-  if (done.ok) return { state: done.state, error: null };
-  return { state: withPilot(state, (p) => ({ ...p, at: now + AUTOPILOT_MS.retry })), error: done.error };
+  if (done.ok) return { state: noRetries(done.state), error: null };
+  return retryLater(state, now, done.error);
 }
 
 /** pilotTry без помилки. */

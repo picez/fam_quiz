@@ -271,22 +271,24 @@ describe('author bluff removal (11g final review)', () => {
     expect(authorRemoveBluff(s, 'b99')).toEqual(PICK_FIRST);
   });
 
-  it('after the pick a lie is removed; the truth, a spare and the own pick are not; the author keeps the pick', () => {
+  it('after the pick only an unpicked lie is removed; the truth, a spare, the own pick and a lie others picked are not', () => {
     let s = soloChoice();
     const milan = option(s, 'Мілан');
     const paris = option(s, 'Париж');
+    const rome = option(s, 'Рим');
     s = must(pickBluff(s, 'a', milan.id, T0 + 2000));
     s = must(pickBluff(s, 'p2', paris.id, T0 + 2000));
     expect(authorRemoveBluff(s, kind(s, 'truth').id)).toEqual(NOT_ALLOWED);
     expect(authorRemoveBluff(s, kind(s, 'spare').id)).toEqual(NOT_ALLOWED);
     // Свій вибір прибрати не можна: інакше автор вибрав би знову.
     expect(authorRemoveBluff(s, milan.id)).toEqual(NOT_ALLOWED);
-    const removed = must(authorRemoveBluff(s, paris.id));
-    expect(option(removed, 'Париж').removed).toBe(true);
+    // Вигадку, яку вже вибрали інші, теж: їхній вибір не знімається.
+    expect(authorRemoveBluff(s, paris.id)).toEqual(NOT_ALLOWED);
+    const removed = must(authorRemoveBluff(s, rome.id));
+    expect(option(removed, 'Рим').removed).toBe(true);
     const picks = bluffPlayOf(removed)!.bluff.picks;
     expect(picks.a.optionId).toBe(milan.id);
-    // Хто вибрав прибраний варіант, вибирає знову; автор — ні.
-    expect(Object.hasOwn(picks, 'p2')).toBe(false);
+    expect(picks.p2.optionId).toBe(paris.id);
     expect(pickBluff(removed, 'a', kind(removed, 'truth').id, T0 + 3000)).toEqual({ ok: false, error: 'already_answered' });
   });
 
