@@ -53,6 +53,17 @@ describe('roundHighlights', () => {
     expect(roundHighlights(rows, 1)).toEqual({ best: { names: ['Віра', 'Оля'], points: 500 }, climb: { names: ['Оля'], places: 1 } });
   });
 
+  it('a climb tie names everyone with the same climb, in table order', () => {
+    // До раунду: Петро 400 (1), Марко 300 (2), Віра 200 (3), Оля 100 (4); після — Віра й Оля піднялися на 2.
+    const rows = [
+      row('v', 'Віра', 1000, 1, [200, 800]),
+      row('o', 'Оля', 900, 2, [100, 800]),
+      row('p', 'Петро', 400, 3, [400, 0]),
+      row('m', 'Марко', 300, 4, [300, 0]),
+    ];
+    expect(roundHighlights(rows, 1).climb).toEqual({ names: ['Віра', 'Оля'], places: 2 });
+  });
+
   it('no climb in the first round; no best when nobody gained', () => {
     const first = [row('a', 'А', 300, 1, [300]), row('b', 'Б', 100, 2, [100])];
     expect(roundHighlights(first, 0).climb).toBeNull();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer, type Quiz } from '@quiz/shared';
 import { adjustScore } from './adjust';
+import { scoreLines, scoreLinesByPlayer, visibleLines } from './breakdown';
 import { placeWager } from './final';
 import { lock, next, start, submitAnswer, tick, type GameState } from './game';
 import { actAnswer } from './team-act';
@@ -217,5 +218,20 @@ describe('score columns and breakdowns in views (11f)', () => {
     it('a member in the lobby has no breakdown', () => {
       expect(phone(teamLobby(quiz, 'Оля'), 'm1').myBreakdown).toBeNull();
     });
+
+    it('members of one team share the cached team view', () => {
+      const s = revealed();
+      expect(phone(s, 'm1').table).toBe(phone(s, 'm2').table);
+      expect(phone(s, 'm1').table).not.toBe(phone(s, 'm3').table);
+    });
+  });
+
+  it('views of one state reuse cached lines, standings and own views', () => {
+    const s = firstRoundEnd();
+    expect(scoreLinesByPlayer(s)).toBe(scoreLinesByPlayer(s));
+    expect(visibleLines(scoreLines(s), s, () => 0)).toBe(scoreLines(s));
+    expect(phone(s, 'p1').standings).toBe(phone(s, 'p2').standings);
+    expect(phone(s, 'p1').me).toBe(phone(s, 'p1').me);
+    expect(phone(s, 'p1').me).not.toBe(phone(s, 'p2').me);
   });
 });

@@ -43,6 +43,7 @@ export function MyGames() {
               <dt>{t('statAccuracy')}</dt>
             </div>
           </dl>
+          {/* П’єдестал рахується з того самого списку, що й зведення вище: playerHistory віддає лише останні 100 ігор (LIMIT), тож за довшої історії це «за останні 100», а повний — у профілі. */}
           <PodiumStats stats={podiumStats(state.data)} />
         </>
       )}

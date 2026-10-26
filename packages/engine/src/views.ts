@@ -134,7 +134,7 @@ import { pendingOf } from './hold';
 import { hostLive, responseClue, spareOf } from './live';
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
-import { roundCount, scoreLines, visibleLines, type PlayerScoreLine } from './breakdown';
+import { groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, type PlayerScoreLine } from './breakdown';
 import { actorOf, voterList } from './team-act';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
@@ -1788,19 +1788,44 @@ function isRevealed(state: GameState): boolean {
   return state.questionIndex >= 0 && inQuestion(state) && REVEALED.includes(state.phase);
 }
 
+/** Спільна таблиця на стан: одна на всі зрізи (сцена й кожен телефон). */
+const standingsCache = new WeakMap<GameState, Standing[] | null>();
+
 function publicStandings(state: GameState): Standing[] | null {
+  const found = standingsCache.get(state);
+  if (found !== undefined) return found;
   // У «Ва-банк» між запитаннями замість таблиці драбина.
-  if (state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || currentRound(state)?.type === 'ladder' || inSurvivalRound(state))) return null;
-  return WITH_STANDINGS.includes(state.phase) ? withRounds(rankPlayers(state.players), scoreLines(state), roundCount(state)) : null;
+  const hidden = state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || currentRound(state)?.type === 'ladder' || inSurvivalRound(state));
+  const standings = !hidden && WITH_STANDINGS.includes(state.phase) ? withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)) : null;
+  standingsCache.set(state, standings);
+  return standings;
 }
 
-/** Колонки раундів (11f) до рядків таблиці з рядків балів. */
-function withRounds(rows: Standing[], lines: readonly PlayerScoreLine[], count: number): Standing[] {
-  return rows.map((row) => ({ ...row, rounds: roundTotals(lines.filter((l) => l.playerId === row.participantId), count) }));
+type LinesByPlayer = ReadonlyMap<string, readonly PlayerScoreLine[]>;
+
+/** Колонки раундів (11f) до рядків таблиці з рядків балів, згрупованих за гравцем. */
+function withRounds(rows: Standing[], byPlayer: LinesByPlayer, count: number): Standing[] {
+  return rows.map((row) => ({ ...row, rounds: roundTotals(byPlayer.get(row.participantId) ?? [], count) }));
 }
 
-function breakdownFor(lines: readonly PlayerScoreLine[], playerId: string): ScoreBreakdown {
-  return breakdownOf(lines.filter((l) => l.playerId === playerId));
+function breakdownFor(byPlayer: LinesByPlayer, playerId: string): ScoreBreakdown {
+  return breakdownOf(byPlayer.get(playerId) ?? []);
+}
+
+/** Групування видимих рядків: без прихованого — готові групи стану. */
+function groupedVisible(state: GameState, seen: readonly PlayerScoreLine[]): LinesByPlayer {
+  return seen === scoreLines(state) ? scoreLinesByPlayer(state) : groupByPlayer(seen);
+}
+
+/** Рядки, які бачить власник (лише hiddenPoints, без чужих вікон «Ва-банк»), — однакові для всіх телефонів стану. */
+const ownSeenCache = new WeakMap<GameState, LinesByPlayer>();
+
+function ownSeen(state: GameState): LinesByPlayer {
+  const found = ownSeenCache.get(state);
+  if (found !== undefined) return found;
+  const grouped = groupedVisible(state, visibleLines(scoreLines(state), state, (id) => hiddenPoints(state, id)));
+  ownSeenCache.set(state, grouped);
+  return grouped;
 }
 
 /** Лічильники розкриття; у класиці відповіді на запасні не враховуються (там інше запитання). */
@@ -1968,8 +1993,23 @@ function canActNow(state: GameState, memberId: string, teamId: string): boolean 
   return actorOf(state, memberId, 'answer').ok;
 }
 
-/** Зріз гравця рушія (соло-гравця або команди) без поля team. */
+/** Зрізи ownView на стан: члени команди отримують один і той самий зріз команди. */
+const ownViewCache = new WeakMap<GameState, Map<string, Omit<PlayerView, 'team'> | null>>();
+
+/** Зріз гравця рушія (соло-гравця або команди) без поля team; кеш за станом і id. */
 function ownView(state: GameState, playerId: string): Omit<PlayerView, 'team'> | null {
+  let views = ownViewCache.get(state);
+  if (views === undefined) {
+    views = new Map();
+    ownViewCache.set(state, views);
+  }
+  if (views.has(playerId)) return views.get(playerId) ?? null;
+  const view = buildOwnView(state, playerId);
+  views.set(playerId, view);
+  return view;
+}
+
+function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'team'> | null {
   const player = state.players.find((p) => p.id === playerId);
   if (player === undefined) return null;
   const record = currentRecord(state, playerId);
@@ -2042,7 +2082,7 @@ function ownView(state: GameState, playerId: string): Omit<PlayerView, 'team'> |
     standings,
     table: liveTable(state, playerId),
     // Свій банк у вікні «Ва-банк» видно собі, як і в liveTable.
-    myBreakdown: state.phase === 'lobby' ? null : breakdownFor(visibleLines(scoreLines(state), state, (id) => hiddenPoints(state, id)), playerId),
+    myBreakdown: state.phase === 'lobby' ? null : breakdownFor(ownSeen(state), playerId),
   };
 }
 
@@ -2067,8 +2107,9 @@ function windowCash(state: GameState, playerId: string): number {
 /** Таблиця для кнопки «Таблиця»: з leaderboard 'end' поза підсумками — лише власний рядок зі справжнім місцем. */
 function liveTable(state: GameState, playerId: string): PlayerTable | null {
   if (state.phase === 'lobby') return null;
-  const hidden = (id: string) => hiddenPoints(state, id) + (id === playerId ? 0 : windowCash(state, id));
-  const seen = visibleLines(scoreLines(state), state, hidden);
+  const hiddenOf = new Map(state.players.map((p) => [p.id, hiddenPoints(state, p.id) + (p.id === playerId ? 0 : windowCash(state, p.id))]));
+  const hidden = (id: string) => hiddenOf.get(id) ?? 0;
+  const seen = groupedVisible(state, visibleLines(scoreLines(state), state, hidden));
   const rows = withRounds(rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hidden(p.id) }))), seen, roundCount(state));
   // У вікні рішення «Ва-банк» етап leaderboard — не підсумки: повна таблиця лише з leaderboard 'each'.
   const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && (inWipeoutRound(state) || inSurvivalRound(state) || inLadderRound(state))));
@@ -2152,8 +2193,8 @@ export function hostView(state: GameState): HostView {
     duel: hostDuel(state),
     allowed: { debuffs: debuffsOff(state) ? [] : allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
     hints: hintRequests(state),
-    standings: withRounds(rankPlayers(state.players), scoreLines(state), roundCount(state)),
-    breakdowns: state.phase === 'lobby' ? {} : Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(scoreLines(state), p.id)])),
+    standings: withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)),
+    breakdowns: state.phase === 'lobby' ? {} : Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(scoreLinesByPlayer(state), p.id)])),
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),
     cloud: hostCloud(state),

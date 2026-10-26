@@ -4,7 +4,7 @@ import type { PlayerTable, ScoreBreakdown, TeamsView } from '@quiz/shared';
 import { t } from '../i18n';
 import { ScoreTable } from './ScoreTable';
 
-/** Кнопка «Таблиця» в шапці й аркуш поверх екрана; закривається дотиком будь-де (крім кнопки «+ / −» свого рядка) або Escape. */
+/** Кнопка «Таблиця» в шапці й аркуш поверх екрана; закривається дотиком будь-де (крім свого рядка з «+ / −» і самої розбивки) або Escape. */
 export function TableButton({ table, meId, teams, breakdown }: { table: PlayerTable; meId: string; teams?: TeamsView | null; breakdown: ScoreBreakdown | null }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);

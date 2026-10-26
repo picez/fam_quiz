@@ -55,6 +55,26 @@ describe('ScoreTable', () => {
     expect(toggles[0].getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('a tap anywhere on the own row toggles the breakdown and does not reach the sheet', () => {
+    let outside = 0;
+    const { container } = render(
+      <div onClick={() => (outside += 1)}>
+        <ScoreTable rows={rows} size="phone" breakdowns={{ a: breakdown }} />
+      </div>,
+    );
+    const own = container.querySelector('tr.score-row')!;
+    fireEvent.click(own.querySelector('td.total')!);
+    expect(container.querySelector('tr.score-breakdown-row')).not.toBeNull();
+    fireEvent.click(container.querySelector('tr.score-breakdown-row')!);
+    expect(container.querySelector('tr.score-breakdown-row')).not.toBeNull();
+    fireEvent.click(own.querySelector('td.round')!);
+    expect(container.querySelector('tr.score-breakdown-row')).toBeNull();
+    expect(outside).toBe(0);
+    fireEvent.click(container.querySelectorAll('tr.score-row')[1].querySelector('td.total')!);
+    expect(container.querySelector('tr.score-breakdown-row')).toBeNull();
+    expect(outside).toBe(1);
+  });
+
   it('an empty breakdown says there are no points yet', () => {
     const { container } = render(<ScoreTable rows={rows} size="phone" breakdowns={{ a: { parts: [], plus: 0, minus: 0 } }} />);
     fireEvent.click(container.querySelector('button.score-row-toggle')!);
@@ -76,7 +96,17 @@ describe('ScoreTable', () => {
 
   it('round titles go into the headers', () => {
     const { container } = render(<ScoreTable rows={rows} size="history" breakdowns={{}} roundTitles={['Розминка', 'Ривок']} />);
-    expect(container.querySelector('th.round')!.getAttribute('title')).toBe('Розминка');
+    const first = container.querySelector('th.round')!;
+    expect(first.getAttribute('title')).toBe('Розминка');
+    expect(first.getAttribute('aria-label')).toBe('Р1, Розминка');
+    expect(first.textContent).toBe('Р1');
+  });
+
+  it('the table has a hidden caption', () => {
+    const { container } = render(<ScoreTable rows={rows} size="phone" breakdowns={{}} />);
+    const caption = container.querySelector('table.score-table caption')!;
+    expect(caption.textContent).toBe('Бали за раундами');
+    expect(caption.getAttribute('class')).toBe('sr-only');
   });
 
   it('round highlights are null when there is neither a best nor a climb', () => {

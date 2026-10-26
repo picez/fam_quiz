@@ -27,7 +27,7 @@ import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
 import { RoundHighlights } from './ScoreTable';
-import { roundGains } from '../score-table';
+import { roundGains, roundHighlights } from '../score-table';
 import { StageTeams } from './StageTeams';
 import { WipeoutLadder, WipeoutSide } from './WipeoutLadder';
 import { SurvivalBoard } from './SurvivalBoard';
@@ -733,6 +733,10 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
   const blink = useVerdictBlink(view.spotlight);
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  // Підсумки раунду (11f): з рядком «найкращий / ривок» показуємо 7 рядків, щоб сцена 1280 × 720 не прокручувалась.
+  const roundEndIndex = phase === 'round_end' && view.round !== null ? view.round.index : null;
+  const highlights = roundEndIndex !== null && standings !== null ? roundHighlights(standings, roundEndIndex) : null;
+  const highlighted = highlights !== null && (highlights.best !== null || highlights.climb !== null);
   return (
     <main className="app stage">
       <DuelBanner duel={view.duel} phase={view.phase} />
@@ -765,7 +769,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.ladder !== null && <LadderBetween view={view} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && (
-        <div className={phase === 'finished' ? 'stage-board is-final' : 'stage-board'}>
+        <div className={phase === 'finished' ? 'stage-board is-final' : roundEndIndex !== null ? `stage-board is-round-end${highlighted ? ' has-highlights' : ''}` : 'stage-board'}>
           <h1 className="question">
             {phase === 'finished'
               ? t('podium')
@@ -775,12 +779,12 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
           </h1>
           <Standings
             standings={standings}
-            limit={phase === 'finished' ? undefined : 8}
+            limit={phase === 'finished' ? undefined : highlighted ? 7 : 8}
             streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
             teams={view.teams}
-            gains={phase === 'round_end' && view.round !== null ? roundGains(standings, view.round.index) : undefined}
+            gains={roundEndIndex !== null ? roundGains(standings, roundEndIndex) : undefined}
           />
-          {phase === 'round_end' && view.round !== null && <RoundHighlights standings={standings} roundIndex={view.round.index} />}
+          {roundEndIndex !== null && <RoundHighlights standings={standings} roundIndex={roundEndIndex} />}
         </div>
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}

@@ -6,6 +6,7 @@ import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool,
 import { DEFAULT_RULES } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
+import { io as connectSocket, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { TEST_AUTH } from '../src/testing/accounts';
@@ -11992,7 +11993,7 @@ async function stats11f() {
   // 6. Підсумки раунду 2: двоє найкращих і ривок Олі.
   await click(host, 'Далі');
   await expect.poll(gains, POLL).toEqual(['+500 за раунд', '+500 за раунд', '−500 за раунд', '−500 за раунд']);
-  expect(await stage.locator('.round-best').textContent()).toBe('Найкращий у раунді: Віра, Оля · +500');
+  expect(await stage.locator('.round-best').textContent()).toBe('Найкращі в раунді: Віра, Оля · +500');
   expect(await stage.locator('.round-climb').textContent()).toBe('Найбільший ривок: Оля · +1 місце');
   await expectStageInView(stage, 'p11f-stage-round2');
   await shot(stage, 'p11f-stage-round2');
@@ -12067,6 +12068,102 @@ async function stats11f() {
   await stat(host, '2-е місце').waitFor();
   expect(await stat(host, '2-е місце').textContent()).toBe('12-е місце');
   expect(await stat(host, 'середнє місце').textContent()).toBe('2середнє місце');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 11f: the 1280 × 720 stage round end fits eight long nicknames (seven rows shown) with «+N за раунд», a five- and a three-way best of the round and the biggest climb', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await longRoundEnds11f(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+});
+
+/** Гравець без браузера: вхід через API й сокет; сцені вистачає його рядка в таблиці. */
+async function socketPlayer(sockets: Socket[], code: string, nickname: string) {
+  const response = await fetch(`${base}/api/games/by-code/${code}/join`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  });
+  expect(response.status, nickname).toBe(201);
+  const { token } = (await response.json()) as { token: string };
+  const socket = connectSocket(base, { auth: { code, role: 'player', token }, transports: ['websocket'], reconnection: false });
+  sockets.push(socket);
+  await new Promise<void>((done, fail) => {
+    socket.once('connect', () => done());
+    socket.once('connect_error', fail);
+  });
+  return {
+    nickname,
+    answer: async (value: boolean) => {
+      const ack = await new Promise<{ ok: boolean }>((done) => socket.emit('player:answer', { type: 'boolean', value }, done));
+      expect(ack.ok, `${nickname} answers`).toBe(true);
+    },
+  };
+}
+
+async function longRoundEnds11f(sockets: Socket[]) {
+  const host = await open('host11f-long', 1280, 900);
+  await register(host, 'host', 'Марта Довга', 'host11f-long@example.com');
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const q1 = { ...common, id: 'l1', type: 'boolean' as const, text: 'Дніпро впадає в Чорне море', points: 100, correct: true };
+  const q2 = { ...common, id: 'l2', type: 'boolean' as const, text: 'Київ — столиця України', points: 500, correct: true };
+  // Третій раунд лише для того, щоб після другого йшли підсумки раунду, а не подіум.
+  const q3 = { ...common, id: 'l3', type: 'boolean' as const, text: 'Говерла — найвища гора України', points: 100, correct: true };
+  const options = { speedBonus: false, shuffleOptions: false };
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [q1] as never, { ...options, title: 'Перший' }), classicRound('r2', [q2] as never, { ...options, title: 'Другий' }), classicRound('r3', [q3] as never, { ...options, title: 'Третій' })], { leaderboard: 'each' }),
+    title: 'Довгі імена 11f',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Довгі імена 11f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11f-long', 1280, 720);
+  await stage.goto(stageUrl);
+
+  // Перші п'ятеро беруть раунд 1 (п'ятеро найкращих), останні троє — раунд 2 (троє найкращих і ривок).
+  const names = ['Анастасія Мельник', 'Святослав Ткаченко', 'Ярослава Кравченко', 'Станіслав Олійник', 'Мирослава Петренко', 'Олександра Коваленко', 'Христина Бондаренко', 'Володимир Шевченко'];
+  const players: Awaited<ReturnType<typeof socketPlayer>>[] = [];
+  for (const name of names) players.push(await socketPlayer(sockets, code, name));
+  await stage.getByText(names[7]).waitFor();
+  const play = async (text: string, right: (index: number) => boolean) => {
+    await stage.getByText(text, exact).waitFor();
+    for (const [index, player] of players.entries()) await player.answer(right(index));
+    await host.getByText('Запитання закрите').waitFor();
+    await click(host, 'Показати відповідь');
+    await click(host, 'Далі');
+    // З рядком найкращих сцена показує 7 рядків із 8, щоб не прокручуватись.
+    await expect.poll(() => stage.locator('.round-gain').count(), POLL).toBe(7);
+  };
+
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await play('Дніпро впадає в Чорне море', (index) => index < 5);
+  expect(await stage.locator('.round-best').textContent()).toBe(`Найкращі в раунді: ${names.slice(0, 5).join(', ')} · +100`);
+  await expectStageInView(stage, 'p11f-stage-long-round1');
+  await shot(stage, 'p11f-stage-long-round1');
+
+  await click(host, 'Наступний раунд');
+  await afterSplash(host, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await play('Київ — столиця України', (index) => index >= 5);
+  expect(await stage.locator('.round-best').textContent()).toBe(`Найкращі в раунді: ${names.slice(5).join(', ')} · +500`);
+  expect(await stage.locator('.round-climb').textContent()).toMatch(/^Найбільший ривок: /);
+  await expectStageInView(stage, 'p11f-stage-long-round2');
+  await shot(stage, 'p11f-stage-long-round2');
 
   expect(problems).toEqual([]);
 }

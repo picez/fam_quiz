@@ -7,12 +7,33 @@ export interface PlayerScoreLine extends ScoreLine {
   questionIndex: number | null;
 }
 
-const cache = new WeakMap<GameState, PlayerScoreLine[]>();
+/** Рядки гравців за станом і вони ж, згруповані за гравцем (щоб зрізи не фільтрували всі рядки на кожен рядок таблиці). */
+const cache = new WeakMap<GameState, { lines: PlayerScoreLine[]; byPlayer: Map<string, PlayerScoreLine[]> }>();
 
 /** Рядки балів закритих запитань (як recorder.answerRows) і коригувань (за seq); Σ рядків гравця = його score. Кеш — WeakMap за станом. */
 export function scoreLines(state: GameState): PlayerScoreLine[] {
-  const cached = cache.get(state);
-  if (cached !== undefined) return cached;
+  return cached(state).lines;
+}
+
+/** Рядки scoreLines, згруповані за гравцем (кеш той самий). */
+export function scoreLinesByPlayer(state: GameState): ReadonlyMap<string, readonly PlayerScoreLine[]> {
+  return cached(state).byPlayer;
+}
+
+/** Групування рядків за гравцем зі збереженням порядку. */
+export function groupByPlayer(lines: readonly PlayerScoreLine[]): Map<string, PlayerScoreLine[]> {
+  const byPlayer = new Map<string, PlayerScoreLine[]>();
+  for (const line of lines) {
+    const own = byPlayer.get(line.playerId);
+    if (own === undefined) byPlayer.set(line.playerId, [line]);
+    else own.push(line);
+  }
+  return byPlayer;
+}
+
+function cached(state: GameState): { lines: PlayerScoreLine[]; byPlayer: Map<string, PlayerScoreLine[]> } {
+  const found = cache.get(state);
+  if (found !== undefined) return found;
   const lines: PlayerScoreLine[] = [];
   // Відкрите запитання завжди останнє в журналі й ще не рахується (як у withTotals).
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
@@ -42,8 +63,9 @@ export function scoreLines(state: GameState): PlayerScoreLine[] {
     if (adjustment.points === 0) continue;
     lines.push({ playerId: adjustment.playerId, roundIndex: adjustment.roundIndex, source: adjustmentSource(adjustment.source), points: adjustment.points, questionIndex: null });
   }
-  cache.set(state, lines);
-  return lines;
+  const entry = { lines, byPlayer: groupByPlayer(lines) };
+  cache.set(state, entry);
+  return entry;
 }
 
 /** Колонки раундів: у лобі й до першого раунду 0, інакше min(rounds.length, roundIndex + 1). */
@@ -56,14 +78,15 @@ export function roundCount(state: GameState): number {
  * Рядки, які бачить глядач: для гравця з hidden(id) ≠ 0 рядки поточного запитання відкидаються, якщо їхня сума = hidden;
  * інакше (частково розкритий фінал) замість них іде один рядок на суму − hidden: бали єдиного рядка зменшуються на hidden,
  * а без рядка (повернення банку, бали 0, а до розподілу видно −ставку) з'являється рядок −hidden; нуль відкидається.
+ * Коли нічого не приховано, повертає той самий масив lines.
  */
-export function visibleLines(lines: readonly PlayerScoreLine[], state: GameState, hidden: (playerId: string) => number): PlayerScoreLine[] {
+export function visibleLines(lines: readonly PlayerScoreLine[], state: GameState, hidden: (playerId: string) => number): readonly PlayerScoreLine[] {
   const hiddenOf = new Map<string, number>();
   for (const player of state.players) {
     const h = hidden(player.id);
     if (h !== 0) hiddenOf.set(player.id, h);
   }
-  if (hiddenOf.size === 0) return [...lines];
+  if (hiddenOf.size === 0) return lines;
   const current = (line: PlayerScoreLine) => hiddenOf.has(line.playerId) && line.questionIndex !== null && line.questionIndex === state.questionIndex;
   const sums = new Map<string, number>();
   for (const line of lines) if (current(line)) sums.set(line.playerId, (sums.get(line.playerId) ?? 0) + line.points);

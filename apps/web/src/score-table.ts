@@ -51,6 +51,7 @@ export function roundHighlights(
   const before = (row: Standing) => row.score - gains[row.participantId];
   const placeBefore = (row: Standing) => 1 + rows.filter((other) => before(other) > before(row)).length;
   const climbs = rows.map((row) => ({ row, places: placeBefore(row) - row.rank }));
+  // За рівного ривка — усі, хто піднявся на bestClimb місць, у порядку таблиці (як і найкращі за балами).
   const bestClimb = climbs.reduce((max, entry) => Math.max(max, entry.places), 0);
   const climb = bestClimb > 0 ? { names: climbs.filter((entry) => entry.places === bestClimb).map((entry) => entry.row.nickname), places: bestClimb } : null;
   return { best, climb };

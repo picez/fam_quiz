@@ -6711,8 +6711,15 @@ label.powers-price {
 
 /* Таблиця 11f: раунди прокручуються всередині обгортки, ім'я й Σ закріплені. */
 .score-table-wrap {
+  /* Непрозорий фон закріплених клітинок — як у контейнера: аркуш телефона чи панель пульта / історії. */
+  --score-bg: var(--stage);
   max-width: 100%;
   overflow-x: auto;
+}
+
+.score-table-wrap.is-host,
+.score-table-wrap.is-history {
+  --score-bg: color-mix(in srgb, #fff 5%, var(--stage));
 }
 
 .score-table {
@@ -6740,7 +6747,7 @@ label.powers-price {
   max-width: 9rem;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: var(--stage);
+  background: var(--score-bg);
   font-weight: 600;
   text-align: left;
 }
@@ -6748,8 +6755,18 @@ label.powers-price {
 .score-table .total {
   position: sticky;
   right: 0;
-  background: var(--stage);
+  background: var(--score-bg);
   font-weight: 800;
+}
+
+/* Однакова висота рядків: кнопка свого рядка не робить його вищим за інші (у таблиці height — мінімум). */
+.score-row > td,
+.score-row > th {
+  height: 2.75rem;
+}
+
+.score-row.has-breakdown {
+  cursor: pointer;
 }
 
 .score-table .name .standing-members {
@@ -6768,12 +6785,11 @@ label.powers-price {
 
 .score-row.is-me .name,
 .score-row.is-me .total {
-  background: color-mix(in srgb, var(--amber) 14%, var(--stage));
+  background: color-mix(in srgb, var(--amber) 14%, var(--score-bg));
 }
 
 .score-row-toggle {
   display: block;
-  min-height: 44px;
   max-width: 100%;
   padding: 0;
   overflow: hidden;
@@ -6791,6 +6807,13 @@ label.powers-price {
 .score-breakdown-row td {
   text-align: left;
   white-space: normal;
+}
+
+/* Розбивка лишається на видноті, коли раунди прокручено вбік: липне ліворуч і вужча за видиму частину таблиці (аркуш телефона чи панель пульта на 375 px). */
+.score-breakdown-row td > * {
+  position: sticky;
+  left: 0.625rem;
+  max-width: min(20rem, calc(100vw - 7rem));
 }
 
 .score-breakdown ul {
@@ -6841,6 +6864,15 @@ label.powers-price {
 
 .round-highlights p {
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Підсумки раунду: «+N за раунд» і рядок найкращих — рядки щільніші, щоб 8 (з найкращими — 7) довгих імен влізли в 1280 × 720. */
+.stage .stage-board.is-round-end .standings li {
+  font-size: clamp(1.25rem, 2.3vw, 2.5rem);
+  padding-block: 0.6vh;
 }
 
 .host-scores summary {

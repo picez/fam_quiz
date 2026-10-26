@@ -253,7 +253,7 @@ describe('StageScreen: rounds', () => {
       show(view({ phase: 'round_end', round: { ...round, index: 1 }, standings: four }));
       expect(Array.from(document.querySelectorAll('.round-gain')).map((node) => node.textContent)).toEqual(['+500 за раунд', '+500 за раунд', '−500 за раунд', '−500 за раунд']);
       expect(document.querySelectorAll('.round-gain.is-minus')).toHaveLength(2);
-      expect(document.querySelector('.round-best')!.textContent).toBe('Найкращий у раунді: Віра, Оля · +500');
+      expect(document.querySelector('.round-best')!.textContent).toBe('Найкращі в раунді: Віра, Оля · +500');
       expect(document.querySelector('.round-climb')!.textContent).toBe('Найбільший ривок: Оля · +1 місце');
     });
 
@@ -268,6 +268,18 @@ describe('StageScreen: rounds', () => {
       show(view({ phase: 'round_end', round: { ...round, index: 1 }, standings: four.map((r) => ({ ...r, rounds: undefined })) }));
       expect(document.querySelector('.round-gain')).toBeNull();
       expect(document.querySelector('.round-highlights')).toBeNull();
+    });
+
+    it('with highlights the round end shows seven rows so the stage fits; without them eight', () => {
+      const eight = Array.from({ length: 9 }, (_, i) => row(`p${i}`, `Гравець ${i}`, 900 - i * 100, i + 1, [900 - i * 100 - (i === 0 ? 0 : 100), i === 0 ? 0 : 100]));
+      show(view({ phase: 'round_end', round: { ...round, index: 1 }, standings: eight }));
+      expect(document.querySelector('.round-highlights')).not.toBeNull();
+      expect(document.querySelector('.stage-board')!.classList.contains('has-highlights')).toBe(true);
+      expect(document.querySelectorAll('.standings li')).toHaveLength(7);
+      cleanup();
+      show(view({ phase: 'round_end', round: { ...round, index: 1 }, standings: eight.map((r) => ({ ...r, rounds: [r.score, 0] })) }));
+      expect(document.querySelector('.round-highlights')).toBeNull();
+      expect(document.querySelectorAll('.standings li')).toHaveLength(8);
     });
 
     it('the leaderboard and the podium stay without gains', () => {
