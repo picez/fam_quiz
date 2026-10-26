@@ -58,6 +58,7 @@ export function MyGames() {
                 {game.rank === null ? t('noPlace') : t('placeOf', { rank: game.rank, total: game.playerCount })}
                 {game.team !== null && <span className="tag team-chip">{t('myGamesTeam', { name: game.team })}</span>}
               </p>
+              {game.autopilot && <p className="meta autopilot-mark">{t('historyAutopilot')}</p>}
               <p>{t('yourResult', { score: game.score, points: countText('pointsWord', game.score), correct: game.correct, total: game.questionsPlayed })}</p>
             </li>
           ))}

@@ -1171,6 +1171,7 @@ const uk = {
   myGamesTitle: 'Мої ігри',
   myGamesTeam: 'Команда «{name}»',
   historyTeamGame: 'Командна гра',
+  historyAutopilot: 'Провів бот',
   historyMembers: 'Склад: {names}',
   myGamesEmpty: 'Тут з’являться ігри, у які ви зіграли, увійшовши в акаунт. Увійдіть перед тим, як вводити код гри.',
   status_running: 'триває',

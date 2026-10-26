@@ -112,6 +112,20 @@ describe('History', () => {
     expect(screen.getByText('Гравців: 4')).toBeTruthy();
   });
 
+  it('marks only the game a bot ran in the list', async () => {
+    vi.mocked(listGames).mockResolvedValue({
+      ok: true,
+      data: [
+        { ...summary, id: 'g2', title: 'Бот', autopilot: true },
+        { ...summary, id: 'g3', title: 'Людина' },
+      ],
+    });
+    open('/history');
+    await screen.findByRole('link', { name: 'Бот' });
+    expect(screen.getAllByText('Провів бот')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Бот' }).closest('li')?.textContent).toContain('Провів бот');
+  });
+
   it('says in words that a game was interrupted or is still running', async () => {
     vi.mocked(listGames).mockResolvedValue({
       ok: true,
@@ -164,6 +178,20 @@ describe('GameHistory', () => {
     expect(screen.getByRole('link', { name: 'Історія ігор' }).getAttribute('href')).toBe('/history');
     // Текст запитання й статистика стоять в окремих рядках: інакше на телефоні текст стискається.
     for (const list of screen.getAllByRole('list')) expect(list.className).toContain('stacked');
+  });
+
+  it('marks the details of a game a bot ran, beside the team mark', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, autopilot: true, teams: true } });
+    open('/history/g1');
+    expect(await screen.findByText('Провів бот')).toBeTruthy();
+    expect(screen.getByText('Командна гра')).toBeTruthy();
+  });
+
+  it('does not mark the details of a game with a host', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+    open('/history/g1');
+    await screen.findByText('Географія');
+    expect(screen.queryByText('Провів бот')).toBeNull();
   });
 
   it('a team game is marked and every team shows its line-up', async () => {

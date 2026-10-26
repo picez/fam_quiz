@@ -253,6 +253,7 @@ export function GameHistory() {
       <h1 className="brand">{game.title}</h1>
       <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}`}</p>
       {game.teams && <p className="meta team-game-mark">{t('historyTeamGame')}</p>}
+      {game.autopilot && <p className="meta autopilot-mark">{t('historyAutopilot')}</p>}
       <p className="meta">{t('questionsProgress', { played: game.questionsPlayed, total: game.questionCount })}</p>
 
       <section className="panel">
