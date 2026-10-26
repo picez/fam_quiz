@@ -114,3 +114,45 @@ export function gameStats(games: Counted[]): { games: number; wins: number; accu
     accuracy: asked === 0 ? null : Math.round((correct / asked) * 100),
   };
 }
+
+/** П'єдестал (11f): 1 — isWin; 2 — завершена, rank 2, бали > 0, ≥ 3 учасників; 3 — те саме з rank 3 і ≥ 4 учасниками; інакше null. */
+export function podiumPlace(game: Counted): 1 | 2 | 3 | null {
+  if (isWin(game)) return 1;
+  if (game.status !== 'finished' || game.score <= 0) return null;
+  if (game.rank === 2 && game.playerCount >= 3) return 2;
+  if (game.rank === 3 && game.playerCount >= 4) return 3;
+  return null;
+}
+
+export interface PodiumStats {
+  /** Скільки разів 1-е, 2-е і 3-є місце (11f). */
+  podium: { first: number; second: number; third: number };
+  /** Відсоток ігор із місцем (завершена, є місце, ≥ 2 учасників) на п'єдесталі; null — таких ігор немає. */
+  top3: number | null;
+  /** Найбільший рахунок у завершеній грі; null — завершених немає. */
+  bestScore: number | null;
+  /** Середнє місце в іграх із місцем, до десятої; null — таких немає. */
+  avgPlace: number | null;
+}
+
+/** П'єдестал, «у трійці», найкращий рахунок і середнє місце (11f); пояснення — у плані 11f, «Рішення плану». */
+export function podiumStats(games: Counted[]): PodiumStats {
+  const podium = { first: 0, second: 0, third: 0 };
+  let placed = 0;
+  for (const game of games) {
+    const place = podiumPlace(game);
+    if (place === 1) podium.first += 1;
+    else if (place === 2) podium.second += 1;
+    else if (place === 3) podium.third += 1;
+    if (place !== null) placed += 1;
+  }
+  const rated = games.filter((game) => game.status === 'finished' && game.rank !== null && game.playerCount > 1);
+  const finished = games.filter((game) => game.status === 'finished');
+  const rankSum = rated.reduce((sum, game) => sum + (game.rank ?? 0), 0);
+  return {
+    podium,
+    top3: rated.length === 0 ? null : Math.round((placed / rated.length) * 100),
+    bestScore: finished.length === 0 ? null : Math.max(...finished.map((game) => game.score)),
+    avgPlace: rated.length === 0 ? null : Math.round((rankSum / rated.length) * 10) / 10,
+  };
+}

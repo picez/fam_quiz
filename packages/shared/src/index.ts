@@ -15,3 +15,4 @@ export * from './youtube';
 export * from './profile';
 export * from './guide';
 export * from './teams';
+export * from './breakdown';
