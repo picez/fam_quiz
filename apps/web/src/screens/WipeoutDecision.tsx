@@ -8,6 +8,10 @@ export function WipeoutDecision({ view, offsetMs, onDecide }: { view: PlayerView
   const own = view.me.wipeout;
   if (own === null) return null;
   const bank = num(own.bank);
+  // Екран рішень (11e): після закриття вікна свій вибір, зокрема «без вибору».
+  const choice = view.wipeout?.decisions ? (view.wipeout.rows.find((r) => r.playerId === view.me.id)?.choice ?? null) : null;
+  if (choice === 'stay') return <p className="lead wipeout-state">{t('wipeoutStayedWith', { bank })}</p>;
+  if (choice === 'auto') return <p className="lead wipeout-state">{t('wipeoutChoiceAuto', { bank })}</p>;
   if (own.decision === 'take' || own.status === 'took') return <p className="lead wipeout-state">{t('wipeoutTook', { bank })}</p>;
   if (own.status === 'burned') return <p className="lead wipeout-state is-burned">{t('wipeoutBurned')}</p>;
   if (own.status === 'survived') return <p className="lead wipeout-state">{t('wipeoutSurvived', { bank })}</p>;

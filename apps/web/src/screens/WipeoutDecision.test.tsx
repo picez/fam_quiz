@@ -50,6 +50,27 @@ describe('WipeoutDecision', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('shows the own decision on the decisions screen (11e)', () => {
+    const view = (choice: 'took' | 'stay' | 'auto', own: Partial<Own>): PlayerView => {
+      const v = decisionView({ canDecide: false, ...own }, { open: false }) as unknown as { wipeout: WipeoutInfo; me: { id: string } };
+      v.me.id = 'me';
+      v.wipeout = wipeoutInfo({
+        decisions: true,
+        rows: [{ playerId: 'me', nickname: 'Я', status: own.status ?? 'in', bank: own.bank ?? 300, step: null, decision: null, choice, prev: null }],
+      });
+      return v as unknown as PlayerView;
+    };
+    render(<WipeoutDecision view={view('stay', { bank: 600 })} offsetMs={0} onDecide={vi.fn()} />);
+    expect(screen.getByText('Ти йдеш далі з 600')).toBeTruthy();
+    cleanup();
+    render(<WipeoutDecision view={view('auto', { status: 'took', bank: 300 })} offsetMs={0} onDecide={vi.fn()} />);
+    expect(screen.getByText('Без вибору — забрано 300')).toBeTruthy();
+    expect(screen.queryByText('Забрано 300')).toBeNull();
+    cleanup();
+    render(<WipeoutDecision view={view('took', { status: 'took', bank: 300 })} offsetMs={0} onDecide={vi.fn()} />);
+    expect(screen.getByText('Забрано 300')).toBeTruthy();
+  });
+
   it('keeps disabled buttons when the window is open but the player cannot decide', () => {
     render(<WipeoutDecision view={decisionView({ canDecide: false })} offsetMs={0} onDecide={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Далі' }).hasAttribute('disabled')).toBe(true);

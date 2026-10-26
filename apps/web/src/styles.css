@@ -8686,6 +8686,125 @@ button.wall-tile:disabled {
   color: var(--dim);
 }
 
+/* Екран рішень (11e): позначка вибору після закриття вікна. */
+.wipeout-choice {
+  color: var(--correct);
+  font-size: 0.875rem;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.wipeout-choice.is-auto {
+  font-style: italic;
+}
+
+.wipeout-choice.is-stay {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+/* Смужка банків на телефоні (11e). */
+.wipeout-strip-phone {
+  margin: 0.25rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.wipeout-strip-phone .is-me {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+/* Список сходинки на розкритті (11e). */
+.wipeout-step-list ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wipeout-step-list li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.wipeout-step-list li.meta {
+  display: block;
+}
+
+.wipeout-step-list li.is-me {
+  background: rgb(255 179 0 / 0.14);
+  border-radius: 0.5rem;
+}
+
+.wipeout-step-list .name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.wipeout-step-list .wipeout-change {
+  font-size: 0.875rem;
+  text-align: right;
+}
+
+.wipeout-step-list .is-right .wipeout-verdict {
+  color: var(--correct);
+}
+
+.wipeout-step-list .is-burned .wipeout-verdict,
+.wipeout-step-list .is-burned .wipeout-change {
+  color: var(--signal);
+}
+
+.wipeout-step-list.is-stage li {
+  font-size: 1rem;
+}
+
+/* Колонка сцени поруч із запитанням (11e): лише вигляд рядків, розміщення — у сцені. */
+.wipeout-side {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.wipeout-side ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wipeout-side li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.wipeout-side li.meta {
+  display: block;
+}
+
+.wipeout-side .name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wipeout-side-out {
+  margin-top: 0.5rem;
+}
+
 /* Сцена «Ва-банк»: драбина зліва, гравці справа; усе на екран без прокрутки. */
 .wipeout-strip {
   text-align: center;
