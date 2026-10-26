@@ -9,6 +9,11 @@ type Size = 'stage' | 'host' | 'phone';
 export const WIPEOUT_STRIP_MAX = 8;
 /** Скільки рядків у колонці сцени (11e). */
 export const WIPEOUT_SIDE_MAX = 12;
+/** Скільки рядків на екрані «Рішення» сцени, далі — «ще N» (11e). */
+export const WIPEOUT_DECISIONS_MAX = 15;
+
+/** Порядок на екрані «Рішення» сцени: хто йде далі, хто забрав, хто без вибору. */
+const CHOICE_ORDER = { stay: 0, took: 1, auto: 2 } as const;
 
 /** Позначка вибору на екрані рішень (11e): «Забрано 600» / «Далі з 600» / «Без вибору — забрано 600». */
 export function choiceText(row: WipeoutRow): string {
@@ -51,12 +56,17 @@ export function WipeoutStrip({ info, highlightId }: { info: WipeoutInfo; highlig
   );
 }
 
-/** Розкриття (11e): хто грав сходинку — «✓ 100 → 300» або «✗ банк 100 згорів». */
-export function WipeoutStepList({ info, size, highlightId, max }: { info: WipeoutInfo; size: 'stage' | 'phone'; highlightId?: string; max?: number }) {
+/** Хто грав сходинку (11e): правильні за спаданням банку, потім згорілі на ній. */
+function stepRows(info: WipeoutInfo): WipeoutRow[] {
   const played = info.rows.filter((row) => row.prev !== null);
   const right = played.filter((row) => row.status === 'in').sort((a, b) => b.bank - a.bank);
   const burned = played.filter((row) => row.status === 'burned' && row.step === info.current);
-  const all = [...right, ...burned];
+  return [...right, ...burned];
+}
+
+/** Розкриття (11e): хто грав сходинку — «✓ 100 → 300» або «✗ банк 100 згорів». */
+export function WipeoutStepList({ info, size, highlightId, max }: { info: WipeoutInfo; size: 'stage' | 'phone'; highlightId?: string; max?: number }) {
+  const all = stepRows(info);
   if (all.length === 0) return null;
   const shown = max === undefined ? all : all.slice(0, max);
   return (
@@ -68,8 +78,9 @@ export function WipeoutStepList({ info, size, highlightId, max }: { info: Wipeou
           const prev = num(row.prev ?? 0);
           return (
             <li key={row.playerId} className={`${ok ? 'is-right' : 'is-burned'}${row.playerId === highlightId ? ' is-me' : ''}`}>
-              <span className="wipeout-verdict" aria-label={t(ok ? 'wipeoutVerdictRight' : 'wipeoutVerdictBurned')}>
-                {ok ? '✓' : '✗'}
+              <span className="wipeout-verdict">
+                <span aria-hidden="true">{ok ? '✓' : '✗'}</span>
+                <span className="sr-only">{t(ok ? 'wipeoutVerdictRight' : 'wipeoutVerdictBurned')}</span>
               </span>
               <span className="name">{row.nickname}</span>
               <span className="wipeout-change">{ok ? t('wipeoutStepRight', { prev, bank: num(row.bank) }) : t('wipeoutStepBurned', { prev })}</span>
@@ -85,8 +96,10 @@ export function WipeoutStepList({ info, size, highlightId, max }: { info: Wipeou
 /** Колонка сцени поруч із запитанням (11e): на question / locked — банки тих, хто в грі; на reveal — список сходинки. */
 export function WipeoutSide({ info, reveal }: { info: WipeoutInfo; reveal: boolean }) {
   if (reveal) {
+    if (stepRows(info).length === 0) return null;
     return (
-      <aside className="wipeout-side" aria-label={t('wipeoutSideLabel')}>
+      <aside className="wipeout-side" aria-label={t('wipeoutStepTitle')}>
+        <h2 className="meta">{t('wipeoutStepTitle')}</h2>
         <WipeoutStepList info={info} size="stage" max={WIPEOUT_SIDE_MAX} />
       </aside>
     );
@@ -132,13 +145,17 @@ function decisionMark(row: WipeoutRow, size: Size): string | null {
 
 /** Гравці за станом: у грі (банк), забрали, донесли, згоріли; у вікні рішення — позначка. */
 export function WipeoutPlayers({ info, size, highlightId }: { info: WipeoutInfo; size: Size; highlightId?: string }) {
-  const choices = info.rows.filter((row) => row.choice !== null);
+  // Екран «Рішення» на сцені (11e): великий список для ТБ без власного заголовка (його каже h1), за вибором і з «ще N».
+  const big = info.decisions && size === 'stage';
+  const all = info.rows.filter((row) => row.choice !== null);
+  const sorted = big ? all.map((row, index) => ({ row, index })).sort((a, b) => CHOICE_ORDER[a.row.choice ?? 'took'] - CHOICE_ORDER[b.row.choice ?? 'took'] || a.index - b.index).map(({ row }) => row) : all;
+  const choices = big ? sorted.slice(0, WIPEOUT_DECISIONS_MAX) : sorted;
   return (
-    <div className={`wipeout-players is-${size}`}>
+    <div className={`wipeout-players is-${size}${big ? ' is-decisions' : ''}`}>
       {info.decide !== null && <p className="meta wipeout-decided">{t('wipeoutDecided', { n: info.decide.decided, total: info.decide.total })}</p>}
       {choices.length > 0 && (
-        <section className="wipeout-group is-choices">
-          <h3 className="meta">{t('wipeoutGroupChoices')}</h3>
+        <section className="wipeout-group is-choices" aria-label={big ? t('wipeoutGroupChoices') : undefined}>
+          {!big && <h3 className="meta">{t('wipeoutGroupChoices')}</h3>}
           <ul>
             {choices.map((row) => (
               <li key={row.playerId} className={row.playerId === highlightId ? 'is-me' : undefined}>
@@ -146,6 +163,7 @@ export function WipeoutPlayers({ info, size, highlightId }: { info: WipeoutInfo;
                 <span className={`wipeout-choice is-${row.choice}`}>{choiceText(row)}</span>
               </li>
             ))}
+            {choices.length < sorted.length && <li className="meta">{t('wipeoutMore', { n: sorted.length - choices.length })}</li>}
           </ul>
         </section>
       )}

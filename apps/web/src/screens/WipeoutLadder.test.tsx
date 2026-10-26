@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { WipeoutInfo, WipeoutRow } from '@quiz/shared';
-import { WipeoutLadder, WipeoutPlayers, WipeoutSide, WipeoutStepList, WipeoutStrip } from './WipeoutLadder';
+import { WIPEOUT_DECISIONS_MAX, WipeoutLadder, WipeoutPlayers, WipeoutSide, WipeoutStepList, WipeoutStrip } from './WipeoutLadder';
 
 afterEach(cleanup);
 
@@ -96,6 +96,28 @@ describe('WipeoutPlayers decisions group (11e)', () => {
       cleanup();
     }
   });
+
+  it('on the stage: a big list without its own title, going on first, then taken, then by default', () => {
+    const mixed = wipeoutInfo({
+      decisions: true,
+      rows: [row('a', { status: 'took', bank: 300, choice: 'auto' }), row('b', { status: 'took', bank: 200, choice: 'took' }), row('c', { bank: 600, choice: 'stay' }), row('d', { bank: 400, choice: 'stay' })],
+    });
+    const { container } = render(<WipeoutPlayers info={mixed} size="stage" />);
+    expect(container.querySelector('.wipeout-players.is-decisions')).toBeTruthy();
+    expect(container.querySelector('.is-choices h3')).toBeNull();
+    expect([...container.querySelectorAll('.is-choices .name')].map((el) => el.textContent)).toEqual(['Гравець c', 'Гравець d', 'Гравець b', 'Гравець a']);
+    cleanup();
+    const phone = render(<WipeoutPlayers info={mixed} size="phone" />).container;
+    expect(phone.querySelector('.is-decisions')).toBeNull();
+    expect(phone.querySelector('.is-choices h3')?.textContent).toBe('Рішення');
+  });
+
+  it('on the stage: a long list ends with a rest line', () => {
+    const many = wipeoutInfo({ decisions: true, rows: Array.from({ length: WIPEOUT_DECISIONS_MAX + 3 }, (_, i) => row(`p${i}`, { bank: 100, choice: 'stay' })) });
+    const { container } = render(<WipeoutPlayers info={many} size="stage" />);
+    expect(container.querySelectorAll('.is-choices li:not(.meta)')).toHaveLength(WIPEOUT_DECISIONS_MAX);
+    expect(screen.getByText('ще 3')).toBeTruthy();
+  });
 });
 
 describe('WipeoutStrip (11e)', () => {
@@ -136,7 +158,10 @@ describe('WipeoutStepList (11e)', () => {
     expect(items[0].classList.contains('is-right')).toBe(true);
     expect(items[0].classList.contains('is-me')).toBe(true);
     expect(items[0].textContent).toContain('100 → 300');
-    expect(items[0].querySelector('.wipeout-verdict')?.getAttribute('aria-label')).toBe('правильно');
+    expect(items[0].querySelector('.wipeout-verdict [aria-hidden="true"]')?.textContent).toBe('✓');
+    expect(items[0].querySelector('.wipeout-verdict .sr-only')?.textContent).toBe('правильно');
+    expect(items[1].querySelector('.wipeout-verdict [aria-hidden="true"]')?.textContent).toBe('✗');
+    expect(items[1].querySelector('.wipeout-verdict .sr-only')?.textContent).toBe('згорів');
     expect(items[1].classList.contains('is-burned')).toBe(true);
     expect(items[1].textContent).toContain('банк 100 згорів');
     expect(screen.queryByText('Гравець c')).toBeNull();
@@ -167,8 +192,14 @@ describe('WipeoutSide (11e)', () => {
     expect(screen.getByText('Забрали: 1 · Згоріли: 1')).toBeTruthy();
   });
 
-  it('shows the rung list on the reveal', () => {
+  it('shows the rung list on the reveal under its title', () => {
     const { container } = render(<WipeoutSide info={wipeoutInfo({ rows: [row('a', { bank: 300, prev: 100 })] })} reveal />);
     expect(container.querySelector('.wipeout-step-list.is-stage')).toBeTruthy();
+    expect(container.querySelector('aside h2')?.textContent).toBe('Як пройшли сходинку');
+  });
+
+  it('draws nothing on the reveal when nobody played the rung', () => {
+    const { container } = render(<WipeoutSide info={wipeoutInfo({ rows: [row('t', { status: 'took', bank: 50, step: 0 })] })} reveal />);
+    expect(container.innerHTML).toBe('');
   });
 });

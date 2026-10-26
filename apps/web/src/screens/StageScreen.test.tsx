@@ -1702,6 +1702,13 @@ describe('StageScreen: bluff (10f)', () => {
       const side = document.querySelector('aside.wipeout-side') as HTMLElement;
       expect(side.querySelector('.wipeout-step-list.is-stage')).not.toBeNull();
       expect(side.textContent).toContain('100 → 300');
+      expect(side.querySelector('h2')?.textContent).toBe('Як пройшли сходинку');
+    });
+
+    it('reveal: when the only player left burns, the bar counts those who played the rung', () => {
+      const rows = [wRow('a', { status: 'burned', step: 1, prev: 100 }), wRow('b', { status: 'took', bank: 100, step: 0 })];
+      show(view({ phase: 'reveal', round: wRound, questionIndex: 1, question, reveal: full, answeredCount: 1, wipeout: wInfo({ decide: null, inCount: 0, rows }) }));
+      expect(screen.getByText('Відповіли 1 з 1')).toBeTruthy();
     });
 
     it('a classic question has no side column', () => {
@@ -1715,6 +1722,8 @@ describe('StageScreen: bluff (10f)', () => {
       show(view({ phase: 'leaderboard', round: wRound, wipeout: wInfo({ decide: null, decisions: true, rows }) }));
       expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Рішення');
       expect(document.querySelector('.wipeout-group.is-choices')).not.toBeNull();
+      expect(document.querySelector('.wipeout-players.is-decisions')).not.toBeNull();
+      expect(screen.getAllByText('Рішення')).toHaveLength(1);
     });
 
     it('leaderboard with the window open keeps «Драбина» and the timer', () => {

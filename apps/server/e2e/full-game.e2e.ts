@@ -8882,6 +8882,8 @@ async function decide(page: Page, take: boolean): Promise<void> {
 /** Стан гравця на драбині сцени чи пульта: текст групи, у якій стоїть нікнейм. */
 async function ladderGroupOf(page: Page, nickname: string): Promise<string> {
   const group = page.locator('.wipeout-group').filter({ has: page.locator('li .name', { hasText: new RegExp(`^${nickname}$`) }) });
+  // Група вибору на сцені (11e) без h3: її назва — в aria-label.
+  if ((await group.locator('h3').count()) === 0) return (await group.first().getAttribute('aria-label'))!.trim();
   return (await group.locator('h3').first().textContent())!.trim();
 }
 
@@ -11629,7 +11631,7 @@ async function wipeoutDecisions11e() {
   for (const nick of ['Оля', 'Петро', 'Віра']) {
     const row = sideRow(stage, nick);
     await row.getByText('0 → 100', exact).waitFor();
-    expect(await row.locator('.wipeout-verdict').textContent()).toBe('✓');
+    expect(await row.locator('.wipeout-verdict [aria-hidden="true"]').textContent()).toBe('✓');
   }
   for (const [who, frames, from] of [['stage', stageFrames, fromE1.stage], ['vira', viraFrames, fromE1.vira]] as const) {
     const text = framesUntilNextReveal(frames, from).join(NL);
@@ -11711,7 +11713,7 @@ async function wipeoutDecisions11e() {
   for (const page of [stage, vira]) {
     const row = sideRow(page, 'Петро');
     await row.getByText('банк 100 згорів', exact).waitFor();
-    expect(await row.locator('.wipeout-verdict').textContent()).toBe('✗');
+    expect(await row.locator('.wipeout-verdict [aria-hidden="true"]').textContent()).toBe('✗');
   }
   await expectStageInView(stage, 'p11e-stage-burned');
   await shot(stage, 'p11e-stage-burned');

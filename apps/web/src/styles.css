@@ -8688,7 +8688,7 @@ button.wall-tile:disabled {
 
 /* Екран рішень (11e): позначка вибору після закриття вікна. */
 .wipeout-choice {
-  color: var(--correct);
+  color: var(--paper);
   font-size: 0.875em;
   text-align: right;
   overflow-wrap: anywhere;
@@ -8888,6 +8888,34 @@ button.wall-tile:disabled {
 
 .wipeout-players.is-stage li {
   padding: 0.125rem 0.5rem;
+}
+
+/* Екран «Рішення» на сцені (11e): вузька драбина й великий список для ТБ, рядок на гравця. */
+.wipeout-ladder.is-stage:has(.wipeout-players.is-decisions) {
+  grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr);
+}
+
+.wipeout-players.is-decisions .is-choices {
+  font-size: clamp(1.25rem, 4.2vh, 2.25rem);
+}
+
+.wipeout-players.is-stage.is-decisions .is-choices ul {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* До восьми рядків — одна колонка, далі — кілька. */
+.wipeout-players.is-stage.is-decisions .is-choices ul:has(> li:nth-child(9)) {
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+}
+
+.wipeout-players.is-stage.is-decisions .is-choices li {
+  padding: 0.5rem 1rem;
+  line-height: 1.2;
+}
+
+.wipeout-players.is-decisions .wipeout-choice {
+  font-size: 1em;
+  font-weight: 700;
 }
 
 .wipeout-ladder.is-host .wipeout-steps {

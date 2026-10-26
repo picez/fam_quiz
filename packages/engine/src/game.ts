@@ -740,11 +740,14 @@ function removeFromGame(state: GameState, playerId: string): Result {
     }
     if (play.wipeout !== undefined) {
       const without = (ids: string[]) => ids.filter((id) => id !== playerId);
+      // auto лише непорожній (як у closeDecision): порожній після вилучення — без ключа.
+      const { auto: oldAuto, ...rest } = play.wipeout;
+      const auto = oldAuto === undefined ? [] : without(oldAuto);
       kept.wipeout = {
-        ...play.wipeout,
+        ...rest,
         took: without(play.wipeout.took),
         stay: without(play.wipeout.stay),
-        ...(play.wipeout.auto === undefined ? {} : { auto: without(play.wipeout.auto) }),
+        ...(auto.length === 0 ? {} : { auto }),
       };
     }
     if (play.survival !== undefined) {

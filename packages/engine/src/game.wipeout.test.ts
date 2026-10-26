@@ -534,13 +534,25 @@ describe('decisions (10g)', () => {
       expect(s.plays[0].wipeout?.auto).toEqual(['p2', 'p3']);
     });
 
-    it('kicking a player taken by default removes them from auto', () => {
+    it('kicking the only player taken by default drops the empty auto key', () => {
       let s = must(next(revealed(), 2000, rng));
       s = decide(s, 'p1', false);
       s = decide(s, 'p2', true);
       s = tick(s, 12_000);
       s = must(removePlayer(s, 'p3'));
-      expect(s.plays[0].wipeout).toEqual({ took: ['p2'], stay: ['p1'], end: false, auto: [] });
+      expect(s.plays[0].wipeout).toEqual({ took: ['p2'], stay: ['p1'], end: false });
+      expect('auto' in (s.plays[0].wipeout ?? {})).toBe(false);
+    });
+
+    it('a version 12 play without auto: the screen is up and everyone who took shows as took', () => {
+      let s = must(next(revealed(), 2000, rng));
+      s = decide(s, 'p1', false);
+      s = tick(s, 12_000);
+      const { auto: _auto, ...old } = s.plays[0].wipeout ?? { took: [], stay: [], end: false };
+      const v12: GameState = { ...s, plays: s.plays.map((p, i) => (i === 0 ? { ...p, wipeout: old } : p)) };
+      expect('auto' in (v12.plays[0].wipeout ?? {})).toBe(false);
+      expect(decisionsShown(v12)).toBe(true);
+      expect(choices(v12)).toEqual(['stay', 'took', 'took']);
     });
   });
 });
