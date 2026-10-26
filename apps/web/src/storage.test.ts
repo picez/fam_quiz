@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearPlayer, loadHost, loadPlayer, saveHost, savePlayer } from './storage';
+import { clearPlayer, loadAuthor, loadHost, loadPlayer, saveAuthor, saveHost, savePlayer } from './storage';
 
 beforeEach(() => localStorage.clear());
 
@@ -30,5 +30,20 @@ describe('storage', () => {
     localStorage.setItem('quiz:host:654321', '{"hostToken":1}');
     expect(loadHost('123456')).toBeNull();
     expect(loadHost('654321')).toBeNull();
+  });
+
+  it('remembers the author stage token apart from host tokens', () => {
+    saveAuthor('123456', { stageToken: 's' });
+    expect(loadAuthor('123456')).toEqual({ stageToken: 's' });
+    expect(loadAuthor('000000')).toBeNull();
+    expect(loadHost('123456')).toBeNull();
+    expect(localStorage.getItem('quiz:author:123456')).not.toBeNull();
+  });
+
+  it('treats corrupted author data as missing', () => {
+    localStorage.setItem('quiz:author:123456', '{not json');
+    localStorage.setItem('quiz:author:654321', '{"stageToken":1}');
+    expect(loadAuthor('123456')).toBeNull();
+    expect(loadAuthor('654321')).toBeNull();
   });
 });

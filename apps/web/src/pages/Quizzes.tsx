@@ -3,8 +3,9 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, type QuizSummary } from '../api';
 import { demoQuiz } from '../demo-quiz';
 import { errorText, t } from '../i18n';
-import { clearLastGame, loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
+import { clearLastGame, loadAuthor, loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
 import { useAccount } from '../useAccount';
+import { AutopilotLaunch } from './AutopilotLaunch';
 
 const LOGIN = '/login?next=%2Fquizzes';
 
@@ -16,13 +17,14 @@ export function Quizzes() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState<string | null>(null);
+  const [launch, setLaunch] = useState<QuizSummary | null>(null);
   const signedIn = account.status === 'signed-in';
 
   // Ведучий міг закрити вкладку посеред гри: показати шлях назад до пульта, якщо гра ще триває.
   useEffect(() => {
     if (!signedIn) return;
     const code = loadLastGame();
-    if (code === null || loadHost(code) === null) return;
+    if (code === null || loadHost(code) === null && loadAuthor(code) === null) return;
     let current = true;
     void checkCode(code).then((result) => {
       if (!current) return;
@@ -107,7 +109,7 @@ export function Quizzes() {
       <h1 className="brand">{t('quizzesTitle')}</h1>
 
       {running !== null && (
-        <Link className="banner" to={`/host/${running}`}>
+        <Link className="banner" to={loadAuthor(running) !== null ? `/play/${running}` : `/host/${running}`}>
           {t('backToGame', { code: `${running.slice(0, 3)} ${running.slice(3)}` })}
         </Link>
       )}
@@ -145,6 +147,9 @@ export function Quizzes() {
                 <button type="button" className="btn btn-primary" disabled={busy} onClick={() => play(quiz)}>
                   {t('play')}
                 </button>
+                <button type="button" className="btn" disabled={busy} onClick={() => setLaunch(quiz)}>
+                  {t('autopilotLaunch')}
+                </button>
                 <Link className="btn" to={`/quizzes/${quiz.id}`}>
                   {t('edit')}
                 </Link>
@@ -156,6 +161,7 @@ export function Quizzes() {
           ))}
         </ul>
       )}
+      {launch !== null && <AutopilotLaunch quiz={launch} onClose={() => setLaunch(null)} />}
     </main>
   );
 }
