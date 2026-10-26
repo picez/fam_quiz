@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { bluff, classicRound, cloud, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
-import { paceWindow, stageView, type GameState } from '@quiz/engine';
+import { bluff, classicRound, cloud, makeQuiz, makeRoundsQuiz, single, sortQ, text } from '@quiz/engine/testing';
+import { paceWindow, sortOf, stageView, type GameState } from '@quiz/engine';
 import { defaultTeams, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
-import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, RoomManager, type HostAction, type Identity } from './manager';
+import type { Scheduler } from './scheduler';
+import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, LOBBY_TTL_MS, RoomManager, type HostAction, type Identity, type Room } from './manager';
 
 const correct = { type: 'single', optionId: 'b' } as const;
 const odesa = { type: 'text', value: 'Одеса' } as const;
@@ -316,3 +317,167 @@ describe('pauses of an autopilot room (11g)', () => {
   });
 });
 
+
+describe('autopilot review fixes (11g)', () => {
+  /** Розкриття першого запитання: автор і Тарас на зв'язку. */
+  function atReveal() {
+    const ctx = atQuestion();
+    toReveal(ctx);
+    return ctx;
+  }
+
+  it('an author pause is lifted when the author stays away for 10 minutes while others play on', () => {
+    const { scheduler, room, act, manager, author } = atReveal();
+    scheduler.advance(2000);
+    expect(act({ type: 'pause' })).toEqual({ ok: true });
+    manager.disconnect(room, author);
+    scheduler.advance(HOST_ABSENCE_MS - 1);
+    expect(room.state.paused).toBe(true);
+    scheduler.advance(1);
+    expect(room.state.paused).toBe(false);
+    expect(room.state.autopilot?.hold).toBeUndefined();
+    // Залишок розкриття: 4000 мс.
+    scheduler.advance(3999);
+    expect(room.state.phase).toBe('reveal');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('leaderboard');
+  });
+
+  it('an author who comes back within 10 minutes keeps the pause', () => {
+    const { scheduler, room, act, manager, author } = atReveal();
+    expect(act({ type: 'pause' })).toEqual({ ok: true });
+    manager.disconnect(room, author);
+    scheduler.advance(HOST_ABSENCE_MS - 1);
+    manager.connect(room, author);
+    expect(scheduler.pending()).toEqual([]);
+    scheduler.advance(HOST_ABSENCE_MS);
+    expect(room.state.paused).toBe(true);
+    expect(room.state.autopilot?.hold).toBe('author');
+  });
+
+  it('an author pause with nobody online still ends in 30 minutes', () => {
+    const { scheduler, room, act, manager, author, others } = atReveal();
+    expect(act({ type: 'pause' })).toEqual({ ok: true });
+    manager.disconnect(room, others[0].identity);
+    manager.disconnect(room, author);
+    scheduler.advance(AUTOPILOT_EMPTY_MS - 1);
+    expect(room.state.phase).toBe('reveal');
+    expect(room.state.paused).toBe(true);
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('finished');
+  });
+
+  it('only one pilot timer is pending after back-to-back steps', () => {
+    const { scheduler, room } = atReveal();
+    expect(scheduler.pending()).toEqual([6000]);
+    scheduler.advance(6000);
+    expect(room.state.phase).toBe('leaderboard');
+    expect(scheduler.pending()).toEqual([5000]);
+    scheduler.advance(5000);
+    expect(room.state.phase).toBe('question');
+    // Лише таймер запитання рушія, кроку автопілота немає.
+    expect(room.pilot).toBeNull();
+    expect(scheduler.pending()).toEqual([20_000]);
+  });
+
+  it('freeze, evict and close clear the pilot timer, and no step happens after a freeze', () => {
+    const frozen = atReveal();
+    expect(frozen.room.pilot).not.toBeNull();
+    const before = frozen.room.state;
+    frozen.manager.freeze();
+    expect(frozen.room.pilot).toBeNull();
+    frozen.scheduler.advance(60_000);
+    expect(frozen.room.state).toBe(before);
+    expect(frozen.scheduler.pending()).toEqual([]);
+
+    const evicted = atReveal();
+    evicted.manager.evict(evicted.room);
+    expect(evicted.room.pilot).toBeNull();
+    expect(evicted.scheduler.pending()).toEqual([]);
+
+    // Закриття: лобі з туром кубиків, крок якого стоїть далі за LOBBY_TTL_MS.
+    const quiz = makeRoundsQuiz([classicRound('r1', [single])], { teams: defaultTeams(2) });
+    const lobby = autopilot(quiz, { names: ['Тарас', 'Іра'] });
+    lobby.act({ type: 'team-form', form: 'dice' });
+    lobby.act({ type: 'start' });
+    lobby.room.state = { ...lobby.room.state, autopilot: { ...lobby.room.state.autopilot!, at: lobby.scheduler.now() + 3 * LOBBY_TTL_MS } };
+    expect(lobby.manager.join(lobby.room.code, 'Олег').ok).toBe(true);
+    expect(lobby.room.pilot).not.toBeNull();
+    lobby.scheduler.advance(LOBBY_TTL_MS);
+    expect(lobby.manager.get(lobby.room.code)).toBeUndefined();
+    expect(lobby.room.pilot).toBeNull();
+    expect(lobby.scheduler.pending()).toEqual([]);
+  });
+
+  it('a lagging pilot timer never acts on a stage it did not plan: the engine deadline goes first, the step is planned anew', () => {
+    const scheduler = new ManualScheduler();
+    const manager = new RoomManager(scheduler, steppingRng());
+    const created = manager.createAutopilot(twoQuestions(), 'u1', null, 'Марта');
+    if (!created.ok) throw new Error(created.error);
+    const { room } = created;
+    const taras = manager.join(room.code, 'Тарас');
+    if (!taras.ok) throw new Error(taras.error);
+    manager.connect(room, { role: 'player', playerId: created.playerId });
+    manager.connect(room, { role: 'player', playerId: taras.playerId });
+    manager.author(room, created.playerId, { type: 'start' });
+    scheduler.jump(8000);
+    scheduler.fire(room.pilot);
+    expect(room.state.phase).toBe('question');
+    // Мить кроку раніше за кінець запитання (20 с), а таймер спрацьовує вже після нього.
+    room.state = { ...room.state, autopilot: { ...room.state.autopilot!, at: scheduler.now() + 5000 } };
+    expect(manager.answer(room, created.playerId, correct)).toEqual({ ok: true });
+    expect(room.pilot).not.toBeNull();
+    scheduler.jump(25_000);
+    scheduler.fire(room.pilot);
+    expect(room.state.phase).toBe('locked');
+    expect(room.state.autopilot?.at).toBe(scheduler.now() + 1500);
+  });
+
+  it('tilts are cleared when nobody online pauses the game', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [sortQ])], { teams: defaultTeams(2) });
+    const { scheduler, room, act, manager, author, authorId, others } = autopilot(quiz);
+    expect(act({ type: 'start' })).toEqual({ ok: true });
+    scheduler.advance(8000);
+    expect(room.state.phase).toBe('question');
+    const teamId = room.state.teams!.members.find((m) => m.id === authorId)!.teamId!;
+    const head = sortOf(room.state, teamId).queue[0];
+    expect(manager.tilt(room, authorId, { wordId: head, categoryId: 'c1', amount: 0.5 })).toEqual({ ok: true });
+    expect(room.tilts.size).toBe(1);
+    manager.disconnect(room, others[0].identity);
+    manager.disconnect(room, author);
+    expect(room.state.paused).toBe(true);
+    expect(room.tilts.size).toBe(0);
+  });
+});
+
+/** Годинник для запізнілих таймерів: час іде лише через jump, таймер спрацьовує лише через fire. */
+class ManualScheduler implements Scheduler {
+  private time = 1_000_000;
+  private sequence = 0;
+  private readonly timers = new Map<number, () => void>();
+
+  now(): number {
+    return this.time;
+  }
+
+  setTimeout(fn: () => void, _ms: number): unknown {
+    this.sequence += 1;
+    this.timers.set(this.sequence, fn);
+    return this.sequence;
+  }
+
+  clearTimeout(handle: unknown): void {
+    this.timers.delete(handle as number);
+  }
+
+  jump(ms: number): void {
+    this.time += ms;
+  }
+
+  fire(handle: Room['pilot']): void {
+    const fn = this.timers.get(handle as number);
+    if (fn === undefined) throw new Error('no such timer');
+    this.timers.delete(handle as number);
+    fn();
+  }
+}

@@ -9,6 +9,7 @@ import {
   autopilotStart,
   createAutopilotGame,
   isAuthor,
+  pilotKey,
   pilotStep,
   planAutopilot,
   actAnswer,
@@ -138,6 +139,8 @@ export interface Room {
   /** Мить, до якої стан уже доведено таймером; дедлайни після неї ще належить обробити. */
   tickedTo: number;
   absence: unknown;
+  /** Автопілот (11g): автор поставив паузу й пішов — через HOST_ABSENCE_MS пауза знімається сама; null — таймера немає. */
+  authorAway: unknown;
   expiry: unknown;
   expiryPhase: Phase | null;
   /**
@@ -406,6 +409,7 @@ export class RoomManager {
       pilot: null,
       tickedTo: 0,
       absence: null,
+      authorAway: null,
       expiry: null,
       expiryPhase: null,
       drafts: new Map(),
@@ -455,6 +459,7 @@ export class RoomManager {
       pilot: null,
       tickedTo: saved.tickedTo,
       absence: null,
+      authorAway: null,
       expiry: null,
       expiryPhase: null,
       drafts: new Map(),
@@ -1062,6 +1067,32 @@ export class RoomManager {
     }, AUTOPILOT_EMPTY_MS);
   }
 
+  /**
+   * Автопілот (11g): пауза автора (hold 'author') у грі, а автора немає на зв'язку → через HOST_ABSENCE_MS пауза знімається
+   * як authorResume (залишок кроку бере planAutopilot); автор повернувся чи паузи вже немає → таймер геть.
+   */
+  private watchAuthor(room: Room): void {
+    const { state } = room;
+    const pilot = state.autopilot;
+    const away =
+      pilot !== undefined &&
+      state.paused &&
+      pilot.hold === 'author' &&
+      state.phase !== 'lobby' &&
+      state.phase !== 'finished' &&
+      (room.connections.get(pilot.authorId) ?? 0) === 0;
+    if (!away) {
+      this.scheduler.clearTimeout(room.authorAway);
+      room.authorAway = null;
+      return;
+    }
+    if (room.authorAway !== null) return;
+    room.authorAway = this.scheduler.setTimeout(() => {
+      room.authorAway = null;
+      if (this.alive(room)) this.apply(room, authorResume(room.state, this.now()));
+    }, HOST_ABSENCE_MS);
+  }
+
   private alive(room: Room): boolean {
     return !this.isFrozen && this.live.get(room.code) === room;
   }
@@ -1072,8 +1103,8 @@ export class RoomManager {
   }
 
   private clearTimers(room: Room): void {
-    for (const handle of [room.deadline, room.pilot, room.absence, room.expiry]) this.scheduler.clearTimeout(handle);
-    room.deadline = room.pilot = room.absence = room.expiry = null;
+    for (const handle of [room.deadline, room.pilot, room.absence, room.authorAway, room.expiry]) this.scheduler.clearTimeout(handle);
+    room.deadline = room.pilot = room.absence = room.authorAway = room.expiry = null;
   }
 
   private apply(room: Room, result: Result): AckResult {
@@ -1087,9 +1118,15 @@ export class RoomManager {
     // Нове запитання: нахили попереднього вже нічого не значать.
     if (state.questionIndex !== room.state.questionIndex) room.tilts.clear();
     // Автопілот: мітка кроку завжди (від неї рахуються заставки й вікна 11b), потім план наступного кроку (11g).
+    const wasPaused = room.state.paused;
     const stamped = this.pacing || state.autopilot !== undefined ? stamp(room.state, state, at) : state;
     room.state = planAutopilot(room.state, stamped, at);
-    if (room.state.autopilot !== undefined) this.watchEmpty(room);
+    // Пауза (і та, що ставить автопілот, коли нікого на зв'язку): нахили більше не діють.
+    if (!wasPaused && room.state.paused) room.tilts.clear();
+    if (room.state.autopilot !== undefined) {
+      this.watchEmpty(room);
+      this.watchAuthor(room);
+    }
     this.reschedule(room);
     this.emit(room, { type: 'changed' });
   }
@@ -1122,7 +1159,10 @@ export class RoomManager {
         room.pilot = null;
         room.tickedTo = Math.max(this.now(), pilotAt);
         // Спершу дедлайни рушія до цієї миті, потім крок автопілота; pilotStep скидає at, нову мить ставить planAutopilot у commit.
-        const stepped = pilotStep(tick(room.state, room.tickedTo), room.tickedTo, this.rng);
+        const ticked = tick(room.state, room.tickedTo);
+        // Таймер запізнився й рушій уже перейшов на інший підкрок: крок для нього не планувався — commit спланує новий.
+        if (pilotKey(ticked) !== pilotKey(room.state)) return this.commit(room, ticked, room.tickedTo);
+        const stepped = pilotStep(ticked, room.tickedTo, this.rng);
         if (stepped !== room.state) this.commit(room, stepped, room.tickedTo);
         else this.reschedule(room);
       }, Math.max(0, pilotAt - this.now()));
