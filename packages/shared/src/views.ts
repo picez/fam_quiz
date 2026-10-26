@@ -1,4 +1,5 @@
 import type { Answer } from './answer';
+import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
 import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, TrialKind, Video, WagerMode } from './quiz';
 import type { GuidePage } from './guide';
@@ -1156,6 +1157,8 @@ export interface PlayerView extends BaseView {
   standings: Standing[] | null;
   /** Живий рейтинг без балів ще не розкритого запитання; null у лобі. */
   table: PlayerTable | null;
+  /** Своя розбивка «+ / −» (11f): свій учасник рушія (у командній грі — команда), без балів, яких ще не видно в таблиці; null у лобі. Чужих розбивок телефон не отримує. */
+  myBreakdown: ScoreBreakdown | null;
   /** Командна гра: про себе (10j); null у соло-грі. */
   team: PlayerTeam | null;
 }
@@ -1272,6 +1275,8 @@ export interface HostView extends BaseView {
   /** Запити підказки без відповіді на поточному запитанні (етап question), у порядку гравців. */
   hints: HintRequest[];
   standings: Standing[];
+  /** Розбивки «+ / −» усіх учасників рушія за id (11f); лише пульт; {} у лобі. */
+  breakdowns: Record<string, ScoreBreakdown>;
   /** Як у сцени, але з етапу question (ведучий і так бачить відповіді). */
   sliderMarks: SliderMark[] | null;
   /** Як у сцени, але з етапу question. */

@@ -88,6 +88,9 @@ import {
   type TeamsView,
   guidePages,
   isUnscored,
+  breakdownOf,
+  roundTotals,
+  type ScoreBreakdown,
   LIMITS,
   pinDistance,
   surveyHitsOf,
@@ -131,6 +134,7 @@ import { pendingOf } from './hold';
 import { hostLive, responseClue, spareOf } from './live';
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
+import { roundCount, scoreLines, visibleLines, type PlayerScoreLine } from './breakdown';
 import { actorOf, voterList } from './team-act';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
@@ -1787,7 +1791,16 @@ function isRevealed(state: GameState): boolean {
 function publicStandings(state: GameState): Standing[] | null {
   // У «Ва-банк» між запитаннями замість таблиці драбина.
   if (state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || currentRound(state)?.type === 'ladder' || inSurvivalRound(state))) return null;
-  return WITH_STANDINGS.includes(state.phase) ? rankPlayers(state.players) : null;
+  return WITH_STANDINGS.includes(state.phase) ? withRounds(rankPlayers(state.players), scoreLines(state), roundCount(state)) : null;
+}
+
+/** Колонки раундів (11f) до рядків таблиці з рядків балів. */
+function withRounds(rows: Standing[], lines: readonly PlayerScoreLine[], count: number): Standing[] {
+  return rows.map((row) => ({ ...row, rounds: roundTotals(lines.filter((l) => l.playerId === row.participantId), count) }));
+}
+
+function breakdownFor(lines: readonly PlayerScoreLine[], playerId: string): ScoreBreakdown {
+  return breakdownOf(lines.filter((l) => l.playerId === playerId));
 }
 
 /** Лічильники розкриття; у класиці відповіді на запасні не враховуються (там інше запитання). */
@@ -1905,6 +1918,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
     reveal: null,
     standings: null,
     table: null,
+    myBreakdown: null,
     team,
   };
 }
@@ -2027,6 +2041,8 @@ function ownView(state: GameState, playerId: string): Omit<PlayerView, 'team'> |
     reveal: revealed && seen !== null ? withoutBluffSecrets(withoutSurveyRows(withoutHint(seen.question))) : null,
     standings,
     table: liveTable(state, playerId),
+    // Свій банк у вікні «Ва-банк» видно собі, як і в liveTable.
+    myBreakdown: state.phase === 'lobby' ? null : breakdownFor(visibleLines(scoreLines(state), state, (id) => hiddenPoints(state, id)), playerId),
   };
 }
 
@@ -2051,7 +2067,9 @@ function windowCash(state: GameState, playerId: string): number {
 /** Таблиця для кнопки «Таблиця»: з leaderboard 'end' поза підсумками — лише власний рядок зі справжнім місцем. */
 function liveTable(state: GameState, playerId: string): PlayerTable | null {
   if (state.phase === 'lobby') return null;
-  const rows = rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hiddenPoints(state, p.id) - (p.id === playerId ? 0 : windowCash(state, p.id)) })));
+  const hidden = (id: string) => hiddenPoints(state, id) + (id === playerId ? 0 : windowCash(state, id));
+  const seen = visibleLines(scoreLines(state), state, hidden);
+  const rows = withRounds(rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hidden(p.id) }))), seen, roundCount(state));
   // У вікні рішення «Ва-банк» етап leaderboard — не підсумки: повна таблиця лише з leaderboard 'each'.
   const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && (inWipeoutRound(state) || inSurvivalRound(state) || inLadderRound(state))));
   return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
@@ -2134,7 +2152,8 @@ export function hostView(state: GameState): HostView {
     duel: hostDuel(state),
     allowed: { debuffs: debuffsOff(state) ? [] : allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
     hints: hintRequests(state),
-    standings: rankPlayers(state.players),
+    standings: withRounds(rankPlayers(state.players), scoreLines(state), roundCount(state)),
+    breakdowns: state.phase === 'lobby' ? {} : Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(scoreLines(state), p.id)])),
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),
     cloud: hostCloud(state),

@@ -68,6 +68,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   allowed: { debuffs: [...DEBUFF_KINDS], buffs: [] },
   hints: [],
   standings: [],
+  breakdowns: {},
   sliderMarks: null,
   pinMarks: null,
   wall: null,

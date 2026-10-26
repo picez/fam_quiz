@@ -42,8 +42,8 @@ it('plays a whole quiz with every question type', () => {
 
   expect(state.phase).toBe('finished');
   expect(stageView(state).standings).toEqual([
-    { participantId: 'p1', nickname: 'Олена', score: 6000, totalTimeMs: 6000, rank: 1 },
-    { participantId: 'p2', nickname: 'Тарас', score: 2250, totalTimeMs: 6000, rank: 2 },
+    { participantId: 'p1', nickname: 'Олена', score: 6000, totalTimeMs: 6000, rank: 1, rounds: [6000] },
+    { participantId: 'p2', nickname: 'Тарас', score: 2250, totalTimeMs: 6000, rank: 2, rounds: [2250] },
   ]);
   expect(playerView(state, 'p2')?.me.rank).toBe(2);
   expect(hostView(state).standings).toHaveLength(2);

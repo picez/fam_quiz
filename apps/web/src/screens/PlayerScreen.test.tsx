@@ -78,6 +78,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   reveal: null,
   standings: null,
   table: null,
+  myBreakdown: null,
   team: null,
   ...over,
 });
