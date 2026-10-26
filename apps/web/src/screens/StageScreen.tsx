@@ -26,6 +26,8 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { Standings } from './Standings';
+import { RoundHighlights } from './ScoreTable';
+import { roundGains } from '../score-table';
 import { StageTeams } from './StageTeams';
 import { WipeoutLadder, WipeoutSide } from './WipeoutLadder';
 import { SurvivalBoard } from './SurvivalBoard';
@@ -776,7 +778,9 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
             limit={phase === 'finished' ? undefined : 8}
             streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
             teams={view.teams}
+            gains={phase === 'round_end' && view.round !== null ? roundGains(standings, view.round.index) : undefined}
           />
+          {phase === 'round_end' && view.round !== null && <RoundHighlights standings={standings} roundIndex={view.round.index} />}
         </div>
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}

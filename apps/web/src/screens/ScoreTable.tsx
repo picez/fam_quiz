@@ -1,8 +1,8 @@
 import { Fragment, useState } from 'react';
-import type { ScoreBreakdown, TeamsView } from '@quiz/shared';
-import { num } from '../format';
-import { t } from '../i18n';
-import { breakdownLines } from '../score-table';
+import type { ScoreBreakdown, Standing, TeamsView } from '@quiz/shared';
+import { num, signed } from '../format';
+import { countText, t } from '../i18n';
+import { breakdownLines, roundHighlights } from '../score-table';
 
 /** Рядок таблиці 11f: Standing і GameStanding підходять обидва. */
 export interface ScoreRow {
@@ -126,6 +126,18 @@ export function ScoreTable({
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** Під таблицею підсумків раунду (11f): «Найкращий у раунді» й «Найбільший ривок»; null, якщо обох немає. */
+export function RoundHighlights({ standings, roundIndex }: { standings: Standing[]; roundIndex: number }) {
+  const { best, climb } = roundHighlights(standings, roundIndex);
+  if (best === null && climb === null) return null;
+  return (
+    <div className="round-highlights">
+      {best !== null && <p className="round-best">{t('roundBest', { names: best.names.join(', '), points: signed(best.points) })}</p>}
+      {climb !== null && <p className="round-climb">{countText('roundClimb', climb.places, { names: climb.names.join(', '), count: climb.places })}</p>}
     </div>
   );
 }

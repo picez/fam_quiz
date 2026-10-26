@@ -1,5 +1,5 @@
 import type { Standing, TeamsView } from '@quiz/shared';
-import { num } from '../format';
+import { num, signed } from '../format';
 import { t } from '../i18n';
 
 interface Props {
@@ -10,14 +10,17 @@ interface Props {
   streaks?: Record<string, number>;
   /** Командна гра: під назвою команди — її люди, ліворуч — колір команди. */
   teams?: TeamsView | null;
+  /** Приріст раунду за id учасника (11f): «+300 за раунд» перед рахунком. */
+  gains?: Record<string, number>;
 }
 
-export function Standings({ standings, highlightId, limit, streaks, teams }: Props) {
+export function Standings({ standings, highlightId, limit, streaks, teams, gains }: Props) {
   const shown = limit === undefined ? standings : standings.slice(0, limit);
   return (
     <ol className="standings">
       {shown.map((row) => {
         const streak = streaks?.[row.participantId] ?? 0;
+        const gain = gains?.[row.participantId];
         const team = teams?.teams.find((entry) => entry.id === row.participantId) ?? null;
         const classes = [row.participantId === highlightId ? 'is-me' : '', team === null ? '' : `has-team team-${team.color}`].filter(Boolean).join(' ');
         return (
@@ -28,6 +31,7 @@ export function Standings({ standings, highlightId, limit, streaks, teams }: Pro
               {team !== null && team.members.length > 0 && <span className="standing-members">{team.members.map((member) => member.nickname).join(', ')}</span>}
             </span>
             {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}
+            {gain !== undefined && <span className={gain < 0 ? 'round-gain is-minus' : 'round-gain'}>{t('roundGain', { points: signed(gain) })}</span>}
             <span className="score">{num(row.score)}</span>
           </li>
         );

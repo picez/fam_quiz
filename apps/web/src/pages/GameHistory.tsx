@@ -11,6 +11,7 @@ import { WallReveal } from '../screens/WallReveal';
 import { PollBars } from '../screens/PollBars';
 import { BluffBoard } from '../screens/BluffBoard';
 import { SurveyBoard } from '../screens/SurveyBoard';
+import { ScoreTable } from '../screens/ScoreTable';
 import { usePrivateData } from '../usePrivateData';
 
 /** Точки гравців на мініатюрі запитання-точки (відповіді на основне) і найближча з них; для інших типів — порожньо. */
@@ -280,6 +281,18 @@ export function GameHistory() {
           </ol>
         )}
       </section>
+
+      {game.standings.some((row) => row.rounds.length > 0) && (
+        <section className="panel history-scores">
+          <h2>{t('historyScoresTitle')}</h2>
+          <ScoreTable
+            size="history"
+            rows={game.standings}
+            breakdowns={Object.fromEntries(game.standings.map((row) => [row.participantId, row.breakdown]))}
+            roundTitles={game.rounds.map((round, index) => roundLabel(round.title, index, round.type))}
+          />
+        </section>
+      )}
 
       {(game.questions.length > 0 || game.adjustments.length > 0) && (
         <section className="panel">

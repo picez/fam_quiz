@@ -6816,6 +6816,39 @@ label.powers-price {
   color: var(--signal);
 }
 
+/* Підсумки раунду (11f): приріст біля рядка, найкращий і ривок під таблицею, панель пульта. */
+.round-gain {
+  color: var(--dim);
+  font-size: 0.6em;
+  white-space: nowrap;
+}
+
+.round-gain.is-minus {
+  color: var(--signal);
+}
+
+.round-highlights {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 1vh;
+  color: var(--dim);
+  font-size: clamp(1rem, 1.6vw, 1.5rem);
+}
+
+.round-highlights p {
+  margin: 0;
+}
+
+.host-scores summary {
+  cursor: pointer;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.host-scores[open] summary {
+  margin-bottom: 0.5rem;
+}
+
 /* «😈» у шапці: лише значок, висота як у «Таблиця», тож шапка 375 px лишається в один рядок. */
 .table-button.shop-button {
   padding-inline: 0.5rem;

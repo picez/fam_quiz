@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ScoreBreakdown } from '@quiz/shared';
-import { ScoreTable, type ScoreRow } from './ScoreTable';
+import { RoundHighlights, ScoreTable, type ScoreRow } from './ScoreTable';
 import { teamsView } from './team-test-view';
 
 afterEach(cleanup);
@@ -77,6 +77,15 @@ describe('ScoreTable', () => {
   it('round titles go into the headers', () => {
     const { container } = render(<ScoreTable rows={rows} size="history" breakdowns={{}} roundTitles={['Розминка', 'Ривок']} />);
     expect(container.querySelector('th.round')!.getAttribute('title')).toBe('Розминка');
+  });
+
+  it('round highlights are null when there is neither a best nor a climb', () => {
+    const flat = [
+      { participantId: 'a', nickname: 'Оля', rank: 1, score: 0, totalTimeMs: 1, rounds: [0] },
+      { participantId: 'b', nickname: 'Петро', rank: 1, score: 0, totalTimeMs: 1, rounds: [0] },
+    ];
+    const { container } = render(<RoundHighlights standings={flat} roundIndex={0} />);
+    expect(container.firstChild).toBeNull();
   });
 
   it('the wrap is a labelled scrollable region', () => {

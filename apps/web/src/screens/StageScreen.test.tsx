@@ -245,6 +245,41 @@ describe('StageScreen: rounds', () => {
     expect(screen.getByText('🔥 2')).toBeTruthy();
   });
 
+  describe('round end gains (11f)', () => {
+    const row = (participantId: string, nickname: string, score: number, rank: number, rounds?: number[]) => ({ participantId, nickname, score, totalTimeMs: 1, rank, rounds });
+    const four = [row('a', 'Віра', 2000, 1, [1500, 500]), row('b', 'Оля', 1100, 2, [600, 500]), row('c', 'Петро', 500, 3, [1000, -500]), row('d', 'Марко', 0, 4, [500, -500])];
+
+    it('shows «+N за раунд» beside every row, the best of the round and the biggest climb', () => {
+      show(view({ phase: 'round_end', round: { ...round, index: 1 }, standings: four }));
+      expect(Array.from(document.querySelectorAll('.round-gain')).map((node) => node.textContent)).toEqual(['+500 за раунд', '+500 за раунд', '−500 за раунд', '−500 за раунд']);
+      expect(document.querySelectorAll('.round-gain.is-minus')).toHaveLength(2);
+      expect(document.querySelector('.round-best')!.textContent).toBe('Найкращий у раунді: Віра, Оля · +500');
+      expect(document.querySelector('.round-climb')!.textContent).toBe('Найбільший ривок: Оля · +1 місце');
+    });
+
+    it('the first round has gains but no climb', () => {
+      show(view({ phase: 'round_end', round, standings: [row('a', 'Віра', 500, 1, [500]), row('b', 'Оля', 300, 2, [300])] }));
+      expect(document.querySelectorAll('.round-gain')).toHaveLength(2);
+      expect(document.querySelector('.round-best')!.textContent).toBe('Найкращий у раунді: Віра · +500');
+      expect(document.querySelector('.round-climb')).toBeNull();
+    });
+
+    it('standings without rounds show neither gains nor highlights', () => {
+      show(view({ phase: 'round_end', round: { ...round, index: 1 }, standings: four.map((r) => ({ ...r, rounds: undefined })) }));
+      expect(document.querySelector('.round-gain')).toBeNull();
+      expect(document.querySelector('.round-highlights')).toBeNull();
+    });
+
+    it('the leaderboard and the podium stay without gains', () => {
+      show(view({ phase: 'leaderboard', questionIndex: 0, standings: four }));
+      expect(document.querySelector('.round-gain')).toBeNull();
+      cleanup();
+      show(view({ phase: 'finished', questionIndex: 2, round: { ...round, index: 1 }, standings: four }));
+      expect(document.querySelector('.round-gain')).toBeNull();
+      expect(document.querySelector('.round-highlights')).toBeNull();
+    });
+  });
+
   it('numbers the question inside the round', () => {
     show(view({ phase: 'question', round, questionIndex: 1, total: 5, question, endsAt: Date.now() + 20_000 }));
     expect(screen.getByText(/Запитання 2 з 5/)).toBeTruthy();

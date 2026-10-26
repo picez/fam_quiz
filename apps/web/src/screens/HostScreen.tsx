@@ -34,6 +34,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
+import { ScoreTable } from './ScoreTable';
 import { HostTeams, TeamPeople, teamsStartable } from './HostTeams';
 import { MenuLinks } from './MenuLinks';
 import { DebuffPanel, debuffTagText, isSurvivalGhost, PointsPanel } from './HostPlayerTools';
@@ -199,6 +200,17 @@ function useStageGone(stageOnline: boolean): boolean {
     return () => clearTimeout(id);
   }, [stageOnline]);
   return gone && !stageOnline;
+}
+
+/** Згорнута панель «Бали за раундами» (11f): таблиця монтується лише відкритою. */
+function HostScores({ view }: { view: HostView }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="panel host-scores" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>{t('hostScoresTitle')}</summary>
+      {open && <ScoreTable size="host" rows={view.standings} breakdowns={view.breakdowns} teams={view.teams} streaks={streaksOf(view.players)} />}
+    </details>
+  );
 }
 
 export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts }: Props) {
@@ -1190,6 +1202,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </ul>
         </section>
       )}
+
+      {phase !== 'lobby' && view.standings.length > 0 && <HostScores view={view} />}
 
       {phase === 'lobby' && <InviteFriends code={code} />}
 
