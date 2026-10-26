@@ -12168,6 +12168,82 @@ async function longRoundEnds11f(sockets: Socket[]) {
   expect(problems).toEqual([]);
 }
 
+it('part 11i: the 1280 × 720 stage leaderboard and podium fit eight long nicknames', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await longBoards11i(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+});
+
+async function longBoards11i(sockets: Socket[]) {
+  const host = await open('host11i-long', 1280, 900);
+  await register(host, 'host', 'Марта Довга', 'host11i-long@example.com');
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const q1 = { ...common, id: 'b1', type: 'boolean' as const, text: 'Дніпро впадає в Чорне море', points: 2000, correct: true };
+  const q2 = { ...common, id: 'b2', type: 'boolean' as const, text: 'Київ — столиця України', points: 2000, correct: true };
+  const options = { speedBonus: false, shuffleOptions: false };
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [q1, q2] as never, { ...options, title: 'Єдиний' })], { leaderboard: 'each' }),
+    title: 'Довгі імена 11i',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Довгі імена 11i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage11i-long', 1280, 720);
+  await stage.goto(stageUrl);
+
+  // Двадцять знаків — найдовший дозволений нікнейм; рахунки — тисячі.
+  const names = ['Анастасія Мельниченк', 'Святослав Ткаченко-Ол', 'Ярослава Кравченко-Ш', 'Станіслав Олійник-Бо', 'Мирослава Петренко-Л', 'Олександра Коваленко', 'Христина Бондаренко-', 'Володимир Шевченко-К'].map((name) => name.slice(0, 20));
+  const players: Awaited<ReturnType<typeof socketPlayer>>[] = [];
+  for (const name of names) players.push(await socketPlayer(sockets, code, name));
+  await stage.getByText(names[7]).waitFor();
+  const fits = async (name: string) => {
+    await expectStageInView(stage, name);
+    const overflow = (await stage.evaluate(`({ doc: document.documentElement.scrollHeight, body: document.body.scrollHeight, main: document.querySelector('main.stage').scrollHeight, mainBox: document.querySelector('main.stage').getBoundingClientRect().bottom })`)) as { doc: number; body: number; main: number; mainBox: number };
+    expect(overflow.doc, `${name}: document`).toBeLessThanOrEqual(720);
+    expect(overflow.body, `${name}: body`).toBeLessThanOrEqual(720);
+    expect(overflow.main, `${name}: main container`).toBeLessThanOrEqual(720);
+    expect(overflow.mainBox, `${name}: main container bottom`).toBeLessThanOrEqual(720);
+    await shot(stage, name);
+  };
+  const play = async (text: string) => {
+    await stage.getByText(text, exact).waitFor();
+    for (const player of players) await player.answer(true);
+    await host.getByText('Запитання закрите').waitFor();
+    await click(host, 'Показати відповідь');
+  };
+
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await play('Дніпро впадає в Чорне море');
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Рейтинг', ...exact }).waitFor();
+  await expect.poll(() => stage.locator('.standings li').count(), POLL).toBe(8);
+  await fits('p11i-stage-leaderboard');
+
+  await click(host, 'Наступне запитання');
+  await afterSplash(host, stage);
+  await play('Київ — столиця України');
+  await click(host, 'Завершити гру');
+  await afterSplash(host, stage);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await expect.poll(() => stage.locator('.standings li').count(), POLL).toBe(8);
+  await fits('p11i-stage-podium');
+
+  expect(problems).toEqual([]);
+}
+
 // ——— 11g: гра без ведучого. Учасники — сокети без браузера, сцена — сторінка 1280 × 720. ———
 
 const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));

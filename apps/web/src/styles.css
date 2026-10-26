@@ -6870,9 +6870,22 @@ label.powers-price {
 }
 
 /* Підсумки раунду: «+N за раунд» і рядок найкращих — рядки щільніші, щоб 8 (з найкращими — 7) довгих імен влізли в 1280 × 720. */
-.stage .stage-board.is-round-end .standings li {
+.stage .stage-board.is-round-end .standings li,
+.stage .stage-board:has(.standings li:nth-child(8)) .standings li {
   font-size: clamp(1.25rem, 2.3vw, 2.5rem);
   padding-block: 0.6vh;
+}
+
+/* Таблиця і подіум з вісьмома й більше учасниками (11i): ті самі щільні рядки, ім'я в один рядок з трикрапкою. */
+.stage .stage-board:has(.standings li:nth-child(8)) .standings {
+  gap: 0.25rem;
+}
+
+.stage .stage-board:has(.standings li:nth-child(8)) .standings .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .host-scores summary {
