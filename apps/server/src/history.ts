@@ -478,7 +478,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     standings,
     questions,
     teams,
-    adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname }) => ({
+    adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname, undoesQuestion, undoesSeq }) => ({
       seq,
       roundIndex,
       afterQuestion,
@@ -487,6 +487,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
       points,
       source,
       ...(source === 'debuff' ? { debuff: debuff ?? undefined, target: targetNickname } : {}),
+      ...(source === 'undo' && undoesQuestion !== null ? { undoes: { question: undoesQuestion } } : {}),
+      ...(source === 'undo' && undoesQuestion === null && undoesSeq !== null ? { undoes: { seq: undoesSeq } } : {}),
     })),
   };
 }

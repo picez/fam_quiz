@@ -239,6 +239,10 @@ export const scoreAdjustment = pgTable(
     debuff: text('debuff').$type<DebuffKind>(),
     /** Купівля дебафу: нікнейм цілі в мить запису; null — не покупка або ціль уже вилучено. */
     targetNickname: text('target_nickname'),
+    /** Скасування (12a): індекс у game.plays запитання, бали якого скасовано; null — інший рядок (і старі ігри). */
+    undoesQuestion: integer('undoes_question'),
+    /** Скасування (12a): seq скасованого коригування або скасування, яке повернули; null — інший рядок (і старі ігри). */
+    undoesSeq: integer('undoes_seq'),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.seq] })],
 );

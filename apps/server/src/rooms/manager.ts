@@ -20,6 +20,7 @@ import {
   addPlayer,
   assignTeam,
   adjustScore,
+  undoScore,
   adjustTime,
   answerDuel,
   buyDebuff,
@@ -105,7 +106,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostView, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostUndoTarget, type HostView, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -202,6 +203,7 @@ export type HostAction =
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
   | { type: 'adjust'; playerId: string; points: number }
+  | { type: 'undo'; target: HostUndoTarget }
   | { type: 'debuff'; playerId: string; kind: DebuffKind }
   | { type: 'undebuff'; playerId: string }
   | { type: 'judge'; playerId: string; correct: boolean }
@@ -993,6 +995,8 @@ export class RoomManager {
         return this.kick(room, action.playerId);
       case 'adjust':
         return this.apply(room, adjustScore(state, action.playerId, action.points, this.now()));
+      case 'undo':
+        return this.apply(room, undoScore(state, action.target, this.now()));
       case 'debuff':
         return this.apply(room, setDebuff(state, action.playerId, action.kind));
       case 'undebuff':

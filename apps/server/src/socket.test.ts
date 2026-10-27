@@ -306,6 +306,19 @@ describe('permissions and bad input', () => {
     expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: -100 })).toEqual({ ok: true });
   });
 
+  it('host:undo is host-only, validated, refuses the same undo twice and returns an undo', async () => {
+    const { host, olena, olenaJoin } = await lobby();
+    await send(host, 'host:start');
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 50 })).toEqual({ ok: true });
+    expect(await send(olena, 'host:undo', { target: { seq: 1 } })).toEqual({ ok: false, error: 'forbidden' });
+    for (const target of [{}, { seq: 0 }, { question: -1 }, { round: 'x' }]) {
+      expect(await send(host, 'host:undo', { target })).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(host, 'host:undo', { target: { seq: 1 } })).toEqual({ ok: true });
+    expect(await send(host, 'host:undo', { target: { seq: 1 } })).toEqual({ ok: false, error: 'already_undone' });
+    expect(await send(host, 'host:undo', { target: { seq: 2 } })).toEqual({ ok: true });
+  });
+
   it('host:debuff and host:undebuff are host-only and validated', async () => {
     const { host, olena, olenaJoin } = await lobby();
     await send(host, 'host:start');
@@ -1373,6 +1386,7 @@ describe('autopilot sockets (11g)', () => {
     expect(await send(stage, 'host:start')).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(author, 'host:next')).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:adjust', { playerId: other.playerId, points: 50 })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:undo', { target: { seq: 1 } })).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:time', { seconds: 15 })).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:kick', { player: 1 })).toEqual({ ok: false, error: 'invalid_payload' });

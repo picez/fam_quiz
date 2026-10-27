@@ -228,6 +228,36 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('stores undo rows with what they undo; a participant score stays the sum of its rows', async () => {
+    const ctx = await setup();
+    const act = (action: Parameters<RoomManager['host']>[1]) => expect(ctx.manager.host(ctx.room, action)).toEqual({ ok: true });
+    ctx.host('start');
+    ctx.host('next');
+    playFirstQuestion(ctx); // Олена +1000, Тарас 0 (штрафу немає)
+    ctx.host('next'); // розкриття
+    ctx.host('next'); // таблиця: перше запитання вже можна скасувати
+    act({ type: 'adjust', playerId: ctx.taras, points: 50 });
+    act({ type: 'undo', target: { question: 0, playerId: ctx.olena } });
+    act({ type: 'undo', target: { seq: 1 } });
+    act({ type: 'undo', target: { seq: 3 } }); // «Повернути» бали Тараса
+    ctx.host('end');
+
+    const { participants, answers } = await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(rows.map((r) => [r.participantId, r.seq, r.source, r.points, r.roundIndex, r.undoesQuestion, r.undoesSeq])).toEqual([
+      [ctx.taras, 1, 'host', 50, 0, null, null],
+      [ctx.olena, 2, 'undo', -1000, 0, 0, null],
+      [ctx.taras, 3, 'undo', -50, 0, null, 1],
+      [ctx.taras, 4, 'undo', 50, 0, null, 3],
+    ]);
+    for (const p of participants) {
+      const sum = (list: { participantId: string; points: number }[]) => list.filter((r) => r.participantId === p.id).reduce((total, r) => total + r.points, 0);
+      expect(p.score).toBe(sum(answers) + sum(rows));
+    }
+    expect(participants.map((p) => [p.nickname, p.score])).toEqual([['Олена', 0], ['Тарас', 50]]);
+    expect(ctx.errors).toEqual([]);
+  });
+
   it('records a purchase with the kind and the target nickname; the participant score includes the price', async () => {
     const ctx = await setup();
     ctx.host('start');
@@ -1455,6 +1485,27 @@ describe('recorder: teams (10j)', () => {
       ['Сині', 2500, 1],
       ['Червоні', 1000, 2],
     ]);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('undoing a team answer stores the undo row on the team; the members copy the team score (12a)', async () => {
+    const ctx = await teamGame();
+    toQuestion(ctx.manager, ctx.room); // перше запитання закрите й розкрите: його бали вже можна скасувати
+    expect(ctx.manager.host(ctx.room, { type: 'undo', target: { question: 0, playerId: ctx.red } })).toEqual({ ok: true });
+    const { participants, answers } = await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment);
+    expect(rows.map((r) => [r.participantId, r.source, r.points, r.undoesQuestion, r.undoesSeq])).toEqual([[ctx.red, 'undo', -1000, 0, null]]);
+    expect(participants.map((p) => [p.nickname, p.score])).toEqual([
+      ['Віра', 0],
+      ['Ігор', 0],
+      ['Оля', 0],
+      ['Петро', 0],
+      ['Сині', 0],
+      ['Червоні', 0],
+    ]);
+    const red = participants.find((p) => p.id === ctx.red)!;
+    const sum = (list: { participantId: string; points: number }[]) => list.filter((r) => r.participantId === red.id).reduce((total, r) => total + r.points, 0);
+    expect(red.score).toBe(sum(answers) + sum(rows));
     expect(ctx.errors).toEqual([]);
   });
 
