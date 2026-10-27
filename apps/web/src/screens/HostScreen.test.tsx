@@ -2672,6 +2672,17 @@ describe('HostScreen: live answers (11c)', () => {
     expect(before(panel, document.querySelector('.host-survival') as Element)).toBe(true);
   });
 
+  it('the open trial shows only drafts of a trial batch (12b)', () => {
+    const shown = view({ phase: 'leaderboard', round: sRound, survival: trialSurvival(), live: liveOf({ kind: 'trial' }) });
+    const batch = (trial: boolean) => ({ questionIndex: shown.questionIndex, trial, drafts: [{ id: 'p2', draft: { type: 'text' as const, value: 'Оде' }, changes: 0, at: Date.now() }] });
+    const props = { view: shown, code: '123456', stageUrl: 'http://quiz.test/stage/123456#s', joinUrl: 'http://quiz.test/play/123456', send: vi.fn(async () => ({ ok: true as const })) };
+    render(<HostScreen {...props} drafts={batch(true)} />);
+    expect(document.querySelector('#live-answers .live-draft em')?.textContent).toBe('друкує «Оде»');
+    cleanup();
+    render(<HostScreen {...props} drafts={batch(false)} />);
+    expect(document.querySelector('.live-draft')).toBeNull();
+  });
+
   it('the open trial keeps the previous question responses in place', () => {
     show(during('leaderboard', textQuestion, { round: sRound, survival: trialSurvival(), live: null }));
     expect(screen.getByRole('heading', { name: 'Відповіді' })).toBeTruthy();

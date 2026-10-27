@@ -68,5 +68,6 @@ describe('useLiveWatch (12b)', () => {
     expect(result.current[0]).toBe(true);
     act(() => result.current[1](false));
     expect(result.current[0]).toBe(false);
+    expect(send).toHaveBeenLastCalledWith('host:live-watch', { on: false });
   });
 });

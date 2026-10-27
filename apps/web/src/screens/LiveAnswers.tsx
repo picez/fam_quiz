@@ -134,19 +134,26 @@ function draftOf(row: LiveRow, drafts: Record<string, LiveDraft>): LiveDraft | u
 /** Курсивний живий вибір із позначкою «ще не надіслав», лічильником змін, часом роздумів і (точка) міні-мапою. */
 function DraftLine({ row, view, draft, now }: { row: LiveRow; view: HostView; draft: LiveDraft; now: number }) {
   const question = row.spare === null ? view.question : null;
+  // Основа міні-мапи: показане запитання, а для запасного — його власна мапа чи картинка.
+  const board =
+    row.spare?.type === 'pin'
+      ? { pin: { map: row.spare.map, aspect: row.spare.aspect }, imageUrl: row.spare.imageUrl }
+      : question?.pin != null
+        ? { pin: question.pin, imageUrl: question.imageUrl }
+        : null;
   return (
     <>
       <span className="live-draft">
-        <em>{draftText(draft.draft, row.spare ?? view.correct, question)}</em> <span className="tag">{t(row.actor !== null ? 'liveNotSentTeam' : 'liveNotSent')}</span>
+        <em>{draftText(draft.draft, row.spare ?? view.correct, question, row.actor !== null)}</em> <span className="tag">{t(row.actor !== null ? 'liveNotSentTeam' : 'liveNotSent')}</span>
       </span>
-      {draftMeta(draft, now).map((text, i) => (
+      {draftMeta(draft, now, row.actor !== null).map((text, i) => (
         <span key={i} className={i === 0 && draft.changes >= 1 ? 'meta live-changes' : 'meta live-thinking'}>
           {text}
         </span>
       ))}
-      {draft.draft.type === 'pin' && question?.pin != null && (
+      {draft.draft.type === 'pin' && board !== null && (
         <div className="live-pin">
-          <PinBoard pin={question.pin} imageUrl={question.imageUrl} marks={[{ playerId: row.id, nickname: row.nickname, x: draft.draft.x, y: draft.draft.y }]} highlight={row.id} />
+          <PinBoard pin={board.pin} imageUrl={board.imageUrl} marks={[{ playerId: row.id, nickname: row.nickname, x: draft.draft.x, y: draft.draft.y }]} highlight={row.id} />
         </div>
       )}
     </>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { clipDraft, type Answer, type DraftValue, type PlayerView, type PublicQuestion, type SortTilt } from '@quiz/shared';
 import { LETTERS, pickedText, shownChoices } from '../format';
 import { t } from '../i18n';
@@ -22,6 +22,8 @@ export const DRAFT_MS = 250;
  * Живий вибір (10j, 12b): останнє значення йде не частіше ніж раз на DRAFT_MS, однакове двічі поспіль не шлеться, текст обрізано до DRAFT_TEXT_MAX.
  * Відмова too_soon ставить те саме значення в чергу ще раз (якщо за цей час не прийшло нове).
  * active = false (не мій хід, відповідь подано) скасовує те, що ще чекає; з новим запитанням (key) лічильник «вже надіслано» скидається.
+ * cancel (перед спробою стіни, словом ланцюжка, вигадкою) теж забуває «вже надіслано»: сервер міг скинути чернетку, і після
+ * відхиленої спроби поле шле своє значення знову.
  */
 export function useDraftSender(send: Send, active: boolean, key: string | number): DraftSender {
   const pending = useRef<{ draft: DraftValue | null } | null>(null);
@@ -33,6 +35,7 @@ export function useDraftSender(send: Send, active: boolean, key: string | number
   const sendRef = useRef(send);
   sendRef.current = send;
   const stop = () => {
+    sent.current = undefined;
     epoch.current += 1;
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
@@ -59,9 +62,10 @@ export function useDraftSender(send: Send, active: boolean, key: string | number
     }, DRAFT_MS);
   };
   // Нове запитання, спроба чи етап — чернетка на сервері вже інша; перехід права діяти теж скидає «вже надіслано».
-  useEffect(() => {
-    sent.current = 'null';
+  // useLayoutEffect: скидання йде до звичайних ефектів полів, тож значення, яке поле шле знову після зміни ключа (підказка ланцюжка), не губиться.
+  useLayoutEffect(() => {
     stop();
+    sent.current = 'null';
   }, [key]);
   useEffect(() => {
     sent.current = undefined;

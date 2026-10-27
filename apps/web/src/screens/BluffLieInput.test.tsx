@@ -38,6 +38,27 @@ describe('BluffLieInput', () => {
     expect(onDraft.cancel).toHaveBeenCalled();
   });
 
+  it('a refused lie drafts the text in the field again', async () => {
+    const onDraft = Object.assign(vi.fn(), { cancel: vi.fn() });
+    render(<BluffLieInput send={vi.fn(async () => ({ ok: false as const, error: 'bluff_truth' }))} autoFocus={false} onDraft={onDraft} />);
+    fireEvent.change(field(), { target: { value: 'Париж' } });
+    onDraft.mockClear();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(onDraft).toHaveBeenLastCalledWith({ type: 'lie', text: 'Париж' }));
+    expect(onDraft.cancel).toHaveBeenCalled();
+  });
+
+  it('an accepted lie is not drafted again', async () => {
+    const onDraft = Object.assign(vi.fn(), { cancel: vi.fn() });
+    const send = vi.fn(async () => ({ ok: true as const }));
+    render(<BluffLieInput send={send} autoFocus={false} onDraft={onDraft} />);
+    fireEvent.change(field(), { target: { value: 'Рим' } });
+    onDraft.mockClear();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(sendButton().disabled).toBe(false));
+    expect(onDraft).not.toHaveBeenCalled();
+  });
+
   it('shows «Це правда!» from the ack and keeps the text', async () => {
     const send: Send = vi.fn(async () => ({ ok: false as const, error: 'bluff_truth' }));
     render(<BluffLieInput send={send} autoFocus={false} />);

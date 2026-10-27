@@ -83,6 +83,18 @@ describe('draftText', () => {
     expect(draftText({ type: 'wallPick', tiles: [1, 2] }, null, wall)).toBe('виділено: Липа, Клен');
   });
 
+  it('uses plural verbs on a team row and keeps the neutral ones', () => {
+    expect(draftText({ type: 'single', optionId: 'b' }, single, pub({ choices: planets }), true)).toBe('вибирають Юпітер');
+    expect(draftText({ type: 'multi', optionIds: ['k'] }, multi, null, true)).toBe('позначають Кит');
+    expect(draftText({ type: 'text', value: 'Осака' }, null, null, true)).toBe('друкують «Осака»');
+    expect(draftText({ type: 'match', links: [{ left: 'l2', right: 'r2' }] }, match, null, true)).toBe('з’єднали: Італія → Рим');
+    expect(draftText({ type: 'pin', x: 0.5, y: 0.5 }, null, null, true)).toBe('ставлять точку');
+    expect(draftText({ type: 'lie', text: 'Вигадка' }, null, null, true)).toBe('пишуть вигадку «Вигадка»');
+    expect(draftText({ type: 'wordcloud', words: ['чай'] }, null, null, true)).toBe('друкують: чай');
+    expect(draftText({ type: 'order', itemIds: ['i1'] }, order, null, true)).toBe('порядок: Ранок');
+    expect(draftText({ type: 'slider', value: 7 }, slider, null, true)).toBe('повзунок: 7 см');
+  });
+
   it('quotes the lie and lists the typed survey and cloud words', () => {
     expect(draftText({ type: 'lie', text: 'Вигадка' }, null, null)).toBe('пише вигадку «Вигадка»');
     expect(draftText({ type: 'survey', values: ['чай', '', 'кава'] }, null, null)).toBe('друкує: чай, кава');
@@ -97,5 +109,10 @@ describe('draftMeta', () => {
     expect(draftMeta(draft({ changes: 5 }), 22_400)[0]).toBe('змінював 5 разів');
     expect(draftMeta(draft({ changes: 1 }), 22_400)[0]).toBe('змінював 1 раз');
     expect(draftMeta(draft({ changes: 0 }), 9_000)).toEqual(['думає 0 с']);
+  });
+
+  it('speaks of a team in the plural', () => {
+    expect(draftMeta(draft({ changes: 3 }), 22_400, true)).toEqual(['змінювали 3 рази', 'думають 12 с']);
+    expect(draftMeta(draft({ changes: 5 }), 22_400, true)[0]).toBe('змінювали 5 разів');
   });
 });

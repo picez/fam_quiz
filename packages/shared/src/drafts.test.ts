@@ -10,16 +10,18 @@ describe('live drafts', () => {
       { type: 'order', itemIds: ['b', 'a'] }, { type: 'match', links: [{ left: 'l1', right: 'r2' }] },
       { type: 'survey', values: ['Чай'] }, { type: 'wordcloud', words: ['море'] },
       { type: 'wallPick', tiles: [0, 5] }, { type: 'chainWord', word: 'ліс' }, { type: 'lie', text: 'Вигадка' },
+      { type: 'clues', value: 'я'.repeat(DRAFT_TEXT_MAX) }, { type: 'poll', optionId: 'a' }, { type: 'wallPick', tiles: [0, 1, 2, 15] },
     ]) expect(draftValueSchema.safeParse(draft).data).toEqual(draft);
   });
 
   it('refuses long text, too many tiles, unknown kinds', () => {
     for (const draft of [
       { type: 'text', value: 'я'.repeat(DRAFT_TEXT_MAX + 1) }, { type: 'clues', value: 'я'.repeat(DRAFT_TEXT_MAX + 1) },
-      { type: 'wallPick', tiles: [0, 1, 2, 3, 4] }, { type: 'wallPick', tiles: [16] }, { type: 'chainWord', word: 'я'.repeat(31) },
+      { type: 'wallPick', tiles: [0, 1, 2, 3, 4] }, { type: 'wallPick', tiles: [16] }, { type: 'wallPick', tiles: [3, 3] }, { type: 'chainWord', word: 'я'.repeat(31) },
       { type: 'magic' }, null,
     ]) expect(draftValueSchema.safeParse(draft).success).toBe(false);
     expect(draftSchema.safeParse({ draft: null }).success).toBe(true);
+    expect(draftSchema.safeParse({ draft: { type: 'text', value: 'я'.repeat(DRAFT_TEXT_MAX + 1) } }).success).toBe(false);
   });
 
   it('names the question type, tells plain answers and clips text', () => {

@@ -92,6 +92,25 @@ describe('ChainView', () => {
     expect(onDraft.cancel).toHaveBeenCalled();
   });
 
+  it('a wrong word drafts the word in the field again; so does a hint', async () => {
+    const onDraft = Object.assign(vi.fn(), { cancel: vi.fn() });
+    const send = vi.fn<Send>().mockResolvedValue({ ok: false, error: 'wrong_word' });
+    const props = { question, paused: false, offsetMs: 0, send, onDraft };
+    const { rerender } = render(<ChainPlay chain={chainOf()} {...props} />);
+    fireEvent.change(screen.getByLabelText('Наступне слово'), { target: { value: 'Сом ' } });
+    onDraft.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Перевірити' }));
+    await screen.findByText('Не те слово. Спробуйте ще.');
+    expect(onDraft.cancel).toHaveBeenCalled();
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'chainWord', word: 'Сом' });
+    onDraft.mockClear();
+    rerender(<ChainPlay chain={chainOf({ hints: 1 })} {...props} />);
+    expect(onDraft).toHaveBeenCalledTimes(1);
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'chainWord', word: 'Сом' });
+    rerender(<ChainPlay chain={chainOf({ hints: 1, deadline: Date.now() + 9000 })} {...props} />);
+    expect(onDraft).toHaveBeenCalledTimes(1);
+  });
+
   it('the hint button sends player:hint and is off when no hint is left or time is short', () => {
     const { unmount } = render(<ChainPlay chain={chainOf({ canHint: false })} question={question} paused={false} offsetMs={0} send={vi.fn()} />);
     expect((screen.getByRole('button', { name: 'Підказка (+5 с)' }) as HTMLButtonElement).disabled).toBe(true);

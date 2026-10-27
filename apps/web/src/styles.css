@@ -10516,8 +10516,12 @@ button.wall-tile:disabled {
 }
 
 /* 12b: міні-мапа живої точки — на власному рядку під текстом. */
+/* Мапа — у власному рядку (flex-basis 100%), а сама мапа не ширша за 10rem. */
 .live-pin {
   flex-basis: 100%;
+}
+
+.live-pin > .pin-board {
   max-width: min(100%, 10rem);
 }
 
@@ -10703,6 +10707,22 @@ button.wall-tile:disabled {
   content: '';
   position: absolute;
   inset: -0.375rem -0.25rem;
+}
+
+/* Шапка з «👁 Наживо» тісніша, а на вузькому телефоні лишається сам 👁 (aria-label «Наживо»), щоб назві вікторини було місце. */
+.bar:has(.live-toggle) {
+  gap: 0.5rem;
+}
+
+@media (max-width: 400px) {
+  .live-toggle-label {
+    display: none;
+  }
+
+  /* Сам значок: дотикова зона й надалі щонайменше 44 px завширшки (з ::after). */
+  .live-toggle {
+    min-width: 2.75rem;
+  }
 }
 
 /* Аркуш «Скасування балів»: ширший за «Таблицю», прокручується всередині картки. */

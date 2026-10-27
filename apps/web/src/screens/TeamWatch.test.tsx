@@ -145,11 +145,59 @@ describe('useDraftSender', () => {
   it('sends wall, chain and lie drafts', () => {
     const send: Send = vi.fn(async () => ({ ok: true as const }));
     const { result } = renderHook(() => useDraftSender(send, true, 0));
+    for (const draft of [{ type: 'wallPick' as const, tiles: [0, 3] }, { type: 'chainWord' as const, word: 'ліс' }, { type: 'lie' as const, text: 'Вигадка' }]) {
+      act(() => {
+        result.current(draft);
+      });
+      act(() => vi.advanceTimersByTime(250));
+      expect(send).toHaveBeenLastCalledWith('player:draft', { draft });
+    }
+    expect(send).toHaveBeenCalledTimes(3);
+  });
+
+  it('after cancel the same value goes again: a refused try left the field as it was', () => {
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    const draft = { type: 'chainWord' as const, word: 'Сом' };
     act(() => {
-      result.current({ type: 'wallPick', tiles: [0, 3] });
+      result.current(draft);
     });
     act(() => vi.advanceTimersByTime(250));
-    expect(send).toHaveBeenLastCalledWith('player:draft', { draft: { type: 'wallPick', tiles: [0, 3] } });
+    act(() => result.current.cancel());
+    act(() => {
+      result.current(draft);
+    });
+    act(() => vi.advanceTimersByTime(250));
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith('player:draft', { draft });
+  });
+
+  it('a value pushed right after a key change is kept (the chain hint)', () => {
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const draft = { type: 'chainWord' as const, word: 'Сом' };
+    const { result, rerender } = renderHook(({ k }) => useDraftSender(send, true, k), { initialProps: { k: 'h0' } });
+    act(() => {
+      result.current(draft);
+    });
+    act(() => vi.advanceTimersByTime(250));
+    rerender({ k: 'h1' });
+    act(() => {
+      result.current(draft);
+    });
+    act(() => vi.advanceTimersByTime(250));
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('after not_allowed nothing goes again', async () => {
+    const send = vi.fn<Send>().mockResolvedValue({ ok: false, error: 'not_allowed' });
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    act(() => {
+      result.current({ type: 'text', value: 'Ки' });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('after too_soon the same value goes again in DRAFT_MS', async () => {

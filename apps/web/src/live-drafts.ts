@@ -1,6 +1,6 @@
 import type { Choice, DraftValue, HostDrafts, LiveDraft, PublicQuestion, Question } from '@quiz/shared';
 import { answerText, choicesOf, num, pairTexts, shownChoices, sliderValueText } from './format';
-import { countText, t } from './i18n';
+import { countText, t, type TextKey } from './i18n';
 
 const NONE: Record<string, LiveDraft> = {};
 
@@ -15,52 +15,57 @@ function namesOf(correct: Question | null, question: PublicQuestion | null): Cho
   return question !== null ? shownChoices(question) : choicesOf(correct);
 }
 
+/** Ключ тексту чернетки: для рядка команди — множиною («позначають», «змінювали»), якщо така форма є. */
+type PluralKey = 'draftPicks' | 'draftMarks' | 'draftTypes' | 'draftPairs' | 'draftPin' | 'draftLie' | 'draftWords' | 'draftThinking';
+const say = (key: PluralKey, team: boolean, vars: Record<string, string | number> = {}) => t((team ? `${key}Team` : key) as TextKey, vars);
+
 /**
  * «вибирає Юпітер», «позначає Кит, Дельфін», «друкує «Осака»», «порядок: …», «з'єднав: …», «повзунок: 7 см»,
  * «ставить точку», «виділено: …», «пише вигадку «…»», «друкує: …» (хмара, «100 до 1»). Тексти варіантів — як answerText.
+ * team — рядок команди: дієслова множиною («позначають», «з’єднали»).
  */
-export function draftText(draft: DraftValue, correct: Question | null, question: PublicQuestion | null): string {
+export function draftText(draft: DraftValue, correct: Question | null, question: PublicQuestion | null, team = false): string {
   const name = (id: string) => namesOf(correct, question).find((choice) => choice.id === id)?.text ?? id;
   switch (draft.type) {
     case 'single':
     case 'poll':
-      return t('draftPicks', { text: name(draft.optionId) });
+      return say('draftPicks', team, { text: name(draft.optionId) });
     case 'boolean':
-      return t('draftPicks', { text: answerText(draft, null) });
+      return say('draftPicks', team, { text: answerText(draft, null) });
     case 'multi':
-      return t('draftMarks', { list: draft.optionIds.map(name).join(', ') });
+      return say('draftMarks', team, { list: draft.optionIds.map(name).join(', ') });
     case 'text':
     case 'clues':
-      return t('draftTypes', { text: draft.value });
+      return say('draftTypes', team, { text: draft.value });
     case 'numeric':
-      return t('draftTypes', { text: num(draft.value) });
+      return say('draftTypes', team, { text: num(draft.value) });
     case 'chainWord':
-      return t('draftTypes', { text: draft.word });
+      return say('draftTypes', team, { text: draft.word });
     case 'order':
       return t('draftOrder', { list: draft.itemIds.map(name).join(' → ') });
     case 'match':
-      return t('draftPairs', { list: pairTexts(draft.links, namesOf(correct, question)).map((pair) => `${pair.left} → ${pair.right}`).join(', ') });
+      return say('draftPairs', team, { list: pairTexts(draft.links, namesOf(correct, question)).map((pair) => `${pair.left} → ${pair.right}`).join(', ') });
     case 'slider': {
       const scale = correct?.type === 'slider' ? { step: correct.step, unit: correct.unit ?? '' } : question?.slider;
       return t('draftSlider', { value: scale == null ? num(draft.value) : sliderValueText(draft.value, scale) });
     }
     case 'pin':
-      return t('draftPin');
+      return say('draftPin', team);
     case 'wallPick': {
       const tiles = question?.wall?.tiles ?? [];
       return t('draftWall', { list: draft.tiles.map((position) => tiles[position] ?? String(position + 1)).join(', ') });
     }
     case 'lie':
-      return t('draftLie', { text: draft.text });
+      return say('draftLie', team, { text: draft.text });
     case 'survey':
-      return t('draftWords', { list: draft.values.filter((value) => value.trim() !== '').join(', ') });
+      return say('draftWords', team, { list: draft.values.filter((value) => value.trim() !== '').join(', ') });
     case 'wordcloud':
-      return t('draftWords', { list: draft.words.join(', ') });
+      return say('draftWords', team, { list: draft.words.join(', ') });
   }
 }
 
-/** «змінював 2 рази» (лише changes ≥ 1) і «думає 12 с» (now — час сервера). */
-export function draftMeta(draft: LiveDraft, now: number): string[] {
-  const thinking = t('draftThinking', { seconds: Math.max(0, Math.floor((now - draft.at) / 1000)) });
-  return draft.changes >= 1 ? [countText('draftChanges', draft.changes, { count: draft.changes }), thinking] : [thinking];
+/** «змінював 2 рази» (лише changes ≥ 1) і «думає 12 с» (now — час сервера); team — «змінювали», «думають». */
+export function draftMeta(draft: LiveDraft, now: number, team = false): string[] {
+  const thinking = say('draftThinking', team, { seconds: Math.max(0, Math.floor((now - draft.at) / 1000)) });
+  return draft.changes >= 1 ? [countText(team ? 'draftChangesTeam' : 'draftChanges', draft.changes, { count: draft.changes }), thinking] : [thinking];
 }

@@ -183,9 +183,9 @@ export function attachSockets(
   const batches = new Map<Room, { last: number; timer: ReturnType<typeof setTimeout> | null }>();
   const watchers = (room: Room) =>
     [...io.sockets.sockets.values()].filter((s) => s.data.room === room && s.data.identity.role === 'host' && s.data.watch);
-  const flushDrafts = (room: Room) => {
+  const flushDrafts = (room: Room, to: GameSocket[]) => {
     const batch = manager.liveDrafts(room);
-    for (const s of watchers(room)) s.emit('host:drafts', batch);
+    for (const s of to) s.emit('host:drafts', batch);
   };
   const dropDrafts = (room: Room) => {
     const entry = batches.get(room);
@@ -194,42 +194,47 @@ export function attachSockets(
   };
   /** Перший пакет — одразу, далі — не частіше ніж раз на gap: у кінці вікна з найсвіжішим знімком. */
   const scheduleDrafts = (room: Room) => {
-    if (watchers(room).length === 0) return;
     const entry = batches.get(room) ?? { last: -Infinity, timer: null };
-    batches.set(room, entry);
     if (entry.timer !== null) return;
+    const to = watchers(room);
+    if (to.length === 0) return;
+    batches.set(room, entry);
     const wait = entry.last + gap - Date.now();
     if (wait <= 0) {
       entry.last = Date.now();
-      flushDrafts(room);
+      flushDrafts(room, to);
       return;
     }
     entry.timer = setTimeout(() => {
       entry.timer = null;
       if (manager.get(room.code) !== room) return dropDrafts(room);
-      if (watchers(room).length === 0) return;
+      const later = watchers(room);
+      if (later.length === 0) return;
       entry.last = Date.now();
-      flushDrafts(room);
+      flushDrafts(room, later);
     }, wait);
   };
 
   manager.onEvent((room, event) => {
+    if (event.type === 'draft') {
+      // Чернетка капітана — решті команди автора зрізом (10j): ні автору, ні сцені, ні іншим командам.
+      // Соло-чернетка нікому, крім пульта, — без перебору сокетів.
+      if (event.teammates) {
+        [...io.sockets.sockets.values()]
+          .filter((socket) => {
+            const { role, playerId } = socket.data.identity;
+            return socket.data.room === room && role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.id;
+          })
+          .forEach(push);
+      }
+      // Пульту — лише пакет host:drafts і лише з «наживо» (12b).
+      scheduleDrafts(room);
+      return;
+    }
     const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
     if (event.type === 'changed') {
       members.forEach(push);
       // Стан змінився — чернетка могла застаріти: пульт отримує свіжий пакет.
-      scheduleDrafts(room);
-      return;
-    }
-    if (event.type === 'draft') {
-      // Чернетка капітана — решті команди автора зрізом (10j): ні автору, ні сцені, ні іншим командам.
-      members
-        .filter((socket) => {
-          const { role, playerId } = socket.data.identity;
-          return role === 'player' && event.teammates && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.id;
-        })
-        .forEach(push);
-      // Пульту — лише пакет host:drafts і лише з «наживо» (12b).
       scheduleDrafts(room);
       return;
     }
@@ -461,6 +466,10 @@ export function attachSockets(
       socket.data.watch = payload.data.on;
       if (payload.data.on) {
         socket.emit('host:drafts', manager.liveDrafts(room));
+        // Негайний пакет теж рахується: наступний — не раніше ніж за gap.
+        const entry = batches.get(room) ?? { last: -Infinity, timer: null };
+        entry.last = Date.now();
+        batches.set(room, entry);
         for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
       }
       return { ok: true };

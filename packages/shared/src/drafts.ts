@@ -16,7 +16,7 @@ const storable = (max: number) => z.string().max(max).refine(isStorable, UNSTORA
 export const draftValueSchema = z
   .union([
     answerSchema,
-    z.object({ type: z.literal('wallPick'), tiles: z.array(z.number().int().min(0).max(15)).max(4) }),
+    z.object({ type: z.literal('wallPick'), tiles: z.array(z.number().int().min(0).max(15)).max(4).refine((tiles) => new Set(tiles).size === tiles.length, 'duplicate_tile') }),
     z.object({ type: z.literal('chainWord'), word: storable(LIMITS.chainWord) }),
     z.object({ type: z.literal('lie'), text: storable(LIMITS.bluffLie) }),
   ])

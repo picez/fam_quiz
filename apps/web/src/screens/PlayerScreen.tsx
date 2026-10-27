@@ -680,7 +680,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
     !instant &&
     ((phase === 'question' && question !== null && me.answer === null) || (phase === 'leaderboard' && me.survival?.canAnswerTrial === true));
   const draftOn = teamDraftOn || soloDraft;
-  // Хід стіни, ланцюжка чи етап блефу міняє відбиток відповіді на сервері: «вже надіслано» скидається.
+  // Хід стіни, ланцюжка (і підказка) чи етап блефу міняє відбиток відповіді на сервері: «вже надіслано» скидається.
   const draftKey = [
     view.questionIndex,
     me.blitz?.attemptsUsed ?? 0,
@@ -689,6 +689,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
     me.wall?.found.length ?? 0,
     me.wall?.mistakes ?? 0,
     me.chain?.solved ?? 0,
+    me.chain?.hints ?? 0,
     view.bluff?.stage ?? '',
   ].join('-');
   const sendDraft = useDraftSender(send, draftOn, draftKey);

@@ -90,7 +90,24 @@ export function ChainPlay({
   const [now, setNow] = useState(() => Date.now());
   const input = useRef<HTMLInputElement>(null);
   const busy = useRef(false);
+  // Останнє надруковане слово: після відповіді сервера поле могло вже змінитися.
+  const typed = useRef('');
+  typed.current = word.trim();
   const done = chain.timeMs !== null;
+  const draftRef = useRef(onDraft);
+  draftRef.current = onDraft;
+  /** Надіслати пульту поточне слово знову: сервер забув чернетку (підказка, відхилене слово). */
+  const repush = () => {
+    if (typed.current !== '') draftRef.current?.({ type: 'chainWord', word: typed.current });
+  };
+
+  // Підказка міняє відбиток відповіді — сервер скидає чернетку, а слово в полі лишається.
+  const hints = useRef(chain.hints);
+  useEffect(() => {
+    if (chain.hints === hints.current) return;
+    hints.current = chain.hints;
+    repush();
+  }, [chain.hints]);
   const running = chain.deadline !== null && !done;
 
   useEffect(() => {
@@ -120,9 +137,11 @@ export function ChainPlay({
       } else if (result.error === 'wrong_word') {
         setMiss(true);
         setError(null);
+        repush();
       } else {
         setMiss(false);
         setError(errorText(result.error));
+        repush();
       }
     } finally {
       busy.current = false;

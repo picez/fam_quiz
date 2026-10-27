@@ -96,7 +96,7 @@ describe('LiveAnswers', () => {
     const draft = row({ nickname: 'Команда', actor: 'Оля' });
     const drafts = { p1: liveDraft() };
     const { rerender } = show([draft], base(), {}, { drafts });
-    expect(document.querySelector('.live-draft em')?.textContent).toBe('друкує «Оде»');
+    expect(document.querySelector('.live-draft em')?.textContent).toBe('друкують «Оде»');
     expect(screen.getByText('ще не надіслали')).toBeTruthy();
     expect(screen.getByText('діє: Оля')).toBeTruthy();
     rerender(<LiveAnswers view={base()} live={live([row({ ...draft, answered: true, answer: ans('Одеса') })])} drafts={drafts} />);
@@ -172,7 +172,7 @@ describe('LiveAnswers', () => {
     expect(document.querySelector('.blitz-queue')).toBeTruthy();
     const rows = document.querySelectorAll('.live-rows li');
     expect(rows).toHaveLength(1);
-    expect(rows[0].querySelector('.live-draft em')?.textContent).toBe('друкує «Оде»');
+    expect(rows[0].querySelector('.live-draft em')?.textContent).toBe('друкують «Оде»');
     expect(rows[0].textContent).toContain('ще не надіслали');
   });
 
@@ -396,6 +396,21 @@ describe('LiveAnswers: live choices before «Надіслати» (12b)', () => 
     const view = base({ question: { type: 'pin', choices: [], imageUrl: null, pin: { map: 'world', aspect: 2 } } as never });
     show([row()], view, {}, { drafts: { p1: liveDraft({ draft: { type: 'pin', x: 0.3, y: 0.6 } }) } });
     expect(document.querySelector('.live-draft em')?.textContent).toBe('ставить точку');
+    expect(document.querySelector('.live-row .live-pin .pin-board')).toBeTruthy();
+  });
+
+  it('a team row speaks in the plural: «змінювали», «думають», «з’єднали»', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(100_000);
+    show([row({ nickname: 'Червоні', actor: 'Оля' })], multiView(), {}, { drafts: { p1: liveDraft({ draft: { type: 'multi', optionIds: ['o1'] }, changes: 5, at: 98_000 }) } });
+    expect(document.querySelector('.live-draft em')?.textContent).toBe('позначають Київ');
+    expect(document.querySelector('.live-changes')?.textContent).toBe('змінювали 5 разів');
+    expect(document.querySelector('.live-thinking')?.textContent).toBe('думають 2 с');
+  });
+
+  it('a pin draft on a spare question draws the spare map', () => {
+    const spare = { id: 's', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000, type: 'pin', map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 5, zeroRadius: 20 } as never;
+    show([row({ spare })], base(), {}, { drafts: { p1: liveDraft({ draft: { type: 'pin', x: 0.3, y: 0.6 } }) } });
     expect(document.querySelector('.live-row .live-pin .pin-board')).toBeTruthy();
   });
 

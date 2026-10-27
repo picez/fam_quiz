@@ -1314,6 +1314,16 @@ describe('live drafts (12b)', () => {
     expect(hostDrafts.at(-1)?.drafts.map((d) => d.draft)).toEqual([{ type: 'multi', optionIds: ['d'] }]);
   });
 
+  it('the batch sent on «наживо» counts: the next one waits out the 300 ms window', async () => {
+    const { host, olena } = await opened();
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
+    const hostDrafts = listenDrafts(host);
+    expect(await send(olena, 'player:draft', { draft: { type: 'multi', optionIds: ['b'] } })).toEqual({ ok: true });
+    await pause(100);
+    expect(hostDrafts).toEqual([]);
+    await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts.map((d) => d.draft)).toEqual([{ type: 'multi', optionIds: ['b'] }]));
+  });
+
   it('host:live-watch is host-only and validated; a draft text over 100 characters is invalid', async () => {
     const { host, stage, olena } = await lobby((await startGame(ctx.app, makeQuiz([text, multi]))).game);
     for (const who of [olena, stage]) expect(await send(who, 'host:live-watch', { on: true })).toEqual({ ok: false, error: 'forbidden' });

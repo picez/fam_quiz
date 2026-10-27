@@ -109,7 +109,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type DraftValue, type HostDrafts, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -675,7 +675,10 @@ export class RoomManager {
     const live = hostLive(state);
     const batch: HostDrafts = { questionIndex: state.questionIndex, trial: at?.trial ?? false, drafts: [] };
     if (live === null || at === null) return batch;
+    const seen = new Set<string>();
     for (const row of [...live.rows, ...(live.aside?.rows ?? [])]) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
       const found = this.liveDraft(room, row.id);
       if (found !== null && found.draft !== null) batch.drafts.push({ id: row.id, draft: found.draft, changes: found.changes, at: found.at });
     }

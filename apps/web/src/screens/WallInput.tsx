@@ -29,6 +29,11 @@ export function WallInput({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const sentRef = useRef<number[]>([]);
+  // Поточний вибір для відповіді сервера, що приходить пізніше.
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const draftRef = useRef(onDraft);
+  draftRef.current = onDraft;
   const shakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prev = useRef({ mistakes: wall.mistakes, found: wall.found.length });
 
@@ -65,6 +70,8 @@ export function WallInput({
   const ended = wall.locked || wall.solved;
   const off = paused || !wall.canGuess || ended;
 
+  // Наступний вибір рахуємо із замикання, а не функційним setSelected: onDraft має отримати те саме значення,
+  // що й екран, а побічна дія всередині оновлювача стану (StrictMode викликає його двічі) надіслала б його двічі.
   const toggle = (position: number) => {
     if (off) return;
     setError(null);
@@ -80,7 +87,12 @@ export function WallInput({
     sentRef.current = selected;
     onDraft?.cancel?.();
     void send('player:wall', { tiles: selected })
-      .then((result) => setError(result.ok ? null : errorText(result.error)))
+      .then((result) => {
+        setError(result.ok ? null : errorText(result.error));
+        // Сервер не взяв спробу: вибір лишився — пульт знову бачить його як чернетку.
+        const current = selectedRef.current;
+        if (!result.ok && current.length > 0) draftRef.current?.({ type: 'wallPick', tiles: current });
+      })
       .catch(() => setError(errorText('network')))
       .finally(() => setPending(false));
   };

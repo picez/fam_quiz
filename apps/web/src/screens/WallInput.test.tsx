@@ -101,6 +101,30 @@ describe('WallInput', () => {
     expect(screen.getByText('Вибрано 4 з 4')).toBeTruthy();
   });
 
+  it('a refused try drafts the kept pick again', async () => {
+    const onDraft = Object.assign(vi.fn(), { cancel: vi.fn() });
+    const send = vi.fn<Send>().mockResolvedValue({ ok: false, error: 'wall_repeat' });
+    render(<WallInput question={question} wall={playerWall()} paused={false} send={send} onDraft={onDraft} />);
+    pick(0, 1, 2, 3);
+    onDraft.mockClear();
+    await act(async () => {
+      fireEvent.click(check()!);
+    });
+    expect(onDraft.cancel).toHaveBeenCalled();
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'wallPick', tiles: [0, 1, 2, 3] });
+  });
+
+  it('an accepted try is not drafted again', async () => {
+    const onDraft = Object.assign(vi.fn(), { cancel: vi.fn() });
+    render(<WallInput question={question} wall={playerWall()} paused={false} send={okSend()} onDraft={onDraft} />);
+    pick(0, 1, 2, 3);
+    onDraft.mockClear();
+    await act(async () => {
+      fireEvent.click(check()!);
+    });
+    expect(onDraft).not.toHaveBeenCalled();
+  });
+
   it('a pause disables the tiles and the check button', () => {
     render(<WallInput question={question} wall={playerWall()} paused send={okSend()} />);
     expect((tile(0) as HTMLButtonElement).disabled).toBe(true);
