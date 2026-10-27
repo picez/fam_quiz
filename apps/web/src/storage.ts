@@ -67,6 +67,11 @@ export function loadAuthor(code: string): AuthorTokens | null {
   }
 }
 
+const LIVE_WATCH = 'quiz:live-watch';
+/** Перемикач «👁 Наживо» (12b) на цьому пристрої; типово увімкнено. */
+export const loadLiveWatch = (): boolean => read(LIVE_WATCH) !== 'off';
+export const saveLiveWatch = (on: boolean): void => write(LIVE_WATCH, on ? null : 'off');
+
 const LAST_GAME = 'quiz:last-game';
 
 /** Код гри, яку ведучий запустив останньою з цього пристрою. */

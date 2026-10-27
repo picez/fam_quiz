@@ -161,3 +161,42 @@ describe('useGame tilts (11d)', () => {
     expect(result.current.tilts).toEqual({});
   });
 });
+
+describe('useGame host drafts (12b)', () => {
+  const batch = (questionIndex = 0) => ({
+    questionIndex,
+    trial: false,
+    drafts: [{ id: 'p1', draft: { type: 'text', value: 'Осака' }, changes: 1, at: 5 }],
+  });
+
+  it('keeps the latest batch and drops it on a new question', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    expect(result.current.drafts).toBeNull();
+    act(() => socket.fire('state', { ...view, questionIndex: 0 }, meta()));
+    act(() => socket.fire('host:drafts', batch()));
+    expect(result.current.drafts).toEqual(batch());
+    act(() => socket.fire('state', { ...view, questionIndex: 0 }, meta()));
+    expect(result.current.drafts).toEqual(batch());
+    act(() => socket.fire('state', { ...view, questionIndex: 1 }, meta()));
+    expect(result.current.drafts).toBeNull();
+  });
+
+  it('drops the batch on a lost connection', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('host:drafts', batch()));
+    act(() => socket.fire('disconnect', 'transport close'));
+    expect(result.current.drafts).toBeNull();
+  });
+
+  it('forgetLive drops the held batch and tilts, so a switched-off host shows nothing stale later', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('host:drafts', batch()));
+    act(() => socket.fire('sort:tilt', { sorterId: 'p1', wordId: 'w1', toward: 'c1', amount: 0.5, seq: 0 }));
+    act(() => result.current.forgetLive());
+    expect(result.current.drafts).toBeNull();
+    expect(result.current.tilts).toEqual({});
+  });
+});

@@ -1308,8 +1308,6 @@ export interface LiveRow {
   clue: number | null;
   /** Командна гра: нікнейм того, хто зараз діє за команду; соло — null. */
   actor: string | null;
-  /** Командна гра: жива чернетка (додає сервер з пам'яті кімнати); рушій завжди дає null. */
-  draft: Answer | null;
   progress: LiveProgress | null;
   /** Фінал: ставка (null — ще не поставив) і ва-банк; окремо від progress, щоб її видно було й у ланцюжку, сортуванні тощо. Поза фіналом — null. */
   wager: { wager: number | null; allIn: boolean } | null;

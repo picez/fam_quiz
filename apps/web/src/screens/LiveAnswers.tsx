@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { HostLive, HostView, LiveRow, Question, SortTilt } from '@quiz/shared';
+import type { HostDrafts, HostLive, HostView, LiveRow, Question, SortTilt } from '@quiz/shared';
 import { answerText, num, secondsText, sliderNumber } from '../format';
 import { t, type TextKey } from '../i18n';
 import { HelpButton } from '../help/HelpButton';
@@ -14,6 +14,8 @@ interface Props {
   compact?: boolean;
   /** Нахил картки сортування за тим, хто сортує (11d). */
   tilts?: Record<string, SortTilt>;
+  /** Останній пакет живих виборів (12b); null — немає чи вимкнено. Рядки чернеток покаже задача 7. */
+  drafts?: HostDrafts | null;
 }
 
 /** Є хоч один хід: рядок з поступом, але без відповіді, теж видно. Двері не рахуються. */
@@ -120,7 +122,6 @@ function tilting(row: LiveRow, tilts: Record<string, SortTilt>): boolean {
 
 function Row({ row, view, tilts }: { row: LiveRow; view: HostView; tilts: Record<string, SortTilt> }) {
   const choices = view.question?.choices;
-  const draftShown = !row.answered && row.draft !== null;
   return (
     <li className="live-row">
       <span className="name">{row.nickname}</span>
@@ -128,13 +129,7 @@ function Row({ row, view, tilts }: { row: LiveRow; view: HostView; tilts: Record
       {row.actor !== null && <span className="meta live-actor">{t('liveActs', { name: row.actor })}</span>}
       {row.buff !== null && <BuffBadge kind={row.buff} />}
       {row.spare !== null && <SpareMark spare={row.spare} />}
-      {draftShown ? (
-        <span className="live-draft">
-          <em>{answerText(row.draft, row.spare ?? view.correct, row.spare === null ? choices : undefined)}</em> <span className="tag">{t('liveDraft')}</span>
-        </span>
-      ) : (
-        <span className="live-answer">{liveAnswerText(row, view.correct, choices, towardOf(row, view, tilts))}</span>
-      )}
+      <span className="live-answer">{liveAnswerText(row, view.correct, choices, towardOf(row, view, tilts))}</span>
       {row.clue !== null && <span className="meta">{t('clueAt', { n: row.clue })}</span>}
       {row.timeMs !== null && <span className="meta live-time">{t('blitzRowTime', { time: secondsText(row.timeMs) })}</span>}
       {row.verdict !== null && <span className={`tag is-${row.verdict}`}>{t(`liveVerdict_${row.verdict}` as TextKey)}</span>}
@@ -169,10 +164,8 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
   const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered);
   // Дуель: обидва дуелянти завжди, навіть без спроб.
   // Нахил першої картки (11d) теж показує рядок: ведучий бачить, куди її тягнуть, ще до першого ходу.
-  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null || tilting(row, tilts));
+  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || tilting(row, tilts));
   const queueShown = blitz !== undefined && blitz !== null;
-  // Командний бліц: чернетки тих, хто ще не в черзі, — під чергою.
-  const drafts = queueShown ? live.rows.filter((row) => !row.answered && row.draft !== null) : [];
   const body = (
     <>
       {!duel && (
@@ -192,10 +185,7 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
         </div>
       )}
       {queueShown ? (
-        <>
-          {blitz}
-          {drafts.length > 0 && <Rows rows={drafts} view={view} tilts={tilts} />}
-        </>
+        blitz
       ) : shown.length > 0 ? (
         <Rows rows={shown} view={view} tilts={tilts} />
       ) : (

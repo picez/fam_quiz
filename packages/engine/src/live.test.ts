@@ -114,7 +114,7 @@ describe('live answers: the classic round', () => {
     expect(live(s)).toMatchObject({ kind: 'answers', answered: 0, total: 3, aside: null });
     expect(live(s).rows.map((r) => r.nickname)).toEqual(['Оля', 'Петро', 'Іра']);
     for (const r of live(s).rows) {
-      expect(r).toMatchObject({ answered: false, verdict: null, answer: null, draft: null, actor: null, connected: true, progress: null });
+      expect(r).toMatchObject({ answered: false, verdict: null, answer: null, actor: null, connected: true, progress: null });
     }
     s = must(submitAnswer(s, 'p1', odesa, T0 + 4200));
     expect(row(s, 'p1')).toMatchObject({ answered: true, answer: odesa, timeMs: 4200, verdict: 'correct', awaiting: false });
@@ -340,7 +340,8 @@ describe('live answers: teams', () => {
     expect(live(s).rows.map((r) => r.nickname)).toEqual(s.players.map((p) => p.nickname));
     expect(live(s).rows.map((r) => r.actor)).toEqual(['Оля', 'Іра']);
     s = must(actAnswer(s, 'm1', odesa, T0 + 1000));
-    expect(row(s, 't1')).toMatchObject({ answered: true, verdict: 'correct', draft: null });
+    expect(row(s, 't1')).toMatchObject({ answered: true, verdict: 'correct' });
+    expect('draft' in row(s, 't1')).toBe(false);
     s = must(setCaptain(s, 't1', 'm2'));
     expect(row(s, 't1').actor).toBe('Петро');
   });

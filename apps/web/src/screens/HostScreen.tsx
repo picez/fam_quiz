@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostView, type SortTilt } from '@quiz/shared';
+import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { paceAttrs, usePace } from '../pace';
 import { ChainBoard } from './ChainView';
@@ -64,6 +64,11 @@ interface Props {
   audioCommand?: AudioCommand | null;
   /** Останній нахил картки сортування за тим, хто сортує (11d). */
   tilts?: Record<string, SortTilt>;
+  /** «👁 Наживо» (12b): увімкнено на цьому пристрої; типово так. */
+  watch?: boolean;
+  onWatch?: (on: boolean) => void;
+  /** Останній пакет живих виборів (12b); null — немає чи вимкнено. */
+  drafts?: HostDrafts | null;
 }
 
 type HostEvent = keyof ClientToServerEvents;
@@ -200,7 +205,7 @@ function HostScores({ view }: { view: HostView }) {
   );
 }
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts }: Props) {
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, drafts = null }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const inRound = round !== null && IN_ROUND.includes(phase);
@@ -634,7 +639,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {view.ladder !== null && phase !== 'finished' && phase !== 'round_end' && <HostLadder view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
-      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} tilts={tilts} />}
+      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} tilts={tilts} drafts={drafts} />}
 
       {view.survival !== null && phase !== 'finished' && phase !== 'round_end' && <HostSurvival view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
@@ -713,7 +718,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </div>
       )}
 
-      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} />}
+      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} drafts={drafts} />}
 
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">

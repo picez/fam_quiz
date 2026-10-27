@@ -2540,7 +2540,6 @@ describe('HostScreen: live answers (11c)', () => {
     spare: null,
     clue: null,
     actor: null,
-    draft: null,
     progress: null,
     wager: null,
     ...over,

@@ -33,7 +33,6 @@ const row = (over: Partial<LiveRow> = {}): LiveRow => ({
   spare: null,
   clue: null,
   actor: null,
-  draft: null,
   progress: null,
   wager: null,
   ...over,
@@ -92,16 +91,8 @@ describe('LiveAnswers', () => {
     expect(screen.getByText('чекає рішення').classList.contains('is-pending')).toBe(true);
   });
 
-  it('shows the captain draft in italics until the answer is in', () => {
-    const draft = row({ nickname: 'Команда', actor: 'Оля', draft: ans('Оде') });
-    const { rerender } = show([draft]);
-    expect(document.querySelector('.live-draft em')?.textContent).toBe('Оде');
-    expect(screen.getByText('чернетка')).toBeTruthy();
-    expect(screen.getByText('діє: Оля')).toBeTruthy();
-    rerender(<LiveAnswers view={base()} live={live([row({ ...draft, answered: true, answer: ans('Одеса') })])} />);
-    expect(document.querySelector('.live-draft')).toBeNull();
-    expect(screen.getByText('Одеса')).toBeTruthy();
-  });
+  // Задача 7 переписує через проп drafts (пакет host:drafts, 12b).
+  it.todo('shows the captain draft in italics until the answer is in');
 
   it('writes the progress of chain, sort, bluff, survey, slider and wager', () => {
     show([
@@ -161,19 +152,8 @@ describe('LiveAnswers', () => {
     expect(screen.getByText('у черзі: 0')).toBeTruthy();
   });
 
-  it('a team blitz shows the drafts of those not in the queue under it', () => {
-    show(
-      [row({ nickname: 'Червоні', actor: 'Оля', draft: ans('Оде') }), row({ id: 'p2', nickname: 'Сині', answered: true, answer: ans('Київ') })],
-      base({ blitz: { instant: false, queue: [] } as never }),
-      { kind: 'blitz' },
-      { blitz: <div className="blitz-queue">черга</div> },
-    );
-    expect(document.querySelector('.blitz-queue')).toBeTruthy();
-    const rows = document.querySelectorAll('.live-rows li');
-    expect(rows).toHaveLength(1);
-    expect(rows[0].querySelector('.live-draft em')?.textContent).toBe('Оде');
-    expect(rows[0].textContent).toContain('чернетка');
-  });
+  // Задача 7 переписує через проп drafts (пакет host:drafts, 12b).
+  it.todo('a team blitz shows the drafts of those not in the queue under it');
 
   it('drops the title and the id when compact', () => {
     show([row({ answered: true, answer: ans('х') })], base(), {}, { compact: true });
@@ -210,10 +190,8 @@ describe('LiveAnswers', () => {
     expect(document.querySelector('.live-rows li .live-offline')?.textContent).toBe('поза зв’язком');
   });
 
-  it('formats a draft against the spare question', () => {
-    show([row({ actor: 'Оля', draft: { type: 'slider', value: 40 } as never, spare: slider })]);
-    expect(document.querySelector('.live-draft em')?.textContent).toBe('40 %');
-  });
+  // Задача 7 переписує через проп drafts (пакет host:drafts, 12b).
+  it.todo('formats a draft against the spare question');
 
   it('writes the wall found and locked', () => {
     show([

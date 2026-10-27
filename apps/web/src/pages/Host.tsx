@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { SocketAuth } from '@quiz/shared';
+import type { SocketAuth, SortTilt } from '@quiz/shared';
 import { hostAccess } from '../api';
 import { t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
 import { HostScreen } from '../screens/HostScreen';
 import { loadHost, saveHost, type HostTokens } from '../storage';
 import { RETRY_MS } from '../live/useGame';
+import { useLiveWatch } from '../live/useLiveWatch';
+
+const NO_TILTS: Record<string, SortTilt> = {};
 
 type Access = { status: 'asking' } | { status: 'denied' } | { status: 'granted'; tokens: HostTokens };
 
@@ -53,6 +56,11 @@ export function Host() {
     [code, tokens],
   );
   const game = useGame(auth);
+  const [watch, setWatch] = useLiveWatch(game.send, game.status);
+  // Перемикач «наживо» змінився: старі пакет і нахили забуваються, бо без «наживо» сервер їх не оновлює,
+  // а з увімкненням одразу шле свіжі (12b).
+  const { forgetLive } = game;
+  useEffect(() => forgetLive(), [watch, forgetLive]);
 
   if (access.status === 'denied') {
     return (
@@ -104,7 +112,10 @@ export function Host() {
         offsetMs={game.offsetMs}
         stageOnline={game.stageOnline}
         audioCommand={game.audioCommand}
-        tilts={game.tilts}
+        tilts={watch ? game.tilts : NO_TILTS}
+        watch={watch}
+        onWatch={setWatch}
+        drafts={watch ? game.drafts : null}
       />
     </>
   );
