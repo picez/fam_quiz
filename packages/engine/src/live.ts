@@ -45,7 +45,7 @@ export function spareOf(state: GameState, id: string | undefined): Question | nu
 export function responseClue(state: GameState, playerId: string, timeMs: number): number | null {
   const play = state.plays[state.questionIndex];
   if (play === undefined || play.blitz !== undefined || currentRound(state)?.type === 'final') return null;
-  return cluesAnswered(play, questionFor(state, play, playerId), timeMs);
+  return cluesAnswered(play, questionFor(state, play, playerId), timeMs, playerId);
 }
 
 /** Попередній вердикт автоперевірки (verdictOf(...).grade). */

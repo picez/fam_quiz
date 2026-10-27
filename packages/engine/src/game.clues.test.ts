@@ -120,7 +120,7 @@ describe('«Who am I?» in the classic round', () => {
 
   it('the clue of an answer: by the time in the classic round', () => {
     const s = openClassic();
-    expect(cluesAnswered(currentPlay(s), clues, 12_000)).toBe(3);
+    expect(cluesAnswered(currentPlay(s), clues, 12_000, 'p1')).toBe(3);
   });
 });
 
@@ -175,7 +175,7 @@ describe('«Who am I?» on a board voice cell', () => {
     s = must(nextClue(s, 2000));
     expect(cluesOpen(currentPlay(s))).toBe(3);
     // Число на усній клітинці — відкрите ведучим, а не за часом.
-    expect(cluesAnswered(currentPlay(s), clues, 25_000)).toBe(3);
+    expect(cluesAnswered(currentPlay(s), clues, 25_000, 'p1')).toBe(3);
     s = must(override(s, 'p1', 'correct', 3000));
     expect(s.phase).toBe('locked');
     expect(s.plays.at(-1)?.answers.p1).toMatchObject({ points: 600, accepted: true, grade: 'correct' });
