@@ -16,6 +16,7 @@ import {
   type BoardCell,
   type BoardCellView,
   type BoardInfo,
+  type ClueOpen,
   type DiceInfo,
   type DuelInfo,
   type HostDuel,
@@ -135,7 +136,7 @@ import { bluffOrder, bluffPlayOf, bluffShown, bluffShownText } from './bluff';
 import { skippedSurveys, surveyShown } from './survey';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
-import { cluesByHost, cluesOpen, nextClueAt } from './clues';
+import { cluesByHost, cluesBySelf, cluesOpen, cluesOpenBy, cluesSeenBy, nextClueAt } from './clues';
 import { pendingOf } from './hold';
 import { hostLive, responseClue, spareOf } from './live';
 import { hostPace } from './pacing';
@@ -293,15 +294,37 @@ function publicClues(state: GameState): PublicClues | null {
   const play = state.plays[state.questionIndex];
   if (shown === null || play === undefined || shown.question.type !== 'clues' || shown.question !== play.question) return null;
   const { question } = shown;
+  const self = cluesBySelf(play);
   return {
     total: question.clues.length,
+    // Власний темп: спільне cluesOpen(play) завжди 1 — сцена й пульт бачать лише першу; свої телефон отримує в ownClues.
     shown: question.clues.slice(0, cluesOpen(play)),
     nextAt: nextClueAt(state),
     byHost: cluesByHost(play),
-    self: false, // 12c, задача 3
-    opens: null,
+    self,
+    opens: self ? clueOpensOf(state, play) : null,
     intervalSeconds: question.interval,
   };
+}
+
+/** Хто скільки відкрив у власному темпі (12c): на полі — лише той, хто вибрав; у класиці — гравці на основному запитанні (без запасного), у порядку state.players. */
+function clueOpensOf(state: GameState, play: Play): ClueOpen[] {
+  const board = play.board;
+  return state.players
+    .filter((p) => (board === undefined ? questionFor(state, play, p.id) === play.question : board.chooserId === p.id))
+    .map((p) => ({
+      playerId: p.id,
+      nickname: p.nickname,
+      opened: cluesOpenBy(play, p.id),
+      answered: recordOf(state, state.questionIndex, p.id) !== undefined || (board?.chooserId === p.id && board.answer !== null),
+    }));
+}
+
+/** Власний зріз (12c): у власному темпі — свої відкриті підказки (глядач поля — того, хто вибрав), без списку opens. Інакше без змін. */
+function ownClues(state: GameState, playerId: string, question: PublicQuestion): PublicQuestion {
+  const play = state.plays[state.questionIndex];
+  if (question.clues?.self !== true || play === undefined || play.question.type !== 'clues') return question;
+  return { ...question, clues: { ...question.clues, shown: play.question.clues.slice(0, cluesSeenBy(play, playerId)), opens: null } };
 }
 
 /**
@@ -2081,7 +2104,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
   const visible = finalVisiblePoints(state, playerId);
   return {
     ...shared,
-    question: shared.question === null ? null : withoutClip(shared.question),
+    question: shared.question === null ? null : withoutClip(ownClues(state, playerId, shared.question)),
     ...(spare === null
       ? {}
       : {

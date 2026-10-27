@@ -17,7 +17,7 @@ import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
 import { chainOf } from './chain';
-import { cluesAnswered } from './clues';
+import { cluesAnswered, cluesBySelf, cluesOpenBy } from './clues';
 import { currentRound, recordOf, type AnswerRecord, type BlitzPlay, type GameState, type Play } from './game';
 import { buffOf, questionFor } from './buffs';
 import { sortOf, sortSeq } from './sort';
@@ -120,6 +120,10 @@ function wagerOf(play: Play, id: string): LiveRow['wager'] {
 /** Поступ рядка за типом запитання (ланцюжок, сортування, стіна, блеф, «100 до 1»); інакше null. answer — запис чи відповідь поля до «Прийняти». */
 function progressOf(state: GameState, play: Play, id: string, answer: Answer | null): LiveProgress | null {
   const question = play.question;
+  // «Хто я?» у власному темпі (12c): скільки відкрито — біля кожного рядка (з відповіддю теж, номер підказки — у clue).
+  if (question.type === 'clues' && cluesBySelf(play) && questionFor(state, play, id) === question) {
+    return { kind: 'clues', opened: cluesOpenBy(play, id), total: question.clues.length };
+  }
   if (question.type === 'chain') {
     const { solved, hints } = chainOf(state, id);
     return { kind: 'chain', solved, total: question.words.length - 1, word: question.words[solved + 1] ?? null, hints };
