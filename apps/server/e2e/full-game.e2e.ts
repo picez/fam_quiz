@@ -8897,6 +8897,18 @@ async function choiceOf(page: Page, nickname: string): Promise<string | null> {
 const sideRow = (page: Page, nickname: string) => page.locator('.wipeout-side li, .wipeout-step-list li').filter({ has: page.locator('.name', { hasText: new RegExp(`^${nickname}$`) }) });
 /** Сокетні кадри з відкритим вибором (11e). */
 const CHOICE = /"choice":"(took|stay|auto)"/;
+/** Час сервера (meta.serverNow) першого кадру state з індексу from, текст якого збігається з test; null — такого ще немає. */
+function serverTimeOf(frames: string[], from: number, test: RegExp): number | null {
+  for (const text of frames.slice(from)) {
+    if (!text.startsWith('42["state",') || !test.test(text)) continue;
+    try {
+      return (JSON.parse(text.slice(2)) as [string, unknown, StateMeta])[2].serverNow;
+    } catch {
+      // Кадр обрізано.
+    }
+  }
+  return null;
+}
 
 const NL = '\n';
 
@@ -11663,15 +11675,21 @@ async function wipeoutDecisions11e() {
   await shot(stage, 'p11e-stage-window');
 
   // 4. Екран «Рішення» після таймера: три різні позначки скрізь, пульт чекає 3 с.
-  await stage.locator('.wipeout-group.is-choices').waitFor({ timeout: 15_000 });
-  const shownAt = Date.now();
+  // Спершу пульт: кнопка мусить застати очікування, тож між появою екрана й перевіркою не стоїть сцена.
   const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
-  await next.waitFor();
+  await next.waitFor({ timeout: 15_000 });
   expect(await next.isDisabled(), 'the host waits on the decisions screen').toBe(true);
+  // Мінімум рахуємо від миті екрана «Рішення» за часом сервера (перший кадр з вибором), а не від того, коли тест помітив його на сцені:
+  // опитування локатора й перемальовування сцени під навантаженням з'їдали б запас у 500 мс.
+  const decisionsAt = await expect
+    .poll(() => serverTimeOf(stageFrames, from.stage, CHOICE), { timeout: 5000 })
+    .not.toBeNull()
+    .then(() => serverTimeOf(stageFrames, from.stage, CHOICE)!);
   const waited = expect
     .poll(() => next.isEnabled(), { timeout: 6000 })
     .toBe(true)
-    .then(() => Date.now() - shownAt);
+    .then(() => Date.now() - decisionsAt);
+  await stage.locator('.wipeout-group.is-choices').waitFor({ timeout: 15_000 });
   for (const [who, frames, start] of [['stage', stageFrames, from.stage], ['olya', olyaFrames, from.olya], ['vira', viraFrames, from.vira]] as const) {
     for (const frame of frames.slice(start)) {
       if (CHOICE.test(frame)) expect(frame, `${who} got a choice while the window was open`).toContain('"decide":null');
@@ -12687,8 +12705,16 @@ async function autopilotPauses11g(sockets: Socket[]) {
   for (const player of both) await emitOk(player, 'player:answer', { type: 'boolean', value: true });
   const reveal = await frame(marta, (v) => v.phase === 'reveal', 0);
   await sleep(Math.max(0, reveal.at + 2000 - Date.now()));
+  // Залишок розкриття сервер рахує від миті знімка в shutdown, а не від «через 2 с»: під навантаженням таймер тесту й зупинка
+  // запізнюються на сотні мілісекунд. Знімок — між restartedAt і кінцем shutdown (between іде після нього, до нового сервера).
   const restartedAt = Date.now();
-  await restart();
+  let stoppedAt = restartedAt;
+  await restart(async () => {
+    stoppedAt = Date.now();
+  });
+  const restMax = reveal.at + 6000 - restartedAt;
+  const restMin = reveal.at + 6000 - stoppedAt;
+  expect(restMin, 'the restart happened in the middle of the reveal').toBeGreaterThan(1000);
   await sleep(2000);
   // Сцена перепідключається сама й показує паузу, поки ніхто не повернувся.
   await expect.poll(() => timeline.some((f) => f.view.paused && f.at >= restartedAt), { timeout: 20_000 }).toBe(true);
@@ -12702,8 +12728,10 @@ async function autopilotPauses11g(sockets: Socket[]) {
     .then(() => timeline.slice(pausedCount - 1).find((f) => f.at > martaBack.at && !f.view.paused)!);
   expectGap(goOn.at - martaBack.at, 3000, 'after the restart the first player returns');
   const leaderboard = await frame(marta, (v) => v.phase === 'leaderboard', 0);
-  expectGap(leaderboard.at - goOn.at, 4000, 'the rest of the reveal after the restart', 2000);
-  expect(leaderboard.at - goOn.at).toBeGreaterThanOrEqual(3500);
+  const rest = leaderboard.at - goOn.at;
+  const restNote = `the rest of the reveal after the restart: ${rest} ms, wanted ${restMin}…${restMax} −${EARLY} … +2000`;
+  expect(rest, restNote).toBeGreaterThanOrEqual(restMin - EARLY);
+  expect(rest, restNote).toBeLessThanOrEqual(restMax + 2000);
   await vira.reconnect();
 
   // 3. Таблиця між запитаннями → наступне запитання через 5 с.
@@ -12712,9 +12740,15 @@ async function autopilotPauses11g(sockets: Socket[]) {
 
   // 4. Пауза автора тримається, поки автор не продовжить; Віра не може.
   for (const player of both) await emitOk(player, 'player:answer', { type: 'boolean', value: true });
-  const reveal2 = await frame(marta, (v) => v.phase === 'reveal' && v.questionIndex === 1, question2.index);
+  // Індекси кадрів у кожного учасника свої: question2.index — з кадрів Віри, тож для Марти шукаємо від її власного кадру.
+  const martaQuestion2 = await frame(marta, (v) => v.phase === 'question' && v.questionIndex === 1, 0);
+  const reveal2 = await frame(marta, (v) => v.phase === 'reveal' && v.questionIndex === 1, martaQuestion2.index);
+  const pauseMark = timeline.length;
   expect(await marta.emit('host:pause')).toEqual({ ok: true });
   await expect.poll(() => timeline.at(-1)!.view.paused, { timeout: 4000 }).toBe(true);
+  // Залишок розкриття — від миті паузи за часом сервера (кадр сцени), а не від того, коли тест побачив розкриття.
+  const pausedAt = timeline.slice(pauseMark).find((f) => f.view.paused)!.at;
+  const left2 = reveal2.at + 6000 - pausedAt;
   await sleep(8000);
   expect(timeline.at(-1)!.view.paused, 'the author pause holds').toBe(true);
   expect(timeline.at(-1)!.view.phase).toBe('reveal');
@@ -12722,8 +12756,8 @@ async function autopilotPauses11g(sockets: Socket[]) {
   const resumeAt = Date.now();
   expect(await marta.emit('host:resume')).toEqual({ ok: true });
   const leaderboard2 = await frame(marta, (v) => v.phase === 'leaderboard' && v.questionIndex === 1, reveal2.index);
-  expect(leaderboard2.at - resumeAt, 'the reveal goes on with the time left').toBeGreaterThanOrEqual(3000);
-  expect(leaderboard2.at - resumeAt).toBeLessThanOrEqual(6500);
+  expect(left2, 'the pause came in the middle of the reveal').toBeGreaterThan(1000);
+  expectGap(leaderboard2.at - resumeAt, left2, 'the reveal goes on with the time left');
 
   // 5. Третє запитання, до подіуму.
   const question3 = await frame(vira, (v) => v.phase === 'question' && v.questionIndex === 2, 0);
