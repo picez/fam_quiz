@@ -10510,6 +10510,11 @@ button.wall-tile:disabled {
   font-style: italic;
 }
 
+/* «ще не надіслав» не рветься посередині: переноситься цілим. */
+.live-draft .tag {
+  white-space: nowrap;
+}
+
 /* 12b: міні-мапа живої точки — на власному рядку під текстом. */
 .live-pin {
   flex-basis: 100%;
