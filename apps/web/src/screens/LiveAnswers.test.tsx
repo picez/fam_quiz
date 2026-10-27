@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
-import { DEBUFF_KINDS, type HostLive, type HostView, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DEBUFF_KINDS, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
 import { t } from '../i18n';
 import { LiveAnswers } from './LiveAnswers';
 
@@ -48,8 +48,9 @@ const live = (rows: LiveRow[], over: Partial<HostLive> = {}): HostLive => ({
 });
 
 const ans = (value: string) => ({ type: 'text' as const, value });
-const show = (rows: LiveRow[], view = base(), over: Partial<HostLive> = {}, extra: { blitz?: React.ReactNode; compact?: boolean } = {}) =>
-  render(<LiveAnswers view={view} live={live(rows, over)} {...extra} />);
+type Extra = { blitz?: React.ReactNode; compact?: boolean; drafts?: Record<string, LiveDraft>; collapsed?: boolean; offsetMs?: number };
+const show = (rows: LiveRow[], view = base(), over: Partial<HostLive> = {}, extra: Extra = {}) => render(<LiveAnswers view={view} live={live(rows, over)} {...extra} />);
+const liveDraft = (over: Partial<LiveDraft> = {}): LiveDraft => ({ id: 'p1', draft: ans('Оде'), changes: 0, at: Date.now(), ...over });
 
 describe('LiveAnswers', () => {
   void DEBUFF_KINDS;
@@ -91,8 +92,17 @@ describe('LiveAnswers', () => {
     expect(screen.getByText('чекає рішення').classList.contains('is-pending')).toBe(true);
   });
 
-  // Задача 7 переписує через проп drafts (пакет host:drafts, 12b).
-  it.todo('shows the captain draft in italics until the answer is in');
+  it('shows the captain draft in italics until the answer is in', () => {
+    const draft = row({ nickname: 'Команда', actor: 'Оля' });
+    const drafts = { p1: liveDraft() };
+    const { rerender } = show([draft], base(), {}, { drafts });
+    expect(document.querySelector('.live-draft em')?.textContent).toBe('друкує «Оде»');
+    expect(screen.getByText('ще не надіслали')).toBeTruthy();
+    expect(screen.getByText('діє: Оля')).toBeTruthy();
+    rerender(<LiveAnswers view={base()} live={live([row({ ...draft, answered: true, answer: ans('Одеса') })])} drafts={drafts} />);
+    expect(document.querySelector('.live-draft')).toBeNull();
+    expect(screen.getByText('Одеса')).toBeTruthy();
+  });
 
   it('writes the progress of chain, sort, bluff, survey, slider and wager', () => {
     show([
@@ -152,8 +162,19 @@ describe('LiveAnswers', () => {
     expect(screen.getByText('у черзі: 0')).toBeTruthy();
   });
 
-  // Задача 7 переписує через проп drafts (пакет host:drafts, 12b).
-  it.todo('a team blitz shows the drafts of those not in the queue under it');
+  it('a team blitz shows the drafts of those not in the queue under it', () => {
+    show(
+      [row({ nickname: 'Червоні', actor: 'Оля' }), row({ id: 'p2', nickname: 'Сині', answered: true, answer: ans('Київ') })],
+      base({ blitz: { instant: false, queue: [] } as never }),
+      { kind: 'blitz' },
+      { blitz: <div className="blitz-queue">черга</div>, drafts: { p1: liveDraft(), p2: liveDraft({ id: 'p2' }) } },
+    );
+    expect(document.querySelector('.blitz-queue')).toBeTruthy();
+    const rows = document.querySelectorAll('.live-rows li');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].querySelector('.live-draft em')?.textContent).toBe('друкує «Оде»');
+    expect(rows[0].textContent).toContain('ще не надіслали');
+  });
 
   it('drops the title and the id when compact', () => {
     show([row({ answered: true, answer: ans('х') })], base(), {}, { compact: true });
@@ -190,8 +211,10 @@ describe('LiveAnswers', () => {
     expect(document.querySelector('.live-rows li .live-offline')?.textContent).toBe('поза зв’язком');
   });
 
-  // Задача 7 переписує через проп drafts (пакет host:drafts, 12b).
-  it.todo('formats a draft against the spare question');
+  it('formats a draft against the spare question', () => {
+    show([row({ actor: 'Оля', spare: slider })], base(), {}, { drafts: { p1: liveDraft({ draft: { type: 'slider', value: 40 } }) } });
+    expect(document.querySelector('.live-draft em')?.textContent).toBe('повзунок: 40 %');
+  });
 
   it('writes the wall found and locked', () => {
     show([
@@ -319,5 +342,89 @@ describe('LiveAnswers: where the card is heading (11d)', () => {
 
   it('a tilt of another card adds no arrow', () => {
     expect(body(sortView(), tilt({ wordId: 'w1' }))).not.toContain('→');
+  });
+});
+
+describe('LiveAnswers: live choices before «Надіслати» (12b)', () => {
+  const options = [
+    { id: 'o1', text: 'Київ' },
+    { id: 'o2', text: 'Черкаси' },
+    { id: 'o3', text: 'Умань' },
+  ];
+  const capitals = { id: 'q6', type: 'multi', text: 'Обласні центри?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options, correctIds: ['o1', 'o2'] } as unknown as Question;
+  const multiView = () => base({ correct: capitals, question: { type: 'multi', choices: options, right: [], pin: null, wall: null, slider: null } as never });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('a solo row with no answer shows the italic draft, «ще не надіслав», the changes and the thinking time, which ticks', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(100_000);
+    show([row(), row({ id: 'p2', nickname: 'Петро' })], multiView(), {}, { drafts: { p1: liveDraft({ draft: { type: 'multi', optionIds: ['o1', 'o2'] }, changes: 2, at: 97_000 }) } });
+    const rows = document.querySelectorAll('.live-rows li');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].querySelector('.live-draft em')?.textContent).toBe('позначає Київ, Черкаси');
+    expect(within(rows[0] as HTMLElement).getByText('ще не надіслав').classList.contains('tag')).toBe(true);
+    expect(rows[0].querySelector('.live-changes')?.textContent).toBe('змінював 2 рази');
+    expect(rows[0].querySelector('.live-thinking')?.textContent).toBe('думає 3 с');
+    expect(rows[0].querySelector('.live-answer')).toBeNull();
+    // Оля ще не подала: вона й далі серед тих, на кого чекаємо.
+    expect(document.querySelectorAll('.live-chip')).toHaveLength(2);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(rows[0].querySelector('.live-thinking')?.textContent).toBe('думає 5 с');
+  });
+
+  it('the thinking time takes the clock offset', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(100_000);
+    show([row()], base(), {}, { drafts: { p1: liveDraft({ at: 97_000 }) }, offsetMs: 4000 });
+    expect(document.querySelector('.live-thinking')?.textContent).toBe('думає 7 с');
+    expect(document.querySelector('.live-changes')).toBeNull();
+  });
+
+  it('an answered row shows only the answer, never a stale draft', () => {
+    show([row({ answered: true, answer: ans('Одеса') })], base(), {}, { drafts: { p1: liveDraft() } });
+    expect(document.querySelector('.live-draft')).toBeNull();
+    expect(document.querySelector('.live-thinking')).toBeNull();
+    expect(document.querySelector('.live-answer')?.textContent).toBe('Одеса');
+  });
+
+  it('a pin draft draws a mini map', () => {
+    const view = base({ question: { type: 'pin', choices: [], imageUrl: null, pin: { map: 'world', aspect: 2 } } as never });
+    show([row()], view, {}, { drafts: { p1: liveDraft({ draft: { type: 'pin', x: 0.3, y: 0.6 } }) } });
+    expect(document.querySelector('.live-draft em')?.textContent).toBe('ставить точку');
+    expect(document.querySelector('.live-row .live-pin .pin-board')).toBeTruthy();
+  });
+
+  it('collapsed, it keeps only the title and the count', () => {
+    show(
+      [row({ answered: true, answer: ans('Одеса') }), row({ id: 'p2', nickname: 'Петро' }), row({ id: 'p3', nickname: 'Іра' })],
+      base(),
+      { aside: { kind: 'ghosts', answered: 1, total: 1, rows: [row({ id: 'g', nickname: 'Привид', answered: true, answer: ans('Київ') })] } },
+      { collapsed: true, drafts: { p2: liveDraft({ id: 'p2' }) } },
+    );
+    const section = document.getElementById('live-answers') as HTMLElement;
+    expect(section.classList.contains('is-collapsed')).toBe(true);
+    expect(within(section).getByRole('heading', { name: /Відповіді наживо/ })).toBeTruthy();
+    expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+    expect(document.querySelector('.live-row')).toBeNull();
+    expect(document.querySelector('.live-waiting')).toBeNull();
+    expect(document.querySelector('.live-aside')).toBeNull();
+    expect(screen.queryByText('Ще ніхто не відповів')).toBeNull();
+  });
+
+  it('collapsed, a team blitz keeps the queue with its buttons', () => {
+    show(
+      [row({ nickname: 'Червоні', actor: 'Оля' })],
+      base({ blitz: { instant: false, queue: [{ playerId: 'p1' }] } as never }),
+      { kind: 'blitz' },
+      { blitz: <div className="blitz-queue">черга</div>, collapsed: true, drafts: { p1: liveDraft() } },
+    );
+    expect(document.querySelector('.blitz-queue')).toBeTruthy();
+    expect(screen.getByText('у черзі: 1')).toBeTruthy();
+    expect(document.querySelector('.live-row')).toBeNull();
   });
 });

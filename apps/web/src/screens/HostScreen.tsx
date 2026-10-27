@@ -31,6 +31,7 @@ import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
 import { LiveAnswers } from './LiveAnswers';
+import { draftsById } from '../live-drafts';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
@@ -205,7 +206,7 @@ function HostScores({ view }: { view: HostView }) {
   );
 }
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, drafts = null }: Props) {
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, watch = true, onWatch, drafts = null }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const inRound = round !== null && IN_ROUND.includes(phase);
@@ -443,6 +444,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const liveData = view.live;
   const liveOn = liveData !== null && liveData.kind !== 'duel';
   const liveTrial = liveData?.kind === 'trial';
+  const liveDrafts = draftsById(drafts, view.questionIndex, liveTrial);
   // Відкрите випробування «Вибування» йде на leaderboard: таблиці попереднього запитання лишаються на місці.
   const liveHides = liveOn && !liveTrial;
   const jump = () => {
@@ -500,6 +502,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       <SplashChip view={view} offsetMs={offsetMs} />
       <header className="bar">
         <span>{t('hostTitle')}</span>
+        {live && (
+          <button type="button" className="btn btn-small live-toggle" aria-pressed={watch} aria-label={t('liveToggle')} title={t('liveToggleHint')} onClick={() => onWatch?.(!watch)}>
+            👁<span className="live-toggle-label"> {t('liveToggle')}</span>
+          </button>
+        )}
         {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
         <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>
@@ -639,7 +646,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {view.ladder !== null && phase !== 'finished' && phase !== 'round_end' && <HostLadder view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
-      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} tilts={tilts} drafts={drafts} />}
+      {liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} tilts={tilts} drafts={liveDrafts} collapsed={!watch} offsetMs={offsetMs} />}
 
       {view.survival !== null && phase !== 'finished' && phase !== 'round_end' && <HostSurvival view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
@@ -718,7 +725,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </div>
       )}
 
-      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} drafts={drafts} />}
+      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} drafts={liveDrafts} collapsed={!watch} offsetMs={offsetMs} />}
 
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">

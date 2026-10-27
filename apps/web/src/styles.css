@@ -10506,6 +10506,20 @@ button.wall-tile:disabled {
   overflow-wrap: anywhere;
 }
 
+.live-draft em {
+  font-style: italic;
+}
+
+/* 12b: міні-мапа живої точки — на власному рядку під текстом. */
+.live-pin {
+  flex-basis: 100%;
+  max-width: min(100%, 10rem);
+}
+
+.live-answers.is-collapsed .live-count {
+  margin: 0;
+}
+
 .live-waiting ul {
   display: flex;
   flex-wrap: wrap;
@@ -10660,6 +10674,30 @@ button.wall-tile:disabled {
   font-size: 0.9375rem;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+/* 12b: «👁 Наживо» в шапці пульта — такий самий низький, як «↶ Бали», шапка лишається в один рядок; разом з «↶ Бали» тулиться до коду. */
+.live-toggle {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 0;
+  margin-block: calc(-0.4rem - 2px);
+  margin-left: auto;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.live-toggle[aria-pressed='false'] {
+  color: var(--dim);
+}
+
+/* Дотикова зона щонайменше 44 px заввишки, як у «↶ Бали». */
+.live-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -0.375rem -0.25rem;
 }
 
 /* Аркуш «Скасування балів»: ширший за «Таблицю», прокручується всередині картки. */
