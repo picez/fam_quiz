@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { answerSchema, type Answer } from './answer';
+import { draftValueSchema, type HostDrafts } from './drafts';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIFELINES, LIMITS } from './quiz';
 import { DOOR_COUNT } from './survival';
@@ -119,8 +120,10 @@ export const duelAnswerSchema = z.object({
 export const teamPickSchema = z.object({ teamId: playerId });
 /** Капітан вибирає дуелянта команди. */
 export const duelistSchema = z.object({ memberId: playerId });
-/** Чернетка капітана: поточний вибір у полі відповіді; null — поле порожнє. */
-export const draftSchema = z.object({ draft: answerSchema.nullable() });
+/** Чернетка: поточний стан вводу до «Надіслати» (10j капітан, 12b будь-хто); null — поле порожнє. */
+export const draftSchema = z.object({ draft: draftValueSchema.nullable() });
+/** Пульт: увімкнути чи вимкнути живі вибори (12b). */
+export const liveWatchSchema = z.object({ on: z.boolean() });
 /** Ведучий: спосіб формування. */
 export const teamFormSchema = z.object({ form: z.enum(TEAM_FORMS) });
 /** Ведучий: перемістити учасника (teamId null — без команди). */
@@ -175,7 +178,7 @@ export interface ClientToServerEvents {
   'player:team-roll': (ack: Ack) => void;
   /** Командна гра: капітан вибирає дуелянта команди. */
   'player:duelist': (payload: z.infer<typeof duelistSchema>, ack: Ack) => void;
-  /** Командна гра: чернетка капітана; бачать лише товариші по команді. */
+  /** Живий вибір до «Надіслати»: товаришам капітана (10j) і пульту з «наживо» (12b). */
   'player:draft': (payload: z.infer<typeof draftSchema>, ack: Ack) => void;
   'host:start': (ack: Ack) => void;
   'host:lock': (ack: Ack) => void;
@@ -190,6 +193,8 @@ export interface ClientToServerEvents {
   'host:adjust': (payload: z.infer<typeof adjustSchema>, ack: Ack) => void;
   /** Скасувати бали чи «Повернути» скасоване (12a). */
   'host:undo': (payload: z.infer<typeof undoSchema>, ack: Ack) => void;
+  /** Пульт: увімкнути чи вимкнути живі вибори (12b); лише роль host. */
+  'host:live-watch': (payload: z.infer<typeof liveWatchSchema>, ack: Ack) => void;
   /** Наслати дебаф: спрацює в наступному запитанні, у якому гравець відповідає з телефона. */
   'host:debuff': (payload: z.infer<typeof debuffSchema>, ack: Ack) => void;
   /** Скасувати дебаф, що ще чекає. */
@@ -260,6 +265,8 @@ export interface ServerToClientEvents {
   audio: (command: { action: 'replay' | 'stop'; seq: number }) => void;
   /** Нахил картки того, хто сортує (11d): лише там, де показ дозволено. */
   'sort:tilt': (tilt: SortTilt) => void;
+  /** Живі вибори до «Надіслати» (12b): лише пультам з увімкненим «наживо», не частіше ніж раз на HOST_DRAFTS_MS. */
+  'host:drafts': (batch: HostDrafts) => void;
   closed: (reason: CloseReason) => void;
   /** Сервер зупиняється (нова версія) або кімнату веде інший процес: перепідключитися з тим самим токеном. */
   restarting: () => void;

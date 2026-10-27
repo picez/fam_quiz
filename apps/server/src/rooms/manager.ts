@@ -106,7 +106,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostUndoTarget, type HostView, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { draftQuestionType, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type DraftValue, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostUndoTarget, type HostView, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -169,7 +169,7 @@ export interface Draft {
   at: number;
   /** Відбиток відповіді команди на мить чернетки: відповідь змінилася — чернетка застаріла. */
   stamp: string;
-  draft: Answer;
+  draft: DraftValue;
 }
 
 /** Останній нахил того, хто сортує (11d): лише пам'ять, не стан гри й не збережена кімната. */
@@ -617,7 +617,7 @@ export class RoomManager {
     if (view.live === null || !teamsOn(room.state)) return view;
     const rows = view.live.rows.map((row) => {
       const found = this.liveDraft(room, row.id);
-      return found === null ? row : { ...row, draft: found.draft };
+      return found === null || !isAnswerDraft(found.draft) ? row : { ...row, draft: found.draft };
     });
     return { ...view, live: { ...view.live, rows } };
   }
@@ -628,7 +628,7 @@ export class RoomManager {
    */
   private currentDraft(room: Room, teamId: string, viewerId: string): Answer | null {
     const found = this.liveDraft(room, teamId);
-    return found === null || found.by === viewerId ? null : found.draft;
+    return found === null || found.by === viewerId || !isAnswerDraft(found.draft) ? null : found.draft;
   }
 
   private liveDraft(room: Room, teamId: string): Draft | null {
@@ -647,13 +647,13 @@ export class RoomManager {
    * подія draft перезбирає зріз решті команди. Та сама чернетка не шлеться вдруге; кожна нова зберігається й шлеться
    * (клієнт сам шле не частіше ніж раз на 250 мс і вдруге не повторює), тож остання не губиться.
    */
-  draft(room: Room, playerId: string, draft: Answer | null): AckResult {
+  draft(room: Room, playerId: string, draft: DraftValue | null): AckResult {
     if (!this.alive(room)) return this.gone();
     const at = draftStage(room.state);
     if (!teamsOn(room.state) || at === null) return { ok: false, error: 'wrong_phase' };
     const who = this.act(room, playerId, at.act);
     if (!who.ok) return who;
-    if (draft !== null && draft.type !== at.question(who.id).type) return { ok: false, error: 'type_mismatch' };
+    if (draft !== null && draftQuestionType(draft) !== at.question(who.id).type) return { ok: false, error: 'type_mismatch' };
     const live = this.liveDraft(room, who.id);
     const now = this.now();
     if (draft === null) {
