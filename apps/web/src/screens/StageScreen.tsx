@@ -745,7 +745,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
     <main className="app stage">
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
-        <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
+        <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />
         <BuffToast view={view} offsetMs={offsetMs} />
         <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />
       </LiveNotices>

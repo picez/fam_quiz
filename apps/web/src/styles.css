@@ -10739,3 +10739,19 @@ button.wall-tile:disabled {
 .undo-row.is-undone .undo-row-text {
   color: var(--dim);
 }
+
+/* ---------- Скасування балів (12a): сповіщення й історія ---------- */
+
+.live-notice.is-undo {
+  border-color: var(--dim);
+}
+
+.responses li.is-undone,
+.wager-list li.is-undone {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.history-adjustments .is-undone {
+  color: var(--dim);
+}

@@ -32,6 +32,13 @@ describe('LiveNotices', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('an undo shows its own text and class', () => {
+    render(<AdjustmentToast notice={notice({ nickname: 'Петро', points: 100, undo: { redo: false, players: 1, round: 1, question: 1 } })} offsetMs={0} rounds={2} />);
+    const toast = screen.getByRole('status');
+    expect(toast.textContent).toBe('Ведучий скасував бали: Петро +100 (раунд 1, запитання 1)');
+    expect(toast.className).toContain('is-undo');
+  });
+
   it('an old adjustment after a reconnect is not shown', () => {
     render(<AdjustmentToast notice={notice({ at: NOW - 10_000 })} offsetMs={0} />);
     expect(screen.queryByRole('status')).toBeNull();

@@ -3,6 +3,7 @@ import type { AdjustmentNotice, BlitzPlayer, BuffNotice, DebuffNotice, SplashVie
 import { buffName } from '../buff-meta';
 import { signed } from '../format';
 import { t } from '../i18n';
+import { undoNoticeText } from '../undo-panel';
 import { useSplash } from './Splash';
 
 /** Скільки сповіщення (бали від ведучого, баф) видно, мс. */
@@ -56,9 +57,16 @@ export function LiveNotices({ children }: { children: ReactNode }) {
 }
 
 /** Сповіщення про бали від ведучого; у стовпчику .live-notices. */
-export function AdjustmentToast({ notice, offsetMs }: { notice: AdjustmentNotice | null; offsetMs: number }) {
+export function AdjustmentToast({ notice, offsetMs, teams = false, rounds = 1 }: { notice: AdjustmentNotice | null; offsetMs: number; teams?: boolean; rounds?: number }) {
   const shown = useNotice(notice, offsetMs);
   if (shown === null) return null;
+  if (shown.undo !== undefined) {
+    return (
+      <div className="live-notice is-undo" role="status" aria-live="polite">
+        {undoNoticeText({ ...shown, undo: shown.undo }, { teams, rounds })}
+      </div>
+    );
+  }
   return (
     <div className={shown.points > 0 ? 'live-notice is-up' : 'live-notice is-down'} role="status" aria-live="polite">
       {t('adjustNotice', { points: signed(shown.points), name: shown.nickname })}
