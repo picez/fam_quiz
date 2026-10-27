@@ -590,12 +590,12 @@ describe('host presence', () => {
     expect(await send(olena, 'player:lie', { text: 'Рим' })).toEqual({ ok: true });
     expect(await send(taras, 'player:lie', { text: 'Париж' })).toEqual({ ok: true });
     const view = await until(taras, choiceOf);
-    const rome = view.role === 'player' ? view.bluff?.options.find((o) => o.text === 'Рим') : undefined;
+    const rome = view.role === 'player' ? view.bluff?.options.find((o) => o.text === 'рим') : undefined;
     if (rome === undefined) throw new Error('no option');
     expect(await send(olena, 'host:bluff-remove', { optionId: rome.id })).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(host, 'host:bluff-remove', {})).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(host, 'host:bluff-remove', { optionId: rome.id })).toEqual({ ok: true });
-    const after = await until(taras, (v) => v.role === 'player' && v.bluff?.options.some((o) => o.text === 'Рим') === false);
+    const after = await until(taras, (v) => v.role === 'player' && v.bluff?.options.some((o) => o.text === 'рим') === false);
     expect(after.role === 'player' && after.bluff?.options).toHaveLength(4);
   });
 

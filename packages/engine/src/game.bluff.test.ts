@@ -57,6 +57,15 @@ describe('bluff: the lies', () => {
     expect(s.plays[0].bluff?.stage).toBe('lies');
   });
 
+  it('a lie that would look like the truth on screen is the truth; lies that would look alike merge', () => {
+    let s = openClassic([bluff, single]);
+    expect(writeLie(s, 'p2', 'БАРСЕЛОНА.', at(s, 1000))).toEqual({ ok: false, error: 'bluff_truth' });
+    s = must(writeLie(s, 'p1', 'Рим', at(s, 1000)));
+    s = must(writeLie(s, 'p2', 'рим.', at(s, 2000)));
+    s = must(writeLie(s, 'p3', 'Мілан', at(s, 3000)));
+    expect(s.plays[0].bluff?.options.find((o) => o.kind === 'lie' && o.authors.length === 2)).toMatchObject({ text: 'Рим', authors: ['p1', 'p2'] });
+  });
+
   it('when everyone wrote, the choice starts: equal lies merge, spares fill up to five, ids b1…', () => {
     const s = toChoice();
     const b = s.plays[0].bluff!;

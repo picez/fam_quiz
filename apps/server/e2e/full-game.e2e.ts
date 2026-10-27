@@ -8704,21 +8704,21 @@ async function bluffGame() {
   await stage.getByText('Що з цього правда?', exact).waitFor();
   await expect.poll(() => stage.locator('.bluff-row').count()).toBe(5);
   const stageChoice = await stage.locator('.bluff-text').allTextContents();
-  expect(stageChoice.filter((text) => text === 'Рим'), 'merged lie appears once').toHaveLength(1);
-  expect(stageChoice).toEqual(expect.arrayContaining(['Мілан', 'Барселона']));
-  expect(stageChoice.filter((text) => ['Мадрид', 'Лондон', 'Брюссель'].includes(text)), 'two spares fill up to five').toHaveLength(2);
+  expect(stageChoice.filter((text) => text === 'рим'), 'merged lie appears once').toHaveLength(1);
+  expect(stageChoice).toEqual(expect.arrayContaining(['мілан', 'барселона']));
+  expect(stageChoice.filter((text) => ['мадрид', 'лондон', 'брюссель'].includes(text)), 'two spares fill up to five').toHaveLength(2);
   await expectStageFits(stage, 'p10f-stage-choice');
   await shot(stage, 'p10f-stage-choice');
 
   await expect.poll(() => olya.locator('.bluff-choice button').count()).toBe(5);
-  const olyaRim = olya.locator('.bluff-choice button').filter({ has: olya.getByText('Рим', exact) });
+  const olyaRim = olya.locator('.bluff-choice button').filter({ has: olya.getByText('рим', exact) });
   expect(await olyaRim.isDisabled()).toBe(true);
   await olyaRim.getByText('Твоя вигадка', exact).waitFor();
   expect(await olya.locator('.bluff-choice button:disabled').count()).toBe(1);
   for (const button of await olya.locator('.bluff-choice button').all()) expect((await button.boundingBox())!.height, 'option is a tap target').toBeGreaterThanOrEqual(44);
   await expectNoSideScroll(olya, 'p10f-phone-choice');
   await petro.locator('.bluff-choice button').first().waitFor();
-  expect(await petro.locator('.bluff-choice button').filter({ has: petro.getByText('Рим', exact) }).isDisabled()).toBe(true);
+  expect(await petro.locator('.bluff-choice button').filter({ has: petro.getByText('рим', exact) }).isDisabled()).toBe(true);
   expect(await petro.locator('.bluff-choice button:disabled').count()).toBe(1);
 
   // Витік (вибір): варіанти без виду, авторів і виборів.
@@ -8734,17 +8734,17 @@ async function bluffGame() {
   choiceLeak('petro', petroFrames, fromChoice.petro);
   choiceLeak('vira', viraFrames, fromChoice.vira);
 
-  await pickBluff(olya, 'Мілан');
-  await pickBluff(petro, 'Барселона');
-  await pickBluff(vira, 'Рим');
+  await pickBluff(olya, 'мілан');
+  await pickBluff(petro, 'барселона');
+  await pickBluff(vira, 'рим');
   await host.getByText('Запитання закрите').waitFor();
 
   const hostBoard = host.locator('.bluff-host .bluff-board');
   await hostBoard.waitFor();
-  const rimRow = bluffRow(hostBoard, 'Рим');
+  const rimRow = bluffRow(hostBoard, 'рим');
   expect(await rimRow.innerText()).toContain('Вигадка: Оля, Петро');
   expect(await rimRow.innerText()).toContain('Купилися: Віра');
-  expect(await bluffRow(hostBoard, 'Барселона').innerText()).toContain('Правда');
+  expect(await bluffRow(hostBoard, 'барселона').innerText()).toContain('Правда');
   expect(await host.getByRole('button', { name: /^(Правильно|Частково|Не зараховувати)/ }).count(), 'no grading buttons').toBe(0);
   await hostBoard.scrollIntoViewIfNeeded();
   await shot(host, 'p10f-host-choice');
@@ -8760,17 +8760,17 @@ async function bluffGame() {
     await host.getByRole('button', { name: `Відкрити варіант ${n} з 5`, ...exact }).click();
     await expect.poll(async () => (await openOptions(stage)).length).toBe(n);
     afterFour = await openOptions(stage);
-    expect(afterFour, `the truth opens last, not at step ${n}`).not.toContain('Барселона');
+    expect(afterFour, `the truth opens last, not at step ${n}`).not.toContain('барселона');
   }
   const opened = (await stage.locator('.bluff-row:not(.is-closed)').allInnerTexts()).join('\n');
   expect((opened.match(/Запасна вигадка ведучого/g) ?? []).length).toBe(2);
-  const stageMilan = await bluffRow(stage, 'Мілан').innerText();
+  const stageMilan = await bluffRow(stage, 'мілан').innerText();
   expect(stageMilan).toContain('Вигадка: Віра');
   expect(stageMilan).toContain('Купилися: Оля');
-  expect(await bluffRow(stage, 'Рим').innerText()).toContain('Вигадка: Оля, Петро');
+  expect(await bluffRow(stage, 'рим').innerText()).toContain('Вигадка: Оля, Петро');
   expect(await stage.locator('.bluff-row.is-truth').count(), 'the truth is not marked yet').toBe(0);
   expect(await stage.locator('.bluff-row.is-closed').count()).toBe(1);
-  expect(await stage.locator('.bluff-row.is-closed .bluff-text').innerText()).toBe('Барселона');
+  expect(await stage.locator('.bluff-row.is-closed .bluff-text').innerText()).toBe('барселона');
   await expect.poll(() => stage.locator('.bluff-row.is-flipping').count()).toBe(0);
   await expectStageFits(stage, 'p10f-stage-reveal-half');
   await shot(stage, 'p10f-stage-reveal-half');
@@ -8784,8 +8784,8 @@ async function bluffGame() {
 
   await host.getByRole('button', { name: 'Відкрити варіант 5 з 5', ...exact }).click();
   await expect.poll(async () => (await openOptions(stage)).length).toBe(5);
-  expect((await openOptions(stage)).filter((text) => !afterFour.includes(text))).toEqual(['Барселона']);
-  const truthRow = bluffRow(stage, 'Барселона');
+  expect((await openOptions(stage)).filter((text) => !afterFour.includes(text))).toEqual(['барселона']);
+  const truthRow = bluffRow(stage, 'барселона');
   expect(await truthRow.innerText()).toContain('Правда');
   expect(await truthRow.innerText()).toContain('Купилися: Петро');
   await expect.poll(() => stage.locator('.bluff-row.is-flipping').count()).toBe(0);
@@ -8811,28 +8811,28 @@ async function bluffGame() {
   await click(host, 'До вибору');
   await stage.getByText('Що з цього правда?', exact).waitFor();
   await expect.poll(() => stage.locator('.bluff-row').count()).toBe(4);
-  expect(await stage.locator('.bluff-text').allTextContents()).toEqual(expect.arrayContaining(['Дурня', 'Південний Буг', 'Псел', 'Сула']));
+  expect(await stage.locator('.bluff-text').allTextContents()).toEqual(expect.arrayContaining(['дурня', 'південний буг', 'псел', 'сула']));
 
-  const removeLie = host.getByRole('button', { name: 'Прибрати «Дурня»', ...exact });
+  const removeLie = host.getByRole('button', { name: 'Прибрати «дурня»', ...exact });
   expect((await removeLie.boundingBox())!.height, 'remove is a tap target').toBeGreaterThanOrEqual(44);
   await removeLie.click();
   await expect.poll(() => stage.locator('.bluff-row').count()).toBe(3);
   await expect.poll(() => vira.locator('.bluff-choice button').count()).toBe(3);
   await expect.poll(() => olya.locator('.bluff-choice button').count()).toBe(3);
-  expect(await stage.locator('.bluff-text').allTextContents()).not.toContain('Дурня');
-  expect(await vira.locator('.bluff-choice').innerText()).not.toContain('Дурня');
+  expect(await stage.locator('.bluff-text').allTextContents()).not.toContain('дурня');
+  expect(await vira.locator('.bluff-choice').innerText()).not.toContain('дурня');
   await host.locator('.bluff-row.is-removed').waitFor();
   await host.locator('.bluff-host').scrollIntoViewIfNeeded();
   await shot(host, 'p10f-host-removed');
 
-  await pickBluff(olya, 'Південний Буг');
-  await pickBluff(petro, 'Псел');
-  await pickBluff(vira, 'Сула');
+  await pickBluff(olya, 'південний буг');
+  await pickBluff(petro, 'псел');
+  await pickBluff(vira, 'сула');
   await host.getByText('Запитання закрите').waitFor();
   await click(host, 'Показати відповідь');
   await click(host, 'Відкрити всі');
   await expect.poll(() => openOptions(stage)).toHaveLength(3);
-  expect(await openOptions(stage)).not.toContain('Дурня');
+  expect(await openOptions(stage)).not.toContain('дурня');
   await expect.poll(() => stage.locator('.bluff-row.is-flipping').count()).toBe(0);
   await expectStageFits(stage, 'p10f-stage-reveal-b2');
   await shot(stage, 'p10f-stage-reveal-b2');
@@ -11098,11 +11098,11 @@ async function liveGame11c() {
   await shot(host, 'p11c-host-lies');
   // Іра поза зв’язком: друга вигадка одразу відкриває вибір.
   await writeLie(petro, 'Тилігул');
-  await pickBluff(olya, 'Тилігул');
-  await liveRow(host, 'Оля').getByText('вибрав «Тилігул»', exact).waitFor();
+  await pickBluff(olya, 'тилігул');
+  await liveRow(host, 'Оля').getByText('вибрав «тилігул»', exact).waitFor();
   await liveRow(host, 'Оля').locator('.tag.is-wrong').getByText('ні', exact).waitFor();
-  await pickBluff(petro, 'Ялпуг');
-  await liveRow(host, 'Петро').getByText('вибрав «Ялпуг»', exact).waitFor();
+  await pickBluff(petro, 'ялпуг');
+  await liveRow(host, 'Петро').getByText('вибрав «ялпуг»', exact).waitFor();
   await liveRow(host, 'Петро').locator('.tag.is-correct').getByText('правильно', exact).waitFor();
   await shot(host, 'p11c-host-bluff');
   expect(await bodyText(stage)).not.toContain('вибрав');
@@ -12540,7 +12540,7 @@ async function autopilot11g(sockets: Socket[]) {
   await emitOk(vira, 'player:lie', { text: 'Мілан' });
   await emitOk(petro, 'player:lie', { text: 'Париж' });
   const choice = await frame(marta, (v) => v.phase === 'question' && (v.author?.bluff?.length ?? 0) > 0, cloud.index);
-  const optionOf = (text: string) => choice.view.author!.bluff!.find((o) => o.text === text)!.id;
+  const optionOf = (text: string) => choice.view.author!.bluff!.find((o) => o.text === text.toLowerCase())!.id;
   expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Париж') })).toEqual({ ok: false, error: 'pick_first' });
   expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Барселона') })).toEqual({ ok: false, error: 'pick_first' });
   expect(await vira.emit('host:bluff-remove', { optionId: optionOf('Париж') })).toEqual({ ok: false, error: 'not_allowed' });
@@ -12548,7 +12548,7 @@ async function autopilot11g(sockets: Socket[]) {
   expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Барселона') })).toEqual({ ok: false, error: 'not_allowed' });
   expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Мілан') })).toEqual({ ok: false, error: 'not_allowed' });
   expect(await marta.emit('host:bluff-remove', { optionId: optionOf('Париж') })).toEqual({ ok: true });
-  const trimmed = await frame(vira, (v) => v.bluff?.stage === 'choice' && v.bluff.options.length > 0 && !v.bluff.options.some((o) => o.text === 'Париж'), lies.index);
+  const trimmed = await frame(vira, (v) => v.bluff?.stage === 'choice' && v.bluff.options.length > 0 && !v.bluff.options.some((o) => o.text === 'париж'), lies.index);
   expect(trimmed.view.bluff!.options).toHaveLength(4);
   await emitOk(vira, 'player:bluff', { optionId: optionOf('Барселона') });
   await emitOk(petro, 'player:bluff', { optionId: optionOf('Барселона') });
@@ -13009,29 +13009,29 @@ async function authorInterface11h(sockets: Socket[]) {
   await expect.poll(() => stage.locator('.bluff-text', { hasText: 'Рось' }).count()).toBe(1);
   const refuse = await authorMenu(marta);
   await refuse.getByRole('button', { name: 'Приховати…', ...exact }).click();
-  await refuse.getByRole('button', { name: 'Прибрати «Рось»', ...exact }).click();
+  await refuse.getByRole('button', { name: 'Прибрати «рось»', ...exact }).click();
   await refuse.getByRole('alert').filter({ hasText: 'Спершу зробіть свій вибір.' }).waitFor();
   await expectNoHost(marta, 'author bluff refusal');
   await shot(marta, 'p11h-author-hide-bluff-375');
   await marta.keyboard.press('Escape');
   await refuse.waitFor({ state: 'detached' });
-  await pickBluff(marta, 'Південний Буг');
+  await pickBluff(marta, 'південний буг');
   const trim = await authorMenu(marta);
   await trim.getByRole('button', { name: 'Приховати…', ...exact }).click();
   const choiceMark = petro.frames.length;
-  await trim.getByRole('button', { name: 'Прибрати «Рось»', ...exact }).click();
-  await trim.getByRole('button', { name: 'Прибрати «Рось»', ...exact }).waitFor({ state: 'detached' });
+  await trim.getByRole('button', { name: 'Прибрати «рось»', ...exact }).click();
+  await trim.getByRole('button', { name: 'Прибрати «рось»', ...exact }).waitFor({ state: 'detached' });
   await expect.poll(() => stage.locator('.bluff-text', { hasText: 'Рось' }).count()).toBe(0);
   expect(await vira.locator('.bluff-choice button', { hasText: 'Рось' }).count(), 'the removed lie left the phone of another player').toBe(0);
-  const trimmed = await frame(petro, (v) => v.bluff?.stage === 'choice' && v.bluff.options.length > 0 && !v.bluff.options.some((o) => o.text === 'Рось'), choiceMark);
-  expect(petro.frames.slice(trimmed.index).some((f) => f.view.bluff?.options.some((o) => o.text === 'Рось')), 'Петро never sees the removed lie again').toBe(false);
-  await trim.getByRole('button', { name: 'Прибрати «Південний Буг»', ...exact }).click();
+  const trimmed = await frame(petro, (v) => v.bluff?.stage === 'choice' && v.bluff.options.length > 0 && !v.bluff.options.some((o) => o.text === 'рось'), choiceMark);
+  expect(petro.frames.slice(trimmed.index).some((f) => f.view.bluff?.options.some((o) => o.text === 'рось')), 'Петро never sees the removed lie again').toBe(false);
+  await trim.getByRole('button', { name: 'Прибрати «південний буг»', ...exact }).click();
   await trim.getByRole('alert').filter({ hasText: 'Цей варіант прибрати не можна.' }).waitFor();
   await shot(marta, 'p11h-author-hide-bluff-refused-375');
   await marta.keyboard.press('Escape');
   await trim.waitFor({ state: 'detached' });
-  await pickBluff(vira, 'Південний Буг');
-  await emitOk(petro, 'player:bluff', { optionId: trimmed.view.bluff!.options.find((o) => o.text === 'Південний Буг')!.id });
+  await pickBluff(vira, 'південний буг');
+  await emitOk(petro, 'player:bluff', { optionId: trimmed.view.bluff!.options.find((o) => o.text === 'південний буг')!.id });
   await expectNoHost(marta, 'author bluff reveal');
   await expectNoHost(vira, 'player bluff reveal');
 

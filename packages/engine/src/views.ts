@@ -130,7 +130,7 @@ import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } fro
 import { wallOf, wallsHere } from './wall';
 import { isAuthor } from './autopilot';
 import { cloudTally, cloudVoters } from './votes';
-import { bluffOrder, bluffPlayOf, bluffShown } from './bluff';
+import { bluffOrder, bluffPlayOf, bluffShown, bluffShownText } from './bluff';
 import { skippedSurveys, surveyShown } from './survey';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
@@ -1031,7 +1031,7 @@ function authorCloud(state: GameState): AuthorCloudWord[] | null {
 function authorBluff(state: GameState): AuthorBluffOption[] | null {
   const play = bluffPlayOf(state);
   if (play === null || state.phase !== 'question' || play.bluff.stage !== 'choice') return null;
-  return play.bluff.options.filter((o) => !o.removed).map((o) => ({ id: o.id, text: o.text }));
+  return play.bluff.options.filter((o) => !o.removed).map((o) => ({ id: o.id, text: bluffShownText(o.text) }));
 }
 
 /** Люди кімнати, крім автора, у порядку входу: соло — гравці, командна гра — учасники команд. */
@@ -1112,14 +1112,14 @@ function bluffInfo(state: GameState, forHost: boolean): BluffInfo | null {
   if (stage === 'lies') return { stage, written, picked, options: [], shown: 0, total: 0, lastOpenedId: null, lies };
   const full = (o: (typeof bluff.options)[number], isOpen: boolean): BluffOptionView => ({
     id: o.id,
-    text: o.text,
+    text: bluffShownText(o.text),
     open: isOpen,
     kind: o.kind,
     authors: names(o.authors),
     pickedBy: names(Object.keys(bluff.picks).filter((id) => bluff.picks[id].optionId === o.id)),
     removed: o.removed,
   });
-  const closed = (o: (typeof bluff.options)[number]): BluffOptionView => ({ id: o.id, text: o.text, open: false, kind: null, authors: null, pickedBy: null, removed: false });
+  const closed = (o: (typeof bluff.options)[number]): BluffOptionView => ({ id: o.id, text: bluffShownText(o.text), open: false, kind: null, authors: null, pickedBy: null, removed: false });
   if (stage === 'choice') {
     const options = forHost ? bluff.options.map((o) => full(o, false)) : bluff.options.filter((o) => !o.removed).map(closed);
     return { stage, written, picked, options, shown: 0, total: 0, lastOpenedId: null, lies };

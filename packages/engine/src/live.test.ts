@@ -455,10 +455,10 @@ describe('live answers: bluff and survey', () => {
       answer: null,
       verdict: 'correct',
       timeMs: 4000,
-      progress: { kind: 'bluff', stage: 'choice', lie: 'Лондон-2', pick: 'Барселона' },
+      progress: { kind: 'bluff', stage: 'choice', lie: 'Лондон-2', pick: 'барселона' },
     });
     s = must(pickBluff(s, 'p2', idOf('Лондон-2'), startedAt + 5000));
-    expect(row(s, 'p2')).toMatchObject({ answered: true, verdict: 'wrong', progress: { kind: 'bluff', pick: 'Лондон-2' } });
+    expect(row(s, 'p2')).toMatchObject({ answered: true, verdict: 'wrong', progress: { kind: 'bluff', pick: 'лондон-2' } });
     expect(live(s)).toMatchObject({ answered: 2, total: 3 });
   });
 

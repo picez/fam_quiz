@@ -36,6 +36,15 @@ export function seededRng(seed: number): Rng {
   };
 }
 
+/**
+ * Текст варіанта блефу на екранах: ключ написання (малі літери, один вид апострофів і лапок, зведені пробіли) без крапки
+ * чи знаку оклику в кінці — щоб великі літери чи розділові знаки правди не вирізняли її серед вигадок гравців.
+ */
+export function bluffShownText(text: string): string {
+  const shown = normalizeText(text).replace(/[\s.!…]+$/u, '');
+  return shown === '' ? normalizeText(text) : shown;
+}
+
 /** Поточне запитання-блеф з його грою; null поза ним. */
 export function bluffPlayOf(state: GameState): (Play & { bluff: BluffPlay; question: BluffQuestion }) | null {
   const play = state.plays[state.questionIndex];
@@ -61,7 +70,8 @@ export function writeLie(state: GameState, playerId: string, text: string, now: 
   const value = text.trim().replace(/\s+/g, ' ');
   if (normalizeText(value) === '') return fail('type_mismatch');
   // Збіг з чужою вигадкою не повідомляється (видав би її): однакові вигадки зводяться на старті вибору.
-  if (textMatches(play.question.accepted, value)) return fail('bluff_truth');
+  // Правда порівнюється й за видом на екрані: «Барселона.» показалася б так само, як правда.
+  if (textMatches(play.question.accepted, value) || play.question.accepted.some((spelling) => bluffShownText(spelling) === bluffShownText(value))) return fail('bluff_truth');
   const written = withCurrentPlay(state, { ...play, bluff: { ...play.bluff, lies: { ...play.bluff.lies, [playerId]: { text: value, at: now } } } });
   return ok(bluffAuto(written, now));
 }
@@ -84,7 +94,8 @@ export function startChoice(state: GameState, now: number): GameState {
   const written = Object.entries(play.bluff.lies).sort(([a, x], [b, y]) => x.at - y.at || rank(a) - rank(b));
   const groups = new Map<string, { text: string; authors: string[] }>();
   for (const [playerId, lie] of written) {
-    const key = normalizeText(lie.text);
+    // Ключ — вид на екрані: вигадки, що показалися б однаково, зводяться в один варіант.
+    const key = bluffShownText(lie.text);
     const group = groups.get(key);
     if (group === undefined) groups.set(key, { text: lie.text, authors: [playerId] });
     else group.authors.push(playerId);
@@ -94,7 +105,7 @@ export function startChoice(state: GameState, now: number): GameState {
   const truth: Draft = { text: question.accepted[0], kind: 'truth', authors: [] };
   // Запасна, що збігається з вигадкою гравця, уже є варіантом.
   const need = Math.max(0, LIMITS.bluffOptions - (groups.size + 1));
-  const candidates = question.lies.filter((spare) => !groups.has(normalizeText(spare)));
+  const candidates = question.lies.filter((spare) => !groups.has(bluffShownText(spare)));
   const spares: Draft[] = shuffle(candidates, rng)
     .slice(0, need)
     .map((text) => ({ text, kind: 'spare', authors: [] }));
