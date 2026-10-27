@@ -906,7 +906,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       // Дробова популярність — не «незаповнений рядок»: окреме пояснення.
       if (rows.some((row) => Number.isFinite(row.popularity) && row.popularity > 0 && !Number.isInteger(row.popularity))) return 'problemSurveyPopularity';
       if (!spareOnly && (rows.length < LIMITS.minSurveyRows || !rows.every(isFilledSurveyRow))) return 'problemSurveyRows';
-      if (surveyTotal(question) > LIMITS.surveyTotal) return 'problemSurveyTotal';
+      // Кілька відповідей в опитуванні: сума може перевищити 100.
+      if (question.multiple !== true && surveyTotal(question) > LIMITS.surveyTotal) return 'problemSurveyTotal';
       if (duplicateSpelling(question) !== '') return 'problemSurveyDuplicate';
       if (!Number.isInteger(answers) || answers < 1 || answers > LIMITS.maxSurveyAnswers) return 'problemSurveyAnswers';
       break;

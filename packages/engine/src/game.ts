@@ -14,6 +14,7 @@ import {
   type Phase,
   type Question,
   type Quiz,
+  type SurveyRow,
   type BoardRound,
   type FinalRound,
   type LadderOutcomeKind,
@@ -968,6 +969,13 @@ function nextQuestion(state: GameState): Question | undefined {
   return round.questions.find((question) => !played.has(question.id) && playable(state, question));
 }
 
+/** Запитання запису «100 до 1» зі збудованою дошкою; дошка з хмари рахується як раніше (ділиться на 100), тож multiple з неї знято. */
+function surveyPlayQuestion(question: Extract<Question, { type: 'survey' }>, built: { rows: SurveyRow[]; source: 'host' | 'cloud' }): Question {
+  if (built.source === 'host') return { ...question, rows: built.rows };
+  const { multiple: _multiple, ...rest } = question;
+  return { ...rest, rows: built.rows };
+}
+
 export function openQuestion(state: GameState, question: Question, now: number, rng: Rng, board?: BoardPlay): GameState {
   const round = state.quiz.rounds[state.roundIndex];
   // «100 до 1»: збудована дошка лягає в запитання запису (знімок вікторини не змінюється). Без дошки сюди не потрапляють:
@@ -975,7 +983,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
   const built = question.type === 'survey' ? (surveyBoard(state, question) ?? { rows: question.rows, source: 'host' as const }) : null;
   const play: Play = {
     roundIndex: state.roundIndex,
-    question: built !== null && question.type === 'survey' ? { ...question, rows: built.rows } : question,
+    question: built !== null && question.type === 'survey' ? surveyPlayQuestion(question, built) : question,
     answers: {},
     extraMs: 0,
     ...(board !== undefined ? { board } : {}),
