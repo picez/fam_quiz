@@ -48,6 +48,9 @@ export function UndoButton({ undo, teams, send }: { undo: UndoPanel; teams: bool
       const result = await send('host:undo', { target });
       if (result.ok) setError(null);
       else setError(result.error === 'not_allowed' ? t('undoNotAllowed') : errorText(result.error));
+    } catch {
+      // Зв'язок обірвався до відповіді сервера.
+      setError(errorText('offline'));
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -136,6 +139,7 @@ export function UndoButton({ undo, teams, send }: { undo: UndoPanel; teams: bool
                               type="button"
                               className="btn btn-small"
                               disabled={busy || who === 0}
+                              aria-label={t('undoQuestionAllLabel', { question: question.number })}
                               onClick={() => bulk(t('undoConfirmQuestion', { who: undoWho(who, teams), question: question.number }), { question: question.index })}
                             >
                               {t('undoQuestionAll')}
@@ -154,9 +158,11 @@ export function UndoButton({ undo, teams, send }: { undo: UndoPanel; teams: bool
                   </section>
                 );
               })}
-              <button ref={closeRef} type="button" className="btn btn-small" onClick={() => setOpen(false)}>
-                {t('buffHelpClose')}
-              </button>
+              <div className="undo-foot">
+                <button ref={closeRef} type="button" className="btn btn-small" onClick={() => setOpen(false)}>
+                  {t('buffHelpClose')}
+                </button>
+              </div>
             </div>
           </div>,
           document.body,

@@ -83,7 +83,8 @@ describe('UndoButton', () => {
     const send = ok();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const dialog = open(panel, send);
-    const button = within(warmup(dialog)).getByRole('button', { name: 'Скасувати все за запитання' });
+    const button = within(warmup(dialog)).getByRole('button', { name: 'Скасувати все за запитання 1' });
+    expect(button.textContent).toBe('Скасувати все');
     await act(async () => fireEvent.click(button));
     expect(confirm).toHaveBeenCalledWith('Скасувати бали 2 гравців за запитання 1?');
     expect(send).not.toHaveBeenCalled();
@@ -108,7 +109,7 @@ describe('UndoButton', () => {
   it('disables the bulk buttons when every row is undone', () => {
     const undone: UndoPanel = { rounds: [{ index: 0, title: 'Розминка', type: 'classic', loose: [], questions: [{ index: 0, number: 1, text: 'Яка найбільша планета?', rows: [row({ undoneBy: 3 })] }] }] };
     const dialog = open(undone);
-    expect((within(dialog).getByRole('button', { name: 'Скасувати все за запитання' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(dialog).getByRole('button', { name: 'Скасувати все за запитання 1' }) as HTMLButtonElement).disabled).toBe(true);
     expect((within(dialog).getByRole('button', { name: 'Скасувати раунд' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -117,7 +118,7 @@ describe('UndoButton', () => {
     const dialog = open(loose);
     const block = dialog.querySelector('.undo-question.is-loose') as HTMLElement;
     expect(block.querySelector('h4')?.textContent).toBe('Поза запитаннями');
-    expect(within(block).queryByRole('button', { name: 'Скасувати все за запитання' })).toBeNull();
+    expect(within(block).queryByRole('button', { name: /^Скасувати все/ })).toBeNull();
     expect(within(block).getByRole('button', { name: 'Скасувати' })).toBeTruthy();
   });
 
@@ -132,6 +133,16 @@ describe('UndoButton', () => {
     send.mockResolvedValue({ ok: true });
     await act(async () => fireEvent.click(rowButton(dialog, 'Оля +200')));
     expect(within(dialog).queryByRole('alert')).toBeNull();
+  });
+
+  it('tells a dropped connection when the send rejects and lets the host try again', async () => {
+    const send = vi.fn<Send>(async () => {
+      throw new Error('disconnected');
+    });
+    const dialog = open(panel, send);
+    await act(async () => fireEvent.click(rowButton(dialog, 'Оля +200')));
+    expect(within(dialog).getByRole('alert').textContent).toBe('Немає зв’язку із сервером.');
+    expect(rowButton(dialog, 'Оля +200').disabled).toBe(false);
   });
 
   it('sends one action at a time', async () => {

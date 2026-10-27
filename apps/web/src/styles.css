@@ -10646,6 +10646,7 @@ button.wall-tile:disabled {
 
 /* 12a: «↶ Бали» в шапці пульта — у шапці, що завжди в один рядок; висота не більша за «Таблицю». */
 .undo-button {
+  position: relative;
   flex-shrink: 0;
   min-height: 0;
   margin-block: calc(-0.4rem - 2px);
@@ -10664,8 +10665,32 @@ button.wall-tile:disabled {
   flex: 1;
 }
 
+/* Дотикова зона «↶ Бали» — щонайменше 44 px заввишки, хоча сама кнопка нижча й шапка не росте. */
+.undo-button::after {
+  content: '';
+  position: absolute;
+  inset: -0.375rem -0.25rem;
+}
+
+/* Помилку видно й тоді, коли картку прокручено (top і bottom з'їдають padding картки). */
 .undo-card .error {
-  margin: 0;
+  position: sticky;
+  top: -1rem;
+  z-index: 1;
+  margin: -0.5rem -1rem 0;
+  padding: 0.5rem 1rem;
+  background: var(--stage);
+}
+
+/* «Закрити» завжди під рукою — внизу картки без прокрутки. */
+.undo-foot {
+  position: sticky;
+  bottom: -1rem;
+  z-index: 1;
+  margin: 0 -1rem -1rem;
+  padding: 0.5rem 1rem 1rem;
+  background: var(--stage);
+  border-top: 1px solid var(--line);
 }
 
 .undo-round {
