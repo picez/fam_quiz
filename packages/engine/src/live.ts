@@ -14,6 +14,7 @@ import {
 } from '@quiz/shared';
 // views.ts імпортує цей файл; цей файл views.ts не імпортує (без циклу).
 import { blitzRulesOf, isInstant } from './blitz';
+import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
 import { chainOf } from './chain';
 import { cluesAnswered } from './clues';
@@ -149,11 +150,13 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
   if (question.type === 'bluff' && play.bluff !== undefined) {
     const bluff = play.bluff;
     const picked = Object.hasOwn(bluff.picks, id) ? bluff.picks[id].optionId : null;
+    const pickText = picked === null ? undefined : bluff.options.find((o) => o.id === picked)?.text;
     return {
       kind: 'bluff',
       stage: state.phase === 'question' ? bluff.stage : 'choice',
       lie: Object.hasOwn(bluff.lies, id) ? bluff.lies[id].text : null,
-      pick: picked === null ? null : (bluff.options.find((o) => o.id === picked)?.text ?? null),
+      // Вибраний варіант — так, як його бачать екрани.
+      pick: pickText === undefined ? null : bluffShownText(pickText),
     };
   }
   if (question.type === 'survey') {

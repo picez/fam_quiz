@@ -72,7 +72,19 @@ describe('bluff views', () => {
     expect(playerView(s, 'p3')!.me.bluff!.pick).toBe(rome);
     const host = hostView(s).bluff!;
     expect(host.options.find((o) => o.id === rome)).toMatchObject({ kind: 'lie', authors: ['Оля', 'Петро'], pickedBy: ['Віра'] });
-    expect(host.options.find((o) => o.text === 'Барселона')?.kind).toBe('truth');
+    expect(host.options.find((o) => o.text === 'барселона')?.kind).toBe('truth');
+  });
+
+  it('every screen shows options in lower case without a final dot, so the truth does not stand out', () => {
+    let s = openClassic([bluff, single]);
+    s = must(writeLie(s, 'p1', 'Рим.', at(s, 1000)));
+    s = must(writeLie(s, 'p2', 'мілан', at(s, 2000)));
+    s = must(writeLie(s, 'p3', 'Неаполь!', at(s, 3000)));
+    for (const view of [playerView(s, 'p2')!, stageView(s), hostView(s)]) {
+      const texts = view.bluff!.options.map((o) => o.text);
+      expect(texts).toEqual(expect.arrayContaining(['рим', 'мілан', 'неаполь', 'барселона']));
+      expect(texts.every((text) => text === text.toLowerCase() && !text.endsWith('.') && !text.endsWith('!'))).toBe(true);
+    }
   });
 
   it('a removed lie disappears from phones and the stage, the host still sees it', () => {
