@@ -63,10 +63,10 @@ describe('the «Родинний марафон» quiz', () => {
     }
   });
 
-  it('names the data source in every «100 до 1» question', () => {
+  it('names the poll and its year in every «100 до 1» question', () => {
     const surveys = played(plain).filter((q) => q.type === 'survey');
     expect(surveys.length).toBeGreaterThan(0);
-    for (const q of surveys) expect(q.text).toMatch(/даних|довідник/u);
+    for (const q of surveys) expect(q.text).toMatch(/(За опитуванням|За дослідженням) .+, 20\d\d:/u);
   });
 
   it('spreads the themes evenly: exactly 12 questions each', () => {
