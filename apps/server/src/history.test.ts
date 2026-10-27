@@ -877,6 +877,40 @@ describe('history: score adjustments', () => {
     expect((await hostGame(db, host.id, oldId))?.adjustments).toEqual([]);
   });
 
+  it('an undo row carries what it undoes; the breakdown shows it as undo in its round (12a)', async () => {
+    const host = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 3),
+      players: [
+        {
+          userId: null,
+          nickname: 'Олена',
+          score: 0,
+          rank: 1,
+          rows: [{ questionIndex: 0, accepted: true, points: 1000 }],
+          adjustments: [{ seq: 2, points: -1000, source: 'undo', undoesQuestion: 0 }],
+        },
+        {
+          userId: null,
+          nickname: 'Тарас',
+          score: 0,
+          rank: 1,
+          adjustments: [{ seq: 1, points: 50 }, { seq: 3, points: -50, source: 'undo', undoesSeq: 1 }],
+        },
+      ],
+    });
+    const detail = await hostGame(db, host.id, gameId);
+    expect(detail?.adjustments).toEqual([
+      { seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Тарас', points: 50, source: 'host' },
+      { seq: 2, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: -1000, source: 'undo', undoes: { question: 0 } },
+      { seq: 3, roundIndex: 0, afterQuestion: 0, nickname: 'Тарас', points: -50, source: 'undo', undoes: { seq: 1 } },
+    ]);
+    const olena = detail?.standings.find((s) => s.nickname === 'Олена');
+    expect(olena?.breakdown).toEqual({ parts: [{ source: 'answers', plus: 1000, minus: 0 }, { source: 'undo', plus: 0, minus: -1000 }], plus: 1000, minus: -1000 });
+    expect(olena?.rounds).toEqual([0]);
+  });
+
   it('a purchase row carries the kind and the target; other rows keep their keys', async () => {
     const host = await hostAccount();
     const { gameId } = await seedGame(db, {

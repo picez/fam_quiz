@@ -15,8 +15,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 12 — 11d: SortProgress.wordMisses (помилки по словах) і SortProgress.missedInto (зона останньої помилки).
  * 13 — 11e: WipeoutPlay.auto (хто забрав банк за замовчуванням, коли вікно закрилося).
  * 14 — 11g: GameState.autopilot (автор, мить наступного кроку автопілота, залишок і причина паузи, старт після кубиків).
+ * 15 — 12a: ScoreAdjustment.undoes і ScoreAdjustment.batch (скасування балів ведучим), значення AdjustmentSource 'undo'.
  */
-export const GAME_STATE_VERSION = 14;
+export const GAME_STATE_VERSION = 15;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -44,8 +45,10 @@ export const GAME_STATE_VERSION = 14;
  * без «Без вибору». Тож кімната, збережена до розгортання 11e, теж відновлюється.
  * 13 → 14 лише додала необов'язкове GameState.autopilot. Без нього гра — з ведучим, як і була. Тож кімната, збережена
  * до розгортання 11g, теж відновлюється.
+ * 14 → 15 лише додала необов'язкові ScoreAdjustment.undoes і batch (і значення AdjustmentSource 'undo'), а стан версій 2–14
+ * не може містити скасувань: тож кімната, збережена до розгортання 12a, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

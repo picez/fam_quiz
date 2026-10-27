@@ -3,6 +3,7 @@ import type { ScoreBreakdown } from './breakdown';
 import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
 import type { LadderOutcomeKind } from './ladder';
 import type { CellKind, LifelineKind, Question, Round, TrialKind, WagerMode } from './quiz';
+import type { UndoTarget } from './undo';
 import type { WipeoutStatus } from './wipeout';
 
 export type GameStatus = 'running' | 'finished' | 'aborted';
@@ -158,6 +159,8 @@ export interface GameAdjustment {
   /** Лише для source 'debuff': куплений вид і ціль (null — ціль вилучили до запису). */
   debuff?: DebuffKind;
   target?: string | null;
+  /** Лише для source 'undo' (12a): що скасовано. */
+  undoes?: UndoTarget;
 }
 
 /** Гра в історії гравця з акаунтом. */

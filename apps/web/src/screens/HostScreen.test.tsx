@@ -73,7 +73,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   sliderMarks: null,
   pinMarks: null,
   wall: null,
-  cloud: null, survey: null, bluff: null, surveySkipped: [],
+  cloud: null, survey: null, bluff: null, surveySkipped: [], undo: null,
   ...over,
 });
 
@@ -2701,5 +2701,22 @@ describe('HostScreen: live answers (11c)', () => {
     expect(within(panel).getByText(/Варшава/)).toBeTruthy();
     expect(within(panel).queryByText('Спроби Петро: Львів, Ліон')).toBeNull();
     expect(document.getElementById('live-answers')).toBeNull();
+  });
+});
+
+describe('undo button (12a)', () => {
+  it('stands in the header on the leaderboard and opens the undo sheet', () => {
+    show(view({ phase: 'leaderboard', questionIndex: 0, undo: { rounds: [] } }));
+    const button = within(document.querySelector('header.bar') as HTMLElement).getByRole('button', { name: '↶ Бали' });
+    fireEvent.click(button);
+    expect(screen.getByRole('dialog', { name: 'Скасування балів' })).toBeTruthy();
+  });
+
+  it('is not there in the lobby or after the end', () => {
+    show(view());
+    expect(screen.queryByRole('button', { name: '↶ Бали' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings: [] }));
+    expect(screen.queryByRole('button', { name: '↶ Бали' })).toBeNull();
   });
 });

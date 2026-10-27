@@ -696,7 +696,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
-        <AdjustmentToast notice={view.notice} offsetMs={offsetMs} />
+        <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />
         <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
         <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} selfId={me.id} />
       </LiveNotices>

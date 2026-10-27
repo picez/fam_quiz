@@ -275,7 +275,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
       .where(inGame);
     const fresh = state.adjustments
       .filter((adjustment) => adjustment.seq > (saved ?? 0))
-      .map(({ playerId, seq, roundIndex, afterQuestion, points, source, debuff, target }) => ({
+      .map(({ playerId, seq, roundIndex, afterQuestion, points, source, debuff, target, undoes }) => ({
         participantId: playerId,
         seq,
         roundIndex,
@@ -285,6 +285,9 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         debuff: debuff ?? null,
         // Ціль могли вилучити до запису: тоді нікнейма вже немає.
         targetNickname: target === undefined ? null : (state.players.find((p) => p.id === target)?.nickname ?? null),
+        // batch у базу не пишеться: він потрібен лише живому сповіщенню.
+        undoesQuestion: undoes !== undefined && 'question' in undoes ? undoes.question : null,
+        undoesSeq: undoes !== undefined && 'seq' in undoes ? undoes.seq : null,
       }));
     if (fresh.length > 0) await tx.insert(scoreAdjustment).values(fresh).onConflictDoNothing();
   });

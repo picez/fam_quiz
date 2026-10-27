@@ -1,7 +1,8 @@
 import type { Answer } from './answer';
 import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
-import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, TrialKind, Video, WagerMode } from './quiz';
+import type { HostUndoTarget } from './events';
+import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, TrialKind, Video, WagerMode } from './quiz';
 import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
 import type { RoundBrief } from './round-brief';
@@ -659,13 +660,65 @@ export interface HostFinal extends FinalInfo {
   splitNext: boolean;
 }
 
-/** Останнє коригування від ведучого, для короткого сповіщення. */
+/** Останнє коригування від ведучого чи його скасування, для короткого сповіщення. */
 export interface AdjustmentNotice {
   seq: number;
   /** Час сервера в мить коригування. */
   at: number;
   nickname: string;
   points: number;
+  /** 12a: це скасування чи «Повернути»; без поля — бали від ведучого. */
+  undo?: UndoNotice;
+}
+
+/** Скасування в сповіщенні (12a): nickname і points — гравець останнього рядка дії й сума його рядків у дії. */
+export interface UndoNotice {
+  /** «Повернути». */
+  redo: boolean;
+  /** Скільки різних учасників зачепила дія. */
+  players: number;
+  /** 1-базовий номер раунду. */
+  round: number;
+  /** 1-базовий номер запитання в раунді; null — дія на кілька запитань чи на бали поза запитаннями. */
+  question: number | null;
+}
+
+/** Пульт: аркуш «Скасування балів» (12a). */
+export interface UndoPanel {
+  /** Раунди з рядками, найновіший першим. */
+  rounds: UndoRound[];
+}
+
+export interface UndoRound {
+  /** 0-базовий індекс раунду. */
+  index: number;
+  title: string;
+  type: RoundType;
+  /** Запитання з рядками, найновіше першим. */
+  questions: UndoQuestion[];
+  /** Бали ведучого поза запитаннями раунду (наприклад, на заставці), за seq. */
+  loose: UndoRow[];
+}
+
+export interface UndoQuestion {
+  /** Індекс у журналі запитань гри (plays). */
+  index: number;
+  /** 1-базовий номер у раунді. */
+  number: number;
+  text: string;
+  rows: UndoRow[];
+}
+
+export interface UndoRow {
+  kind: 'answer' | 'host';
+  playerId: string;
+  nickname: string;
+  /** Бали рядка, як їх нараховано (без скасування). */
+  points: number;
+  /** answer — { question, playerId }; host — { seq }. */
+  target: HostUndoTarget;
+  /** seq скасування, що діє зараз; null — не скасовано. «Повернути» шле { seq: undoneBy }. */
+  undoneBy: number | null;
 }
 
 /** Дуель для всіх ролей: без прийнятних відповідей до етапу answer і без текстів спроб. */
@@ -1327,6 +1380,8 @@ export interface HostView extends BaseView {
   pace: HostPace;
   /** Відповіді наживо (11c); лише пульт. */
   live: HostLive | null;
+  /** Аркуш «Скасування балів» (12a); null у лобі, після кінця гри й без ведучого. */
+  undo: UndoPanel | null;
 }
 
 export type GameView = StageView | PlayerView | HostView;

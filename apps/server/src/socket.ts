@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import {
   adjustSchema,
+  undoSchema,
   answerSchema,
   buyDebuffSchema,
   debuffSchema,
@@ -451,6 +452,12 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = adjustSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'adjust', ...payload.data }) : INVALID;
+    });
+
+    on('host:undo', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = undoSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'undo', target: payload.data.target }) : INVALID;
     });
 
     on('host:hint', (args) => {

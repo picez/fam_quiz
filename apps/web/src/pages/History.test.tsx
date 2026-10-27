@@ -840,3 +840,51 @@ describe('GameHistory bluff (10f)', () => {
     expect(screen.getByText('вигадка «Рим» · вибір «Мілан» ✗ · купилися: 1')).toBeTruthy();
   });
 });
+
+describe('GameHistory: undo', () => {
+  const undone: GameDetail = {
+    ...detail,
+    questions: [
+      {
+        ...detail.questions[0],
+        responses: [
+          { nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null },
+          { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null },
+        ],
+      },
+    ],
+    adjustments: [
+      { seq: 1, roundIndex: 0, afterQuestion: 1, nickname: 'Тарас', points: 50, source: 'host' },
+      { seq: 2, roundIndex: 0, afterQuestion: 1, nickname: 'Олена', points: -1000, source: 'undo', undoes: { question: 0 } },
+      { seq: 3, roundIndex: 0, afterQuestion: 1, nickname: 'Тарас', points: -50, source: 'undo', undoes: { seq: 1 } },
+      { seq: 4, roundIndex: 0, afterQuestion: 1, nickname: 'Тарас', points: 50, source: 'undo', undoes: { seq: 3 } },
+    ],
+  };
+
+  it('strikes undone answers and lists each undo with «↶»; a returned undo leaves the host points standing', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: undone });
+    const { container } = open('/history/g1');
+    await screen.findByText('Столиця України?');
+    const host = container.querySelector('.history-adjustments');
+    expect(host?.textContent).toBe('Бали від ведучого: Тарас +50');
+    expect(host?.querySelector('s')).toBeNull();
+    const lines = [...container.querySelectorAll('.history-undo')];
+    expect(lines.map((line) => line.textContent)).toEqual([
+      '↶ Скасовано: Олена −1000 (запитання 1)',
+      '↶ Скасовано: Тарас −50 (бали ведучого)',
+      '↶ Повернуто: Тарас +50 (бали ведучого)',
+    ]);
+    expect(lines[0].querySelector('s')).toBeNull();
+    expect(lines[1].querySelector('s')).not.toBeNull();
+    const answers = [...container.querySelectorAll('.responses li')];
+    expect(answers[0].className).toContain('is-undone');
+    expect(answers[1].className).not.toContain('is-undone');
+  });
+
+  it('strikes host points that are undone and not returned', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...undone, adjustments: undone.adjustments.slice(0, 3) } });
+    const { container } = open('/history/g1');
+    await screen.findByText('Столиця України?');
+    expect(container.querySelector('.history-adjustments s')?.textContent).toBe('Тарас +50');
+  });
+});

@@ -140,6 +140,17 @@ describe('host help', () => {
     expect(searchHelp('за раундами')).toContain('setting.scores');
   });
 
+  it('12a undo entry follows «scores» and tells what is undone, what is not, «Повернути» and why the current question goes by grading', () => {
+    const ids = helpIds('settings');
+    expect(ids.indexOf('setting.undo')).toBe(ids.indexOf('setting.scores') + 1);
+    filled('setting.undo');
+    const body = text('setting.undo');
+    for (const part of ['↶ Бали', 'Скасувати все', 'Скасувати раунд', 'Повернути', 'Прийняти', 'Скасовано ведучим', '«Ва-банк»', 'без ведучого', 'командній грі']) expect(body).toContain(part);
+    expect(text('setting.scores')).toContain('Скасовано ведучим');
+    expect(text('setting.autopilot')).toContain('скасування балів');
+    expect(searchHelp('скасування')).toContain('setting.undo');
+  });
+
   it('11d sorting help tells who watches the card, the marks and the captain watchers', () => {
     for (const part of ['куди він її тягне', 'не встиг', '✗2', 'чужої картки й руху не бачить ніхто', '«Відповідях наживо»', '«→ категорія»']) expect(text('question.sort')).toContain(part);
     expect(text('team.captain')).toContain('картку капітана');

@@ -13270,3 +13270,296 @@ it('part 11h: with no stage the question sound plays on the 375 phones and stops
     for (const socket of sockets) socket.close();
   }
 }, 900_000);
+
+/** Ключ панелі скасування в сокетних кадрах (12a): лише в зрізі пульта. */
+const UNDO_PANEL = /"undo":\{"rounds":/;
+
+/** Тексти рядків аркуша «Скасування балів» у групі запитання. */
+async function undoRows(scope: Locator): Promise<string[]> {
+  return (await scope.locator('.undo-row .undo-row-text').allTextContents()).map((text) => text.trim());
+}
+
+function undoQuestions12a() {
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const u1 = {
+    ...common,
+    id: 'u1',
+    type: 'single' as const,
+    text: 'Яка найбільша планета Сонячної системи?',
+    points: 100,
+    options: [{ id: 'u1-a', text: 'Юпітер' }, { id: 'u1-b', text: 'Сатурн' }, { id: 'u1-c', text: 'Марс' }],
+    correctId: 'u1-a',
+  };
+  const u2 = { ...common, id: 'u2', type: 'boolean' as const, text: 'Бджола — комаха', points: 200, correct: true };
+  const u3 = {
+    ...common,
+    id: 'u3',
+    type: 'single' as const,
+    text: 'Скільки континентів на Землі?',
+    points: 300,
+    options: [{ id: 'u3-a', text: '7' }, { id: 'u3-b', text: '5' }, { id: 'u3-c', text: '6' }],
+    correctId: 'u3-a',
+  };
+  const u4 = { ...common, id: 'u4', type: 'boolean' as const, text: 'Сонце — зірка', points: 100, correct: true };
+  return { u1, u2, u3, u4 };
+}
+
+async function undo12a() {
+  const host = await open('host12a', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12a@example.com');
+  const hostFrames = socketFrames(host);
+
+  const { u1, u2, u3, u4 } = undoQuestions12a();
+  const options = { speedBonus: false, shuffleOptions: false, rules: { ...DEFAULT_RULES, penalty: 'minus' as const } };
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('r1', [u1, u2] as never, { ...options, title: 'Розминка' }),
+        classicRound('r2', [u3, u4] as never, { ...options, title: 'Фініш' }),
+      ],
+      { leaderboard: 'each' },
+    ),
+    title: 'Скасування 12a',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Скасування 12a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage12a', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya12a', 375, 812);
+  const petro = await open('petro12a', 375, 812);
+  const ira = await open('ira12a', 375, 812);
+  const petroFrames = socketFrames(petro);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+  const all = [host, stage, ...phones];
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  const sheet = host.locator('.undo-sheet');
+  const openUndo = async () => {
+    await host.getByRole('button', { name: '↶ Бали', ...exact }).click();
+    await sheet.getByRole('heading', { name: 'Скасування балів', ...exact }).waitFor();
+  };
+  const closeUndo = async () => {
+    await host.keyboard.press('Escape');
+    await sheet.waitFor({ state: 'detached' });
+  };
+  const playerRow = (name: string) => host.locator('.player-row', { has: host.locator('.name', { hasText: new RegExp(`^${name}$`) }) });
+  const rowScore = async (name: string) => (await playerRow(name).locator('.score').textContent())?.trim();
+  const notice = (page: Page) => page.locator('.live-notice.is-undo');
+  const noticeText = async (page: Page) => (await notice(page).textContent({ timeout: 500 }).catch(() => null))?.trim() ?? null;
+  const undoRow = (text: string) => sheet.locator('.undo-row', { has: host.locator('.undo-row-text', { hasText: new RegExp(`^${text}$`) }) });
+  /** Відповіді гравців; запитання закривається само, коли відповіли всі. */
+  const answer = async (picks: [Page, string][]) => {
+    for (const [page, option] of picks) await pickOption(page, option);
+    await host.getByText('Запитання закрите').waitFor();
+  };
+  /** Аркуш на 375 px: картка не прокручується вбік, кожна кнопка всередині картки; код гри в шапці — в один рядок. */
+  const expectSheetFits = async (name: string) => {
+    const overflow = (await host.evaluate(`(() => {
+      const card = document.querySelector('.undo-card');
+      const box = card.getBoundingClientRect();
+      const out = [...card.querySelectorAll('button')]
+        .map((button) => ({ text: button.textContent, r: button.getBoundingClientRect() }))
+        .filter(({ r }) => r.left < box.left - 1 || r.right > box.right + 1)
+        .map(({ text }) => text);
+      return card.scrollWidth > card.clientWidth ? ['card scrolls sideways', ...out] : out;
+    })()`)) as string[];
+    expect(overflow, `${name}: the undo card overflows`).toEqual([]);
+    const code = (await host.locator('header.bar .code').boundingBox())!;
+    const lineHeight = (await host.evaluate("parseFloat(getComputedStyle(document.querySelector('header.bar .code')).lineHeight) || 30")) as number;
+    expect(code.height, `${name}: the game code wraps in the header`).toBeLessThan(lineHeight * 1.5);
+  };
+  const yes = '(^|\\s)Так$';
+  const no = '(^|\\s)Ні$';
+  const dialogs: string[] = [];
+  host.on('dialog', (dialog) => dialogs.push(dialog.message()));
+
+  // 1. u1 на розкритті: Петро помиляється, ведучий дає Ірі +50; поточне запитання ще поза аркушем.
+  await stage.getByText('Яка найбільша планета Сонячної системи?', exact).waitFor();
+  await answer([[olya, 'Юпітер'], [petro, 'Сатурн'], [ira, 'Юпітер']]);
+  await click(host, 'Показати відповідь');
+  const iraRow = playerRow('Іра');
+  await iraRow.getByRole('button', { name: 'Бали', ...exact }).click();
+  await iraRow.locator('.player-tools').waitFor();
+  await iraRow.getByLabel('Своя сума', exact).fill('50');
+  await iraRow.getByRole('button', { name: 'Нарахувати', ...exact }).click();
+  await expect.poll(() => rowScore('Іра'), POLL).toBe('150');
+  await openUndo();
+  await sheet.locator('.undo-empty').waitFor();
+  expect(await sheet.locator('.undo-row').count(), 'the question on its reveal is in the sheet').toBe(0);
+  await closeUndo();
+
+  // 2. Після розкриття: аркуш з раундом, запитанням і чотирма рядками.
+  await click(host, 'Далі');
+  await openUndo();
+  await expect.poll(() => sheet.locator('h3').allTextContents(), POLL).toEqual(['Розминка']);
+  expect(await sheet.locator('.undo-question-title').allTextContents()).toEqual(['1. Яка найбільша планета Сонячної системи?']);
+  expect(await undoRows(sheet)).toEqual(['Оля +100', 'Петро −100 (штраф)', 'Іра +100', 'Ведучий: Іра +50']);
+  await expectSheetFits('p12a-host-sheet');
+  await expectNoSideScroll(host, 'p12a-host-sheet');
+
+  // 3. Штраф Петра — одним дотиком; сповіщення на сцені й телефонах.
+  const petroPenalty = undoRow('Петро −100 \\(штраф\\)');
+  await petroPenalty.getByRole('button', { name: 'Скасувати', ...exact }).click();
+  await expect.poll(() => petroPenalty.getAttribute('class'), POLL).toBe('undo-row is-undone');
+  await petroPenalty.getByRole('button', { name: 'Повернути', ...exact }).waitFor();
+  const undone = 'Ведучий скасував бали: Петро +100 (раунд 1, запитання 1)';
+  await Promise.all([stage, petro, olya].map((page) => expect.poll(() => noticeText(page), POLL).toBe(undone)));
+  await closeUndo();
+  await expect.poll(() => rowScore('Петро'), POLL).toBe('0');
+  await stage.waitForTimeout(300);
+  await shot(stage, 'p12a-stage-notice');
+  await shot(petro, 'p12a-phone-notice');
+
+  // 4. Розбивка Петра: «Скасовано ведучим».
+  const petroTable = petro.locator('.table-sheet');
+  await petro.getByRole('button', { name: 'Таблиця', ...exact }).click();
+  await petroTable.getByRole('heading', { name: 'Таблиця', ...exact }).waitFor();
+  await petroTable.locator('button.score-row-toggle').click();
+  await petroTable.locator('.score-breakdown').waitFor();
+  expect(await breakdownTexts(petroTable)).toEqual(['Помилки −100', 'Скасовано ведучим +100']);
+  await expectNoSideScroll(petro, 'p12a-phone-breakdown');
+  await petro.keyboard.press('Escape');
+  await petroTable.waitFor({ state: 'detached' });
+
+  // 5. «Повернути» штраф.
+  await openUndo();
+  await petroPenalty.getByRole('button', { name: 'Повернути', ...exact }).click();
+  await expect.poll(() => noticeText(petro), POLL).toBe('Ведучий повернув бали: Петро −100 (раунд 1, запитання 1)');
+  await expect.poll(() => petroPenalty.getAttribute('class'), POLL).toBe('undo-row');
+  await closeUndo();
+  await expect.poll(() => rowScore('Петро'), POLL).toBe('−100');
+
+  // 6. u2 і «Скасувати раунд» після підтвердження.
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+  await stage.getByText('Бджола — комаха', exact).waitFor();
+  await answer([[olya, no], [petro, yes], [ira, yes]]);
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  const gains = () => stage.locator('.round-gain').allTextContents();
+  await expect.poll(gains, POLL).toEqual(['+350 за раунд', '+100 за раунд', '−100 за раунд']);
+  await openUndo();
+  await sheet
+    .locator('.undo-round', { has: host.locator('h3', { hasText: 'Розминка' }) })
+    .getByRole('button', { name: 'Скасувати раунд', ...exact })
+    .click();
+  await expect.poll(() => dialogs.at(-1), POLL).toBe('Скасувати бали 3 гравців за раунд 1?');
+  await expect.poll(() => sheet.locator('.undo-row:not(.is-undone)').count(), POLL).toBe(0);
+  await expect.poll(() => noticeText(stage), POLL).toBe('Ведучий скасував бали 3 гравців (раунд 1)');
+  await closeUndo();
+  await expect.poll(gains, POLL).toEqual(['0 за раунд', '0 за раунд', '0 за раунд']);
+  expect(await stage.locator('.standings .score').allTextContents()).toEqual(['0', '0', '0']);
+  await expectStageInView(stage, 'p12a-stage-round');
+  await shot(stage, 'p12a-stage-round');
+
+  // 7. «Повернути» бали ведучого.
+  await openUndo();
+  await undoRow('Ведучий: Іра \\+50').getByRole('button', { name: 'Повернути', ...exact }).click();
+  await expect.poll(() => noticeText(ira), POLL).toBe('Ведучий повернув бали: Іра +50 (раунд 1, запитання 1)');
+  await closeUndo();
+  await expect.poll(() => rowScore('Іра'), POLL).toBe('50');
+
+  // 8. u3: поточне запитання на розкритті — поза аркушем.
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+  await stage.getByText('Скільки континентів на Землі?', exact).waitFor();
+  await answer([[olya, '(^|\\s)7$'], [petro, '(^|\\s)5$'], [ira, '(^|\\s)7$']]);
+  await click(host, 'Показати відповідь');
+  await openUndo();
+  expect(await sheet.locator('h3').allTextContents()).toEqual(['Розминка']);
+  await closeUndo();
+
+  // 9. «Скасувати все за запитання» і «Повернути» Петра.
+  await click(host, 'Далі');
+  await openUndo();
+  await expect.poll(() => sheet.locator('h3').allTextContents(), POLL).toEqual(['Фініш', 'Розминка']);
+  await sheet.locator('.undo-question').first().getByRole('button', { name: 'Скасувати все за запитання 1', ...exact }).click();
+  await expect.poll(() => dialogs.at(-1), POLL).toBe('Скасувати бали 3 гравців за запитання 1?');
+  await expect.poll(() => noticeText(olya), POLL).toBe('Ведучий скасував бали 3 гравців (раунд 2, запитання 1)');
+  await undoRow('Петро −300 \\(штраф\\)').getByRole('button', { name: 'Повернути', ...exact }).click();
+  await expect.poll(() => noticeText(petro), POLL).toBe('Ведучий повернув бали: Петро −300 (раунд 2, запитання 1)');
+  await expectSheetFits('p12a-host-sheet-two-rounds');
+  await shot(host, 'p12a-host-sheet-two-rounds');
+  await closeUndo();
+  await expect.poll(() => rowScore('Оля'), POLL).toBe('0');
+  expect(await rowScore('Петро')).toBe('−300');
+  expect(await rowScore('Іра')).toBe('50');
+
+  // 10. u4 і кінець: на пульті «↶ Бали» більше немає.
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+  await stage.getByText('Сонце — зірка', exact).waitFor();
+  await answer(phones.map((page) => [page, yes] as [Page, string]));
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  const first = (await stage.locator('.standings li').first().textContent())!;
+  expect(first).toContain('Іра');
+  expect(first).toContain('150');
+  await expect.poll(() => host.getByRole('button', { name: '↶ Бали', ...exact }).count(), POLL).toBe(0);
+
+  // 11. Таємність у кадрах: панель скасування лише в пульта.
+  expect(stageFrames.length).toBeGreaterThan(0);
+  for (const frame of stageFrames) expect(UNDO_PANEL.test(frame), 'the stage got the undo panel').toBe(false);
+  for (const frame of petroFrames) expect(UNDO_PANEL.test(frame), 'Петро got the undo panel').toBe(false);
+  expect(hostFrames.some((frame) => UNDO_PANEL.test(frame)), 'the host never got the undo panel').toBe(true);
+
+  // 12. Історія: рахунок, розбивка, закреслені рядки й «↶».
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Скасування 12a/ }).click();
+  const section = host.locator('section.history-scores');
+  await section.getByRole('heading', { name: 'Бали за раундами', ...exact }).waitFor();
+  expect(await scoreCells(section, 'Іра')).toEqual(['50', '100', '150']);
+  expect(await scoreCells(section, 'Оля')).toEqual(['0', '100', '100']);
+  expect(await scoreCells(section, 'Петро')).toEqual(['0', '−200', '−200']);
+  await section.locator('button.score-row-toggle', { hasText: 'Петро' }).click();
+  await section.locator('.score-breakdown').waitFor();
+  expect(await breakdownTexts(section)).toEqual(['Відповіді +300', 'Помилки −400', 'Скасовано ведучим +500', 'Скасовано ведучим −600']);
+  const group = (title: string) => host.locator('.round-group', { has: host.locator('h3.round-title', { hasText: new RegExp(`^${title}$`) }) });
+  const warmup = group('Розминка');
+  expect((await warmup.locator('.history-adjustments').textContent())?.trim()).toBe('Бали від ведучого: Іра +50');
+  expect(await warmup.locator('.history-adjustments s').count()).toBe(0);
+  const warmupUndo = warmup.locator('.history-undo');
+  expect(await warmupUndo.count()).toBe(10);
+  expect((await warmupUndo.first().textContent())?.trim()).toBe('↶ Скасовано: Петро +100 (запитання 1)');
+  expect(await warmupUndo.first().locator('s').count()).toBe(1);
+  const finish = group('Фініш');
+  const finishUndo = finish.locator('.history-undo');
+  expect(await finishUndo.count()).toBe(4);
+  expect((await finishUndo.last().textContent())?.trim()).toBe('↶ Повернуто: Петро −300 (запитання 1)');
+  const u3Answers = finish.locator('details.responses').first();
+  await u3Answers.locator('summary').click();
+  const responseOf = (name: string) => u3Answers.locator('li', { has: host.locator('.responses-name', { hasText: new RegExp(`^${name}$`) }) });
+  expect(await responseOf('Оля').getAttribute('class')).toContain('is-undone');
+  expect(await responseOf('Іра').getAttribute('class')).toContain('is-undone');
+  expect(await responseOf('Петро').getAttribute('class')).not.toContain('is-undone');
+  await expectNoSideScroll(host, 'p12a-history');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12a: undo points — the host sheet on a 375 phone lists closed questions newest first, undoes a penalty with one tap and returns it, undoes a whole round and a whole question after a confirm, phones and the 1280 × 720 stage get the notice and the new table, the phone breakdown says «Скасовано ведучим», the current question stays out until its reveal ends, the panel never reaches the stage, and the history strikes what was undone', async () => {
+  try {
+    await undo12a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});

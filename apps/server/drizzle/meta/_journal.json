@@ -99,6 +99,13 @@
       "when": 1793032041694,
       "tag": "0013_game_autopilot",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793121725124,
+      "tag": "0014_score_undo",
+      "breakpoints": true
     }
   ]
 }

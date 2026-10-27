@@ -95,6 +95,18 @@ describe('a room restored after a restart', () => {
     expect(isSavedRoom('room')).toBe(false);
   });
 
+  it('keeps an undo across a restart; a version 14 snapshot is still readable', () => {
+    const { scheduler, manager, room, olena } = midQuestion();
+    expect(manager.host(room, { type: 'adjust', playerId: olena.playerId, points: 50 })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'undo', target: { seq: 1 } })).toEqual({ ok: true });
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    expect(isSavedRoom({ ...saved, stateVersion: 14 })).toBe(true);
+    const back = new RoomManager(scheduler, () => 0.5).restore(saved) as Room;
+    expect(back.state.adjustments.at(-1)).toMatchObject({ seq: 2, source: 'undo', points: -50, undoes: { seq: 1 }, batch: 2 });
+    expect(back.state.players.map((p) => p.score)).toEqual(room.state.players.map((p) => p.score));
+  });
+
   it('a room saved before 10c (state version 2) comes back: version 3 only added Play.clues', () => {
     const { scheduler, manager, room, olena, taras } = midQuestion();
     const saved = { ...viaJson(manager.snapshot(room)), stateVersion: 2 };

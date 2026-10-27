@@ -1,5 +1,6 @@
+import { Fragment } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { cloudKey, isUnscored, pinDistance, surveyHitsOf, surveyOrder, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
+import { cloudKey, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
@@ -12,6 +13,7 @@ import { PollBars } from '../screens/PollBars';
 import { BluffBoard } from '../screens/BluffBoard';
 import { SurveyBoard } from '../screens/SurveyBoard';
 import { ScoreTable } from '../screens/ScoreTable';
+import { historyUndoLines } from '../undo-panel';
 import { usePrivateData } from '../usePrivateData';
 
 /** Точки гравців на мініатюрі запитання-точки (відповіді на основне) і найближча з них; для інших типів — порожньо. */
@@ -247,6 +249,7 @@ export function GameHistory() {
   }
 
   const game = state.data;
+  const ledger = undoLedger(game.adjustments.map((a) => ({ seq: a.seq, who: a.nickname, source: a.source, undoes: a.undoes })));
   return (
     <main className="app wide">
       {back}
@@ -306,6 +309,7 @@ export function GameHistory() {
             const adjustments = roundAdjustments.filter((adjustment) => adjustment.source === 'host');
             const duels = duelLines(roundAdjustments);
             const purchases = debuffLines(roundAdjustments);
+            const undoLines = historyUndoLines(game, roundIndex);
             const bonuses = [...survivalBonusLines(roundAdjustments), ...ladderPrizeLines(roundAdjustments)];
             if (questions.length === 0 && roundAdjustments.length === 0) return null;
             return (
@@ -343,7 +347,7 @@ export function GameHistory() {
                             <h4>{t(question.final.mode === 'bank' ? 'historyFinalBank' : 'historyFinal')}</h4>
                             <ul>
                               {question.final.entries.map((entry, at) => (
-                                <li key={at} className={entry.accepted ? 'is-correct' : 'is-wrong'}>
+                                <li key={at} className={`${entry.accepted ? 'is-correct' : 'is-wrong'}${ledger.answers.has(undoAnswerKey(entry.nickname, question.index)) ? ' is-undone' : ''}`}>
                                   {t('finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) })}
                                 </li>
                               ))}
@@ -414,7 +418,17 @@ export function GameHistory() {
                             <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
                             <ul>
                               {question.responses.map((response, at) => (
-                                <li key={at} className={isUnscored(question.question) ? undefined : response.accepted ? 'is-correct' : 'is-wrong'}>
+                                <li
+                                  key={at}
+                                  className={
+                                    [
+                                      isUnscored(question.question) ? '' : response.accepted ? 'is-correct' : 'is-wrong',
+                                      ledger.answers.has(undoAnswerKey(response.nickname, question.index)) ? 'is-undone' : '',
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' ') || undefined
+                                  }
+                                >
                                   <span className="responses-who">
                                     <span className="responses-name">{response.nickname}</span>
                                     {response.buff !== null && <BuffBadge kind={response.buff} />}
@@ -441,9 +455,30 @@ export function GameHistory() {
                 )}
                 {adjustments.length > 0 && (
                   <p className="meta history-adjustments">
-                    {t('historyAdjustments', { list: adjustments.map((adjustment) => `${adjustment.nickname} ${signed(adjustment.points)}`).join(', ') })}
+                    {/* Без скасованих рядок лишається одним текстом; зі скасованими кожне коригування — окремий span. */}
+                    {adjustments.every((adjustment) => !ledger.adjustments.has(adjustment.seq))
+                      ? `${t('historyAdjustmentsLead')} ${adjustments.map((adjustment) => `${adjustment.nickname} ${signed(adjustment.points)}`).join(', ')}`
+                      : [
+                          `${t('historyAdjustmentsLead')} `,
+                          ...adjustments.map((adjustment, at) => {
+                            const text = `${adjustment.nickname} ${signed(adjustment.points)}`;
+                            return (
+                              <Fragment key={adjustment.seq}>
+                                {at > 0 && ', '}
+                                <span className={ledger.adjustments.has(adjustment.seq) ? 'is-undone' : undefined}>
+                                  {ledger.adjustments.has(adjustment.seq) ? <s>{text}</s> : text}
+                                </span>
+                              </Fragment>
+                            );
+                          }),
+                        ]}
                   </p>
                 )}
+                {undoLines.map((line) => (
+                  <p key={line.seq} className="meta round-adjustments history-undo">
+                    {line.returned ? <s>{line.text}</s> : line.text}
+                  </p>
+                ))}
                 {duels.map((line, at) => (
                   <p key={at} className="meta history-duel">
                     {line}

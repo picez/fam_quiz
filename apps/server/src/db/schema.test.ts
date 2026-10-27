@@ -233,7 +233,7 @@ describe('score adjustments (migration 0006)', () => {
     await migrateRest();
 
     expect(await db.select().from(scoreAdjustment)).toEqual([
-      { participantId, seq: 1, roundIndex: 0, afterQuestion: 0, points: -100, source: 'host', debuff: null, targetNickname: null },
+      { participantId, seq: 1, roundIndex: 0, afterQuestion: 0, points: -100, source: 'host', debuff: null, targetNickname: null, undoesQuestion: null, undoesSeq: null },
     ]);
   });
 

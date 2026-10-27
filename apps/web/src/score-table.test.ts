@@ -35,6 +35,15 @@ describe('breakdownLines', () => {
   });
 });
 
+describe('breakdownLines: undo', () => {
+  it('names the undo source «Скасовано ведучим»', () => {
+    expect(breakdownLines({ parts: [{ source: 'undo', plus: 100, minus: -200 }], plus: 100, minus: -200 }).map((line) => [line.label, line.value])).toEqual([
+      ['Скасовано ведучим', '+100'],
+      ['Скасовано ведучим', '−200'],
+    ]);
+  });
+});
+
 describe('roundGains', () => {
   it('takes the gain of one round; a row without rounds is not in the map', () => {
     const rows = [row('a', 'А', 800, 1, [300, 500]), row('b', 'Б', -400, 2, [100, -500]), row('c', 'В', 0, 3)];

@@ -82,6 +82,15 @@ export const adjustSchema = z.object({
     .max(LIMITS.maxAdjust)
     .refine((n) => n !== 0),
 });
+/** Ціль скасування балів (12a): відповідь гравця на запитання, коригування (чи «Повернути»), усе за запитання, усе за раунд. */
+export const undoTargetSchema = z.union([
+  z.object({ question: z.number().int().min(0), playerId }),
+  z.object({ seq: z.number().int().min(1) }),
+  z.object({ question: z.number().int().min(0) }),
+  z.object({ round: z.number().int().min(0) }),
+]);
+export type HostUndoTarget = z.infer<typeof undoTargetSchema>;
+export const undoSchema = z.object({ target: undoTargetSchema });
 /** Дебаф від ведучого. */
 export const debuffSchema = z.object({ playerId, kind: z.enum(DEBUFF_KINDS) });
 /** Баф, який гравець бере на поточне запитання. */
@@ -179,6 +188,8 @@ export interface ClientToServerEvents {
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
   /** Бали від ведучого: додати або зняти будь-яку цілу суму. */
   'host:adjust': (payload: z.infer<typeof adjustSchema>, ack: Ack) => void;
+  /** Скасувати бали чи «Повернути» скасоване (12a). */
+  'host:undo': (payload: z.infer<typeof undoSchema>, ack: Ack) => void;
   /** Наслати дебаф: спрацює в наступному запитанні, у якому гравець відповідає з телефона. */
   'host:debuff': (payload: z.infer<typeof debuffSchema>, ack: Ack) => void;
   /** Скасувати дебаф, що ще чекає. */

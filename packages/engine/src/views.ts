@@ -105,6 +105,7 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
+import { undoPanel } from './undo';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
 import { contestantOf, decisionPending, inLadderRound, lifelinesUsed } from './ladder';
@@ -2253,5 +2254,6 @@ export function hostView(state: GameState): HostView {
     surveySkipped: skippedSurveys(state).map((q) => q.text),
     pace: hostPace(state),
     live: hostLive(state),
+    undo: undoPanel(state),
   };
 }
