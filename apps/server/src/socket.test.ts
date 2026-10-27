@@ -1349,6 +1349,42 @@ describe('live drafts (12b)', () => {
   });
 });
 
+describe('own-pace clues (12c)', () => {
+  const selfQuiz = () => makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]);
+  const shownOf = (view: GameView) => (view.role === 'player' || view.role === 'stage' ? view.question?.clues?.shown.length : undefined) ?? 0;
+
+  async function started() {
+    const parts = await lobby((await startGame(ctx.app, selfQuiz())).game);
+    expect(await send(parts.host, 'host:start')).toEqual({ ok: true });
+    expect(await send(parts.host, 'host:next')).toEqual({ ok: true });
+    for (const who of [parts.host, parts.stage, parts.olena, parts.taras]) await until(who, inPhase('question'));
+    await pause(SPLASH_MS.question + 100);
+    return parts;
+  }
+
+  it('a player opens a clue for themselves; the stage and the other phone keep the first', async () => {
+    const { game, stage, olena, taras, olenaJoin } = await started();
+    expect(await send(olena, 'player:clue')).toEqual({ ok: true });
+    const mine = await until(olena, (view) => shownOf(view) === 2);
+    expect(mine.role).toBe('player');
+    await pause(200);
+    for (const who of [stage, taras]) {
+      expect(shownOf(who.last!)).toBe(1);
+      expect(JSON.stringify(who.last)).not.toContain(clues.clues[1]);
+    }
+    // Перепідключення: новий сокет з тим самим токеном бачить свої підказки.
+    olena.socket.close();
+    const back = open({ code: game.code, role: 'player', token: olenaJoin.token });
+    expect(shownOf(await until(back, (view) => shownOf(view) > 0))).toBe(2);
+  });
+
+  it('only a player may send player:clue', async () => {
+    const { host, stage } = await started();
+    expect(await send(host, 'player:clue')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:clue')).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
 describe('teams over sockets (10j)', () => {
   /** Командна гра з ведучим, сценою й чотирма людьми в лобі; ids команд — зі зрізу пульта. */
   async function teamLobby(rounds = [classicRound('r1', [text, single])]) {

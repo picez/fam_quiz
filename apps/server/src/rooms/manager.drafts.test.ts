@@ -245,7 +245,7 @@ describe('solo live drafts (12b)', () => {
     expect(manager.draft(room, 'nobody', { type: 'poll', optionId: 'a' })).toEqual({ ok: false, error: 'not_found' });
   });
 
-  it('the game state version stays 15', () => {
-    expect(GAME_STATE_VERSION).toBe(15);
+  it('the game state version is 16', () => {
+    expect(GAME_STATE_VERSION).toBe(16);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { blitzRound, classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
-import { defaultTeams, type Round } from '@quiz/shared';
+import { blitzRound, classicRound, clues, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { defaultTeams, SPLASH_MS, type Round } from '@quiz/shared';
 import { GAME_STATE_VERSION } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, RoomManager, isSavedRoom, type Identity, type Room, type RoomEvent } from './manager';
@@ -86,6 +86,7 @@ describe('a room restored after a restart', () => {
     const next = new RoomManager(scheduler, () => 0.5);
     expect(next.restore(saved)).not.toBeNull();
     expect(next.restore(saved)).toBeNull();
+    expect(isSavedRoom({ ...saved, stateVersion: 15 })).toBe(true);
     expect(isSavedRoom({ ...saved, stateVersion: GAME_STATE_VERSION + 1 })).toBe(false);
     expect(isSavedRoom({ ...saved, stateVersion: 1 })).toBe(false);
     expect(isSavedRoom({ ...saved, v: 2 })).toBe(false);
@@ -371,5 +372,30 @@ describe('an autopilot room restored after a restart (11g)', () => {
     next.connect(back, { role: 'player', playerId: taras.playerId });
     expect(back.state.paused).toBe(true);
     expect(next.identify(room.code, 'host', room.hostToken)?.room).toBe(back);
+  });
+});
+
+describe('own-pace clues across a restart (12c)', () => {
+  it('a restored room keeps the clues a player opened, and a reconnecting phone sees them', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'u1', 'q1');
+    manager.connect(room, HOST);
+    const olena = manager.join(room.code, 'Олена', 'u2');
+    if (!olena.ok) throw new Error('join');
+    const identity: Identity = { role: 'player', playerId: olena.playerId };
+    manager.connect(room, identity);
+    manager.host(room, { type: 'start' });
+    manager.host(room, { type: 'next' });
+    scheduler.advance(SPLASH_MS.question);
+    expect(manager.clue(room, olena.playerId)).toEqual({ ok: true });
+    expect(manager.clue(room, olena.playerId)).toEqual({ ok: true });
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    expect(saved.stateVersion).toBe(16);
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    next.connect(back, identity);
+    expect(next.view(back, identity)?.question?.clues?.shown).toHaveLength(3);
   });
 });
