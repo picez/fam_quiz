@@ -179,7 +179,7 @@ export function attachSockets(
       members
         .filter((socket) => {
           const { role, playerId } = socket.data.identity;
-          return role === 'host' || (role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.teamId);
+          return role === 'host' || (role === 'player' && playerId !== null && playerId !== event.by && event.teammates && teamOf(room.state, playerId) === event.id);
         })
         .forEach(push);
       return;

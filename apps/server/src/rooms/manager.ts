@@ -34,6 +34,7 @@ import {
   endRound,
   giveHint,
   guessWord,
+  hostLive,
   hostView,
   judge,
   lock,
@@ -92,6 +93,8 @@ import {
   takeHint,
   teamsOn,
   memberOf,
+  chainOf,
+  wallOf,
   recordOf,
   tick,
   trialOpen,
@@ -106,7 +109,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { draftQuestionType, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type DraftValue, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostUndoTarget, type HostView, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type DraftValue, type HostDrafts, type AckResult, type Answer, type BuffKind, type DebuffKind, type ErrorCode, type GameView, type Grade, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -147,10 +150,13 @@ export interface Room {
   expiry: unknown;
   expiryPhase: Phase | null;
   /**
-   * Чернетки капітанів (10j): id команди → поле відповіді. Лише в пам'яті: не в стані гри,
-   * не в збереженій кімнаті; після перезапуску порожньо. Йдуть товаришам по команді й пульту (11c).
+   * Чернетки (10j, 12b): id рядка «Відповідей наживо» (гравець, команда, людина в опитуванні командної гри) → живий вибір.
+   * Лише в пам'яті: не в стані гри, не в збереженій кімнаті; після перезапуску порожньо. Товаришам — лише teammates,
+   * пульту — лише через liveDrafts і лише з «наживо» (socket.ts).
    */
   drafts: Map<string, Draft>;
+  /** Вікно частоти player:draft (12b): людина → початок вікна й кількість подій у ньому. Лише в пам'яті. */
+  draftRate: Map<string, { from: number; count: number }>;
   /**
    * Останні нахили картки сортування (11d): id того, хто сортує (гравця чи команди), → нахил. Лише в пам'яті:
    * не в стані гри, не в збереженій кімнаті; після перезапуску порожньо. Хід, пауза, нове запитання й вилучення стирають.
@@ -160,16 +166,22 @@ export interface Room {
   audioSeq: number;
 }
 
-/** Чернетка того, хто відповідає за команду: на якому запитанні (trial — питання на виживання після нього), хто, коли й що в полі. */
+/** Живий вибір (10j, 12b): на якому запитанні (trial — питання на виживання після нього), хто, коли й що в полі. */
 export interface Draft {
   questionIndex: number;
   trial: boolean;
-  /** Автор: лише поки він і далі відповідає за команду; йому самому чернетка не показується. */
+  /** Автор — людина, що шле. Команда: лише поки вона й далі відповідає за команду; їй самій чернетка не показується. */
   by: string;
+  /** Мить останньої зміни (час менеджера). */
   at: number;
-  /** Відбиток відповіді команди на мить чернетки: відповідь змінилася — чернетка застаріла. */
+  /** Відбиток поданого на мить чернетки: подане змінилося — чернетка застаріла. */
   stamp: string;
-  draft: DraftValue;
+  /** null — поле очищене (зміна теж рахується); нікому не показується. */
+  draft: DraftValue | null;
+  /** Скільки разів значення змінилося після першого (12b). */
+  changes: number;
+  /** Командна чернетка на запитанні з балами: її бачать товариші (10j). Соло й опитування командної гри — false. */
+  teammates: boolean;
 }
 
 /** Останній нахил того, хто сортує (11d): лише пам'ять, не стан гри й не збережена кімната. */
@@ -191,8 +203,8 @@ export type RoomEvent =
   | { type: 'closed' }
   | { type: 'moved' }
   | { type: 'audio'; action: 'replay' | 'stop'; seq: number }
-  /** Чернетка капітана змінилася: стан гри той самий, зріз перезбирається лише учасникам команди. */
-  | { type: 'draft'; teamId: string; by: string }
+  /** Чернетка змінилася: стан гри той самий; товаришам (teammates) — свіжий зріз, пульту — пакет host:drafts (socket.ts). */
+  | { type: 'draft'; id: string; by: string; teammates: boolean }
   /** Нахил картки сортування (11d): by — людина, що шле; audience — кому показ дозволено. Стан гри той самий. */
   | { type: 'tilt'; tilt: SortTilt; by: string; audience: 'all' | 'team' };
 export type RoomListener = (room: Room, event: RoomEvent) => void;
@@ -299,32 +311,43 @@ export const PACE_GRACE_MS = 150;
 
 interface DraftStage {
   trial: boolean;
+  /** Опитування чи «хмара»: у командній грі кожна людина відповідає сама. */
+  unscored: boolean;
   /** Хто відповідає за команду: на запитанні — як за відповідь (у бліці той, хто натиснув), на виживанні — капітан. */
   act: TeamAct;
-  question: (teamId: string) => Question;
+  question: (id: string) => Question;
 }
 
-/** Де ведеться чернетка: етап запитання з балами або відкрите питання на виживання (тоді trial); інакше null. */
+/** Де ведеться чернетка: етап запитання або відкрите питання на виживання (тоді trial); інакше null. */
 function draftStage(state: GameState): DraftStage | null {
   if (state.phase === 'question') {
     const play = state.plays[state.questionIndex];
-    // Опитування й «хмару» кожен проходить сам: чернетки немає.
-    if (play === undefined || isUnscored(play.question)) return null;
-    return { trial: false, act: 'answer', question: (teamId) => questionFor(state, play, teamId) };
+    if (play === undefined) return null;
+    // Опитування й «хмару» кожен проходить сам: запитання одне для всіх.
+    if (isUnscored(play.question)) return { trial: false, unscored: true, act: 'answer', question: () => play.question };
+    return { trial: false, unscored: false, act: 'answer', question: (id) => questionFor(state, play, id) };
   }
   const trial = trialOpen(state) ? trialQuestionOf(state) : null;
-  return trial === null ? null : { trial: true, act: 'captain', question: () => trial };
+  return trial === null ? null : { trial: true, unscored: false, act: 'captain', question: () => trial };
 }
 
-/** Відбиток того, що команда вже подала на поточному запитанні: відповідь, спроби й черга бліцу, відповідь поля, випробування. */
-function answerStamp(state: GameState, teamId: string): string {
+/**
+ * Відбиток того, що гравець (команда, людина) вже подав на поточному запитанні: відповідь, спроби й черга бліцу,
+ * відповідь поля, випробування, поступ ланцюжка й стіни, вигадка й вибір блефу.
+ */
+function answerStamp(state: GameState, id: string): string {
   const play = state.plays[state.questionIndex];
+  const bluff = play?.bluff;
   return JSON.stringify([
-    recordOf(state, state.questionIndex, teamId) ?? null,
-    play?.blitz?.attempts.filter((a) => a.playerId === teamId) ?? [],
-    play?.blitz?.queue.find((e) => e.playerId === teamId)?.answer ?? null,
-    play?.board?.chooserId === teamId ? play.board.answer : null,
-    play?.survival?.trial?.answers[teamId] ?? null,
+    recordOf(state, state.questionIndex, id) ?? null,
+    play?.blitz?.attempts.filter((a) => a.playerId === id) ?? [],
+    play?.blitz?.queue.find((e) => e.playerId === id)?.answer ?? null,
+    play?.board?.chooserId === id ? play.board.answer : null,
+    play?.survival?.trial?.answers[id] ?? null,
+    play?.question.type === 'chain' ? chainOf(state, id) : null,
+    play?.question.type === 'wall' ? wallOf(state, id) : null,
+    bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
+    bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
 }
 
@@ -421,6 +444,7 @@ export class RoomManager {
       expiry: null,
       expiryPhase: null,
       drafts: new Map(),
+      draftRate: new Map(),
       tilts: new Map(),
       audioSeq: Date.now(),
     };
@@ -471,6 +495,7 @@ export class RoomManager {
       expiry: null,
       expiryPhase: null,
       drafts: new Map(),
+      draftRate: new Map(),
       tilts: new Map(),
       audioSeq: Date.now(),
     };
@@ -592,7 +617,7 @@ export class RoomManager {
   }
 
   view(room: Room, identity: Identity): GameView | null {
-    if (identity.role === 'host') return this.withLiveDrafts(room, hostView(room.state));
+    if (identity.role === 'host') return hostView(room.state);
     if (identity.role === 'stage') return stageView(room.state);
     if (identity.playerId === null) return null;
     const view = playerView(room.state, identity.playerId);
@@ -612,58 +637,100 @@ export class RoomManager {
     return { ...view, question: { ...view.question, audio: { ...view.question.audio, clip } } };
   }
 
-  /** Пульт бачить живі чернетки команд у «Відповідях наживо» (11c); у стан гри вони не потрапляють. */
-  private withLiveDrafts(room: Room, view: HostView): HostView {
-    if (view.live === null || !teamsOn(room.state)) return view;
-    const rows = view.live.rows.map((row) => {
-      const found = this.liveDraft(room, row.id);
-      return found === null || !isAnswerDraft(found.draft) ? row : { ...row, draft: found.draft };
-    });
-    return { ...view, live: { ...view.live, rows } };
-  }
-
   /**
-   * Чернетка команди для глядача: те саме запитання (чи питання на виживання), автор досі відповідає за команду,
-   * відповідь команди відтоді не змінилася, глядач — не автор; інакше null.
+   * Чернетка команди для товариша (10j): лише командна чернетка на запитанні з балами, чинна (див. liveDraft), не очищена,
+   * поле відповіді (не стіна, ланцюжок чи вигадка); глядач — не автор; інакше null.
    */
   private currentDraft(room: Room, teamId: string, viewerId: string): Answer | null {
     const found = this.liveDraft(room, teamId);
-    return found === null || found.by === viewerId || !isAnswerDraft(found.draft) ? null : found.draft;
+    if (found === null || !found.teammates || found.by === viewerId || found.draft === null || !isAnswerDraft(found.draft)) return null;
+    return found.draft;
   }
 
-  private liveDraft(room: Room, teamId: string): Draft | null {
-    const found = room.drafts.get(teamId);
-    const at = draftStage(room.state);
+  /** Чинна чернетка під id рядка: те саме запитання (чи питання на виживання), автор досі діє, подане відтоді не змінилося; інакше null. */
+  private liveDraft(room: Room, id: string): Draft | null {
+    const { state } = room;
+    const found = room.drafts.get(id);
+    const at = draftStage(state);
     if (found === undefined || at === null) return null;
-    if (found.questionIndex !== room.state.questionIndex || found.trial !== at.trial) return null;
-    const author = actorOf(room.state, found.by, at.act);
-    if (!author.ok || author.id !== teamId) return null;
-    return found.stamp === answerStamp(room.state, teamId) ? found : null;
+    if (found.questionIndex !== state.questionIndex || found.trial !== at.trial) return null;
+    if (found.teammates) {
+      const author = actorOf(state, found.by, at.act);
+      if (!author.ok || author.id !== id) return null;
+    } else if (found.by !== id || !this.inGame(state, id)) {
+      return null;
+    }
+    return found.stamp === answerStamp(state, id) ? found : null;
+  }
+
+  /** Людина досі в грі: соло — серед гравців, командна гра — серед учасників. */
+  private inGame(state: GameState, playerId: string): boolean {
+    return teamsOn(state) ? memberOf(state, playerId) !== undefined : state.players.some((p) => p.id === playerId);
+  }
+
+  /** Пакет живих виборів для пульта (12b): чинні чернетки з draft !== null, лише для рядків hostLive (і aside), у порядку рядків. */
+  liveDrafts(room: Room): HostDrafts {
+    const { state } = room;
+    const at = draftStage(state);
+    const live = hostLive(state);
+    const batch: HostDrafts = { questionIndex: state.questionIndex, trial: at?.trial ?? false, drafts: [] };
+    if (live === null || at === null) return batch;
+    for (const row of [...live.rows, ...(live.aside?.rows ?? [])]) {
+      const found = this.liveDraft(room, row.id);
+      if (found !== null && found.draft !== null) batch.drafts.push({ id: row.id, draft: found.draft, changes: found.changes, at: found.at });
+    }
+    return batch;
   }
 
   /**
-   * Чернетка (10j): лише командна гра, етап запитання з балами (чи відкрите питання на виживання), лише той,
-   * хто зараз відповідає за команду (капітан; у бліці — той, хто натиснув). Стан гри не змінюється й не пишеться:
-   * подія draft перезбирає зріз решті команди. Та сама чернетка не шлеться вдруге; кожна нова зберігається й шлеться
-   * (клієнт сам шле не частіше ніж раз на 250 мс і вдруге не повторює), тож остання не губиться.
+   * Чернетка (10j, 12b): етап запитання (чи відкрите питання на виживання). Ключ — id рядка «Відповідей наживо»:
+   * соло — сам гравець; командна гра на запитанні з балами — команда (лише той, хто зараз за неї відповідає:
+   * капітан, у бліці — той, хто натиснув); в опитуванні й «хмарі» командної гри — сама людина. Гра без ведучого
+   * бере лише командні чернетки (їх бачать товариші). Стан гри не змінюється й не пишеться. Понад DRAFTS_PER_SECOND
+   * за секунду — too_soon. Та сама чернетка не шлеться вдруге; кожна нова зберігається й шлеться, тож остання не губиться.
    */
   draft(room: Room, playerId: string, draft: DraftValue | null): AckResult {
     if (!this.alive(room)) return this.gone();
-    const at = draftStage(room.state);
-    if (!teamsOn(room.state) || at === null) return { ok: false, error: 'wrong_phase' };
-    const who = this.act(room, playerId, at.act);
-    if (!who.ok) return who;
-    if (draft !== null && draftQuestionType(draft) !== at.question(who.id).type) return { ok: false, error: 'type_mismatch' };
-    const live = this.liveDraft(room, who.id);
+    const { state } = room;
+    const at = draftStage(state);
+    if (at === null) return { ok: false, error: 'wrong_phase' };
+    let id = playerId;
+    const teammates = teamsOn(state) && !at.unscored;
+    if (teammates) {
+      const who = this.act(room, playerId, at.act);
+      if (!who.ok) return who;
+      id = who.id;
+    } else if (!this.inGame(state, playerId)) {
+      return { ok: false, error: 'not_found' };
+    }
+    if (state.autopilot !== undefined && !teammates) return NOT_ALLOWED;
+    if (draft !== null) {
+      if (draftQuestionType(draft) !== at.question(id).type) return { ok: false, error: 'type_mismatch' };
+      if (draft.type === 'lie' && state.plays[state.questionIndex]?.bluff?.stage !== 'lies') return { ok: false, error: 'wrong_phase' };
+    }
     const now = this.now();
+    const rate = room.draftRate.get(playerId);
+    if (rate === undefined || now - rate.from >= 1000) room.draftRate.set(playerId, { from: now, count: 1 });
+    else if (rate.count + 1 > DRAFTS_PER_SECOND) return { ok: false, error: 'too_soon' };
+    else rate.count += 1;
+    const live = this.liveDraft(room, id);
     if (draft === null) {
-      if (live === null) return { ok: true };
-      room.drafts.delete(who.id);
+      if (live === null || live.draft === null) return { ok: true };
+      room.drafts.set(id, { ...live, draft: null, at: now, changes: live.changes + 1 });
     } else {
       if (live !== null && live.by === playerId && JSON.stringify(live.draft) === JSON.stringify(draft)) return { ok: true };
-      room.drafts.set(who.id, { questionIndex: room.state.questionIndex, trial: at.trial, by: playerId, at: now, stamp: answerStamp(room.state, who.id), draft });
+      room.drafts.set(id, {
+        questionIndex: state.questionIndex,
+        trial: at.trial,
+        by: playerId,
+        at: now,
+        stamp: answerStamp(state, id),
+        draft,
+        changes: live === null ? 0 : live.changes + 1,
+        teammates,
+      });
     }
-    this.emit(room, { type: 'draft', teamId: who.id, by: playerId });
+    this.emit(room, { type: 'draft', id, by: playerId, teammates });
     return { ok: true };
   }
 
@@ -1043,10 +1110,11 @@ export class RoomManager {
     }
     room.connections.delete(playerId);
     room.playerUsers.delete(playerId);
-    // Останній учасник забрав команду — її чернетка теж зникає.
-    for (const teamId of room.drafts.keys()) {
-      if (!removed.state.players.some((p) => p.id === teamId)) room.drafts.delete(teamId);
+    // Чернетка вилученої людини й команди, що зникла з останнім учасником, теж зникає.
+    for (const id of room.drafts.keys()) {
+      if (!removed.state.players.some((p) => p.id === id) && memberOf(removed.state, id) === undefined) room.drafts.delete(id);
     }
+    room.draftRate.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {
       if (!removed.state.players.some((p) => p.id === sorterId)) room.tilts.delete(sorterId);

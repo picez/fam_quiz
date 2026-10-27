@@ -1298,16 +1298,14 @@ describe('teams over sockets (10j)', () => {
     expect(await send(olena, 'player:draft', { draft: { type: 'text', value: 'Чернетка-Львів' } })).toEqual({ ok: true });
     const seen = await until(taras, (v) => v.role === 'player' && v.team?.draft !== null && v.team?.draft !== undefined);
     expect(seen.role === 'player' && seen.team?.draft).toEqual({ type: 'text', value: 'Чернетка-Львів' });
-    // Пульт отримує свіжий зріз «Відповідей наживо» з чернеткою (11c).
-    const hostSeen = await until(host, (v) => v.role === 'host' && v.live?.rows.some((r) => r.draft !== null) === true);
-    expect(hostSeen.role === 'host' && hostSeen.live?.rows.find((r) => r.draft !== null)?.draft).toEqual({ type: 'text', value: 'Чернетка-Львів' });
+    // Зріз пульта чернеток більше не несе (12b): пульт отримає пакет host:drafts (задача 3).
     // Кругообіг підтвердження: усе, що сервер надіслав цим сокетам до нього, уже прийшло.
     expect(await send(marko, 'player:draft', { draft: null })).toEqual({ ok: false, error: 'not_captain' });
     expect(await send(ira, 'player:team', { teamId: red })).toEqual({ ok: false, error: 'wrong_phase' });
     expect(await send(stage, 'host:team-deal')).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(host, 'host:team-deal')).toEqual({ ok: false, error: 'wrong_phase' });
     expect(counts()).toEqual(before);
-    for (const who of [olena, ira, marko, stage]) expect(JSON.stringify(who.last)).not.toContain('Чернетка-Львів');
+    for (const who of [olena, ira, marko, stage, host]) expect(JSON.stringify(who.last)).not.toContain('Чернетка-Львів');
   });
 
   it('sort tilt (11d): the captain tilt reaches the teammates and the host, not the other team, the stage or the captain', async () => {
