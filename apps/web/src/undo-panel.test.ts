@@ -70,6 +70,10 @@ describe('undoNoticeText', () => {
     expect(undoNoticeText(notice({}, { players: 3, question: null }), { teams: true, rounds: 2 })).toBe('Ведучий скасував бали 3 команд (раунд 1)');
   });
 
+  it('tells a return of several', () => {
+    expect(undoNoticeText(notice({}, { redo: true, players: 3, question: null }), { teams: false, rounds: 2 })).toBe('Ведучий повернув бали 3 гравців (раунд 1)');
+  });
+
   it('tells a return', () => {
     expect(undoNoticeText(notice({ points: -100 }, { redo: true }), { teams: false, rounds: 2 })).toBe('Ведучий повернув бали: Петро −100 (раунд 1, запитання 1)');
   });

@@ -307,10 +307,11 @@ describe('permissions and bad input', () => {
   });
 
   it('host:undo is host-only, validated, refuses the same undo twice and returns an undo', async () => {
-    const { host, olena, olenaJoin } = await lobby();
+    const { host, stage, olena, olenaJoin } = await lobby();
     await send(host, 'host:start');
     expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 50 })).toEqual({ ok: true });
     expect(await send(olena, 'host:undo', { target: { seq: 1 } })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'host:undo', { target: { seq: 1 } })).toEqual({ ok: false, error: 'forbidden' });
     for (const target of [{}, { seq: 0 }, { question: -1 }, { round: 'x' }]) {
       expect(await send(host, 'host:undo', { target })).toEqual({ ok: false, error: 'invalid_payload' });
     }

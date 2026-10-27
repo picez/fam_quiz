@@ -145,7 +145,7 @@ describe('host help', () => {
     expect(ids.indexOf('setting.undo')).toBe(ids.indexOf('setting.scores') + 1);
     filled('setting.undo');
     const body = text('setting.undo');
-    for (const part of ['↶ Бали', 'Скасувати все за запитання', 'Скасувати раунд', 'Повернути', 'Прийняти', 'Скасовано ведучим', '«Ва-банк»', 'без ведучого', 'командній грі']) expect(body).toContain(part);
+    for (const part of ['↶ Бали', 'Скасувати все', 'Скасувати раунд', 'Повернути', 'Прийняти', 'Скасовано ведучим', '«Ва-банк»', 'без ведучого', 'командній грі']) expect(body).toContain(part);
     expect(text('setting.scores')).toContain('Скасовано ведучим');
     expect(text('setting.autopilot')).toContain('скасування балів');
     expect(searchHelp('скасування')).toContain('setting.undo');

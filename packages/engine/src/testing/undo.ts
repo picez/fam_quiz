@@ -3,7 +3,7 @@ import { next, submitAnswer, type GameState } from '../game';
 import { classicRound, makeRoundsQuiz, single, withId } from './fixtures';
 import { lobbyWith, must, openAt } from './helpers';
 
-export const T0 = 1_000_000;
+export const U_T0 = 1_000_000;
 export const rng = () => 0;
 const R = { speedBonus: false, rules: { ...DEFAULT_RULES, penalty: 'minus' as const } };
 export const right: Answer = { type: 'single', optionId: 'b' };
@@ -17,6 +17,6 @@ export function answerAll(s: GameState, answers: Record<string, Answer>, now: nu
   return must(next(state, now + 100, rng));
 }
 /** Розкриття q1: Оля p1 +1000, Петро p2 −1000, Іра p3 +1000. */
-export const revealed1 = () => answerAll(openAt(lobbyWith(undoQuiz, 'Оля', 'Петро', 'Іра'), T0), { p1: right, p2: wrong, p3: right }, T0 + 1000);
+export const revealed1 = () => answerAll(openAt(lobbyWith(undoQuiz, 'Оля', 'Петро', 'Іра'), U_T0), { p1: right, p2: wrong, p3: right }, U_T0 + 1000);
 /** Таблиця після q1 (leaderboard). */
-export const after1 = () => must(next(revealed1(), T0 + 2000, rng));
+export const after1 = () => must(next(revealed1(), U_T0 + 2000, rng));

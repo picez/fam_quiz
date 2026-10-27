@@ -1,5 +1,5 @@
 import { LIMITS, type AdjustmentNotice, type AdjustmentSource } from '@quiz/shared';
-// game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
+// game.ts викликає цей файл, а цей файл — game.ts (так само undo.ts); обидва звертаються одне до одного лише під час виклику.
 import { undoNotice } from './undo';
 import { fail, ok, withTotals, type GameState, type Result, type ScoreAdjustment } from './game';
 

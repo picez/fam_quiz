@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { lobbyWith, must } from './testing/helpers';
-import { after1, T0, undoQuiz } from './testing/undo';
+import { end } from './game';
+import { after1, U_T0 as T0, undoQuiz } from './testing/undo';
 import { undoPanel, undoScore } from './undo';
 import { hostView, playerView, stageView } from './views';
 
@@ -9,6 +10,10 @@ describe('the undo panel in the views', () => {
     expect(hostView(after1()).undo).toEqual(undoPanel(after1()));
     expect(hostView(after1()).undo).not.toBeNull();
     expect(hostView(lobbyWith(undoQuiz, 'Оля')).undo).toBeNull();
+  });
+
+  it('the host view has no panel after the end', () => {
+    expect(hostView(must(end(after1(), T0 + 5000))).undo).toBeNull();
   });
 
   it('the stage and the phones never get it', () => {

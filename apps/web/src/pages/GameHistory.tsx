@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { cloudKey, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
 import { getGame } from '../api';
@@ -462,10 +463,12 @@ export function GameHistory() {
                           ...adjustments.map((adjustment, at) => {
                             const text = `${adjustment.nickname} ${signed(adjustment.points)}`;
                             return (
-                              <span key={adjustment.seq} className={ledger.adjustments.has(adjustment.seq) ? 'is-undone' : undefined}>
+                              <Fragment key={adjustment.seq}>
                                 {at > 0 && ', '}
-                                {ledger.adjustments.has(adjustment.seq) ? <s>{text}</s> : text}
-                              </span>
+                                <span className={ledger.adjustments.has(adjustment.seq) ? 'is-undone' : undefined}>
+                                  {ledger.adjustments.has(adjustment.seq) ? <s>{text}</s> : text}
+                                </span>
+                              </Fragment>
                             );
                           }),
                         ]}

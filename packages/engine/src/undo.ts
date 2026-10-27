@@ -113,6 +113,12 @@ function rowsOf(state: GameState): Line[] {
   return [...lines, ...loose];
 }
 
+/** Текст запитання в панелі: до 80 символів, довший обрізається з «…». */
+function shortText(text: string): string {
+  const chars = [...text];
+  return chars.length <= 80 ? text : `${chars.slice(0, 79).join('').trimEnd()}…`;
+}
+
 /** 1-базовий номер запитання plays[index] серед записів його раунду. */
 export function questionNumber(state: GameState, index: number): number {
   const round = state.plays[index]?.roundIndex;
@@ -137,7 +143,7 @@ export function undoPanel(state: GameState): UndoPanel | null {
           (q): UndoQuestion => ({
             index: q,
             number: questionNumber(state, q),
-            text: state.plays[q].question.text,
+            text: shortText(state.plays[q].question.text),
             rows: own.filter((l) => l.question === q).map((l) => l.row),
           }),
         ),
@@ -237,8 +243,7 @@ export function undoNotice(state: GameState, last: ScoreAdjustment): AdjustmentN
   const rows = action.filter((a) => state.players.some((p) => p.id === a.playerId));
   const final = rows[rows.length - 1];
   if (final === undefined) return null;
-  const player = state.players.find((p) => p.id === final.playerId);
-  if (player === undefined) return null;
+  const player = state.players.find((p) => p.id === final.playerId)!; // rows — лише гравці, що є в грі
   const groups = rows.map((a) => groupOf(state, a));
   const q = groups[0].question;
   const undone = final.undoes;
