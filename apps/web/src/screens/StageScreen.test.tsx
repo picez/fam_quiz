@@ -1412,7 +1412,7 @@ describe('StageScreen media (10b)', () => {
 });
 
 describe('StageScreen clues and pin (10c)', () => {
-  const cluesQuestion = { ...question, type: 'clues' as const, choices: [], clues: { total: 5, shown: ['Народився у 1814 році', 'Писав вірші'], nextAt: null, byHost: false, intervalSeconds: 8 } };
+  const cluesQuestion = { ...question, type: 'clues' as const, choices: [], clues: { total: 5, shown: ['Народився у 1814 році', 'Писав вірші'], nextAt: null, byHost: false, intervalSeconds: 8, self: false, opens: null } };
   const pinQuestion = { ...question, type: 'pin' as const, choices: [], pin: { map: 'world' as const, aspect: 2 } };
   const pinFull: Question = { id: 'q4', type: 'pin', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
   const cluesFull: Question = { id: 'q5', type: 'clues', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, clues: ['a', 'b', 'c'], accepted: ['Шевченко'], interval: 8 };

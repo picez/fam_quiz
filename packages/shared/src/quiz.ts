@@ -113,6 +113,8 @@ export const LIMITS = {
   defaultClueSeconds: 8,
   /** Остання підказка відкривається щонайменше за стільки секунд до кінця часу. */
   clueTailSeconds: 5,
+  /** «Хто я?» у власному темпі (12c): найкоротший таймер запитання, с. */
+  selfCluesMinTime: 20,
   /** Точка: радіуси у відсотках довшої сторони основи; пропорція основи (ширина / висота). */
   pinMaxFullRadius: 50,
   pinMaxZeroRadius: 100,
@@ -253,6 +255,10 @@ const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'bluff'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
+/** Хто відкриває підказки «Хто я?» (12c): таймер (на усній клітинці — ведучий) або кожен гравець сам. */
+export const CLUE_PACES = ['timer', 'self'] as const;
+export type CluePace = (typeof CLUE_PACES)[number];
+
 /** Рядок дошки «100 до 1». */
 const surveyRow = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
@@ -361,8 +367,10 @@ export const questionSchema = z
         .min(LIMITS.minClues)
         .max(LIMITS.maxClues),
       accepted: spellings,
-      /** Секунд між підказками (класика й клітинка з телефона; на усній клітинці відкриває ведучий). */
-      interval: z.number().int().min(LIMITS.minClueSeconds).max(LIMITS.maxClueSeconds),
+      /** Секунд між підказками (класика й клітинка з телефона; на усній клітинці відкриває ведучий; у власному темпі не діє). Немає — типовий. */
+      interval: z.number().int().min(LIMITS.minClueSeconds).max(LIMITS.maxClueSeconds).default(LIMITS.defaultClueSeconds),
+      /** Хто відкриває підказки (12c): немає чи 'timer' — таймер; 'self' — кожен гравець сам (лише класика й звичайна клітинка з телефона). */
+      cluePace: z.enum(CLUE_PACES).optional(),
     }),
     z.object({
       ...base,
@@ -473,7 +481,10 @@ export const questionSchema = z
       if (q.zeroBeyond !== undefined && q.zeroBeyond <= q.tolerance) ctx.addIssue({ code: 'custom', message: 'slider_zero' });
     }
     if (q.type === 'clues') {
-      if ((q.clues.length - 1) * q.interval + LIMITS.clueTailSeconds > q.timeLimit) ctx.addIssue({ code: 'custom', message: 'clues_time' });
+      if (q.cluePace === 'self') {
+        // Власний темп: інтервалу немає, але гравцеві треба час відкрити й прочитати кілька підказок.
+        if (q.timeLimit < LIMITS.selfCluesMinTime) ctx.addIssue({ code: 'custom', message: 'clues_self_time' });
+      } else if ((q.clues.length - 1) * q.interval + LIMITS.clueTailSeconds > q.timeLimit) ctx.addIssue({ code: 'custom', message: 'clues_time' });
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'clues_video' });
     }
     if (q.type === 'pin') {
@@ -528,6 +539,11 @@ export const SIMPLE_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 's
 
 /** Типи, де діє картинка, що проявляється (10b). */
 export const REVEAL_TYPES = ['single', 'text', 'numeric'] as const satisfies readonly Question['type'][];
+
+/** «Хто я?», де кожен відкриває підказки сам (12c). */
+export function isSelfPaced(question: Question): boolean {
+  return question.type === 'clues' && question.cluePace === 'self';
+}
 
 /** Скільки підказок відкрито через elapsedMs від старту таймера: 1 + ⌊elapsed / interval⌋, не більше n (від’ємне — 1). */
 export function cluesAt(question: { clues: readonly string[]; interval: number }, elapsedMs: number): number {

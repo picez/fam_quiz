@@ -298,6 +298,8 @@ function publicClues(state: GameState): PublicClues | null {
     shown: question.clues.slice(0, cluesOpen(play)),
     nextAt: nextClueAt(state),
     byHost: cluesByHost(play),
+    self: false, // 12c, задача 3
+    opens: null,
     intervalSeconds: question.interval,
   };
 }

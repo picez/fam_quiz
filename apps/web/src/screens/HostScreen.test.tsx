@@ -1836,7 +1836,7 @@ describe('HostScreen clues and pin (10c)', () => {
   const cluesFull: Question = { id: 'q4', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 60, points: 1000, clues: ['Перша', 'Друга', 'Третя', 'Четверта', 'П’ята'], accepted: ['Шевченко'], interval: 8 };
   const cluesOf = (shown: number, over: { byHost?: boolean; nextAt?: number | null } = {}) => ({
     ...publicOf(cluesFull),
-    clues: { total: 5, shown: cluesFull.clues.slice(0, shown), nextAt: over.nextAt ?? null, byHost: over.byHost ?? false, intervalSeconds: 8 },
+    clues: { total: 5, shown: cluesFull.clues.slice(0, shown), nextAt: over.nextAt ?? null, byHost: over.byHost ?? false, intervalSeconds: 8, self: false, opens: null },
   });
 
   it('lists every clue with the opened ones marked and no open button in a classic round', () => {

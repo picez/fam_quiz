@@ -2093,7 +2093,7 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
     type: 'clues' as const,
     text: 'Хто я?',
     choices: [],
-    clues: { total: 5, shown: CLUES.slice(0, 2), nextAt: Date.now() + 5000, byHost: false, intervalSeconds: 8 },
+    clues: { total: 5, shown: CLUES.slice(0, 2), nextAt: Date.now() + 5000, byHost: false, intervalSeconds: 8, self: false, opens: null },
   };
   const cluesFull: Question = { id: 'q3', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 45, points: 1000, clues: CLUES, accepted: ['Шевченко'], interval: 8 };
   const pinQuestion = { ...publicQuestion, type: 'pin' as const, text: 'Де Львів?', choices: [], pin: { map: 'ukraine' as const, aspect: 16 / 11 } };
