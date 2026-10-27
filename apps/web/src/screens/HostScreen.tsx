@@ -46,6 +46,7 @@ import { GuidePageView } from '../live/Guide';
 import { HostDuelPanel } from './DuelView';
 import { HelpButton } from '../help/HelpButton';
 import { cellHelpId } from '../help/host-help';
+import { UndoButton } from './UndoSheet';
 
 export { STAGE_GONE_MS };
 
@@ -494,6 +495,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       <SplashChip view={view} offsetMs={offsetMs} />
       <header className="bar">
         <span>{t('hostTitle')}</span>
+        {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
         <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>
 

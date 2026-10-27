@@ -2703,3 +2703,20 @@ describe('HostScreen: live answers (11c)', () => {
     expect(document.getElementById('live-answers')).toBeNull();
   });
 });
+
+describe('undo button (12a)', () => {
+  it('stands in the header on the leaderboard and opens the undo sheet', () => {
+    show(view({ phase: 'leaderboard', questionIndex: 0, undo: { rounds: [] } }));
+    const button = within(document.querySelector('header.bar') as HTMLElement).getByRole('button', { name: '↶ Бали' });
+    fireEvent.click(button);
+    expect(screen.getByRole('dialog', { name: 'Скасування балів' })).toBeTruthy();
+  });
+
+  it('is not there in the lobby or after the end', () => {
+    show(view());
+    expect(screen.queryByRole('button', { name: '↶ Бали' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings: [] }));
+    expect(screen.queryByRole('button', { name: '↶ Бали' })).toBeNull();
+  });
+});
