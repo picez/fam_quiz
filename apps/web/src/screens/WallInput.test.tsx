@@ -162,4 +162,18 @@ describe('WallInput', () => {
       vi.useRealTimers();
     }
   });
+
+  it('every tap drafts the picked tiles; unpicking all drafts null; Перевірити cancels what waits', () => {
+    const onDraft = Object.assign(vi.fn(), { cancel: vi.fn() });
+    const send = okSend();
+    render(<WallInput question={question} wall={playerWall()} paused={false} send={send} onDraft={onDraft} />);
+    pick(0, 3);
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'wallPick', tiles: [0, 3] });
+    pick(0, 3);
+    expect(onDraft).toHaveBeenLastCalledWith(null);
+    pick(0, 5, 9, 14);
+    fireEvent.click(check()!);
+    expect(onDraft.cancel).toHaveBeenCalled();
+    expect(send).toHaveBeenCalledWith('player:wall', { tiles: [0, 5, 9, 14] });
+  });
 });

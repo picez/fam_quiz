@@ -26,6 +26,18 @@ describe('BluffLieInput', () => {
     expect(send).toHaveBeenCalledWith('player:lie', { text: 'Рим' });
   });
 
+  it('typing drafts the lie; an empty field drafts null; sending cancels what waits', () => {
+    const onDraft = Object.assign(vi.fn(), { cancel: vi.fn() });
+    render(<BluffLieInput send={vi.fn(async () => ({ ok: true as const }))} autoFocus={false} onDraft={onDraft} />);
+    fireEvent.change(field(), { target: { value: 'Вигадка' } });
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'lie', text: 'Вигадка' });
+    fireEvent.change(field(), { target: { value: '  ' } });
+    expect(onDraft).toHaveBeenLastCalledWith(null);
+    fireEvent.change(field(), { target: { value: 'Рим' } });
+    fireEvent.click(sendButton());
+    expect(onDraft.cancel).toHaveBeenCalled();
+  });
+
   it('shows «Це правда!» from the ack and keeps the text', async () => {
     const send: Send = vi.fn(async () => ({ ok: false as const, error: 'bluff_truth' }));
     render(<BluffLieInput send={send} autoFocus={false} />);

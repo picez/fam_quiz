@@ -4,6 +4,7 @@ import { errorText, t } from '../i18n';
 import { reducedMotion } from '../motion';
 import type { Send } from '../live/types';
 import { WallGrid } from './WallGrid';
+import type { DraftInput } from './TeamWatch';
 
 const SHAKE_MS = 400;
 
@@ -13,11 +14,14 @@ export function WallInput({
   wall,
   paused,
   send,
+  onDraft,
 }: {
   question: PublicQuestion & { wall: PublicWall };
   wall: PlayerWall;
   paused: boolean;
   send: Send;
+  /** Живий вибір (12b): виділені плитки до «Перевірити»; жодної — null. */
+  onDraft?: DraftInput;
 }) {
   const size = question.wall.size;
   const [selected, setSelected] = useState<number[]>([]);
@@ -64,13 +68,17 @@ export function WallInput({
   const toggle = (position: number) => {
     if (off) return;
     setError(null);
-    setSelected((now) => (now.includes(position) ? now.filter((p) => p !== position) : now.length >= size ? now : [...now, position]));
+    const next = selected.includes(position) ? selected.filter((p) => p !== position) : selected.length >= size ? selected : [...selected, position];
+    if (next === selected) return;
+    setSelected(next);
+    onDraft?.(next.length === 0 ? null : { type: 'wallPick', tiles: next });
   };
 
   const check = () => {
     if (off || pending || selected.length !== size) return;
     setPending(true);
     sentRef.current = selected;
+    onDraft?.cancel?.();
     void send('player:wall', { tiles: selected })
       .then((result) => setError(result.ok ? null : errorText(result.error)))
       .catch(() => setError(errorText('network')))

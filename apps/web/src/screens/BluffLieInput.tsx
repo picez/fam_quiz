@@ -2,9 +2,19 @@ import { useState, type FormEvent } from 'react';
 import { LIMITS } from '@quiz/shared';
 import { errorText, t } from '../i18n';
 import type { Send } from '../live/types';
+import type { DraftInput } from './TeamWatch';
 
 /** Блеф, фаза вигадок: одне поле й кнопка; відмову сервера («Це правда!») видно під полем, текст лишається. */
-export function BluffLieInput({ send, autoFocus = true }: { send: Send; autoFocus?: boolean }) {
+export function BluffLieInput({
+  send,
+  autoFocus = true,
+  onDraft,
+}: {
+  send: Send;
+  autoFocus?: boolean;
+  /** Живий вибір (12b): надрукована вигадка до «Надіслати»; порожньо — null. */
+  onDraft?: DraftInput;
+}) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -14,6 +24,7 @@ export function BluffLieInput({ send, autoFocus = true }: { send: Send; autoFocu
     const lie = text.trim();
     if (lie === '' || pending) return;
     setPending(true);
+    onDraft?.cancel?.();
     void send('player:lie', { text: lie })
       .then((result) => setError(result.ok ? null : errorText(result.error)))
       .catch(() => setError(errorText('network')))
@@ -28,6 +39,8 @@ export function BluffLieInput({ send, autoFocus = true }: { send: Send; autoFocu
         onChange={(event) => {
           setText(event.target.value);
           setError(null);
+          const typed = event.target.value.trim();
+          onDraft?.(typed === '' ? null : { type: 'lie', text: typed });
         }}
         aria-label={t('bluffLieField')}
         maxLength={LIMITS.bluffLie}

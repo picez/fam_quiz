@@ -131,6 +131,98 @@ describe('useDraftSender', () => {
     act(() => vi.advanceTimersByTime(500));
     expect(send).not.toHaveBeenCalled();
   });
+
+  it('clips a long text to 100 characters before sending', () => {
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    act(() => {
+      result.current({ type: 'text', value: 'я'.repeat(150) });
+    });
+    act(() => vi.advanceTimersByTime(250));
+    expect(send).toHaveBeenCalledWith('player:draft', { draft: { type: 'text', value: 'я'.repeat(100) } });
+  });
+
+  it('sends wall, chain and lie drafts', () => {
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    act(() => {
+      result.current({ type: 'wallPick', tiles: [0, 3] });
+    });
+    act(() => vi.advanceTimersByTime(250));
+    expect(send).toHaveBeenLastCalledWith('player:draft', { draft: { type: 'wallPick', tiles: [0, 3] } });
+  });
+
+  it('after too_soon the same value goes again in DRAFT_MS', async () => {
+    const send = vi.fn<Send>().mockResolvedValueOnce({ ok: false, error: 'too_soon' }).mockResolvedValue({ ok: true });
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    act(() => {
+      result.current({ type: 'text', value: 'Ки' });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith('player:draft', { draft: { type: 'text', value: 'Ки' } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('after too_soon a newer value goes instead of the old one', async () => {
+    const send = vi.fn<Send>().mockResolvedValueOnce({ ok: false, error: 'too_soon' }).mockResolvedValue({ ok: true });
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    act(() => {
+      result.current({ type: 'text', value: 'К' });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    act(() => {
+      result.current({ type: 'text', value: 'Ки' });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith('player:draft', { draft: { type: 'text', value: 'Ки' } });
+  });
+
+  it('cancel after too_soon sends nothing more', async () => {
+    const send = vi.fn<Send>().mockResolvedValueOnce({ ok: false, error: 'too_soon' }).mockResolvedValue({ ok: true });
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    act(() => {
+      result.current({ type: 'text', value: 'Ки' });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    act(() => result.current.cancel());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancel before the too_soon answer arrives sends nothing more', async () => {
+    let answer: (value: { ok: false; error: string }) => void = () => {};
+    const send = vi.fn<Send>().mockImplementationOnce(() => new Promise((resolve) => (answer = resolve))).mockResolvedValue({ ok: true });
+    const { result } = renderHook(() => useDraftSender(send, true, 0));
+    act(() => {
+      result.current({ type: 'text', value: 'Ки' });
+    });
+    act(() => vi.advanceTimersByTime(250));
+    act(() => result.current.cancel());
+    await act(async () => {
+      answer({ ok: false, error: 'too_soon' });
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('TeamWatch: live sort (11d)', () => {

@@ -1,13 +1,31 @@
 import { useState, type FormEvent } from 'react';
-import { cloudKey, cloudWords, LIMITS, type Answer } from '@quiz/shared';
+import { cloudKey, cloudWords, LIMITS, type Answer, type SubmittedAnswer } from '@quiz/shared';
 import { t } from '../i18n';
 
 /** «Хмара слів» на телефоні: до words коротких слів; однакові слова підсвічуються. */
-export function CloudInput({ words, onSubmit, autoFocus = true }: { words: number; onSubmit: (a: Answer) => void; autoFocus?: boolean }) {
+export function CloudInput({
+  words,
+  onSubmit,
+  autoFocus = true,
+  onDraft,
+}: {
+  words: number;
+  onSubmit: (a: Answer) => void;
+  autoFocus?: boolean;
+  /** Живий вибір (12b): слова, як їх надіслало б «Відповісти»; жодного — null. */
+  onDraft?: (draft: SubmittedAnswer | null) => void;
+}) {
   const [fields, setFields] = useState<string[]>(['']);
   const keys = fields.map((value) => cloudKey(value));
   const same = keys.map((key, index) => key !== '' && keys.some((other, i) => i !== index && other === key));
   const ready = fields.some((value) => value.trim() !== '');
+
+  const change = (index: number, value: string) => {
+    const next = fields.map((old, i) => (i === index ? value : old));
+    setFields(next);
+    const list = cloudWords(next, words);
+    onDraft?.(list.length === 0 ? null : { type: 'wordcloud', words: list });
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -21,7 +39,7 @@ export function CloudInput({ words, onSubmit, autoFocus = true }: { words: numbe
         <label key={index} className={same[index] ? 'field is-same' : 'field'}>
           <input
             value={value}
-            onChange={(event) => setFields((now) => now.map((old, i) => (i === index ? event.target.value : old)))}
+            onChange={(event) => change(index, event.target.value)}
             aria-label={t('cloudWordN', { n: index + 1 })}
             maxLength={LIMITS.cloudWord}
             autoComplete="off"

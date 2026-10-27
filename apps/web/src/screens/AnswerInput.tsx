@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { Answer, Choice, PublicQuestion } from '@quiz/shared';
+import type { Answer, SubmittedAnswer, Choice, PublicQuestion } from '@quiz/shared';
 import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
@@ -18,8 +18,10 @@ interface Props {
   submitLabel?: string;
   /** Поле тексту отримує фокус одразу (типово так; аркуш голосування — ні). */
   autoFocus?: boolean;
-  /** Командна гра: капітан шле чернетку при кожній зміні поля (те саме перетворення, що й надсилання); порожнє поле — null. Без пропа поведінка звичайна. */
-  onDraft?: (draft: Answer | null) => void;
+  /** Живий вибір (10j, 12b): кожна зміна поля (те саме перетворення, що й надсилання); порожнє поле — null. Вигляду не змінює. */
+  onDraft?: (draft: SubmittedAnswer | null) => void;
+  /** Командна гра: вибір одного варіанта спершу позначає (чернетка товаришам), потім «Відповісти». Без пропа — одним дотиком. */
+  confirm?: boolean;
 }
 
 const NONE: string[] = [];
@@ -192,7 +194,7 @@ function OrderInput({ question, onSubmit, onDraft }: Props) {
 function ConfirmChoice({ question, onSubmit, removed, submitLabel, onDraft }: Props) {
   const boolean = question.type === 'boolean';
   const [picked, setPicked] = useState<string | null>(null);
-  const answerOf = (id: string): Answer => (boolean ? { type: 'boolean', value: id === 'true' } : { type: 'single', optionId: id });
+  const answerOf = (id: string): SubmittedAnswer => (boolean ? { type: 'boolean', value: id === 'true' } : { type: 'single', optionId: id });
   const kept = picked !== null && !(removed ?? NONE).includes(picked) ? picked : null;
   const pick = (id: string) => {
     setPicked(id);
@@ -218,10 +220,10 @@ function ConfirmChoice({ question, onSubmit, removed, submitLabel, onDraft }: Pr
   );
 }
 
-export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus, onDraft }: Props) {
+export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus, onDraft, confirm = false }: Props) {
   switch (question.type) {
     case 'single':
-      if (onDraft !== undefined) return <ConfirmChoice question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} onDraft={onDraft} />;
+      if (confirm) return <ConfirmChoice question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} onDraft={onDraft} />;
       return (
         <ChoiceButtons
           choices={question.choices}
@@ -231,7 +233,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
         />
       );
     case 'boolean':
-      if (onDraft !== undefined) return <ConfirmChoice question={question} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} />;
+      if (confirm) return <ConfirmChoice question={question} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} />;
       return (
         <div className="choices">
           {[true, false].map((value) => (
@@ -263,7 +265,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
         />
       );
     case 'wordcloud':
-      return question.cloud === null ? null : <CloudInput words={question.cloud.words} onSubmit={onSubmit} autoFocus={autoFocus} />;
+      return question.cloud === null ? null : <CloudInput words={question.cloud.words} onSubmit={onSubmit} autoFocus={autoFocus} onDraft={onDraft} />;
     case 'wall':
       return null; // стіну веде PlayerScreen (WallInput), як сортування
     case 'bluff':
