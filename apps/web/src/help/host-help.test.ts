@@ -175,6 +175,12 @@ describe('host help', () => {
     expect(text('question.numeric')).toContain('«Повзунок»');
   });
 
+  it('12c clues entry tells own pace, the button, the own price, 20 s and the voice cell', () => {
+    filled('question.clues');
+    const body = text('question.clues');
+    for (const part of ['кожен сам', 'Ще підказка', 'Оля 1 · Петро 3', 'підказка 3/5', 'три — 60 %', `${LIMITS.selfCluesMinTime} с`, 'усній клітинці', 'відповідає за команду']) expect(body).toContain(part);
+  });
+
   it('10c entries tell the engine numbers', () => {
     const percents = [1, 2, 3, 4, 5].map((k) => Math.round(clueShare(5, k) * 100));
     expect(percents).toEqual([100, 80, 60, 40, 20]);
