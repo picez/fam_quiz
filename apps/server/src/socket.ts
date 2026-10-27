@@ -43,6 +43,8 @@ import {
   teamFormSchema,
   teamAssignSchema,
   captainSchema,
+  liveWatchSchema,
+  HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
   type ServerToClientEvents,
@@ -57,6 +59,8 @@ import type { Located } from './rooms/store';
 interface SocketData {
   room: Room;
   identity: Identity;
+  /** Пульт: увімкнено «наживо» (12b); типово false — веб оголошує свій вибір одразу після підключення. */
+  watch: boolean;
 }
 
 export type GameServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
@@ -78,12 +82,16 @@ function reply(args: unknown[], result: AckResult): void {
   if (typeof ack === 'function') ack(result);
 }
 
-/** Нахил — лише там, де сортує одна сторона (11d): на полі — усім, крім автора; у команді — його команді й пульту. */
+/**
+ * Нахил — лише там, де сортує одна сторона (11d): на полі — усім, крім автора; у команді — його команді й пульту.
+ * Пульт отримує нахил лише з увімкненим «наживо» (12b).
+ */
 function seesTilt(socket: GameSocket, room: Room, tilt: { tilt: SortTilt; by: string; audience: 'all' | 'team' }): boolean {
   const { role, playerId } = socket.data.identity;
+  if (role === 'host') return socket.data.watch;
   if (playerId !== null && playerId === tilt.by) return false;
   if (tilt.audience === 'all') return true;
-  return role === 'host' || (role === 'player' && playerId !== null && teamOf(room.state, playerId) === tilt.tilt.sorterId);
+  return role === 'player' && playerId !== null && teamOf(room.state, playerId) === tilt.tilt.sorterId;
 }
 
 /** Перший аргумент події, якщо це дані, а не функція підтвердження. */
@@ -95,6 +103,8 @@ export interface SocketOptions {
   /** Як у Fastify: true — довіряти X-Forwarded-For повністю, число — кількість проксі перед сервером. */
   trustProxy?: boolean | number;
   lookupsPerMinute?: number;
+  /** Найкоротша пауза між пакетами host:drafts (12b); типово HOST_DRAFTS_MS. */
+  draftsGapMs?: number;
 }
 
 /** Адреса клієнта за тими самими правилами, що й request.ip у Fastify (proxy-addr). */
@@ -168,20 +178,64 @@ export function attachSockets(
     }
   };
 
+  const gap = options.draftsGapMs ?? HOST_DRAFTS_MS;
+  /** Пакети живих виборів (12b) за кімнатою: мить останнього й таймер наступного. */
+  const batches = new Map<Room, { last: number; timer: ReturnType<typeof setTimeout> | null }>();
+  const watchers = (room: Room) =>
+    [...io.sockets.sockets.values()].filter((s) => s.data.room === room && s.data.identity.role === 'host' && s.data.watch);
+  const flushDrafts = (room: Room, to: GameSocket[]) => {
+    const batch = manager.liveDrafts(room);
+    for (const s of to) s.emit('host:drafts', batch);
+  };
+  const dropDrafts = (room: Room) => {
+    const entry = batches.get(room);
+    if (entry?.timer) clearTimeout(entry.timer);
+    batches.delete(room);
+  };
+  /** Перший пакет — одразу, далі — не частіше ніж раз на gap: у кінці вікна з найсвіжішим знімком. */
+  const scheduleDrafts = (room: Room) => {
+    const entry = batches.get(room) ?? { last: -Infinity, timer: null };
+    if (entry.timer !== null) return;
+    const to = watchers(room);
+    if (to.length === 0) return;
+    batches.set(room, entry);
+    const wait = entry.last + gap - Date.now();
+    if (wait <= 0) {
+      entry.last = Date.now();
+      flushDrafts(room, to);
+      return;
+    }
+    entry.timer = setTimeout(() => {
+      entry.timer = null;
+      if (manager.get(room.code) !== room) return dropDrafts(room);
+      const later = watchers(room);
+      if (later.length === 0) return;
+      entry.last = Date.now();
+      flushDrafts(room, later);
+    }, wait);
+  };
+
   manager.onEvent((room, event) => {
+    if (event.type === 'draft') {
+      // Чернетка капітана — решті команди автора зрізом (10j): ні автору, ні сцені, ні іншим командам.
+      // Соло-чернетка нікому, крім пульта, — без перебору сокетів.
+      if (event.teammates) {
+        [...io.sockets.sockets.values()]
+          .filter((socket) => {
+            const { role, playerId } = socket.data.identity;
+            return socket.data.room === room && role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.id;
+          })
+          .forEach(push);
+      }
+      // Пульту — лише пакет host:drafts і лише з «наживо» (12b).
+      scheduleDrafts(room);
+      return;
+    }
     const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
     if (event.type === 'changed') {
       members.forEach(push);
-      return;
-    }
-    if (event.type === 'draft') {
-      // Чернетка — решті команди автора й пульту: ні автору, ні сцені, ні іншим командам.
-      members
-        .filter((socket) => {
-          const { role, playerId } = socket.data.identity;
-          return role === 'host' || (role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.teamId);
-        })
-        .forEach(push);
+      // Стан змінився — чернетка могла застаріти: пульт отримує свіжий пакет.
+      scheduleDrafts(room);
       return;
     }
     if (event.type === 'tilt') {
@@ -196,6 +250,7 @@ export function attachSockets(
       return;
     }
     if (event.type === 'moved') {
+      dropDrafts(room);
       // Кімнату веде інший процес: перепідключитися з тим самим токеном.
       for (const socket of members) {
         socket.emit('restarting');
@@ -203,6 +258,7 @@ export function attachSockets(
       }
       return;
     }
+    if (event.type === 'closed') dropDrafts(room);
     const leaving =
       event.type === 'kicked' ? members.filter((s) => s.data.identity.playerId === event.playerId) : members;
     for (const socket of leaving) {
@@ -220,9 +276,10 @@ export function attachSockets(
       socket.disconnect(true);
       return;
     }
+    socket.data.watch = false;
     manager.connect(room, identity);
     push(socket);
-    // Щойно підключений бачить і нахил, що вже діє: палець може стояти, тож нового нахилу не буде.
+    // Щойно підключений бачить і нахил, що вже діє: палець може стояти, тож нового нахилу не буде (пульт — лише з «наживо»).
     for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
     socket.on('disconnect', () => manager.disconnect(room, identity));
 
@@ -400,6 +457,22 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = draftSchema.safeParse(payloadOf(args));
       return payload.success ? manager.draft(room, identity.playerId, payload.data.draft) : INVALID;
+    });
+
+    on('host:live-watch', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = liveWatchSchema.safeParse(payloadOf(args));
+      if (!payload.success) return INVALID;
+      socket.data.watch = payload.data.on;
+      if (payload.data.on) {
+        socket.emit('host:drafts', manager.liveDrafts(room));
+        // Негайний пакет теж рахується: наступний — не раніше ніж за gap.
+        const entry = batches.get(room) ?? { last: -Infinity, timer: null };
+        entry.last = Date.now();
+        batches.set(room, entry);
+        for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
+      }
+      return { ok: true };
     });
 
     for (const type of SIMPLE_HOST_ACTIONS) {

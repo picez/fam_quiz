@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react';
-import type { HostLive, HostView, LiveRow, Question, SortTilt } from '@quiz/shared';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { HostLive, HostView, LiveDraft, LiveRow, Question, SortTilt } from '@quiz/shared';
 import { answerText, num, secondsText, sliderNumber } from '../format';
 import { t, type TextKey } from '../i18n';
 import { HelpButton } from '../help/HelpButton';
+import { draftMeta, draftText } from '../live-drafts';
 import { BuffBadge, SpareMark } from './Buffs';
+import { PinBoard } from './PinBoard';
 
 interface Props {
   view: HostView;
@@ -14,6 +16,12 @@ interface Props {
   compact?: boolean;
   /** Нахил картки сортування за тим, хто сортує (11d). */
   tilts?: Record<string, SortTilt>;
+  /** Живі вибори за id рядка (12b); {} — немає. */
+  drafts?: Record<string, LiveDraft>;
+  /** «Наживо» вимкнено (12b): лише заголовок, «Відповіли N з M» і черга бліцу. */
+  collapsed?: boolean;
+  /** Поправка годинника для «думає N с». */
+  offsetMs?: number;
 }
 
 /** Є хоч один хід: рядок з поступом, але без відповіді, теж видно. Двері не рахуються. */
@@ -118,9 +126,50 @@ function tilting(row: LiveRow, tilts: Record<string, SortTilt>): boolean {
   return progress !== null && progress.kind === 'sort' && tilt !== undefined && tilt.seq === progress.seq;
 }
 
-function Row({ row, view, tilts }: { row: LiveRow; view: HostView; tilts: Record<string, SortTilt> }) {
+/** Живий вибір рядка (12b): лише поки рядок не подав відповіді. */
+function draftOf(row: LiveRow, drafts: Record<string, LiveDraft>): LiveDraft | undefined {
+  return row.answered ? undefined : drafts[row.id];
+}
+
+/** Курсивний живий вибір із позначкою «ще не надіслав», лічильником змін, часом роздумів і (точка) міні-мапою. */
+function DraftLine({ row, view, draft, now }: { row: LiveRow; view: HostView; draft: LiveDraft; now: number }) {
+  const question = row.spare === null ? view.question : null;
+  // Основа міні-мапи: показане запитання, а для запасного — його власна мапа чи картинка.
+  const board =
+    row.spare?.type === 'pin'
+      ? { pin: { map: row.spare.map, aspect: row.spare.aspect }, imageUrl: row.spare.imageUrl }
+      : question?.pin != null
+        ? { pin: question.pin, imageUrl: question.imageUrl }
+        : null;
+  return (
+    <>
+      <span className="live-draft">
+        <em>{draftText(draft.draft, row.spare ?? view.correct, question, row.actor !== null)}</em> <span className="tag">{t(row.actor !== null ? 'liveNotSentTeam' : 'liveNotSent')}</span>
+      </span>
+      {draftMeta(draft, now, row.actor !== null).map((text, i) => (
+        <span key={i} className={i === 0 && draft.changes >= 1 ? 'meta live-changes' : 'meta live-thinking'}>
+          {text}
+        </span>
+      ))}
+      {draft.draft.type === 'pin' && board !== null && (
+        <div className="live-pin">
+          <PinBoard pin={board.pin} imageUrl={board.imageUrl} marks={[{ playerId: row.id, nickname: row.nickname, x: draft.draft.x, y: draft.draft.y }]} highlight={row.id} />
+        </div>
+      )}
+    </>
+  );
+}
+
+interface RowContext {
+  view: HostView;
+  tilts: Record<string, SortTilt>;
+  drafts: Record<string, LiveDraft>;
+  now: number;
+}
+
+function Row({ row, view, tilts, drafts, now }: { row: LiveRow } & RowContext) {
   const choices = view.question?.choices;
-  const draftShown = !row.answered && row.draft !== null;
+  const draft = draftOf(row, drafts);
   return (
     <li className="live-row">
       <span className="name">{row.nickname}</span>
@@ -128,13 +177,9 @@ function Row({ row, view, tilts }: { row: LiveRow; view: HostView; tilts: Record
       {row.actor !== null && <span className="meta live-actor">{t('liveActs', { name: row.actor })}</span>}
       {row.buff !== null && <BuffBadge kind={row.buff} />}
       {row.spare !== null && <SpareMark spare={row.spare} />}
-      {draftShown ? (
-        <span className="live-draft">
-          <em>{answerText(row.draft, row.spare ?? view.correct, row.spare === null ? choices : undefined)}</em> <span className="tag">{t('liveDraft')}</span>
-        </span>
-      ) : (
-        <span className="live-answer">{liveAnswerText(row, view.correct, choices, towardOf(row, view, tilts))}</span>
-      )}
+      {/* Поступ (ланцюжок, стіна) лишається поруч із чернеткою; без поступу чернетка стоїть замість «—». */}
+      {(draft === undefined || started(row)) && <span className="live-answer">{liveAnswerText(row, view.correct, choices, towardOf(row, view, tilts))}</span>}
+      {draft !== undefined && <DraftLine row={row} view={view} draft={draft} now={now} />}
       {row.clue !== null && <span className="meta">{t('clueAt', { n: row.clue })}</span>}
       {row.timeMs !== null && <span className="meta live-time">{t('blitzRowTime', { time: secondsText(row.timeMs) })}</span>}
       {row.verdict !== null && <span className={`tag is-${row.verdict}`}>{t(`liveVerdict_${row.verdict}` as TextKey)}</span>}
@@ -146,14 +191,14 @@ function Row({ row, view, tilts }: { row: LiveRow; view: HostView; tilts: Record
 /** Скільки рядків видно без прокрутки (див. .live-scroll у styles.css). */
 const VISIBLE_ROWS = 8;
 
-function Rows({ rows, view, tilts }: { rows: LiveRow[]; view: HostView; tilts: Record<string, SortTilt> }) {
+function Rows({ rows, ...context }: { rows: LiveRow[] } & RowContext) {
   // Понад вісім рядків список прокручується: з клавіатури до нього можна дійти й гортати стрілками.
   const scrolls = rows.length > VISIBLE_ROWS;
   return (
     <div className="live-scroll" {...(scrolls ? { tabIndex: 0, role: 'region', 'aria-label': t('liveRowsLabel') } : {})}>
       <ul className="live-rows">
         {rows.map((row) => (
-          <Row key={row.id} row={row} view={view} tilts={tilts} />
+          <Row key={row.id} row={row} {...context} />
         ))}
       </ul>
     </div>
@@ -162,22 +207,45 @@ function Rows({ rows, view, tilts }: { rows: LiveRow[]; view: HostView; tilts: R
 
 /** «Відповіді наживо» на пульті (11c): хто що відповів ще до розкриття. */
 const NO_TILTS: Record<string, SortTilt> = {};
+const NO_DRAFTS: Record<string, LiveDraft> = {};
 
-export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TILTS }: Props) {
+/** Час сервера для «думає N с»: раз на секунду, лише поки є видима чернетка. */
+function useServerNow(ticking: boolean, offsetMs: number): number {
+  const [now, setNow] = useState(() => Date.now() + offsetMs);
+  useEffect(() => {
+    if (!ticking) return;
+    setNow(Date.now() + offsetMs);
+    const id = setInterval(() => setNow(Date.now() + offsetMs), 1000);
+    return () => clearInterval(id);
+  }, [ticking, offsetMs]);
+  return now;
+}
+
+export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TILTS, drafts = NO_DRAFTS, collapsed = false, offsetMs = 0 }: Props) {
   const duel = live.kind === 'duel';
   const queue = live.kind === 'blitz' && view.blitz?.instant !== true;
   const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered);
   // Дуель: обидва дуелянти завжди, навіть без спроб.
   // Нахил першої картки (11d) теж показує рядок: ведучий бачить, куди її тягнуть, ще до першого ходу.
-  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || row.draft !== null || tilting(row, tilts));
+  // Живий вибір (12b) теж: рядок видно ще до відповіді й першого ходу.
+  const shown = duel ? live.rows : live.rows.filter((row) => row.answered || started(row) || draftOf(row, drafts) !== undefined || tilting(row, tilts));
   const queueShown = blitz !== undefined && blitz !== null;
   // Командний бліц: чернетки тих, хто ще не в черзі, — під чергою.
-  const drafts = queueShown ? live.rows.filter((row) => !row.answered && row.draft !== null) : [];
-  const body = (
+  const queued = queueShown ? live.rows.filter((row) => draftOf(row, drafts) !== undefined) : [];
+  const ticking = !collapsed && [...live.rows, ...(live.aside?.rows ?? [])].some((row) => draftOf(row, drafts) !== undefined);
+  const now = useServerNow(ticking, offsetMs);
+  const context: RowContext = { view, tilts, drafts, now };
+  const count = !duel && (
+    <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered: live.answered, total: live.total })}</p>
+  );
+  const body = collapsed ? (
     <>
-      {!duel && (
-        <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered: live.answered, total: live.total })}</p>
-      )}
+      {count}
+      {queueShown && blitz}
+    </>
+  ) : (
+    <>
+      {count}
       {waiting.length > 0 && (
         <div className="live-waiting">
           <span className="meta">{t(view.phase === 'locked' ? 'liveSilent' : 'liveWaiting')}</span>
@@ -194,24 +262,24 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
       {queueShown ? (
         <>
           {blitz}
-          {drafts.length > 0 && <Rows rows={drafts} view={view} tilts={tilts} />}
+          {queued.length > 0 && <Rows rows={queued} {...context} />}
         </>
       ) : shown.length > 0 ? (
-        <Rows rows={shown} view={view} tilts={tilts} />
+        <Rows rows={shown} {...context} />
       ) : (
         <p className="meta">{t('noResponses')}</p>
       )}
       {live.aside !== null && (
         <details className="live-aside">
           <summary>{t(live.aside.kind === 'ghosts' ? 'liveGhosts' : 'liveHall', { answered: live.aside.answered, total: live.aside.total })}</summary>
-          <Rows rows={live.aside.rows} view={view} tilts={tilts} />
+          <Rows rows={live.aside.rows} {...context} />
         </details>
       )}
     </>
   );
   if (compact) return <div className="live-answers is-compact">{body}</div>;
   return (
-    <section id="live-answers" className="panel live-answers" aria-labelledby="live-answers-title" tabIndex={-1}>
+    <section id="live-answers" className={collapsed ? 'panel live-answers is-collapsed' : 'panel live-answers'} aria-labelledby="live-answers-title" tabIndex={-1}>
       <h2 id="live-answers-title">
         {t('liveTitle')}
         <HelpButton id="setting.live" />

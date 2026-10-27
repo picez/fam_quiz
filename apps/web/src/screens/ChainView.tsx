@@ -5,6 +5,7 @@ import { errorText, t } from '../i18n';
 import { secondsLeft } from '../clock';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
+import type { DraftInput } from './TeamWatch';
 
 const LETTER = /\p{L}/u;
 /** Слово довше за стільки клітинок стискається й отримує лічильник літер. */
@@ -73,12 +74,15 @@ export function ChainPlay({
   paused,
   offsetMs,
   send,
+  onDraft,
 }: {
   chain: PlayerChain;
   question: PublicQuestion;
   paused: boolean;
   offsetMs: number;
   send: Send;
+  /** Живий вибір (12b): надруковане слово до «Перевірити»; порожньо — null. */
+  onDraft?: DraftInput;
 }) {
   const [word, setWord] = useState('');
   const [miss, setMiss] = useState(false);
@@ -86,7 +90,24 @@ export function ChainPlay({
   const [now, setNow] = useState(() => Date.now());
   const input = useRef<HTMLInputElement>(null);
   const busy = useRef(false);
+  // Останнє надруковане слово: після відповіді сервера поле могло вже змінитися.
+  const typed = useRef('');
+  typed.current = word.trim();
   const done = chain.timeMs !== null;
+  const draftRef = useRef(onDraft);
+  draftRef.current = onDraft;
+  /** Надіслати пульту поточне слово знову: сервер забув чернетку (підказка, відхилене слово). */
+  const repush = () => {
+    if (typed.current !== '') draftRef.current?.({ type: 'chainWord', word: typed.current });
+  };
+
+  // Підказка міняє відбиток відповіді — сервер скидає чернетку, а слово в полі лишається.
+  const hints = useRef(chain.hints);
+  useEffect(() => {
+    if (chain.hints === hints.current) return;
+    hints.current = chain.hints;
+    repush();
+  }, [chain.hints]);
   const running = chain.deadline !== null && !done;
 
   useEffect(() => {
@@ -106,6 +127,7 @@ export function ChainPlay({
     event.preventDefault();
     if (busy.current || word.trim() === '') return;
     busy.current = true;
+    onDraft?.cancel?.();
     try {
       const result = await send('player:guess', { word });
       if (result.ok) {
@@ -115,9 +137,11 @@ export function ChainPlay({
       } else if (result.error === 'wrong_word') {
         setMiss(true);
         setError(null);
+        repush();
       } else {
         setMiss(false);
         setError(errorText(result.error));
+        repush();
       }
     } finally {
       busy.current = false;
@@ -161,7 +185,11 @@ export function ChainPlay({
                 enterKeyHint="go"
                 value={word}
                 disabled={paused}
-                onChange={(event) => setWord(event.target.value)}
+                onChange={(event) => {
+                  setWord(event.target.value);
+                  const typed = event.target.value.trim();
+                  onDraft?.(typed === '' ? null : { type: 'chainWord', word: typed });
+                }}
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={paused}>

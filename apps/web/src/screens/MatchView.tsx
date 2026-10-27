@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import type { Answer, Choice, PublicQuestion } from '@quiz/shared';
+import type { Answer, SubmittedAnswer, Choice, PublicQuestion } from '@quiz/shared';
 import type { PairText } from '../format';
 import { t } from '../i18n';
 
 /** Телефон: з'єднання пар дотиками. Стан живе тут, тож пауза його не скидає. */
-export function MatchInput({ question, onSubmit, onDraft }: { question: PublicQuestion; onSubmit: (answer: Answer) => void; onDraft?: (draft: Answer | null) => void }) {
+export function MatchInput({ question, onSubmit, onDraft }: { question: PublicQuestion; onSubmit: (answer: Answer) => void; onDraft?: (draft: SubmittedAnswer | null) => void }) {
   // Лівий id → правий id.
   const [links, setLinks] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<string | null>(null);
@@ -14,10 +14,11 @@ export function MatchInput({ question, onSubmit, onDraft }: { question: PublicQu
   const number = (leftId: string) => left.findIndex((item) => item.id === leftId) + 1;
   const ready = left.every((item) => links[item.id] !== undefined);
 
-  // Чернетка капітана: уся відповідь лише коли пов'язано всі пари; інакше порожньо.
+  // Живий вибір: уже з'єднані пари в порядку лівого стовпчика; жодної — порожньо.
   const change = (next: Record<string, string>) => {
     setLinks(next);
-    onDraft?.(left.every((item) => next[item.id] !== undefined) ? { type: 'match', links: left.map((item) => ({ left: item.id, right: next[item.id] })) } : null);
+    const joined = left.filter((item) => next[item.id] !== undefined).map((item) => ({ left: item.id, right: next[item.id] }));
+    onDraft?.(joined.length === 0 ? null : { type: 'match', links: joined });
   };
 
   const unlink = (leftId: string) => {

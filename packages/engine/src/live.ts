@@ -83,7 +83,6 @@ function emptyRow(who: Answerer, actor: string | null): LiveRow {
     spare: null,
     clue: null,
     actor,
-    draft: null,
     progress: null,
     wager: null,
   };

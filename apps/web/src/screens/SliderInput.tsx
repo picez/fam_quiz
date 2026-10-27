@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Answer, PublicQuestion, PublicSlider } from '@quiz/shared';
+import type { Answer, SubmittedAnswer, PublicQuestion, PublicSlider } from '@quiz/shared';
 import { sliderNumber, sliderValueText, stepDecimals } from '../format';
 import { t } from '../i18n';
 
@@ -7,7 +7,7 @@ interface Props {
   question: PublicQuestion & { slider: PublicSlider };
   onSubmit: (answer: Answer) => void;
   submitLabel?: string;
-  onDraft?: (draft: Answer | null) => void;
+  onDraft?: (draft: SubmittedAnswer | null) => void;
 }
 
 /** Найближче вузол сітки min + k·step, округлене до знаків кроку й межі: 0,1 × 10 без «0,9999999». */

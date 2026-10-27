@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
+import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
@@ -38,7 +38,7 @@ import { DuelistPicker } from './DuelistPicker';
 import { TeamBar, buzzerOf, memberName } from './TeamBar';
 import { TeamLobby } from './TeamLobby';
 import { AuthorLobby } from './AuthorLobby';
-import { TeamWatch, useDraftSender } from './TeamWatch';
+import { TeamWatch, useDraftSender, type DraftInput } from './TeamWatch';
 import { MenuLinks } from './MenuLinks';
 import { DebuffShop } from './DebuffShop';
 import { TableButton } from './TableSheet';
@@ -174,7 +174,7 @@ function VoteResult({ view }: { view: PlayerView }) {
 }
 
 /** Блеф на етапі question: вигадка, потім вибір; кожен етап підписаний. */
-function BluffPlay({ view, paused, send }: { view: PlayerView; paused: boolean; send: Send }) {
+function BluffPlay({ view, paused, send, onDraft }: { view: PlayerView; paused: boolean; send: Send; onDraft?: DraftInput }) {
   const { bluff } = view;
   const mine = view.me.bluff;
   // Вибір, що раптом зник посеред фази, означає: ведучий прибрав цей варіант.
@@ -194,7 +194,7 @@ function BluffPlay({ view, paused, send }: { view: PlayerView; paused: boolean; 
         <p className="bluff-stage">{t('bluffStageLies')}</p>
         {mine.lie === null ? (
           <fieldset className="inputs" disabled={paused}>
-            <BluffLieInput send={send} />
+            <BluffLieInput send={send} onDraft={onDraft} />
           </fieldset>
         ) : (
           <p className="lead">{t('bluffLieSent', { lie: mine.lie })}</p>
@@ -669,10 +669,30 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   const isSurvey = question?.type === 'survey';
   const isBluff = question?.type === 'bluff';
   const unscored = question !== null && isUnscored(question);
-  // Чернетка йде лише від того, хто зараз відповідає за команду; опитування й хмару кожен проходить сам, чернеток там немає.
+  // Чернетка команди йде лише від того, хто зараз відповідає за неї (товаришам і пульту).
   const trialDraft = team !== null && team.canAct && phase === 'leaderboard' && me.survival?.canAnswerTrial === true;
-  const draftOn = (team !== null && team.canAct && phase === 'question' && question !== null && !unscored && !instant) || trialDraft;
-  const sendDraft = useDraftSender(send, draftOn, `${view.questionIndex}-${me.blitz?.attemptsUsed ?? 0}-${retryStage ?? ''}-${phase}`);
+  const teamDraftOn = (team !== null && team.canAct && phase === 'question' && question !== null && !unscored && !instant) || trialDraft;
+  // Живий вибір соло-гравця для пульта (12b): будь-яке поле до «Надіслати», крім миттєвого бліцу; у грі без ведучого — ні.
+  // Опитування й хмару командної гри кожен проходить сам: його вибір теж іде лише пульту.
+  const soloDraft =
+    (team === null || (unscored && phase === 'question')) &&
+    !view.autopilot &&
+    !instant &&
+    ((phase === 'question' && question !== null && me.answer === null) || (phase === 'leaderboard' && me.survival?.canAnswerTrial === true));
+  const draftOn = teamDraftOn || soloDraft;
+  // Хід стіни, ланцюжка (і підказка) чи етап блефу міняє відбиток відповіді на сервері: «вже надіслано» скидається.
+  const draftKey = [
+    view.questionIndex,
+    me.blitz?.attemptsUsed ?? 0,
+    retryStage ?? '',
+    phase,
+    me.wall?.found.length ?? 0,
+    me.wall?.mistakes ?? 0,
+    me.chain?.solved ?? 0,
+    me.chain?.hints ?? 0,
+    view.bluff?.stage ?? '',
+  ].join('-');
+  const sendDraft = useDraftSender(send, draftOn, draftKey);
   const onDraft = draftOn ? sendDraft : undefined;
   // Решта команди дивиться: запитання, де відповідає не вона. Бліц з кнопкою — поки відповідає натиснувший; глядач на полі лишається глядачем.
   const teamWatching =
@@ -852,18 +872,18 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
             ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
             ) : isBluff ? (
-              <BluffPlay view={view} paused={locked} send={send} />
+              <BluffPlay view={view} paused={locked} send={send} onDraft={onDraft} />
             ) : isSort && me.sort !== null ? (
               <SortPlay question={shown ?? question} sort={me.sort} paused={locked} offsetMs={offsetMs} send={send} />
             ) : isSort ? (
               view.sort !== null && <SortWatch question={question} info={view.sort} tilts={tilts} paused={view.paused} offsetMs={offsetMs} />
             ) : isWall && me.wall !== null && question.wall !== null ? (
-              <WallInput key={view.questionIndex} question={{ ...question, wall: question.wall }} wall={me.wall} paused={locked} send={send} />
+              <WallInput key={view.questionIndex} question={{ ...question, wall: question.wall }} wall={me.wall} paused={locked} send={send} onDraft={onDraft} />
             ) : isWall ? (
               // Глядач на полі бачить стіну того, хто вибрав, без дотиків.
               question.wall !== null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />
             ) : chainMine && me.chain !== null ? (
-              <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} />
+              <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} onDraft={onDraft} />
             ) : instant && me.blitz !== null ? (
               <>
                 {me.blitz.canAnswer ? (
@@ -910,6 +930,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                   notStarted={notStarted}
                   onSubmit={submit}
                   onDraft={onDraft}
+                  confirm={teamDraftOn}
                   send={send}
                   onError={setError}
                 />
@@ -951,9 +972,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
               <>
                 <fieldset className="inputs" disabled={locked || me.ladder?.hallClosed === true}>
-                  <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} onDraft={onDraft} />
+                  <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} onDraft={onDraft} confirm={teamDraftOn} />
                 </fieldset>
-                {draftOn && <p className="meta team-you-answer">{t('teamYouAnswer')}</p>}
+                {teamDraftOn && <p className="meta team-you-answer">{t('teamYouAnswer')}</p>}
               </>
             )}
           </DebuffZone>
@@ -1119,7 +1140,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                 void decideGuard.run('player:trial', { answer });
               }}
               onDoor={(door) => void decideGuard.run('player:door', { door })}
-              onDraft={trialDraft ? sendDraft : undefined}
+              onDraft={onDraft}
+              confirm={teamDraftOn}
             />
           ) : (
             view.survival.verdict !== null &&
@@ -1195,6 +1217,7 @@ function BlitzTurn({
   notStarted,
   onSubmit,
   onDraft,
+  confirm,
   send,
   onError,
 }: {
@@ -1209,8 +1232,10 @@ function BlitzTurn({
   /** Ще йде заставка клітинки: натискання й відповідь чекають на старт. */
   notStarted: boolean;
   onSubmit: (answer: Answer) => void;
-  /** Команда: чернетка відповіді для товаришів (лише від того, хто відповідає). */
-  onDraft?: (draft: Answer | null) => void;
+  /** Живий вибір: команда — товаришам і пульту (лише від того, хто відповідає); соло — пульту. */
+  onDraft?: (draft: SubmittedAnswer | null) => void;
+  /** Командна гра: одиночний вибір з підтвердженням. */
+  confirm: boolean;
   send: Send;
   onError: (message: string | null) => void;
 }) {
@@ -1242,7 +1267,7 @@ function BlitzTurn({
           <>
             {labelled && <h2 className="meta">{t('blitzYourAnswer')}</h2>}
             <fieldset className="inputs" disabled={view.paused || notStarted}>
-              <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={shown} onSubmit={onSubmit} onDraft={onDraft} />
+              <AnswerInput key={`${view.questionIndex}-${blitz.attemptsUsed}`} question={shown} onSubmit={onSubmit} onDraft={onDraft} confirm={confirm} />
             </fieldset>
           </>
         )}

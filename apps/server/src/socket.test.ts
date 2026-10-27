@@ -1,8 +1,8 @@
 import type { AddressInfo } from 'node:net';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { TEST_AUTH, signUp, startGame, type StartedGame } from './testing/accounts';
@@ -75,6 +75,15 @@ function listenTilt(tracked: Tracked): SortTilt[] {
   tracked.socket.on('sort:tilt', (tilt) => received.push(tilt));
   return received;
 }
+
+/** Збирає пакети живих виборів (12b), що прийшли сокету. */
+function listenDrafts(tracked: Tracked): HostDrafts[] {
+  const received: HostDrafts[] = [];
+  tracked.socket.on('host:drafts', (batch) => received.push(batch));
+  return received;
+}
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const createGame = async () => (await startGame(ctx.app, makeQuiz([single, text]))).game;
 
@@ -972,6 +981,7 @@ describe('sort tilt over sockets (11d)', () => {
     const wordId = cardOf(chooser.last);
     expect(wordId).not.toBeNull();
     const got = { host: listenTilt(host), stage: listenTilt(stage), chooser: listenTilt(chooser), other: listenTilt(other) };
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
 
     expect(await send(chooser, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: true });
     // Кругообіг підтвердження: усе, що сервер надіслав цим сокетам до нього, уже прийшло.
@@ -995,6 +1005,32 @@ describe('sort tilt over sockets (11d)', () => {
     expect(await send(late.chooser, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: true });
     expect(lateGot.stage).toEqual([tilt]);
     expect(lateGot.chooser).toEqual([]);
+  });
+
+  it('the host gets tilts only while it watches (12b): none without «наживо», the current one right when it turns on', async () => {
+    const filler = (prefix: string) => [1, 2, 3].map((n) => ({ ...withId(single, `${prefix}${n}`), points: 100 * n }));
+    const board = makeRoundsQuiz([
+      boardRound('g1', [
+        { title: 'Сортування', cells: [{ answerMode: 'phone', question: sortQ }, ...filler('a').slice(0, 2)] },
+        { title: 'Міста', cells: filler('b') },
+        { title: 'Річки', cells: filler('c') },
+      ]),
+    ]);
+    const { host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby((await startGame(ctx.app, board)).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    expect(await send(host, 'host:pick', { cellId: sortQ.id })).toEqual({ ok: true });
+    for (const who of [olena, taras, stage, host]) await until(who, inPhase('question'));
+    const [chooser, chooserJoin] = cardOf(olena.last) !== null ? [olena, olenaJoin] : [taras, tarasJoin];
+    const wordId = cardOf(chooser.last);
+    const got = listenTilt(host);
+    expect(await send(chooser, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: true });
+    // Кругообіг підтвердження пульта: усе, що сервер надіслав йому до нього, уже прийшло.
+    expect(await send(host, 'player:sort-tilt', { wordId, categoryId: 'c1', amount: 0.7 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(got).toEqual([]);
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
+    const tilt: SortTilt = { sorterId: chooserJoin.playerId, wordId: wordId!, toward: 'c1', amount: 0.7, seq: 0 };
+    expect(got).toEqual([tilt]);
   });
 
   it('classic: refused with wrong_phase, nobody gets anything', async () => {
@@ -1222,6 +1258,97 @@ describe('survival over sockets (10h)', () => {
   });
 });
 
+describe('live drafts (12b)', () => {
+  /** Класика «кілька правильних, текст»; усі на першому запитанні. */
+  async function opened() {
+    const parts = await lobby((await startGame(ctx.app, makeQuiz([multi, text]))).game);
+    expect(await send(parts.host, 'host:start')).toEqual({ ok: true });
+    expect(await send(parts.host, 'host:next')).toEqual({ ok: true });
+    for (const who of [parts.host, parts.stage, parts.olena, parts.taras]) await until(who, inPhase('question'));
+    return parts;
+  }
+
+  it('a solo draft reaches only a watching host, in a batch; the stage and other phones get nothing', async () => {
+    const { host, stage, olena, taras } = await lobby((await startGame(ctx.app, makeQuiz([multi, text]))).game);
+    const hostDrafts = listenDrafts(host);
+    const others = [stage, taras, olena].map(listenDrafts);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    for (const who of [host, stage, olena, taras]) await until(who, inPhase('question'));
+    expect(await send(olena, 'player:draft', { draft: { type: 'multi', optionIds: ['a', 'c'] } })).toEqual({ ok: true });
+    await pause(400);
+    expect(hostDrafts).toEqual([]); // ще не ввімкнув «наживо»
+    const states = host.states;
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
+    await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts.map((d) => d.draft)).toEqual([{ type: 'multi', optionIds: ['a', 'c'] }]));
+    expect(await send(olena, 'player:draft', { draft: { type: 'multi', optionIds: ['c'] } })).toEqual({ ok: true });
+    await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts[0]).toMatchObject({ draft: { type: 'multi', optionIds: ['c'] }, changes: 1 }));
+    expect(host.states).toBe(states); // на чернетку пульт не отримує зрізу
+    expect(others.map((list) => list.length)).toEqual([0, 0, 0]);
+    for (const who of [stage, taras]) expect(JSON.stringify(who.last)).not.toContain('"optionIds":["c"]');
+  });
+
+  it('turning «наживо» off stops the batches', async () => {
+    const { host, olena } = await opened();
+    const hostDrafts = listenDrafts(host);
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
+    expect(hostDrafts).toHaveLength(1);
+    expect(await send(host, 'host:live-watch', { on: false })).toEqual({ ok: true });
+    expect(await send(olena, 'player:draft', { draft: { type: 'multi', optionIds: ['b'] } })).toEqual({ ok: true });
+    await pause(500);
+    expect(hostDrafts).toHaveLength(1);
+  });
+
+  it('batches come at most every 300 ms, and the last one carries the last value', async () => {
+    const { host, olena } = await opened();
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
+    // Пакет на ввімкнення вже прийшов (кругообіг підтвердження); далі рахуємо лише пакети чернеток.
+    const hostDrafts = listenDrafts(host);
+    for (const optionIds of [['a'], ['a', 'b'], ['b'], ['b', 'c'], ['d']]) {
+      expect(await send(olena, 'player:draft', { draft: { type: 'multi', optionIds } })).toEqual({ ok: true });
+      await pause(50);
+    }
+    await pause(400);
+    expect(hostDrafts.length).toBeGreaterThan(0);
+    expect(hostDrafts.length).toBeLessThanOrEqual(2);
+    expect(hostDrafts.at(-1)?.drafts.map((d) => d.draft)).toEqual([{ type: 'multi', optionIds: ['d'] }]);
+  });
+
+  it('the batch sent on «наживо» counts: the next one waits out the 300 ms window', async () => {
+    const { host, olena } = await opened();
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
+    const hostDrafts = listenDrafts(host);
+    expect(await send(olena, 'player:draft', { draft: { type: 'multi', optionIds: ['b'] } })).toEqual({ ok: true });
+    await pause(100);
+    expect(hostDrafts).toEqual([]);
+    await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts.map((d) => d.draft)).toEqual([{ type: 'multi', optionIds: ['b'] }]));
+  });
+
+  it('host:live-watch is host-only and validated; a draft text over 100 characters is invalid', async () => {
+    const { host, stage, olena } = await lobby((await startGame(ctx.app, makeQuiz([text, multi]))).game);
+    for (const who of [olena, stage]) expect(await send(who, 'host:live-watch', { on: true })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [{ on: 'yes' }, undefined]) expect(await send(host, 'host:live-watch', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:draft', { draft: { type: 'text', value: 'я'.repeat(101) } })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:draft', { draft: { type: 'text', value: 'я'.repeat(100) } })).toEqual({ ok: true });
+  });
+
+  it('an answer takes the draft out of the next batch', async () => {
+    const { host, olena, olenaJoin } = await lobby((await startGame(ctx.app, makeQuiz([text, multi]))).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    const hostDrafts = listenDrafts(host);
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
+    expect(await send(olena, 'player:draft', { draft: { type: 'text', value: 'Чернет' } })).toEqual({ ok: true });
+    await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts.map((d) => d.id)).toEqual([olenaJoin.playerId]));
+    expect(await send(olena, 'player:answer', { type: 'text', value: 'Київ' })).toEqual({ ok: true });
+    await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts).toEqual([]));
+  });
+});
+
 describe('teams over sockets (10j)', () => {
   /** Командна гра з ведучим, сценою й чотирма людьми в лобі; ids команд — зі зрізу пульта. */
   async function teamLobby(rounds = [classicRound('r1', [text, single])]) {
@@ -1292,22 +1419,25 @@ describe('teams over sockets (10j)', () => {
     expect(await send(host, 'host:start')).toEqual({ ok: true });
     expect(await send(host, 'host:next')).toEqual({ ok: true });
     for (const who of [olena, taras, ira, marko, stage, host]) await until(who, inPhase('question'));
-    const counts = () => [olena, ira, marko, stage].map((who) => who.states);
+    const hostDrafts = listenDrafts(host);
+    const others = [stage, olena, taras, ira, marko].map(listenDrafts);
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
+    const counts = () => [olena, ira, marko, stage, host].map((who) => who.states);
     const before = counts();
 
     expect(await send(olena, 'player:draft', { draft: { type: 'text', value: 'Чернетка-Львів' } })).toEqual({ ok: true });
     const seen = await until(taras, (v) => v.role === 'player' && v.team?.draft !== null && v.team?.draft !== undefined);
     expect(seen.role === 'player' && seen.team?.draft).toEqual({ type: 'text', value: 'Чернетка-Львів' });
-    // Пульт отримує свіжий зріз «Відповідей наживо» з чернеткою (11c).
-    const hostSeen = await until(host, (v) => v.role === 'host' && v.live?.rows.some((r) => r.draft !== null) === true);
-    expect(hostSeen.role === 'host' && hostSeen.live?.rows.find((r) => r.draft !== null)?.draft).toEqual({ type: 'text', value: 'Чернетка-Львів' });
+    // Пульт отримує пакет host:drafts, а не зріз (12b).
+    await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts).toEqual([expect.objectContaining({ id: red, draft: { type: 'text', value: 'Чернетка-Львів' } })]));
     // Кругообіг підтвердження: усе, що сервер надіслав цим сокетам до нього, уже прийшло.
     expect(await send(marko, 'player:draft', { draft: null })).toEqual({ ok: false, error: 'not_captain' });
     expect(await send(ira, 'player:team', { teamId: red })).toEqual({ ok: false, error: 'wrong_phase' });
     expect(await send(stage, 'host:team-deal')).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(host, 'host:team-deal')).toEqual({ ok: false, error: 'wrong_phase' });
     expect(counts()).toEqual(before);
-    for (const who of [olena, ira, marko, stage]) expect(JSON.stringify(who.last)).not.toContain('Чернетка-Львів');
+    for (const who of [olena, ira, marko, stage, host]) expect(JSON.stringify(who.last)).not.toContain('Чернетка-Львів');
+    expect(others.map((list) => list.length)).toEqual([0, 0, 0, 0, 0]);
   });
 
   it('sort tilt (11d): the captain tilt reaches the teammates and the host, not the other team, the stage or the captain', async () => {
@@ -1319,6 +1449,7 @@ describe('teams over sockets (10j)', () => {
     expect(await send(host, 'host:next')).toEqual({ ok: true });
     for (const who of [olena, taras, ira, marko, stage, host]) await until(who, inPhase('question'));
     const got = { host: listenTilt(host), stage: listenTilt(stage), olena: listenTilt(olena), taras: listenTilt(taras), ira: listenTilt(ira), marko: listenTilt(marko) };
+    expect(await send(host, 'host:live-watch', { on: true })).toEqual({ ok: true });
     const view = olena.last;
     const wordId = view?.role === 'player' ? view.me.sort?.card?.id : undefined;
     expect(wordId).toBeDefined();

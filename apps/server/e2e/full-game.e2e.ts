@@ -11165,7 +11165,7 @@ async function teamLive11c() {
   const red = liveRow(host, 'Червоні');
   await red.locator('.live-draft em', { hasText: 'Одес' }).waitFor({ timeout: 2000 });
   await red.getByText('діє: Оля', exact).waitFor();
-  await red.locator('.live-draft .tag').getByText('чернетка', exact).waitFor();
+  await red.locator('.live-draft .tag').getByText('ще не надіслали', exact).waitFor();
   await shot(host, 'p11c-host-draft');
   expect(hostFrames.join(NL), 'the host receives the captain draft').toContain('Одес');
   for (const [who, frames] of [['stage', stageFrames], ['ira', iraFrames], ['marko', markoFrames]] as const) {
@@ -13558,6 +13558,235 @@ async function undo12a() {
 it('part 12a: undo points — the host sheet on a 375 phone lists closed questions newest first, undoes a penalty with one tap and returns it, undoes a whole round and a whole question after a confirm, phones and the 1280 × 720 stage get the notice and the new table, the phone breakdown says «Скасовано ведучим», the current question stays out until its reveal ends, the panel never reaches the stage, and the history strikes what was undone', async () => {
   try {
     await undo12a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Пакет живих виборів у сокетних кадрах (12b): лише пульт із «наживо». */
+const DRAFTS_EVENT = /\["host:drafts",/;
+/** Скільки пакетів живих виборів отримала сторінка. */
+const draftBatches = (frames: string[]) => frames.filter((frame) => DRAFTS_EVENT.test(frame)).length;
+
+function liveQuestions12b() {
+  const common = { imageUrl: null, video: null, timeLimit: 60, points: 100 };
+  const l1 = {
+    ...common,
+    id: 'l1',
+    type: 'multi' as const,
+    text: 'Які з цих тварин — ссавці?',
+    options: ['Кит', 'Дельфін', 'Акула', 'Пінгвін'].map((text, at) => ({ id: `l1-${'abcd'[at]}`, text })),
+    correctIds: ['l1-a', 'l1-b'],
+  };
+  const l2 = { ...common, id: 'l2', type: 'text' as const, text: 'Столиця Японії?', accepted: ['Токіо'] };
+  const l3 = {
+    ...common,
+    id: 'l3',
+    type: 'order' as const,
+    text: 'Від найменшого до найбільшого',
+    items: ['Миша', 'Кіт', 'Кінь'].map((text, at) => ({ id: `l3-${at}`, text })),
+    topLabel: 'Найменший',
+    bottomLabel: 'Найбільший',
+  };
+  return { l1, l2, l3 };
+}
+
+async function live12b() {
+  const host = await open('host12b', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12b@example.com');
+  const hostFrames = socketFrames(host);
+
+  const { l1, l2, l3 } = liveQuestions12b();
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [l1, l2, l3] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES })], {
+      leaderboard: 'each',
+    }),
+    title: 'Наживо 12b',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Наживо 12b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage12b', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya12b', 375, 812);
+  const petro = await open('petro12b', 375, 812);
+  const ira = await open('ira12b', 375, 812);
+  const petroFrames = socketFrames(petro);
+  const iraFrames = socketFrames(ira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+  const all = [host, stage, ...phones];
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  const toggle = host.locator('header.bar').getByRole('button', { name: 'Наживо', ...exact });
+  const panel = host.locator('#live-answers');
+  const row = (name: string) => liveRow(host, name);
+  const draftOf = (name: string) => row(name).locator('.live-draft em');
+  const textOf = async (locator: Locator) => (await locator.textContent({ timeout: 500 }).catch(() => null))?.trim() ?? null;
+  const draftText = (name: string) => textOf(draftOf(name));
+  /** Кадр самої панелі: на повній сторінці її частину ховає закріплена смуга кнопок пульта. */
+  const panelShot = async (name: string) => {
+    if (process.env.E2E_SHOTS !== '1') return;
+    mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
+    await panel.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+    await panel.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`) });
+    await host.evaluate('scrollTo(0, 0)');
+  };
+  const toNextQuestion = async () => {
+    await click(host, 'Показати відповідь');
+    await click(host, 'Далі');
+    await click(host, 'Наступне запитання');
+    await afterSplash(...all);
+  };
+
+  // 1. Шапка: «👁 Наживо» увімкнено, в один рядок на 375 px.
+  await stage.getByText('Які з цих тварин — ссавці?', exact).waitFor();
+  await panel.waitFor();
+  await toggle.waitFor();
+  expect(await toggle.getAttribute('aria-pressed')).toBe('true');
+  expect(await host.evaluate(HEADER_ONE_LINE), 'the host header wraps with «Наживо»').toBe(true);
+
+  // 2. Позначки до «Надіслати».
+  await pickOption(olya, 'Кит');
+  await pickOption(olya, 'Дельфін');
+  await expect.poll(() => draftText('Оля'), POLL).toBe('позначає Кит, Дельфін');
+  expect(await textOf(row('Оля').locator('.live-draft .tag'))).toBe('ще не надіслав');
+  expect(await textOf(row('Оля').locator('.live-thinking'))).toMatch(/^думає \d+ с$/);
+  await pickOption(petro, 'Акула');
+  await expect.poll(() => draftText('Петро'), POLL).toBe('позначає Акула');
+  await pickOption(petro, 'Кит');
+  await expect.poll(() => draftText('Петро'), POLL).toBe('позначає Кит, Акула');
+  await pickOption(petro, 'Акула');
+  await expect.poll(() => draftText('Петро'), POLL).toBe('позначає Кит');
+  await expect.poll(() => textOf(row('Петро').locator('.live-changes')), POLL).toBe('змінював 2 рази');
+  await expectNoSideScroll(host, 'p12b-host-live');
+  await panelShot('p12b-host-live-panel');
+  const phoneText = (await bodyText(olya)).toLowerCase();
+  expect(phoneText, 'the phone says «наживо»').not.toContain('наживо');
+  expect(phoneText, 'the phone says «чернетка»').not.toContain('чернетка');
+  await olya.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+  await expectNoSideScroll(olya, 'p12b-phone-draft');
+
+  // 3. Подання: рядок показує відповідь, чернетки немає.
+  await click(olya, 'Відповісти');
+  await row('Оля').locator('.live-answer', { hasText: 'Кит' }).waitFor();
+  expect(await row('Оля').locator('.live-answer').textContent()).toContain('Дельфін');
+  await expect.poll(() => row('Оля').locator('.live-draft').count(), POLL).toBe(0);
+
+  // 4. Вимкнення: панель згортається, пакетів немає — і після перезавантаження.
+  await toggle.click();
+  await expect.poll(() => toggle.getAttribute('aria-pressed'), POLL).toBe('false');
+  await expect.poll(() => panel.locator('.live-row').count(), POLL).toBe(0);
+  await expect.poll(() => textOf(panel.locator('.live-count')), POLL).toBe('Відповіли 1 з 3');
+  expect(await panel.locator('.live-waiting').count()).toBe(0);
+  expect(await panel.locator('.live-aside').count()).toBe(0);
+  expect(await panel.getAttribute('class')).toContain('is-collapsed');
+  const before = draftBatches(hostFrames);
+  await pickOption(petro, 'Дельфін');
+  await host.waitForTimeout(1000);
+  expect(draftBatches(hostFrames), 'a batch reached the host with «наживо» off').toBe(before);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'the host header wraps with «Наживо» off').toBe(true);
+  await expectNoSideScroll(host, 'p12b-host-off');
+  await panelShot('p12b-host-off-panel');
+  await host.reload();
+  await panel.waitFor();
+  await toggle.waitFor();
+  expect(await toggle.getAttribute('aria-pressed')).toBe('false');
+  // Відхід ведучого (перезавантаження) ставить гру на паузу.
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).last().click();
+  await expect.poll(() => petro.locator('.choice', { hasText: 'Пінгвін' }).isEnabled(), POLL).toBe(true);
+  await pickOption(petro, 'Пінгвін');
+  await host.waitForTimeout(1000);
+  expect(draftBatches(hostFrames), 'a batch reached the host with «наживо» off after a reload').toBe(before);
+  expect(await panel.locator('.live-row').count()).toBe(0);
+
+  // 5. Увімкнення: пакет приходить одразу.
+  await toggle.click();
+  await expect.poll(() => toggle.getAttribute('aria-pressed'), POLL).toBe('true');
+  await expect.poll(() => draftText('Петро'), POLL).toBe('позначає Кит, Дельфін, Пінгвін');
+  await click(petro, 'Відповісти');
+  await pickOption(ira, 'Кит');
+  await pickOption(ira, 'Дельфін');
+  await click(ira, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  await toNextQuestion();
+
+  // 6. Текст: «друкує «Осака»», потім «Токіо» зі змінами.
+  await stage.getByText('Столиця Японії?', exact).waitFor();
+  await field(ira, 'Ваша відповідь').fill('Осака');
+  await expect.poll(() => draftText('Іра'), POLL).toBe('друкує «Осака»');
+  await expectNoSideScroll(host, 'p12b-host-typing');
+  await panelShot('p12b-host-typing-panel');
+  await field(ira, 'Ваша відповідь').fill('');
+  await field(ira, 'Ваша відповідь').fill('Токіо');
+  await expect.poll(() => draftText('Іра'), POLL).toBe('друкує «Токіо»');
+  await expect.poll(async () => (await textOf(row('Іра').locator('.live-changes'))) ?? '', POLL).toMatch(/^змінював \d+ раз(и|ів)?$/);
+  await panelShot('p12b-host-typing-changes-panel');
+  await click(ira, 'Відповісти');
+  await field(olya, 'Ваша відповідь').fill('Токіо');
+  await click(olya, 'Відповісти');
+  await field(petro, 'Ваша відповідь').fill('Кіото');
+  await click(petro, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  await expect.poll(() => textOf(row('Іра').locator('.live-answer')), POLL).toBe('Токіо');
+
+  // 7. Сцена без нових написів.
+  await expectStageInView(stage, 'p12b-stage-question');
+  await shot(stage, 'p12b-stage-question');
+  expect((await bodyText(stage)).toLowerCase()).not.toContain('наживо');
+
+  // 8. Впорядкування: «порядок: Кінь → …».
+  await toNextQuestion();
+  await stage.getByText('Від найменшого до найбільшого', exact).waitFor();
+  await olya.locator('.order').waitFor();
+  const now = await olya.locator('.order .order-text').allTextContents();
+  const rest = now.filter((text) => text !== 'Кінь');
+  // Кінь угору; якщо він уже вгорі після перемішування — міняємо двох інших, щоб вибір змінився.
+  const wanted = now[0] === 'Кінь' ? ['Кінь', rest[1]!, rest[0]!] : ['Кінь', ...rest];
+  await arrange(olya, wanted);
+  await expect.poll(() => draftText('Оля'), POLL).toBe(`порядок: ${wanted.join(' → ')}`);
+  await shot(host, 'p12b-host-order');
+  await panelShot('p12b-host-order-panel');
+  await click(olya, 'Відповісти');
+  await click(petro, 'Відповісти');
+  await click(ira, 'Відповісти');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  // 9. Таємність у кадрах: живі вибори — лише в пульта.
+  expect(draftBatches(hostFrames)).toBeGreaterThan(0);
+  expect(hostFrames.join(NL), 'the host never got «Осака»').toContain('Осака');
+  expect(stageFrames.length).toBeGreaterThan(0);
+  for (const [who, frames] of [['stage', stageFrames], ['Петро', petroFrames], ['Іра', iraFrames]] as const) {
+    expect(draftBatches(frames), `${who} got host:drafts`).toBe(0);
+    expect(frames.join(NL), `${who} got «Осака»`).not.toContain('Осака');
+  }
+  for (const [who, frames] of [['stage', stageFrames], ['Петро', petroFrames]] as const) {
+    expect(frames.join(NL), `${who} got the marks of Оля`).not.toContain('"optionIds":["l1-a","l1-b"]');
+  }
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12b: live choices — «👁 Наживо» in a one-line host header on a 375 phone shows in italics what players mark, type and order before «Надіслати» with «ще не надіслав», «змінював N разів» and «думає N с», a one-tap pick shows as an answer, turning it off folds the panel and stops every batch even after a reload, turning it on brings them back, and the stage and other phones never receive a draft', async () => {
+  try {
+    await live12b();
   } catch (error) {
     await snapshot();
     throw error;

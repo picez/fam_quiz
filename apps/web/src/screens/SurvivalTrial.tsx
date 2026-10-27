@@ -1,4 +1,4 @@
-import { LIMITS, type Answer, type PlayerView } from '@quiz/shared';
+import { LIMITS, type Answer, type PlayerView, type SubmittedAnswer } from '@quiz/shared';
 import { t } from '../i18n';
 import { Timer, useTimeOver } from '../live/Timer';
 import { useSplash } from '../live/Splash';
@@ -16,13 +16,16 @@ export function SurvivalTrial({
   onAnswer,
   onDoor,
   onDraft,
+  confirm = false,
 }: {
   view: PlayerView;
   offsetMs: number;
   onAnswer: (answer: Answer) => void;
   onDoor: (door: number) => void;
-  /** Команда: чернетка відповіді капітана для товаришів. */
-  onDraft?: (draft: Answer | null) => void;
+  /** Живий вибір: команда — чернетка капітана товаришам і пульту; соло — пульту. */
+  onDraft?: (draft: SubmittedAnswer | null) => void;
+  /** Командна гра: одиночний вибір з підтвердженням. */
+  confirm?: boolean;
 }) {
   const own = view.me.survival;
   const info = view.survival;
@@ -68,7 +71,7 @@ export function SurvivalTrial({
             <>
               <h1 className="question">{trial.question.text}</h1>
               <fieldset className="inputs" disabled={frozen || !own.canAnswerTrial}>
-                <AnswerInput key={trial.question.text} question={trial.question} onSubmit={(answer) => !frozen && own.canAnswerTrial && onAnswer(answer)} onDraft={onDraft} />
+                <AnswerInput key={trial.question.text} question={trial.question} onSubmit={(answer) => !frozen && own.canAnswerTrial && onAnswer(answer)} onDraft={onDraft} confirm={confirm} />
               </fieldset>
             </>
           )

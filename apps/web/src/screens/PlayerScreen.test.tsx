@@ -3112,3 +3112,86 @@ describe('PlayerScreen: teams', () => {
     expect(screen.getByText('Хто з команди піде на дуель?')).toBeTruthy();
   });
 });
+
+describe('PlayerScreen: live choices for the host (12b)', () => {
+  const multi = { ...publicQuestion, type: 'multi' as const };
+  const draftCalls = (send: Send) => (send as ReturnType<typeof vi.fn>).mock.calls.filter(([event]) => event === 'player:draft');
+  const withTimers = (body: () => void) => {
+    vi.useFakeTimers();
+    try {
+      body();
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+  const tick = (ms: number) =>
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+
+  it('a solo player on multi: marks go out as a draft; after Відповісти no draft follows', () =>
+    withTimers(() => {
+      const send = show(onQuestion({ question: multi }));
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Львів/ }));
+      tick(250);
+      expect(send).toHaveBeenCalledWith('player:draft', { draft: { type: 'multi', optionIds: ['a', 'b'] } });
+      fireEvent.click(screen.getByRole('button', { name: /Львів/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+      expect(send).toHaveBeenLastCalledWith('player:answer', { type: 'multi', optionIds: ['b'] });
+      tick(500);
+      expect(send).toHaveBeenLastCalledWith('player:answer', { type: 'multi', optionIds: ['b'] });
+      expect(draftCalls(send)).toHaveLength(1);
+      // Видимого немає: ні рядка «Ти відповідаєш за команду», ні нових написів.
+      expect(screen.queryByText('Ти відповідаєш за команду')).toBeNull();
+    }));
+
+  it('a solo single tap sends only the answer', () =>
+    withTimers(() => {
+      const send = show(onQuestion());
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      tick(500);
+      expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'b' });
+      expect(draftCalls(send)).toHaveLength(0);
+    }));
+
+  it('a game with no host sends no drafts', () =>
+    withTimers(() => {
+      const send = show(onQuestion({ question: multi, autopilot: true }));
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      tick(500);
+      expect(draftCalls(send)).toHaveLength(0);
+    }));
+
+  it('an instant blitz sends no drafts', () =>
+    withTimers(() => {
+      const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
+      const blitzMe = { ...me, blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: true, grade: null } };
+      const send = show(onQuestion({ round, question: multi, blitz: { queue: [], winner: null, instant: true, rows: [] }, me: blitzMe }));
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      tick(500);
+      expect(draftCalls(send)).toHaveLength(0);
+    }));
+
+  it('a solo wall: picked tiles go out as a draft', () =>
+    withTimers(() => {
+      const TILES = Array.from({ length: 16 }, (_, i) => `Плитка ${i}`);
+      const wall = { ...publicQuestion, type: 'wall' as const, choices: [], wall: { tiles: TILES, size: 4, groupCount: 4, maxMistakes: 3 } };
+      const playerWall = { found: [], mistakes: 0, maxMistakes: 3, locked: false, solved: false, canGuess: true };
+      const send = show(onQuestion({ question: wall, me: { ...me, wall: playerWall } }));
+      fireEvent.click(screen.getByRole('button', { name: 'Плитка 0' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Плитка 3' }));
+      tick(250);
+      expect(send).toHaveBeenCalledWith('player:draft', { draft: { type: 'wallPick', tiles: [0, 3] } });
+    }));
+
+  it('a solo bluff lie goes out as a draft', () =>
+    withTimers(() => {
+      const bluff = { ...publicQuestion, type: 'bluff' as const, choices: [] };
+      const info = { stage: 'lies' as const, written: 0, picked: 0, options: [], shown: 0, total: 0, lastOpenedId: null, lies: null };
+      const send = show(onQuestion({ question: bluff, bluff: info, me: { ...me, bluff: { lie: null, own: [], pick: null, truth: null, fooled: null } } }));
+      fireEvent.change(screen.getByLabelText('Твоя вигадка'), { target: { value: 'Вигадка' } });
+      tick(250);
+      expect(send).toHaveBeenCalledWith('player:draft', { draft: { type: 'lie', text: 'Вигадка' } });
+    }));
+});

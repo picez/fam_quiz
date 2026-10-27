@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, CloseReason, GameView, ServerToClientEvents, SocketAuth, SortTilt } from '@quiz/shared';
+import type { ClientToServerEvents, CloseReason, GameView, HostDrafts, ServerToClientEvents, SocketAuth, SortTilt } from '@quiz/shared';
 import { freshSplash } from '../clock';
 import type { Send, SendResult } from './types';
 
@@ -29,6 +29,8 @@ export function useGame(auth: SocketAuth | null) {
   const [closed, setClosed] = useState<CloseReason | null>(null);
   // Останній нахил картки сортування за тим, хто сортує (11d); тимчасовий, у зріз стану не потрапляє.
   const [tilts, setTilts] = useState<Record<string, SortTilt>>({});
+  // Останній пакет живих виборів для пульта (12b); лише в пам'яті, з новим запитанням чи розривом зникає.
+  const [drafts, setDrafts] = useState<HostDrafts | null>(null);
   const socketRef = useRef<GameSocket | null>(null);
 
   const code = auth?.code;
@@ -43,6 +45,7 @@ export function useGame(auth: SocketAuth | null) {
     setClosed(null);
     setAudioCommand(null);
     setTilts({});
+    setDrafts(null);
     if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
@@ -66,6 +69,7 @@ export function useGame(auth: SocketAuth | null) {
       restarting = false;
       setView(freshSplash(next, meta.serverNow));
       if (next.paused || (tiltsAt !== null && tiltsAt !== next.questionIndex)) setTilts({});
+      if (tiltsAt !== null && tiltsAt !== next.questionIndex) setDrafts(null);
       tiltsAt = next.questionIndex;
       setHostOnline(meta.hostOnline);
       setStageOnline(meta.stageOnline ?? true);
@@ -74,6 +78,7 @@ export function useGame(auth: SocketAuth | null) {
     });
     socket.on('audio', (command) => setAudioCommand(command));
     socket.on('sort:tilt', (tilt) => setTilts((prev) => ({ ...prev, [tilt.sorterId]: tilt })));
+    socket.on('host:drafts', (batch) => setDrafts(batch));
     socket.on('closed', (reason) => {
       gone = true;
       setClosed(reason);
@@ -84,6 +89,7 @@ export function useGame(auth: SocketAuth | null) {
     });
     socket.on('disconnect', (reason) => {
       setTilts({});
+      setDrafts(null);
       if (gone) return;
       if (reason === 'io server disconnect') {
         restarting = true;
@@ -125,5 +131,11 @@ export function useGame(auth: SocketAuth | null) {
     });
   }, []);
 
-  return { view, status, hostOnline, stageOnline, audioCommand, offsetMs, closed, tilts, send };
+  /** Забуває живі вибори й нахили (12b): пульт вимкнув чи знову ввімкнув «наживо», а сервер надішле свіжі. */
+  const forgetLive = useCallback(() => {
+    setTilts({});
+    setDrafts(null);
+  }, []);
+
+  return { view, status, hostOnline, stageOnline, audioCommand, offsetMs, closed, tilts, drafts, forgetLive, send };
 }

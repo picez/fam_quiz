@@ -328,15 +328,30 @@ describe('AnswerInput', () => {
 });
 
 describe('AnswerInput onDraft', () => {
-  const draftSetup = (over: Partial<PublicQuestion>) => {
+  const draftSetup = (over: Partial<PublicQuestion>, confirm = false) => {
     const onSubmit = vi.fn();
     const onDraft = vi.fn();
-    render(<AnswerInput question={question(over)} onSubmit={onSubmit} onDraft={onDraft} />);
+    render(<AnswerInput question={question(over)} onSubmit={onSubmit} onDraft={onDraft} confirm={confirm} />);
     return { onSubmit, onDraft };
   };
 
-  it('single: a tap becomes a draft, Відповісти submits it', () => {
+  it('solo single with onDraft and no confirm: one tap submits, no draft, no Відповісти', () => {
     const { onSubmit, onDraft } = draftSetup({});
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+    expect(onDraft).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Відповісти' })).toBeNull();
+  });
+
+  it('solo boolean with onDraft and no confirm: one tap submits', () => {
+    const { onSubmit, onDraft } = draftSetup({ type: 'boolean', choices: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'Так' }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'boolean', value: true });
+    expect(onDraft).not.toHaveBeenCalled();
+  });
+
+  it('single with confirm: a tap becomes a draft, Відповісти submits it', () => {
+    const { onSubmit, onDraft } = draftSetup({}, true);
     fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
     expect(onDraft).toHaveBeenLastCalledWith({ type: 'single', optionId: 'b' });
     expect(onSubmit).not.toHaveBeenCalled();
@@ -367,6 +382,68 @@ describe('AnswerInput onDraft', () => {
     const { onDraft } = draftSetup({ type: 'numeric', choices: [] });
     fireEvent.change(screen.getByLabelText('Ваша відповідь'), { target: { value: '4,5' } });
     expect(onDraft).toHaveBeenLastCalledWith({ type: 'numeric', value: 4.5 });
+  });
+
+  it('clues: drafts the typed words as a «Who am I?» answer, uncut (the sender clips)', () => {
+    const { onDraft } = draftSetup({ type: 'clues', choices: [] });
+    const long = 'а'.repeat(150);
+    fireEvent.change(screen.getByLabelText('Ваша відповідь'), { target: { value: long } });
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'clues', value: long });
+  });
+
+  it('order: every move drafts the whole order', () => {
+    const { onDraft } = draftSetup({ type: 'order' });
+    fireEvent.click(screen.getByRole('button', { name: 'Перемістити вгору: Київ' }));
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'order', itemIds: ['b', 'a', 'c'] });
+  });
+
+  it('slider: every step drafts the value', () => {
+    const { onDraft } = draftSetup({ type: 'slider', choices: [], slider: { min: 0, max: 10, step: 1, unit: '' } });
+    fireEvent.change(screen.getByLabelText('Повзунок'), { target: { value: '7' } });
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'slider', value: 7 });
+  });
+
+  it('pin: placing the point drafts it', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 300, height: 150, right: 300, bottom: 150, x: 0, y: 0, toJSON: () => ({}) });
+    const { onDraft } = draftSetup({ type: 'pin', choices: [], pin: { map: 'ukraine', aspect: 2 } });
+    const frame = screen.getByRole('group', { name: 'Мапа: торкнися, щоб поставити точку' });
+    fireEvent.pointerDown(frame, { pointerId: 1, clientX: 75, clientY: 75 });
+    fireEvent.pointerUp(frame, { pointerId: 1, clientX: 75, clientY: 75 });
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'pin', x: 0.25, y: 0.5 });
+    vi.restoreAllMocks();
+  });
+
+  it('survey: drafts the non-empty answers', () => {
+    const { onDraft } = draftSetup({ type: 'survey', choices: [], survey: { answers: 2, rows: 5 } });
+    fireEvent.change(screen.getByLabelText('Відповідь 2'), { target: { value: ' Яблуко ' } });
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'survey', values: ['Яблуко'] });
+  });
+
+  it('wordcloud: drafts the typed words, an empty field drafts null', () => {
+    const { onDraft } = draftSetup({ type: 'wordcloud', choices: [], points: 0, cloud: { words: 2 } });
+    fireEvent.change(screen.getByLabelText('Слово 1'), { target: { value: 'Каштан' } });
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'wordcloud', words: ['Каштан'] });
+    fireEvent.change(screen.getByLabelText('Слово 1'), { target: { value: ' ' } });
+    expect(onDraft).toHaveBeenLastCalledWith(null);
+  });
+
+  it('match: the pairs joined so far are drafted; none joined drafts null', () => {
+    const left = [
+      { id: 'l1', text: 'Київ' },
+      { id: 'l2', text: 'Львів' },
+      { id: 'l3', text: 'Ужгород' },
+    ];
+    const right = [
+      { id: 'r1', text: 'Дніпро' },
+      { id: 'r2', text: 'Полтва' },
+      { id: 'r3', text: 'Уж' },
+    ];
+    const { onDraft } = draftSetup({ type: 'match', choices: left, right });
+    fireEvent.click(screen.getByRole('button', { name: /^Київ\d*$/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Дніпро\d*$/ }));
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'match', links: [{ left: 'l1', right: 'r1' }] });
+    fireEvent.click(screen.getByRole('button', { name: /^Київ\d*$/ }));
+    expect(onDraft).toHaveBeenLastCalledWith(null);
   });
 
   it('without onDraft a single tap still submits at once', () => {

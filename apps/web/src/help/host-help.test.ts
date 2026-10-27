@@ -123,9 +123,16 @@ describe('host help', () => {
     expect(ids.indexOf('setting.live')).toBe(ids.indexOf('setting.pacing') + 1);
     filled('setting.live');
     const body = text('setting.live').toLowerCase();
-    for (const part of ['чекаємо', 'чекає рішення', 'чернетка', 'лише ви']) expect(body).toContain(part);
+    for (const part of ['чекаємо', 'чекає рішення', 'вибір капітана', 'лише ви']) expect(body).toContain(part);
     for (const part of ['відкритому випробуванні «вибування»', 'на межі', 'дуелі', 'спроби кожного дуелянта', '«ва-банк»', 'ще в грі']) expect(body).toContain(part);
     expect(text('team.captain')).toContain('Відповідях наживо');
+    expect(searchHelp('наживо')).toContain('setting.live');
+  });
+
+  it('12b live entry tells the toggle, live choices before «Надіслати», changes and thinking time, and honesty', () => {
+    filled('setting.live');
+    const body = text('setting.live');
+    for (const part of ['👁 Наживо', 'запам', 'Відповіли 5 з 8', 'ще не надіслав', 'змінював 3 рази', 'думає 12 с', 'одним дотиком', 'не знають', 'без ведучого']) expect(body).toContain(part);
     expect(searchHelp('наживо')).toContain('setting.live');
   });
 

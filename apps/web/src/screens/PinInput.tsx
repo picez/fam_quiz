@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Answer, PublicPin, PublicQuestion } from '@quiz/shared';
+import type { Answer, SubmittedAnswer, PublicPin, PublicQuestion } from '@quiz/shared';
 import { t } from '../i18n';
 import { PinFrame } from './PinFrame';
 
@@ -7,7 +7,7 @@ interface Props {
   question: PublicQuestion & { pin: PublicPin };
   onSubmit: (answer: Answer) => void;
   submitLabel?: string;
-  onDraft?: (draft: Answer | null) => void;
+  onDraft?: (draft: SubmittedAnswer | null) => void;
 }
 
 /** Точка на мапі: дотик ставить, повторний переставляє; «Відповісти» — лише з точкою. */

@@ -40,4 +40,16 @@ describe('CloudInput', () => {
     fireEvent.click(submit);
     expect(onSubmit).toHaveBeenCalledWith({ type: 'wordcloud', words: ['Каштани', 'Дніпро'] });
   });
+
+  it('every change drafts the cloud words; empty drafts null', () => {
+    const onDraft = vi.fn();
+    render(<CloudInput words={2} onSubmit={() => {}} onDraft={onDraft} autoFocus={false} />);
+    fireEvent.click(screen.getByRole('button', { name: '＋ Ще слово' }));
+    type(1, 'Каштан');
+    type(2, ' липа ');
+    expect(onDraft).toHaveBeenLastCalledWith({ type: 'wordcloud', words: ['Каштан', 'липа'] });
+    type(1, '');
+    type(2, '');
+    expect(onDraft).toHaveBeenLastCalledWith(null);
+  });
 });

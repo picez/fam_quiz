@@ -2540,7 +2540,6 @@ describe('HostScreen: live answers (11c)', () => {
     spare: null,
     clue: null,
     actor: null,
-    draft: null,
     progress: null,
     wager: null,
     ...over,
@@ -2673,6 +2672,17 @@ describe('HostScreen: live answers (11c)', () => {
     expect(before(panel, document.querySelector('.host-survival') as Element)).toBe(true);
   });
 
+  it('the open trial shows only drafts of a trial batch (12b)', () => {
+    const shown = view({ phase: 'leaderboard', round: sRound, survival: trialSurvival(), live: liveOf({ kind: 'trial' }) });
+    const batch = (trial: boolean) => ({ questionIndex: shown.questionIndex, trial, drafts: [{ id: 'p2', draft: { type: 'text' as const, value: 'Оде' }, changes: 0, at: Date.now() }] });
+    const props = { view: shown, code: '123456', stageUrl: 'http://quiz.test/stage/123456#s', joinUrl: 'http://quiz.test/play/123456', send: vi.fn(async () => ({ ok: true as const })) };
+    render(<HostScreen {...props} drafts={batch(true)} />);
+    expect(document.querySelector('#live-answers .live-draft em')?.textContent).toBe('друкує «Оде»');
+    cleanup();
+    render(<HostScreen {...props} drafts={batch(false)} />);
+    expect(document.querySelector('.live-draft')).toBeNull();
+  });
+
   it('the open trial keeps the previous question responses in place', () => {
     show(during('leaderboard', textQuestion, { round: sRound, survival: trialSurvival(), live: null }));
     expect(screen.getByRole('heading', { name: 'Відповіді' })).toBeTruthy();
@@ -2718,5 +2728,69 @@ describe('undo button (12a)', () => {
     cleanup();
     show(view({ phase: 'finished', questionIndex: 1, standings: [] }));
     expect(screen.queryByRole('button', { name: '↶ Бали' })).toBeNull();
+  });
+});
+
+describe('«👁 Наживо» toggle (12b)', () => {
+  const lrow = (over: Partial<LiveRow> = {}): LiveRow => ({
+    id: 'p2',
+    nickname: 'Тарас',
+    connected: true,
+    answered: false,
+    answer: null,
+    timeMs: null,
+    verdict: null,
+    awaiting: false,
+    buff: null,
+    spare: null,
+    clue: null,
+    actor: null,
+    progress: null,
+    wager: null,
+    ...over,
+  });
+  const rows = [lrow({ id: 'p1', nickname: 'Олена', answered: true, answer: { type: 'text', value: 'Одеса' }, verdict: 'correct' }), lrow()];
+  const live: HostLive = { kind: 'answers', answered: 1, total: 2, rows, aside: null };
+  const current = (over: Partial<HostView> = {}) => during('question', textQuestion, { endsAt: Date.now() + 20_000, answeredCount: 1, live, ...over });
+  const batch = (questionIndex: number) => ({ questionIndex, trial: false, drafts: [{ id: 'p2', draft: { type: 'text' as const, value: 'Оде' }, changes: 0, at: Date.now() }] });
+  const showWith = (shown: HostView, props: { watch?: boolean; onWatch?: (on: boolean) => void; drafts?: ReturnType<typeof batch> | null } = {}) =>
+    render(<HostScreen view={shown} code="123456" stageUrl="http://quiz.test/stage/123456#s" joinUrl="http://quiz.test/play/123456" send={vi.fn(async () => ({ ok: true as const }))} {...props} />);
+  const toggle = () => within(document.querySelector('header.bar') as HTMLElement).queryByRole('button', { name: 'Наживо' }) as HTMLButtonElement | null;
+
+  it('stands in the header on a question, on by default, and a tap turns it off', () => {
+    const onWatch = vi.fn();
+    showWith(current(), { onWatch, drafts: batch(0) });
+    const button = toggle() as HTMLButtonElement;
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(button.textContent).toBe('👁 Наживо');
+    expect(button.title).toBe('Показувати, що гравці вибирають до «Надіслати»');
+    expect(document.querySelector('.live-draft em')?.textContent).toBe('друкує «Оде»');
+    fireEvent.click(button);
+    expect(onWatch).toHaveBeenCalledWith(false);
+  });
+
+  it('off, it is not pressed and the panel folds to the count', () => {
+    const onWatch = vi.fn();
+    showWith(current(), { watch: false, onWatch, drafts: null });
+    expect(toggle()?.getAttribute('aria-pressed')).toBe('false');
+    const panel = document.getElementById('live-answers') as HTMLElement;
+    expect(panel.classList.contains('is-collapsed')).toBe(true);
+    expect(within(panel).getByText('Відповіли 1 з 2')).toBeTruthy();
+    expect(panel.querySelector('.live-row')).toBeNull();
+    fireEvent.click(toggle() as HTMLButtonElement);
+    expect(onWatch).toHaveBeenCalledWith(true);
+  });
+
+  it('is not there in the lobby or after the end', () => {
+    showWith(view());
+    expect(toggle()).toBeNull();
+    cleanup();
+    showWith(view({ phase: 'finished', questionIndex: 1, standings: [] }));
+    expect(toggle()).toBeNull();
+  });
+
+  it('a batch of another question shows no draft', () => {
+    showWith(current(), { drafts: batch(1) });
+    expect(document.querySelector('.live-draft')).toBeNull();
   });
 });
