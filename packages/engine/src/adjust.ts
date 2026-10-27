@@ -18,25 +18,27 @@ export function afterQuestionNow(state: GameState): number {
   return state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
 }
 
-/** Дописати коригування в журнал (без перевірок) і перерахувати бали; adjustScore і buyDebuff стоять на ньому. */
+/** Дописати коригування в журнал (без перевірок) і перерахувати бали; adjustScore, buyDebuff і undoScore стоять на ньому. */
 export function addAdjustment(
   state: GameState,
   playerId: string,
   points: number,
   now: number,
   source: AdjustmentSource,
-  extra: Pick<ScoreAdjustment, 'target' | 'debuff'> = {},
+  extra: Pick<ScoreAdjustment, 'target' | 'debuff' | 'undoes' | 'batch'> & { roundIndex?: number } = {},
 ): GameState {
   const seq = state.adjustmentSeq + 1;
+  // Скасування (12a) стоїть у раунді того, що скасовує; решта — у поточному.
+  const { roundIndex = state.roundIndex, ...fields } = extra;
   const adjustment: ScoreAdjustment = {
     seq,
     playerId,
     points,
-    roundIndex: state.roundIndex,
+    roundIndex,
     afterQuestion: afterQuestionNow(state),
     source,
     at: now,
-    ...extra,
+    ...fields,
   };
   return followWagerLimit(withTotals({ ...state, adjustments: [...state.adjustments, adjustment], adjustmentSeq: seq }), playerId);
 }

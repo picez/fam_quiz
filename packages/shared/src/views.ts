@@ -1,7 +1,8 @@
 import type { Answer } from './answer';
 import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
-import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, TrialKind, Video, WagerMode } from './quiz';
+import type { HostUndoTarget } from './events';
+import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, TrialKind, Video, WagerMode } from './quiz';
 import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
 import type { RoundBrief } from './round-brief';
@@ -666,6 +667,44 @@ export interface AdjustmentNotice {
   at: number;
   nickname: string;
   points: number;
+}
+
+/** Пульт: аркуш «Скасування балів» (12a). */
+export interface UndoPanel {
+  /** Раунди з рядками, найновіший першим. */
+  rounds: UndoRound[];
+}
+
+export interface UndoRound {
+  /** 0-базовий індекс раунду. */
+  index: number;
+  title: string;
+  type: RoundType;
+  /** Запитання з рядками, найновіше першим. */
+  questions: UndoQuestion[];
+  /** Бали ведучого поза запитаннями раунду (наприклад, на заставці), за seq. */
+  loose: UndoRow[];
+}
+
+export interface UndoQuestion {
+  /** Індекс у журналі запитань гри (plays). */
+  index: number;
+  /** 1-базовий номер у раунді. */
+  number: number;
+  text: string;
+  rows: UndoRow[];
+}
+
+export interface UndoRow {
+  kind: 'answer' | 'host';
+  playerId: string;
+  nickname: string;
+  /** Бали рядка, як їх нараховано (без скасування). */
+  points: number;
+  /** answer — { question, playerId }; host — { seq }. */
+  target: HostUndoTarget;
+  /** seq скасування, що діє зараз; null — не скасовано. «Повернути» шле { seq: undoneBy }. */
+  undoneBy: number | null;
 }
 
 /** Дуель для всіх ролей: без прийнятних відповідей до етапу answer і без текстів спроб. */

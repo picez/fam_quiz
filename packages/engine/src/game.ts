@@ -21,6 +21,7 @@ import {
   type Round,
   type TeamForm,
   type TrialKind,
+  type UndoTarget,
   DEFAULT_TEAM_FORM,
   guidePages,
   newcomersOn,
@@ -499,6 +500,10 @@ export interface ScoreAdjustment {
   target?: string;
   /** Лише для source 'debuff': який дебаф куплено. */
   debuff?: DebuffKind;
+  /** Лише для source 'undo' (12a): що скасовано — відповідь цього гравця на запитання plays[question] або коригування за seq. */
+  undoes?: UndoTarget;
+  /** Лише для source 'undo' (12a): seq першого коригування тієї самої дії (масове скасування — кілька рядків, один batch). */
+  batch?: number;
 }
 
 /** Дебаф на гравця: від ведучого або куплений іншим гравцем. */
