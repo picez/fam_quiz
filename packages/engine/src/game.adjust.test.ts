@@ -5,6 +5,8 @@ import { end, next, recordOf, removePlayer, start, submitAnswer, type GameState 
 import { classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { playerView, stageView } from './views';
+import { undoScore } from './undo';
+import { after1, answerAll, right, T0 as U0 } from './testing/undo';
 
 const T0 = 1_000_000;
 const quiz = makeQuiz([single, text]);
@@ -139,5 +141,45 @@ describe('host score adjustments', () => {
     state = must(adjustScore(state, 'p2', 50, T0 + 10, 'duel'));
     expect(lastNotice(state)).toEqual({ seq: 1, at: T0, nickname: 'Олена', points: -100 });
     expect(lastNotice(must(removePlayer(state, 'p1')))).toBeNull();
+  });
+});
+
+describe('notices of undo', () => {
+  const T = U0 + 3000;
+
+  it('an undo of one answer tells the player, the sum, the round and the question', () => {
+    const s = must(undoScore(after1(), { question: 0, playerId: 'p2' }, T));
+    expect(lastNotice(s)).toEqual({ seq: 1, at: T, nickname: 'Петро', points: 1000, undo: { redo: false, players: 1, round: 1, question: 1 } });
+  });
+
+  it('«Повернути» is a redo notice', () => {
+    const s1 = must(undoScore(after1(), { question: 0, playerId: 'p2' }, T));
+    const s = must(undoScore(s1, { seq: 1 }, T + 100));
+    expect(lastNotice(s)).toMatchObject({ seq: 2, nickname: 'Петро', points: -1000, undo: { redo: true, players: 1, round: 1, question: 1 } });
+  });
+
+  it('a whole question with host points of the player', () => {
+    const revealed = adjustScore(after1(), 'p3', 50, U0 + 2500);
+    const s = must(undoScore(must(revealed), { question: 0 }, T));
+    expect(lastNotice(s)).toEqual({ seq: 5, at: T, nickname: 'Іра', points: -1050, undo: { redo: false, players: 3, round: 1, question: 1 } });
+  });
+
+  it('a round has no single question', () => {
+    const two = must(next(answerAll(must(next(after1(), U0 + 2100, rng)), { p1: right, p2: right, p3: right }, U0 + 2200), U0 + 2600, rng));
+    const s = must(undoScore(two, { round: 0 }, T));
+    expect(lastNotice(s)).toMatchObject({ undo: { redo: false, players: 3, round: 1, question: null } });
+  });
+
+  it('host points after an undo are an ordinary notice again', () => {
+    const s0 = must(undoScore(after1(), { question: 0, playerId: 'p2' }, T));
+    const s = must(adjustScore(s0, 'p1', 25, T + 100));
+    expect(lastNotice(s)).toEqual({ seq: 2, at: T + 100, nickname: 'Оля', points: 25 });
+  });
+
+  it('a removed player is skipped: the rest of the action, else the earlier host notice', () => {
+    const s = must(undoScore(after1(), { question: 0 }, T));
+    expect(lastNotice(must(removePlayer(s, 'p3')))).toMatchObject({ nickname: 'Петро', undo: { players: 2 } });
+    const one = must(undoScore(must(adjustScore(after1(), 'p1', 10, U0 + 2500)), { question: 0, playerId: 'p2' }, T));
+    expect(lastNotice(must(removePlayer(one, 'p2')))).toEqual({ seq: 1, at: U0 + 2500, nickname: 'Оля', points: 10 });
   });
 });

@@ -660,13 +660,27 @@ export interface HostFinal extends FinalInfo {
   splitNext: boolean;
 }
 
-/** Останнє коригування від ведучого, для короткого сповіщення. */
+/** Останнє коригування від ведучого чи його скасування, для короткого сповіщення. */
 export interface AdjustmentNotice {
   seq: number;
   /** Час сервера в мить коригування. */
   at: number;
   nickname: string;
   points: number;
+  /** 12a: це скасування чи «Повернути»; без поля — бали від ведучого. */
+  undo?: UndoNotice;
+}
+
+/** Скасування в сповіщенні (12a): nickname і points — гравець останнього рядка дії й сума його рядків у дії. */
+export interface UndoNotice {
+  /** «Повернути». */
+  redo: boolean;
+  /** Скільки різних учасників зачепила дія. */
+  players: number;
+  /** 1-базовий номер раунду. */
+  round: number;
+  /** 1-базовий номер запитання в раунді; null — дія на кілька запитань чи на бали поза запитаннями. */
+  question: number | null;
 }
 
 /** Пульт: аркуш «Скасування балів» (12a). */
@@ -1366,6 +1380,8 @@ export interface HostView extends BaseView {
   pace: HostPace;
   /** Відповіді наживо (11c); лише пульт. */
   live: HostLive | null;
+  /** Аркуш «Скасування балів» (12a); null у лобі, після кінця гри й без ведучого. */
+  undo: UndoPanel | null;
 }
 
 export type GameView = StageView | PlayerView | HostView;

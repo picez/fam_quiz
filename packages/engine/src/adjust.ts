@@ -1,5 +1,6 @@
 import { LIMITS, type AdjustmentNotice, type AdjustmentSource } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
+import { undoNotice } from './undo';
 import { fail, ok, withTotals, type GameState, type Result, type ScoreAdjustment } from './game';
 
 /**
@@ -66,10 +67,21 @@ export function adjustmentTotal(state: GameState, playerId: string): number {
   return state.adjustments.reduce((sum, a) => (a.playerId === playerId ? sum + a.points : sum), 0);
 }
 
-/** Останнє коригування з source 'host' гравця, який ще в грі; інакше null. */
+/**
+ * Останнє коригування гравця, який ще в грі: бали від ведучого ('host') чи скасування ('undo', 12a).
+ * Скасування збирається в одне сповіщення на всю дію (той самий batch); дія без гравців у грі пропускається.
+ */
 export function lastNotice(state: GameState): AdjustmentNotice | null {
+  let skipBatch: number | undefined;
   for (let i = state.adjustments.length - 1; i >= 0; i -= 1) {
     const adjustment = state.adjustments[i];
+    if (adjustment.source === 'undo') {
+      if (adjustment.batch !== undefined && adjustment.batch === skipBatch) continue;
+      const notice = undoNotice(state, adjustment);
+      if (notice !== null) return notice;
+      skipBatch = adjustment.batch;
+      continue;
+    }
     if (adjustment.source !== 'host') continue;
     const player = state.players.find((p) => p.id === adjustment.playerId);
     if (player === undefined) continue;

@@ -4,6 +4,7 @@ import {
   undoLedger,
   UNDOABLE_ROUNDS,
   UNDOABLE_SOURCES,
+  type AdjustmentNotice,
   type ErrorCode,
   type HostUndoTarget,
   type UndoLedger,
@@ -216,4 +217,41 @@ export function undoScore(state: GameState, target: HostUndoTarget, now: number)
       state,
     ),
   );
+}
+
+/** Група рядка скасування: раунд і запитання (null — поза запитаннями); для «Повернути» — група скасованого рядка. */
+function groupOf(state: GameState, adjustment: ScoreAdjustment): { round: number; question: number | null } {
+  const undoes = adjustment.undoes;
+  if (adjustment.source === 'undo' && undoes !== undefined) {
+    if ('question' in undoes) return { round: state.plays[undoes.question]?.roundIndex ?? adjustment.roundIndex, question: undoes.question };
+    const target = state.adjustments.find((a) => a.seq === undoes.seq);
+    return target === undefined ? { round: adjustment.roundIndex, question: null } : groupOf(state, target);
+  }
+  return { round: adjustment.roundIndex, question: hostGroup(state, adjustment) };
+}
+
+/** Сповіщення про дію, до якої належить коригування 'undo' last; null — у дії не лишилося гравців у грі. */
+export function undoNotice(state: GameState, last: ScoreAdjustment): AdjustmentNotice | null {
+  const action = state.adjustments.filter((a) => a.source === 'undo' && (last.batch === undefined ? a.seq === last.seq : a.batch === last.batch));
+  const rows = action.filter((a) => state.players.some((p) => p.id === a.playerId));
+  const final = rows[rows.length - 1];
+  if (final === undefined) return null;
+  const player = state.players.find((p) => p.id === final.playerId);
+  if (player === undefined) return null;
+  const groups = rows.map((a) => groupOf(state, a));
+  const q = groups[0].question;
+  const undone = final.undoes;
+  const target = undone !== undefined && 'seq' in undone ? state.adjustments.find((a) => a.seq === undone.seq) : undefined;
+  return {
+    seq: Math.max(...action.map((a) => a.seq)),
+    at: final.at,
+    nickname: player.nickname,
+    points: rows.filter((a) => a.playerId === final.playerId).reduce((sum, a) => sum + a.points, 0),
+    undo: {
+      redo: target?.source === 'undo',
+      players: new Set(rows.map((a) => a.playerId)).size,
+      round: groupOf(state, final).round + 1,
+      question: q !== null && groups.every((g) => g.question === q) ? questionNumber(state, q) : null,
+    },
+  };
 }
