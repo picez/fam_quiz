@@ -3,10 +3,11 @@ import { DEFAULT_RULES, type AdjustmentSource, type Answer } from '@quiz/shared'
 import { adjustScore } from './adjust';
 import { scoreLines } from './breakdown';
 import { placeWager } from './final';
-import { end, lock, next, recordOf, submitAnswer, type GameState } from './game';
+import { end, lock, next, recordOf, removePlayer, submitAnswer, type GameState } from './game';
 import { undoPanel, undoScore } from './undo';
-import { classicRound, finalRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId } from './testing/fixtures';
-import { lobbyWith, must, openAt, startRound } from './testing/helpers';
+import { blitzRound, classicRound, finalRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId } from './testing/fixtures';
+import { toDuelQuestion } from './testing/duel';
+import { acceptAll, lobbyWith, must, openAt, sendBlitz, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 
 const T0 = 1_000_000;
@@ -195,6 +196,52 @@ describe('host undo', () => {
     ]);
     const undone = must(undoScore(s, { question: 0, playerId: 't1' }, T0 + 4000));
     expect(score(undone, 't1')).toBe(0);
+    expectLinesMatch(undone);
+  });
+
+  it('a duel started on a reveal keeps that question hidden; returning to the leaderboard frees it', () => {
+    const duel = toDuelQuestion();
+    expect(duel.phase).toBe('duel');
+    expect(duel.duel?.returnPhase).toBe('reveal');
+    expect(duel.questionIndex).toBe(1);
+    expect(undoScore(duel, { question: 1, playerId: 'p1' }, T0 + 70_000)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(undoScore(duel, { question: 1 }, T0 + 70_000)).toEqual({ ok: false, error: 'wrong_phase' });
+    const questions = undoPanel(duel)!.rounds.flatMap((r) => r.questions).map((q) => q.index);
+    expect(questions).toEqual([0]);
+    const fromBoard: GameState = { ...duel, duel: { ...duel.duel!, returnPhase: 'leaderboard' } };
+    const s = must(undoScore(fromBoard, { question: 1, playerId: 'p1' }, T0 + 70_000));
+    expect(s.adjustments.at(-1)).toMatchObject({ playerId: 'p1', source: 'undo', undoes: { question: 1 } });
+    expect(undoPanel(fromBoard)!.rounds[0].questions.map((q) => q.index)).toEqual([1, 0]);
+  });
+
+  it('negative question and round indexes are not_found', () => {
+    const s = after1();
+    expect(undoScore(s, { question: -1, playerId: 'p1' }, T0)).toEqual({ ok: false, error: 'not_found' });
+    expect(undoScore(s, { question: -1 }, T0)).toEqual({ ok: false, error: 'not_found' });
+    expect(undoScore(s, { round: -1 }, T0)).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('a removed player leaves the panel, and targets on their rows are not_found', () => {
+    const given = must(adjustScore(after1(), 'p2', 50, T0 + 2500));
+    const s = must(removePlayer(given, 'p2', T0 + 2600));
+    const rows = undoPanel(s)!.rounds.flatMap((r) => [...r.questions.flatMap((q) => q.rows), ...r.loose]);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((r) => r.playerId === 'p2')).toBe(false);
+    expect(undoScore(s, { question: 0, playerId: 'p2' }, T0 + 3000)).toEqual({ ok: false, error: 'not_found' });
+    expect(undoScore(s, { seq: 1 }, T0 + 3000)).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('undoes a blitz answer, keeping the lines equal to the score', () => {
+    const blitzQuiz = makeRoundsQuiz([blitzRound('b1', [single, withId(single, 'q2')])]);
+    // Перевірка вручну: ведучий приймає відповідь, запитання закривається.
+    let s = acceptAll(sendBlitz(openAt(lobbyWith(blitzQuiz, 'Оля', 'Петро'), T0), 'p1', right, T0 + 1000), T0 + 1500);
+    s = until(s, 'leaderboard', T0 + 2000);
+    const points = recordOf(s, 0, 'p1')!.points;
+    expect(points).not.toBe(0);
+    expect(undoPanel(s)!.rounds[0]).toMatchObject({ type: 'blitz', questions: [{ index: 0, rows: [{ playerId: 'p1', points }] }] });
+    const undone = must(undoScore(s, { question: 0, playerId: 'p1' }, T0 + 3000));
+    expect(undone.adjustments.at(-1)).toMatchObject({ playerId: 'p1', points: -points, roundIndex: 0, undoes: { question: 0 } });
+    expect(score(undone, 'p1')).toBe(0);
     expectLinesMatch(undone);
   });
 

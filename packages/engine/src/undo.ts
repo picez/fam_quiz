@@ -167,8 +167,9 @@ function massOf(lines: Line[]): Undo[] | 'not_allowed' | 'already_undone' {
 /** Ціль у коригування 'undo' або код відмови. */
 function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
   if ('playerId' in target) {
+    // Хто має право на скасування, тут вирішують ті самі правила, що й у rowsOf: міняти їх треба разом.
     const { question: q, playerId } = target;
-    if (q >= state.plays.length) return 'not_found';
+    if (q < 0 || q >= state.plays.length) return 'not_found';
     if (!visible(state, q)) return 'wrong_phase';
     if (!state.players.some((p) => p.id === playerId)) return 'not_found';
     if (!answersUndoable(state, q)) return 'not_allowed';
@@ -195,10 +196,10 @@ function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
     return [{ playerId: adjustment.playerId, points: -adjustment.points, undoes: { seq: adjustment.seq }, roundIndex: adjustment.roundIndex }];
   }
   if ('round' in target) {
-    if (target.round >= state.quiz.rounds.length) return 'not_found';
+    if (target.round < 0 || target.round >= state.quiz.rounds.length) return 'not_found';
     return massOf(rowsOf(state).filter((l) => l.round === target.round));
   }
-  if (target.question >= state.plays.length) return 'not_found';
+  if (target.question < 0 || target.question >= state.plays.length) return 'not_found';
   if (!visible(state, target.question)) return 'wrong_phase';
   return massOf(rowsOf(state).filter((l) => l.question === target.question));
 }
