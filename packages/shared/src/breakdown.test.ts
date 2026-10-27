@@ -3,7 +3,7 @@ import { SCORE_SOURCES, adjustmentSource, answerSource, breakdownOf, roundTotals
 
 describe('score sources', () => {
   it('lists the sources in breakdown order', () => {
-    expect([...SCORE_SOURCES]).toEqual(['answers', 'final', 'duel', 'debuff', 'host', 'wipeout', 'survival', 'ladder']);
+    expect([...SCORE_SOURCES]).toEqual(['answers', 'final', 'duel', 'debuff', 'host', 'undo', 'wipeout', 'survival', 'ladder']);
   });
 
   it('classifies answer rows by round type', () => {
@@ -14,7 +14,7 @@ describe('score sources', () => {
   });
 
   it('maps adjustment sources to themselves', () => {
-    for (const source of ['host', 'duel', 'debuff', 'survival', 'ladder'] as const) expect(adjustmentSource(source)).toBe(source);
+    for (const source of ['host', 'undo', 'duel', 'debuff', 'survival', 'ladder'] as const) expect(adjustmentSource(source)).toBe(source);
   });
 });
 
@@ -48,6 +48,18 @@ describe('breakdownOf', () => {
       ],
       plus: 2150,
       minus: -1300,
+    });
+  });
+
+  it('puts the undo rows after the host rows', () => {
+    const line = (source: (typeof SCORE_SOURCES)[number], points: number) => ({ roundIndex: 0, source, points });
+    expect(breakdownOf([line('host', 50), line('undo', -50), line('undo', 1000)])).toEqual({
+      parts: [
+        { source: 'host', plus: 50, minus: 0 },
+        { source: 'undo', plus: 1000, minus: -50 },
+      ],
+      plus: 1050,
+      minus: -50,
     });
   });
 
