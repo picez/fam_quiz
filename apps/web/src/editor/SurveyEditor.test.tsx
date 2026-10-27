@@ -64,6 +64,24 @@ describe('SurveyEditor', () => {
     expect(total.className).toContain('is-over');
   });
 
+  it('the multiple checkbox sets multiple: true and unchecking removes the field', () => {
+    const onChange = vi.fn();
+    const question = withPopularity(survey(), [40, 30, 20, 10, 10]);
+    const { rerender } = view(question, onChange);
+    const box = screen.getByRole('checkbox', { name: t('surveyMultiple') }) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    expect(last(onChange).multiple).toBe(true);
+    const many = { ...question, multiple: true };
+    rerender(<SurveyEditor question={many} onChange={onChange} clouds={[]} allowCloud />);
+    expect((screen.getByRole('checkbox', { name: t('surveyMultiple') }) as HTMLInputElement).checked).toBe(true);
+    const total = screen.getByText(t('surveyTotalMultiple', { total: 110 }));
+    expect(total.textContent).not.toContain(t('surveyTotalOver'));
+    expect(total.className).not.toContain('is-over');
+    fireEvent.click(screen.getByRole('checkbox', { name: t('surveyMultiple') }));
+    expect('multiple' in last(onChange)).toBe(false);
+  });
+
   it('adds rows up to eight and then the button is disabled', () => {
     const onChange = vi.fn();
     const { rerender } = view(survey(), onChange);

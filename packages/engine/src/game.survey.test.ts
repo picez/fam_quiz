@@ -301,6 +301,17 @@ describe('«100 to 1» survey board from an earlier word cloud', () => {
     ]);
   });
 
+  it('a cloud board drops multiple: it is scored over 100 as before; host spare rows keep it', () => {
+    let s = openThree([cloud, { ...surveyCloud, multiple: true }]);
+    s = answerAll(s, { p1: words('Каштани', 'Дніпро'), p2: words('Каштани'), p3: words('Лавра') });
+    s = toNext(s);
+    expect(s.plays[1].question).not.toHaveProperty('multiple');
+    s = must(submitAnswer(s, 'p1', { type: 'survey', values: ['каштани', 'дніпро'] }, (s.startedAt ?? 0) + 1000));
+    expect(recordOf(s, 1, 'p1')?.points).toBe(1000); // 100 % → повна ціна
+    const spare = toNext(openThree([cloud, { ...surveyCloud, multiple: true, rows: survey.rows.slice(0, 4) }]));
+    expect(spare.plays[1].question).toHaveProperty('multiple', true);
+  });
+
   it("an empty cloud falls back to the host's spare rows", () => {
     const spare = { ...surveyCloud, rows: survey.rows.slice(0, 4) };
     const s = toNext(openThree([cloud, spare]));

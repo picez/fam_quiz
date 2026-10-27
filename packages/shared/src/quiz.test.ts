@@ -1539,6 +1539,24 @@ describe('survey (10e)', () => {
     expect(issues({ ...surveyQ, rows: [row('a', 'Яблуко', 32, [' яблуко ', 'ЯБЛУКО', 'яблучко']), ...surveyQ.rows.slice(1)] })).not.toContain('survey_duplicate');
     expect(answerKey('  «Кам’янець»   Поділь ')).toBe(`"кам'янець" поділь`);
   });
+  it('multiple: optional flag; with it the total may pass 100, rows stay 1..100', () => {
+    const over = [row('a', 'Яблуко', 60), ...surveyQ.rows.slice(1)];
+    expect(valid(questionSchema, { ...surveyQ, multiple: true, rows: over })).toBe(true);
+    expect(issues({ ...surveyQ, multiple: false, rows: over })).toContain('survey_total');
+    expect(valid(questionSchema, { ...surveyQ, multiple: 'так' })).toBe(false);
+    expect(valid(questionSchema, { ...surveyQ, multiple: true, rows: [row('a', 'Яблуко', 101), ...surveyQ.rows.slice(1)] })).toBe(false);
+    const parsed = questionSchema.parse(surveyQ);
+    expect('multiple' in parsed).toBe(false);
+  });
+  it('surveyShare with multiple divides by max(100, total of all rows)', () => {
+    const rows = [row('a', 'A', 60), row('b', 'B', 50), row('c', 'C', 40), row('d', 'D', 50)]; // разом 200
+    expect(surveyShare({ rows, multiple: true }, ['a', 'b'])).toBeCloseTo(110 / 200);
+    expect(surveyShare({ rows, multiple: true }, ['a', 'b', 'c', 'd'])).toBe(1);
+    expect(surveyShare({ rows }, ['a', 'b'])).toBe(1);
+    // Сума до 100 — ділиться на 100, як без прапорця.
+    expect(surveyShare({ ...surveyQ, multiple: true }, ['a', 'b'])).toBeCloseTo(0.57);
+    expect(surveyShare({ ...surveyQ, multiple: false }, ['a', 'b'])).toBeCloseTo(0.57);
+  });
   it('a cloud board may have no rows or 4–8 spare rows', () => {
     expect(valid(questionSchema, { ...surveyQ, rows: [], cloudId: 'k1' })).toBe(true);
     expect(valid(questionSchema, { ...surveyQ, cloudId: 'k1' })).toBe(true);
@@ -1546,10 +1564,10 @@ describe('survey (10e)', () => {
   });
   it('surveyOrder and surveyShare', () => {
     expect(surveyOrder([row('x', 'X', 5), row('y', 'Y', 9), row('z', 'Z', 5)]).map((r) => r.id)).toEqual(['y', 'x', 'z']);
-    expect(surveyShare(surveyQ.rows, ['a', 'b', null])).toBeCloseTo(0.57);
-    expect(surveyShare(surveyQ.rows, ['a', 'a'])).toBeCloseTo(0.32);
-    expect(surveyShare([row('a', 'A', 100), row('b', 'B', 50)], ['a', 'b'])).toBe(1);
-    expect(surveyShare(surveyQ.rows, ['zzz'])).toBe(0);
+    expect(surveyShare(surveyQ, ['a', 'b', null])).toBeCloseTo(0.57);
+    expect(surveyShare(surveyQ, ['a', 'a'])).toBeCloseTo(0.32);
+    expect(surveyShare({ rows: [row('a', 'A', 100), row('b', 'B', 50)] }, ['a', 'b'])).toBe(1);
+    expect(surveyShare(surveyQ, ['zzz'])).toBe(0);
     expect(proximityPartial(surveyQ as unknown as Question)).toBe(true);
   });
   it('the answer: one to five short values, empty ones allowed; surveyHitsOf', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, QUESTION_TYPES, ROUND_TYPES, allSpares, questionsOf, quizSchema, roundTrials, type Question, type Quiz } from '@quiz/shared';
+import { LIMITS, QUESTION_TYPES, ROUND_TYPES, allSpares, questionsOf, quizSchema, roundTrials, surveyOrder, surveyShare, type Question, type Quiz } from '@quiz/shared';
 import { FAMILY_IMAGES, FAMILY_THEMES, familyQuiz, familyThemeOf, type FamilyTheme } from './family-quiz';
 import { demoQuiz } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
@@ -67,6 +67,30 @@ describe('the «Родинний марафон» quiz', () => {
     const surveys = played(plain).filter((q) => q.type === 'survey');
     expect(surveys.length).toBeGreaterThan(0);
     for (const q of surveys) expect(q.text).toMatch(/(За опитуванням|За дослідженням) .+, 20\d\d:/u);
+  });
+
+  it('has the two multiple-answer Gradus polls: book genres and pie fillings, with totals above 100', () => {
+    const multiple = played(plain).filter((q) => q.type === 'survey' && q.multiple === true);
+    const of = (theme: FamilyTheme) => multiple.find((q) => familyThemeOf(q.id) === theme);
+    const book = of('book');
+    const garden = of('garden');
+    expect(multiple).toHaveLength(2);
+    expect(book?.text).toContain('За дослідженням Gradus для Мінкульту, 2026:');
+    expect(garden?.text).toContain('За опитуванням Gradus, 2026:');
+    const rows = (q: Question | undefined) => (q?.type === 'survey' ? q.rows.map((r) => [r.text, r.popularity]) : []);
+    expect(rows(book)).toEqual([
+      ['Детективи', 47], ['Історичні романи', 31], ['Сучасна художня література', 25], ['Класична література', 25],
+      ['Фентезі', 24], ['Романтична література', 24], ['Саморозвиток', 23], ['Психологія', 21],
+    ]);
+    expect(rows(garden)).toEqual([
+      ['Вишня', 40], ['М’ясо', 36], ['Яблука', 35], ['Сир', 25], ['Мак', 24], ['Капуста', 17], ['Гриби', 15], ['Полуниця', 14],
+    ]);
+    // Найкращі відповіді в межах ліміту гравця дають щонайменше половину ціни (частку від суми всієї дошки).
+    for (const q of multiple) {
+      if (q.type === 'survey') expect(surveyShare(q, surveyOrder(q.rows).slice(0, q.answers).map((r) => r.id))).toBeGreaterThanOrEqual(0.5);
+    }
+    // Опитування з однією відповіддю («Рейтинг», 2021) лишається без прапорця.
+    expect(played(plain).filter((q) => q.type === 'survey' && q.multiple !== true)).toHaveLength(1);
   });
 
   it('spreads the themes evenly: exactly 12 questions each', () => {

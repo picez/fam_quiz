@@ -11,7 +11,7 @@ const blankRows = (count: number) => Array.from({ length: count }, blankRow);
 const hasContent = (row: SurveyRow) => row.text.trim() !== '' || row.accepted.some((s) => s.trim() !== '') || row.popularity > 0;
 
 /**
- * «100 до 1»: дошка ведучого (рядки з популярністю й написаннями, разом не більше 100) або дошка з відповідей на «хмару слів» вище
+ * «100 до 1»: дошка ведучого (рядки з популярністю й написаннями, разом не більше 100, а з «кілька відповідей» — будь-скільки) або дошка з відповідей на «хмару слів» вище
  * (тоді рядки — лише запасні, на випадок порожньої хмари), і скільки відповідей вводить гравець.
  */
 export function SurveyEditor({
@@ -33,7 +33,8 @@ export function SurveyEditor({
   const spare = fromCloud && rows.length > 0;
   const showRows = !fromCloud || spare;
   const total = rows.reduce((sum, row) => sum + (Number.isFinite(row.popularity) ? row.popularity : 0), 0);
-  const over = total > LIMITS.surveyTotal;
+  const multiple = question.multiple === true;
+  const over = !multiple && total > LIMITS.surveyTotal;
 
   const setRows = (next: SurveyRow[]) => onChange({ ...question, rows: next });
   const setRow = (id: string, patch: Partial<SurveyRow>) => setRows(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -55,6 +56,12 @@ export function SurveyEditor({
     }
     if (rows.some(hasContent) && !window.confirm(t('surveySpareDropConfirm'))) return;
     setRows([]);
+  };
+
+  // Знятий прапорець прибирає поле зовсім: запитання таке саме, як до появи опції.
+  const setMultiple = (on: boolean) => {
+    const { multiple: _multiple, ...rest } = question;
+    onChange(on ? { ...rest, multiple: true } : rest);
   };
 
   const known = fromCloud && clouds.some((cloud) => cloud.id === cloudId);
@@ -147,8 +154,12 @@ export function SurveyEditor({
           <button type="button" className="btn btn-dashed" disabled={rows.length >= LIMITS.maxSurveyRows} onClick={() => setRows([...rows, blankRow()])}>
             {t('surveyAddRow')}
           </button>
+          <label className="check">
+            <input type="checkbox" checked={multiple} onChange={(event) => setMultiple(event.target.checked)} />
+            <span>{t('surveyMultiple')}</span>
+          </label>
           <p className={over ? 'meta survey-total is-over' : 'meta survey-total'}>
-            {t('surveyTotal', { total })}
+            {t(multiple ? 'surveyTotalMultiple' : 'surveyTotal', { total })}
             {over && <> {t('surveyTotalOver')}</>}
           </p>
         </>

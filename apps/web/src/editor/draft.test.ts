@@ -141,6 +141,19 @@ describe('survey in the editor (10e)', () => {
     expect('cloudId' in changeType(withCloud, 'text')).toBe(false);
   });
 
+  it('multiple: a total above 100 is a problem only without the flag; a draft keeps only multiple: true', () => {
+    const base = filled(newQuestion('survey')) as Extract<Question, { type: 'survey' }>;
+    const over = { ...base, rows: base.rows.map((row) => ({ ...row, popularity: 40 })) };
+    expect(problemsOf(quizWith(over))).toEqual([t('problemSurveyTotal', { index: 1, total: 200 })]);
+    const many = { ...over, multiple: true };
+    expect(problemsOf(quizWith(many))).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quizWith(many))).success).toBe(true);
+    saveDraft('survey-multiple', quizWith(many));
+    expect(roundQuestions(loadDraft('survey-multiple')!.rounds[0])[0]).toEqual(many);
+    saveDraft('survey-multiple-junk', quizWith({ ...over, multiple: 'так' } as unknown as Question));
+    expect('multiple' in roundQuestions(loadDraft('survey-multiple-junk')!.rounds[0])[0]).toBe(false);
+  });
+
   it('a duplicated survey gets new row ids', () => {
     const source = filled(newQuestion('survey')) as Extract<Question, { type: 'survey' }>;
     const copy = duplicateQuestion(source) as Extract<Question, { type: 'survey' }>;

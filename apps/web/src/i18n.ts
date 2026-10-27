@@ -1461,6 +1461,8 @@ const uk = {
   surveyRemoveRowN: 'Прибрати рядок {n}',
   surveyTotal: 'Разом: {total} зі 100',
   surveyTotalOver: 'Понад 100 — зменште популярність.',
+  surveyMultiple: 'В опитуванні можна було обрати кілька відповідей',
+  surveyTotalMultiple: 'Разом: {total} (кілька відповідей — може бути понад 100)',
   surveySpare: 'Запасні рядки, якщо хмара порожня',
   surveySpareDropConfirm: 'Запасні рядки з текстом зникнуть. Вимкнути їх?',
   surveySkipHint: 'Якщо хмара не дасть жодного слова, запитання пропуститься.',

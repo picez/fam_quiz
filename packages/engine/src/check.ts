@@ -89,7 +89,7 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
   }
 
   if (question.type === 'survey' && answer.type === 'survey') {
-    const share = surveyShare(question.rows, surveyHits(question.rows, answer.values));
+    const share = surveyShare(question, surveyHits(question.rows, answer.values));
     return { accepted: share >= PROXIMITY_CORRECT_SHARE - EPSILON, accuracy: share };
   }
 

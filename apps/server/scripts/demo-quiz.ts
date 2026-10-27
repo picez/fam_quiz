@@ -166,18 +166,23 @@ export const cloud = (text: string, words: number = LIMITS.maxCloudWords, time =
   words,
 });
 
-/** «100 до 1» з дошкою ведучого: rows — [текст, популярність, додаткові написання?][]. */
+/**
+ * «100 до 1» з дошкою ведучого: rows — [текст, популярність, додаткові написання?][].
+ * extra.multiple — в опитуванні можна було обрати кілька відповідей (сума популярності понад 100).
+ */
 export const survey = (
   text: string,
   rows: [string, number, string[]?][],
   answers: number = LIMITS.defaultSurveyAnswers,
   points = 1000,
   time: number = LIMITS.defaultSurveyTime,
+  extra: { multiple?: boolean } = {},
 ): Question => ({
   ...q(text, points, time),
   type: 'survey',
   rows: rows.map(([rowText, popularity, accepted = []]) => ({ id: id('s'), text: rowText, popularity, accepted })),
   answers,
+  ...(extra.multiple === true ? { multiple: true } : {}),
 });
 
 /** «100 до 1» з дошкою з хмари cloudQ (запитання, що стоїть раніше); spare — запасні рядки, як у survey. */

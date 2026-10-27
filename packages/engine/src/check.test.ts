@@ -257,6 +257,17 @@ describe('«100 to 1» survey (10e)', () => {
     expect(checkAnswer(survey, { type: 'text', value: 'Яблуко' })).toEqual(REJECTED);
   });
 
+  it('checkAnswer: multiple divides by the total of all rows when it passes 100', () => {
+    // Разом 60 + 50 + 40 + 30 + 20 = 200.
+    const rows = survey.rows.map((r, i) => ({ ...r, popularity: [60, 50, 40, 30, 20][i] }));
+    const many = { ...survey, multiple: true, rows };
+    expect(checkAnswer(many, { type: 'survey', values: ['Яблуко', 'Банан'] })).toEqual({ accepted: true, accuracy: 110 / 200 });
+    expect(checkAnswer(many, { type: 'survey', values: ['Кавун', 'Груша'] }).accuracy).toBeCloseTo(0.25);
+    expect(checkAnswer({ ...many, multiple: false }, { type: 'survey', values: ['Яблуко', 'Банан'] }).accuracy).toBe(1);
+    // Сума до 100 — так само, як без прапорця.
+    expect(checkAnswer({ ...survey, multiple: true }, { type: 'survey', values: ['Яблуко', 'Банан'] }).accuracy).toBeCloseTo(0.57);
+  });
+
   it('verdictOf: a survey is graded by its share', () => {
     expect(verdictOf(survey, { type: 'survey', values: ['Яблуко', 'Банан'] }, 40_000)).toMatchObject({ accepted: true, grade: 'correct' });
     expect(verdictOf(survey, { type: 'survey', values: ['Кавун'] }, 0)).toMatchObject({ accepted: false, grade: 'partial' });

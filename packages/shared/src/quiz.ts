@@ -418,6 +418,8 @@ export const questionSchema = z
       answers: z.number().int().min(1).max(LIMITS.maxSurveyAnswers),
       /** Дошка з відповідей на «хмару слів» з цим id, що звучала раніше в грі. */
       cloudId: z.string().min(1).refine(isStorable, UNSTORABLE).optional(),
+      /** Опитування дозволяло кілька відповідей: сума популярності може бути понад 100 (surveyShare ділить на max(100, сума)). Немає — false. */
+      multiple: z.boolean().optional(),
     }),
     z.object({
       ...base,
@@ -491,7 +493,7 @@ export const questionSchema = z
       const count = q.rows.length;
       const fine = q.cloudId === undefined ? count >= LIMITS.minSurveyRows : count === 0 || count >= LIMITS.minSurveyRows;
       if (!fine) ctx.addIssue({ code: 'custom', message: 'survey_rows' });
-      if (q.rows.reduce((sum, r) => sum + r.popularity, 0) > LIMITS.surveyTotal) ctx.addIssue({ code: 'custom', message: 'survey_total' });
+      if (q.multiple !== true && q.rows.reduce((sum, r) => sum + r.popularity, 0) > LIMITS.surveyTotal) ctx.addIssue({ code: 'custom', message: 'survey_total' });
       // Ключ той самий, що й у перевірці відповіді рушієм: одне написання не веде у два рядки; повтор у межах рядка не заважає.
       const keys = q.rows.flatMap((r) => [...new Set([r.text, ...r.accepted].map(answerKey))]);
       if (hasDuplicates(keys)) ctx.addIssue({ code: 'custom', message: 'survey_duplicate' });
@@ -616,11 +618,19 @@ export function surveyOrder<T extends { popularity: number }>(rows: readonly T[]
     .map(({ row }) => row);
 }
 
-/** Частка ціни: Σ популярності різних влучених рядків / 100, не більше 1; невідомі id і null пропускаються. */
-export function surveyShare(rows: readonly { id: string; popularity: number }[], hits: readonly (string | null)[]): number {
+/**
+ * Частка ціни: Σ популярності різних влучених рядків / 100, не більше 1; невідомі id і null пропускаються.
+ * multiple (кілька відповідей в опитуванні) — ділиться на max(100, Σ популярності всіх рядків), тож уся дошка дає повну ціну.
+ */
+export function surveyShare(
+  question: { rows: readonly { id: string; popularity: number }[]; multiple?: boolean },
+  hits: readonly (string | null)[],
+): number {
+  const { rows } = question;
   const hit = new Set(hits.filter((id): id is string => id !== null));
   const sum = rows.filter((r) => hit.has(r.id)).reduce((total, r) => total + r.popularity, 0);
-  return Math.min(1, sum / LIMITS.surveyTotal);
+  const total = question.multiple === true ? rows.reduce((all, r) => all + r.popularity, 0) : 0;
+  return Math.min(1, sum / Math.max(LIMITS.surveyTotal, total));
 }
 
 /**
