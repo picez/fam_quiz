@@ -13025,7 +13025,7 @@ async function authorInterface11h(sockets: Socket[]) {
   expect(await vira.locator('.bluff-choice button', { hasText: 'Рось' }).count(), 'the removed lie left the phone of another player').toBe(0);
   const trimmed = await frame(petro, (v) => v.bluff?.stage === 'choice' && v.bluff.options.length > 0 && !v.bluff.options.some((o) => o.text === 'рось'), choiceMark);
   expect(petro.frames.slice(trimmed.index).some((f) => f.view.bluff?.options.some((o) => o.text === 'рось')), 'Петро never sees the removed lie again').toBe(false);
-  await trim.getByRole('button', { name: 'Прибрати «Південний Буг»', ...exact }).click();
+  await trim.getByRole('button', { name: 'Прибрати «південний буг»', ...exact }).click();
   await trim.getByRole('alert').filter({ hasText: 'Цей варіант прибрати не можна.' }).waitFor();
   await shot(marta, 'p11h-author-hide-bluff-refused-375');
   await marta.keyboard.press('Escape');
