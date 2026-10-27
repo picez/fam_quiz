@@ -171,6 +171,12 @@ a {
   font-size: 1.25rem;
 }
 
+/* Код гри не переноситься на два рядки, коли в шапці пульта стоїть «↶ Бали» (12a): стискається назва. */
+.bar .code {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .meta {
   color: var(--dim);
   font-size: 0.9375rem;
@@ -10695,6 +10701,8 @@ button.wall-tile:disabled {
 
 .undo-round {
   display: grid;
+  /* Одна колонка завширшки з картку: довга назва запитання (nowrap) не розпирає групу, кнопки рядків лишаються в картці. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--line);
@@ -10717,6 +10725,7 @@ button.wall-tile:disabled {
 
 .undo-question {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.375rem;
   min-width: 0;
 }
@@ -10743,6 +10752,7 @@ button.wall-tile:disabled {
 
 .undo-question ul {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
   margin: 0;
   padding: 0;
