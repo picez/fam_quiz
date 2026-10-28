@@ -464,7 +464,7 @@ export function GameHistory() {
                                   className={
                                     [
                                       // Зал зарахував відповідь (апеляція «так»): не червона смужка «не зараховано», а окрема.
-                                      isUnscored(question.question) ? '' : response.accepted ? 'is-correct' : response.appeal?.outcome === 'yes' ? 'appealed' : 'is-wrong',
+                                      isUnscored(question.question) ? '' : response.accepted ? 'is-correct' : response.appeal?.outcome === 'yes' && response.appeal.reason === 'grade' ? 'appealed' : 'is-wrong',
                                       ledger.answers.has(undoAnswerKey(response.nickname, question.index)) ? 'is-undone' : '',
                                     ]
                                       .filter(Boolean)
