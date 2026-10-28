@@ -135,6 +135,31 @@ describe('LiveAnswers', () => {
     expect(rows[0].textContent).toContain('Оля');
   });
 
+  it('own-pace clues: every row is listed with «підказка N/M», none waits, an answered one names its clue', () => {
+    const clues: Question = { id: 'q4', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 20, points: 1000, clues: ['a', 'b', 'c', 'd', 'e'], accepted: ['Шевченко'], interval: 8, cluePace: 'self' };
+    show(
+      [
+        row({ progress: { kind: 'clues', opened: 3, total: 5 } }),
+        row({ id: 'p2', nickname: 'Петро', answered: true, answer: { type: 'clues', value: 'Шевченко' }, clue: 3, progress: { kind: 'clues', opened: 3, total: 5 } }),
+      ],
+      base({ correct: clues }),
+    );
+    expect(screen.queryByText('Чекаємо:')).toBeNull();
+    const rows = document.querySelectorAll('.live-rows li');
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain('Оля');
+    expect(rows[0].textContent).toContain('підказка 3/5');
+    expect(rows[1].textContent).toContain('Шевченко');
+    expect(rows[1].textContent).toContain('на підказці 3');
+    expect(rows[1].textContent).not.toContain('підказка 3/5');
+  });
+
+  it('own-pace clues: the collapsed panel shows no rows', () => {
+    show([row({ progress: { kind: 'clues', opened: 2, total: 5 } })], base(), {}, { collapsed: true });
+    expect(document.querySelector('.live-rows')).toBeNull();
+    expect(screen.getByText('Відповіли 0 з 1')).toBeTruthy();
+  });
+
   it('says nobody answered yet when no row has started', () => {
     show([row()]);
     expect(screen.getByText('Ще ніхто не відповів')).toBeTruthy();

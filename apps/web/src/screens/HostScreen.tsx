@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { paceAttrs, usePace } from '../pace';
+import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
 import { SortBoard } from './SortView';
 import { WallReveal } from './WallReveal';
@@ -149,14 +150,16 @@ function HostClues({ view, clues, offsetMs, idle, onOpen }: { view: HostView; cl
       </p>
       <ol>
         {clues.map((text, index) => (
-          <li key={index} className={index < opened ? undefined : 'is-closed'}>
+          // Власний темп (12c): у кожного своє число відкритих, тож ведучому всі підказки «відкриті» й без стану.
+          <li key={index} className={pub.self || index < opened ? undefined : 'is-closed'}>
             <span className="clue-n">{index + 1}</span>
             <span>{text}</span>
-            <span className="clue-state">{state(index)}</span>
+            {!pub.self && <span className="clue-state">{state(index)}</span>}
           </li>
         ))}
       </ol>
-      <p className="meta">{t('cluesHostNow', { k, n: pub.total, percent: Math.round(clueShare(pub.total, k) * 100) })}</p>
+      {pub.self ? <p className="meta">{t('cluesHostSelf')}</p> : <p className="meta">{t('cluesHostNow', { k, n: pub.total, percent: Math.round(clueShare(pub.total, k) * 100) })}</p>}
+      {pub.opens !== null && <ClueOpens opens={pub.opens} revealed={view.phase === 'reveal'} />}
       {pub.byHost && view.phase === 'question' && (
         <div className="panel-actions">
           {opened < pub.total ? (

@@ -1475,6 +1475,38 @@ describe('StageScreen clues and pin (10c)', () => {
   });
 });
 
+describe('StageScreen own-pace clues (12c)', () => {
+  const opens = [
+    { playerId: 'p1', nickname: 'Оля', opened: 1, answered: true },
+    { playerId: 'p2', nickname: 'Петро', opened: 3, answered: true },
+    { playerId: 'p3', nickname: 'Іра', opened: 2, answered: false },
+  ];
+  const selfQuestion = { ...question, type: 'clues' as const, choices: [], clues: { total: 5, shown: ['Народився у 1814 році'], nextAt: null, byHost: false, intervalSeconds: 8, self: true, opens } };
+  const selfFull: Question = { id: 'q5', type: 'clues', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, clues: ['a', 'b', 'c', 'd', 'e'], accepted: ['Шевченко'], interval: 8, cluePace: 'self' };
+
+  it('shows only the first clue, the rest as plain placeholders, who opened how many and the own-pace hint', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: selfQuestion }));
+    expect(document.querySelectorAll('.clues-list .clue:not(.is-hidden)')).toHaveLength(1);
+    const hidden = [...document.querySelectorAll('.clues-list .clue.is-hidden')].map((li) => li.textContent);
+    expect(hidden).toEqual(['Підказка 2', 'Підказка 3', 'Підказка 4', 'Підказка 5']);
+    expect(document.querySelector('.clue-opens.is-big')?.textContent).toBe('Оля 1 · Петро 3 · Іра 2');
+    expect(screen.getByText('Кожен відкриває підказки на телефоні сам: що менше підказок, то більше балів.')).toBeTruthy();
+    expect(screen.queryByText(/щойно впізнаєте/)).toBeNull();
+  });
+
+  it('lists every clue at the reveal with the clue each answered on', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: selfQuestion, reveal: selfFull }));
+    expect(document.querySelectorAll('.clues-list .clue')).toHaveLength(5);
+    expect(document.querySelector('.clues-list .clue.is-hidden')).toBeNull();
+    expect(document.querySelector('.clue-opens')?.textContent).toBe('Оля — на підказці 1 · Петро — на підказці 3 · Іра — без відповіді');
+  });
+
+  it('has no line outside own pace', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: { ...selfQuestion, clues: { ...selfQuestion.clues, self: false, opens: null } } }));
+    expect(document.querySelector('.clue-opens')).toBeNull();
+  });
+});
+
 describe('StageScreen: wall, poll and word cloud (10d)', () => {
   const names = ['Річки', 'Міста', 'Гори', 'Озера'];
   const wallFull: Question = {
