@@ -87,9 +87,16 @@ export function factInput(state: GameState): FactInput {
     rounds: row.rounds ?? [],
   }));
   const debuffs = state.adjustments.filter((a) => a.source === 'debuff').map((a) => ({ by: a.playerId, target: a.target ?? null }));
-  const input = { players, questions, rows, debuffs, away: awayFacts(state, closedCount), appeals: [] };
+  const input = { players, questions, rows, debuffs, away: awayFacts(state, closedCount), appeals: appealFacts(state) };
   inputCache.set(state, input);
   return input;
+}
+
+/** Раховані закриті апеляції (12f) учасників, що є в грі: yes, no, tie; host, cancelled і відкрита — ні. */
+function appealFacts(state: GameState): FactInput['appeals'] {
+  return (state.appeals ?? []).flatMap((a) =>
+    (a.outcome === 'yes' || a.outcome === 'no' || a.outcome === 'tie') && state.players.some((p) => p.id === a.by) ? [{ playerId: a.by, outcome: a.outcome }] : [],
+  );
 }
 
 /**

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer, type Quiz, type QuizSettings, type Round } from '@quiz/shared';
 import { adjustScore } from './adjust';
-import { awayEnd, awayPenalized, awayPenaltyOn, awayStart, awayStep } from './away';
+import { castAppealVote, openAppeal } from './appeal';
+import { awayEnd, awayPenalized, awayPenaltyOn, awayStart, awayStep, ownAway } from './away';
 import { pickCell } from './board';
 import { declareDuel, dropDuel } from './duel';
 import { placeWager } from './final';
@@ -368,5 +369,49 @@ describe('the away penalty (12e)', () => {
     const pilot: GameState = { ...s, autopilot: { authorId: 'p1', at: null } };
     expect(undoPanel(pilot)).toBeNull();
     expect(undoScore(pilot, { seq }, 99_000)).toEqual({ ok: false, error: 'not_allowed' });
+  });
+});
+
+describe('the away penalty and the appeal (12f)', () => {
+  /** Розкриття класики: Оля виходила 3500 мс і відповіла p1Answer, Петро — навпаки; Оля оскаржує з підставою reason, Петро голосує yes. */
+  function appealed(p1Answer: Answer, reason: 'grade' | 'away', yes: boolean): GameState {
+    let s = startRound(lobbyWith(quizOf([classicRound('r1', [q100, q2], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    s = withAway(s, 'p1', 3500);
+    s = must(submitAnswer(s, 'p1', p1Answer, 2000));
+    s = must(submitAnswer(s, 'p2', p1Answer === right ? wrong : right, 2000));
+    s = step(s, next(s, 9000, rng), 9000);
+    expect(s.phase).toBe('reveal');
+    s = must(openAppeal(s, 'p1', reason, 9500));
+    return must(castAppealVote(s, 'p2', 1, yes, 9600));
+  }
+  const leave = (s: GameState) => step(s, next(s, 10_000, rng), 10_000);
+
+  it('a passed away appeal drops the coming penalty', () => {
+    const s = appealed(right, 'away', true);
+    expect(s.appeals?.[0].outcome).toBe('yes');
+    expect(awayPenalized(s, 0)).toEqual([]);
+    expect(ownAway(s, 'p1')?.penalty).toBe(false);
+    const left = leave(s);
+    expect(penalties(left)).toEqual([]);
+    expect(score(left, 'p1')).toBe(100);
+  });
+
+  it('a lost away appeal keeps the penalty', () => {
+    const s = appealed(right, 'away', false);
+    expect(s.appeals?.[0].outcome).toBe('no');
+    expect(awayPenalized(s, 0)).toEqual(['p1']);
+    expect(ownAway(s, 'p1')?.penalty).toBe(true);
+    const left = leave(s);
+    expect(penalties(left)).toEqual([expect.objectContaining({ playerId: 'p1', points: -100 })]);
+    expect(score(left, 'p1')).toBe(0);
+  });
+
+  it('a passed grade appeal with a 3.5 s leave: the penalty also takes the appeal points, zero for the question', () => {
+    const s = appealed(wrong, 'grade', true);
+    expect(s.adjustments).toEqual([expect.objectContaining({ playerId: 'p1', points: 100, source: 'appeal' })]);
+    expect(score(s, 'p1')).toBe(100);
+    const left = leave(s);
+    expect(penalties(left)).toEqual([expect.objectContaining({ playerId: 'p1', points: -100, afterQuestion: 1 })]);
+    expect(score(left, 'p1')).toBe(0);
   });
 });

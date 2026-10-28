@@ -154,4 +154,19 @@ describe('fact rows from the state (12d)', () => {
     s = must(lock(s));
     expect(factInput(s).away).toEqual([]);
   });
+  it('appeals: the counted closed ones of the players in the game; host, cancelled and open are not (12f)', () => {
+    const base = startRound(lobbyWith(makeRoundsQuiz([classicRound('r1', [single], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    const appeal = (id: number, by: string, outcome: 'yes' | 'no' | 'tie' | 'host' | 'cancelled' | null) =>
+      ({ id, by, questionIndex: 0, reason: 'grade' as const, openedAt: 0, endsAt: 0, votes: {}, outcome });
+    const s: GameState = {
+      ...base,
+      appeals: [appeal(1, 'p1', 'yes'), appeal(2, 'p2', 'host'), appeal(3, 'p2', 'cancelled'), appeal(4, 'p2', 'no'), appeal(5, 'gone', 'yes'), appeal(6, 'p1', 'tie'), appeal(7, 'p2', null)],
+    };
+    expect(factInput(s).appeals).toEqual([
+      { playerId: 'p1', outcome: 'yes' },
+      { playerId: 'p2', outcome: 'no' },
+      { playerId: 'p1', outcome: 'tie' },
+    ]);
+    expect(factInput(base).appeals).toEqual([]);
+  });
 });

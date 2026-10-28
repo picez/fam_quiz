@@ -55,7 +55,10 @@ function answersUndoable(state: GameState, q: number): boolean {
   return round !== undefined && UNDOABLE_ROUNDS.includes(round.type) && !isUnscored(play.question);
 }
 
-/** Після кінця гри (12e) скасовується лише штраф за вихід: його могли дописати на останньому переході гри. */
+/**
+ * Після кінця гри (12e) скасовується лише штраф за вихід: його могли дописати на останньому переході гри.
+ * Бали апеляції (12f) після кінця не скасовуються: це рішення залу, і end закриває відкриту апеляцію раніше, ніж гра скінчиться.
+ */
 function finishedLock(state: GameState): boolean {
   return state.phase === 'finished';
 }
@@ -71,10 +74,13 @@ function rootOf(state: GameState, adjustment: ScoreAdjustment): ScoreAdjustment 
   return current ?? null;
 }
 
-/** Нескасовані штрафи 'away' учасника під запитанням q: скасування його відповіді знімає й їх (разом 0 за запитання). */
-function openPenalties(state: GameState, ledger: UndoLedger, playerId: string, q: number): Undo[] {
+/** Джерела, що йдуть разом із відповіддю учасника на запитання: штраф за вихід (12e) і бали апеляції (12f). */
+const RIDER_SOURCES: readonly ScoreAdjustment['source'][] = ['away', 'appeal'];
+
+/** Нескасовані штрафи 'away' і бали 'appeal' учасника під запитанням q: скасування його відповіді знімає й їх (разом 0 за запитання). */
+function openRiders(state: GameState, ledger: UndoLedger, playerId: string, q: number): Undo[] {
   return state.adjustments
-    .filter((a) => a.source === 'away' && a.playerId === playerId && hostGroup(state, a) === q && !ledger.adjustments.has(a.seq))
+    .filter((a) => RIDER_SOURCES.includes(a.source) && a.playerId === playerId && hostGroup(state, a) === q && !ledger.adjustments.has(a.seq))
     .map((a) => ({ playerId, points: -a.points, undoes: { seq: a.seq }, roundIndex: a.roundIndex }));
 }
 
@@ -101,8 +107,8 @@ function allRowsOf(state: GameState): Line[] {
     if (question !== null && !visible(state, question)) continue;
     const line: Line = {
       row: {
-        // Штраф за вихід (12e) — окремий рядок «(вихід із гри)»; решта як у балів ведучого.
-        kind: adjustment.source === 'away' ? 'away' : 'host',
+        // Штраф за вихід (12e) — окремий рядок «(вихід із гри)», бали апеляції (12f) — «(апеляція)»; решта як у балів ведучого.
+        kind: adjustment.source === 'away' ? 'away' : adjustment.source === 'appeal' ? 'appeal' : 'host',
         playerId: adjustment.playerId,
         nickname: name,
         points: adjustment.points,
@@ -217,7 +223,7 @@ function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
     if (record === undefined || record.points === 0) return 'not_allowed';
     const ledger = ledgerOf(state);
     if (ledger.answers.has(undoAnswerKey(playerId, q))) return 'already_undone';
-    return [{ playerId, points: -record.points, undoes: { question: q }, roundIndex: state.plays[q].roundIndex }, ...openPenalties(state, ledger, playerId, q)];
+    return [{ playerId, points: -record.points, undoes: { question: q }, roundIndex: state.plays[q].roundIndex }, ...openRiders(state, ledger, playerId, q)];
   }
   if ('seq' in target) {
     const adjustment = state.adjustments.find((a) => a.seq === target.seq);
@@ -248,8 +254,8 @@ function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
 }
 
 /**
- * «Повернути» скасування відповіді повертає й штраф за вихід, знятий тією самою дією (той самий batch):
- * інакше учасник отримав би бали запитання, з якого виходив.
+ * «Повернути» скасування відповіді повертає й штраф за вихід і бали апеляції, зняті тією самою дією (той самий batch):
+ * інакше учасник отримав би бали запитання, з якого виходив, чи втратив би бали, які зал зарахував.
  */
 function penaltyRedos(state: GameState, ledger: UndoLedger, undo: ScoreAdjustment): Undo[] {
   const undone = undo.undoes;
@@ -259,7 +265,7 @@ function penaltyRedos(state: GameState, ledger: UndoLedger, undo: ScoreAdjustmen
       if (a.source !== 'undo' || a.batch !== undo.batch || a.playerId !== undo.playerId || ledger.redone.has(a.seq)) return false;
       const u = a.undoes;
       const target = u !== undefined && 'seq' in u ? state.adjustments.find((t) => t.seq === u.seq) : undefined;
-      return target?.source === 'away' && hostGroup(state, target) === undone.question;
+      return target !== undefined && RIDER_SOURCES.includes(target.source) && hostGroup(state, target) === undone.question;
     })
     .map((a) => ({ playerId: a.playerId, points: -a.points, undoes: { seq: a.seq }, roundIndex: a.roundIndex }));
 }

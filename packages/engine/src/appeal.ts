@@ -1,5 +1,5 @@
 // Апеляція гравця (12f): голосування залу за 30 с. Цей файл views.ts не імпортує.
-// game.ts викликатиме цей файл (задача 4), а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
+// game.ts і blitz.ts викликають цей файл, а цей файл — game.ts; вони звертаються одне до одного лише під час виклику.
 import {
   APPEAL_MS,
   APPEAL_ROUNDS,
@@ -8,9 +8,10 @@ import {
   appealDecision,
   undoLedger,
   type AppealReason,
+  type Grade,
 } from '@quiz/shared';
 import { addAdjustment } from './adjust';
-import { awayPenalized } from './away';
+import { awayAppealTotal, awayPenalized } from './away';
 import { fail, ok, override, recordOf, type Appeal, type GameState, type Result } from './game';
 import { presentPlayers } from './present';
 import { actorOf } from './team-act';
@@ -72,10 +73,8 @@ function openRows(state: GameState, source: 'appeal' | 'away', participant: stri
   return own.filter((a) => !undone.has(a.seq));
 }
 
-/** Сума нескасованих коригувань 'appeal' учасника під запитанням q (afterQuestion − 1 === q). */
-export function appealAdjustmentTotal(state: GameState, participant: string, q: number): number {
-  return openRows(state, 'appeal', participant, q).reduce((sum, a) => sum + a.points, 0);
-}
+/** Сума нескасованих коригувань 'appeal' учасника під запитанням q (afterQuestion − 1 === q); живе в away.ts, щоб away.ts не імпортував цей файл. */
+export const appealAdjustmentTotal = awayAppealTotal;
 
 /** Штраф 'away' учасника за q є, і кожен такий рядок скасовано. */
 function penaltyUndone(state: GameState, participant: string, q: number): boolean {
@@ -92,15 +91,16 @@ export function appealReasons(state: GameState, participant: string): AppealReas
   if (round === undefined || !APPEAL_ROUNDS.includes(round.type)) return [];
   if (round.type === 'board' && (play.board?.kind !== 'normal' || play.board.chooserId !== participant)) return [];
   const record = recordOf(state, q, participant);
-  // Усна відповідь (без відповіді з телефона) не оскаржується: залу нема що побачити.
-  if (record === undefined || record.answer === null) return [];
+  if (record === undefined) return [];
   // Одна апеляція на учасника на запитання, хоч би чим вона скінчилася.
   if ((state.appeals ?? []).some((a) => a.by === participant && a.questionIndex === q)) return [];
   const reasons: AppealReason[] = [];
-  if (record.grade !== 'correct' && appealPoints(state, participant) > 0) reasons.push('grade');
+  // Усна відповідь (без відповіді з телефона) оцінку не оскаржує: залу нема що побачити. Штраф за вихід — може.
+  if (record.answer !== null && record.grade !== 'correct' && appealPoints(state, participant) > 0) reasons.push('grade');
   if (
     awayPenalized(state, q).includes(participant) &&
     !penaltyUndone(state, participant, q) &&
+    // Бали апеляції тут завжди 0 (одна апеляція на учасника на запитання), але сума та сама, що бере штраф (withPenalties).
     record.points + appealAdjustmentTotal(state, participant, q) > 0
   ) {
     reasons.push('away');
@@ -168,20 +168,33 @@ export function openAppeal(state: GameState, personId: string, reason: AppealRea
 export function castAppealVote(state: GameState, personId: string, appealId: number, yes: boolean, now: number): Result {
   if (!personIn(state, personId)) return fail('not_found');
   const open = appealOpen(state);
-  if (open === null || open.id !== appealId) return fail('vote_closed');
+  if (open === null || open.id !== appealId || !onItsReveal(state, open)) return fail('vote_closed');
   if (state.paused) return fail('paused');
   const voters = appealVoters(state, open.by);
   if (!voters.includes(personId)) return fail('vote_denied');
   const appeal: Appeal = { ...open, votes: { ...open.votes, [personId]: yes } };
-  const voted = withAppeal(state, appeal);
-  // Проголосували всі присутні виборці — рішення одразу.
-  return ok(voters.every((id) => Object.hasOwn(appeal.votes, id)) ? decideAppeal(voted, now) : voted);
+  return ok(settleAppeal(withAppeal(state, appeal), now));
+}
+
+/** Апеляція стоїть на розкритті свого запитання (лише там її можна вирішувати й за неї голосувати). */
+function onItsReveal(state: GameState, appeal: Appeal): boolean {
+  return state.phase === 'reveal' && state.questionIndex === appeal.questionIndex;
+}
+
+/** Проголосували всі присутні виборці (їх ≥ 1) → рішення зараз; на паузі чи без відкритої апеляції — той самий об'єкт. */
+export function settleAppeal(state: GameState, now: number): GameState {
+  const open = appealOpen(state);
+  if (open === null || state.paused) return state;
+  const voters = appealVoters(state, open.by);
+  return voters.length > 0 && voters.every((id) => Object.hasOwn(open.votes, id)) ? decideAppeal(state, now) : state;
 }
 
 /** Рішення відкритої апеляції зараз (план 12f, «Рішення»); немає відкритої — той самий об'єкт. */
 export function decideAppeal(state: GameState, now: number): GameState {
   const open = appealOpen(state);
   if (open === null) return state;
+  // Захист: апеляція поза розкриттям свого запитання не вирішується, а скасовується (переходи з розкриття її закривають).
+  if (!onItsReveal(state, open)) return withAppeal(state, { ...open, outcome: 'cancelled' });
   const { yes, no } = appealTally(state, open);
   const outcome = appealDecision(yes, no);
   let s = state;
@@ -200,4 +213,52 @@ export function decideAppeal(state: GameState, now: number): GameState {
     closed = { ...closed, adjustmentSeq: s.adjustmentSeq };
   }
   return withAppeal(s, closed);
+}
+
+/** Відкрита апеляція, чий час сплив (now ≥ endsAt, не пауза) → рішення; інакше той самий об'єкт. */
+export function closeDueAppeal(state: GameState, now: number): GameState {
+  const open = appealOpen(state);
+  return open === null || state.paused || now < open.endsAt ? state : decideAppeal(state, now);
+}
+
+/** Кінець відкритої апеляції для nextDeadline: endsAt, якщо не пауза й endsAt > now; інакше null. */
+export function appealDeadline(state: GameState, now: number): number | null {
+  const open = appealOpen(state);
+  return open === null || state.paused || open.endsAt <= now ? null : open.endsAt;
+}
+
+/** Після паузи: endsAt відкритої апеляції + shift; без відкритої — той самий об'єкт. */
+export function shiftAppealClock(state: GameState, shift: number): GameState {
+  const open = appealOpen(state);
+  return open === null || shift === 0 ? state : withAppeal(state, { ...open, endsAt: open.endsAt + shift });
+}
+
+/** Відкрита апеляція → outcome 'cancelled' (не рахується в ліміт); інакше той самий об'єкт. */
+export function cancelAppeal(state: GameState): GameState {
+  const open = appealOpen(state);
+  return open === null ? state : withAppeal(state, { ...open, outcome: 'cancelled' });
+}
+
+/** Оцінка ведучого: відкрита апеляція grade учасника participant і grade 'correct' → outcome 'host'; інакше той самий об'єкт. */
+export function closeAppealByHost(state: GameState, participant: string, grade: Grade): GameState {
+  const open = appealOpen(state);
+  // Апеляцію away оцінка не закриває: штраф 12e від оцінки не залежить.
+  if (open === null || grade !== 'correct' || open.reason !== 'grade' || open.by !== participant) return state;
+  return withAppeal(state, { ...open, outcome: 'host' });
+}
+
+/**
+ * Вилучення: людина зникає з голосів; відкрита апеляція учасника, якого вже немає в players, → 'cancelled'.
+ * З now: якщо решта виборців уже проголосувала, рішення одразу (settleAppeal).
+ */
+export function dropFromAppeals(state: GameState, removedId: string, now?: number): GameState {
+  const open = appealOpen(state);
+  if (open === null) return state;
+  if (!state.players.some((p) => p.id === open.by)) return withAppeal(state, { ...open, outcome: 'cancelled' });
+  let s = state;
+  if (Object.hasOwn(open.votes, removedId)) {
+    const { [removedId]: _removed, ...votes } = open.votes;
+    s = withAppeal(state, { ...open, votes });
+  }
+  return now === undefined ? s : settleAppeal(s, now);
 }

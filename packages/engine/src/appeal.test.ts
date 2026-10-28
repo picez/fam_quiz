@@ -13,6 +13,7 @@ import {
   lastAppeal,
   openAppeal,
 } from './appeal';
+import { addAdjustment } from './adjust';
 import { awayEnd, awayStart } from './away';
 import { pickCell } from './board';
 import { placeWager } from './final';
@@ -387,3 +388,85 @@ describe('the away reason', () => {
     expect(s.adjustments).toEqual([]);
   });
 });
+
+describe('review cases (12f)', () => {
+  const stripped = (s: GameState, id: string): GameState => ({ ...s, players: s.players.filter((p) => p.id !== id) });
+
+  it('error order: appeal_open before appeal_unfit, appeals_used before no_voters', () => {
+    const s = must(openAppeal(reveal, 'p1', 'grade', T1));
+    expect(openAppeal(s, 'p3', 'grade', T1)).toEqual(err('appeal_open'));
+    const used = (q: number, id: number) => ({ id, by: 'p1', questionIndex: q, reason: 'grade' as const, openedAt: 0, endsAt: 0, votes: {}, outcome: 'no' as const });
+    let alone: GameState = { ...reveal, appeals: [used(5, 1), used(6, 2)] };
+    alone = must(setConnected(must(setConnected(alone, 'p2', false, T1)), 'p3', false, T1));
+    expect(openAppeal(alone, 'p1', 'grade', T1)).toEqual(err('appeals_used'));
+  });
+
+  it('both reasons on one question: after the first appeal the second is appeal_unfit', () => {
+    let s = startRound(lobbyWith(quizOf({ ...DEFAULT_RULES, partial: 50 }, { awayPenalty: true }), 'Оля', 'Петро', 'Іра'), T0, rng);
+    s = awayEnd(awayStart(s, 'p1', T0 + 500), 'p1', T0 + 4000);
+    s = must(override(answerAndReveal(s, [WRONG, RIGHT, RIGHT], T0 + 5000), 'p1', 'partial'));
+    expect(appealReasons(s, 'p1')).toEqual(['grade', 'away']);
+    s = decideAppeal(must(openAppeal(s, 'p1', 'grade', T1)), T1 + 30_000);
+    expect(openAppeal(s, 'p1', 'away', T1 + 31_000)).toEqual(err('appeal_unfit'));
+  });
+
+  it('the protective away branch: a penalty already there is given back by yes, with adjustmentSeq', () => {
+    let s = startRound(lobbyWith(quizOf(DEFAULT_RULES, { awayPenalty: true }), 'Оля', 'Петро', 'Іра'), T0, rng);
+    s = awayEnd(awayStart(s, 'p1', T0 + 500), 'p1', T0 + 4000);
+    s = answerAndReveal(s, [RIGHT, RIGHT, RIGHT], T0 + 5000);
+    s = addAdjustment(s, 'p1', -100, T1, 'away', { roundIndex: 0 });
+    expect(score(s, 'p1')).toBe(0);
+    s = must(openAppeal(s, 'p1', 'away', T1));
+    s = must(castAppealVote(must(castAppealVote(s, 'p2', 1, true, T1)), 'p3', 1, true, T1));
+    expect(s.appeals?.[0]).toMatchObject({ outcome: 'yes', adjustmentSeq: 2 });
+    expect(s.adjustments.at(-1)).toMatchObject({ seq: 2, playerId: 'p1', points: 100, source: 'appeal' });
+    expect(score(s, 'p1')).toBe(100);
+  });
+
+  it('a removed appellant gets no points from yes; the tally skips removed voters', () => {
+    const voted = must(castAppealVote(must(openAppeal(reveal, 'p1', 'grade', T1)), 'p2', 1, true, T1));
+    const decided = decideAppeal(stripped(voted, 'p1'), T1 + 30_000);
+    expect(decided.appeals?.[0].outcome).toBe('yes');
+    expect(decided.adjustments).toEqual([]);
+    expect(appealTally(stripped(voted, 'p2'), appealOpen(voted)!)).toEqual({ yes: 0, no: 0 });
+  });
+
+  it('an appeal off its reveal takes no votes and is cancelled, not decided', () => {
+    const s = must(castAppealVote(must(openAppeal(reveal, 'p1', 'grade', T1)), 'p2', 1, true, T1));
+    const off: GameState = { ...s, phase: 'leaderboard' };
+    expect(castAppealVote(off, 'p3', 1, true, T1)).toEqual(err('vote_closed'));
+    const closed = decideAppeal(off, T1 + 30_000);
+    expect(closed.appeals?.[0].outcome).toBe('cancelled');
+    expect(closed.adjustments).toEqual([]);
+    expect(decideAppeal({ ...s, questionIndex: 1 }, T1).appeals?.[0].outcome).toBe('cancelled');
+  });
+
+  it('a voice cell answer: the grade cannot be appealed, the away penalty can', () => {
+    const c11 = withPoints(withId(single, 'c11'), 100);
+    const intro = must(start(lobbyWith(makeRoundsQuiz([boardRound('g1', [{ title: 'A', cells: [c11, withId(c11, 'c12')] }], { answerMode: 'voice' })], { awayPenalty: true }), 'Оля', 'Петро', 'Іра')));
+    let s = must(pickCell(must(next(intro, 0)), null, 'c11', 0, rng));
+    s = awayEnd(awayStart(s, 'p1', 100), 'p1', 3600);
+    s = must(next(must(override(s, 'p1', 'correct', 4000)), 5000));
+    expect(s.phase).toBe('reveal');
+    expect(recordOf(s, 0, 'p1')).toMatchObject({ answer: null, points: 100 });
+    expect(appealReasons(s, 'p1')).toEqual(['away']);
+    expect(must(openAppeal(s, 'p1', 'away', T1)).appeals?.[0]).toMatchObject({ by: 'p1', reason: 'away', outcome: null });
+  });
+
+  it('team game: a member without a team and a vote by the team id are not found', () => {
+    let s = toTeamReveal();
+    s = { ...s, teams: { ...s.teams!, members: [...s.teams!.members, { id: 'm9', nickname: 'Ліна', connected: true, teamId: null }] } };
+    expect(openAppeal(s, 'm9', 'grade', T1)).toEqual(err('not_found'));
+    const open = must(openAppeal(s, 'm1', 'grade', T1));
+    expect(castAppealVote(open, 't1', 1, true, T1)).toEqual(err('not_found'));
+    expect(castAppealVote(open, 't2', 1, true, T1)).toEqual(err('not_found'));
+  });
+});
+
+/** Червоні t1 (Оля m1 — капітан, Петро m2) «Одеська», Сині t2 (Віра m3, Іра m4) «Одеса»; розкриття. */
+function toTeamReveal(): GameState {
+  let s = must(next(teamGame(teamQuiz([classicRound('r1', [t100], { speedBonus: false, rules: DEFAULT_RULES })]), [['Оля', 'Петро'], ['Віра', 'Іра']]), T0, rng));
+  s = must(actAnswer(must(actAnswer(s, 'm1', WRONG, T0 + 1000)), 'm3', RIGHT, T0 + 1000));
+  if (s.phase === 'question') s = must(lock(s));
+  return must(next(s, T0 + 2000, rng));
+}

@@ -3,6 +3,7 @@ import { cellBlitzRules } from './board-cells';
 import { BOARD_AWAY_MS } from './board-turns';
 import { chainDeadline } from './chain';
 import { nextClueAt } from './clues';
+import { appealDeadline } from './appeal';
 import { audienceOpen } from './ladder';
 // З game.ts лише типи, але chain.ts (вище) під час виконання імпортує game.ts, тож цикл є:
 // game.ts → blitz.ts → chain.ts → game.ts. Він безпечний, бо всі звертання відбуваються лише під час виклику функцій.
@@ -206,6 +207,8 @@ export function nextDeadline(state: GameState, now: number): number | null {
     if (state.paused || state.endsAt === null) return null;
     return state.endsAt > now ? state.endsAt : null;
   }
+  // Апеляція (12f): кінець голосування залу.
+  if (state.phase === 'reveal') return appealDeadline(state, now);
   // Під час утримання годинник стоїть: tick нічого не змінить, доки ведучий не вирішить.
   if (state.phase !== 'question' || state.paused || state.heldAt !== null) return null;
   const away = state.board?.awaySince ?? null;

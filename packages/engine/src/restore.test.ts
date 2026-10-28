@@ -1359,12 +1359,30 @@ describe('the saved state', () => {
     expect(again.plays[0].away?.p2).toEqual({ ms: 5000, count: 2, since: null });
   });
 
-  it('a version 17 state (no appeals) restores', () => {
-    const plain = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро'), T0);
-    const old = roundTrip(suspend(roundTrip(plain), T0 + 1000));
-    expect('appeals' in old).toBe(false);
-    expect(old.paused).toBe(true);
+  it('a version 17 state (no appeals) restores on a reveal; the restored game can open an appeal and move on', () => {
+    // стан до 12f: розкриття без ключа appeals, Оля відповіла неправильно
+    const t100 = { ...text, points: 100 };
+    let old = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [t100], { speedBonus: false })]), 'Оля', 'Петро'), T0, () => 0);
+    old = must(submitAnswer(must(submitAnswer(old, 'p1', { type: 'text', value: 'Одеська' }, T0 + 1000)), 'p2', { type: 'text', value: 'Одеса' }, T0 + 1000));
+    old = must(next(old, T0 + 2000, () => 0));
+    expect(old.phase).toBe('reveal');
+    const restored = roundTrip(suspend(roundTrip(old), T0 + 3000));
+    expect('appeals' in restored).toBe(false);
+    expect(restored.paused).toBe(true);
     expect(READABLE_STATE_VERSIONS).toContain(17);
+    const back = must(resume(must(setConnected(must(setConnected(restored, 'p1', true, T0 + HOUR)), 'p2', true, T0 + HOUR)), T0 + HOUR));
+    expect(must(next(back, T0 + HOUR, () => 0)).phase).not.toBe('reveal');
+    const opened = must(openAppeal(back, 'p1', 'grade', T0 + HOUR + 1000));
+    expect(opened.appeals).toEqual([expect.objectContaining({ id: 1, by: 'p1', outcome: null, endsAt: T0 + HOUR + 31_000 })]);
+  });
+
+  it('suspend decides an appeal whose vote ended before the save; one still running waits with its time left', () => {
+    const s = appealed();
+    expect(s.appeals?.at(-1)).toMatchObject({ outcome: null, endsAt: T0 + 36_000 });
+    expect(suspend(s, T0 + 40_000).appeals?.at(-1)?.outcome).toBe('no');
+    const running = suspend(s, T0 + 20_000);
+    expect(running.appeals?.at(-1)?.outcome).toBeNull();
+    expect(must(resume(running, T0 + HOUR)).appeals?.at(-1)?.endsAt).toBe(T0 + 36_000 + HOUR - 20_000);
   });
 
   it('an open appeal survives the round trip and suspend: paused, endsAt and the votes as they were', () => {
