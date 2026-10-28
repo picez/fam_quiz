@@ -773,7 +773,7 @@ function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: Stage
   if (phase === 'finished')
     return (
       // Поки йде заставка «Підсумки», карусель стоїть на п'єдесталі.
-      <AwardsCarousel awards={view.facts?.awards ?? []} rounds={view.round?.total ?? 1} autopilot={view.autopilot} seq={awardsSeq} hold={splashing}>
+      <AwardsCarousel awards={view.facts?.awards ?? []} withRound={(view.round?.total ?? 1) > 1} autopilot={view.autopilot} seq={awardsSeq} hold={splashing}>
         <div className="stage-board is-final">
           {heading}
           {table}
@@ -806,7 +806,7 @@ function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: Stage
         {best}
       </div>
       <aside className="round-facts">
-        <FactCards cards={cards} rounds={view.round?.total ?? 1} big title={t('roundFactsTitle')} />
+        <FactCards cards={cards} withRound={false} big title={t('roundFactsTitle')} />
       </aside>
     </div>
   );

@@ -1,10 +1,10 @@
 import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard } from '@quiz/shared';
-import { factBody, factTitle, gameCardLines, ordinal, ownRevealText, revealFactsText, roundCardParts } from '../facts-text';
+import { factBody, factTitle, gameCardLines, ownRevealText, revealFactsText, roundCardParts } from '../facts-text';
 import { num } from '../format';
 import { t } from '../i18n';
 
-/** Картки цікавинок (12d): заголовок і тіло; big — сцена. Порожній список — нічого. */
-export function FactCards({ cards, rounds, big = false, title }: { cards: FactCard[]; rounds: number; big?: boolean; title?: string }) {
+/** Картки цікавинок (12d): заголовок і тіло; withRound — назвати раунд запитання (нагороди з кількох раундів); big — сцена. Порожній список — нічого. */
+export function FactCards({ cards, withRound, big = false, title }: { cards: FactCard[]; withRound: boolean; big?: boolean; title?: string }) {
   if (cards.length === 0) return null;
   return (
     <section className={big ? 'fact-cards is-big' : 'fact-cards'}>
@@ -13,7 +13,7 @@ export function FactCards({ cards, rounds, big = false, title }: { cards: FactCa
         {cards.map((card) => (
           <li key={card.kind} className={`fact-card fact-${card.kind}`}>
             <p className="fact-title">{factTitle(card)}</p>
-            <p className="fact-body">{factBody(card, rounds)}</p>
+            <p className="fact-body">{factBody(card, withRound)}</p>
           </li>
         ))}
       </ul>
@@ -69,12 +69,11 @@ function RoundBars({ rounds }: { rounds: number[] }) {
   );
 }
 
-/** «Твоя гра» на телефоні: місце, стовпчики балів за раундами (від'ємні — вниз, клас is-minus; підпис Р1…), рядки gameCardLines. */
+/** «Твоя гра» на телефоні (місце вже стоїть над нею): стовпчики балів за раундами (від'ємні — вниз, клас is-minus; підпис Р1…), рядки gameCardLines. */
 export function GameCardView({ card, team }: { card: GameCard; team: boolean }) {
   return (
     <section className="own-card game-card">
       <h2>{t(team ? 'gameCardTitleTeam' : 'gameCardTitle')}</h2>
-      {card.rank !== null && <p className="lead">{t('gameCardRank', { rank: ordinal(card.rank, 'n') })}</p>}
       {card.rounds.length > 0 && <RoundBars rounds={card.rounds} />}
       <ul>
         {gameCardLines(card, team).map((line) => (

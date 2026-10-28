@@ -1192,7 +1192,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
           {view.own?.round != null && <RoundCardView card={view.own.round} team={view.team !== null} />}
-          {view.facts?.round != null && <FactCards cards={view.facts.round} rounds={view.round?.total ?? 1} title={t('roundFactsTitle')} />}
+          {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
         </>
       )}
 

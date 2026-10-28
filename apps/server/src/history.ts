@@ -178,6 +178,8 @@ function factInputOf(
   });
   const finals = new Set(questions.filter((q) => q.final).map((q) => q.index));
   const ids = new Set(standings.map((s) => s.participantId));
+  // Ціль дебафу записано нікнеймом: він унікальний лише серед теперішніх учасників, тож ціль, яку вилучили, а її нікнейм
+  // узяв новий гравець, припишеться новому (рідкісна прогалина; рушій має id і такої плутанини не має).
   const idOf = new Map(standings.map((s) => [s.nickname, s.participantId]));
   return {
     // Командна гра: таблиця — рядки команд; рядки людей (голоси) сюди не потрапляють.
@@ -416,6 +418,11 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
 }
 
 export async function hostGame(db: Db, hostId: string, id: string): Promise<GameDetail | null> {
+  return (await hostGameWithFacts(db, hostId, id))?.detail ?? null;
+}
+
+/** Деталі гри разом із входом цікавинок, з якого пораховано facts (тести звіряють його з factInput рушія). */
+export async function hostGameWithFacts(db: Db, hostId: string, id: string): Promise<{ detail: GameDetail; factInput: FactInput } | null> {
   if (!UUID.test(id)) return null;
   const [row] = await db
     .select()
@@ -536,7 +543,8 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
     ];
   });
 
-  return {
+  const factInput = factInputOf(quiz, played, standings, answers, adjustments);
+  const detail: GameDetail = {
     id: row.id,
     title: row.title,
     code: row.code,
@@ -563,8 +571,9 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
       ...(source === 'undo' && undoesQuestion === null && undoesSeq !== null ? { undoes: { seq: undoesSeq } } : {}),
     })),
 
-    facts: factsOf(factInputOf(quiz, played, standings, answers, adjustments)),
+    facts: factsOf(factInput),
   };
+  return { detail, factInput };
 }
 
 export interface AnswerMark {

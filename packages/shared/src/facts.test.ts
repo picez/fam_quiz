@@ -4,6 +4,7 @@ import {
   FACT_LIMITS,
   bluffFact,
   factLimitMs,
+  factPercent,
   factTable,
   gameAwards,
   gameCard,
@@ -73,6 +74,18 @@ describe('in-game facts (12d)', () => {
     expect(ownRevealFact(all, 0, 'i')).toEqual({ kind: 'fastest', place: 1 });
     expect(ownRevealFact(all, 0, 'p')).toEqual({ kind: 'share', percent: 75 });
     expect(ownRevealFact(input([row('o', 0, true, 2100)]), 0, 'o')).toBeNull();
+    // Готовий рядок розкриття береться як є.
+    expect(ownRevealFact(all, 0, 'p', { accepted: 1, answered: 2, fastest: null, bluff: null })).toEqual({ kind: 'share', percent: 50 });
+    expect(ownRevealFact(all, 0, 'p', null)).toBeNull();
+  });
+
+  it('a percent is never 100 or 0 by rounding alone', () => {
+    expect(factPercent(199, 200)).toBe(99);
+    expect(factPercent(1, 300)).toBe(1);
+    expect(factPercent(2, 3)).toBe(67);
+    expect(factPercent(3, 3)).toBe(100);
+    expect(factPercent(0, 3)).toBe(0);
+    expect(factPercent(0, 0)).toBe(0);
   });
 
   it('a blitz question counts once per player and has no reveal line', () => {
@@ -279,6 +292,11 @@ describe('in-game facts (12d)', () => {
     expect(revealFacts(facts, 5)).toBeNull();
     expect(roundShares(facts, 0)).toEqual([{ number: 1, text: 'Q0', accepted: 1, answered: 2 }]);
     expect(find(roundFacts(facts, 0), 'lightning')).toMatchObject({ names: ['Оля'], timeMs: 2000 });
+    // Рядок блефу без запитання блефу не додає: ні «обдурили», ні 🎭.
+    const lost = input([row('o', 0, true, 2000), row('p', 7, false, 3000, { bluff: lie(2) }), row('o', 7, false, 3000, { bluff: lie() })]);
+    expect(roundCard(lost, 'o', 0)?.fooledBy).toBeNull();
+    expect(gameCard(lost, 'p')?.bluff).toBeNull();
+    expect(find(roundFacts(lost, 0), 'bluffer')).toBeNull();
   });
 
   it('equal times share the place on the phone', () => {
@@ -359,7 +377,7 @@ describe('in-game facts (12d)', () => {
       row('o', 3, false, 4000, { roundIndex: 1, buff: 'time' }),
     ];
     const plain = input(rows, { questions: qs, players: RISERS, debuffs: [{ by: 'o', target: 'p' }, { by: 'i', target: null }] });
-    expect(gameCard(plain, 'o')).toEqual({ rank: 1, rounds: [400, 400], correct: 3, answered: 4, bestStreak: 3, fastestMs: 2000, buffs: 2, debuffs: { sent: 1, got: 0 }, bluff: null });
+    expect(gameCard(plain, 'o')).toEqual({ rounds: [400, 400], correct: 3, answered: 4, bestStreak: 3, fastestMs: 2000, buffs: 2, debuffs: { sent: 1, got: 0 }, bluff: null });
     expect(gameCard(plain, 'p')).toMatchObject({ debuffs: { sent: 0, got: 1 }, correct: 0, answered: 0, fastestMs: null });
     expect(gameCard(plain, 'x')).toBeNull();
     const bluffed = input([...rows, row('o', 4, false, 3000, { roundIndex: 1, bluff: lie(2) }), row('o', 5, false, 3000, { roundIndex: 1, bluff: lie(1) })], {

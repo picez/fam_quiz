@@ -14,7 +14,6 @@ const cards: FactCard[] = [
 ];
 const round: RoundCard = { correct: 4, answered: 6, avgMs: 5300, fastestMs: 2000, streak: 3, place: { before: 5, now: 3 }, fooledBy: 1 };
 const game: GameCard = {
-  rank: 2,
   rounds: [300, -100, 500],
   correct: 9,
   answered: 12,
@@ -27,7 +26,7 @@ const game: GameCard = {
 
 describe('FactCards', () => {
   it('renders a card per fact with its title and body, and the heading', () => {
-    const { container } = render(<FactCards cards={cards} rounds={1} title="Цікавинки раунду" />);
+    const { container } = render(<FactCards cards={cards} withRound={false} title="Цікавинки раунду" />);
     expect(screen.getByRole('heading', { name: 'Цікавинки раунду' })).toBeTruthy();
     const items = container.querySelectorAll('li.fact-card');
     expect(items).toHaveLength(3);
@@ -37,11 +36,19 @@ describe('FactCards', () => {
     expect(container.querySelector('.fact-cards.is-big')).toBeNull();
   });
 
+  it('withRound names the round of the lightning question (awards); the round end does not', () => {
+    const later = [{ ...cards[0], question: { ...q, roundIndex: 1 } } as FactCard];
+    const { container, rerender } = render(<FactCards cards={later} withRound />);
+    expect(container.querySelector('.fact-lightning .fact-body')?.textContent).toBe('Оля — 2,1 с, запитання 2 раунду 2');
+    rerender(<FactCards cards={later} withRound={false} />);
+    expect(container.querySelector('.fact-lightning .fact-body')?.textContent).toBe('Оля — 2,1 с, запитання 2');
+  });
+
   it('big on the stage; nothing for an empty list', () => {
-    const { container, rerender } = render(<FactCards cards={cards} rounds={1} big />);
+    const { container, rerender } = render(<FactCards cards={cards} withRound={false} big />);
     expect(container.querySelector('.fact-cards.is-big')).not.toBeNull();
     expect(container.querySelector('h2')).toBeNull();
-    rerender(<FactCards cards={[]} rounds={1} />);
+    rerender(<FactCards cards={[]} withRound={false} />);
     expect(container.innerHTML).toBe('');
   });
 
@@ -66,10 +73,11 @@ describe('FactCards', () => {
     expect(container.textContent).toContain('вас обдурили 1 раз');
   });
 
-  it('game card: place, bars per round with the minus one down, labels and lines', () => {
+  it('game card: bars per round with the minus one down, labels and lines; no own place line (it stands above)', () => {
     const { container, rerender } = render(<GameCardView card={game} team={false} />);
     expect(screen.getByRole('heading', { name: 'Твоя гра' })).toBeTruthy();
-    expect(container.querySelector('.game-card .lead')?.textContent).toBe('2-е місце');
+    expect(container.querySelector('.game-card .lead')).toBeNull();
+    expect(container.textContent).not.toContain('місце');
     const bars = container.querySelectorAll('.round-bar');
     expect(bars).toHaveLength(3);
     expect([...bars].map((b) => b.classList.contains('is-minus'))).toEqual([false, true, false]);
@@ -77,14 +85,11 @@ describe('FactCards', () => {
     expect(screen.getByRole('img').getAttribute('aria-label')).toBe('Бали за раундами: Раунд 1 300, Раунд 2 −100, Раунд 3 500');
     expect((bars[2].querySelector('.round-bar-fill') as HTMLElement).style.height).toBe('83.33%');
     expect(screen.getByText('Дебафи: від тебе 1 · на тобі 3')).toBeTruthy();
-    rerender(<GameCardView card={{ ...game, rank: 3 }} team={false} />);
-    expect(container.querySelector('.game-card .lead')?.textContent).toBe('3-є місце');
     expect(container.querySelector('.round-bars.is-many')).toBeNull();
     rerender(<GameCardView card={{ ...game, rounds: [1, 2, 3, 4, 5, 6, 7, 8, 9] }} team={false} />);
     expect(container.querySelector('.round-bars.is-many')).not.toBeNull();
-    rerender(<GameCardView card={{ ...game, rank: null, rounds: [] }} team />);
+    rerender(<GameCardView card={{ ...game, rounds: [] }} team />);
     expect(screen.getByRole('heading', { name: 'Гра команди' })).toBeTruthy();
-    expect(container.querySelector('.game-card .lead')).toBeNull();
     expect(container.querySelector('.round-bars')).toBeNull();
     expect(screen.getByText('Дебафи: від вас 1 · на вас 3')).toBeTruthy();
   });

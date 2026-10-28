@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, gameAwards, roundCard, roundShares, type Answer, type Quiz } from '@quiz/shared';
 import { pickBluff, revealBluffAll, writeLie } from './bluff';
-import { factInput } from './facts';
+import { factInput, gameFacts } from './facts';
 import { placeWager } from './final';
 import { lock, next, submitAnswer, type GameState } from './game';
+import { revealSurveyAll } from './survey';
 import { pickContestant } from './ladder';
 import { actAnswer } from './team-act';
 import { hostView, playerView, stageView } from './views';
-import { bluff, classicRound, finalRound, ladderRound, LADDER_RIGHT, makeQuiz, makeRoundsQuiz, single, withId } from './testing/fixtures';
-import { lobbyWith, must, startRound } from './testing/helpers';
+import { blitzRound, bluff, classicRound, finalRound, ladderRound, LADDER_RIGHT, makeQuiz, makeRoundsQuiz, single, survey, withId } from './testing/fixtures';
+import { acceptAll, lobbyWith, must, sendBlitz, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 
 const rng = () => 0;
@@ -95,6 +96,35 @@ describe('facts in views (12d)', () => {
     expect(phone(s, 'p2').own?.reveal).not.toBeNull();
   });
 
+  it('«100 до 1»: no reveal line while the board is closing; after the whole board is open the line is there', () => {
+    let s = startRound(lobbyWith(makeQuiz([survey], PLAIN), 'Оля', 'Петро'), 0, rng);
+    s = answer(s, { p1: [{ type: 'survey', values: ['Яблуко'] }, 1000], p2: [{ type: 'survey', values: ['ананас'] }, 2000] });
+    s = must(next(s, 3000, rng));
+    expect(s.phase).toBe('reveal');
+    expect(stageView(s).facts).toEqual({ reveal: null, round: null, awards: null });
+    expect(phone(s, 'p1').own?.reveal ?? null).toBeNull();
+    s = must(revealSurveyAll(s));
+    expect(stageView(s).facts?.reveal).toMatchObject({ answered: 2 });
+    expect(phone(s, 'p1').own?.reveal).not.toBeNull();
+  });
+
+  it('no reveal line in a blitz', () => {
+    let s = startRound(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single, withId(single, 'q2')])]), 'Оля', 'Петро'), 0, rng);
+    s = acceptAll(sendBlitz(s, 'p1', lviv, 1000), 1000);
+    s = acceptAll(sendBlitz(s, 'p2', kyiv, 2000), 2000);
+    while (s.phase !== 'reveal') s = must(next(s, 3000, rng));
+    expect(s.plays[0].blitz?.attempts.length).toBe(2);
+    expect(stageView(s).facts?.reveal ?? null).toBeNull();
+    expect(phone(s, 'p1').own?.reveal ?? null).toBeNull();
+  });
+
+  it('the shared facts are cached per state and per reveal flag', () => {
+    const s = firstRoundReveal();
+    expect(gameFacts(s, false)?.reveal).toBeNull();
+    expect(gameFacts(s, true)?.reveal).not.toBeNull();
+    expect(gameFacts(s, true)).toBe(gameFacts(s, true));
+  });
+
   it('no reveal line in the final', () => {
     const quiz = makeRoundsQuiz([classicRound('r1', [single], PLAIN), finalRound('f', withId(single, 'f1'))], { leaderboard: 'end' });
     let s = startRound(lobbyWith(quiz, 'Оля', 'Петро'), 0, rng);
@@ -153,6 +183,8 @@ describe('facts in views (12d)', () => {
     // З 'end' між запитаннями таблиці немає: після розкриття — одразу наступне запитання.
     const after = must(next(reveal, 150_000, rng));
     expect(after.phase).toBe('question');
+    // На розкритті — лише рядок розкриття.
+    expect(stageView(reveal).facts).toEqual({ reveal: expect.objectContaining({ accepted: 2, answered: 3 }), round: null, awards: null });
     for (const s of [reveal, after]) {
       expect(stageView(s).facts?.round ?? null).toBeNull();
       expect(stageView(s).facts?.awards ?? null).toBeNull();
@@ -174,7 +206,7 @@ describe('facts in views (12d)', () => {
     expect(stageView(s).facts?.round).toBeNull();
     expect(phone(s, 'p3').facts).toEqual(stageView(s).facts);
     const standing = stageView(s).standings?.find((row) => row.participantId === 'p3');
-    expect(phone(s, 'p3').own?.game).toMatchObject({ rank: standing?.rank, rounds: standing?.rounds });
+    expect(phone(s, 'p3').own?.game).toMatchObject({ rounds: standing?.rounds });
     expect(phone(s, 'p3').own?.round).toBeNull();
     expect(hostView(s).roundQuestions).toBeNull();
   });

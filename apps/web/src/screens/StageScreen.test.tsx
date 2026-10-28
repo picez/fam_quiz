@@ -2204,6 +2204,46 @@ describe('StageScreen: facts (12d)', () => {
     expect(aside.querySelector('.fact-cards.is-big')).not.toBeNull();
   });
 
+  it('round end cards never name the round, awards of a game with several rounds do', () => {
+    const second = [{ ...cards[0], question: { roundIndex: 0, number: 1, text: 'Столиця України?' } }];
+    show(view({ phase: 'round_end', round, standings, facts: facts({ round: second }) }));
+    const body = document.querySelector('.fact-lightning .fact-body')?.textContent ?? '';
+    expect(body).toContain('запитання 1');
+    expect(body).not.toContain('раунду');
+    cleanup();
+    vi.useFakeTimers();
+    const finished = view({ phase: 'finished', round: { ...round, index: 1 }, standings, facts: facts({ awards: second }) });
+    const stage = (seq: number | null) => <StageScreen view={finished} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline awardsSeq={seq} />;
+    const { rerender } = render(stage(null));
+    rerender(stage(1));
+    expect(document.querySelector('.award-body')?.textContent).toContain('запитання 1 раунду 1');
+  });
+
+  it('the podium splash holds the awards: a tap under it opens the award, its 4 s start after the splash', () => {
+    const T = 1_000_000;
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const finished = view({ phase: 'finished', round: { ...round, index: 1 }, standings, facts: facts({ awards: cards }), splash: { kind: 'podium', at: T, until: T + 2500 } });
+    const stage = (seq: number | null) => <StageScreen view={finished} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline awardsSeq={seq} />;
+    const { rerender } = render(stage(null));
+    expect(document.querySelector('.splash')).not.toBeNull();
+    rerender(stage(1));
+    expect(document.querySelector('.award-title')?.textContent).toBe('⚡ Блискавка');
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(document.querySelector('.award-title')?.textContent).toBe('⚡ Блискавка');
+    act(() => {
+      vi.advanceTimersByTime(3999);
+    });
+    expect(document.querySelector('.award-title')?.textContent).toBe('⚡ Блискавка');
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(document.querySelector('.award-title')?.textContent).toBe('🎯 Снайпер');
+  });
+
   it('round end without cards keeps the 11f markup', () => {
     show(view({ phase: 'round_end', round, standings, facts: facts({ round: [] }) }));
     const board = document.querySelector('.stage-board.is-round-end')!;

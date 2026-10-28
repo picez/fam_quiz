@@ -18,7 +18,7 @@ const awards: FactCard[] = [
 ];
 
 const carousel = (seq: number | null, autopilot = false, list = awards, hold?: boolean) => (
-  <AwardsCarousel awards={list} rounds={1} autopilot={autopilot} seq={seq} hold={hold}>
+  <AwardsCarousel awards={list} withRound={false} autopilot={autopilot} seq={seq} hold={hold}>
     <div className="podium">П'єдестал</div>
   </AwardsCarousel>
 );
@@ -108,6 +108,52 @@ describe('AwardsCarousel', () => {
     expect(onPodium()).toBe(true);
     wait(1);
     expect(slideTitle()).toBe('⚡ Блискавка');
+  });
+
+  it('a tap during the splash opens the award, and its 4 s start only after the splash', () => {
+    const { rerender } = render(carousel(null, false, awards, true));
+    rerender(carousel(1, false, awards, true));
+    expect(slideTitle()).toBe('⚡ Блискавка');
+    wait(10_000);
+    expect(slideTitle()).toBe('⚡ Блискавка');
+    rerender(carousel(1, false, awards, false));
+    wait(3999);
+    expect(slideTitle()).toBe('⚡ Блискавка');
+    wait(1);
+    expect(slideTitle()).toBe('🔥 Серія');
+  });
+
+  it('autopilot: the second loop keeps the same timing', () => {
+    render(carousel(null, true));
+    wait(10_000);
+    wait(4000);
+    wait(4000);
+    expect(onPodium()).toBe(true);
+    wait(9999);
+    expect(onPodium()).toBe(true);
+    wait(1);
+    expect(slideTitle()).toBe('⚡ Блискавка');
+    wait(4000);
+    expect(slideTitle()).toBe('🔥 Серія');
+    wait(4000);
+    expect(onPodium()).toBe(true);
+  });
+
+  it('the aria-live wrapper stays from the podium to the award', () => {
+    const { rerender } = render(carousel(null));
+    const live = document.querySelector('[aria-live="polite"]');
+    expect(live?.textContent).toContain("П'єдестал");
+    rerender(carousel(1));
+    expect(document.querySelector('[aria-live="polite"]')).toBe(live);
+    expect(live?.textContent).toContain('Блискавка');
+  });
+
+  it('unmount leaves no timers', () => {
+    const { unmount, rerender } = render(carousel(null, true));
+    rerender(carousel(1, true));
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('no awards — only the podium, taps or not', () => {

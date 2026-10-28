@@ -22,8 +22,8 @@ import { rankPlayers } from './ranking';
 
 /** Вхід цікавинок на стан: один на всі зрізи, не змінюється після побудови (shared кешує похідне за ним). */
 const inputCache = new WeakMap<GameState, FactInput>();
-/** Спільні цікавинки на стан: одні на сцену, пульт і кожен телефон. */
-const factsCache = new WeakMap<GameState, GameFacts | null>();
+/** Спільні цікавинки на стан і прапорець revealOpen: одні на сцену, пульт і кожен телефон. */
+const factsCache = new WeakMap<GameState, Map<boolean, GameFacts | null>>();
 
 /** Вхід цікавинок зі стану (12d): закриті запитання, рядки як recorder.answerRows (без штрафів і голосів), таблиця з колонками раундів, куплені дебафи. Кеш — WeakMap за станом. */
 export function factInput(state: GameState): FactInput {
@@ -95,9 +95,14 @@ export function factInput(state: GameState): FactInput {
  * revealOpen — рядок розкриття можна показати (розкрито, правда блефу й дошка «100 до 1» відкриті, не «Мільйонер»): рахує views.ts.
  */
 export function gameFacts(state: GameState, revealOpen: boolean): GameFacts | null {
-  if (factsCache.has(state)) return factsCache.get(state) ?? null;
+  let byFlag = factsCache.get(state);
+  if (byFlag === undefined) {
+    byFlag = new Map();
+    factsCache.set(state, byFlag);
+  }
+  if (byFlag.has(revealOpen)) return byFlag.get(revealOpen) ?? null;
   const facts = buildFacts(state, revealOpen);
-  factsCache.set(state, facts);
+  byFlag.set(revealOpen, facts);
   return facts;
 }
 
@@ -117,9 +122,11 @@ function buildFacts(state: GameState, revealOpen: boolean): GameFacts | null {
 /** Свої цікавинки учасника рушія (гравця чи команди); shared — gameFacts того самого стану; null поза reveal, round_end, finished або без учасника. */
 export function ownFacts(state: GameState, playerId: string, shared: GameFacts | null): OwnFacts | null {
   if (shared === null || !state.players.some((p) => p.id === playerId)) return null;
+  // Розкриття без рядка (ще не відкрито, фінал, бліц…) — своїх цікавинок теж немає, вхід не потрібен.
+  if (state.phase === 'reveal' && shared.reveal === null) return { reveal: null, round: null, game: null };
   const input = factInput(state);
   return {
-    reveal: shared.reveal === null ? null : ownRevealFact(input, state.questionIndex, playerId),
+    reveal: shared.reveal === null ? null : ownRevealFact(input, state.questionIndex, playerId, shared.reveal),
     round: state.phase === 'round_end' ? roundCard(input, playerId, state.roundIndex) : null,
     game: state.phase === 'finished' ? gameCard(input, playerId) : null,
   };

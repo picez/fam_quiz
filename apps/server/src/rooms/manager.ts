@@ -87,6 +87,7 @@ import {
   skipGuide,
   startDice,
   startTeamDice,
+  gameFacts,
   stageView,
   start,
   suspend,
@@ -625,7 +626,8 @@ export class RoomManager {
   /** «Нагороди гри» (12d): наступний слайд каруселі на сцені; стан гри не змінюється. */
   awards(room: Room): AckResult {
     if (!this.alive(room)) return this.gone();
-    if (room.state.phase !== 'finished' || (stageView(room.state).facts?.awards ?? []).length === 0) return { ok: false, error: 'wrong_phase' };
+    // Після фінішу рядка розкриття немає: revealOpen false — той самий кешований запис, що й у зрізах.
+    if (room.state.phase !== 'finished' || (gameFacts(room.state, false)?.awards ?? []).length === 0) return { ok: false, error: 'wrong_phase' };
     const seq = ++room.awardsSeq;
     this.emit(room, { type: 'awards', seq });
     return { ok: true };

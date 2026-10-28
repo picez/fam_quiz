@@ -14167,6 +14167,10 @@ async function stats12d() {
   await roundFacts.getByRole('heading', { name: 'Цікавинки раунду', ...exact }).waitFor();
   expect(await roundFacts.locator('.fact-title').allTextContents()).toEqual(['⚡ Блискавка', '🎯 Снайпер', '🔥 Серія']);
   expect(await roundFacts.locator('.fact-streak .fact-body').textContent()).toContain('Іра');
+  // Після раунду раунд запитання не називається: «запитання 1», а не «запитання 1 раунду 1».
+  const roundLightning = await textOf(roundFacts.locator('.fact-lightning .fact-body'));
+  expect(roundLightning).toMatch(/запитання \d+$/);
+  expect(roundLightning).not.toContain('раунду');
   await stage.locator('.round-best').waitFor();
   await afterSplash(stage);
   await expectStageInView(stage, 'p12d-stage-round1');
@@ -14175,7 +14179,8 @@ async function stats12d() {
   const olyaRound = olya.locator('section.round-card');
   await olyaRound.getByRole('heading', { name: 'Твій раунд', ...exact }).waitFor();
   expect(await textOf(olyaRound.locator('p'))).toMatch(
-    /^правильно 1 з 3 · середній час \d+,\d\u00a0с · найшвидша \d+,\d\u00a0с · серія зараз 0 · місце: 4 · тебе обдурили 1 раз$/,
+    // Перший раунд: місця «до» немає (саме місце вже над карткою), серія 0 — без частини.
+    /^правильно 1 з 3 · середній час \d+,\d\u00a0с · найшвидша \d+,\d\u00a0с · тебе обдурили 1 раз$/,
   );
   const olyaCards = olya.locator('section.fact-cards');
   await olyaCards.getByRole('heading', { name: 'Цікавинки раунду', ...exact }).waitFor();
@@ -14235,7 +14240,7 @@ async function stats12d() {
   expect(await host.evaluate(HEADER_ONE_LINE), 'the host header wraps on the podium').toBe(true);
   await expectNoSideScroll(host, 'p12d-host-awards');
   await shot(host, 'p12d-host-awards');
-  const awardTitle = stage.locator('.stage-board.is-award[aria-live="polite"] .award-title');
+  const awardTitle = stage.locator('.awards-live[aria-live="polite"] .stage-board.is-award .award-title');
   await click(host, 'Нагороди на сцені');
   await expect.poll(() => textOf(awardTitle), POLL).toBe('⚡ Блискавка');
   expect(await textOf(stage.locator('.is-award .meta'))).toBe(`Нагороди гри · 1 з ${awardTitles.length}`);
@@ -14260,11 +14265,12 @@ async function stats12d() {
 
   const gameCard = olya.locator('section.game-card');
   await gameCard.getByRole('heading', { name: 'Твоя гра', ...exact }).waitFor();
-  expect(await textOf(gameCard.locator('.lead'))).toBe('4-е місце');
+  // Місце стоїть над карткою, у самій картці його немає.
+  expect(await gameCard.locator('.lead').count()).toBe(0);
   expect(await gameCard.locator('.round-bars[role="img"] .round-bar').count()).toBe(3);
   const gameLines = (await gameCard.locator('li').allTextContents()).map((line) => line.trim());
   expect(gameLines).toContain('Точність: 40\u00a0% (2 з 5)');
-  expect(gameLines).toContain('Блеф: твої вигадки обдурили 0 · тебе обдурили 1');
+  expect(gameLines).toContain('Блеф: тебе обдурили 1 раз');
   await expectNoSideScroll(olya, 'p12d-phone-game');
   await shot(olya, 'p12d-phone-game');
 
@@ -14296,9 +14302,9 @@ async function stats12d() {
   await host.getByRole('heading', { name: 'Нагороди гри', ...exact }).waitFor();
   expect(await host.locator('.fact-card .fact-title').allTextContents()).toEqual(awardTitles);
   await host.getByRole('heading', { name: 'Учасники', ...exact }).waitFor();
-  const table = host.locator('.fact-table-wrap .fact-table');
+  const table = host.getByRole('table', { name: 'Учасники', ...exact });
   expect((await table.locator('thead th').allTextContents()).map((text) => text.trim())).toEqual(['Учасник', 'Точність', 'Середній час', 'Найкраща серія']);
-  const iraCells = (await table.locator('tbody tr', { hasText: 'Іра' }).locator('td').allTextContents()).map((text) => text.trim());
+  const iraCells = (await table.locator('tbody tr', { hasText: 'Іра' }).locator('th, td').allTextContents()).map((text) => text.trim());
   expect(iraCells).toHaveLength(4);
   expect(iraCells[0]).toBe('Іра');
   expect(iraCells[1]).toBe('80\u00a0% (4 з 5)');

@@ -1,4 +1,4 @@
-import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard } from '@quiz/shared';
+import { factPercent, type FactCard, type GameCard, type OwnRevealFact, type RevealFacts, type RoundCard } from '@quiz/shared';
 import { num, secondsText } from './format';
 import { countText, t, type TextKey } from './i18n';
 
@@ -20,24 +20,22 @@ export function ordinal(n: number, gender: 'f' | 'n'): string {
   return `${n}-${gender === 'f' ? (third ? 'я' : 'а') : third ? 'є' : 'е'}`;
 }
 
-const percentOf = (part: number, whole: number) => (whole <= 0 ? 0 : Math.round((part / whole) * 100));
-
 /** Заголовок картки: «⚡ Блискавка». */
 export function factTitle(card: FactCard): string {
   return t(`fact_${card.kind}` as TextKey);
 }
 
-/** Тіло картки; rounds — кількість раундів у грі (номер раунду в нагородах, коли їх більше одного). */
-export function factBody(card: FactCard, rounds: number): string {
+/** Тіло картки; withRound — назвати раунд запитання (нагороди гри з кількох раундів; після раунду — ні). */
+export function factBody(card: FactCard, withRound: boolean): string {
   if (card.kind === 'hardest') return t('factHardest', { text: card.question.text, accepted: card.accepted, answered: card.answered });
   const names = namesText(card.names);
   switch (card.kind) {
     case 'lightning': {
       const vars = { names, time: secondsText(card.timeMs), number: card.question.number, round: card.question.roundIndex + 1 };
-      return t(rounds > 1 ? 'factLightningRound' : 'factLightning', vars);
+      return t(withRound ? 'factLightningRound' : 'factLightning', vars);
     }
     case 'sniper': {
-      const percent = percentOf(card.correct, card.answered);
+      const percent = factPercent(card.correct, card.answered);
       return card.names.length === 1 ? t('factSniperOne', { names, percent, correct: card.correct, answered: card.answered }) : t('factSniper', { names, percent });
     }
     case 'streak':
@@ -73,26 +71,32 @@ export function ownRevealText(fact: OwnRevealFact, team = false): string {
   return t(team ? 'ownFastestPlaceTeam' : 'ownFastestPlace', { place: ordinal(fact.place, 'f') });
 }
 
-/** Частини «Твого раунду» через « · »: правильно, середній час (є), найшвидша (є), серія, місце (є), обдурили (є блеф). team — «вас». */
+/** Частини «Твого раунду» через « · »: правильно, середній час (є), найшвидша (є), серія (не нуль), місце до → після (з другого раунду), обдурили (є блеф). team — «вас». */
 export function roundCardParts(card: RoundCard, team: boolean): string[] {
   const parts = [t('roundCardCorrect', { correct: card.correct, answered: card.answered })];
   if (card.avgMs !== null) parts.push(t('roundCardAvg', { time: secondsText(card.avgMs) }));
   if (card.fastestMs !== null) parts.push(t('roundCardFastest', { time: secondsText(card.fastestMs) }));
-  parts.push(t('roundCardStreak', { count: card.streak }));
-  if (card.place !== null) parts.push(card.place.before === null ? t('roundCardPlaceNow', { now: card.place.now }) : t('roundCardPlace', { before: card.place.before, now: card.place.now }));
+  if (card.streak > 0) parts.push(t('roundCardStreak', { count: card.streak }));
+  // Саме місце вже є над карткою («Ваше місце: N з M»): тут лише зміна за раунд.
+  if (card.place !== null && card.place.before !== null) parts.push(t('roundCardPlace', { before: card.place.before, now: card.place.now }));
   if (card.fooledBy !== null) parts.push(countText(team ? 'roundCardFooledTeam' : 'roundCardFooled', card.fooledBy, { count: card.fooledBy }));
   return parts;
 }
 
-/** Рядки «Твоєї гри» без стовпчиків: точність, серія, найшвидша (є), бафи, дебафи, блеф (є). */
+/** Рядки «Твоєї гри» без стовпчиків: точність, серія, найшвидша (є); бафи, дебафи й блеф — лише не нульові. */
 export function gameCardLines(card: GameCard, team: boolean): string[] {
   const lines = [
-    card.answered === 0 ? t('gameCardAccuracyNone') : t('gameCardAccuracy', { percent: percentOf(card.correct, card.answered), correct: card.correct, answered: card.answered }),
+    card.answered === 0 ? t('gameCardAccuracyNone') : t('gameCardAccuracy', { percent: factPercent(card.correct, card.answered), correct: card.correct, answered: card.answered }),
     t('gameCardStreak', { count: card.bestStreak }),
   ];
   if (card.fastestMs !== null) lines.push(t('gameCardFastest', { time: secondsText(card.fastestMs) }));
-  lines.push(t('gameCardBuffs', { count: card.buffs }));
-  lines.push(t(team ? 'gameCardDebuffsTeam' : 'gameCardDebuffs', { sent: card.debuffs.sent, got: card.debuffs.got }));
-  if (card.bluff !== null) lines.push(t(team ? 'gameCardBluffTeam' : 'gameCardBluff', { fooled: card.bluff.fooled, by: card.bluff.fooledBy }));
+  if (card.buffs > 0) lines.push(t('gameCardBuffs', { count: card.buffs }));
+  if (card.debuffs.sent + card.debuffs.got > 0) lines.push(t(team ? 'gameCardDebuffsTeam' : 'gameCardDebuffs', { sent: card.debuffs.sent, got: card.debuffs.got }));
+  if (card.bluff !== null) {
+    const parts: string[] = [];
+    if (card.bluff.fooled > 0) parts.push(countText(team ? 'gameCardBluffFooledTeam' : 'gameCardBluffFooled', card.bluff.fooled, { count: card.bluff.fooled }));
+    if (card.bluff.fooledBy > 0) parts.push(countText(team ? 'roundCardFooledTeam' : 'roundCardFooled', card.bluff.fooledBy, { count: card.bluff.fooledBy }));
+    if (parts.length > 0) lines.push(t('gameCardBluff', { parts: parts.join(' · ') }));
+  }
   return lines;
 }

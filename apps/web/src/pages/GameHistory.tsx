@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { cloudKey, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
+import { cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, secondsText, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
@@ -299,31 +299,34 @@ export function GameHistory() {
         </section>
       )}
 
-      {game.facts.awards.length > 0 && (
+      {(game.facts?.awards.length ?? 0) > 0 && (
         <section className="panel">
           <h2>{t('historyFactsTitle')}</h2>
-          <FactCards cards={game.facts.awards} rounds={game.rounds.length} />
+          <FactCards cards={game.facts.awards} withRound={game.rounds.length > 1} />
         </section>
       )}
 
-      {game.facts.table.length > 0 && (
+      {(game.facts?.table.length ?? 0) > 0 && (
         <section className="panel">
-          <h2>{t('historyFactTableTitle')}</h2>
-          <div className="fact-table-wrap">
-            <table className="fact-table">
+          <h2 id="history-fact-table">{t('historyFactTableTitle')}</h2>
+          {/* Широка таблиця прокручується вбік: область із фокусом, щоб її можна було гортати з клавіатури. */}
+          <div className="fact-table-wrap" role="region" aria-labelledby="history-fact-table" tabIndex={0}>
+            <table className="fact-table" aria-labelledby="history-fact-table">
               <thead>
                 <tr>
-                  <th>{t('scoreName')}</th>
-                  <th>{t('historyFactAccuracy')}</th>
-                  <th>{t('historyFactAvg')}</th>
-                  <th>{t('historyFactStreak')}</th>
+                  <th scope="col">{t('scoreName')}</th>
+                  <th scope="col">{t('historyFactAccuracy')}</th>
+                  <th scope="col">{t('historyFactAvg')}</th>
+                  <th scope="col">{t('historyFactStreak')}</th>
                 </tr>
               </thead>
               <tbody>
                 {game.facts.table.map((row) => (
                   <tr key={row.playerId}>
-                    <td className="name">{row.nickname}</td>
-                    <td>{row.answered === 0 ? t('historyFactNone') : t('historyFactAccuracyValue', { percent: Math.round((row.correct / row.answered) * 100), correct: row.correct, answered: row.answered })}</td>
+                    <th scope="row" className="name">
+                      {row.nickname}
+                    </th>
+                    <td>{row.answered === 0 ? t('historyFactNone') : t('historyFactAccuracyValue', { percent: factPercent(row.correct, row.answered), correct: row.correct, answered: row.answered })}</td>
                     <td>{row.avgMs === null ? t('historyFactNone') : t('historyFactAvgValue', { time: secondsText(row.avgMs) })}</td>
                     <td>{row.bestStreak}</td>
                   </tr>

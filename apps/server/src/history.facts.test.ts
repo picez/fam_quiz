@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { defaultTeams, factTable, gameAwards } from '@quiz/shared';
 import { factInput } from '@quiz/engine';
-import { blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
-import { hostGame } from './history';
+import { hostGame, hostGameWithFacts } from './history';
 import type { Db } from './db/client';
 import { answer, game, user } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -42,7 +42,7 @@ describe('history facts (12d)', () => {
     const [account] = await localDb.select().from(user).where(eq(user.email, host.email));
     const quiz = makeRoundsQuiz(
       [
-        classicRound('r1', [single, bluff], { speedBonus: false }),
+        classicRound('r1', [single, poll, bluff], { speedBonus: false }),
         blitzRound('b1', [withId(single, 'bq')], { attempts: 2, check: 'manual' }),
         finalRound('f', withId(single, 'fq')),
       ],
@@ -53,11 +53,11 @@ describe('history facts (12d)', () => {
     const room = local.manager.get(created.code);
     if (room === undefined) throw new Error('room missing');
     const ids: Record<string, string> = {};
-    for (const name of ['Оля', 'Петро', 'Віра']) {
+    for (const name of ['Оля', 'Петро', 'Віра', 'Марко']) {
       ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name })).json() as { playerId: string }).playerId;
       local.manager.connect(room, { role: 'player', playerId: ids[name] });
     }
-    const { Оля: olya, Петро: petro, Віра: vira } = ids;
+    const { Оля: olya, Петро: petro, Віра: vira, Марко: marko } = ids;
     const host$ = (type: 'start' | 'next' | 'lock' | 'bluff-all') => local.manager.host(room, { type });
     const right = { type: 'single', optionId: 'b' } as const;
     const wrong = { type: 'single', optionId: 'a' } as const;
@@ -75,7 +75,10 @@ describe('history facts (12d)', () => {
         for (const [id, amount] of [[olya, 200], [petro, 100], [vira, 50]] as const) local.manager.wager(room, id, amount);
       } else if (phase === 'question' && !done.has(questionIndex)) {
         done.add(questionIndex);
-        if (play.question.type === 'bluff') {
+        if (play.question.type === 'poll') {
+          // Голоси опитування — не відповіді.
+          for (const id of [olya, petro, vira]) local.manager.answer(room, id, { type: 'poll', optionId: 'a' });
+        } else if (play.question.type === 'bluff') {
           expect(local.manager.lie(room, olya, 'Рим')).toEqual({ ok: true });
           expect(local.manager.lie(room, petro, 'Мілан')).toEqual({ ok: true });
           expect(local.manager.lie(room, vira, 'Париж')).toEqual({ ok: true });
@@ -98,8 +101,12 @@ describe('history facts (12d)', () => {
           local.manager.answer(room, olya, right);
           local.manager.answer(room, petro, wrong);
           local.manager.answer(room, vira, right);
+          // Марко відповідає на перше запитання найшвидше, а потім його вилучають.
+          if (questionIndex === 0) local.manager.answer(room, marko, right);
         }
         if (room.state.phase === 'question') host$('lock');
+      } else if (phase === 'reveal' && questionIndex === 0 && room.state.players.some((p) => p.id === marko)) {
+        expect(local.manager.host(room, { type: 'kick', playerId: marko })).toEqual({ ok: true });
       } else if (phase === 'reveal' && play.question.type === 'bluff') {
         host$('bluff-all');
         host$('next');
@@ -108,8 +115,17 @@ describe('history facts (12d)', () => {
     expect(room.state.phase).toBe('finished');
     await local.recorder.idle();
 
-    const detail = await hostGame(localDb, account.id, created.gameId);
+    const found = await hostGameWithFacts(localDb, account.id, created.gameId);
+    const detail = found?.detail;
     const live = factInput(room.state);
+    expect(live.players.map((p) => p.id)).not.toContain(marko);
+    expect(live.questions.some((q) => !q.scored)).toBe(true);
+    // Вхід з бази той самий, що в рушія: учасники, запитання, рядки (порядок рядків — не дані), дебафи.
+    const byKey = (rows: typeof live.rows) => [...rows].sort((a, b) => a.questionIndex - b.questionIndex || a.playerId.localeCompare(b.playerId) || a.attempt - b.attempt);
+    expect(found?.factInput.players).toEqual(live.players);
+    expect(found?.factInput.questions).toEqual(live.questions);
+    expect(byKey(found?.factInput.rows ?? [])).toEqual(byKey(live.rows));
+    expect(found?.factInput.debuffs).toEqual(live.debuffs);
     // Перевірка, що гра справді дала рядки всіх видів.
     expect(live.rows.some((r) => r.attempt === 1)).toBe(true);
     expect(live.rows.some((r) => r.bluff !== null)).toBe(true);

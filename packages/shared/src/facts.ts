@@ -130,7 +130,6 @@ export interface RoundCard {
 
 /** «Твоя гра» (12d); 12e/12f додадуть «відволікався» й апеляції. */
 export interface GameCard {
-  rank: number | null;
   /** Бали за раундами (стовпчики). */
   rounds: number[];
   correct: number;
@@ -320,8 +319,9 @@ function bestStreak(input: FactInput, playerId: string, scope: Scope): number {
   return scope === null ? own.best : (own.end.get(scope) ?? 0);
 }
 
+/** Чи був блеф у межах — лише за запитаннями: рядок блефу без запитання (зіпсований знімок) блефу не додає. */
 function hasBluff(input: FactInput, scope: Scope): boolean {
-  return input.questions.some((q) => q.bluff && inScope(q, scope)) || scopedAnswers(input, scope).some((a) => a.bluff !== null);
+  return input.questions.some((q) => q.bluff && inScope(q, scope));
 }
 
 /** Запитання для «Самотнього генія» й «Найважчого»: з балами, без поля й бліцу. */
@@ -377,7 +377,11 @@ const streak: CardFn = (scope, input) => {
   return best && best.value >= FACT_LIMITS.streak ? { kind: 'streak', names: best.names, length: best.value } : null;
 };
 
-/** Місце за балами раундів 0…count−1, спільне за рівних. */
+/**
+ * Місце за балами раундів 0…count−1, спільне за рівних.
+ * Це місце за сумою балів (рівні — спільне місце), а rank гравця — місце таблиці (rankPlayers: рівні бали ділить час).
+ * Тож «до» в «Твоєму раунді» й «з» у камбеку — за сумою, «зараз» і «на» — за таблицею; за рівних балів вони можуть різнитися на кілька місць.
+ */
 function placeAfter(input: FactInput, playerId: string, count: number): number {
   const sum = (rounds: number[]) => rounds.slice(0, count).reduce((s, n) => s + n, 0);
   const mine = sum(derived(input).players.get(playerId)?.rounds ?? []);
@@ -492,9 +496,18 @@ export function revealFacts(input: FactInput, questionIndex: number): RevealFact
   return { accepted: main.filter((a) => a.accepted).length, answered: main.length, fastest, bluff };
 }
 
-/** Рядок розкриття на телефоні: місце своєї прийнятої відповіді з часом або частка правильних; null — рядка розкриття немає. */
-export function ownRevealFact(input: FactInput, questionIndex: number, playerId: string): OwnRevealFact | null {
-  const facts = revealFacts(input, questionIndex);
+/** Відсоток part із whole цілим числом; не всі й не жоден — ніколи не 100 % і не 0 % від округлення. */
+export function factPercent(part: number, whole: number): number {
+  if (whole <= 0) return 0;
+  const percent = Math.round((part / whole) * 100);
+  return part > 0 && part < whole ? Math.min(99, Math.max(1, percent)) : percent;
+}
+
+/**
+ * Рядок розкриття на телефоні: місце своєї прийнятої відповіді з часом або частка правильних; null — рядка розкриття немає.
+ * facts — уже пораховане revealFacts того самого запитання (рушій передає спільне, щоб не рахувати на кожен телефон).
+ */
+export function ownRevealFact(input: FactInput, questionIndex: number, playerId: string, facts: RevealFacts | null = revealFacts(input, questionIndex)): OwnRevealFact | null {
   if (facts === null) return null;
   const q = derived(input).questions.get(questionIndex)!;
   const main = mainAnswers(input, q);
@@ -502,7 +515,7 @@ export function ownRevealFact(input: FactInput, questionIndex: number, playerId:
   if (own && own.accepted && q.limitMs !== null) {
     return { kind: 'fastest', place: 1 + main.filter((a) => a.accepted && a.timeMs < own.timeMs).length };
   }
-  return { kind: 'share', percent: Math.round((facts.accepted / facts.answered) * 100) };
+  return { kind: 'share', percent: factPercent(facts.accepted, facts.answered) };
 }
 
 /** Цікавинки раунду: перші FACT_LIMITS.roundCards за ROUND_FACT_ORDER; менше двох учасників — жодної. */
@@ -556,7 +569,6 @@ export function gameCard(input: FactInput, playerId: string): GameCard | null {
   if (!player) return null;
   const t = tally(input, playerId, null);
   return {
-    rank: player.rank,
     rounds: player.rounds,
     correct: t.correct,
     answered: t.answered,

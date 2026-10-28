@@ -11024,11 +11024,17 @@ button.wall-tile:disabled {
   min-width: 0;
 }
 
+/* Колонка таблиці вужча: довге ім'я — в один рядок із трикрапкою, рядки не ростуть. */
+.stage .stage-board.has-facts .standings .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* aside.round-facts — не рядок «факти раунду» з RoundBriefing (p.round-facts): свій шрифт і колір. */
 .stage-board aside.round-facts {
   min-width: 0;
-  max-height: calc(100vh - 8vh);
-  overflow: hidden;
   color: var(--paper);
   font-family: inherit;
   font-size: inherit;
@@ -11199,6 +11205,7 @@ button.wall-tile:disabled {
 }
 
 .fact-table {
+  width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
@@ -11209,6 +11216,10 @@ button.wall-tile:disabled {
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
   text-align: right;
+}
+
+.fact-table th {
+  font-weight: 600;
 }
 
 .fact-table th:first-child,

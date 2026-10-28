@@ -21,7 +21,6 @@ const SAMPLES: Record<FactCard['kind'], FactCard> = {
 
 const round: RoundCard = { correct: 4, answered: 6, avgMs: 5300, fastestMs: 2000, streak: 3, place: { before: 5, now: 3 }, fooledBy: 1 };
 const game: GameCard = {
-  rank: 2,
   rounds: [300, -100, 500],
   correct: 9,
   answered: 12,
@@ -36,15 +35,15 @@ describe('fact texts', () => {
   it('every kind has a title and a body', () => {
     for (const kind of FACT_KINDS) {
       expect(factTitle(SAMPLES[kind]), kind).toMatch(/\S/);
-      expect(factBody(SAMPLES[kind], 1), kind).toMatch(/\S/);
+      expect(factBody(SAMPLES[kind], false), kind).toMatch(/\S/);
     }
     expect(factTitle(SAMPLES.lightning)).toBe('⚡ Блискавка');
     expect(factTitle(SAMPLES.hardest)).toBe('🧗 Найважче запитання');
   });
 
-  it('lightning names the round only when the game has several', () => {
-    expect(factBody(SAMPLES.lightning, 1)).toBe(S('Оля — 2,1 с, запитання 3'));
-    expect(factBody(SAMPLES.lightning, 3)).toBe(S('Оля — 2,1 с, запитання 3 раунду 2'));
+  it('lightning names the round only when asked (awards of a game with several rounds)', () => {
+    expect(factBody(SAMPLES.lightning, false)).toBe(S('Оля — 2,1 с, запитання 3'));
+    expect(factBody(SAMPLES.lightning, true)).toBe(S('Оля — 2,1 с, запитання 3 раунду 2'));
   });
 
   it('names: one, two with «й / і», three and more with commas', () => {
@@ -58,29 +57,30 @@ describe('fact texts', () => {
   });
 
   it('sniper: a tie has no «(N з M)»', () => {
-    expect(factBody(SAMPLES.sniper, 1)).toBe(S('Оля — 80 % (4 з 5)'));
-    expect(factBody({ kind: 'sniper', names: ['Оля', 'Петро'], correct: 3, answered: 3 }, 1)).toBe(S('Оля й Петро — 100 %'));
+    expect(factBody(SAMPLES.sniper, false)).toBe(S('Оля — 80 % (4 з 5)'));
+    expect(factBody({ kind: 'sniper', names: ['Оля', 'Петро'], correct: 3, answered: 3 }, false)).toBe(S('Оля й Петро — 100 %'));
+    expect(factBody({ kind: 'sniper', names: ['Оля'], correct: 199, answered: 200 }, false)).toBe(S('Оля — 99 % (199 з 200)'));
   });
 
   it('agrees nouns with numbers', () => {
-    const bluffer = (fooled: number) => factBody({ kind: 'bluffer', names: ['Петро'], fooled }, 1);
+    const bluffer = (fooled: number) => factBody({ kind: 'bluffer', names: ['Петро'], fooled }, false);
     expect([bluffer(1), bluffer(3), bluffer(5)]).toEqual(['Петро — 1 обдурений', 'Петро — 3 обдурених', 'Петро — 5 обдурених']);
-    const nerves = (count: number) => factBody({ kind: 'nerves', names: ['Оля'], count }, 1);
+    const nerves = (count: number) => factBody({ kind: 'nerves', names: ['Оля'], count }, false);
     expect([nerves(1), nerves(2), nerves(5)]).toEqual(['Оля — 1 правильна в останні 3 с', 'Оля — 2 правильні в останні 3 с', 'Оля — 5 правильних в останні 3 с'].map(S));
-    const gullible = (picks: number) => factBody({ kind: 'gullible', names: ['Тарас'], picks }, 1);
+    const gullible = (picks: number) => factBody({ kind: 'gullible', names: ['Тарас'], picks }, false);
     expect([gullible(2), gullible(5), gullible(21)]).toEqual(['Тарас — 2 голоси за вигадки', 'Тарас — 5 голосів за вигадки', 'Тарас — 21 голос за вигадки']);
-    const buffs = (count: number) => factBody({ kind: 'risk', names: ['Іра'], wager: null, buffs: count }, 1);
+    const buffs = (count: number) => factBody({ kind: 'risk', names: ['Іра'], wager: null, buffs: count }, false);
     expect([buffs(1), buffs(3), buffs(5)]).toEqual(['Іра — 1 баф', 'Іра — 3 бафи', 'Іра — 5 бафів']);
   });
 
   it('the other bodies', () => {
-    expect(factBody(SAMPLES.streak, 1)).toBe('Петро — 4 поспіль');
-    expect(factBody(SAMPLES.comeback, 1)).toBe('Іра — з 5-го на 1-е місце');
-    expect(factBody({ kind: 'comeback', names: ['Іра'], from: 7, to: 3 }, 1)).toBe('Іра — з 7-го на 3-є місце');
-    expect(factBody(SAMPLES.risk, 1)).toBe('Іра — ставка 500');
-    expect(factBody(SAMPLES.genius, 1)).toBe('Оля — єдина правильна відповідь на запитання 3');
-    expect(factBody({ kind: 'genius', names: ['Оля'], count: 3, question: null }, 1)).toBe('Оля — 3 рази єдина правильна відповідь');
-    expect(factBody(SAMPLES.hardest, 1)).toBe('«Яка річка найдовша в Україні?» — правильно 1 з 6');
+    expect(factBody(SAMPLES.streak, false)).toBe('Петро — 4 поспіль');
+    expect(factBody(SAMPLES.comeback, false)).toBe('Іра — з 5-го на 1-е місце');
+    expect(factBody({ kind: 'comeback', names: ['Іра'], from: 7, to: 3 }, false)).toBe('Іра — з 7-го на 3-є місце');
+    expect(factBody(SAMPLES.risk, false)).toBe('Іра — ставка 500');
+    expect(factBody(SAMPLES.genius, false)).toBe('Оля — єдина правильна відповідь на запитання 3');
+    expect(factBody({ kind: 'genius', names: ['Оля'], count: 3, question: null }, false)).toBe('Оля — 3 рази єдина правильна відповідь');
+    expect(factBody(SAMPLES.hardest, false)).toBe('«Яка річка найдовша в Україні?» — правильно 1 з 6');
   });
 
   it('the reveal line', () => {
@@ -104,7 +104,9 @@ describe('fact texts', () => {
 
   it('round card parts', () => {
     expect(roundCardParts(round, false)).toEqual(['правильно 4 з 6', 'середній час 5,3 с', 'найшвидша 2,0 с', 'серія зараз 3', 'місце: 5 → 3', 'тебе обдурили 1 раз'].map(S));
-    expect(roundCardParts({ ...round, avgMs: null, fastestMs: null, place: { before: null, now: 3 }, fooledBy: null }, false)).toEqual(['правильно 4 з 6', 'серія зараз 3', 'місце: 3']);
+    // Перший раунд: самого місця немає (воно вже над карткою); серія 0 — без частини.
+    expect(roundCardParts({ ...round, avgMs: null, fastestMs: null, place: { before: null, now: 3 }, fooledBy: null }, false)).toEqual(['правильно 4 з 6', 'серія зараз 3']);
+    expect(roundCardParts({ ...round, streak: 0, place: null, fooledBy: null }, false)).toEqual(['правильно 4 з 6', 'середній час 5,3 с', 'найшвидша 2,0 с'].map(S));
     expect(roundCardParts({ ...round, place: null, fooledBy: 3 }, false).at(-1)).toBe('тебе обдурили 3 рази');
     expect(roundCardParts(round, true).at(-1)).toBe('вас обдурили 1 раз');
     expect(roundCardParts({ ...round, fooledBy: 0 }, true).at(-1)).toBe('вас обдурили 0 разів');
@@ -123,12 +125,19 @@ describe('fact texts', () => {
       'Найшвидша відповідь: 1,8 с',
       'Бафи: 2',
       'Дебафи: від тебе 1 · на тобі 3',
-      'Блеф: твої вигадки обдурили 2 · тебе обдурили 1',
+      'Блеф: на твої вигадки повелися 2 рази · тебе обдурили 1 раз',
       ].map(S),
     );
     expect(gameCardLines({ ...game, fastestMs: null, bluff: null }, true)).toEqual(['Точність: 75 % (9 з 12)', 'Найкраща серія: 4', 'Бафи: 2', 'Дебафи: від вас 1 · на вас 3'].map(S));
     expect(gameCardLines({ ...game, bluff: null }, true).some((line) => line.startsWith('Блеф'))).toBe(false);
-    expect(gameCardLines({ ...game, bluff: { fooled: 0, fooledBy: 2 } }, true).at(-1)).toBe('Блеф: ваші вигадки обдурили 0 · вас обдурили 2');
+    expect(gameCardLines({ ...game, bluff: { fooled: 0, fooledBy: 2 } }, true).at(-1)).toBe('Блеф: вас обдурили 2 рази');
+    expect(gameCardLines({ ...game, bluff: { fooled: 5, fooledBy: 0 } }, true).at(-1)).toBe('Блеф: на ваші вигадки повелися 5 разів');
+    expect(gameCardLines({ ...game, bluff: { fooled: 1, fooledBy: 0 } }, false).at(-1)).toBe('Блеф: на твої вигадки повелися 1 раз');
+    // Нулі не показуються: бафи 0, дебафи 0 і 0, блеф 0 і 0.
+    const quiet = gameCardLines({ ...game, buffs: 0, debuffs: { sent: 0, got: 0 }, bluff: { fooled: 0, fooledBy: 0 } }, false);
+    expect(quiet.some((line) => line.startsWith('Бафи') || line.startsWith('Дебафи') || line.startsWith('Блеф'))).toBe(false);
+    // Одна частина дебафів не нуль — рядок з обома.
+    expect(gameCardLines({ ...game, debuffs: { sent: 0, got: 2 } }, false)).toContain('Дебафи: від тебе 0 · на тобі 2');
     expect(gameCardLines({ ...game, correct: 0, answered: 0 }, false)[0]).toBe('Точність: відповідей не було');
   });
 });

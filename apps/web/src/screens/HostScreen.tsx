@@ -1157,7 +1157,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel">
           <h2>{t('roundResults', { index: round.index + 1 })}</h2>
           <Standings standings={view.standings} streaks={streaksOf(view.players)} teams={view.teams} />
-          {view.facts?.round != null && <FactCards cards={view.facts.round} rounds={round.total} title={t('roundFactsTitle')} />}
+          {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
           {view.roundQuestions !== null && view.roundQuestions.length > 0 && (
             <ol className="round-shares" aria-label={t('roundSharesLabel')}>
               {view.roundQuestions.map((q) => (
@@ -1177,7 +1177,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel">
           <h2>{t('gameOver')}</h2>
           <Standings standings={view.standings} teams={view.teams} />
-          {view.facts?.awards != null && <FactCards cards={view.facts.awards} rounds={round?.total ?? 1} title={t('awardsTitle')} />}
+          {view.facts?.awards != null && <FactCards cards={view.facts.awards} withRound={(round?.total ?? 1) > 1} title={t('awardsTitle')} />}
           {(view.facts?.awards?.length ?? 0) > 0 && (
             <>
               <button type="button" className="btn awards-show" disabled={!stageOnline || awardsGuard.busy} onClick={() => void showAwards()}>
