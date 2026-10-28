@@ -249,6 +249,11 @@ export function attachSockets(
         .forEach((socket) => socket.emit('audio', { action: event.action, seq: event.seq }));
       return;
     }
+    if (event.type === 'awards') {
+      // Карусель нагород живе на сцені: телефони й пульт дотику не отримують.
+      members.filter((socket) => socket.data.identity.role === 'stage').forEach((socket) => socket.emit('awards', { seq: event.seq }));
+      return;
+    }
     if (event.type === 'moved') {
       dropDrafts(room);
       // Кімнату веде інший процес: перепідключитися з тим самим токеном.
@@ -610,6 +615,11 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = audioCommandSchema.safeParse(payloadOf(args));
       return payload.success ? (isHost ? manager.audio(room, payload.data.action) : NOT_ALLOWED) : INVALID;
+    });
+
+    on('host:awards', () => {
+      if (!hostSide) return FORBIDDEN;
+      return isHost ? manager.awards(room) : NOT_ALLOWED;
     });
 
     on('host:time', (args) => {
