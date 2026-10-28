@@ -20,6 +20,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   role: 'stage',
   autopilot: false,
   facts: null,
+  appeal: null,
   phase: 'lobby',
   paused: false,
   blitz: null,

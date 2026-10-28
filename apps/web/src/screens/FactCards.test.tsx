@@ -23,6 +23,7 @@ const game: GameCard = {
   debuffs: { sent: 1, got: 3 },
   bluff: null,
   away: 0,
+  appeals: { won: 0, lost: 0 },
 };
 
 describe('FactCards', () => {

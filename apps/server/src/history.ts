@@ -211,6 +211,7 @@ function factInputOf(
       .filter((a) => (a.attempt >= 0 || a.attempt === PENALTY_ATTEMPT || a.attempt === AWAY_ATTEMPT) && ids.has(a.participantId) && a.awayMs !== null && a.awayMs >= AWAY_MS.mark)
       .map((a) => ({ playerId: a.participantId, questionIndex: a.questionIndex }))
       .filter((a, i, all) => all.findIndex((b) => b.playerId === a.playerId && b.questionIndex === a.questionIndex) === i),
+    appeals: [],
   };
 }
 
@@ -230,7 +231,7 @@ function responsesOf(
       // Штрафний рядок бліц-клітинки не є відповіддю.
       .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
       .sort((a, b) => a.attempt - b.attempt)
-      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null, awayMs: a.awayMs ?? null })),
+      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null, awayMs: a.awayMs ?? null, appeal: null })),
   );
 }
 

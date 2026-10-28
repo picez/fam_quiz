@@ -87,7 +87,7 @@ export function factInput(state: GameState): FactInput {
     rounds: row.rounds ?? [],
   }));
   const debuffs = state.adjustments.filter((a) => a.source === 'debuff').map((a) => ({ by: a.playerId, target: a.target ?? null }));
-  const input = { players, questions, rows, debuffs, away: awayFacts(state, closedCount) };
+  const input = { players, questions, rows, debuffs, away: awayFacts(state, closedCount), appeals: [] };
   inputCache.set(state, input);
   return input;
 }

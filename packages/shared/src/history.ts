@@ -1,5 +1,6 @@
 import type { Answer } from './answer';
 import type { ScoreBreakdown } from './breakdown';
+import type { AppealOutcome, AppealReason } from './appeal';
 import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
 import type { FactCard, FactTableRow } from './facts';
 import type { LadderOutcomeKind } from './ladder';
@@ -54,6 +55,17 @@ export interface GameResponse {
   spare: Question | null;
   /** Вихід із гри на цьому запитанні від AWAY_MS.mark, мс (12e); null — позначки немає чи стара гра. */
   awayMs: number | null;
+  /** Апеляція учасника до цього запитання (12f), на першому рядку його відповіді; null — не було чи стара гра. */
+  appeal: GameAppeal | null;
+}
+
+/** Апеляція до відповіді в історії (12f). */
+export interface GameAppeal {
+  reason: AppealReason;
+  yes: number;
+  no: number;
+  /** Без cancelled: таку історія не показує. */
+  outcome: Exclude<AppealOutcome, 'cancelled'>;
 }
 
 export interface GameQuestionResult {

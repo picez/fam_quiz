@@ -1,4 +1,5 @@
 import type { Answer } from './answer';
+import type { AppealOutcome, AppealReason } from './appeal';
 import type { AwayMark, OwnAway } from './away';
 import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
@@ -725,8 +726,8 @@ export interface UndoQuestion {
 }
 
 export interface UndoRow {
-  /** away — штраф за вихід, ціль { seq }. */
-  kind: 'answer' | 'host' | 'away';
+  /** away — штраф за вихід, ціль { seq }; appeal — рішення залу, ціль { seq }. */
+  kind: 'answer' | 'host' | 'away' | 'appeal';
   playerId: string;
   nickname: string;
   /** Бали рядка, як їх нараховано (без скасування). */
@@ -1118,6 +1119,47 @@ interface BaseView {
   autopilot: boolean;
   /** Цікавинки (12d): на reveal, round_end і finished; інакше null. Сцена, телефони й пульт — однакові. */
   facts: GameFacts | null;
+  /** Апеляція (12f): остання на поточному запитанні на етапі reveal (відкрита чи з рішенням); інакше null. Лише лічильники, без імен голосів. */
+  appeal: AppealView | null;
+}
+
+/** Апеляція на сцені, пульті й телефонах (12f): лічильники без імен голосів. */
+export interface AppealView {
+  /** Номер апеляції в грі, від 1. */
+  id: number;
+  /** Той, хто оскаржує: гравець чи команда. */
+  by: BlitzPlayer;
+  reason: AppealReason;
+  /** grade — відповідь запису; away — null. */
+  answer: Answer | null;
+  /** Запитання з правильною відповіддю (запасне — своє). */
+  question: Question;
+  /** Відкрита — скільки дасть «так» (grade: бали як «правильно» мінус бали запису; away: бали, які зніме штраф); з рішенням «так» — що дала; інакше 0. */
+  points: number;
+  /** Кінець голосування, мс; відкрита й не на паузі, інакше null. */
+  endsAt: number | null;
+  /** Залишок на паузі, мс; відкрита на паузі, інакше null. */
+  remainingMs: number | null;
+  yes: number;
+  no: number;
+  /** Відкрита: присутні виборці без голосу; закрита — 0. */
+  waiting: number;
+  /** null — голосування триває. */
+  outcome: AppealOutcome | null;
+}
+
+/** Своя апеляція на телефоні (12f): кнопки, ліміт, свій голос; людина, не команда. */
+export interface PlayerAppeal {
+  /** Скільки апеляцій лишилось: ліміт мінус раховані свого учасника. */
+  left: number;
+  /** Підстави, з якими можна оскаржити зараз (усі перевірки пройдено); [] — кнопки немає. */
+  reasons: AppealReason[];
+  /** Відповідь не зарахована, але: голосувати нікому чи оскаржує капітан. */
+  block: 'no_voters' | 'captain' | null;
+  /** Відкрита апеляція, і ця людина серед виборців. */
+  voter: boolean;
+  /** Свій голос у відкритій апеляції; null — ще не голосувала чи не виборець. */
+  vote: boolean | null;
 }
 
 /** Спільні цікавинки (12d): reveal — рядок під правильною відповіддю, round — картки на round_end, awards — нагороди на finished. */
@@ -1275,6 +1317,8 @@ export interface PlayerView extends BaseView {
     tip: Question['type'] | null;
     /** Відкрите голосування, у якому гравець може й ще не голосував; null — немає. */
     vote: VotePrompt | null;
+    /** Своя апеляція (12f) на reveal: кнопки, ліміт, свій голос; людина, не команда; інакше null. */
+    appeal: PlayerAppeal | null;
   };
   reveal: Question | null;
   standings: Standing[] | null;

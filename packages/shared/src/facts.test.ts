@@ -42,7 +42,7 @@ function row(playerId: string, questionIndex: number, accepted: boolean, timeMs:
 
 /** Штучний FactInput: типово одне запитання q(0, 0) і учасники Оля, Петро, Іра, Марко з місцями 1–4. */
 function input(rows: FactRow[], extra: Partial<FactInput> = {}): FactInput {
-  return { players: PLAYERS, questions: [q(0, 0)], rows, debuffs: [], away: [], ...extra };
+  return { players: PLAYERS, questions: [q(0, 0)], rows, debuffs: [], away: [], appeals: [], ...extra };
 }
 
 /** Картка виду з набору або null. */
@@ -380,9 +380,13 @@ describe('in-game facts (12d)', () => {
     const away = input(rows, { questions: qs, players: RISERS, away: [{ playerId: 'o', questionIndex: 0 }, { playerId: 'o', questionIndex: 0 }, { playerId: 'o', questionIndex: 2 }] });
     expect(gameCard(away, 'o')?.away).toBe(2);
     expect(gameCard(away, 'p')?.away).toBe(0);
-    expect(gameCard(plain, 'o')).toEqual({ rounds: [400, 400], correct: 3, answered: 4, bestStreak: 3, fastestMs: 2000, buffs: 2, debuffs: { sent: 1, got: 0 }, bluff: null, away: 0 });
+    expect(gameCard(plain, 'o')).toEqual({ rounds: [400, 400], correct: 3, answered: 4, bestStreak: 3, fastestMs: 2000, buffs: 2, debuffs: { sent: 1, got: 0 }, bluff: null, away: 0, appeals: { won: 0, lost: 0 } });
     expect(gameCard(plain, 'p')).toMatchObject({ debuffs: { sent: 0, got: 1 }, correct: 0, answered: 0, fastestMs: null });
     expect(gameCard(plain, 'x')).toBeNull();
+    const appealed = input(rows, { questions: qs, players: RISERS, appeals: [{ playerId: 'o', outcome: 'yes' }, { playerId: 'o', outcome: 'tie' }, { playerId: 'p', outcome: 'no' }] });
+    expect(gameCard(appealed, 'o')?.appeals).toEqual({ won: 1, lost: 1 });
+    expect(gameCard(appealed, 'p')?.appeals).toEqual({ won: 0, lost: 1 });
+    expect(gameCard(appealed, 'i')?.appeals).toEqual({ won: 0, lost: 0 });
     const bluffed = input([...rows, row('o', 4, false, 3000, { roundIndex: 1, bluff: lie(2) }), row('o', 5, false, 3000, { roundIndex: 1, bluff: lie(1) })], {
       questions: [...qs, q(4, 1, { bluff: true }), q(5, 1, { bluff: true })],
       players: RISERS,

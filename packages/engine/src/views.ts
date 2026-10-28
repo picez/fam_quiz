@@ -1639,6 +1639,7 @@ function base(state: GameState, forHost: boolean) {
   return {
     autopilot: state.autopilot !== undefined,
     facts: sharedFacts(state),
+    appeal: null,
     phase: state.phase,
     paused: state.paused,
     round: roundInfo(state),
@@ -2033,6 +2034,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
       overtime: null,
       tip: null,
       vote: null,
+      appeal: null,
     },
     reveal: null,
     standings: null,
@@ -2176,6 +2178,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       overtime: personalClock(state, playerId),
       tip: typeTip(state, playerId),
       vote: votePrompt(state, playerId),
+      appeal: null,
     },
     reveal: revealed && seen !== null ? withoutBluffSecrets(withoutSurveyRows(withoutHint(seen.question))) : null,
     standings,

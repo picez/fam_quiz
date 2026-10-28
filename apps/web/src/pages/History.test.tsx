@@ -332,8 +332,8 @@ describe('GameHistory: answers', () => {
         cell: null,
         question: matchQ,
         responses: [
-          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true, buff: null, spare: null, awayMs: null },
-          { nickname: 'Тарас', answer: null, accepted: false, buff: null, spare: null, awayMs: null },
+          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true, buff: null, spare: null, awayMs: null , appeal: null },
+          { nickname: 'Тарас', answer: null, accepted: false, buff: null, spare: null, awayMs: null , appeal: null },
         ],
         final: null,
       },
@@ -346,7 +346,7 @@ describe('GameHistory: answers', () => {
         accepted: 0,
         cell: null,
         question: singleQ,
-        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null }],
+        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null , appeal: null }],
         final: null,
       },
     ],
@@ -378,8 +378,8 @@ describe('GameHistory: answers', () => {
           ...answered.questions[1],
           answered: 2,
           responses: [
-            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: 'double', spare: null, awayMs: null },
-            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: 'double', spare: null, awayMs: null , appeal: null },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null , appeal: null },
           ],
         },
       ],
@@ -407,8 +407,8 @@ describe('GameHistory: answers', () => {
           ...answered.questions[1],
           answered: 2,
           responses: [
-            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: 4200 },
-            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: 4200 , appeal: null },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null , appeal: null },
           ],
         },
       ],
@@ -424,7 +424,7 @@ describe('GameHistory: answers', () => {
   });
 
   it('an older server without awayMs on answers and final entries shows no 🙈 and no «NaN»', async () => {
-    const { awayMs: _a, ...plain } = { nickname: 'Віра', answer: { type: 'single' as const, optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null };
+    const { awayMs: _a, ...plain } = { nickname: 'Віра', answer: { type: 'single' as const, optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null , appeal: null };
     const old = {
       ...answered,
       questions: [{ ...answered.questions[1], answered: 1, responses: [plain] }],
@@ -446,8 +446,8 @@ describe('GameHistory: answers', () => {
           ...answered.questions[1],
           answered: 2,
           responses: [
-            { nickname: 'Оля', answer: { type: 'boolean', value: true }, accepted: true, buff: 'swap', spare, awayMs: null },
-            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
+            { nickname: 'Оля', answer: { type: 'boolean', value: true }, accepted: true, buff: 'swap', spare, awayMs: null , appeal: null },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null , appeal: null },
           ],
         },
       ],
@@ -630,8 +630,8 @@ describe('GameHistory final', () => {
       final: {
         mode: 'classic' as const,
         entries: [
-          { nickname: 'Анна', answer: null, wager: 300, points: 0, accepted: true, awayMs: 7900 },
-          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false, awayMs: null },
+          { nickname: 'Анна', answer: null, wager: 300, points: 0, accepted: true, awayMs: 7900 , appeal: null },
+          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false, awayMs: null , appeal: null },
         ],
       },
     };
@@ -648,8 +648,8 @@ describe('GameHistory final', () => {
       final: {
         mode: 'classic' as const,
         entries: [
-          { nickname: 'Анна', answer: null, wager: 300, points: 300, accepted: true, awayMs: null },
-          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false, awayMs: null },
+          { nickname: 'Анна', answer: null, wager: 300, points: 300, accepted: true, awayMs: null , appeal: null },
+          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false, awayMs: null , appeal: null },
         ],
       },
     };
@@ -668,8 +668,8 @@ describe('GameHistory final', () => {
       final: {
         mode: 'bank' as const,
         entries: [
-          { nickname: 'Богдан', answer: null, wager: 400, points: 667, accepted: true, awayMs: null },
-          { nickname: 'Анна', answer: null, wager: 1000, points: -1000, accepted: false, awayMs: null },
+          { nickname: 'Богдан', answer: null, wager: 400, points: 667, accepted: true, awayMs: null , appeal: null },
+          { nickname: 'Анна', answer: null, wager: 1000, points: -1000, accepted: false, awayMs: null , appeal: null },
         ],
       },
     };
@@ -904,8 +904,8 @@ describe('GameHistory: undo', () => {
       {
         ...detail.questions[0],
         responses: [
-          { nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null },
-          { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
+          { nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null , appeal: null },
+          { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null , appeal: null },
         ],
       },
     ],

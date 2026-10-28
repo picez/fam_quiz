@@ -30,6 +30,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   role: 'host',
   autopilot: false,
   facts: null,
+  appeal: null,
   phase: 'lobby',
   paused: false,
   blitz: null,

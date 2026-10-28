@@ -34,6 +34,7 @@ const stageBase = (over: Partial<StageView> = {}): StageView => ({
   role: 'stage',
   autopilot: true,
   facts: null,
+  appeal: null,
   phase: 'lobby',
   paused: false,
   blitz: null,

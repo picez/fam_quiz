@@ -30,6 +30,7 @@ const game: GameCard = {
   debuffs: { sent: 1, got: 3 },
   bluff: { fooled: 2, fooledBy: 1 },
   away: 0,
+  appeals: { won: 0, lost: 0 },
 };
 
 describe('fact texts', () => {
