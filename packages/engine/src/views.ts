@@ -1706,7 +1706,9 @@ function teamsView(state: GameState): TeamsView | null {
   const lobby = state.phase === 'lobby';
   return {
     form,
-    teams: list.map((t) => ({ id: t.id, name: t.name, color: t.color, captainId: captainOf(state, t.id), members: teamMembers(state, t.id).map(memberView) })),
+    // Заглушка до задачі 5: поки всі відповідають капітани.
+    answerer: 'captain',
+    teams: list.map((t) => ({ id: t.id, name: t.name, color: t.color, captainId: captainOf(state, t.id), answererId: captainOf(state, t.id), members: teamMembers(state, t.id).map(memberView) })),
     unassigned: lobby ? members.filter((m) => m.teamId === null).map(memberView) : [],
     // Рядки — ті, хто кидав або чекає кидка (хто прийшов після старту кидків — поза ними).
     dice:
@@ -2067,6 +2069,12 @@ function playerTeam(state: GameState, member: TeamMember): PlayerTeam {
     teamId,
     captainId,
     captain: captainId === member.id,
+    // Заглушки до задачі 5: відповідає капітан.
+    answererId: captainId,
+    answerer: captainId === member.id,
+    answererMode: 'captain',
+    canPickAnswerer: false,
+    answererPick: null,
     canAct: teamId !== null && !lobby && canActNow(state, member.id, teamId),
     // Натиснувший — лише поки команда в черзі: після оцінки спроби його вже немає.
     buzzerId: teamId !== null && play?.blitz?.queue.some((e) => e.playerId === teamId) ? (play.buzzers?.[teamId] ?? null) : null,

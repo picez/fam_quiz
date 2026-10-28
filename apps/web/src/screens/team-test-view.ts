@@ -19,13 +19,15 @@ export const baseMe: PlayerView['me'] = { id: 'team-b', nickname: 'Сині', sc
 
 export const teamsView = (over: Partial<TeamsView> = {}): TeamsView => ({
   form: 'pick',
+  answerer: 'captain',
   teams: [
-    { id: 'team-a', name: 'Червоні', color: 0, captainId: 'u1', members: [{ id: 'u1', nickname: 'Іра', connected: true }] },
+    { id: 'team-a', name: 'Червоні', color: 0, captainId: 'u1', answererId: 'u1', members: [{ id: 'u1', nickname: 'Іра', connected: true }] },
     {
       id: 'team-b',
       name: 'Сині',
       color: 1,
       captainId: 'u2',
+      answererId: 'u2',
       members: [
         { id: 'u2', nickname: 'Оля', connected: true },
         { id: 'u3', nickname: 'Петро', connected: true },
@@ -44,6 +46,11 @@ export const playerTeam = (over: Partial<PlayerTeam> = {}): PlayerTeam => ({
   teamId: 'team-b',
   captainId: 'u2',
   captain: true,
+  answererId: 'u2',
+  answerer: true,
+  answererMode: 'captain',
+  canPickAnswerer: false,
+  answererPick: null,
   canAct: true,
   buzzerId: null,
   duelistId: null,
