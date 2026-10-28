@@ -21,3 +21,4 @@ export * from './undo';
 export * from './drafts';
 export * from './facts';
 export * from './away';
+export * from './appeal';

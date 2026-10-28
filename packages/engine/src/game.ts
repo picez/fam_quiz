@@ -6,6 +6,8 @@ import {
   type CellKind,
   type CellPenalty,
   type AdjustmentSource,
+  type AppealOutcome,
+  type AppealReason,
   type BuffKind,
   type DebuffKind,
   type DuelStage,
@@ -33,6 +35,7 @@ import {
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
+import { appealOpen, appealPassedGrade, cancelAppeal, closeAppealByHost, closeDueAppeal, dropFromAppeals, settleAppeal, shiftAppealClock } from './appeal';
 import {
   answerLimitMs,
   applyBuff,
@@ -617,6 +620,34 @@ export interface GameState {
   stepAt?: number;
   /** Гра без ведучого (11g); ключ є лише в кімнаті-автопілоті. Без нього — гра з ведучим (і стан до 11g). */
   autopilot?: AutopilotState;
+  /** Апеляції гри (12f) у порядку відкриття; немає ключа — не було жодної. Голоси (votes) у зрізи не йдуть. */
+  appeals?: Appeal[];
+}
+
+/** Апеляція гравця (12f): голосування залу за 30 с. Пояснення — план 12f, «Стан». */
+export interface Appeal {
+  /** Номер апеляції в грі, від 1 (appeals.length + 1). */
+  id: number;
+  /** Учасник рушія: соло-гравець чи команда. */
+  by: string;
+  /** Індекс оскарженого запитання в plays. */
+  questionIndex: number;
+  /** grade — оцінка відповіді; away — штраф за вихід із гри (12e). */
+  reason: AppealReason;
+  /** Мить відкриття. */
+  openedAt: number;
+  /** Кінець голосування; пауза зсуває на свою тривалість. */
+  endsAt: number;
+  /** Людина → «так» (true) чи «ні» (false); у зрізи не йде ніколи. Закрита апеляція — {}: імена виборців не зберігаються. */
+  votes: Record<string, boolean>;
+  /** Лише закрита: «так» на мить закриття (голоси тих, хто тоді був у грі). */
+  yes?: number;
+  /** Лише закрита: «ні» на мить закриття. */
+  no?: number;
+  /** Рішення; null — голосування триває. */
+  outcome: AppealOutcome | null;
+  /** seq коригування 'appeal', якщо рішення його дописало. */
+  adjustmentSeq?: number;
 }
 
 /** Гра без ведучого (11g): автор, наступний крок, пауза. Пояснення полів — у плані 11g, «Стан». */
@@ -741,6 +772,12 @@ export function addPlayer(state: GameState, player: { id: string; nickname: stri
  * що лишилася без людей на зв'язку; соло-гра його не використовує.
  */
 export function removePlayer(state: GameState, playerId: string, now?: number): Result {
+  const result = removeAnyone(state, playerId, now);
+  // Апеляція (12f): вилучена людина зникає з голосів; апеляція вилученого учасника скасовується.
+  return result.ok ? ok(dropFromAppeals(result.state, playerId, now)) : result;
+}
+
+function removeAnyone(state: GameState, playerId: string, now?: number): Result {
   if (teamsOn(state)) {
     if (memberOf(state, playerId) !== undefined) return dropMember(state, playerId, now);
     if (state.players.some((p) => p.id === playerId)) return removeFromGame(withoutTeam(state, playerId), playerId);
@@ -882,6 +919,12 @@ function dropFromFinal(final: FinalState, playerId: string): FinalState {
 }
 
 export function setConnected(state: GameState, playerId: string, connected: boolean, now: number): Result {
+  const result = connect(state, playerId, connected, now);
+  // Апеляція (12f): виборець відключився, а решта вже проголосувала — рішення одразу.
+  return result.ok && !connected ? ok(settleAppeal(result.state, now)) : result;
+}
+
+function connect(state: GameState, playerId: string, connected: boolean, now: number): Result {
   // Командна гра: зв'язок людини; команда міняє зв'язок, лише коли змінилося «хтось із команди на зв'язку».
   if (teamsOn(state) && memberOf(state, playerId) !== undefined) return memberConnected(state, playerId, connected, now);
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
@@ -1696,6 +1739,8 @@ export function tick(state: GameState, now: number): GameState {
   }
   if (state.phase === 'duel') return state.paused ? state : tickDuel(state, now);
   if (state.phase === 'board' && state.board !== null) return state.paused ? state : tickBoard(state, state.board, now);
+  // Апеляція (12f): голосування, що сплило, закривається рішенням (з endsAt включно, як кінець запитання).
+  if (state.phase === 'reveal') return state.paused ? state : closeDueAppeal(state, now);
   if (state.phase !== 'question' || state.paused) return state;
   const running = watchAway(releaseStaleHold(state, now), now);
   // Поки відповідь чекає на ведучого, годинник стоїть (і відлік відсутності теж).
@@ -1774,6 +1819,13 @@ function enterWager(state: GameState, final: FinalState): GameState {
 
 export function next(state: GameState, now: number, rng: Rng = Math.random): Result {
   if (state.paused) return fail('paused');
+  // Апеляція (12f): поки зал голосує, розкриття стоїть — раніше за дуель, «100 до 1» і блеф.
+  // Захист: відкрита апеляція поза розкриттям свого запитання скасовується, щоб гра ніколи не зависла.
+  const appeal = appealOpen(state);
+  if (appeal !== null) {
+    if (state.phase === 'reveal' && appeal.questionIndex === state.questionIndex) return fail('appeal_open');
+    return next(cancelAppeal(state), now, rng);
+  }
   // Дуель вклинюється між кроками гри: оголошена стартує замість кроку, після підсумку гра йде далі.
   if (state.phase === 'duel') return advanceDuel(state, now, rng);
   // «100 до 1»: на розкритті кожне «Далі» спершу відкриває ще один рядок знизу; дуель, що чекає, — після останнього рядка.
@@ -1848,6 +1900,11 @@ const IN_ROUND: Phase[] = ['intro', 'wager', 'board', 'question', 'locked', 'rev
 
 /** Ведучий завершує раунд достроково; незіграні запитання раунду так і лишаються незіграними. */
 export function endRound(state: GameState, now: number): Result {
+  // Апеляція (12f), що ще голосується, скасовується й у ліміт не рахується.
+  return endRoundNow(cancelAppeal(state), now);
+}
+
+function endRoundNow(state: GameState, now: number): Result {
   if (!IN_ROUND.includes(state.phase)) return fail('wrong_phase');
   // Поточна дуель скасовується (оголошена, ще не почата, лишається й стартує з round_end).
   // «Ва-банк»: відкрите вікно рішення закривається, невирішені забирають банк; запитання, чия заставка ще грає, незігране.
@@ -1884,7 +1941,10 @@ export function resume(state: GameState, now: number): Result {
   const pausedAt = state.pausedAt ?? now;
   // «Ва-банк»: якщо на паузі вирішили (чи вилучили) останніх, вікно закривається; «Вибування» — так само випробування.
   // «Мільйонер»: якщо на паузі відповіли (чи вийшли) останні глядачі, голосування залу закривається.
-  return ok(settleTrial(settleDecision(settleAudience(shiftSplash(result.state, pausedAt, now - pausedAt)))));
+  // Апеляція (12f): кінець голосування зсувається на тривалість паузи; якщо на паузі вилучили (чи відключили) останніх,
+  // хто ще не голосував, а решта проголосувала, рішення — зараз.
+  const shifted = shiftAppealClock(shiftSplash(result.state, pausedAt, now - pausedAt), now - pausedAt);
+  return ok(settleTrial(settleDecision(settleAudience(settleAppeal(shifted, now)))));
 }
 
 /** Антигугл (12e): відкриті інтервали виходу поточного запитання зсуваються на тривалість паузи (пауза не рахується); без змін — той самий об'єкт. */
@@ -2009,8 +2069,19 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
   return ok(withTotals(withCurrentPlay(recorded, { ...recorded.plays[recorded.questionIndex], final: { ...play.final, graded } })));
 }
 
-/** Ведучий вручну виставляє оцінку відповіді на поточне запитання. */
+/**
+ * Ведучий вручну виставляє оцінку відповіді на поточне запитання.
+ * «Правильно» тому, хто оскаржує оцінку (12f), закриває його апеляцію з 'host': у ліміт вона не рахується.
+ */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
+  const target = state.plays[state.questionIndex]?.board?.chooserId ?? playerId;
+  // Апеляція grade, яку зал підтримав (12f): оцінка поверх неї порахувала б бали двічі. Спершу скасувати рядок апеляції.
+  if (appealPassedGrade(state, target)) return fail('not_allowed');
+  const result = overrideGrade(state, playerId, grade, now);
+  return result.ok ? ok(closeAppealByHost(result.state, target, grade)) : result;
+}
+
+function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: number): Result {
   // Ланцюжок перевіряється за літерами однозначно; зміна одного вердикту зсунула б бали інших.
   // Сортування й стіна так само однозначні: сервер перевіряв кожен хід. «100 до 1» — за дошкою (і на полі). Блеф — вибір однозначний.
   // Опитування й хмара без балів не оцінюються.
@@ -2080,6 +2151,11 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
 
 /** Ведучий завершує гру; з now — заставка «Підсумки». */
 export function end(state: GameState, now?: number): Result {
+  // Апеляція (12f), що ще голосується, скасовується й у ліміт не рахується.
+  return endNow(cancelAppeal(state), now);
+}
+
+function endNow(state: GameState, now?: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   // Поза фіналом closeFinal лише перераховує підсумки; у фіналі ще оцінює мовчання й розкриває всіх.
   // «Ва-банк»: банки тих, хто в грі, переносяться в бали; хто не відповів на відкрите запитання, згорає.

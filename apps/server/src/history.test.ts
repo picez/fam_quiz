@@ -524,8 +524,8 @@ describe('host history: board', () => {
       { nickname: 'Віра', points: -200 },
     ]);
     expect(detail.questions[0].responses).toEqual([
-      { nickname: 'Богдан', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null },
-      { nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
+      { nickname: 'Богдан', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null, appeal: null },
+      { nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null, appeal: null },
     ]);
   });
 
@@ -629,8 +629,8 @@ describe('host history: answers', () => {
     const result = await detail();
     expect(result.questions[0].question.type).toBe('match');
     expect(result.questions[0].responses).toEqual([
-      { nickname: 'Олена', answer: right, accepted: true, buff: null, spare: null, awayMs: null },
-      { nickname: 'Тарас', answer: swapped, accepted: false, buff: null, spare: null, awayMs: null },
+      { nickname: 'Олена', answer: right, accepted: true, buff: null, spare: null, awayMs: null, appeal: null },
+      { nickname: 'Тарас', answer: swapped, accepted: false, buff: null, spare: null, awayMs: null, appeal: null },
     ]);
     await local.app.close();
   });
@@ -748,7 +748,7 @@ describe('host history: answers', () => {
     scheduler.advance(5000);
     expect(room.state.phase).toBe('locked');
     const result = await detail();
-    expect(result.questions[0].responses).toEqual([{ nickname: 'Олена', answer: null, accepted: false, buff: null, spare: null, awayMs: null }]);
+    expect(result.questions[0].responses).toEqual([{ nickname: 'Олена', answer: null, accepted: false, buff: null, spare: null, awayMs: null, appeal: null }]);
     await local.app.close();
   });
   it('history shows final wagers and silence is not an answer', async () => {

@@ -1,5 +1,5 @@
 import type { BluffOption } from '@quiz/engine';
-import type { AdjustmentSource, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
+import type { AdjustmentSource, AppealOutcome, AppealReason, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -253,6 +253,30 @@ export const scoreAdjustment = pgTable(
     undoesSeq: integer('undoes_seq'),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.seq] })],
+);
+
+/** Апеляція гравця (12f): закрита апеляція з лічильником голосів і рішенням; голоси людей не зберігаються. */
+export const appeal = pgTable(
+  'appeal',
+  {
+    gameId: uuid('game_id')
+      .notNull()
+      .references(() => game.id, { onDelete: 'cascade' }),
+    /** Номер апеляції в грі (Appeal.id). */
+    seq: integer('seq').notNull(),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participant.id, { onDelete: 'cascade' }),
+    /** Індекс у game.plays. */
+    questionIndex: integer('question_index').notNull(),
+    reason: text('reason').$type<AppealReason>().notNull(),
+    yes: integer('yes').notNull(),
+    no: integer('no').notNull(),
+    outcome: text('outcome').$type<AppealOutcome>().notNull(),
+    /** seq коригування 'appeal'; null — рішення його не дописало. */
+    adjustmentSeq: integer('adjustment_seq'),
+  },
+  (table) => [primaryKey({ columns: [table.gameId, table.seq] })],
 );
 
 /** Профіль гравця: окремо від user Better Auth, створюється під час першого читання. */

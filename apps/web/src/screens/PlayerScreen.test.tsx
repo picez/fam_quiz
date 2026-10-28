@@ -36,12 +36,13 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
   autopilot: false,
   facts: null,
+  appeal: null,
   author: null,
   phase: 'lobby',
   paused: false,
@@ -3325,7 +3326,7 @@ describe('PlayerScreen: facts (12d)', () => {
     { participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 2 },
   ];
   const roundCard = { correct: 4, answered: 6, avgMs: 5300, fastestMs: 2000, streak: 3, place: { before: 5, now: 3 }, fooledBy: 1 };
-  const gameCard = { rank: 2, rounds: [300, -100, 500], correct: 4, answered: 6, bestStreak: 3, fastestMs: 1800, buffs: 1, debuffs: { sent: 0, got: 1 }, bluff: null, away: 0 };
+  const gameCard = { rank: 2, rounds: [300, -100, 500], correct: 4, answered: 6, bestStreak: 3, fastestMs: 1800, buffs: 1, debuffs: { sent: 0, got: 1 }, bluff: null, away: 0, appeals: { won: 0, lost: 0 } };
   const cards = [
     { kind: 'lightning' as const, names: ['Оля'], timeMs: 2100, question: { roundIndex: 0, number: 2, text: 'Найвища гора Карпат?' } },
     { kind: 'streak' as const, names: ['Петро'], length: 3 },
@@ -3472,5 +3473,109 @@ describe('PlayerScreen away alarm (12e)', () => {
     render(<PlayerScreen view={teamPlayerView({ phase: 'question', questionIndex: 0, away: null, lastAway: null })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} code="123456" />);
     expect(document.querySelector('.away-alarm')).toBeNull();
     expect(document.querySelector('.away-note')).toBeNull();
+  });
+});
+
+describe('PlayerScreen appeal (12f)', () => {
+  const wrong = { accepted: false, accuracy: 0, grade: 'wrong' as const, streakBonus: 0, points: 0 };
+  const open = {
+    id: 1,
+    by: { playerId: 'p1', nickname: 'Олена' },
+    reason: 'grade' as const,
+    answer: { type: 'single' as const, optionId: 'a' },
+    question: fullQuestion,
+    points: 1000,
+    endsAt: Date.now() + 30_000,
+    remainingMs: null,
+    yes: 0,
+    no: 0,
+    waiting: 1,
+    outcome: null,
+    undone: false,
+  };
+  const mine = (over: Partial<NonNullable<PlayerView['me']['appeal']>> = {}) => ({ left: 2, reasons: [], block: null, voter: false, vote: null, ...over });
+  const revealOf = (over: Partial<PlayerView> = {}, appeal: NonNullable<PlayerView['me']['appeal']> | null = null) =>
+    view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, me: { ...me, result: wrong, appeal }, ...over });
+
+  it('offers «⚖️ Оскаржити (лишилось 2)» and sends player:appeal with the reason', async () => {
+    const send = show(revealOf({}, mine({ reasons: ['grade'] })));
+    const button = screen.getByRole('button', { name: '⚖️ Оскаржити (лишилось 2)' });
+    expect(button.classList.contains('appeal-button')).toBe(true);
+    await act(async () => void fireEvent.click(button));
+    expect(send).toHaveBeenCalledWith('player:appeal', { reason: 'grade' });
+  });
+
+  it('offers the away penalty appeal as its own button', () => {
+    show(revealOf({}, mine({ left: 1, reasons: ['grade', 'away'] })));
+    expect(screen.getByRole('button', { name: '⚖️ Оскаржити (лишилось 1)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '⚖️ Оскаржити штраф (лишилось 1)' })).toBeTruthy();
+  });
+
+  it('says nobody can vote, or that the captain appeals, without a button', () => {
+    show(revealOf({}, mine({ block: 'no_voters' })));
+    expect(screen.getByText('Нема кому голосувати').classList.contains('appeal-block')).toBe(true);
+    expect(document.querySelector('.appeal-button')).toBeNull();
+    cleanup();
+    show(revealOf({}, mine({ block: 'captain' })));
+    expect(screen.getByText('Оскаржує капітан')).toBeTruthy();
+    expect(document.querySelector('.appeal-button')).toBeNull();
+  });
+
+  it('gives a voter the bottom sheet instead of the card', () => {
+    show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ voter: true })));
+    expect(document.querySelector('section.appeal-sheet')).not.toBeNull();
+    expect(document.querySelector('.appeal-card')).toBeNull();
+    expect(screen.getByRole('heading', { name: '⚖️ Тарас оскаржує' })).toBeTruthy();
+  });
+
+  it('shows the appellant the card «⚖️ Зал голосує…»', () => {
+    show(revealOf({ appeal: open }, mine({ left: 1 })));
+    expect(document.querySelector('.appeal-card.is-phone')).not.toBeNull();
+    expect(screen.getByText('⚖️ Зал голосує…')).toBeTruthy();
+    expect(document.querySelector('.appeal-sheet')).toBeNull();
+  });
+
+  it('shows everyone the result card once decided, voters included', () => {
+    const decided = { ...open, endsAt: null, waiting: 0, yes: 1, outcome: 'yes' as const };
+    show(revealOf({ appeal: decided }, mine({ voter: false })));
+    expect(screen.getByText('⚖️ Зараховано! +1000')).toBeTruthy();
+    expect(document.querySelector('.appeal-sheet')).toBeNull();
+  });
+
+  it('disables the sheet buttons while paused', () => {
+    show(revealOf({ paused: true, appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' }, endsAt: null, remainingMs: 20_000 } }, mine({ voter: true })));
+    expect(screen.getByRole('button', { name: 'Так' }).getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('hides the appeal button on a paused reveal, where the reasons are empty', () => {
+    show(revealOf({ paused: true }, mine({ reasons: [] })));
+    expect(document.querySelector('.appeal-button')).toBeNull();
+  });
+
+  it('shows nothing of the appeal in a team game without one', () => {
+    show(teamPlayerView({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, appeal: null }));
+    expect(document.querySelector('.appeal-button, .appeal-block, .appeal-card, .appeal-sheet')).toBeNull();
+  });
+});
+
+describe('PlayerScreen appeal edge cases (12f)', () => {
+  it('shows no card for a cancelled appeal', () => {
+    const cancelled = {
+      id: 1,
+      by: { playerId: 'p2', nickname: 'Тарас' },
+      reason: 'grade' as const,
+      answer: null,
+      question: fullQuestion,
+      points: 0,
+      endsAt: null,
+      remainingMs: null,
+      yes: 0,
+      no: 0,
+      waiting: 0,
+      outcome: 'cancelled' as const,
+      undone: false,
+    };
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, appeal: cancelled }));
+    expect(document.querySelector('.appeal-card, .appeal-sheet')).toBeNull();
   });
 });

@@ -49,6 +49,9 @@
   --team-5: #ff9a3d;
   --guide-accent: #8fe3b0;
   --guide-accent-soft: rgb(143 227 176 / 0.14);
+  --appeal-accent: #ffc94d;
+  --appeal-yes: var(--correct);
+  --appeal-no: var(--signal);
   /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
   --splash-bg: rgb(14 16 32);
   --splash-accent: var(--amber);
@@ -2923,6 +2926,11 @@ button.match-item {
 
 .rows .responses li.is-wrong {
   border-left-color: var(--signal);
+}
+
+/* 12f: відповідь, яку зарахував зал (апеляція «так»). */
+.rows .responses li.appealed {
+  border-left-color: var(--amber);
 }
 
 .responses-name {
@@ -11332,4 +11340,258 @@ button.wall-tile:disabled {
 
 .responses-who {
   flex-wrap: wrap;
+}
+
+/* 12f: апеляція. Кнопка «⚖️ Оскаржити (лишилось 2)» — на всю ширину під результатом розкриття. */
+.appeal-button {
+  width: 100%;
+  border-color: var(--appeal-accent);
+  color: var(--appeal-accent);
+}
+
+.appeal-block {
+  margin: 0;
+  text-align: center;
+}
+
+/* Картка апеляції: у потоці під результатом (телефон); сцена й пульт задають свої розміри поверх. */
+.appeal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 2px solid var(--appeal-accent);
+  border-radius: 0.875rem;
+  background: var(--panel);
+}
+
+.appeal-card .appeal-title,
+.appeal-sheet .appeal-title {
+  margin: 0;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.appeal-ask,
+.appeal-hall {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.appeal-meta {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.appeal-count {
+  min-width: 0;
+  margin: 0;
+  color: var(--dim);
+}
+
+.appeal-time {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.appeal-bar {
+  display: flex;
+  height: 0.75rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.appeal-bar-yes {
+  background: var(--appeal-yes);
+}
+
+.appeal-bar-no {
+  background: var(--appeal-no);
+}
+
+.appeal-result {
+  margin: 0;
+  color: var(--appeal-accent);
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+/* Сцена (12f): картка — шар position: fixed унизу по центру, ширина ≤ 960 px, висота ≤ 124 px (сітка в три рядки:
+   «хто оскаржує · питання залу», смужка «так / ні», лічильник з відліком або результат).
+   Над значками бафів (50), під заставкою (65) і сповіщеннями (66). Поки картка є, .app.stage.has-appeal
+   тримає під нею запас --appeal-room і стискає вертикальні проміжки: розкриття не ховається під карткою. */
+.app.stage {
+  --appeal-room: 9rem;
+}
+
+.app.stage.has-appeal {
+  padding-top: 2vh;
+  padding-bottom: var(--appeal-room);
+  gap: 2vh;
+}
+
+.app.stage.has-appeal .stage-question {
+  gap: 2vh;
+}
+
+/* Сповіщення й значки бафів — над карткою, а не на ній. */
+.stage.has-appeal .live-notices,
+.stage.has-appeal .stage-tags {
+  bottom: calc(var(--appeal-room) - 0.25rem);
+}
+
+.appeal-card.is-stage {
+  position: fixed;
+  bottom: 0.75rem;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.375rem 1rem;
+  width: min(960px, calc(100vw - 2rem));
+  max-height: 7.75rem;
+  margin-inline: auto;
+  overflow: hidden;
+  padding: 0.625rem 1.5rem;
+  border-width: 3px;
+  background: var(--stage);
+  box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.55);
+}
+
+.appeal-card.is-stage .appeal-title {
+  font-size: 1.375rem;
+  white-space: nowrap;
+}
+
+/* Питання залу — праворуч від заголовка, в один рядок; довга відповідь обрізається трикрапкою. */
+.appeal-card.is-stage .appeal-ask {
+  overflow: hidden;
+  font-size: 1.125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appeal-card.is-stage .appeal-bar,
+.appeal-card.is-stage .appeal-meta,
+.appeal-card.is-stage .appeal-result {
+  grid-column: 1 / -1;
+}
+
+.appeal-card.is-stage .appeal-bar {
+  height: 0.875rem;
+}
+
+.appeal-card.is-stage .appeal-count {
+  font-size: 1.25rem;
+}
+
+.appeal-card.is-stage .appeal-time {
+  font-size: 1.5rem;
+}
+
+.appeal-card.is-stage .appeal-result {
+  overflow: hidden;
+  font-size: 1.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Пульт: компактна картка під відповідями. */
+.appeal-card.is-host {
+  gap: 0.375rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.appeal-card.is-host .appeal-title {
+  overflow: hidden;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appeal-card.is-host .appeal-ask,
+.appeal-card.is-host .appeal-count {
+  font-size: 0.9rem;
+}
+
+.appeal-card.is-host .appeal-result {
+  font-size: 1.1rem;
+}
+
+/* Пульт: зал уже зарахував — замість кнопок оцінки підказка, де скасувати. */
+.appeal-passed {
+  display: block;
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--appeal-accent);
+}
+
+/* Аркуш голосу — як .vote-sheet: position: fixed унизу, нічого не зсуває. Над аркушем голосу бафу (70),
+   під вікнами, які гравець відкриває сам (довідка й таблиця 75, дуель 80), смугою «немає зв'язку» (90) і тривогою виходу 12e (95). */
+.appeal-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 72;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  max-height: 45dvh;
+  overflow-y: auto;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 2px solid var(--appeal-accent);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--stage);
+  box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
+}
+
+.appeal-votes {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.appeal-votes .btn {
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 48px;
+}
+
+.appeal-votes .appeal-yes[aria-pressed='true'] {
+  border-color: var(--appeal-yes);
+  background: var(--appeal-yes);
+  color: var(--stage);
+}
+
+.appeal-votes .appeal-no[aria-pressed='true'] {
+  border-color: var(--appeal-no);
+  background: var(--appeal-no);
+  color: var(--stage);
+}
+
+.appeal-mine {
+  margin: 0;
+}
+
+/* Під аркушем розкриття можна докрутити до кінця: запас — виміряна висота аркуша (--appeal-sheet-h), запасне — 45dvh. */
+.app.player:has(> .appeal-sheet) {
+  padding-bottom: calc(var(--appeal-sheet-h, 45dvh) + 1rem);
+}
+
+.appeal-votes .btn[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.appeal-paused {
+  margin: 0;
 }

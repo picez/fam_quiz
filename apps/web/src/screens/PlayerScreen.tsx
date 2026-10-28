@@ -58,6 +58,9 @@ import { LadderHall } from './LadderHall';
 import { LadderLifelines } from './LadderLifelines';
 import { ladderOutcomeText } from './LadderStatus';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
+import { AppealCard } from './AppealCard';
+import { AppealSheet } from './AppealSheet';
+import { appealButtonText } from '../appeal-text';
 
 interface Props {
   view: PlayerView;
@@ -590,6 +593,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   const { me, phase, question } = view;
   const decideGuard = useGuardedSend(send, setError);
   const resumeGuard = useGuardedSend(send, setError);
+  const appealGuard = useGuardedSend(send, setError);
   // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере бафи, дебафи й крамницю.
   const team = view.team;
   const acting = team === null || team.canAct;
@@ -740,6 +744,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       {/* Запрошення проголосувати — нижній аркуш position: fixed: чужий баф нічого не зсуває. */}
       {phase === 'question' && question !== null && (
         <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
+      )}
+      {/* Голос за апеляцію (12f) — теж нижній аркуш position: fixed над розкриттям. */}
+      {phase === 'reveal' && view.appeal !== null && view.appeal.outcome === null && me.appeal?.voter === true && (
+        <AppealSheet view={view.appeal} screenQuestion={view.question} mine={me.appeal} teams={view.teams !== null} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
       )}
       {/* Заставка — шар position: fixed над розкладкою етапу, що вже стоїть: поява й зникнення нічого не зсувають. */}
       <Splash view={view} offsetMs={offsetMs} size="phone" />
@@ -1111,6 +1119,16 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
             </>
           )}
           {view.own?.reveal != null && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
+          {me.appeal?.reasons.map((reason) => (
+            <button key={reason} type="button" className="btn appeal-button" disabled={appealGuard.busy} onClick={() => void appealGuard.run('player:appeal', { reason })}>
+              {appealButtonText(reason, me.appeal?.left ?? 0)}
+            </button>
+          ))}
+          {me.appeal?.block != null && <p className="meta appeal-block">{t(me.appeal.block === 'captain' ? 'appealCaptain' : 'appealNoVoters')}</p>}
+          {/* Виборець відкритої апеляції бачить аркуш, решта — картку; скасована апеляція картки не має. */}
+          {view.appeal !== null && view.appeal.outcome !== 'cancelled' && !(view.appeal.outcome === null && me.appeal?.voter === true) && (
+            <AppealCard view={view.appeal} screenQuestion={view.question} size="phone" teams={view.teams !== null} offsetMs={offsetMs} />
+          )}
         </>
       )}
 

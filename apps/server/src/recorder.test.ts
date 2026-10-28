@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
-import { answer, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
+import { answer, appeal, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
 import { hostGame } from './history';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
@@ -1671,5 +1671,50 @@ describe('recorder: games without a host (11h)', () => {
     const ctx = await setup();
     ctx.host('start');
     expect((await ctx.saved()).games[0]).toMatchObject({ autopilot: false });
+  });
+});
+
+describe('recorder: appeals (12f)', () => {
+  /** Тарас відповів неправильно й оскаржує на розкритті; Олена — єдина виборка. */
+  async function appealing() {
+    const ctx = await setup();
+    ctx.host('start');
+    toQuestion(ctx.manager, ctx.room);
+    playFirstQuestion({ ...ctx });
+    ctx.host('next');
+    return { ...ctx, openIt: () => expect(ctx.manager.appeal(ctx.room, ctx.taras, 'grade')).toEqual({ ok: true }) };
+  }
+
+  it('an open appeal is not stored; a closed one is a single row even after several saves', async () => {
+    const ctx = await appealing();
+    ctx.openIt();
+    await ctx.recorder.idle();
+    expect(await ctx.db.select().from(appeal)).toEqual([]);
+    expect(ctx.manager.appealVote(ctx.room, ctx.olena, 1, true)).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    toEnd(ctx.manager, ctx.room);
+    await ctx.recorder.idle();
+    expect(ctx.errors).toEqual([]);
+    expect(await ctx.db.select().from(appeal)).toEqual([expect.objectContaining({ seq: 1, participantId: ctx.taras, reason: 'grade', yes: 1, no: 0, outcome: 'yes' })]);
+  });
+
+  it('a decision with a different outcome only is still saved (the signature sees the outcome)', async () => {
+    const ctx = await appealing();
+    ctx.openIt();
+    expect(ctx.manager.appealVote(ctx.room, ctx.olena, 1, false)).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    expect(await ctx.db.select().from(appeal)).toEqual([expect.objectContaining({ yes: 0, no: 1, outcome: 'no', adjustmentSeq: null })]);
+  });
+
+  it('the appeal of a kicked participant does not break the save and goes with the participant', async () => {
+    const ctx = await appealing();
+    ctx.openIt();
+    expect(ctx.manager.appealVote(ctx.room, ctx.olena, 1, true)).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    expect(await ctx.db.select().from(appeal)).toHaveLength(1);
+    expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.taras })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    expect(ctx.errors).toEqual([]);
+    expect(await ctx.db.select().from(appeal)).toEqual([]);
   });
 });

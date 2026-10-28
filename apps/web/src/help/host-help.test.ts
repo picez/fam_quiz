@@ -165,14 +165,33 @@ describe('host help', () => {
     const sec = (ms: number) => `${String(ms / 1000).replace('.', ',')} с`;
     expect([AWAY_MS.mark, AWAY_MS.penalty, AWAY_MS.alarm, AWAY_MS.preGrace]).toEqual([2000, 3000, 2500, 5000]);
     for (const part of [`від ${sec(AWAY_MS.mark)} сумарно`, `від ${sec(AWAY_MS.penalty)} сумарно — 0 балів`, `зникає сам за ${sec(AWAY_MS.alarm)}`, `перші ${sec(AWAY_MS.preGrace)} не рахуються`, `на зв’язку пробув поза грою від ${sec(AWAY_MS.penalty)} сумарно`]) expect(body, part).toContain(part);
-    for (const part of ['лише значок', 'не довше, ніж тривав розрив', 'менше з двох', 'режим польоту', 'непоміченим', 'Другий пристрій', 'червон', 'сирен', '↶ Бали', 'після кінця гри', 'не гасне', 'у відео-запитанні', 'YouTube', 'youtube.com', 'перезапуск', 'два виходи (2 рази)', 'поза грою', 'штраф поки що зняти не можна']) expect(body, part).toContain(part);
-    expect(body).not.toMatch(/апеляц|будь-хто/);
+    for (const part of ['лише значок', 'не довше, ніж тривав розрив', 'менше з двох', 'режим польоту', 'непоміченим', 'Другий пристрій', 'червон', 'сирен', '↶ Бали', 'після кінця гри', 'не гасне', 'у відео-запитанні', 'YouTube', 'youtube.com', 'перезапуск', 'два виходи (2 рази)', 'поза грою', 'штраф знімає лише апеляція']) expect(body, part).toContain(part);
+    expect(body).not.toMatch(/будь-хто/);
     expect(body.match(/гру не бачить/g)).toBeNull();
     expect(body).not.toMatch(/відволік|виходив/);
     expect(text('setting.undo')).toContain('(вихід із гри)');
-    expect(text('setting.autopilot')).toContain('Штраф за вихід діє й без ведучого. У грі без ведучого штраф поки що зняти не можна.');
-    expect(text('setting.autopilot')).not.toContain('апеляц');
+    expect(text('setting.autopilot')).toContain('Штраф за вихід діє й без ведучого. У грі без ведучого штраф знімає лише апеляція.');
+    expect(text('setting.autopilot')).toContain(`${AUTOPILOT_MS.appealWindow / 1000} с`);
     expect(searchHelp('поза грою')).toContain('setting.away');
+  });
+
+  it('12f appeal entry follows «away» and tells when, who votes, the count, the host and the limits', () => {
+    const ids = helpIds('settings');
+    expect(ids.indexOf('setting.appeal')).toBe(ids.indexOf('setting.away') + 1);
+    expect(ids.at(-1)).toBe('setting.autopilot');
+    filled('setting.appeal');
+    const body = text('setting.appeal').replace(/ /g, ' ');
+    for (const part of ['30 с', '2 апеляції', 'Голосує зал', 'не бачить ніхто', 'Зараховано ведучим', '(апеляція)', 'Нема кому голосувати', 'Оскаржити штраф', 'капітан', 'Нічия', 'Пауза', '↶ Бали', 'Після кінця гри']) expect(body, part).toContain(part);
+    expect(body.toLowerCase()).not.toMatch(/росі|срср/);
+    expect(body).not.toMatch(/(^|[^а-яіїєґ])(голосував|голосувала|оскаржив|оскаржила)/);
+    expect(body).toContain('кожна людина окремо');
+    // Вибір одного варіанта й так / ні рушій оскаржити дає (ведучий їх теж переоцінює); не дає лише там, де й ведучий не може.
+    expect(body).toContain('(ланцюжок, сортування, стіна, «100 до 1», блеф, опитування, хмара)');
+    expect(body).not.toContain('вибір одного варіанта');
+    expect(body).not.toContain('так / ні,');
+    expect(searchHelp('апеляція')).toContain('setting.appeal');
+    expect(text('setting.undo')).toContain('(апеляція)');
+    expect(text('setting.autopilot')).toContain(`${AUTOPILOT_MS.appealShown / 1000} с`);
   });
 
   it('12a undo entry follows «scores» and tells what is undone, what is not, «Повернути» and why the current question goes by grading', () => {

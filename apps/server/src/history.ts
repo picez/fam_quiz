@@ -22,9 +22,12 @@ import {
   upgradeQuiz,
   wipeoutStandings,
   type AdjustmentSource,
+  type AppealOutcome,
+  type AppealReason,
   type BuffKind,
   type FactInput,
   type FactQuestion,
+  type GameAppeal,
   type GameDetail,
   type Answer,
   type GameQuestionResult,
@@ -41,7 +44,7 @@ import {
 import { orderBluffOptions } from '@quiz/engine';
 import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, answer, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIMIT = 100;
@@ -154,6 +157,7 @@ function factInputOf(
   standings: { participantId: string; nickname: string; rank: number | null; score: number; rounds: number[] }[],
   answers: { participantId: string; questionIndex: number; roundIndex: number; attempt: number; payload: Answer | null; timeMs: number; accepted: boolean; wager: number | null; buff: BuffKind | null; spareId: string | null; awayMs: number | null }[],
   adjustments: { participantId: string; source: AdjustmentSource; targetNickname: string | null }[],
+  appeals: { participantId: string; outcome: AppealOutcome }[],
 ): FactInput {
   const questions: FactQuestion[] = [];
   let number = 0;
@@ -211,6 +215,8 @@ function factInputOf(
       .filter((a) => (a.attempt >= 0 || a.attempt === PENALTY_ATTEMPT || a.attempt === AWAY_ATTEMPT) && ids.has(a.participantId) && a.awayMs !== null && a.awayMs >= AWAY_MS.mark)
       .map((a) => ({ playerId: a.participantId, questionIndex: a.questionIndex }))
       .filter((a, i, all) => all.findIndex((b) => b.playerId === a.playerId && b.questionIndex === a.questionIndex) === i),
+    // Раховані закриті апеляції (12f) учасників таблиці: host і cancelled не рахуються, як у рушія.
+    appeals: appeals.flatMap((a) => (ids.has(a.participantId) && (a.outcome === 'yes' || a.outcome === 'no' || a.outcome === 'tie') ? [{ playerId: a.participantId, outcome: a.outcome }] : [])),
   };
 }
 
@@ -224,14 +230,24 @@ function responsesOf(
   given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; buff: BuffKind | null; spareId: string | null; awayMs: number | null }[],
   standings: { participantId: string; nickname: string }[],
   spares: Question[],
+  appeals: { participantId: string; reason: AppealReason; yes: number; no: number; outcome: AppealOutcome }[] = [],
+  marks: { participantId: string; awayMs: number | null }[] = [],
 ): GameResponse[] {
-  return standings.flatMap(({ participantId, nickname }) =>
-    given
+  return standings.flatMap(({ participantId, nickname }) => {
+    // Апеляція стоїть на першому рядку відповіді учасника; cancelled історія не показує.
+    const found = appeals.find((a) => a.participantId === participantId && a.outcome !== 'cancelled');
+    const own: GameAppeal | null =
+      found === undefined ? null : { reason: found.reason, yes: found.yes, no: found.no, outcome: found.outcome as GameAppeal['outcome'] };
+    const rows = given
       // Штрафний рядок бліц-клітинки не є відповіддю.
       .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
       .sort((a, b) => a.attempt - b.attempt)
-      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null, awayMs: a.awayMs ?? null })),
-  );
+      .map((a, i) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null, awayMs: a.awayMs ?? null, appeal: i === 0 ? own : null }));
+    if (rows.length > 0 || own === null) return rows;
+    // Апеляція учасника без рядка відповіді (лише позначка виходу чи штрафний рядок) — окремий рядок без відповіді, щоб її було видно.
+    const away = marks.find((a) => a.participantId === participantId)?.awayMs ?? null;
+    return [{ nickname, answer: null, accepted: false, buff: null, spare: null, awayMs: away, appeal: own }];
+  });
 }
 
 /** Запитання фіналу: ставка кожного учасника з рядками на нього (мовчання теж), за турнірною таблицею. */
@@ -463,8 +479,10 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
               participants.map((p) => p.id),
             ),
           );
-  // Рядки лише з позначкою виходу (AWAY_ATTEMPT) — не відповіді: деталі їх не бачать, лише цікавинки «відволікався».
+  // Рядки лише з позначкою виходу (AWAY_ATTEMPT) — не відповіді: деталі їх не бачать, лише цікавинки «відволікався»
+  // і рядок апеляції учасника, що не має іншого рядка (позначка виходу стоїть поруч із ⚖️).
   const answers = stored.filter((a) => a.attempt !== AWAY_ATTEMPT);
+  const awayMarks = stored.filter((a) => a.attempt === AWAY_ATTEMPT);
 
   const adjustments =
     participants.length === 0
@@ -479,6 +497,9 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
             ),
           )
           .orderBy(asc(scoreAdjustment.seq));
+
+  // Апеляції (12f): закриті, з лічильниками; голосів людей у базі немає.
+  const appeals = await db.select().from(appeal).where(eq(appeal.gameId, id)).orderBy(asc(appeal.seq));
 
   // Командна гра (10j): таблиця — рядки команд, люди — склад під назвою (за нікнеймом).
   const teams = participants.some((p) => p.isTeam);
@@ -544,7 +565,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         ...(cloudRows === undefined ? {} : { surveyFromCloud: true as const }),
         ...(ref?.bluff === undefined ? {} : { bluff: bluffResult(ref, nicknames) }),
         ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
-        responses: responsesOf(given, isUnscored(question) ? voters : standings, quiz === null ? [] : allSpares(quiz)),
+        responses: responsesOf(given, isUnscored(question) ? voters : standings, quiz === null ? [] : allSpares(quiz), appeals.filter((a) => a.questionIndex === index), awayMarks.filter((a) => a.questionIndex === index)),
         ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),
         ...(round?.type === 'survival' && quiz !== null ? { survival: survivalResult(quiz, row.plays, index, standings) } : {}),
         ...(round?.type === 'ladder' && quiz !== null ? { ladder: ladderResult(quiz, row.plays, index, nicknames, given) } : {}),
@@ -553,7 +574,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     ];
   });
 
-  const factInput = factInputOf(quiz, played, standings, stored, adjustments);
+  const factInput = factInputOf(quiz, played, standings, stored, adjustments, appeals);
   const detail: GameDetail = {
     id: row.id,
     title: row.title,

@@ -53,6 +53,7 @@ import { HostDuelPanel } from './DuelView';
 import { HelpButton } from '../help/HelpButton';
 import { cellHelpId } from '../help/host-help';
 import { UndoButton } from './UndoSheet';
+import { AppealCard } from './AppealCard';
 
 export { STAGE_GONE_MS };
 
@@ -314,6 +315,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
   const clip = view.question?.audio?.clip ?? null;
   const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz' && !isFinal;
+  // Апеляція (12f): поки зал голосує, «Далі» рушій відхиляє (appeal_open) — головна кнопка неактивна й каже «Голосує зал».
+  const appealVoting = phase === 'reveal' && view.appeal?.outcome === null;
+  // Зал зарахував відповідь: оцінку поверх рушій відхиляє (not_allowed), доки рядок апеляції не скасовано в «↶ Бали».
+  // Рядок поточного запитання панель скасування показує лише після розкриття, тож підказка каже «коли перейдете далі».
+  const appealPassed =
+    phase === 'reveal' && view.appeal !== null && view.appeal.outcome === 'yes' && view.appeal.reason === 'grade' && !view.appeal.undone ? view.appeal.by.playerId : null;
 
   // Лічильники опитування: з відповідей, ще до розкриття.
   const voteCounts: Record<string, number> = {};
@@ -1005,7 +1012,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               </li>
             )}
           </ul>
-          {canGradeBoard && chooserId !== null && (
+          {canGradeBoard && chooserId !== null && chooserId === appealPassed && <p className="meta appeal-passed">{t('appealPassedHint')}</p>}
+          {canGradeBoard && chooserId !== null && chooserId !== appealPassed && (
             <div className="actions">
               <button type="button" className="btn btn-small" onClick={() => grade(chooserId, 'correct')}>
                 {t('accept')}
@@ -1132,7 +1140,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                     </>
                   )}
                   {response.streakBonus > 0 && <span className="streak-bonus">{t('streakBonusLine', { points: response.streakBonus })}</span>}
-                  {canGrade && (
+                  {canGrade && response.playerId === appealPassed && <span className="meta appeal-passed">{t('appealPassedHint')}</span>}
+                  {canGrade && response.playerId !== appealPassed && (
                     <>
                       {response.grade !== 'correct' && (
                         <button type="button" className="btn btn-small" onClick={() => grade(response.playerId, 'correct')}>
@@ -1158,6 +1167,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           {phase === 'reveal' && view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} />}
         </section>
       )}
+
+      {phase === 'reveal' && view.appeal !== null && <AppealCard view={view.appeal} screenQuestion={view.question} size="host" teams={view.teams !== null} offsetMs={offsetMs} />}
 
       {view.duel !== null && <HostDuelPanel view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
@@ -1309,10 +1320,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             type="button"
             className={mainPace !== null ? 'btn btn-primary is-pacing' : 'btn btn-primary'}
             {...paceAttrs(mainPace)}
-            disabled={mainPace !== null || stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding}
+            disabled={mainPace !== null || stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding || appealVoting}
             onClick={() => step(main.event)}
           >
-            {ladderPickFirst
+            {appealVoting
+              ? t('appealVoting')
+              : ladderPickFirst
               ? t('ladderPickFirst')
               : ladderDraw
               ? t('ladderDraw')

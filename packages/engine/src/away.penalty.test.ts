@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer, type Quiz, type QuizSettings, type Round } from '@quiz/shared';
 import { adjustScore } from './adjust';
-import { awayEnd, awayPenalized, awayPenaltyOn, awayStart, awayStep } from './away';
+import { castAppealVote, openAppeal } from './appeal';
+import { awayEnd, awayPenalized, awayPenaltyOn, awayStart, awayStep, ownAway } from './away';
 import { pickCell } from './board';
 import { declareDuel, dropDuel } from './duel';
 import { placeWager } from './final';
@@ -342,6 +343,17 @@ describe('the away penalty (12e)', () => {
     expect(score(answerToo, 'p1')).toBe(0);
   });
 
+  it('«Повернути» the penalty after its answer was undone is not allowed: the question would go below zero', () => {
+    const s = leaveReveal(classicLocked(3500));
+    const noPenalty = must(undoScore(s, { seq: penalties(s)[0].seq }, 11_000));
+    const penaltyUndo = noPenalty.adjustments.at(-1)!.seq;
+    const noAnswer = must(undoScore(noPenalty, { question: 0, playerId: 'p1' }, 12_000));
+    expect(score(noAnswer, 'p1')).toBe(0);
+    expect(undoScore(noAnswer, { seq: penaltyUndo }, 13_000)).toEqual({ ok: false, error: 'not_allowed' });
+    // З відповіддю на місці штраф повертається, як і раніше.
+    expect(score(must(undoScore(noPenalty, { seq: penaltyUndo }, 13_000)), 'p1')).toBe(0);
+  });
+
   it('after the end of the game only the penalty can be undone and brought back', () => {
     const s = playFinal(right);
     const seq = penalties(s)[0].seq;
@@ -368,5 +380,111 @@ describe('the away penalty (12e)', () => {
     const pilot: GameState = { ...s, autopilot: { authorId: 'p1', at: null } };
     expect(undoPanel(pilot)).toBeNull();
     expect(undoScore(pilot, { seq }, 99_000)).toEqual({ ok: false, error: 'not_allowed' });
+  });
+});
+
+describe('the away penalty and the appeal (12f)', () => {
+  /** Розкриття класики: Оля виходила 3500 мс і відповіла p1Answer, Петро — навпаки; Оля оскаржує з підставою reason, Петро голосує yes. */
+  function appealed(p1Answer: Answer, reason: 'grade' | 'away', yes: boolean): GameState {
+    let s = startRound(lobbyWith(quizOf([classicRound('r1', [q100, q2], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    s = withAway(s, 'p1', 3500);
+    s = must(submitAnswer(s, 'p1', p1Answer, 2000));
+    s = must(submitAnswer(s, 'p2', p1Answer === right ? wrong : right, 2000));
+    s = step(s, next(s, 9000, rng), 9000);
+    expect(s.phase).toBe('reveal');
+    s = must(openAppeal(s, 'p1', reason, 9500));
+    return must(castAppealVote(s, 'p2', 1, yes, 9600));
+  }
+  const leave = (s: GameState) => step(s, next(s, 10_000, rng), 10_000);
+
+  it('a passed away appeal drops the coming penalty', () => {
+    const s = appealed(right, 'away', true);
+    expect(s.appeals?.[0].outcome).toBe('yes');
+    expect(awayPenalized(s, 0)).toEqual([]);
+    expect(ownAway(s, 'p1')?.penalty).toBe(false);
+    const left = leave(s);
+    expect(penalties(left)).toEqual([]);
+    expect(score(left, 'p1')).toBe(100);
+  });
+
+  it('a lost away appeal keeps the penalty', () => {
+    const s = appealed(right, 'away', false);
+    expect(s.appeals?.[0].outcome).toBe('no');
+    expect(awayPenalized(s, 0)).toEqual(['p1']);
+    expect(ownAway(s, 'p1')?.penalty).toBe(true);
+    const left = leave(s);
+    expect(penalties(left)).toEqual([expect.objectContaining({ playerId: 'p1', points: -100 })]);
+    expect(score(left, 'p1')).toBe(0);
+  });
+
+  it('a passed grade appeal with a 3.5 s leave: the penalty also takes the appeal points, zero for the question', () => {
+    const s = appealed(wrong, 'grade', true);
+    expect(s.adjustments).toEqual([expect.objectContaining({ playerId: 'p1', points: 100, source: 'appeal' })]);
+    expect(score(s, 'p1')).toBe(100);
+    const left = leave(s);
+    expect(penalties(left)).toEqual([expect.objectContaining({ playerId: 'p1', points: -100, afterQuestion: 1 })]);
+    expect(score(left, 'p1')).toBe(0);
+  });
+  it('an away appeal cancelled by ending the round still leads to the penalty', () => {
+    let s = startRound(lobbyWith(quizOf([classicRound('r1', [q100, q2], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    s = withAway(s, 'p1', 3500);
+    s = must(submitAnswer(must(submitAnswer(s, 'p1', right, 2000)), 'p2', wrong, 2000));
+    s = step(s, next(s, 9000, rng), 9000);
+    s = must(openAppeal(s, 'p1', 'away', 9500));
+    const ended = step(s, endRound(s, 10_000), 10_000);
+    expect(ended.appeals?.[0].outcome).toBe('cancelled');
+    expect(penalties(ended)).toEqual([expect.objectContaining({ playerId: 'p1', points: -100 })]);
+  });
+
+  it('answer, appeal and penalty: undoing the answer takes all three, «Повернути» brings all three back', () => {
+    const half = { speedBonus: false, rules: { ...DEFAULT_RULES, partial: 50 } };
+    let s = startRound(lobbyWith(quizOf([classicRound('r1', [q100, q2], half)]), 'Оля', 'Петро'), 1000, rng);
+    s = withAway(s, 'p1', 3500);
+    s = must(submitAnswer(must(submitAnswer(s, 'p1', wrong, 2000)), 'p2', right, 2000));
+    s = must(override(step(s, next(s, 9000, rng), 9000), 'p1', 'partial'));
+    s = must(castAppealVote(must(openAppeal(s, 'p1', 'grade', 9500)), 'p2', 1, true, 9600));
+    const left = leave(s);
+    expect(left.adjustments.map((a) => [a.source, a.points])).toEqual([['appeal', 50], ['away', -100]]);
+    expect(score(left, 'p1')).toBe(0);
+    const undone = must(undoScore(left, { question: 0, playerId: 'p1' }, 11_000));
+    const undos = undone.adjustments.filter((a) => a.source === 'undo');
+    expect(undos.map((a) => a.points)).toEqual([-50, -50, 100]);
+    expect(score(undone, 'p1')).toBe(0);
+    const redone = must(undoScore(undone, { seq: undos[0].seq }, 12_000));
+    expect(redone.adjustments.length - undone.adjustments.length).toBe(3);
+    expect(score(redone, 'p1')).toBe(0);
+  });
+
+  it('«Повернути» the penalty is not allowed once the appeal row or the answer is gone, in either order', () => {
+    const half = { speedBonus: false, rules: { ...DEFAULT_RULES, partial: 50 } };
+    let s = startRound(lobbyWith(quizOf([classicRound('r1', [q100, q2], half)]), 'Оля', 'Петро'), 1000, rng);
+    s = withAway(s, 'p1', 3500);
+    s = must(submitAnswer(must(submitAnswer(s, 'p1', wrong, 2000)), 'p2', right, 2000));
+    s = must(override(step(s, next(s, 9000, rng), 9000), 'p1', 'partial'));
+    s = must(castAppealVote(must(openAppeal(s, 'p1', 'grade', 9500)), 'p2', 1, true, 9600));
+    const left = leave(s);
+    const appealSeq = left.appeals?.[0].adjustmentSeq ?? 0;
+    const noPenalty = must(undoScore(left, { seq: penalties(left)[0].seq }, 11_000));
+    const penaltyUndo = noPenalty.adjustments.at(-1)!.seq;
+    expect(score(noPenalty, 'p1')).toBe(100);
+    // Штраф, а потім рядок апеляції: повернений штраф дав би −50.
+    const noAppeal = must(undoScore(noPenalty, { seq: appealSeq }, 12_000));
+    expect(score(noAppeal, 'p1')).toBe(50);
+    expect(undoScore(noAppeal, { seq: penaltyUndo }, 13_000)).toEqual({ ok: false, error: 'not_allowed' });
+    // Штраф, а потім відповідь (бере й рядок апеляції): повернений штраф дав би −100.
+    const noAnswer = must(undoScore(noPenalty, { question: 0, playerId: 'p1' }, 12_000));
+    expect(score(noAnswer, 'p1')).toBe(0);
+    expect(undoScore(noAnswer, { seq: penaltyUndo }, 13_000)).toEqual({ ok: false, error: 'not_allowed' });
+    // Нічого не скасовано, крім штрафу: він повертається, за запитання знову 0.
+    expect(score(must(undoScore(noPenalty, { seq: penaltyUndo }, 13_000)), 'p1')).toBe(0);
+  });
+
+  it('the appeal row the penalty took is undone only after the penalty', () => {
+    const left = leave(appealed(wrong, 'grade', true));
+    const appealSeq = left.appeals?.[0].adjustmentSeq ?? 0;
+    expect(undoScore(left, { seq: appealSeq }, 11_000)).toEqual({ ok: false, error: 'not_allowed' });
+    const noPenalty = must(undoScore(left, { seq: penalties(left)[0].seq }, 11_000));
+    expect(score(noPenalty, 'p1')).toBe(100);
+    expect(score(must(undoScore(noPenalty, { seq: appealSeq }, 12_000)), 'p1')).toBe(0);
   });
 });

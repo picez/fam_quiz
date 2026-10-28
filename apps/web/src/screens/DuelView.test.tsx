@@ -40,12 +40,13 @@ const duelInfo = (patch: Partial<DuelInfo> = {}): DuelInfo => ({
 
 const playerDuel = (patch: Partial<PlayerDuel> = {}): PlayerDuel => ({ rights: null, tries: [], canAnswer: false, canPick: false, ...patch });
 
-const me = { id: 'p1', nickname: 'Оля', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: playerDuel(), buffs: null, overtime: null, tip: null, vote: null, wall: null };
+const me = { id: 'p1', nickname: 'Оля', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: playerDuel(), buffs: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 
 const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): PlayerView => ({
   role: 'player',
   autopilot: false,
   facts: null,
+  appeal: null,
   author: null,
   phase: 'duel',
   paused: false,

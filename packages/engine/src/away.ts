@@ -181,7 +181,10 @@ export function awayPenaltyOn(state: GameState, q: number): boolean {
   return round !== undefined && AWAY_PENALTY_ROUNDS.includes(round.type) && !isUnscored(play.question);
 }
 
-/** Учасники, яких штраф зачепить на plays[q]: будь-яка людина учасника має ms ≥ AWAY_MS.penalty. Порядок — state.players. */
+/**
+ * Учасники, яких штраф зачепить на plays[q]: будь-яка людина учасника має ms ≥ AWAY_MS.penalty. Порядок — state.players.
+ * Апеляція 'away' за q, яку зал підтримав (12f), знімає учасника: штрафу не буде. Читання прямо зі state.appeals, без appeal.ts.
+ */
 export function awayPenalized(state: GameState, q: number): string[] {
   if (!awayPenaltyOn(state, q)) return [];
   const hit = new Set<string>();
@@ -190,7 +193,23 @@ export function awayPenalized(state: GameState, q: number): string[] {
     const participant = awayParticipant(state, personId);
     if (participant !== null) hit.add(participant);
   }
+  for (const a of state.appeals ?? []) {
+    if (a.reason === 'away' && a.questionIndex === q && a.outcome === 'yes') hit.delete(a.by);
+  }
   return state.players.filter((p) => hit.has(p.id)).map((p) => p.id);
+}
+
+/** Нескасовані коригування джерела source учасника під запитанням q (afterQuestion − 1 === q), з урахуванням «Повернути». */
+function openRowsOf(state: GameState, source: 'appeal' | 'away', participant: string, q: number) {
+  const own = state.adjustments.filter((a) => a.source === source && a.playerId === participant && a.afterQuestion - 1 === q);
+  if (own.length === 0) return own;
+  const ledger = undoLedger(state.adjustments.map((a) => ({ seq: a.seq, who: a.playerId, source: a.source, undoes: a.undoes })));
+  return own.filter((a) => !ledger.adjustments.has(a.seq));
+}
+
+/** Сума нескасованих коригувань 'appeal' (12f) учасника під запитанням q; appeal.ts реекспортує її як appealAdjustmentTotal. */
+export function awayAppealTotal(state: GameState, participant: string, q: number): number {
+  return openRowsOf(state, 'appeal', participant, q).reduce((sum, a) => sum + a.points, 0);
 }
 
 const OPEN_PHASES: readonly Phase[] = ['question', 'locked', 'reveal'];
@@ -210,14 +229,17 @@ function penaltyDue(prev: GameState, next: GameState): number | null {
   return openOn(prev, q) && !openOn(next, q) ? q : null;
 }
 
-/** Штрафи 'away' за запитання q: −бали запису (лише додатні), раз на учасника; лише коли q — останнє закрите запитання. */
+/**
+ * Штрафи 'away' за запитання q: −(бали запису + нескасовані бали апеляції 12f), лише додатні, раз на учасника;
+ * лише коли q — останнє закрите запитання. Інакше вихід рятував би бали, які зал щойно зарахував.
+ */
 function withPenalties(state: GameState, q: number, at: number): GameState {
   // Захист від невідомого переходу: штраф стоїть під своїм запитанням (afterQuestion − 1 === q).
   if (afterQuestionNow(state) - 1 !== q) return state;
   const { roundIndex } = state.plays[q];
   let s = state;
   for (const participant of awayPenalized(state, q)) {
-    const points = recordOf(s, q, participant)?.points ?? 0;
+    const points = (recordOf(s, q, participant)?.points ?? 0) + awayAppealTotal(s, participant, q);
     if (points <= 0) continue;
     // Раз на учасника: скасований ведучим штраф не повертається.
     if (s.adjustments.some((a) => a.source === 'away' && a.playerId === participant && a.afterQuestion - 1 === q)) continue;

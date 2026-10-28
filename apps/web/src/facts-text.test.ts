@@ -30,6 +30,7 @@ const game: GameCard = {
   debuffs: { sent: 1, got: 3 },
   bluff: { fooled: 2, fooledBy: 1 },
   away: 0,
+  appeals: { won: 0, lost: 0 },
 };
 
 describe('fact texts', () => {
@@ -140,6 +141,13 @@ describe('fact texts', () => {
     // Одна частина дебафів не нуль — рядок з обома.
     expect(gameCardLines({ ...game, debuffs: { sent: 0, got: 2 } }, false)).toContain('Дебафи: від тебе 0 · на тобі 2');
     expect(gameCardLines({ ...game, correct: 0, answered: 0 }, false)[0]).toBe('Точність: відповідей не було');
+  });
+
+  it('12f appeals line: won and lost with a dot between, only when there were appeals, the same for a team', () => {
+    expect(gameCardLines({ ...game, appeals: { won: 1, lost: 1 } }, false)).toContain('⚖️ Апеляції: виграно 1 · програно 1');
+    expect(gameCardLines({ ...game, appeals: { won: 0, lost: 2 } }, true)).toContain('⚖️ Апеляції: виграно 0 · програно 2');
+    expect(gameCardLines({ ...game, appeals: { won: 0, lost: 0 } }, false).some((line) => line.includes('⚖️'))).toBe(false);
+    expect(gameCardLines({ ...game, appeals: { won: 1, lost: 0 }, bluff: { fooled: 1, fooledBy: 0 } }, false).at(-1)).toContain('Блеф');
   });
 
   it('12e away line: neutral wording, plural forms, only when above zero', () => {

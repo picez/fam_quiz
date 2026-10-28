@@ -19,8 +19,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 15 — 12a: ScoreAdjustment.undoes і ScoreAdjustment.batch (скасування балів ведучим), значення AdjustmentSource 'undo'.
  * 16 — 12c: Play.clueOpens (скільки підказок «Хто я?» відкрив кожен у власному темпі).
  * 17 — 12e: Play.away (виходи людей із гри), QuizSettings.awayPenalty, значення AdjustmentSource 'away'.
+ * 18 — 12f: GameState.appeals (апеляції й голоси залу), значення AdjustmentSource 'appeal'.
  */
-export const GAME_STATE_VERSION = 17;
+export const GAME_STATE_VERSION = 18;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -54,8 +55,10 @@ export const GAME_STATE_VERSION = 17;
  * «Хто я?» у власному темпі (поля cluePace не було): тож кімната, збережена до розгортання 12c, теж відновлюється.
  * 16 → 17 лише додала необов'язкові Play.away і QuizSettings.awayPenalty (і значення AdjustmentSource 'away'), а стан версій 2–16
  * не може містити виходів чи штрафів: тож кімната, збережена до розгортання 12e, теж відновлюється.
+ * 17 → 18 лише додала необов'язкове GameState.appeals (і значення AdjustmentSource 'appeal'), а стан версій 2–17 не може містити
+ * апеляцій: тож кімната, збережена до розгортання 12f, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

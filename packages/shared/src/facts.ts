@@ -80,6 +80,8 @@ export interface FactInput {
   debuffs: { by: string; target: string | null }[];
   /** Позначки «відволікався» (12e): учасник рушія × запитання. */
   away: { playerId: string; questionIndex: number }[];
+  /** Раховані апеляції з рішенням залу (12f): учасник рушія й рішення. */
+  appeals: { playerId: string; outcome: 'yes' | 'no' | 'tie' }[];
 }
 
 /** Запитання в картці: раунд, номер у раунді, текст. */
@@ -145,6 +147,8 @@ export interface GameCard {
   bluff: { fooled: number; fooledBy: number } | null;
   /** На скількох запитаннях учасник відволікався (12e). */
   away: number;
+  /** Апеляції учасника (12f): won — зал зарахував; lost — «ні» чи нічия. */
+  appeals: { won: number; lost: number };
 }
 
 /** Рядок таблиці учасників в історії (12d). */
@@ -572,6 +576,7 @@ export function gameCard(input: FactInput, playerId: string): GameCard | null {
   const player = derived(input).players.get(playerId);
   if (!player) return null;
   const t = tally(input, playerId, null);
+  const own = input.appeals.filter((a) => a.playerId === playerId);
   return {
     rounds: player.rounds,
     correct: t.correct,
@@ -582,6 +587,7 @@ export function gameCard(input: FactInput, playerId: string): GameCard | null {
     debuffs: { sent: input.debuffs.filter((d) => d.by === playerId).length, got: input.debuffs.filter((d) => d.target === playerId).length },
     bluff: hasBluff(input, null) ? { fooled: t.own.reduce((s, a) => s + (a.bluff?.fooled ?? 0), 0), fooledBy: t.own.filter(pickedLie).length } : null,
     away: new Set(input.away.filter((a) => a.playerId === playerId).map((a) => a.questionIndex)).size,
+    appeals: { won: own.filter((a) => a.outcome === 'yes').length, lost: own.filter((a) => a.outcome !== 'yes').length },
   };
 }
 

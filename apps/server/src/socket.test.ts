@@ -5,7 +5,7 @@ import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud,
 import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
-import { answer, scoreAdjustment } from './db/schema';
+import { answer, appeal, scoreAdjustment } from './db/schema';
 import type { Db } from './db/client';
 import { TEST_AUTH, signUp, startGame, type StartedGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -1440,6 +1440,65 @@ describe('player:away over sockets (12e)', () => {
       expect(rows.map((r) => [r.participantId, r.awayMs]).sort()).toEqual([[olenaJoin.playerId, 3500], [tarasJoin.playerId, null]].sort());
       const adjustments = await db.select().from(scoreAdjustment).where(eq(scoreAdjustment.participantId, olenaJoin.playerId));
       expect(adjustments).toEqual([expect.objectContaining({ source: 'away', points: -1000 })]);
+    });
+  });
+});
+
+describe('appeals over real sockets (12f)', () => {
+  /** Олена відповіла правильно, Тарас — неправильно; ведучий відкрив розкриття. */
+  async function atReveal(quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')], { speedBonus: false })])) {
+    const started = await lobby((await startGame(ctx.app, quiz)).game);
+    const { host, olena, taras } = started;
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', wrong)).toEqual({ ok: true });
+    await until(host, inPhase('locked'));
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(taras, inPhase('reveal'));
+    return started;
+  }
+
+  it('a player appeals on the reveal; the host and the stage cannot; a bad reason or appeal id is invalid; engine errors come through the ack', async () => {
+    const { host, stage, olena, taras } = await atReveal();
+    const own = await until(taras, (view) => view.role === 'player' && view.me.appeal !== null);
+    expect(own.role === 'player' && own.me.appeal).toMatchObject({ reasons: ['grade'], left: 2 });
+    for (const who of [host, stage]) {
+      expect(await send(who, 'player:appeal', { reason: 'grade' })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:appeal-vote', { appealId: 1, yes: true })).toEqual({ ok: false, error: 'forbidden' });
+    }
+    expect(await send(taras, 'player:appeal', { reason: 'x' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(taras, 'player:appeal')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:appeal-vote', { appealId: 0, yes: true })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:appeal-vote', { appealId: 1, yes: 'так' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:appeal-vote', { appealId: 1, yes: true })).toEqual({ ok: false, error: 'vote_closed' });
+    expect(await send(olena, 'player:appeal', { reason: 'grade' })).toEqual({ ok: false, error: 'appeal_unfit' });
+    expect(await send(taras, 'player:appeal', { reason: 'grade' })).toEqual({ ok: true });
+    expect(await send(taras, 'player:appeal', { reason: 'grade' })).toEqual({ ok: false, error: 'appeal_open' });
+    expect(await send(host, 'host:next')).toEqual({ ok: false, error: 'appeal_open' });
+    const voter = await until(olena, (view) => view.role === 'player' && view.me.appeal?.voter === true);
+    expect(voter.appeal).toMatchObject({ outcome: null, yes: 0, no: 0, waiting: 1 });
+    expect(await send(taras, 'player:appeal-vote', { appealId: 1, yes: true })).toEqual({ ok: false, error: 'vote_denied' });
+  });
+
+  it('end to end: the appeal and the vote over the socket land in the database as an appeal row and an appeal adjustment', async () => {
+    const { host, stage, olena, taras, olenaJoin, tarasJoin } = await atReveal();
+    expect(await send(taras, 'player:appeal', { reason: 'grade' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:appeal-vote', { appealId: 1, yes: true })).toEqual({ ok: true });
+    const decided = await until(stage, (view) => view.appeal?.outcome === 'yes');
+    expect(decided.appeal).toMatchObject({ yes: 1, no: 0, waiting: 0 });
+    expect(JSON.stringify(decided.appeal)).not.toContain(olenaJoin.playerId);
+    const mine = await until(olena, (view) => view.appeal?.outcome === 'yes');
+    expect(mine.role === 'player' && mine.me.appeal).toMatchObject({ voter: false, vote: null });
+    expect(await send(host, 'host:end-round')).toEqual({ ok: true });
+    await until(taras, inPhase('finished'));
+    await ctx.recorder.idle();
+    await vi.waitFor(async () => {
+      const rows = await db.select().from(appeal).where(eq(appeal.participantId, tarasJoin.playerId));
+      expect(rows).toEqual([expect.objectContaining({ seq: 1, questionIndex: 0, reason: 'grade', yes: 1, no: 0, outcome: 'yes', adjustmentSeq: expect.any(Number) })]);
+      const adjustments = await db.select().from(scoreAdjustment).where(eq(scoreAdjustment.participantId, tarasJoin.playerId));
+      expect(adjustments).toEqual([expect.objectContaining({ source: 'appeal', points: 1000, seq: rows[0].adjustmentSeq })]);
     });
   });
 });
