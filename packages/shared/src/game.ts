@@ -11,7 +11,9 @@ export type AdjustmentSource = 'host' | 'duel' | 'debuff' | 'survival'
   /** Виграш драбини (10i). */
   | 'ladder'
   /** Скасування балів ведучим (12a): мінус те, що скасовано; «Повернути» — скасування скасування. */
-  | 'undo';
+  | 'undo'
+  /** Штраф за вихід із гри (12e): мінус бали запитання; запитання — afterQuestion − 1. */
+  | 'away';
 
 /** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. */
 export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;

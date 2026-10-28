@@ -104,6 +104,11 @@ import {
   GAME_STATE_VERSION,
   READABLE_STATE_VERSIONS,
   stamp,
+  awayClock,
+  awayEnd,
+  awayParticipant,
+  awayStart,
+  awayStep,
   tooSoon,
   openClue,
   type GameState,
@@ -111,7 +116,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -168,6 +173,44 @@ export interface Room {
   audioSeq: number;
   /** Номер слайда каруселі «Нагороди гри» (12d): у пам'яті кімнати, у знімок не йде. */
   awardsSeq: number;
+  /** Антигугл (12e): люди, чий телефон сказав «пішов»; повернення чи розрив прибирає. Лише в пам'яті. */
+  hidden: Set<string>;
+  /** Антигугл (12e): людина → останній розрив (dropAt) і повернення (backAt, null — ще без зв'язку); звіт повернення прибирає. Лише в пам'яті. */
+  gaps: Map<string, AwayGap>;
+  /** Вікно частоти player:away (12e), як draftRate. Лише в пам'яті. */
+  awayRate: Map<string, { from: number; count: number }>;
+  /**
+   * Люди з прийнятим «пішов» (12e), чиє наступне «повернувся» частоти не рахує: одне на кожен прийнятий вихід — відмова в поверненні
+   * додала б вигаданий час, а решта повернень рахується, тож ними не засипати. Розрив не прибирає (телефон міг повернутися без зв'язку).
+   */
+  awayCredit: Set<string>;
+}
+
+/**
+ * Розрив зв'язку людини (12e): dropAt — мить розриву, backAt — перепідключення (null — ще без зв'язку).
+ * Годинник запитання (awayClock — без заставки й пауз): dropQuestion / clockAtDrop — у мить розриву, backQuestion / clockAtBack — у мить
+ * перепідключення; так у вихід іде лише та частина розриву, що припала на поточне запитання й не на паузу.
+ * counted — запитання (індекс у plays), на якому інтервал виходу був відкритий у мить розриву й закрився на ній:
+ * цей вихід уже порахований, тож розрив і повернення нового разу не додають; null — не був.
+ * Людина тримає лише останній розрив: два розриви в одному виході дають лише останній (менше, а не більше — безпечний бік).
+ */
+export interface AwayGap {
+  dropAt: number;
+  backAt: number | null;
+  dropQuestion: number;
+  clockAtDrop: number;
+  backQuestion: number | null;
+  clockAtBack: number | null;
+  counted: number | null;
+}
+
+/** Розрив, після перепідключення якого минуло більше, — старий: новий вихід (away: true) його забуває, щоб counted не сховав окремий вихід. */
+const AWAY_GAP_STALE_MS = 5000;
+
+/** Звіт повернення телефона (12e): ms — тривалість виходу за телефоном; sinceReturnMs — скільки мс тому телефон знову став видимим. */
+export interface AwayReport {
+  ms?: number;
+  sinceReturnMs?: number;
 }
 
 /** Живий вибір (10j, 12b): на якому запитанні (trial — питання на виживання після нього), хто, коли й що в полі. */
@@ -453,6 +496,10 @@ export class RoomManager {
       tilts: new Map(),
       audioSeq: Date.now(),
       awardsSeq: Date.now(),
+      hidden: new Set(),
+      gaps: new Map(),
+      awayRate: new Map(),
+      awayCredit: new Set(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -505,6 +552,10 @@ export class RoomManager {
       tilts: new Map(),
       audioSeq: Date.now(),
       awardsSeq: Date.now(),
+      hidden: new Set(),
+      gaps: new Map(),
+      awayRate: new Map(),
+      awayCredit: new Set(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -590,6 +641,12 @@ export class RoomManager {
     }
     if (identity.role === 'stage' && count === 1) this.emit(room, { type: 'changed' });
     if (identity.playerId !== null && count === 1) {
+      const gap = room.gaps.get(identity.playerId);
+      if (gap !== undefined && gap.backAt === null) {
+        gap.backAt = this.now();
+        gap.backQuestion = room.state.questionIndex;
+        gap.clockAtBack = awayClock(room.state, gap.backAt);
+      }
       this.apply(room, setConnected(room.state, identity.playerId, true, this.now()));
     }
   }
@@ -604,7 +661,22 @@ export class RoomManager {
     }
     room.connections.delete(key);
     if (identity.playerId !== null) {
-      this.apply(room, setConnected(room.state, identity.playerId, false, this.now()));
+      // Антигугл (12e): до setConnected, тож awayStep у тому самому commit уже бачить розрив і закриває інтервал на ньому.
+      const person = identity.playerId;
+      const { state } = room;
+      const open = state.plays[state.questionIndex]?.away?.[person]?.since;
+      const dropAt = this.now();
+      room.gaps.set(person, {
+        dropAt,
+        backAt: null,
+        dropQuestion: state.questionIndex,
+        clockAtDrop: awayClock(state, dropAt),
+        backQuestion: null,
+        clockAtBack: null,
+        counted: open !== undefined && open !== null ? state.questionIndex : null,
+      });
+      room.hidden.delete(person);
+      this.apply(room, setConnected(room.state, person, false, this.now()));
       return;
     }
     if (identity.role === 'host') {
@@ -752,6 +824,52 @@ export class RoomManager {
     }
     this.emit(room, { type: 'draft', id, by: playerId, teammates });
     return { ok: true };
+  }
+
+  /**
+   * Антигугл (12e): телефон людини пішов із гри (away) чи повернувся (report.ms — тривалість за телефоном; report.sinceReturnMs —
+   * скільки мс тому телефон знову став видимим, якщо повернувся без зв'язку). Час рахує рушій за годинником менеджера. Частина
+   * виходу без зв'язку — перетин заявленого виходу з розривом (awayGapMs), обмежений часом розриву всередині поточного запитання
+   * за його годинником (без заставки й пауз; розрив, що скінчився до запитання, — 0). Подія від гравця: автор автопілота діє як
+   * звичайний гравець. Понад AWAY_EVENTS_PER_SECOND за секунду — too_soon; перше повернення після кожного прийнятого виходу частоти
+   * не рахує (відмова додала б вигаданий час), решта повернень — рахує. Незмінений стан — { ok: true } без commit.
+   */
+  away(room: Room, personId: string, away: boolean, report: AwayReport = {}): AckResult {
+    if (!this.alive(room)) return this.gone();
+    if (awayParticipant(room.state, personId) === null) return { ok: false, error: 'not_found' };
+    const now = this.now();
+    const { state } = room;
+    // Повернення в рахунок прийнятого виходу — без частоти; delete лише тоді, коли воно справді повернення.
+    const free = !away && room.awayCredit.delete(personId);
+    if (!free) {
+      const rate = room.awayRate.get(personId);
+      if (rate === undefined || now - rate.from >= 1000) room.awayRate.set(personId, { from: now, count: 1 });
+      else if (rate.count + 1 > AWAY_EVENTS_PER_SECOND) return { ok: false, error: 'too_soon' };
+      else rate.count += 1;
+    }
+    let next: GameState;
+    if (away) {
+      room.hidden.add(personId);
+      room.awayCredit.add(personId);
+      const gap = room.gaps.get(personId);
+      if (gap !== undefined && gap.backAt !== null && now - gap.backAt > AWAY_GAP_STALE_MS) room.gaps.delete(personId);
+      next = awayStart(state, personId, now);
+    } else {
+      room.hidden.delete(personId);
+      const gap = room.gaps.get(personId) ?? null;
+      room.gaps.delete(personId);
+      next = awayEnd(state, personId, now, this.gapMs(state, gap, report, now), gap !== null && gap.counted === state.questionIndex);
+    }
+    if (next === room.state) return { ok: true };
+    this.commit(room, next);
+    return { ok: true };
+  }
+
+  /** Частина виходу без зв'язку (12e): перетин із заявленим виходом, не більше за час розриву на годиннику поточного запитання. */
+  private gapMs(state: GameState, gap: AwayGap | null, report: AwayReport, now: number): number {
+    if (gap === null || gap.backAt === null || gap.backQuestion !== state.questionIndex || gap.clockAtBack === null) return 0;
+    const inQuestion = gap.dropQuestion === state.questionIndex ? gap.clockAtBack - gap.clockAtDrop : gap.clockAtBack;
+    return Math.min(awayGapMs(gap, report.ms ?? 0, now - (report.sinceReturnMs ?? 0)), Math.max(0, inQuestion));
   }
 
   /** Командна гра: учасник вибирає команду в лобі. */
@@ -1145,6 +1263,10 @@ export class RoomManager {
       if (!removed.state.players.some((p) => p.id === id) && memberOf(removed.state, id) === undefined) room.drafts.delete(id);
     }
     room.draftRate.delete(playerId);
+    room.hidden.delete(playerId);
+    room.gaps.delete(playerId);
+    room.awayRate.delete(playerId);
+    room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {
       if (!removed.state.players.some((p) => p.id === sorterId)) room.tilts.delete(sorterId);
@@ -1234,6 +1356,8 @@ export class RoomManager {
 
   /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. */
   private commit(room: Room, state: GameState, at = this.now()): void {
+    // Антигугл (12e): годинник виходів між кроками — на кожному кроці (дії, таймери, автопілот), у мить кроку; до stamp.
+    state = awayStep(room.state, state, at, room.hidden);
     // Нове запитання: нахили попереднього вже нічого не значать.
     if (state.questionIndex !== room.state.questionIndex) room.tilts.clear();
     // Автопілот: мітка кроку завжди (від неї рахуються заставки й вікна 11b), потім план наступного кроку (11g).

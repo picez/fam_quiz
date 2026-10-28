@@ -1,4 +1,5 @@
 import { suspendAutopilot } from './autopilot';
+import { awayCloseAll } from './away';
 import { pause, setConnected, tick, type GameState } from './game';
 
 /** Версія формату GameState для збережених кімнат (9b). Піднімати, коли змінюється форма стану; кімнати іншої версії не відновлюються.
@@ -17,8 +18,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 14 — 11g: GameState.autopilot (автор, мить наступного кроку автопілота, залишок і причина паузи, старт після кубиків).
  * 15 — 12a: ScoreAdjustment.undoes і ScoreAdjustment.batch (скасування балів ведучим), значення AdjustmentSource 'undo'.
  * 16 — 12c: Play.clueOpens (скільки підказок «Хто я?» відкрив кожен у власному темпі).
+ * 17 — 12e: Play.away (виходи людей із гри), QuizSettings.awayPenalty, значення AdjustmentSource 'away'.
  */
-export const GAME_STATE_VERSION = 16;
+export const GAME_STATE_VERSION = 17;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -50,8 +52,10 @@ export const GAME_STATE_VERSION = 16;
  * не може містити скасувань: тож кімната, збережена до розгортання 12a, теж відновлюється.
  * 15 → 16 лише додала необов'язкове Play.clueOpens (без нього в кожного 1 підказка), а стан версій 2–15 не може містити
  * «Хто я?» у власному темпі (поля cluePace не було): тож кімната, збережена до розгортання 12c, теж відновлюється.
+ * 16 → 17 лише додала необов'язкові Play.away і QuizSettings.awayPenalty (і значення AdjustmentSource 'away'), а стан версій 2–16
+ * не може містити виходів чи штрафів: тож кімната, збережена до розгортання 12e, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті
@@ -67,6 +71,8 @@ export function suspend(state: GameState, at: number): GameState {
     const paused = pause(s, at);
     if (paused.ok) s = paused.state;
   }
+  // Антигугл (12e): відкриті виходи закриваються на мить збереження (на паузі — на pausedAt); телефон, що досі прихований, звітує знову.
+  s = awayCloseAll(s, at);
   // Спершу пауза, потім розрив: на паузі відлік відсутності не стартує, а autoLock нічого не закриває.
   // Кого розрив забрав, того чекають, доки не повернеться: «усі відповіли» без них не закриває запитання.
   const awaiting = [...s.awaiting, ...s.players.filter((p) => p.connected && !s.awaiting.includes(p.id)).map((p) => p.id)];

@@ -189,6 +189,12 @@ export const PENALTY_ATTEMPT = -1;
 /** Номер рядка answer для голосу в запитанні без балів (опитування, хмара, 10d): не відповідь для статистики. */
 export const VOTE_ATTEMPT = -3;
 
+/**
+ * Номер рядка answer лише з позначкою виходу (12e): учасник без жодного рядка на закритому запитанні, але з away_ms від порогу.
+ * Бали 0, відповіді немає; не відповідь ні для статистики, ні для рахунку — лише для цікавинок «відволікався».
+ */
+export const AWAY_ATTEMPT = -4;
+
 export const answer = pgTable(
   'answer',
   {
@@ -214,6 +220,8 @@ export const answer = pgTable(
     buff: text('buff').$type<BuffKind>(),
     /** Запасне запитання, на яке дано відповідь; null — основне (і в старих іграх). */
     spareId: text('spare_id'),
+    /** Вихід із гри на цьому запитанні від AWAY_MS.mark, мс (12e); null — без позначки (і в старих іграх). */
+    awayMs: integer('away_ms'),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
 );

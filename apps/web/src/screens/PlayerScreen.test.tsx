@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { STAGE_GONE_MS } from '../live/useStageGone';
@@ -84,6 +84,9 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   table: null,
   myBreakdown: null,
   own: null,
+  away: null,
+  lastAway: null,
+  awayPenalty: false,
   team: null,
   ...over,
 });
@@ -3322,7 +3325,7 @@ describe('PlayerScreen: facts (12d)', () => {
     { participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 2 },
   ];
   const roundCard = { correct: 4, answered: 6, avgMs: 5300, fastestMs: 2000, streak: 3, place: { before: 5, now: 3 }, fooledBy: 1 };
-  const gameCard = { rank: 2, rounds: [300, -100, 500], correct: 4, answered: 6, bestStreak: 3, fastestMs: 1800, buffs: 1, debuffs: { sent: 0, got: 1 }, bluff: null };
+  const gameCard = { rank: 2, rounds: [300, -100, 500], correct: 4, answered: 6, bestStreak: 3, fastestMs: 1800, buffs: 1, debuffs: { sent: 0, got: 1 }, bluff: null, away: 0 };
   const cards = [
     { kind: 'lightning' as const, names: ['Оля'], timeMs: 2100, question: { roundIndex: 0, number: 2, text: 'Найвища гора Карпат?' } },
     { kind: 'streak' as const, names: ['Петро'], length: 3 },
@@ -3400,5 +3403,74 @@ describe('PlayerScreen: facts (12d)', () => {
     cleanup();
     show(onQuestion({ round, standings, facts: all, own }));
     expect(document.querySelector('.own-card, .fact-cards, .reveal-facts')).toBeNull();
+  });
+});
+
+describe('PlayerScreen away alarm (12e)', () => {
+  const left = { play: 0, ms: 8400, count: 1, out: false, penalty: false };
+  beforeEach(() => {
+    localStorage.clear();
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+  });
+  afterEach(() => Reflect.deleteProperty(document, 'visibilityState'));
+
+  it('the phone that left turns red and keeps the line under the question', () => {
+    show(onQuestion({ away: left, lastAway: left }), { code: '123456' });
+    const alert = screen.getByRole('alert');
+    expect(alert.className).toBe('away-alarm');
+    expect(alert.textContent).toContain('🚨 Вихід із гри під час запитання!');
+    // Шар — останній дочірній елемент екрана: поверх заставок і аркушів; решта екрана inert.
+    const main = document.querySelector('main.player')!;
+    expect(main.lastElementChild).toBe(alert);
+    expect(main.querySelector('header.bar')!.hasAttribute('inert')).toBe(true);
+    expect(document.querySelector('.away-note')?.textContent).toBe('Тебе не було в грі 8 с — ведучий і екран це бачать');
+    expect(localStorage.getItem('quiz:alarm')).toBe('123456:p1:0:1');
+  });
+
+  it('the line stays on locked and reveal, with the penalty', () => {
+    const penalty = { ...left, penalty: true };
+    show(view({ phase: 'locked', questionIndex: 0, question: publicQuestion, away: penalty, lastAway: penalty }), { code: '123456' });
+    expect(screen.getByRole('alert').textContent).toContain('0 балів за це запитання');
+    expect(document.querySelector('.away-note')?.textContent).toContain('За це запитання буде 0 балів');
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, away: penalty, lastAway: penalty }), { code: '123456' });
+    // Цей вихід уже показано: тривоги вдруге немає, рядок лишається.
+    expect(document.querySelector('.away-alarm')).toBeNull();
+    expect(document.querySelector('.away-note')?.textContent).toContain('Тебе не було в грі 8 с');
+  });
+
+  it('a penalty that lands while the alarm is up (same leave) shows without a restart', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const at = (current: PlayerView) => <PlayerScreen view={current} hostOnline offsetMs={0} send={send} code="123456" />;
+    const { rerender } = render(at(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, lastAway: left })));
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).not.toContain('0 балів');
+    rerender(at(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, lastAway: { ...left, penalty: true } })));
+    expect(screen.getByRole('alert')).toBe(alert);
+    expect(alert.textContent).toContain('0 балів за це запитання');
+  });
+
+  it('a return after the question (leaderboard) still alarms from lastAway, without the line', () => {
+    show(view({ phase: 'leaderboard', questionIndex: 0, lastAway: left }), { code: '123456' });
+    expect(screen.getByRole('alert')).not.toBeNull();
+    expect(document.querySelector('.away-note')).toBeNull();
+  });
+
+  it('a return only after the last question (finished) still alarms', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings: [], lastAway: { ...left, play: 1 } }), { code: '123456' });
+    expect(screen.getByRole('alert').textContent).toContain('Вихід із гри під час запитання!');
+    expect(document.querySelector('.away-note')).toBeNull();
+  });
+
+  it('in a team game the key names the member, not the team', () => {
+    render(<PlayerScreen view={teamPlayerView({ phase: 'question', questionIndex: 0, question: publicQuestion, away: left, lastAway: left })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} code="123456" />);
+    expect(screen.getByRole('alert')).not.toBeNull();
+    expect(localStorage.getItem('quiz:alarm')).toBe('123456:u2:0:1');
+  });
+
+  it('a teammate of the one who left gets nothing', () => {
+    render(<PlayerScreen view={teamPlayerView({ phase: 'question', questionIndex: 0, away: null, lastAway: null })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} code="123456" />);
+    expect(document.querySelector('.away-alarm')).toBeNull();
+    expect(document.querySelector('.away-note')).toBeNull();
   });
 });

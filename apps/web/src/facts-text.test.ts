@@ -29,6 +29,7 @@ const game: GameCard = {
   buffs: 2,
   debuffs: { sent: 1, got: 3 },
   bluff: { fooled: 2, fooledBy: 1 },
+  away: 0,
 };
 
 describe('fact texts', () => {
@@ -139,5 +140,17 @@ describe('fact texts', () => {
     // Одна частина дебафів не нуль — рядок з обома.
     expect(gameCardLines({ ...game, debuffs: { sent: 0, got: 2 } }, false)).toContain('Дебафи: від тебе 0 · на тобі 2');
     expect(gameCardLines({ ...game, correct: 0, answered: 0 }, false)[0]).toBe('Точність: відповідей не було');
+  });
+
+  it('12e away line: neutral wording, plural forms, only when above zero', () => {
+    expect(gameCardLines({ ...game, away: 0 }, false).some((line) => line.includes('🙈'))).toBe(false);
+    const line = (away: number, team = false) => gameCardLines({ ...game, away }, team).find((l) => l.startsWith('🙈'));
+    expect(line(1)).toBe('🙈 Поза грою: на 1 запитанні');
+    expect(line(2)).toBe('🙈 Поза грою: на 2 запитаннях');
+    expect(line(5)).toBe('🙈 Поза грою: на 5 запитаннях');
+    expect(line(11)).toBe('🙈 Поза грою: на 11 запитаннях');
+    expect(line(21)).toBe('🙈 Поза грою: на 21 запитанні');
+    expect(line(3, true)).toBe('🙈 Команда поза грою: на 3 запитаннях');
+    expect(line(2)).not.toMatch(/відволік|виходив/);
   });
 });

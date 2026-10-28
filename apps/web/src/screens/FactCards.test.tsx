@@ -22,6 +22,7 @@ const game: GameCard = {
   buffs: 2,
   debuffs: { sent: 1, got: 3 },
   bluff: null,
+  away: 0,
 };
 
 describe('FactCards', () => {

@@ -332,8 +332,8 @@ describe('GameHistory: answers', () => {
         cell: null,
         question: matchQ,
         responses: [
-          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true, buff: null, spare: null },
-          { nickname: 'Тарас', answer: null, accepted: false, buff: null, spare: null },
+          { nickname: 'Олена', answer: { type: 'match', links: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] }, accepted: true, buff: null, spare: null, awayMs: null },
+          { nickname: 'Тарас', answer: null, accepted: false, buff: null, spare: null, awayMs: null },
         ],
         final: null,
       },
@@ -346,7 +346,7 @@ describe('GameHistory: answers', () => {
         accepted: 0,
         cell: null,
         question: singleQ,
-        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null }],
+        responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null }],
         final: null,
       },
     ],
@@ -378,8 +378,8 @@ describe('GameHistory: answers', () => {
           ...answered.questions[1],
           answered: 2,
           responses: [
-            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: 'double', spare: null },
-            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null },
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: 'double', spare: null, awayMs: null },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
           ],
         },
       ],
@@ -399,6 +399,44 @@ describe('GameHistory: answers', () => {
     expect(rows[1].querySelector('.buff-tag')).toBeNull();
   });
 
+  it('shows «🙈 N с» beside an answer with an away and nothing without one; whole seconds', async () => {
+    const withAway: GameDetail = {
+      ...answered,
+      questions: [
+        {
+          ...answered.questions[1],
+          answered: 2,
+          responses: [
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: 4200 },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
+          ],
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: withAway });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (2)'));
+    const rows = [...container.querySelectorAll('details.responses li')];
+    const mark = rows[0].querySelector('.history-away');
+    expect(mark?.textContent?.replace(/\s/g, ' ')).toBe('🙈 4 с');
+    expect(rows[0].querySelector('.responses-who')?.contains(mark ?? null)).toBe(true);
+    expect(rows[1].querySelector('.history-away')).toBeNull();
+  });
+
+  it('an older server without awayMs on answers and final entries shows no 🙈 and no «NaN»', async () => {
+    const { awayMs: _a, ...plain } = { nickname: 'Віра', answer: { type: 'single' as const, optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null };
+    const old = {
+      ...answered,
+      questions: [{ ...answered.questions[1], answered: 1, responses: [plain] }],
+    } as unknown as GameDetail;
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: old });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (1)'));
+    expect(container.querySelector('details.responses li')).not.toBeNull();
+    expect(container.querySelector('.history-away')).toBeNull();
+    expect(container.textContent).not.toContain('NaN');
+  });
+
   it('history shows the spare text and reads the answer against it', async () => {
     const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
     const swapped: GameDetail = {
@@ -408,8 +446,8 @@ describe('GameHistory: answers', () => {
           ...answered.questions[1],
           answered: 2,
           responses: [
-            { nickname: 'Оля', answer: { type: 'boolean', value: true }, accepted: true, buff: 'swap', spare },
-            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null },
+            { nickname: 'Оля', answer: { type: 'boolean', value: true }, accepted: true, buff: 'swap', spare, awayMs: null },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
           ],
         },
       ],
@@ -586,14 +624,32 @@ describe('GameHistory: duels', () => {
 });
 
 describe('GameHistory final', () => {
+  it('final entries show the mark too', async () => {
+    const finalQuestion = {
+      ...detail.questions[0],
+      final: {
+        mode: 'classic' as const,
+        entries: [
+          { nickname: 'Анна', answer: null, wager: 300, points: 0, accepted: true, awayMs: 7900 },
+          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false, awayMs: null },
+        ],
+      },
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, rounds: [{ title: 'Космос', type: 'final' }], questions: [finalQuestion] } });
+    const { container } = open('/history/g1');
+    await screen.findByText('Ставки фіналу');
+    const marks = [...container.querySelectorAll('.wager-list .history-away')];
+    expect(marks.map((m) => m.textContent?.replace(/\s/g, ' ').trim())).toEqual(['🙈 7 с']);
+  });
+
   it('shows final wagers and results', async () => {
     const finalQuestion = {
       ...detail.questions[0],
       final: {
         mode: 'classic' as const,
         entries: [
-          { nickname: 'Анна', answer: null, wager: 300, points: 300, accepted: true },
-          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false },
+          { nickname: 'Анна', answer: null, wager: 300, points: 300, accepted: true, awayMs: null },
+          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false, awayMs: null },
         ],
       },
     };
@@ -612,8 +668,8 @@ describe('GameHistory final', () => {
       final: {
         mode: 'bank' as const,
         entries: [
-          { nickname: 'Богдан', answer: null, wager: 400, points: 667, accepted: true },
-          { nickname: 'Анна', answer: null, wager: 1000, points: -1000, accepted: false },
+          { nickname: 'Богдан', answer: null, wager: 400, points: 667, accepted: true, awayMs: null },
+          { nickname: 'Анна', answer: null, wager: 1000, points: -1000, accepted: false, awayMs: null },
         ],
       },
     };
@@ -848,8 +904,8 @@ describe('GameHistory: undo', () => {
       {
         ...detail.questions[0],
         responses: [
-          { nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null },
-          { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null },
+          { nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null },
+          { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
         ],
       },
     ],

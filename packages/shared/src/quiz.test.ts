@@ -1024,6 +1024,12 @@ describe('debuff prices', () => {
     expect(valid(quizSchema, quiz({ debuffShop: 'no' }))).toBe(false);
   });
 
+  it('the away penalty flag is a boolean and nothing else', () => {
+    expect(valid(quizSchema, quiz({ awayPenalty: true }))).toBe(true);
+    expect(valid(quizSchema, quiz({}))).toBe(true);
+    expect(valid(quizSchema, quiz({ awayPenalty: 'yes' }))).toBe(false);
+  });
+
   it('the purchase event names the target and the kind', () => {
     expect(valid(buyDebuffSchema, { targetId: 'p1', kind: 'fog' })).toBe(true);
     expect(valid(buyDebuffSchema, { targetId: 'p1', kind: 'rain' })).toBe(false);

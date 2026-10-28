@@ -105,6 +105,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             ? LIMITS.maxLadderQuestions
             : LIMITS.maxQuestions) &&
     total < LIMITS.maxQuizQuestions;
+  const setAwayPenalty = (on: boolean) => {
+    const { awayPenalty: _off, ...rest } = settings;
+    update({ ...quiz, settings: on ? { ...rest, awayPenalty: true } : rest });
+  };
   const setNewcomers = (on: boolean) => {
     const { newcomers: _off, ...rest } = settings;
     update({ ...quiz, settings: on ? { ...rest, newcomers: true } : rest });
@@ -278,6 +282,14 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <HelpButton id="setting.newcomers" />
           </div>
           <p className="meta">{t('newcomersHint')}</p>
+          <div className="with-help">
+            <label className="field field-check">
+              <input type="checkbox" checked={settings.awayPenalty === true} onChange={(event) => setAwayPenalty(event.target.checked)} />
+              <span>{t('awayPenaltyLabel')}</span>
+            </label>
+            <HelpButton id="setting.away" />
+          </div>
+          <p className="meta">{t('awayPenaltyHint')}</p>
         </details>
 
         <details className="rules teams">

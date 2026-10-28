@@ -1,9 +1,10 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, isUnscored, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, isUnscored, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
+import { hostGame } from './history';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
@@ -18,7 +19,7 @@ const HOST = 'host-user';
 const correct = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
 
-async function setup(database?: Db, retryMs = 5000, maxRetries = 30) {
+async function setup(database?: Db, retryMs = 5000, maxRetries = 30, quiz: Quiz = makeQuiz([single, text], { speedBonus: false })) {
   const db = database ?? (await createTestDb());
   if (database === undefined) {
     await db.insert(user).values([
@@ -30,7 +31,7 @@ async function setup(database?: Db, retryMs = 5000, maxRetries = 30) {
   const manager = new RoomManager(scheduler, () => 0.5);
   const errors: unknown[] = [];
   const recorder = attachRecorder(manager, db, (error) => errors.push(error), retryMs, maxRetries);
-  const room = manager.create(makeQuiz([single, text], { speedBonus: false }), HOST, null);
+  const room = manager.create(quiz, HOST, null);
   const enter = (nickname: string, userId: string | null = null) => {
     const joined = manager.join(room.code, nickname, userId);
     if (!joined.ok) throw new Error(joined.error);
@@ -255,6 +256,41 @@ describe('recorder', () => {
       expect(p.score).toBe(sum(answers) + sum(rows));
     }
     expect(participants.map((p) => [p.nickname, p.score])).toEqual([['Олена', 0], ['Тарас', 50]]);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a penalty decided at the end is undone after the finish: scores, ranks and history standings follow (12e)', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeRoundsQuiz([classicRound('r1', [single, text], { speedBonus: false })], { awayPenalty: true }));
+    ctx.host('start');
+    ctx.host('next');
+    // Олена виходить із гри на 3500 мс (player:away), потім відповідає.
+    expect(ctx.manager.away(ctx.room, ctx.olena, true)).toEqual({ ok: true });
+    ctx.scheduler.advance(3500);
+    expect(ctx.manager.away(ctx.room, ctx.olena, false, { ms: 3500 })).toEqual({ ok: true });
+    playFirstQuestion(ctx); // Олена +1000, Тарас 0
+    // Штраф за вихід дописує годинник виходів у commit на переході до кінця гри.
+    ctx.host('end');
+    expect(ctx.room.state.adjustments).toEqual([expect.objectContaining({ seq: 1, source: 'away', playerId: ctx.olena, points: -1000 })]);
+    ctx.manager.connect(ctx.room, { role: 'stage', playerId: null });
+    let { participants } = await ctx.saved();
+    expect(participants.map((p) => [p.nickname, p.score])).toEqual([['Олена', 0], ['Тарас', 0]]);
+    expect(ctx.manager.host(ctx.room, { type: 'undo', target: { question: 0, playerId: ctx.olena } })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(ctx.manager.host(ctx.room, { type: 'undo', target: { seq: 1 } })).toEqual({ ok: true });
+    const saved = await ctx.saved();
+    participants = saved.participants;
+    const rows = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(rows.map((r) => [r.participantId, r.seq, r.source, r.points, r.undoesSeq])).toEqual([
+      [ctx.olena, 1, 'away', -1000, null],
+      [ctx.olena, 2, 'undo', 1000, 1],
+    ]);
+    expect(participants.map((p) => [p.nickname, p.score, p.rank])).toEqual([['Олена', 1000, 1], ['Тарас', 0, 2]]);
+    for (const p of participants) {
+      const sum = (list: { participantId: string; points: number }[]) => list.filter((r) => r.participantId === p.id).reduce((total, r) => total + r.points, 0);
+      expect(p.score).toBe(sum(saved.answers) + sum(rows));
+    }
+    expect(saved.games[0].status).toBe('finished');
+    const standings = (await hostGame(ctx.db, HOST, ctx.room.id))?.standings ?? [];
+    expect(standings.map((r) => [r.nickname, r.score, r.rank])).toEqual([['Олена', 1000, 1], ['Тарас', 0, 2]]);
     expect(ctx.errors).toEqual([]);
   });
 
@@ -692,6 +728,25 @@ describe('recorder: blitz', () => {
       [olena, 0, 0, wrong, false, -1000, 0, false],
       [olena, 0, 1, correct, true, 1000, 0, false],
     ]);
+  });
+
+  it('every attempt row of a blitz keeps the same away_ms; under the marker threshold it is null (12e)', async () => {
+    const risky = { penalty: 'minus', partial: null, streak: null, multiplier: 1 } as const;
+    const { manager, room, olena, taras, answers } = await blitzSetup({ attempts: 2, check: 'manual', rules: risky });
+    const index = room.state.questionIndex;
+    const play = room.state.plays[index];
+    room.state = {
+      ...room.state,
+      plays: room.state.plays.map((p, i) => (i === index ? { ...play, away: { [olena]: { ms: 2500, count: 1, since: null }, [taras]: { ms: 1500, count: 1, since: null } } } : p)),
+    };
+    for (const [id, choice, ok] of [[taras, wrong, false], [olena, wrong, false], [olena, correct, true]] as const) {
+      expect(manager.buzz(room, id)).toEqual({ ok: true });
+      expect(manager.answer(room, id, choice)).toEqual({ ok: true });
+      expect(manager.host(room, { type: 'judge', playerId: id, correct: ok })).toEqual({ ok: true });
+    }
+    const rows = await answers();
+    expect(rows.filter((a) => a.participantId === olena).map((a) => [a.attempt, a.awayMs])).toEqual([[0, 2500], [1, 2500]]);
+    expect(rows.filter((a) => a.participantId === taras).map((a) => a.awayMs)).toEqual([null]);
   });
 
   it('a missed blitz window is stored with an empty payload', async () => {
@@ -1468,6 +1523,46 @@ describe('recorder: teams (10j)', () => {
     expect(new Map(votes.map((a) => [a.participantId, a.payload]))).toEqual(
       new Map(Object.entries(words).map(([name, list]) => [ctx.members[name], { type: 'wordcloud', words: list }])),
     );
+  });
+
+  it('a member vote row keeps the person own away_ms, exactly the threshold counts (12e)', async () => {
+    const ctx = await teamGame();
+    toQuestion(ctx.manager, ctx.room);
+    toQuestion(ctx.manager, ctx.room);
+    const index = ctx.room.state.questionIndex;
+    const play = ctx.room.state.plays[index];
+    ctx.room.state = {
+      ...ctx.room.state,
+      plays: ctx.room.state.plays.map((p, i) => (i === index ? { ...play, away: { [ctx.members['Оля']]: { ms: 2000, count: 1, since: null }, [ctx.members['Петро']]: { ms: 1999, count: 1, since: null } } } : p)),
+    };
+    for (const name of ['Оля', 'Петро', 'Віра', 'Ігор']) expect(ctx.manager.answer(ctx.room, ctx.members[name], { type: 'wordcloud', words: ['каштани'] })).toEqual({ ok: true });
+    toQuestion(ctx.manager, ctx.room);
+    const { answers } = await ctx.saved();
+    const votes = new Map(answers.filter((a) => a.questionIndex === index).map((a) => [a.participantId, a.awayMs]));
+    expect(votes.get(ctx.members['Оля'])).toBe(2000);
+    expect(votes.get(ctx.members['Петро'])).toBeNull();
+    expect(votes.has(ctx.red)).toBe(false);
+  });
+
+  it('a solo poll vote row keeps the own away_ms (12e)', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db, (error) => {
+      throw error;
+    });
+    const room = manager.create(makeQuiz([poll], { speedBonus: false }), HOST, null);
+    const joined = manager.join(room.code, 'Олена', null);
+    if (!joined.ok) throw new Error(joined.error);
+    manager.connect(room, { role: 'player', playerId: joined.playerId });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const play = room.state.plays[0];
+    room.state = { ...room.state, plays: [{ ...play, away: { [joined.playerId]: { ms: 4200, count: 1, since: null } } }] };
+    expect(manager.answer(room, joined.playerId, { type: 'poll', optionId: 'b' })).toEqual({ ok: true });
+    await recorder.idle();
+    const rows = await db.select().from(answer);
+    expect(rows.map((a) => [a.attempt, a.awayMs])).toEqual([[VOTE_ATTEMPT, 4200]]);
   });
 
   it('a host adjustment of a team lands on the team row; at the finish the members get the rank of their team', async () => {

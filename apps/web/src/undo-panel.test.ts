@@ -11,6 +11,10 @@ describe('undoRowText', () => {
     expect(undoRowText(row({ kind: 'host', nickname: 'Іра', points: 50, target: { seq: 1 } }))).toBe('Ведучий: Іра +50');
     expect(undoRowText(row({ kind: 'host', nickname: 'Іра', points: -50, target: { seq: 2 } }))).toBe('Ведучий: Іра −50');
   });
+
+  it('marks the penalty for leaving the game (12e)', () => {
+    expect(undoRowText(row({ kind: 'away', points: -200, target: { seq: 4 } }))).toBe('Оля −200 (вихід із гри)');
+  });
 });
 
 describe('activePlayers', () => {
@@ -97,5 +101,23 @@ describe('historyUndoLines', () => {
       { seq: 4, text: '↶ Повернуто: Тарас +50 (бали ведучого)', returned: false },
     ]);
     expect(historyUndoLines(game, 1)).toEqual([]);
+  });
+});
+
+describe('historyUndoLines, the penalty for leaving the game (12e)', () => {
+  const game = {
+    questions: [{ index: 0, roundIndex: 0 }],
+    adjustments: [
+      { seq: 1, roundIndex: 0, afterQuestion: 1, nickname: 'Оля', points: -200, source: 'away' },
+      { seq: 2, roundIndex: 0, afterQuestion: 1, nickname: 'Оля', points: 200, source: 'undo', undoes: { seq: 1 } },
+      { seq: 3, roundIndex: 0, afterQuestion: 1, nickname: 'Оля', points: -200, source: 'undo', undoes: { seq: 2 } },
+    ],
+  } as unknown as Pick<GameDetail, 'adjustments' | 'questions'>;
+
+  it('says the undone points were the penalty, not host points', () => {
+    expect(historyUndoLines(game, 0)).toEqual([
+      { seq: 2, text: '↶ Скасовано: Оля +200 (вихід із гри)', returned: true },
+      { seq: 3, text: '↶ Повернуто: Оля −200 (вихід із гри)', returned: false },
+    ]);
   });
 });

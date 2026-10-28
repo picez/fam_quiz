@@ -1,8 +1,8 @@
-import { rankPlayers, recordOf, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
-import { isUnscored, type Answer, type BuffKind, type Question } from '@quiz/shared';
+import { memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
+import { AWAY_MS, isUnscored, type Answer, type BuffKind, type Question } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { answer, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
 
 export interface Recorder {
@@ -48,7 +48,9 @@ function signature(state: GameState): string {
   const ladder = last < 0 ? null : (state.plays[last].ladder ?? null);
   // Командна гра: вилучення людини (не останньої в команді) не змінює команд, а її рядок треба прибрати.
   const members = state.teams?.members.map((m) => m.id) ?? null;
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder, members]);
+  // Вихід із гри (12e) дописується до закритого запитання вже після зміни фази: теж варто запису.
+  const away = last < 0 ? null : state.plays[last].away;
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder, members, away]);
 }
 
 interface AnswerRow {
@@ -65,10 +67,34 @@ interface AnswerRow {
   buff: BuffKind | null;
   /** Запасне запитання, на яке дано відповідь; null — основне. */
   spareId: string | null;
+  /** Вихід із гри на запитанні, мс (від AWAY_MS.mark); null — без позначки. */
+  awayMs: number | null;
 }
 
-/** Рядки таблиці answer для гравця на запитання: у бліці по рядку на спробу, інакше один. */
-function answerRows(state: GameState, index: number, playerId: string): AnswerRow[] {
+/** Вихід учасника на запитанні для away_ms (12e): соло — свій; команда — найбільший з людей; людина (голос) — свій; менше AWAY_MS.mark — null. */
+function awayMsOf(state: GameState, index: number, participantId: string): number | null {
+  const away = state.plays[index].away;
+  if (away === undefined) return null;
+  const people = teamsOn(state) && memberOf(state, participantId) === undefined ? teamMembers(state, participantId).map((m) => m.id) : [participantId];
+  const ms = Math.max(0, ...people.map((id) => away[id]?.ms ?? 0));
+  return ms >= AWAY_MS.mark ? ms : null;
+}
+
+/**
+ * Рядки таблиці answer для гравця на запитання: у бліці по рядку на спробу, інакше один.
+ * Учасник рушія без жодного рядка, але з позначкою виходу (не відповів у класиці, не натискав на бліці без штрафу) —
+ * один рядок AWAY_ATTEMPT з 0 балів, щоб цікавинки історії бачили ту саму позначку, що й гра. Опитування й хмара — без нього:
+ * гра їх у «відволікався» не рахує.
+ */
+function answerRows(state: GameState, index: number, playerId: string, engineParticipant: boolean): AnswerRow[] {
+  const rows = answerRowsOf(state, index, playerId);
+  const awayMs = awayMsOf(state, index, playerId);
+  if (rows.length > 0) return rows.map((row) => ({ ...row, awayMs }));
+  if (!engineParticipant || awayMs === null || isUnscored(state.plays[index].question)) return [];
+  return [{ attempt: AWAY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: 0, streakBonus: 0, overridden: false, wager: null, buff: null, spareId: null, awayMs }];
+}
+
+function answerRowsOf(state: GameState, index: number, playerId: string): Omit<AnswerRow, 'awayMs'>[] {
   const record = recordOf(state, index, playerId);
   if (record === undefined) return [];
   const attempts = state.plays[index].blitz?.attempts.filter((a) => a.playerId === playerId);
@@ -212,9 +238,9 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
     const inGame = eq(participant.gameId, snapshot.id);
     await tx.delete(participant).where(ids.length === 0 ? inGame : and(inGame, notInArray(participant.id, ids)));
 
-    const saveAnswers = async (participantId: string) => {
+    const saveAnswers = async (participantId: string, engineParticipant: boolean) => {
       for (let index = snapshot.fromQuestion; index < closed; index++) {
-        for (const row of answerRows(state, index, participantId)) {
+        for (const row of answerRows(state, index, participantId, engineParticipant)) {
           const { attempt, payload, timeMs, ...grade } = row;
           await tx
             .insert(answer)
@@ -245,7 +271,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
           ...result,
         })
         .onConflictDoUpdate({ target: participant.id, set: result });
-      await saveAnswers(player.id);
+      await saveAnswers(player.id, true);
     }
 
     // Рядки людей — після рядків команд (зовнішній ключ): бали, час і місце — копія командних; відповіді — лише власні голоси.
@@ -264,7 +290,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
           ...result,
         })
         .onConflictDoUpdate({ target: participant.id, set: result });
-      await saveAnswers(member.id);
+      await saveAnswers(member.id, false);
     }
 
     // Коригування незмінні, а seq зростає в межах гри: дописуємо лише новіші за вже збережені, одним запитом.

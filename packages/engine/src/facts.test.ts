@@ -9,6 +9,7 @@ import { judge, lock, next, submitAnswer, type GameState } from './game';
 import { blitzRound, bluff, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, withId } from './testing/fixtures';
 import { rich, T0 as DEBUFF_T0 } from './testing/debuffs';
 import { lobbyWith, must, startRound } from './testing/helpers';
+import { teamGame, teamQuiz } from './testing/teams';
 
 const rng = () => 0;
 const kyiv: Answer = { type: 'single', optionId: 'b' };
@@ -128,5 +129,29 @@ describe('fact rows from the state (12d)', () => {
   it('the input is cached per state', () => {
     const s = must(lock(startRound(lobbyWith(makeQuiz([single], PLAIN), 'Оля', 'Петро'), 0, rng)));
     expect(factInput(s)).toBe(factInput(s));
+  });
+
+  it('away marks from two seconds: the participant and the closed question (12e)', () => {
+    const away = (s: GameState, person: string, ms: number): GameState => ({
+      ...s,
+      plays: s.plays.map((p, i) => (i === s.questionIndex ? { ...p, away: { ...p.away, [person]: { ms, count: 1, since: null } } } : p)),
+    });
+    const open = startRound(lobbyWith(makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    const marked = away(away(open, 'p1', 2000), 'p2', 1900);
+    // відкрите запитання ще не рахується
+    expect(factInput(marked).away).toEqual([]);
+    expect(factInput(must(lock(marked))).away).toEqual([{ playerId: 'p1', questionIndex: 0 }]);
+    // команда: людина → команда, без повторів
+    const base = teamQuiz([classicRound('r1', [single], PLAIN)]);
+    let team = must(next(teamGame(base, [['Оля', 'Петро'], ['Віра']]), 1000, rng));
+    team = away(away(away(team, 'm1', 2500), 'm2', 4000), 'm3', 100);
+    expect(factInput(must(lock(team))).away).toEqual([{ playerId: 't1', questionIndex: 0 }]);
+  });
+
+  it('away marks on unscored questions (poll, cloud) are not facts, as in the history (12e)', () => {
+    let s = startRound(lobbyWith(makeQuiz([poll, single], PLAIN), 'Оля', 'Петро'), 0, rng);
+    s = { ...s, plays: s.plays.map((p, i) => (i === 0 ? { ...p, away: { p1: { ms: 5000, count: 1, since: null } } } : p)) };
+    s = must(lock(s));
+    expect(factInput(s).away).toEqual([]);
   });
 });

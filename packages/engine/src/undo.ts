@@ -55,11 +55,40 @@ function answersUndoable(state: GameState, q: number): boolean {
   return round !== undefined && UNDOABLE_ROUNDS.includes(round.type) && !isUnscored(play.question);
 }
 
+/** Після кінця гри (12e) скасовується лише штраф за вихід: його могли дописати на останньому переході гри. */
+function finishedLock(state: GameState): boolean {
+  return state.phase === 'finished';
+}
+
+/** Коригування, з якого почався ланцюжок «скасування → Повернути»: саме воно, якщо це не 'undo'; null — скасування відповіді. */
+function rootOf(state: GameState, adjustment: ScoreAdjustment): ScoreAdjustment | null {
+  let current: ScoreAdjustment | undefined = adjustment;
+  while (current !== undefined && current.source === 'undo') {
+    const undoes: UndoTarget | undefined = current.undoes;
+    if (undoes === undefined || 'question' in undoes) return null;
+    current = state.adjustments.find((a) => a.seq === undoes.seq);
+  }
+  return current ?? null;
+}
+
+/** Нескасовані штрафи 'away' учасника під запитанням q: скасування його відповіді знімає й їх (разом 0 за запитання). */
+function openPenalties(state: GameState, ledger: UndoLedger, playerId: string, q: number): Undo[] {
+  return state.adjustments
+    .filter((a) => a.source === 'away' && a.playerId === playerId && hostGroup(state, a) === q && !ledger.adjustments.has(a.seq))
+    .map((a) => ({ playerId, points: -a.points, undoes: { seq: a.seq }, roundIndex: a.roundIndex }));
+}
+
 /**
  * Усі рядки панелі з undoneBy, у порядку масової дії: запитання за зростанням індексу (у запитанні — відповіді
  * в порядку state.players, потім бали ведучого за seq), бали поза запитаннями — останніми, за seq.
+ * Після кінця гри — лише рядки штрафу за вихід.
  */
 function rowsOf(state: GameState): Line[] {
+  const all = allRowsOf(state);
+  return finishedLock(state) ? all.filter((l) => l.row.kind === 'away') : all;
+}
+
+function allRowsOf(state: GameState): Line[] {
   const ledger = ledgerOf(state);
   const nickname = (id: string) => state.players.find((p) => p.id === id)?.nickname;
   const hostLines = new Map<number, Line[]>();
@@ -72,7 +101,8 @@ function rowsOf(state: GameState): Line[] {
     if (question !== null && !visible(state, question)) continue;
     const line: Line = {
       row: {
-        kind: 'host',
+        // Штраф за вихід (12e) — окремий рядок «(вихід із гри)»; решта як у балів ведучого.
+        kind: adjustment.source === 'away' ? 'away' : 'host',
         playerId: adjustment.playerId,
         nickname: name,
         points: adjustment.points,
@@ -125,10 +155,14 @@ export function questionNumber(state: GameState, index: number): number {
   return state.plays.slice(0, index + 1).filter((play) => play.roundIndex === round).length;
 }
 
-/** Рядки аркуша «Скасування балів» (12a); null у лобі, після кінця й в автопілоті. Правила — план 12a, «Що потрапляє в панель». */
+/**
+ * Рядки аркуша «Скасування балів» (12a); null у лобі й в автопілоті. Правила — план 12a, «Що потрапляє в панель».
+ * Після кінця гри — лише штрафи за вихід (12e); без них — null.
+ */
 export function undoPanel(state: GameState): UndoPanel | null {
-  if (state.phase === 'lobby' || state.phase === 'finished' || state.autopilot !== undefined) return null;
+  if (state.phase === 'lobby' || state.autopilot !== undefined) return null;
   const lines = rowsOf(state);
+  if (finishedLock(state) && lines.length === 0) return null;
   const rounds = [...new Set(lines.map((l) => l.round))].sort((a, b) => b - a);
   return {
     rounds: rounds.map((index) => {
@@ -176,24 +210,27 @@ function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
     // Хто має право на скасування, тут вирішують ті самі правила, що й у rowsOf: міняти їх треба разом.
     const { question: q, playerId } = target;
     if (q < 0 || q >= state.plays.length) return 'not_found';
-    if (!visible(state, q)) return 'wrong_phase';
+    if (!visible(state, q) || finishedLock(state)) return 'wrong_phase';
     if (!state.players.some((p) => p.id === playerId)) return 'not_found';
     if (!answersUndoable(state, q)) return 'not_allowed';
     const record = recordOf(state, q, playerId);
     if (record === undefined || record.points === 0) return 'not_allowed';
-    if (ledgerOf(state).answers.has(undoAnswerKey(playerId, q))) return 'already_undone';
-    return [{ playerId, points: -record.points, undoes: { question: q }, roundIndex: state.plays[q].roundIndex }];
+    const ledger = ledgerOf(state);
+    if (ledger.answers.has(undoAnswerKey(playerId, q))) return 'already_undone';
+    return [{ playerId, points: -record.points, undoes: { question: q }, roundIndex: state.plays[q].roundIndex }, ...openPenalties(state, ledger, playerId, q)];
   }
   if ('seq' in target) {
     const adjustment = state.adjustments.find((a) => a.seq === target.seq);
     if (adjustment === undefined || !state.players.some((p) => p.id === adjustment.playerId)) return 'not_found';
+    if (finishedLock(state) && rootOf(state, adjustment)?.source !== 'away') return 'wrong_phase';
     const ledger = ledgerOf(state);
     if (adjustment.source === 'undo') {
       // «Повернути» саме не скасовується: повернений рядок знову скасовують через його власну ціль.
       const undone = adjustment.undoes;
       if (undone !== undefined && 'seq' in undone && state.adjustments.find((a) => a.seq === undone.seq)?.source === 'undo') return 'not_allowed';
       if (ledger.redone.has(adjustment.seq)) return 'already_undone';
-      return [{ playerId: adjustment.playerId, points: -adjustment.points, undoes: { seq: adjustment.seq }, roundIndex: adjustment.roundIndex }];
+      const redo: Undo = { playerId: adjustment.playerId, points: -adjustment.points, undoes: { seq: adjustment.seq }, roundIndex: adjustment.roundIndex };
+      return [redo, ...penaltyRedos(state, ledger, adjustment)];
     }
     if (!UNDOABLE_SOURCES.includes(adjustment.source)) return 'not_allowed';
     const question = hostGroup(state, adjustment);
@@ -210,9 +247,27 @@ function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
   return massOf(rowsOf(state).filter((l) => l.question === target.question));
 }
 
+/**
+ * «Повернути» скасування відповіді повертає й штраф за вихід, знятий тією самою дією (той самий batch):
+ * інакше учасник отримав би бали запитання, з якого виходив.
+ */
+function penaltyRedos(state: GameState, ledger: UndoLedger, undo: ScoreAdjustment): Undo[] {
+  const undone = undo.undoes;
+  if (undone === undefined || !('question' in undone) || undo.batch === undefined) return [];
+  return state.adjustments
+    .filter((a) => {
+      if (a.source !== 'undo' || a.batch !== undo.batch || a.playerId !== undo.playerId || ledger.redone.has(a.seq)) return false;
+      const u = a.undoes;
+      const target = u !== undefined && 'seq' in u ? state.adjustments.find((t) => t.seq === u.seq) : undefined;
+      return target?.source === 'away' && hostGroup(state, target) === undone.question;
+    })
+    .map((a) => ({ playerId: a.playerId, points: -a.points, undoes: { seq: a.seq }, roundIndex: a.roundIndex }));
+}
+
 /** Скасувати чи «Повернути» (12a): кілька коригувань 'undo' з одним batch. Коди відмов — план 12a, «Коди відмов». */
 export function undoScore(state: GameState, target: HostUndoTarget, now: number): Result {
-  if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
+  // Після кінця гри — лише штраф за вихід (12e): решту стереже undosOf.
+  if (state.phase === 'lobby') return fail('wrong_phase');
   if (state.autopilot !== undefined) return fail('not_allowed');
   const undos = undosOf(state, target);
   if (typeof undos === 'string') return fail(undos);

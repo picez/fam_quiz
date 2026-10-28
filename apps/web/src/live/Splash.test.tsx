@@ -66,6 +66,7 @@ const stage = (over: Partial<StageView> = {}): StageView => ({
   wall: null,
   cloud: null, survey: null,
   cloudVoters: null,
+  away: [],
   ...over,
 });
 

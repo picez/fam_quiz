@@ -37,3 +37,4 @@ export * from './team-act';
 export * from './pacing';
 export * from './restore';
 export * from './autopilot';
+export * from './away';

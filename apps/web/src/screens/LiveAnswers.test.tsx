@@ -35,6 +35,7 @@ const row = (over: Partial<LiveRow> = {}): LiveRow => ({
   actor: null,
   progress: null,
   wager: null,
+  away: [],
   ...over,
 });
 
@@ -483,5 +484,34 @@ describe('LiveAnswers: live choices before «Надіслати» (12b)', () => 
     expect(document.querySelector('.blitz-queue')).toBeTruthy();
     expect(screen.getByText('у черзі: 1')).toBeTruthy();
     expect(document.querySelector('.live-row')).toBeNull();
+  });
+});
+
+describe('LiveAnswers: away marks (12e)', () => {
+  const mark = (over: Partial<LiveRow['away'][number]> = {}): LiveRow['away'][number] => ({ personId: 'p1', nickname: 'Оля', ms: 4000, count: 1, out: false, ...over });
+
+  it('an answered row says how long the player was away', () => {
+    show([row({ answered: true, answer: ans('Одеса'), timeMs: 4200, away: [mark()] })]);
+    expect(document.querySelector('.live-rows .live-away')?.textContent).toBe('🙈 поза грою 4 с (1 раз)');
+  });
+
+  it('a waiting chip says the player is out of the game now', () => {
+    show([row({ away: [mark({ ms: 0, count: 0, out: true })] }), row({ id: 'p2', nickname: 'Петро' })]);
+    const chips = document.querySelectorAll('.live-chip');
+    expect(chips[0].querySelector('.live-away')?.textContent).toBe('🙈 зараз поза грою');
+    expect(chips[1].textContent).toBe('Петро');
+  });
+
+  it('a team row names each person; a person row of a team poll does not', () => {
+    const teams = base({ teams: {} as HostView['teams'] });
+    show(
+      [
+        row({ id: 't1', nickname: 'Сови', answered: true, answer: ans('Одеса'), away: [mark(), mark({ personId: 'p2', nickname: 'Петро', ms: 0, count: 0, out: true })] }),
+        row({ id: 'p3', nickname: 'Іра', answered: true, answer: ans('Львів'), away: [mark({ personId: 'p3', nickname: 'Іра', ms: 2500 })] }),
+      ],
+      teams,
+    );
+    const marks = [...document.querySelectorAll('.live-rows .live-away')].map((node) => node.textContent);
+    expect(marks).toEqual(['🙈 Оля: поза грою 4 с (1 раз)', '🙈 Петро: зараз поза грою', '🙈 поза грою 2 с (1 раз)']);
   });
 });

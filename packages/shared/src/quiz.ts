@@ -983,6 +983,8 @@ export const quizSettingsSchema = z.object({
     .optional(),
   /** Чи можуть гравці купувати дебафи (9c); немає поля — можуть, якщо дебафи дозволені. */
   debuffShop: z.boolean().optional(),
+  /** Штраф за вихід із гри (12e): від AWAY_MS.penalty сумарно — 0 за запитання; немає поля — вимкнено. */
+  awayPenalty: z.boolean().optional(),
   /** Командна гра (10j); немає поля — соло. */
   teams: teamsSettingsSchema.optional(),
 });

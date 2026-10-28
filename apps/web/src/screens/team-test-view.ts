@@ -101,6 +101,9 @@ export const teamPlayerView = (over: Partial<PlayerView> = {}, team: Partial<Pla
   table: null,
   myBreakdown: null,
   own: null,
+  away: null,
+  lastAway: null,
+  awayPenalty: false,
   team: playerTeam(team),
   ...over,
 });

@@ -63,6 +63,7 @@ const view = (over: Partial<StageView> = {}): StageView => ({
   wall: null,
   cloud: null, survey: null,
   cloudVoters: null,
+  away: [],
   ...over,
 });
 
@@ -1914,6 +1915,18 @@ describe('StageScreen: bluff (10f)', () => {
       expect(screen.getByText('за жеребом')).toBeTruthy();
     });
 
+    it('question: «🙈 Оля» in the ladder header without seconds, gone without anyone away', () => {
+      show(view({ phase: 'question', round: lRound, questionIndex: 2, question, ladder: ladderInfo(), away: ['Оля'] }));
+      const line = document.querySelector('.stage-ladder header.bar .away-line') as HTMLElement;
+      expect(line.textContent).toBe('🙈 Оля');
+      expect(line.title).toBe('Оля');
+      expect(within(line).queryByText(/\d+ с/)).toBeNull();
+      cleanup();
+      show(view({ phase: 'question', round: lRound, questionIndex: 2, question, ladder: ladderInfo() }));
+      expect(document.querySelector('.stage-ladder')).not.toBeNull();
+      expect(document.querySelector('.away-line')).toBeNull();
+    });
+
     it('question: the question beside the ladder, the removed options dimmed in place, the hall voting', () => {
       show(
         view({
@@ -2273,5 +2286,25 @@ describe('StageScreen: facts (12d)', () => {
       vi.advanceTimersByTime(10_000);
     });
     expect(document.querySelector('.award-title')?.textContent).toBe('⚡ Блискавка');
+  });
+});
+
+describe('StageScreen: away (12e)', () => {
+  it('names who left the game in the question header, never the seconds', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, remainingMs: 20_000, playerCount: 3, away: ['Оля', 'Петро'] }));
+    const line = document.querySelector('header.bar .away-line') as HTMLElement;
+    expect(line.textContent).toBe('🙈 Оля, Петро');
+    // Повний перелік — у підказці: довгий рядок обрізається трикрапкою; емодзі — лише для ока.
+    expect(line.title).toBe('Оля, Петро');
+    expect(line.querySelector('[aria-hidden="true"]')?.textContent).toBe('🙈');
+    expect(within(line).queryByText(/\d+ с/)).toBeNull();
+  });
+
+  it('stays on the reveal and is gone without anyone away', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question, reveal: full, playerCount: 3, away: ['Оля'] }));
+    expect(document.querySelector('header.bar .away-line')?.textContent).toBe('🙈 Оля');
+    cleanup();
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, remainingMs: 20_000, playerCount: 3 }));
+    expect(document.querySelector('.away-line')).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUDIO_LIMITS, AUTOPILOT_MS, REVEAL_MIN_SHARE, clueShare, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES, wallShare } from '@quiz/shared';
+import { AUDIO_LIMITS, AUTOPILOT_MS, AWAY_MS, REVEAL_MIN_SHARE, clueShare, BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, LIMITS, QUESTION_TYPES, ROUND_TYPES, wallShare } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { debuffName } from '../debuff-meta';
 import { ROUND_NAMES } from '../guide-text';
@@ -154,6 +154,25 @@ describe('host help', () => {
     expect(helpEntry('setting.scores').limits?.length).toBeGreaterThan(0);
     expect(body.toLowerCase()).not.toMatch(/росі|срср/);
     expect(searchHelp('цікавинки')).toContain('setting.scores');
+  });
+
+  it('12e away entry follows «undo» and tells what counts, who sees what, the penalty, the undo and the honest limits', () => {
+    const ids = helpIds('settings');
+    expect(ids.indexOf('setting.away')).toBe(ids.indexOf('setting.undo') + 1);
+    expect(ids.at(-1)).toBe('setting.autopilot');
+    filled('setting.away');
+    const body = text('setting.away').replace(/ /g, ' ');
+    const sec = (ms: number) => `${String(ms / 1000).replace('.', ',')} с`;
+    expect([AWAY_MS.mark, AWAY_MS.penalty, AWAY_MS.alarm, AWAY_MS.preGrace]).toEqual([2000, 3000, 2500, 5000]);
+    for (const part of [`від ${sec(AWAY_MS.mark)} сумарно`, `від ${sec(AWAY_MS.penalty)} сумарно — 0 балів`, `зникає сам за ${sec(AWAY_MS.alarm)}`, `перші ${sec(AWAY_MS.preGrace)} не рахуються`, `на зв’язку пробув поза грою від ${sec(AWAY_MS.penalty)} сумарно`]) expect(body, part).toContain(part);
+    for (const part of ['лише значок', 'не довше, ніж тривав розрив', 'менше з двох', 'режим польоту', 'непоміченим', 'Другий пристрій', 'червон', 'сирен', '↶ Бали', 'після кінця гри', 'не гасне', 'у відео-запитанні', 'YouTube', 'youtube.com', 'перезапуск', 'два виходи (2 рази)', 'поза грою', 'штраф поки що зняти не можна']) expect(body, part).toContain(part);
+    expect(body).not.toMatch(/апеляц|будь-хто/);
+    expect(body.match(/гру не бачить/g)).toBeNull();
+    expect(body).not.toMatch(/відволік|виходив/);
+    expect(text('setting.undo')).toContain('(вихід із гри)');
+    expect(text('setting.autopilot')).toContain('Штраф за вихід діє й без ведучого. У грі без ведучого штраф поки що зняти не можна.');
+    expect(text('setting.autopilot')).not.toContain('апеляц');
+    expect(searchHelp('поза грою')).toContain('setting.away');
   });
 
   it('12a undo entry follows «scores» and tells what is undone, what is not, «Повернути» and why the current question goes by grading', () => {

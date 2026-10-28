@@ -8971,7 +8971,7 @@ async function wipeoutGame() {
   const settingsPanel = host.locator('details.round-settings');
   await settingsPanel.getByText('Правил балів, бафів, дебафів і дуелей у «Ва-банк» немає.', exact).waitFor();
   await settingsPanel.locator('.with-help button').first().waitFor();
-  expect(await host.getByLabel(/Штраф|Мінус за помилку/).count(), 'no penalty rule in a wipeout').toBe(0);
+  expect(await settingsPanel.getByLabel(/Штраф|Мінус за помилку/).count(), 'no penalty rule in a wipeout').toBe(0);
   await shot(host, 'p10g-editor-wipeout');
   expect(await host.getByRole('group', { name: 'Тип запитання', ...exact }).getByRole('button').count(), 'five question types').toBe(5);
 
@@ -9307,7 +9307,7 @@ async function survivalGame() {
   expect(await field(host, 'Скільки має лишитися').inputValue()).toBe('1');
   expect(await field(host, 'Бонус виживання').inputValue()).toBe('500');
   expect(await settings.getByText(/^Питання \d+ ·/).count(), 'one survival question').toBe(1);
-  await host.getByLabel(/^Штраф/).waitFor();
+  await host.locator('details.round-settings').getByLabel(/^Штраф/).waitFor();
   await shot(host, 'p10h-editor-survival');
   for (const group of await host.getByRole('group', { name: 'Тип запитання', ...exact }).all()) expect(await group.getByRole('button').count(), 'five question types').toBe(5);
 
@@ -14319,6 +14319,359 @@ async function stats12d() {
 it('part 12d: in-game stats — «Правильно 3 з 4 · найшвидше — Оля» under the answer on the 1280 × 720 stage and the own speed place on a 375 phone, the best bluff after the truth, three «Цікавинки раунду» beside the round end table, «Твій раунд» with «місце: 2 → 1» on the phone, question shares on the host, «Нагороди гри» moved by the host after the podium, «Твоя гра» with round bars, the same awards in the history, and no other player card in phone frames', async () => {
   try {
     await stats12d();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/**
+ * Телефон, який уміє «ховатися» (12e): у headless-браузері visibilityState не змінюється сам, тож геттери document.visibilityState
+ * і document.hidden читають window.__vis; AudioContext.prototype.createOscillator рахує виклики у window.__osc (сирена тривоги).
+ * Скрипт стоїть на сторінці, тож переживає оновлення.
+ */
+const AWAY_PHONE_INIT = `(() => {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => window.__vis ?? 'visible' });
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => (window.__vis ?? 'visible') === 'hidden' });
+  window.__osc = 0;
+  const Context = window.AudioContext ?? window.webkitAudioContext;
+  if (Context) {
+    const create = Context.prototype.createOscillator;
+    Context.prototype.createOscillator = function (...args) {
+      window.__osc += 1;
+      return create.apply(this, args);
+    };
+  }
+})()`;
+
+/** Сторінка ховається чи повертається (12e): visibilityState і hidden підмінено (AWAY_PHONE_INIT), подія visibilitychange — як у справжнього телефона. */
+async function setHidden(page: Page, hidden: boolean): Promise<void> {
+  await page.evaluate(`window.__vis = '${hidden ? 'hidden' : 'visible'}'; document.dispatchEvent(new Event('visibilitychange'));`);
+}
+
+/** Текст без зайвих пробілів (NBSP перед «с» — звичайний пробіл). */
+const squash = (text: string | null) => (text ?? '').replace(/\s+/g, ' ').trim();
+
+/** Позначки «🙈» пульта на 375 px: рядок і чип не прокручуються вбік, позначка всередині свого рядка чи чипа. */
+const AWAY_MARKS_FIT = `(() => {
+  const out = [];
+  for (const mark of document.querySelectorAll('.live-away, .response-away')) {
+    const holder = mark.closest('.live-row, .live-chip, li') ?? mark.parentElement;
+    const r = mark.getBoundingClientRect();
+    const box = holder.getBoundingClientRect();
+    if (r.left < box.left - 1 || r.right > box.right + 1 || r.right > innerWidth) out.push('mark out of its row: ' + mark.textContent);
+    if (holder.scrollWidth > holder.clientWidth + 1) out.push('row scrolls sideways: ' + holder.textContent);
+  }
+  return out;
+})()`;
+
+function awayQuestions12e() {
+  const common = { imageUrl: null, video: null };
+  const a1 = {
+    ...common,
+    id: 'a1',
+    type: 'single' as const,
+    text: 'Яка річка тече через Київ?',
+    points: 200,
+    // Довше за 30 с: тривога, оновлення сторінки й кадри йдуть, поки Оля ще не відповіла.
+    timeLimit: 60,
+    options: [{ id: 'a1-a', text: 'Дніпро' }, { id: 'a1-b', text: 'Десна' }, { id: 'a1-c', text: 'Рось' }],
+    correctId: 'a1-a',
+  };
+  const a2 = { ...common, id: 'a2', type: 'boolean' as const, text: 'Пінгвіни живуть в Антарктиді', points: 100, timeLimit: 30, correct: true };
+  return { a1, a2 };
+}
+
+async function away12e() {
+  const host = await open('host12e', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12e@example.com');
+
+  const { a1, a2 } = awayQuestions12e();
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [a1, a2] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES })], {
+      leaderboard: 'each',
+      awayPenalty: true,
+    }),
+    title: 'Антигугл 12e',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // 1. Редактор на 375 px: прапорець «Штраф за вихід із гри» позначено, довідка поруч.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Антигугл 12e' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  await host.locator('details.rules').first().locator('summary').click();
+  const penaltySwitch = host.getByLabel('Штраф за вихід із гри', exact);
+  await penaltySwitch.waitFor();
+  expect(await penaltySwitch.isChecked()).toBe(true);
+  await host.getByText(/Якщо гравець пробув поза грою від 3/).waitFor();
+  await penaltySwitch.scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p12e-editor');
+  // На кадрі всієї сторінки прапорець ховається під липкими панелями: окремий кадр екрана з прапорцем посередині.
+  await penaltySwitch.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  if (process.env.E2E_SHOTS === '1') await host.screenshot({ path: resolve(ARTIFACTS, 'shots', 'p12e-editor-switch.png') });
+  await host.getByRole('button', { name: 'Довідка: Поза грою й штраф за вихід', ...exact }).click();
+  const help = host.getByRole('dialog', { name: 'Поза грою й штраф за вихід', ...exact });
+  await help.getByText(/вкривається червоним/).first().waitFor();
+  await expectNoSideScroll(host, 'p12e-editor-help');
+  await host.keyboard.press('Escape');
+  await help.waitFor({ state: 'detached' });
+
+  // Гра.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Антигугл 12e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage12e', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya12e', 375, 812);
+  const petro = await open('petro12e', 375, 812);
+  const ira = await open('ira12e', 375, 812);
+  for (const page of [olya, petro, ira]) await page.addInitScript(AWAY_PHONE_INIT);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const iraFrames = socketFrames(ira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+  const all = [host, stage, ...phones];
+  const yes = '(^|\\s)Так$';
+
+  const textOf = async (locator: Locator) => squash(await locator.first().textContent({ timeout: 500 }).catch(() => null)) || null;
+  const chipAway = (name: string) => host.locator('#live-answers .live-chip', { hasText: name }).locator('.live-away');
+  const rowAway = (name: string) => liveRow(host, name).locator('.live-away');
+  const alarm = (page: Page) => page.locator('.away-alarm');
+  const oscillators = async (page: Page) => (await page.evaluate('window.__osc ?? 0')) as number;
+  const sheet = host.locator('.undo-sheet');
+  const openUndo = async () => {
+    await host.locator('header.bar').getByRole('button', { name: '↶ Бали', ...exact }).click();
+    await sheet.getByRole('heading', { name: 'Скасування балів', ...exact }).waitFor();
+  };
+  const closeUndo = async () => {
+    await host.keyboard.press('Escape');
+    await sheet.waitFor({ state: 'detached' });
+  };
+  const undoRow = (text: string) => sheet.locator('li.undo-row', { has: host.locator('.undo-row-text', { hasText: new RegExp(`^${text}$`) }) });
+  const playerRow = (name: string) => host.locator('.player-row', { has: host.locator('.name', { hasText: new RegExp(`^${name}$`) }) });
+  const rowScore = async (name: string) => (await playerRow(name).locator('.score').textContent())?.trim();
+  const noticeText = async (page: Page) => textOf(page.locator('.live-notice.is-undo'));
+  const expectMarksFit = async (name: string) => {
+    expect(await host.evaluate(AWAY_MARKS_FIT), `${name}: an away mark overflows`).toEqual([]);
+    expect(await host.evaluate(HEADER_ONE_LINE), `${name}: the host header wraps`).toBe(true);
+  };
+  /** Рядок сцени «🙈 …»: в один рядок, без секунд, з повним списком у title. */
+  const expectStageLine = async (name: string, names: string) => {
+    const line = stage.locator('header.bar .away-line');
+    await expect.poll(() => textOf(line), POLL).toBe(`🙈 ${names}`);
+    expect(await line.getAttribute('title')).toBe(names);
+    expect(squash(await line.textContent())).not.toMatch(/\d+\s?с/);
+    const box = (await line.boundingBox())!;
+    const lineHeight = (await stage.evaluate("parseFloat(getComputedStyle(document.querySelector('header.bar .away-line')).lineHeight) || 40")) as number;
+    expect(box.height, `${name}: the away line wraps`).toBeLessThan(lineHeight * 1.5);
+  };
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 2. a1: Іра відповідає, Оля ховає телефон уже після заставки.
+  await stage.getByText('Яка річка тече через Київ?', exact).waitFor();
+  await olya.getByRole('button', { name: /Дніпро/ }).waitFor();
+  // Петро відповідає після оновлення сторінки Олі: поки Оля без зв'язку, а решта відповіла, запитання закрилося б.
+  await pickOption(ira, 'Дніпро');
+  await setHidden(olya, true);
+  await expect.poll(() => textOf(chipAway('Оля')), POLL).toBe('🙈 зараз поза грою');
+  expect(await chipAway('Петро').count()).toBe(0);
+  await expectMarksFit('p12e-host-out');
+  await expectNoSideScroll(host, 'p12e-host-out');
+  await sleep(4000);
+  await setHidden(olya, false);
+
+  // 3. Тривога лише на телефоні Олі: червоний шар на весь екран, сирена, штраф.
+  await alarm(olya).waitFor();
+  expect(await alarm(olya).getAttribute('role')).toBe('alert');
+  expect(squash(await olya.locator('.away-alarm-title').textContent())).toContain('Вихід із гри під час запитання!');
+  expect(squash(await olya.locator('.away-alarm-penalty').textContent())).toBe('0 балів за це запитання');
+  expect(await alarm(olya).boundingBox()).toEqual({ x: 0, y: 0, width: 375, height: 812 });
+  await expect.poll(() => oscillators(olya), POLL).toBeGreaterThanOrEqual(1);
+  await expectNoSideScroll(olya, 'p12e-phone-alarm');
+  for (const page of [petro, ira]) expect(await alarm(page).count(), 'another phone got the alarm').toBe(0);
+  const seen = (await olya.evaluate("localStorage.getItem('quiz:alarm')")) as string;
+  expect(seen).toMatch(new RegExp(`^${code}:[^:]+:0:1$`));
+  // Шар зникає сам за 2,5 с.
+  await expect.poll(() => alarm(olya).count(), { timeout: 4000 }).toBe(0);
+  const note = olya.locator('.away-note');
+  await expect.poll(() => textOf(note), POLL).toMatch(/^Тебе не було в грі [45] с — ведучий і екран це бачать ?За це запитання буде 0 балів$/);
+  await expectNoSideScroll(olya, 'p12e-phone-note');
+
+  // 4. Позначки: пульт із секундами, сцена — лише ім'я.
+  await expect.poll(() => textOf(chipAway('Оля')), POLL).toMatch(/^🙈 поза грою [45] с \(1 раз\)$/);
+  await expectMarksFit('p12e-host-mark');
+  await expectNoSideScroll(host, 'p12e-host-mark');
+  await expectStageLine('p12e-stage-mark', 'Оля');
+  await expectStageInView(stage, 'p12e-stage-mark');
+  await shot(stage, 'p12e-stage-mark');
+
+  // 5. Оновлення сторінки не повторює тривогу; рядок під запитанням лишається.
+  await olya.reload();
+  await note.waitFor();
+  for (let i = 0; i < 8; i += 1) {
+    expect(await alarm(olya).count(), 'the alarm came back after a reload').toBe(0);
+    await olya.waitForTimeout(250);
+  }
+  expect(await olya.evaluate("localStorage.getItem('quiz:alarm')")).toBe(seen);
+
+  // 6. Петро помиляється, Оля відповідає правильно; на розкритті позначка в таблиці відповідей і на сцені, бали ще 200.
+  await pickOption(petro, 'Десна');
+  await pickOption(olya, 'Дніпро');
+  await host.getByText('Запитання закрите').waitFor();
+  await expect.poll(() => textOf(rowAway('Оля')), POLL).toMatch(/^🙈 поза грою [45] с \(1 раз\)$/);
+  await expectMarksFit('p12e-host-locked');
+  await shot(host, 'p12e-host-locked');
+  await click(host, 'Показати відповідь');
+  const responseAway = host.locator('.response-away');
+  await expect.poll(() => responseAway.count(), POLL).toBe(1);
+  expect(squash(await responseAway.textContent())).toMatch(/^🙈 поза грою [45] с \(1 раз\)$/);
+  expect(await host.locator('li', { has: responseAway }).last().textContent()).toContain('Оля');
+  // Позначка не стискає відповідь до «Дніп / ро»: відповідь Олі — в один рядок.
+  const given = (await host.evaluate(`(() => {
+    const el = document.querySelector('.rows > li:has(.response-away) .given');
+    return { height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) || 24 };
+  })()`)) as { height: number; line: number };
+  expect(given.height, 'the away mark squeezes the answer').toBeLessThan(given.line * 1.5);
+  await expectStageLine('p12e-stage-reveal', 'Оля');
+  await expect.poll(() => rowScore('Оля'), POLL).toBe('200');
+  // Пульт уже на розкритті знає, що штраф зніме ці бали.
+  await host.locator('.rows > li:has(.response-away) .response-penalty', { hasText: '→ 0 (вихід із гри)' }).waitFor();
+  await expectMarksFit('p12e-host-reveal');
+  await expectNoSideScroll(host, 'p12e-host-reveal');
+  await shot(stage, 'p12e-stage-reveal');
+
+  // 7. Штраф на виході з розкриття: Оля 0, Іра 200; рядок «(вихід із гри)» в аркуші.
+  await click(host, 'Далі');
+  await expect.poll(() => rowScore('Оля'), POLL).toBe('0');
+  expect(await rowScore('Іра')).toBe('200');
+  await openUndo();
+  await expect.poll(() => undoRows(sheet), POLL).toEqual(['Оля +200', 'Іра +200', 'Оля −200 (вихід із гри)']);
+  await expectNoSideScroll(host, 'p12e-host-sheet');
+
+  // 8. Скасування штрафу: бали повертаються, сповіщення на сцені й телефонах.
+  const olyaPenalty = undoRow('Оля −200 \\(вихід із гри\\)');
+  await olyaPenalty.getByRole('button', { name: 'Скасувати', ...exact }).click();
+  await expect.poll(() => olyaPenalty.getAttribute('class'), POLL).toBe('undo-row is-undone');
+  await olyaPenalty.getByRole('button', { name: 'Повернути', ...exact }).waitFor();
+  const undone = 'Ведучий скасував бали: Оля +200 (запитання 1)';
+  await Promise.all([stage, olya, petro].map((page) => expect.poll(() => noticeText(page), POLL).toBe(undone)));
+  await shot(host, 'p12e-host-sheet-undone');
+  await closeUndo();
+  await expect.poll(() => rowScore('Оля'), POLL).toBe('200');
+
+  // 9. a2: Оля й Іра без виходу; Петро ховає телефон на 4 с, тривогу закриває дотиком.
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+  await stage.getByText('Пінгвіни живуть в Антарктиді', exact).waitFor();
+  await petro.getByRole('button', { name: new RegExp(yes) }).waitFor();
+  await pickOption(olya, yes);
+  await pickOption(ira, yes);
+  await setHidden(petro, true);
+  await expect.poll(() => textOf(chipAway('Петро')), POLL).toBe('🙈 зараз поза грою');
+  await sleep(4000);
+  await setHidden(petro, false);
+  await alarm(petro).waitFor();
+  expect(squash(await petro.locator('.away-alarm-penalty').textContent())).toBe('0 балів за це запитання');
+  for (const page of [olya, ira]) expect(await alarm(page).count(), 'another phone got the alarm on a2').toBe(0);
+  await alarm(petro).click();
+  await expect.poll(() => alarm(petro).count(), { timeout: 1000 }).toBe(0);
+  await pickOption(petro, yes);
+  await host.getByText('Запитання закрите').waitFor();
+  expect(await rowAway('Оля').count(), 'Оля has a mark on a2').toBe(0);
+  expect(await rowAway('Іра').count(), 'Іра has a mark on a2').toBe(0);
+  await click(host, 'Показати відповідь');
+  await expectStageLine('p12e-stage-a2', 'Петро');
+  expect(await host.locator('.response-away').count()).toBe(1);
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  // 10. Після кінця гри «↶ Бали» лишається лише зі штрафами; штраф Петра скасовується й зараз.
+  const finalScore = async (name: string) =>
+    (await host.locator('.standings li', { has: host.locator('.name', { hasText: new RegExp(`^${name}`) }) }).locator('.score').textContent())?.trim();
+  await expect.poll(() => finalScore('Петро'), POLL).toBe('0');
+  await openUndo();
+  await expect.poll(() => undoRows(sheet), POLL).toEqual(['Петро −100 (вихід із гри)', 'Оля −200 (вихід із гри)']);
+  const petroPenalty = undoRow('Петро −100 \\(вихід із гри\\)');
+  await petroPenalty.getByRole('button', { name: 'Скасувати', ...exact }).click();
+  await expect.poll(() => petroPenalty.getAttribute('class'), POLL).toBe('undo-row is-undone');
+  await expectNoSideScroll(host, 'p12e-host-sheet-finished');
+  await closeUndo();
+  await expect.poll(() => finalScore('Петро'), POLL).toBe('100');
+  expect(await host.evaluate(HEADER_ONE_LINE), 'the host header wraps on the podium').toBe(true);
+
+  // 11. «Твоя гра» Олі: «🙈 Поза грою: на 1 запитанні»; у Іри цього рядка немає.
+  const gameLines = async (page: Page) => (await page.locator('section.game-card li').allTextContents()).map(squash);
+  await olya.locator('section.game-card').waitFor();
+  expect(await gameLines(olya)).toContain('🙈 Поза грою: на 1 запитанні');
+  await ira.locator('section.game-card').waitFor();
+  expect((await gameLines(ira)).some((line) => line.includes('🙈'))).toBe(false);
+  await expectNoSideScroll(olya, 'p12e-phone-game');
+
+  // 12. Таємність у кадрах: сцена — лише імена; чужі виходи до телефонів не доходять.
+  expect(stageFrames.length).toBeGreaterThan(0);
+  const stageViews = stateViews(stageFrames) as unknown as { away?: unknown }[];
+  expect(stageViews.length).toBeGreaterThan(0);
+  for (const view of stageViews) {
+    expect(Array.isArray(view.away), 'the stage away is not a list').toBe(true);
+    expect((view.away as unknown[]).every((x) => typeof x === 'string'), 'the stage got more than names').toBe(true);
+  }
+  expect(stageViews.some((view) => (view.away as string[]).includes('Оля')), 'the stage never got «Оля»').toBe(true);
+  const stageText = stageFrames.join(NL);
+  expect(stageText).not.toContain('"lastAway"');
+  expect(stageText).not.toMatch(/"away":\[[^\]]*\{/);
+  const iraViews = stateViews(iraFrames);
+  expect(iraViews.length).toBeGreaterThan(0);
+  for (const view of iraViews) {
+    expect(view.away, 'Іра got an away').toBeNull();
+    expect(view.lastAway, 'Іра got a last away').toBeNull();
+  }
+  for (const view of stateViews(petroFrames)) {
+    expect(view.away?.play ?? 1, 'Петро got the away of a1').not.toBe(0);
+    expect(view.lastAway?.play ?? 1, 'Петро got the last away of a1').not.toBe(0);
+  }
+  expect(petroFrames.join(NL)).not.toContain('Тебе не було');
+  const olyaViews = stateViews(olyaFrames);
+  expect(olyaViews.some((view) => view.away?.play === 0 && view.away.ms >= 2000), 'Оля never got her own away').toBe(true);
+  for (const view of olyaViews) expect(view.away?.play ?? 0, 'Оля got the away of a2').not.toBe(1);
+
+  // 13. Історія: 🙈 біля відповіді Олі, рядки скасування, розбивка «Вихід із гри».
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Антигугл 12e/ }).click();
+  const section = host.locator('section.history-scores');
+  await section.getByRole('heading', { name: 'Бали за раундами', ...exact }).waitFor();
+  const answers = host.locator('details.responses').first();
+  await answers.locator('summary').click();
+  const responseOf = (name: string) => answers.locator('li', { has: host.locator('.responses-name', { hasText: new RegExp(`^${name}$`) }) });
+  expect(squash(await responseOf('Оля').locator('.history-away').textContent())).toMatch(/^🙈 [45] с$/);
+  expect(await responseOf('Іра').locator('.history-away').count()).toBe(0);
+  const undoLines = (await host.locator('.history-undo').allTextContents()).map(squash);
+  expect(undoLines).toContain('↶ Скасовано: Оля +200 (вихід із гри)');
+  expect(undoLines).toContain('↶ Скасовано: Петро +100 (вихід із гри)');
+  await section.locator('button.score-row-toggle', { hasText: 'Петро' }).click();
+  await section.locator('.score-breakdown').waitFor();
+  expect(await breakdownTexts(section)).toContain('Вихід із гри −100');
+  await expectNoSideScroll(host, 'p12e-history');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12e: anti-googling — a phone hidden for 4 s during a question gives «🙈 поза грою 4 с (1 раз)» on the 375 host and only «🙈 Оля» on the 1280 × 720 stage, the phone turns red with «Вихід із гри під час запитання!», the siren and «0 балів за це запитання» once per leave even after a reload, the penalty zeroes the right answer when the reveal ends, the host undoes «Оля −200 (вихід із гри)» and the points come back, a penalty is undone after the finish too, the editor shows the switch, the history shows 🙈, and no seconds reach the stage or other phones', async () => {
+  try {
+    await away12e();
   } catch (error) {
     await snapshot();
     throw error;

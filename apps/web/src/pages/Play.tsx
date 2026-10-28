@@ -4,6 +4,9 @@ import type { SocketAuth } from '@quiz/shared';
 import { joinGame } from '../api';
 import { errorText, t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
+import { useAwayWatch } from '../live/useAwayWatch';
+import { useSirenUnlock } from '../live/useSirenUnlock';
+import { useWakeLock } from '../live/useWakeLock';
 import { PlayerScreen } from '../screens/PlayerScreen';
 import { clearAuthor, clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
 import { useAccount } from '../useAccount';
@@ -70,6 +73,12 @@ export function Play() {
   const [notice, setNotice] = useState<string | null>(null);
   const auth = useMemo<SocketAuth | null>(() => (token === null ? null : { code, role: 'player', token }), [code, token]);
   const game = useGame(auth);
+  // Антигугл (12e): телефон гравця каже серверу, коли виходить із гри й повертається.
+  useAwayWatch(game.send, game.status, game.view);
+  // Сирена тривоги (12e) розблоковується першим жестом: iOS не дає звуку контексту, створеному поза жестом.
+  useSirenUnlock();
+  // Екран не гасне від входу до кінця гри: заблокований телефон на столі не має виглядати виходом.
+  const screenUnguarded = useWakeLock(game.view !== null && game.view.role === 'player' && game.view.phase !== 'finished');
 
   // Токен більше не діє: гру закрито або гравця вилучено. Повертаємо форму входу.
   const wasAutopilot = useRef(false);
@@ -115,6 +124,12 @@ export function Play() {
       {(game.status === 'offline' || game.status === 'restarting') && (
         <p className="banner is-offline" role="status">
           {t(statusTextKey(game.status))}
+        </p>
+      )}
+      {/* Без Wake Lock (немає чи відмовлено) і зі штрафом: блокування екрана теж рахується виходом — попереджаємо. */}
+      {screenUnguarded && game.view.awayPenalty && game.view.phase !== 'lobby' && (
+        <p className="banner is-wake" role="note">
+          {t('awayWakeWarning')}
         </p>
       )}
       <PlayerScreen

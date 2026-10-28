@@ -40,6 +40,7 @@ import {
   teamPickSchema,
   duelistSchema,
   draftSchema,
+  awaySchema,
   teamFormSchema,
   teamAssignSchema,
   captainSchema,
@@ -467,6 +468,14 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = draftSchema.safeParse(payloadOf(args));
       return payload.success ? manager.draft(room, identity.playerId, payload.data.draft) : INVALID;
+    });
+
+    on('player:away', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = awaySchema.safeParse(payloadOf(args));
+      if (!payload.success) return INVALID;
+      const { away, ms, sinceReturnMs } = payload.data;
+      return manager.away(room, identity.playerId, away, { ms, sinceReturnMs });
     });
 
     on('host:live-watch', (args) => {

@@ -52,6 +52,8 @@ export interface GameResponse {
   buff: BuffKind | null;
   /** Запасне запитання (зі знімка гри), на яке дано відповідь; null — основне. */
   spare: Question | null;
+  /** Вихід із гри на цьому запитанні від AWAY_MS.mark, мс (12e); null — позначки немає чи стара гра. */
+  awayMs: number | null;
 }
 
 export interface GameQuestionResult {
@@ -134,7 +136,7 @@ export interface GameQuestionResult {
   final: {
     /** Тип ставок фіналу зі знімка. */
     mode: WagerMode;
-    entries: { nickname: string; answer: Answer | null; wager: number; points: number; accepted: boolean }[];
+    entries: { nickname: string; answer: Answer | null; wager: number; points: number; accepted: boolean; awayMs: number | null }[];
   } | null;
 }
 

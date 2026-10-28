@@ -78,3 +78,8 @@ const LAST_GAME = 'quiz:last-game';
 export const loadLastGame = (): string | null => read(LAST_GAME);
 export const saveLastGame = (code: string): void => write(LAST_GAME, code);
 export const clearLastGame = (): void => write(LAST_GAME, null);
+
+const ALARM_SEEN = 'quiz:alarm';
+/** Останній вихід, для якого телефон уже показав тривогу (12e): `${code}:${personId}:${play}:${count}`; null — не було. Один ключ на пристрій. */
+export const loadAlarmSeen = (): string | null => read(ALARM_SEEN);
+export const saveAlarmSeen = (key: string): void => write(ALARM_SEEN, key);

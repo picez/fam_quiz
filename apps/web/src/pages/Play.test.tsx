@@ -168,3 +168,76 @@ describe('Play: when the session check fails', () => {
     expect(screen.queryByText(/гра потрапить у «Мої ігри»/)).toBeNull();
   });
 });
+
+describe('Play: the phone tells the server when it leaves the game (12e)', () => {
+  afterEach(() => Reflect.deleteProperty(document, 'visibilityState'));
+
+  it('sends player:away when the page is hidden during a question', () => {
+    savePlayer('123456', 'kept-token');
+    open();
+    const emit = vi.spyOn(sockets[0], 'emit');
+    act(() => sockets[0].fire('state', { role: 'player', phase: 'question', autopilot: false, paused: false, questionIndex: 0, splash: null }, { serverNow: Date.now(), hostOnline: true, stageOnline: true }));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    expect(emit).toHaveBeenCalledWith('player:away', { away: true }, expect.any(Function));
+  });
+
+  it('keeps the screen awake from the lobby on', async () => {
+    const request = vi.fn(async () => ({ released: false, release: async () => {} }));
+    Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request } });
+    savePlayer('123456', 'kept-token');
+    open();
+    act(() => sockets[0].fire('state', { role: 'player', phase: 'lobby', autopilot: false, paused: false, questionIndex: -1, splash: null }, { serverNow: Date.now(), hostOnline: true, stageOnline: true }));
+    await settle();
+    expect(request).toHaveBeenCalledWith('screen');
+    Reflect.deleteProperty(navigator, 'wakeLock');
+  });
+
+  const WARNING = 'Не давай екрану згаснути — блокування теж вважається виходом';
+  const fireState = (over: object) =>
+    act(() =>
+      sockets[0].fire('state', { role: 'player', phase: 'question', autopilot: false, paused: false, questionIndex: 0, splash: null, awayPenalty: true, ...over }, { serverNow: Date.now(), hostOnline: true, stageOnline: true }),
+    );
+
+  it('without Wake Lock and with the away penalty the phone asks to keep the screen on during the game, not in the lobby', async () => {
+    Reflect.deleteProperty(navigator, 'wakeLock');
+    savePlayer('123456', 'kept-token');
+    open();
+    fireState({ phase: 'lobby', questionIndex: -1 });
+    await settle();
+    expect(screen.queryByText(WARNING)).toBeNull();
+    fireState({});
+    await settle();
+    expect(screen.getByText(WARNING).getAttribute('role')).toBe('note');
+    fireState({ awayPenalty: false });
+    await settle();
+    expect(screen.queryByText(WARNING)).toBeNull();
+  });
+
+  it('a refused Wake Lock warns too; a lock granted on a later tap removes the line', async () => {
+    const request = vi.fn(async () => ({ released: false, release: async () => {} }));
+    request.mockRejectedValueOnce(new Error('NotAllowedError'));
+    Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request } });
+    savePlayer('123456', 'kept-token');
+    open();
+    fireState({});
+    await settle();
+    expect(screen.getByText(WARNING)).not.toBeNull();
+    fireEvent.click(document.body);
+    await settle();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(WARNING)).toBeNull();
+    Reflect.deleteProperty(navigator, 'wakeLock');
+  });
+
+  it('a granted Wake Lock shows no line', async () => {
+    const request = vi.fn(async () => ({ released: false, release: async () => {} }));
+    Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request } });
+    savePlayer('123456', 'kept-token');
+    open();
+    fireState({});
+    await settle();
+    expect(screen.queryByText(WARNING)).toBeNull();
+    Reflect.deleteProperty(navigator, 'wakeLock');
+  });
+});

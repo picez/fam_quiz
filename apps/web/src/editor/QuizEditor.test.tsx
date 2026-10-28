@@ -1658,6 +1658,41 @@ describe('QuizEditor hints and spares', () => {
   });
 });
 
+describe('QuizEditor: away penalty (12e)', () => {
+  it('the switch is off by default and is written only when on', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    const box = screen.getByLabelText('Штраф за вихід із гри') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    expect(screen.getByText(/отримує за нього 0/)).toBeTruthy();
+    fireEvent.click(box);
+    fireEvent.click(box);
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect('awayPenalty' in saved(onSave).settings).toBe(false);
+  });
+
+  it('turning it on saves awayPenalty: true and a saved quiz opens with it checked', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    fireEvent.click(screen.getByLabelText('Штраф за вихід із гри'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const quiz = saved(onSave);
+    expect(quiz.settings.awayPenalty).toBe(true);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    cleanup();
+    open(quiz);
+    expect((screen.getByLabelText('Штраф за вихід із гри') as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Поза грою й штраф за вихід' }));
+    screen.getByRole('dialog', { name: 'Поза грою й штраф за вихід' });
+  });
+});
+
 describe('QuizEditor: explanations for newcomers', () => {
   it('the flag is off by default and is written only when on', async () => {
     const { onSave } = open();

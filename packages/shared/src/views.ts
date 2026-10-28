@@ -1,4 +1,5 @@
 import type { Answer } from './answer';
+import type { AwayMark, OwnAway } from './away';
 import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
 import type { HostUndoTarget } from './events';
@@ -724,7 +725,8 @@ export interface UndoQuestion {
 }
 
 export interface UndoRow {
-  kind: 'answer' | 'host';
+  /** away — штраф за вихід, ціль { seq }. */
+  kind: 'answer' | 'host' | 'away';
   playerId: string;
   nickname: string;
   /** Бали рядка, як їх нараховано (без скасування). */
@@ -1180,6 +1182,8 @@ export interface StageView extends BaseView {
   cloud: CloudWord[] | null;
   /** Скільки гравців написали слова (для підпису «Написали N»); null поза хмарою на reveal. */
   cloudVoters: number | null;
+  /** Нікнейми людей з позначкою «відволікався» на поточному запитанні (12e): question, locked, reveal; інакше []. Без секунд. */
+  away: string[];
 }
 
 export interface PlayerResult {
@@ -1280,6 +1284,16 @@ export interface PlayerView extends BaseView {
   myBreakdown: ScoreBreakdown | null;
   /** Свої цікавинки (12d): «Твоя відповідь — 2-а за швидкістю», «Твій раунд», «Твоя гра»; null у лобі й поза reveal, round_end, finished. Чужих телефон не отримує. */
   own: OwnFacts | null;
+  /** Свій вихід на поточному запитанні (12e): лише ця людина (у командній грі — людина, не команда); null — виходів немає. */
+  away: OwnAway | null;
+  /**
+   * Останній вихід із позначкою (12e, ms ≥ AWAY_MS.mark) на поточному чи попередньому запитанні — на будь-якому етапі, крім лобі.
+   * Тривога спрацьовує й тоді, коли людина повернулася вже після запитання (таблиця, наступне запитання, кінець гри). null — такого немає.
+   * Людина зараз поза грою на поточному запитанні — це запитання з out: true за будь-якого ms (один вихід — одна тривога).
+   */
+  lastAway: OwnAway | null;
+  /** У вікторині ввімкнено штраф за вихід із гри (12e, settings.awayPenalty): телефон без Wake Lock попереджає не гасити екран. */
+  awayPenalty: boolean;
   /** Лише автор кімнати-автопілота (і в лобі); інакше null. */
   author: AuthorView | null;
   /** Командна гра: про себе (10j); null у соло-грі. */
@@ -1304,6 +1318,10 @@ export interface HostResponse {
   spare: Question | null;
   /** «Хто я?»: на якій підказці дано відповідь; інакше null. */
   clue: number | null;
+  /** Хто з людей рядка відволікався на цьому запитанні (12e): від AWAY_MS.mark або зараз поза грою; соло — сам гравець, команда — її люди. */
+  away: AwayMark[];
+  /** Штраф за вихід (12e) зніме ці додатні бали, щойно вони стануть остаточними: пульт пише «→ 0 (вихід із гри)». Уже дописаний штраф — false. */
+  awayPenalty: boolean;
 }
 
 /** Вердикт автоперевірки для пульта (11c): видно лише ведучому й ще до розкриття. */
@@ -1345,6 +1363,8 @@ export interface LiveRow {
   progress: LiveProgress | null;
   /** Фінал: ставка (null — ще не поставив) і ва-банк; окремо від progress, щоб її видно було й у ланцюжку, сортуванні тощо. Поза фіналом — null. */
   wager: { wager: number | null; allIn: boolean } | null;
+  /** Хто з людей рядка відволікався на цьому запитанні (12e): від AWAY_MS.mark або зараз поза грою; соло — сам гравець, команда — її люди. */
+  away: AwayMark[];
 }
 
 /** Згорнутий список під рядками: привиди «Вибування» чи зал «Мільйонера». */

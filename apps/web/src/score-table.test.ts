@@ -80,3 +80,9 @@ describe('roundHighlights', () => {
     expect(roundHighlights(losses, 0).best).toBeNull();
   });
 });
+
+describe('breakdownLines: away (12e)', () => {
+  it('names the penalty for leaving the game «Вихід із гри»', () => {
+    expect(breakdownLines({ parts: [{ source: 'away', plus: 0, minus: -200 }], plus: 0, minus: -200 }).map((line) => [line.label, line.value])).toEqual([['Вихід із гри', '−200']]);
+  });
+});

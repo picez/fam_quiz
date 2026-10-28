@@ -12,7 +12,8 @@ import {
   type Phase,
   type Question,
 } from '@quiz/shared';
-// views.ts імпортує цей файл; цей файл views.ts не імпортує (без циклу).
+// views.ts імпортує цей файл; цей файл views.ts не імпортує (без циклу). away.ts імпортує hostLive: цикл лише між функціями.
+import { awayPeople } from './away';
 import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
@@ -85,6 +86,7 @@ function emptyRow(who: Answerer, actor: string | null): LiveRow {
     actor,
     progress: null,
     wager: null,
+    away: [],
   };
 }
 
@@ -242,6 +244,12 @@ function ghostRow(play: Play, who: Answerer): LiveRow {
   return { ...base, answered: true, answer: ghost.answer, timeMs: ghost.timeMs, verdict: ghost.correct ? 'correct' : 'wrong' };
 }
 
+/** Позначки виходу (12e) для рядків, що мають відповідати (answers / blitz): люди рядка. Привиди, зал, випробування й дуель — []. */
+function withAway(state: GameState, row: LiveRow): LiveRow {
+  const away = awayPeople(state, row.id);
+  return away.length === 0 ? row : { ...row, away };
+}
+
 function asideOf(kind: LiveAside['kind'], rows: LiveRow[]): LiveAside {
   return { kind, answered: rows.filter((r) => r.answered).length, total: rows.length, rows };
 }
@@ -295,7 +303,7 @@ function blitzLive(state: GameState, play: Play & { blitz: BlitzPlay }): HostLiv
   );
   return liveOf(
     'blitz',
-    who.map((w) => blitzRow(state, play, w, instant, voice)),
+    who.map((w) => withAway(state, blitzRow(state, play, w, instant, voice))),
     null,
   );
 }
@@ -384,6 +392,6 @@ export function hostLive(state: GameState): HostLive | null {
       state.players.map((p) => p.id),
     );
   }
-  const rows = who.map((w) => answerRow(state, play, w, unscored));
+  const rows = who.map((w) => withAway(state, answerRow(state, play, w, unscored)));
   return liveOf('answers', rows, aside);
 }

@@ -2769,6 +2769,12 @@ a.banner {
   border-color: var(--signal);
 }
 
+/* 12e: телефон без Wake Lock у грі зі штрафом — один рядок над екраном гравця. */
+.banner.is-wake {
+  margin: 0.5rem 1rem 0;
+  font-size: 0.9rem;
+}
+
 /* Пари */
 .match-hint {
   margin: 0;
@@ -11225,4 +11231,105 @@ button.wall-tile:disabled {
 .fact-table th:first-child,
 .fact-table td:first-child {
   text-align: left;
+}
+
+/* Тривога антигугла (12e): повноекранний червоний шар на телефоні того, хто виходив із гри.
+   Над заставкою (65), сповіщеннями (66), аркушами (70–75), вікном дуелі (80) і смугою «Немає зв'язку» (90). */
+.away-alarm {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-content: center;
+  gap: 0.75rem;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
+  background: #c62828;
+  color: #fff;
+  text-align: center;
+  cursor: pointer;
+}
+
+.away-alarm-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 8vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.away-alarm-penalty {
+  margin: 0;
+  font-size: clamp(1.25rem, 5.5vw, 1.75rem);
+  font-weight: 700;
+}
+
+/* Пульс — лише без «менше руху»; інакше статичне червоне тло. */
+@media (prefers-reduced-motion: no-preference) {
+  .away-alarm {
+    animation: away-pulse 0.5s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes away-pulse {
+  from {
+    background-color: #c62828;
+  }
+  to {
+    background-color: #ff1744;
+  }
+}
+
+/* «Тебе не було в грі 8 с — ведучий і екран це бачать» під запитанням. */
+.away-note {
+  color: var(--signal);
+}
+
+/* Антигугл (12e): «🙈 Оля, Петро» у шапці запитання на сцені — поруч із лічильником, в один рядок, довгий перелік обрізається трикрапкою. */
+.bar > .away-line {
+  margin-left: auto;
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--signal);
+}
+
+/* «🙈 поза грою 12 с (2 рази)» у рядках пульта й у фішці «Чекаємо». */
+.live-away,
+.response-away {
+  color: var(--signal);
+}
+
+/* «→ 0 (вихід із гри)» біля балів на пульті: штраф зніме їх, щойно бали стануть остаточними. */
+.response-penalty {
+  color: var(--signal);
+  white-space: nowrap;
+}
+
+/* У таблиці відповідей позначка йде окремим рядком під відповіддю: інакше на 375 px вона стискає відповідь до «Дніп / ро». */
+.rows > li > .response-away {
+  order: 1;
+  flex-basis: 100%;
+}
+
+.live-chip .live-away {
+  margin-left: 0.3rem;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+/* Фішка з позначкою на 375 px може стати двома рядками (ім'я, під ним «🙈 …»): не довга «пігулка», а заокруглена картка. */
+.live-chip:has(.live-away) {
+  max-width: 100%;
+  border-radius: 0.75rem;
+}
+
+/* 12e: «🙈 4 с» біля відповіді з виходом із гри; не рветься посеред позначки на 375 px. */
+.history-away {
+  white-space: nowrap;
+}
+
+.responses-who {
+  flex-wrap: wrap;
 }
