@@ -2326,6 +2326,7 @@ describe('StageScreen: appeal (12f)', () => {
     no: 0,
     waiting: 1,
     outcome: null,
+    undone: false,
     ...over,
   });
   const revealed = (over: Partial<StageView> = {}) => view({ phase: 'reveal', questionIndex: 0, question: textQ, reveal: textFull, playerCount: 3, ...over });
@@ -2345,6 +2346,40 @@ describe('StageScreen: appeal (12f)', () => {
   it('after a yes says «⚖️ Зараховано! +200»', () => {
     show(revealed({ appeal: appeal({ outcome: 'yes', endsAt: null, waiting: 0, yes: 2 }) }));
     expect(document.querySelector('.appeal-card.is-stage .appeal-result')?.textContent).toBe('⚖️ Зараховано! +200');
+  });
+
+  it('keeps room at the bottom for the card: the stage gets .has-appeal only while the card is shown', () => {
+    show(revealed({ appeal: appeal() }));
+    expect(document.querySelector('main.app.stage')?.classList.contains('has-appeal')).toBe(true);
+    cleanup();
+    show(revealed());
+    expect(document.querySelector('main.app.stage')?.classList.contains('has-appeal')).toBe(false);
+  });
+
+  it('names the other results: kept, the penalty lifted, the host, an undone decision', () => {
+    const result = () => document.querySelector('.appeal-card.is-stage .appeal-result')?.textContent;
+    show(revealed({ appeal: appeal({ outcome: 'no', endsAt: null, waiting: 0, points: 0, yes: 1, no: 2 }) }));
+    expect(result()).toBe('⚖️ Лишається як було · так 1 · ні 2');
+    cleanup();
+    show(revealed({ appeal: appeal({ reason: 'away', answer: null, outcome: 'yes', endsAt: null, waiting: 0, yes: 2 }) }));
+    expect(result()).toBe('⚖️ Штраф знято');
+    expect(screen.getByText('Штраф за вихід із гри. Зняти штраф?')).toBeTruthy();
+    cleanup();
+    show(revealed({ appeal: appeal({ outcome: 'host', endsAt: null, waiting: 0, points: 0 }) }));
+    expect(result()).toBe('⚖️ Зараховано ведучим');
+    cleanup();
+    show(revealed({ appeal: appeal({ outcome: 'yes', endsAt: null, waiting: 0, points: 0, undone: true }) }));
+    expect(result()).toBe('⚖️ Рішення залу скасовано');
+  });
+
+  it('a team appeal names the team', () => {
+    show(revealed({ teams: teamsView(), appeal: appeal({ by: { playerId: 't1', nickname: 'Червоні' } }) }));
+    expect(screen.getByRole('heading', { name: '⚖️ Команда «Червоні» оскаржує' })).toBeTruthy();
+  });
+
+  it('on a pause the countdown stands at the time left', () => {
+    show(revealed({ paused: true, appeal: appeal({ endsAt: null, remainingMs: 25_000 }) }));
+    expect(document.querySelector('.appeal-card.is-stage .appeal-time')?.textContent).toBe('0:25');
   });
 
   it('no appeal — no card', () => {

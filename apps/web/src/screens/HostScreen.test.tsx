@@ -897,10 +897,15 @@ describe('HostScreen: blitz', () => {
 
     it('a cell the hall passed by an appeal (12f) has no grade buttons, only the hint', () => {
       const cell = { id: 'c1', category: 'Міста', price: 400, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
-      const appeal: AppealView = { id: 1, by: { playerId: 'p1', nickname: 'Олена' }, reason: 'grade', answer: { type: 'text', value: 'Адеса' }, question: textQuestion, points: 400, endsAt: null, remainingMs: null, yes: 2, no: 0, waiting: 0, outcome: 'yes' };
+      const appeal: AppealView = { id: 1, by: { playerId: 'p1', nickname: 'Олена' }, reason: 'grade', answer: { type: 'text', value: 'Адеса' }, question: textQuestion, points: 400, endsAt: null, remainingMs: null, yes: 2, no: 0, waiting: 0, outcome: 'yes', undone: false };
       show(during('reveal', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }), appeal }));
       expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
-      expect(screen.getByText('Зал уже зарахував — скасуйте в «↶ Бали» після розкриття')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Не зараховувати' })).toBeNull();
+      expect(screen.getByText('Зал уже зарахував — щоб змінити оцінку, скасуйте бали в «↶ Бали», коли перейдете далі')).toBeTruthy();
+      cleanup();
+      show(during('reveal', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }), appeal: { ...appeal, points: 0, undone: true } }));
+      expect(button('Зарахувати')).toBeTruthy();
+      expect(document.querySelector('.appeal-passed')).toBeNull();
     });
 
     it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
@@ -2983,6 +2988,7 @@ describe('appeal (12f)', () => {
     no: 0,
     waiting: 1,
     outcome: null,
+    undone: false,
     ...over,
   });
   const responses: HostView['responses'] = [
@@ -3017,10 +3023,18 @@ describe('appeal (12f)', () => {
     show(during('reveal', textQuestion, { responses, appeal: appeal({ outcome: 'yes', endsAt: null, waiting: 0 }) }));
     const olena = screen.getByText('Адеса').closest('li') as HTMLElement;
     expect(within(olena).queryByRole('button')).toBeNull();
-    expect(within(olena).getByText('Зал уже зарахував — скасуйте в «↶ Бали» після розкриття')).toBeTruthy();
+    expect(within(olena).getByText('Зал уже зарахував — щоб змінити оцінку, скасуйте бали в «↶ Бали», коли перейдете далі')).toBeTruthy();
     const taras = screen.getByText('Одесса').closest('li') as HTMLElement;
     expect(within(taras).getByRole('button', { name: 'Зарахувати' })).toBeTruthy();
     expect(document.querySelector('.appeal-card.is-host .appeal-result')?.textContent).toBe('⚖️ Зараховано! +875');
+  });
+
+  it('an undone passed appeal brings the grade buttons back and says the decision was undone', () => {
+    show(during('reveal', textQuestion, { responses, appeal: appeal({ outcome: 'yes', endsAt: null, waiting: 0, points: 0, undone: true }) }));
+    const olena = screen.getByText('Адеса').closest('li') as HTMLElement;
+    expect(within(olena).getByRole('button', { name: 'Зарахувати' })).toBeTruthy();
+    expect(document.querySelector('.appeal-passed')).toBeNull();
+    expect(document.querySelector('.appeal-card.is-host .appeal-result')?.textContent).toBe('⚖️ Рішення залу скасовано');
   });
 
   it('a passed appeal on the penalty for leaving keeps the grade buttons', () => {

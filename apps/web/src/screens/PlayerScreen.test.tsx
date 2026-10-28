@@ -3491,6 +3491,7 @@ describe('PlayerScreen appeal (12f)', () => {
     no: 0,
     waiting: 1,
     outcome: null,
+    undone: false,
   };
   const mine = (over: Partial<NonNullable<PlayerView['me']['appeal']>> = {}) => ({ left: 2, reasons: [], block: null, voter: false, vote: null, ...over });
   const revealOf = (over: Partial<PlayerView> = {}, appeal: NonNullable<PlayerView['me']['appeal']> | null = null) =>
@@ -3572,6 +3573,7 @@ describe('PlayerScreen appeal edge cases (12f)', () => {
       no: 0,
       waiting: 0,
       outcome: 'cancelled' as const,
+      undone: false,
     };
     show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, appeal: cancelled }));
     expect(document.querySelector('.appeal-card, .appeal-sheet')).toBeNull();

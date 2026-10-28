@@ -1146,6 +1146,8 @@ export interface AppealView {
   waiting: number;
   /** null — голосування триває. */
   outcome: AppealOutcome | null;
+  /** Рішення «так» скасовано в «↶ Бали» (рядок 'appeal' має чинне скасування); тоді points 0. */
+  undone: boolean;
 }
 
 /** Своя апеляція на телефоні (12f): кнопки, ліміт, свій голос; людина, не команда. */

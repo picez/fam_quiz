@@ -832,8 +832,9 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
   const blink = useVerdictBlink(view.spotlight);
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  const appeal = phase === 'reveal' ? view.appeal : null;
   return (
-    <main className="app stage">
+    <main className={appeal !== null ? 'app stage has-appeal' : 'app stage'}>
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />
@@ -856,8 +857,8 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" autopilot={view.autopilot} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} />}
-      {/* Апеляція (12f) — шар position: fixed унизу по центру над розкриттям: розкладку не зсуває. */}
-      {phase === 'reveal' && view.appeal !== null && <AppealCard view={view.appeal} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
+      {/* Апеляція (12f) — шар position: fixed унизу по центру; .has-appeal тримає під ним запас унизу, щоб розкриття не ховалося. */}
+      {appeal !== null && <AppealCard view={appeal} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}
       {phase === 'intro' && <Intro view={view} />}

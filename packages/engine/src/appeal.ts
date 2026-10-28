@@ -288,9 +288,14 @@ function appealViewPoints(state: GameState, appeal: Appeal): number {
     if (!state.players.some((p) => p.id === appeal.by)) return 0;
     return appeal.reason === 'grade' ? appealPoints(state, appeal.by) : awayStake(state, appeal.by, appeal.questionIndex);
   }
-  if (appeal.outcome !== 'yes') return 0;
+  if (appeal.outcome !== 'yes' || appealUndone(state, appeal)) return 0;
   if (appeal.adjustmentSeq !== undefined) return state.adjustments.find((a) => a.seq === appeal.adjustmentSeq)?.points ?? 0;
   return appeal.reason === 'away' ? awayStake(state, appeal.by, appeal.questionIndex) : 0;
+}
+
+/** Рядок 'appeal' рішення «так» має чинне скасування (12a). */
+function appealUndone(state: GameState, appeal: Appeal): boolean {
+  return appeal.adjustmentSeq !== undefined && ledgerOf(state).adjustments.has(appeal.adjustmentSeq);
 }
 
 /** Картка апеляції (12f) для сцени, пульта й телефонів: lastAppeal на reveal; лічильники без імен; null — немає. */
@@ -318,6 +323,7 @@ export function appealView(state: GameState): AppealView | null {
     no,
     waiting,
     outcome: appeal.outcome,
+    undone: appealUndone(state, appeal),
   };
 }
 

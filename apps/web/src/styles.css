@@ -11420,54 +11420,86 @@ button.wall-tile:disabled {
   overflow-wrap: anywhere;
 }
 
-/* Сцена (12f): картка — шар position: fixed унизу по центру поверх розкриття, нічого не зсуває.
-   Ширина ≤ 960 px, висота ≤ 240 px; під заставкою (65) і сповіщеннями (66), над значками бафів (50). */
+/* Сцена (12f): картка — шар position: fixed унизу по центру, ширина ≤ 960 px, висота ≤ 124 px (сітка в три рядки:
+   «хто оскаржує · питання залу», смужка «так / ні», лічильник з відліком або результат).
+   Над значками бафів (50), під заставкою (65) і сповіщеннями (66). Поки картка є, .app.stage.has-appeal
+   тримає під нею запас --appeal-room і стискає вертикальні проміжки: розкриття не ховається під карткою. */
+.app.stage {
+  --appeal-room: 9rem;
+}
+
+.app.stage.has-appeal {
+  padding-top: 2vh;
+  padding-bottom: var(--appeal-room);
+  gap: 2vh;
+}
+
+.app.stage.has-appeal .stage-question {
+  gap: 2vh;
+}
+
+/* Сповіщення й значки бафів — над карткою, а не на ній. */
+.stage.has-appeal .live-notices,
+.stage.has-appeal .stage-tags {
+  bottom: calc(var(--appeal-room) - 0.25rem);
+}
+
 .appeal-card.is-stage {
   position: fixed;
   bottom: 0.75rem;
   left: 0;
   right: 0;
   z-index: 60;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.375rem 1rem;
   width: min(960px, calc(100vw - 2rem));
-  max-height: 240px;
+  max-height: 7.75rem;
   margin-inline: auto;
   overflow: hidden;
-  gap: 0.5rem;
-  padding: 0.875rem 1.5rem;
+  padding: 0.625rem 1.5rem;
   border-width: 3px;
   background: var(--stage);
   box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.55);
 }
 
 .appeal-card.is-stage .appeal-title {
-  font-size: 1.75rem;
+  font-size: 1.375rem;
+  white-space: nowrap;
 }
 
-/* Довга відповідь не роздуває картку: щонайбільше два рядки. */
+/* Питання залу — праворуч від заголовка, в один рядок; довга відповідь обрізається трикрапкою. */
 .appeal-card.is-stage .appeal-ask {
-  display: -webkit-box;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  font-size: 1.35rem;
-  line-height: 1.3;
+  font-size: 1.125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appeal-card.is-stage .appeal-bar,
+.appeal-card.is-stage .appeal-meta,
+.appeal-card.is-stage .appeal-result {
+  grid-column: 1 / -1;
 }
 
 .appeal-card.is-stage .appeal-bar {
-  flex: none;
-  height: 1.125rem;
+  height: 0.875rem;
 }
 
 .appeal-card.is-stage .appeal-count {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
 }
 
 .appeal-card.is-stage .appeal-time {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
 }
 
 .appeal-card.is-stage .appeal-result {
-  font-size: 2rem;
+  overflow: hidden;
+  font-size: 1.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Пульт: компактна картка під відповідями. */
@@ -11477,7 +11509,10 @@ button.wall-tile:disabled {
 }
 
 .appeal-card.is-host .appeal-title {
+  overflow: hidden;
   font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .appeal-card.is-host .appeal-ask,
@@ -11491,6 +11526,8 @@ button.wall-tile:disabled {
 
 /* Пульт: зал уже зарахував — замість кнопок оцінки підказка, де скасувати. */
 .appeal-passed {
+  display: block;
+  flex-basis: 100%;
   margin: 0;
   color: var(--appeal-accent);
 }

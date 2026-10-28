@@ -19,8 +19,10 @@ export function appealCountText(view: Pick<AppealView, 'yes' | 'no' | 'waiting'>
   return countText('appealCountWaiting', view.waiting, { yes: view.yes, no: view.no, count: view.waiting });
 }
 
-/** «⚖️ Зараховано! +200» (без балів — «⚖️ Зараховано!»), «⚖️ Штраф знято», «⚖️ Лишається як було · так 1 · ні 1», «⚖️ Зараховано ведучим»; відкрита чи cancelled — null. */
+/** «⚖️ Зараховано! +200» (без балів — «⚖️ Зараховано!»), «⚖️ Штраф знято», «⚖️ Лишається як було · так 1 · ні 1», «⚖️ Зараховано ведучим», скасоване «так» — «⚖️ Рішення залу скасовано»; відкрита чи cancelled — null. */
 export function appealResultText(view: AppealView): string | null {
+  // Бали рішення «так» скасовано в «↶ Бали»: картка не каже «Зараховано!».
+  if (view.outcome === 'yes' && view.undone) return t('appealResultUndone');
   switch (view.outcome) {
     case 'yes':
       if (view.reason === 'away') return t('appealResultAway');

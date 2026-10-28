@@ -24,6 +24,7 @@ const appeal = (over: Partial<AppealView> = {}): AppealView => ({
   no: 0,
   waiting: 1,
   outcome: null,
+  undone: false,
   ...over,
 });
 
@@ -67,6 +68,11 @@ describe('appeal texts', () => {
     expect(appealResultText(appeal({ outcome: 'cancelled', waiting: 0 }))).toBeNull();
   });
 
+  it('an undone yes says the decision of the hall was undone', () => {
+    expect(appealResultText(appeal({ outcome: 'yes', points: 0, waiting: 0, undone: true }))).toBe('⚖️ Рішення залу скасовано');
+    expect(appealResultText(appeal({ outcome: 'yes', reason: 'away', answer: null, points: 0, waiting: 0, undone: true }))).toBe('⚖️ Рішення залу скасовано');
+  });
+
   it('labels the buttons with the appeals left', () => {
     expect(appealButtonText('grade', 2)).toBe('⚖️ Оскаржити (лишилось 2)');
     expect(appealButtonText('away', 1)).toBe('⚖️ Оскаржити штраф (лишилось 1)');
@@ -80,6 +86,7 @@ describe('appeal texts', () => {
       appealAsk(appeal({ reason: 'away' })),
       appealCountText(appeal()),
       ...(['yes', 'no', 'tie', 'host'] as const).map((outcome) => appealResultText(appeal({ outcome })) ?? ''),
+      appealResultText(appeal({ outcome: 'yes', undone: true })) ?? '',
       appealButtonText('grade', 2),
       appealButtonText('away', 2),
     ];

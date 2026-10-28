@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer, type QuizSettings } from '@quiz/shared';
+import { addAdjustment } from './adjust';
 import { castAppealVote, openAppeal } from './appeal';
 import { awayEnd, awayStart } from './away';
 import { lock, next, pause, setConnected, submitAnswer, type GameState } from './game';
@@ -7,6 +8,7 @@ import { actAnswer } from './team-act';
 import { classicRound, makeRoundsQuiz, text, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
+import { undoScore } from './undo';
 import { hostView, playerView, stageView } from './views';
 
 const T0 = 1_000_000;
@@ -81,6 +83,7 @@ describe('an open appeal', () => {
       endsAt: T1 + 30_000,
       remainingMs: null,
       points: 100,
+      undone: false,
     };
     expect(stageView(voted).appeal).toMatchObject(card);
     expect(stageView(voted).appeal?.question.id).toBe(t100.id);
@@ -115,6 +118,20 @@ describe('the decision', () => {
     expect(stageView(s).appeal).toMatchObject({ outcome: 'yes', points: 100, endsAt: null, remainingMs: null, waiting: 0, yes: 2, no: 0 });
     expect(me(s, 'p2')).toMatchObject({ voter: false, vote: null });
     expect(stageView(must(next(s, T1 + 3000, rng))).appeal).toBeNull();
+  });
+
+  it('the appeal row cannot be undone on the same reveal: the undo panel hides the current question', () => {
+    const s = must(castAppealVote(voted, 'p3', 1, true, T1 + 2000));
+    const seq = s.adjustments.find((a) => a.source === 'appeal')!.seq;
+    expect(undoScore(s, { seq }, T1 + 3000)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(stageView(s).appeal).toMatchObject({ outcome: 'yes', undone: false });
+  });
+
+  it('an undone yes says so and shows 0 points (defensive: the reveal hides the row)', () => {
+    const s = must(castAppealVote(voted, 'p3', 1, true, T1 + 2000));
+    const row = s.adjustments.find((a) => a.source === 'appeal')!;
+    const undone = addAdjustment(s, row.playerId, -row.points, T1 + 3000, 'undo', { undoes: { seq: row.seq }, batch: s.adjustmentSeq + 1, roundIndex: row.roundIndex });
+    expect(stageView(undone).appeal).toMatchObject({ outcome: 'yes', undone: true, points: 0 });
   });
 
   it('a tie gives 0 points', () => {

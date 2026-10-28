@@ -36,6 +36,7 @@ const appeal = (over: Partial<AppealView> = {}): AppealView => ({
   no: 0,
   waiting: 1,
   outcome: null,
+  undone: false,
   ...over,
 });
 

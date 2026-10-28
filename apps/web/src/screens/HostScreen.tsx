@@ -318,7 +318,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // Апеляція (12f): поки зал голосує, «Далі» рушій відхиляє (appeal_open) — головна кнопка неактивна й каже «Голосує зал».
   const appealVoting = phase === 'reveal' && view.appeal?.outcome === null;
   // Зал зарахував відповідь: оцінку поверх рушій відхиляє (not_allowed), доки рядок апеляції не скасовано в «↶ Бали».
-  const appealPassed = phase === 'reveal' && view.appeal !== null && view.appeal.outcome === 'yes' && view.appeal.reason === 'grade' ? view.appeal.by.playerId : null;
+  // Рядок поточного запитання панель скасування показує лише після розкриття, тож підказка каже «коли перейдете далі».
+  const appealPassed =
+    phase === 'reveal' && view.appeal !== null && view.appeal.outcome === 'yes' && view.appeal.reason === 'grade' && !view.appeal.undone ? view.appeal.by.playerId : null;
 
   // Лічильники опитування: з відповідей, ще до розкриття.
   const voteCounts: Record<string, number> = {};
