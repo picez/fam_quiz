@@ -1,4 +1,5 @@
 import { AUTOPILOT_MAX_RETRIES, AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, type ErrorCode, type Quiz, type TeamForm } from '@quiz/shared';
+import { appealOpen, appealPossible, lastAppeal } from './appeal';
 import { pickCell, skipTurn } from './board';
 import { dicePending, rollForRest, startDice } from './board-dice';
 import { cellPlayed, chooserOf } from './board-turns';
@@ -305,8 +306,14 @@ function moveOf(state: GameState, from: number): Move | null {
     }
     case 'locked':
       return nextAt(from + AUTOPILOT_MS.locked);
-    case 'reveal':
-      return nextAt(from + revealMs(state));
+    case 'reveal': {
+      // Апеляція (12f): голосування закриває tick рушія; після рішення — ще appealShown; поки хтось може оскаржити — не менше appealWindow від початку розкриття.
+      if (appealOpen(state) !== null) return null;
+      const decided = lastAppeal(state) !== null;
+      const base = from + (decided ? AUTOPILOT_MS.appealShown : revealMs(state));
+      const window = appealPossible(state) ? (state.stepAt ?? from) + AUTOPILOT_MS.appealWindow : 0;
+      return nextAt(Math.max(base, window));
+    }
     case 'leaderboard':
       return leaderboardMove(state, from);
     case 'board':
@@ -324,10 +331,18 @@ function moveOf(state: GameState, from: number): Move | null {
 const notBefore = (state: GameState, move: Move, at: number): number =>
   Math.max(at, move.pace === null ? 0 : (paceWindow(state, move.pace)?.until ?? 0));
 
+/** Підкрок апеляції (12f): кількість апеляцій на поточному запитанні й рішення останньої ('open' — відкрита). */
+function appealKey(state: GameState): string {
+  if (state.phase !== 'reveal') return '';
+  const here = (state.appeals ?? []).filter((a) => a.questionIndex === state.questionIndex);
+  const last = here.at(-1);
+  return last === undefined ? '' : `${here.length}:${last.outcome ?? 'open'}`;
+}
+
 /**
  * Ключ підкроку автопілота: stepKey + тури кубиків поля й команд (номер, чи триває) + starting + той, чий хід на полі
- * + чия відповідь чекає «Прийняти» і скільки спроб бліцу розглянуто (відповідь на полі ставить утримання, stepKey його не бачить);
- * без paused/at/left/hold. Хід на полі — бо вилучення гравця, чий хід, stepKey не змінює, а відлік ходу має початися знову.
+ * + чия відповідь чекає «Прийняти» і скільки спроб бліцу розглянуто (відповідь на полі ставить утримання, stepKey його не бачить)
+ * + апеляція на розкритті (12f: відкриття й рішення починають новий відлік); без paused/at/left/hold. Хід на полі — бо вилучення гравця, чий хід, stepKey не змінює, а відлік ходу має початися знову.
  */
 export function pilotKey(state: GameState): string {
   return [
@@ -340,6 +355,7 @@ export function pilotKey(state: GameState): string {
     chooserOf(state),
     pendingOf(state)?.playerId,
     state.plays[state.questionIndex]?.blitz?.attempts.length,
+    appealKey(state),
   ]
     .map((part) => (part === undefined || part === null ? '' : String(part)))
     .join('|');
