@@ -152,7 +152,14 @@ describe('TeamPeople: who answers (12g)', () => {
     const marks = screen.getAllByRole('img', { name: 'відповідає' });
     expect(marks).toHaveLength(1);
     expect(marks[0]!.textContent).toBe('🎤');
+    expect(marks[0]!.getAttribute('title')).toBe('Відповідає за команду');
     expect(marks[0]!.closest('li')!.textContent).toContain('Петро');
+  });
+
+  it('no mark for a team with no answerer on this question (null from the engine)', () => {
+    const team = { ...teamsView().teams[1]!, answererId: null };
+    render(<TeamPeople team={team} onCaptain={vi.fn()} busy={false} />);
+    expect(screen.queryByRole('img', { name: 'відповідає' })).toBeNull();
   });
 
   it('no mark while the captain answers', () => {

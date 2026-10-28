@@ -11,7 +11,7 @@ import { pickContestant } from './ladder';
 import { stamp } from './pacing';
 import { trialOpen } from './survival';
 import { actAnswer, actBuzz, actorOf, type TeamAct } from './team-act';
-import { captainOf, dropMember } from './teams';
+import { captainOf, dropMember, memberConnected } from './teams';
 import { decideWipeout, decisionOpen } from './wipeout';
 import { duelQuiz, revealOf } from './testing/duel';
 import {
@@ -54,6 +54,11 @@ const intro = game(ROUNDS, 'chosen');
 const current = (s: GameState) => s.plays[s.questionIndex];
 const yes = (id: string) => ({ ok: true, id });
 const no = (error: string) => ({ ok: false, error });
+/** Вибір, записаний до бліцу чи опитування в обхід pickAnswerer (той перед ними відмовляє): як старий стан чи поле з бліц-клітинкою. */
+const withPick = (s: GameState, team: string, memberId: string): GameState => ({
+  ...s,
+  teams: { ...s.teams!, answerers: { ...s.teams!.answerers, [team]: { memberId, scope: 'round', fromQuestion: s.plays.length, roundIndex: null } } },
+});
 
 /** Дія людини за команду: actorOf(act), далі — функція рушія з id команди. */
 function as(s: GameState, memberId: string, act: TeamAct, run: (id: string) => Result): Result {
@@ -133,8 +138,8 @@ describe('team answerer: who acts', () => {
 describe('team answerer: blitz, polls and clouds keep their rules', () => {
   it('blitz with the button: anyone buzzes and the one who buzzed answers, not the picked one; the turn stays', () => {
     const rounds = [blitzRound('rb', [text, withId(text, 'q4b')], { check: 'manual', attempts: 1 })];
-    let s = must(pickAnswerer(game(rounds, 'chosen'), 'm1', 'm2', 'round'));
-    s = must(next(s, T0, rng));
+    expect(pickAnswerer(game(rounds, 'chosen'), 'm1', 'm2', 'round')).toEqual(no('wrong_phase'));
+    let s = must(next(withPick(game(rounds, 'chosen'), 't1', 'm2'), T0, rng));
     expect(answererOf(s, 't1')).toBe('m1');
     s = must(actBuzz(s, 'm3', T0 + 1000));
     expect(actorOf(s, 'm3', 'answer')).toEqual(yes('t1'));
@@ -146,22 +151,22 @@ describe('team answerer: blitz, polls and clouds keep their rules', () => {
 
   it('blitz: the one who buzzed went offline — the captain answers as before 12g', () => {
     const rounds = [blitzRound('rb', [text, withId(text, 'q4b')], { check: 'manual', attempts: 1 })];
-    let s = must(next(must(pickAnswerer(game(rounds, 'chosen'), 'm1', 'm2', 'round')), T0, rng));
+    let s = must(next(withPick(game(rounds, 'chosen'), 't1', 'm2'), T0, rng));
     s = must(actBuzz(s, 'm3', T0 + 1000));
-    s = must(removePlayer(s, 'm3'));
+    s = must(memberConnected(s, 'm3', false, T0 + 1500));
     expect(actorOf(s, 'm1', 'answer')).toEqual(yes('t1'));
     expect(actorOf(s, 'm2', 'answer')).toEqual(no('not_captain'));
   });
 
   it('instant blitz: any member answers for the team', () => {
-    const s = must(next(must(pickAnswerer(game([blitzRound('rb', [text])], 'chosen'), 'm1', 'm2', 'round')), T0, rng));
+    const s = must(next(withPick(game([blitzRound('rb', [text])], 'chosen'), 't1', 'm2'), T0, rng));
     expect(actorOf(s, 'm3', 'answer')).toEqual(yes('t1'));
   });
 
   for (const mode of [undefined, 'chosen', 'rotate'] as const) {
     it(`polls and clouds: everyone votes alone (${mode ?? 'captain'})`, () => {
       let s = game([classicRound('r1', [poll, cloud])], mode);
-      if (mode === 'chosen') s = must(pickAnswerer(s, 'm1', 'm2', 'round'));
+      if (mode === 'chosen') s = withPick(s, 't1', 'm2');
       s = must(next(s, T0, rng));
       for (const id of ['m1', 'm2', 'm3', 'm4', 'm5']) expect(actorOf(s, id, 'answer')).toEqual(yes(id));
       s = toQuestion(s);
@@ -219,6 +224,15 @@ describe('team answerer: formats', () => {
     expect(actAnswer(s, 'm1', LADDER_RIGHT[0], T0 + 1000)).toEqual(no('not_answerer'));
     s = must(actAnswer(s, 'm2', LADDER_RIGHT[0], T0 + 1000));
     expect(recordOf(s, s.questionIndex, 't1')).toMatchObject({ answer: LADDER_RIGHT[0] });
+  });
+
+  it('the ladder: a hall team picks Ната for one question — she votes for the hall, Марко gets not_answerer', () => {
+    let s = must(pickContestant(game([ladderRound('rl')], 'chosen'), 't1'));
+    s = must(next(must(pickAnswerer(s, 'm4', 'm5', 'question')), T0, rng));
+    expect(s.teams?.current?.t2).toEqual({ questionIndex: 0, memberId: 'm5' });
+    expect(answererOf(s, 't2')).toBe('m5');
+    expect(actorOf(s, 'm5', 'answer')).toEqual(yes('t2'));
+    expect(actorOf(s, 'm4', 'answer')).toEqual(no('not_answerer'));
   });
 
   it('the ladder in rotate mode: only the contestant moves the turn', () => {
@@ -302,13 +316,22 @@ describe('team answerer: removing people', () => {
     expect(s.teams?.turns?.t1).toBeDefined();
   });
 
-  it('an old state without answerers or turns keeps them undefined after a removal', () => {
+  it('an old state without answerers, turns or current gains no such keys after a removal', () => {
     let s = must(next(game(ROUNDS), T0, rng));
     s = must(dropMember(s, 'm2'));
-    expect(s.teams?.answerers).toBeUndefined();
+    for (const key of ['answerers', 'turns', 'current']) expect(key in (s.teams ?? {})).toBe(false);
     s = must(removePlayer(s, 't2'));
-    expect(s.teams?.answerers).toBeUndefined();
-    expect(s.teams?.turns).toBeUndefined();
+    for (const key of ['answerers', 'turns', 'current']) expect(key in (s.teams ?? {})).toBe(false);
+  });
+
+  it('a removed team takes its open-question answerer along', () => {
+    const layout = [['Оля', 'Петро'], ['Марко', 'Ната'], ['Гліб', 'Дана']];
+    let s = must(pickAnswerer(game(ROUNDS, 'chosen', layout), 'm3', 'm4', 'round'));
+    s = must(pickAnswerer(s, 'm1', 'm2', 'round'));
+    s = must(next(s, T0, rng));
+    expect(s.teams?.current).toEqual({ t1: { questionIndex: 0, memberId: 'm2' }, t2: { questionIndex: 0, memberId: 'm4' } });
+    s = must(removePlayer(s, 't2'));
+    expect(s.teams?.current).toEqual({ t1: { questionIndex: 0, memberId: 'm2' } });
   });
 });
 

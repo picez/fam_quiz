@@ -9,9 +9,24 @@ import { actAnswer } from './team-act';
 import { memberConnected } from './teams';
 import { hostView, playerView, stageView } from './views';
 import { duelQuiz, revealOf } from './testing/duel';
-import { classicRound, finalRound, single, survivalQuestions, survivalRound, survivalTrials, withId } from './testing/fixtures';
+import { pickCell } from './board';
+import { decideWipeout, decisionOpen } from './wipeout';
+import {
+  blitzRound,
+  boardRound,
+  classicRound,
+  finalRound,
+  poll,
+  single,
+  survivalQuestions,
+  survivalRound,
+  survivalTrials,
+  wipeoutLadder,
+  wipeoutRound,
+  withId,
+} from './testing/fixtures';
 import { must } from './testing/helpers';
-import { teamGame, teamQuiz } from './testing/teams';
+import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
 const T0 = 1_000_000;
 const rng = () => 0;
@@ -116,6 +131,95 @@ describe('team answerer views: the captain’s picker', () => {
     expect(team(s, 'm2')).toMatchObject({ canAct: true, answerer: true, answererId: 'm2' });
     expect(team(s, 'm1')).toMatchObject({ canAct: false, answerer: false });
     expect(actor(s, 't1')).toBe('Петро');
+  });
+});
+
+describe('team answerer views: privacy and scope', () => {
+  it('between questions a player sees the next answerer of the own team only; other teams show their captain', () => {
+    let s = must(pickAnswerer(game(ROUNDS, 'chosen'), 'm1', 'm2', 'round'));
+    s = must(pickAnswerer(s, 'm4', 'm5', 'question'));
+    expect(teamView(playerView(s, 'm4') as never, 't1')?.answererId).toBe('m1');
+    expect(teamView(playerView(s, 'm4') as never, 't2')?.answererId).toBe('m5');
+    expect(teamView(playerView(s, 'm3') as never, 't1')?.answererId).toBe('m2');
+    expect(teamView(playerView(s, 'm3') as never, 't2')?.answererId).toBe('m4');
+    expect(team(s, 'm4')?.answererPick).toEqual({ memberId: 'm5', scope: 'question' });
+    expect(team(s, 'm3')?.answererPick).toEqual({ memberId: 'm2', scope: 'round' });
+    // Сцена й ведучий — як було: обидва наступні відповідачі.
+    for (const view of [stageView(s), hostView(s)]) {
+      expect(teamView(view, 't1')?.answererId).toBe('m2');
+      expect(teamView(view, 't2')?.answererId).toBe('m5');
+    }
+    // На запитанні це вже не таємниця: усі бачать, хто відповідає.
+    s = must(next(s, T0, rng));
+    expect(teamView(playerView(s, 'm4') as never, 't1')?.answererId).toBe('m2');
+  });
+
+  it('stage and host carry no pick scope', () => {
+    const s = must(pickAnswerer(game(ROUNDS, 'chosen'), 'm1', 'm2', 'round'));
+    for (const view of [stageView(s), hostView(s)]) {
+      for (const t of view.teams?.teams ?? []) expect(Object.keys(t).sort()).toEqual(['answererId', 'captainId', 'color', 'id', 'members', 'name']);
+    }
+  });
+
+  it('a round pick made on round_end shows for the next round; one made on the last reveal too', () => {
+    const walk = (from: GameState, done: (st: GameState) => boolean): GameState => {
+      let st = from;
+      while (!done(st)) st = must(st.phase === 'question' ? lock(st) : next(st, T0, rng));
+      return st;
+    };
+    let s = walk(game(ROUNDS, 'chosen'), (st) => st.phase === 'round_end');
+    s = must(pickAnswerer(s, 'm1', 'm3', 'round'));
+    expect(team(s, 'm1')).toMatchObject({ answererId: 'm3', answererPick: { memberId: 'm3', scope: 'round' } });
+    s = toQuestion(s);
+    expect(s.roundIndex).toBe(1);
+    expect(teamView(stageView(s), 't1')?.answererId).toBe('m3');
+    let r = walk(game(ROUNDS, 'chosen'), (st) => st.phase === 'reveal' && st.plays[st.questionIndex].question.id === 'q3');
+    r = must(pickAnswerer(r, 'm1', 'm3', 'round'));
+    expect(team(r, 'm1')?.answererPick).toEqual({ memberId: 'm3', scope: 'round' });
+    expect(teamView(stageView(toQuestion(r)), 't1')?.answererId).toBe('m3');
+  });
+
+  it('the lobby of a chosen game: the captain answers, nobody picks', () => {
+    const lobby = teamLobby(teamQuiz(ROUNDS, 2, 'chosen'), 'Оля', 'Петро');
+    const id = lobby.teams?.members[0].id ?? '';
+    expect(playerView(lobby, id)?.team).toMatchObject({ answererMode: 'chosen', canPickAnswerer: false, answererPick: null });
+  });
+
+  it('before a blitz round or a poll the captain cannot pick', () => {
+    const blitzy = game([blitzRound('b1', [single])], 'chosen');
+    expect(team(blitzy, 'm1')?.canPickAnswerer).toBe(false);
+    let polled = must(next(game([classicRound('r1', [single, poll])], 'chosen'), T0, rng));
+    polled = must(lock(polled));
+    expect(team(polled, 'm1')?.canPickAnswerer).toBe(false);
+    expect(team(must(lock(must(next(game(ROUNDS, 'chosen'), T0, rng)))), 'm1')?.canPickAnswerer).toBe(true);
+  });
+});
+
+describe('team answerer views: who is not answering shows null on the question', () => {
+  it('blitz: no team has an answerer on the question', () => {
+    const s = must(next(game([blitzRound('b1', [single])], 'chosen'), T0, rng));
+    for (const view of [stageView(s), hostView(s)]) for (const id of ['t1', 't2']) expect(teamView(view, id)?.answererId).toBeNull();
+  });
+
+  it('the board: only the team that picked the cell', () => {
+    const rounds = [boardRound('g1', [{ title: 'Міста', cells: [withId(single, 'c11'), withId(single, 'c12')] }])];
+    let s = until(game(rounds, 'chosen'), (st) => st.phase === 'board');
+    s = must(pickCell(s, 't1', 'c11', T0, rng));
+    expect(teamView(stageView(s), 't1')?.answererId).toBe('m1');
+    expect(teamView(stageView(s), 't2')?.answererId).toBeNull();
+  });
+
+  it('«Ва-банк»: a team that took its bank is out of the line', () => {
+    let s = must(next(game([wipeoutRound('rw', wipeoutLadder)], 'chosen'), T0, rng));
+    s = must(actAnswer(s, 'm1', RIGHT, T0 + 1000));
+    s = must(actAnswer(s, 'm4', RIGHT, T0 + 1000));
+    while (!decisionOpen(s)) s = must(next(s, T0 + 2000, rng));
+    s = must(decideWipeout(s, 't2', true, T0 + 3000));
+    s = must(decideWipeout(s, 't1', false, T0 + 3000));
+    s = toQuestion(s);
+    expect(teamView(stageView(s), 't1')?.answererId).toBe('m1');
+    expect(teamView(stageView(s), 't2')?.answererId).toBeNull();
+    expect(teamView(hostView(s), 't2')?.answererId).toBeNull();
   });
 });
 

@@ -56,7 +56,7 @@ export function TeamPeople({ team, moveTo, onCaptain, onKick, busy }: PeopleProp
             )}
             {member.nickname}
             {member.id === team.answererId && team.answererId !== team.captainId && (
-              <span className="answerer-mark" role="img" aria-label={t('teamAnswererMark')}>
+              <span className="answerer-mark" role="img" aria-label={t('teamAnswererMark')} title={t('teamAnswererTitle')}>
                 🎤
               </span>
             )}

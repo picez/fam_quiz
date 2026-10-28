@@ -15580,7 +15580,8 @@ async function answerer12g() {
   const textOf = async (locator: Locator) => squash(await locator.first().textContent({ timeout: 500 }).catch(() => null)) || null;
   const picker = (page: Page) => page.locator('section.answerer-picker');
   const option = (page: Page, name: string) => picker(page).getByRole('button', { name, ...exact });
-  const optionNames = async (page: Page) => (await picker(page).locator('.answerer-options button.answerer-option').allTextContents()).map(squash);
+  /** Імена кнопок без позначки ✓ натиснутої. */
+  const optionNames = async (page: Page) => (await picker(page).locator('.answerer-options button.answerer-option').allTextContents()).map((name) => squash(name).replace(/^✓ /, ''));
   const roundBox = (page: Page) => picker(page).getByRole('checkbox', { name: 'на весь раунд', ...exact });
   const hint = (page: Page) => picker(page).locator('p.meta.answerer-hint');
   const banner = (page: Page) => page.locator('p.lead.team-answerer-banner');
@@ -15629,6 +15630,7 @@ async function answerer12g() {
   expect(await option(olya, 'Я').getAttribute('aria-pressed')).toBe('true');
   expect(await option(olya, 'Петро').getAttribute('aria-pressed')).toBe('false');
   expect(await roundBox(olya).isChecked()).toBe(false);
+  expect(await hint(olya).count(), 'no hint before a pick').toBe(0);
   await picker(marko).waitFor();
   expect(await optionNames(marko)).toEqual(['Я', 'Ната']);
   for (const page of [petro, ira, nata]) expect(await picker(page).count(), 'a strip on a teammate phone').toBe(0);
@@ -15637,7 +15639,8 @@ async function answerer12g() {
   await option(olya, 'Петро').click();
   await expect.poll(() => option(olya, 'Петро').getAttribute('aria-pressed'), POLL).toBe('true');
   expect(await option(olya, 'Я').getAttribute('aria-pressed')).toBe('false');
-  expect(await textOf(hint(olya))).toMatch(/наступного запитання/);
+  expect(await textOf(hint(olya))).toBe('Лише наступне запитання');
+  expect(await textOf(option(olya, 'Петро')), 'the pressed one carries a ✓').toBe('✓ Петро');
   await expect.poll(() => textOf(barLine(petro)), POLL).toBe('Ти відповідаєш');
   await expect.poll(() => textOf(barLine(ira)), POLL).toBe('Відповідає Петро');
   await shot(olya, 'p12g-captain-picked');

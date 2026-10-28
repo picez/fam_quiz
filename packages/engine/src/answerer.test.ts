@@ -13,10 +13,12 @@ import {
   blitzRound,
   boardRound,
   classicRound,
+  cloud,
   ladderRound,
   makeRoundsQuiz,
   poll,
   single,
+  sortQ,
   survivalQuestions,
   survivalRound,
   survivalTrials,
@@ -58,6 +60,11 @@ const toNextQuestion = (s: GameState): GameState => until(s, 'question');
 
 const offline = (s: GameState, id: string): GameState => must(memberConnected(s, id, false, T0));
 const online = (s: GameState, id: string): GameState => must(memberConnected(s, id, true, T0));
+/** Вибір, записаний в обхід pickAnswerer (той перед бліцом і опитуванням відмовляє): як старий стан чи поле з бліц-клітинкою. */
+const withPick = (s: GameState, team: string, memberId: string, scope: 'question' | 'round'): GameState => ({
+  ...s,
+  teams: { ...s.teams!, answerers: { ...s.teams!.answerers, [team]: { memberId, scope, fromQuestion: s.plays.length, roundIndex: null } } },
+});
 
 describe('answerer: the captain picks', () => {
   it('a pick for one question: Петро answers the next question only, then the captain again', () => {
@@ -162,9 +169,9 @@ describe('answerer: the captain picks', () => {
 
   it('blitz and polls stay with the captain even with a pick', () => {
     const blitzy = game(teamQuiz([blitzRound('b1', [single])], 2, 'chosen'));
-    expect(answererOf(toNextQuestion(must(pickAnswerer(blitzy, 'm1', 'm2', 'question'))), 't1')).toBe('m1');
+    expect(answererOf(toNextQuestion(withPick(blitzy, 't1', 'm2', 'question')), 't1')).toBe('m1');
     const polled = game(teamQuiz([classicRound('r1', [poll])], 2, 'chosen'));
-    expect(answererOf(toNextQuestion(must(pickAnswerer(polled, 'm1', 'm2', 'question'))), 't1')).toBe('m1');
+    expect(answererOf(toNextQuestion(withPick(polled, 't1', 'm2', 'question')), 't1')).toBe('m1');
   });
 
   it('captain mode: answererOf is the captain whatever the state says', () => {
@@ -271,13 +278,30 @@ describe('answerer: rotate', () => {
     expect(answererOf(s, 't1')).toBe('m2');
   });
 
-  it('queueNext starts from the captain when the last in turn has left the team', () => {
+  it('the last in turn is removed: the turn passes to the one before them, so the circle goes on with the one after', () => {
     let s = toNextQuestion(toNextQuestion(rotate));
     expect(s.teams?.turns?.t1.memberId).toBe('m2');
     s = until(s, 'reveal');
     expect(queueNext(s, 't1')).toBe('m3');
     s = must(dropMember(s, 'm2'));
-    expect(queueNext(s, 't1')).toBe('m1');
+    expect(s.teams?.turns?.t1).toEqual({ questionIndex: 1, memberId: 'm1' });
+    expect(queueNext(s, 't1')).toBe('m3');
+    expect(answererOf(toNextQuestion(s), 't1')).toBe('m3');
+  });
+
+  it('the captain is the last in turn and is removed: the turn passes to the last member in team order', () => {
+    let s = toNextQuestion(rotate);
+    expect(s.teams?.turns?.t1.memberId).toBe('m1');
+    s = must(dropMember(until(s, 'reveal'), 'm1'));
+    expect(s.teams?.turns?.t1).toEqual({ questionIndex: 0, memberId: 'm3' });
+    expect(queueNext(s, 't1')).toBe('m2');
+  });
+
+  it('removing someone who is not the last in turn leaves the turn alone', () => {
+    let s = until(toNextQuestion(toNextQuestion(rotate)), 'reveal');
+    const turns = s.teams?.turns;
+    s = must(dropMember(s, 'm3'));
+    expect(s.teams?.turns).toEqual(turns);
   });
 });
 
@@ -336,27 +360,73 @@ describe('answerer: a pick for one question waits for a question the team answer
     expect(answererOf(s, 't2')).toBe('m4');
   });
 
-  it('the ladder of another team: the pick waits', () => {
+  it('the ladder of another team: the hall answers, so the pick works there and is used up', () => {
     let s = must(pickContestant(game(teamQuiz([ladderRound('rl'), classicRound('r2', [single])], 2, 'chosen')), 't1'));
     s = must(pickAnswerer(s, 'm4', 'm5', 'question'));
     s = toNextQuestion(s);
-    expect(s.teams?.answerers?.t2).toEqual({ memberId: 'm5', scope: 'question', fromQuestion: 1, roundIndex: null });
-    expect(nextAnswerer(s, 't2')).toBe('m5');
+    expect(s.teams?.answerers?.t2).toEqual({ memberId: 'm5', scope: 'question', fromQuestion: 0, roundIndex: 0 });
+    expect(s.teams?.current?.t2).toEqual({ questionIndex: 0, memberId: 'm5' });
+    expect(answererOf(s, 't2')).toBe('m5');
+    s = must(lock(s));
+    expect(nextAnswerer(s, 't2')).toBe('m4');
   });
 
-  it('a poll: the pick waits for the next question', () => {
-    let s = must(pickAnswerer(game(teamQuiz([classicRound('r1', [poll, single])], 2, 'chosen')), 'm1', 'm2', 'question'));
+  it('a poll: a pick written before it (an old state) waits for the next question', () => {
+    let s = withPick(game(teamQuiz([classicRound('r1', [poll, single])], 2, 'chosen')), 't1', 'm2', 'question');
     s = toNextQuestion(s);
     expect(s.teams?.answerers?.t1.fromQuestion).toBe(1);
     s = toNextQuestion(s);
     expect(answererOf(s, 't1')).toBe('m2');
   });
 
-  it('a round pick pins on a poll as before', () => {
-    let s = must(pickAnswerer(game(teamQuiz([classicRound('r1', [poll, single])], 2, 'chosen')), 'm1', 'm2', 'round'));
+  it('a round pick does not pin on a poll: it waits and pins on the next question with an answerer', () => {
+    let s = withPick(game(teamQuiz([classicRound('r1', [poll, single])], 2, 'chosen')), 't1', 'm2', 'round');
     s = toNextQuestion(s);
-    expect(s.teams?.answerers?.t1).toEqual({ memberId: 'm2', scope: 'round', fromQuestion: 0, roundIndex: 0 });
+    expect(s.teams?.answerers?.t1).toEqual({ memberId: 'm2', scope: 'round', fromQuestion: 1, roundIndex: null });
+    s = toNextQuestion(s);
+    expect(s.teams?.answerers?.t1).toEqual({ memberId: 'm2', scope: 'round', fromQuestion: 1, roundIndex: 0 });
+    expect(answererOf(s, 't1')).toBe('m2');
+  });
+
+  it('a round pick written before a blitz round is not pinned to it: it holds for the next round', () => {
+    const quiz = teamQuiz([blitzRound('b1', [single, withId(single, 'b2')]), classicRound('r2', [withId(single, 'q4'), withId(single, 'q5')])], 2, 'chosen');
+    let s = toNextQuestion(withPick(game(quiz), 't1', 'm2', 'round'));
+    expect(answererOf(s, 't1')).toBe('m1');
+    s = toNextQuestion(toNextQuestion(s));
+    expect(s.plays[s.questionIndex].question.id).toBe('q4');
+    expect(s.teams?.answerers?.t1).toMatchObject({ roundIndex: 1 });
+    expect(answererOf(s, 't1')).toBe('m2');
     expect(answererOf(toNextQuestion(s), 't1')).toBe('m2');
+  });
+});
+
+describe('answerer: blitz, polls and clouds next — nothing to pick', () => {
+  it('before a blitz round, a poll or a cloud the pick is refused and the next answerer is the captain; clearing still works', () => {
+    const blitzy = game(teamQuiz([blitzRound('b1', [single])], 2, 'chosen'));
+    expect(pickAnswerer(blitzy, 'm1', 'm2', 'question')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(pickAnswerer(blitzy, 'm1', 'm2', 'round')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(pickAnswerer(blitzy, 'm1', null, 'round').ok).toBe(true);
+    const polled = withPick(game(teamQuiz([classicRound('r1', [poll, single])], 2, 'chosen')), 't1', 'm2', 'question');
+    expect(nextAnswerer(polled, 't1')).toBe('m1');
+    expect(pickAnswerer(polled, 'm1', 'm3', 'question')).toEqual({ ok: false, error: 'wrong_phase' });
+    const clouded = must(lock(toNextQuestion(game(teamQuiz([classicRound('r1', [single, cloud])], 2, 'rotate')))));
+    expect(nextAnswerer(clouded, 't1')).toBe('m1');
+    expect(pickAnswerer(clouded, 'm1', 'm2', 'question')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('a sort question in a blitz round has an answerer, so the pick is allowed', () => {
+    const sorted = game(teamQuiz([blitzRound('b1', [sortQ])], 2, 'chosen'));
+    expect(must(pickAnswerer(sorted, 'm1', 'm2', 'question')).teams?.answerers?.t1.memberId).toBe('m2');
+  });
+
+  it('on round_end and on the last reveal the next round decides', () => {
+    const quiz = teamQuiz([classicRound('r1', [single]), blitzRound('b1', [withId(single, 'b1')])], 2, 'chosen');
+    let s = until(toNextQuestion(game(quiz)), 'reveal');
+    expect(pickAnswerer(s, 'm1', 'm2', 'question')).toEqual({ ok: false, error: 'wrong_phase' });
+    s = until(s, 'round_end');
+    expect(pickAnswerer(s, 'm1', 'm2', 'question')).toEqual({ ok: false, error: 'wrong_phase' });
+    const back = teamQuiz([blitzRound('b1', [single]), classicRound('r2', [withId(single, 'q4')])], 2, 'chosen');
+    expect(pickAnswerer(until(game(back), 'round_end'), 'm1', 'm2', 'question').ok).toBe(true);
   });
 });
 

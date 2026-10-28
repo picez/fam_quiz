@@ -81,10 +81,45 @@ describe('StageAnswerers', () => {
     expect(line()).toBeNull();
   });
 
-  it('on the board names only the team that picked the cell', () => {
+  it('skips a team the engine sends with no answerer (the board, «Ва-банк»)', () => {
     const board = { turn: { playerId: 'team-a', nickname: 'Червоні' } } as BoardInfo;
-    render(<StageAnswerers view={stage({ board })} />);
+    const teams = chosenTeams();
+    render(<StageAnswerers view={stage({ board, teams: { ...teams, teams: teams.teams.map((team) => (team.id === 'team-b' ? { ...team, answererId: null } : team)) } })} />);
     expect([...line()!.querySelectorAll('strong')].map((s) => s.textContent)).toEqual(['Червоні']);
+  });
+
+  it('skips an answerer who is not among the members', () => {
+    const teams = chosenTeams();
+    render(<StageAnswerers view={stage({ teams: { ...teams, teams: teams.teams.map((team) => (team.id === 'team-a' ? { ...team, answererId: 'gone' } : team)) } })} />);
+    expect([...line()!.querySelectorAll('strong')].map((s) => s.textContent)).toEqual(['Сині']);
+  });
+
+  it('nothing when no team answers', () => {
+    const teams = chosenTeams();
+    render(<StageAnswerers view={stage({ teams: { ...teams, teams: teams.teams.map((team) => ({ ...team, answererId: null })) } })} />);
+    expect(line()).toBeNull();
+  });
+
+  it('with up to three teams the full label stays; with six it is short and may wrap', () => {
+    const six = Array.from({ length: 6 }, (_, i) => ({
+      id: `team-${i}`,
+      name: `Команда ${i + 1}`,
+      color: i,
+      captainId: `c${i}`,
+      answererId: `a${i}`,
+      members: [
+        { id: `c${i}`, nickname: `Капітан ${i + 1}`, connected: true },
+        { id: `a${i}`, nickname: `Гравець ${i + 1}`, connected: true },
+      ],
+    }));
+    render(<StageAnswerers view={stage({ teams: chosenTeams({ teams: six.slice(0, 3) }) })} />);
+    expect(line()!.classList.contains('many')).toBe(false);
+    expect(line()!.querySelector('span.stage-answerer')!.textContent).toBe('Команда 1 — відповідає: Гравець 1');
+    cleanup();
+    render(<StageAnswerers view={stage({ teams: chosenTeams({ teams: six }) })} />);
+    expect(line()!.classList.contains('many')).toBe(true);
+    const spans = [...line()!.querySelectorAll('span.stage-answerer')];
+    expect(spans.map((span) => span.textContent)).toEqual(six.map((_, i) => `Команда ${i + 1}: Гравець ${i + 1}`));
   });
 
   it('in the ladder names only the contestant team', () => {

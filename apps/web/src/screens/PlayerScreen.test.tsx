@@ -3163,7 +3163,50 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
     cleanup();
     show(asQuestion(olya, { me }));
     expect(document.querySelector('[data-debuff]')).toBeNull();
-    expect(screen.getByText(/^Дебаф у того, хто відповідає: /)).toBeTruthy();
+    expect(document.querySelector('.team-debuff-strip')?.textContent).toMatch(/^Дебаф «.+» — у того, хто відповідає$/);
+  });
+
+  it('in chosen mode with no pick the captain answers and reads the banner', () => {
+    show(asQuestion({ answererMode: 'chosen' }));
+    expect(document.querySelector('.team-answerer-banner')?.textContent).toBe('Ти відповідаєш за команду');
+  });
+
+  it('no banner in a blitz or on a poll, even for the one who answers', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
+    const blitzMe = { ...baseMe, blitz: { position: 1, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: true, grade: null } };
+    show(asQuestion(petro, { round, question: { ...publicQuestion, type: 'text' as const, choices: [] }, blitz: { queue: [], winner: null, instant: false, rows: [] }, me: blitzMe }));
+    expect(document.querySelector('.team-answerer-banner')).toBeNull();
+    cleanup();
+    show(asQuestion(petro, { question: { ...publicQuestion, type: 'poll' as const } }));
+    expect(document.querySelector('.team-answerer-banner')).toBeNull();
+  });
+
+  it('the ladder lifelines go to whoever answers, not to the captain', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'ladder', partial: false, description: '', brief: emptyBrief('ladder'), times: null };
+    const ladder = {
+      contestant: { playerId: 'team-b', nickname: 'Сині' },
+      pick: 'host',
+      drawn: false,
+      steps: [{ level: 100, safe: false, state: 'current' }],
+      current: 0,
+      timer: false,
+      lifelines: [{ kind: 'fifty', state: 'ready' }],
+      fifty: null,
+      audience: null,
+      hint: null,
+      contestantPick: null,
+      hall: { answered: 0, total: 1, right: null },
+      decision: null,
+      outcome: null,
+      banked: 0,
+      guaranteed: 0,
+    } as unknown as NonNullable<PlayerView['ladder']>;
+    const me = { ...baseMe, ladder: { role: 'contestant' as const, canLifeline: true, hint: null, canDecide: false, hallClosed: false, hallPoints: null, won: null } };
+    show(asQuestion(petro, { round, endsAt: null, ladder, me }));
+    expect(document.querySelector('.ladder-lifelines')).not.toBeNull();
+    cleanup();
+    show(asQuestion(olya, { round, endsAt: null, ladder, me }));
+    expect(document.querySelector('.ladder-lifelines')).toBeNull();
   });
 
   it('on a survival trial the captain who does not answer sees who decides and the neutral draft', () => {

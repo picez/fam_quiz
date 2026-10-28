@@ -31,7 +31,16 @@ describe('AnswererPicker', () => {
     expect(screen.queryByRole('button', { name: 'Ната' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Оля' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Черга' })).toBeNull();
-    expect(screen.getByText('Діє з наступного запитання')).toBeTruthy();
+    // Без вибору підказки немає.
+    expect(document.querySelector('.answerer-hint')).toBeNull();
+  });
+
+  it('the options are a group named by «Відповідає:»; the pressed one carries a ✓', () => {
+    mount({ answererPick: { memberId: 'u3', scope: 'question' } });
+    const group = screen.getByRole('group', { name: 'Відповідає:' });
+    expect(group.querySelectorAll('button').length).toBe(2);
+    expect(screen.getByRole('button', { name: 'Петро' }).textContent).toBe('✓ Петро');
+    expect(screen.getByRole('button', { name: 'Я' }).textContent).toBe('Я');
   });
 
   it('a tap picks a teammate for the next question', async () => {
@@ -44,7 +53,7 @@ describe('AnswererPicker', () => {
     const { send } = mount();
     fireEvent.click(screen.getByRole('checkbox', { name: 'на весь раунд' }));
     expect(send).not.toHaveBeenCalled();
-    expect(screen.getByText('Діє до кінця раунду')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'на весь раунд' }) as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Петро' }));
     await waitFor(() => expect(send).toHaveBeenCalledWith('player:pick-answerer', { memberId: 'u3', scope: 'round' }));
   });
@@ -53,9 +62,37 @@ describe('AnswererPicker', () => {
     const { send } = mount({ answererPick: { memberId: 'u3', scope: 'question' } });
     expect(screen.getByRole('button', { name: 'Петро' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('button', { name: 'Я' }).getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByText('Діє з наступного запитання')).toBeTruthy();
+    expect(screen.getByText('Лише наступне запитання')).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: 'на весь раунд' }));
     await waitFor(() => expect(send).toHaveBeenCalledWith('player:pick-answerer', { memberId: 'u3', scope: 'round' }));
+  });
+
+  it('unticking a round pick resends the same person for one question', async () => {
+    const { send } = mount({ answererPick: { memberId: 'u3', scope: 'round' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'на весь раунд' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:pick-answerer', { memberId: 'u3', scope: 'question' }));
+  });
+
+  it('a refused switch leaves no wish behind: once the pick is gone the switch is off again', async () => {
+    const send = vi.fn().mockResolvedValue({ ok: false, error: 'wrong_phase' });
+    const view = picking({ answererPick: { memberId: 'u3', scope: 'question' } });
+    const { rerender } = render(<AnswererPicker view={view} send={send} onError={vi.fn()} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'на весь раунд' }));
+    await waitFor(() => expect(send).toHaveBeenCalled());
+    await waitFor(() => expect((screen.getByRole('checkbox', { name: 'на весь раунд' }) as HTMLInputElement).disabled).toBe(false));
+    rerender(<AnswererPicker view={picking()} send={send} onError={vi.fn()} />);
+    expect((screen.getByRole('checkbox', { name: 'на весь раунд' }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('a switch with no pick sends nothing, then goes with the next tap; the round pick keeps it ticked', async () => {
+    const send = vi.fn().mockResolvedValue({ ok: true });
+    const { rerender } = render(<AnswererPicker view={picking()} send={send} onError={vi.fn()} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'на весь раунд' }));
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Петро' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:pick-answerer', { memberId: 'u3', scope: 'round' }));
+    rerender(<AnswererPicker view={picking({ answererPick: { memberId: 'u3', scope: 'round' } })} send={send} onError={vi.fn()} />);
+    expect(screen.getByText('Діє до кінця раунду')).toBeTruthy();
   });
 
   it('a round pick shows the switch ticked', () => {
@@ -79,7 +116,9 @@ describe('AnswererPicker', () => {
     const { send } = mount({ answererMode: 'rotate' });
     expect(screen.getByRole('button', { name: 'Черга' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('button', { name: 'Я' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Черга' }).textContent).toBe('✓ Черга');
     fireEvent.click(screen.getByRole('button', { name: 'Я' }));
+    // У черзі «Я» — це вибір себе своїм id, а не скидання.
     await waitFor(() => expect(send).toHaveBeenCalledWith('player:pick-answerer', { memberId: 'u2', scope: 'question' }));
     await waitFor(() => expect((screen.getByRole('button', { name: 'Черга' }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole('button', { name: 'Черга' }));

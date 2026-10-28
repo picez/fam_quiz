@@ -28,6 +28,7 @@ describe('teams (10j)', () => {
 describe('answerer modes (12g)', () => {
   it('answererModeOf: no field and solo are the captain; the field wins (12g)', () => {
     expect(answererModeOf(undefined)).toBe('captain');
+    expect(answererModeOf(null)).toBe('captain');
     expect(answererModeOf({})).toBe('captain');
     expect(answererModeOf({ answerer: 'rotate' })).toBe('rotate');
     expect([ANSWERER_MODES, ANSWERER_SCOPES, ANSWERER_PICKS_PER_SECOND]).toEqual([['captain', 'chosen', 'rotate'], ['question', 'round'], 4]);

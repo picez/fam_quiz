@@ -1921,5 +1921,8 @@ describe('team settings (10j)', () => {
     expect(parsed.success && 'answerer' in (parsed.data.settings.teams ?? {})).toBe(false);
     expect(pickAnswererSchema.safeParse({ memberId: null, scope: 'round' }).success).toBe(true);
     expect(pickAnswererSchema.safeParse({ memberId: 'x', scope: 'game' }).success).toBe(false);
+    expect(pickAnswererSchema.safeParse({ memberId: '', scope: 'question' }).success).toBe(false);
+    expect(pickAnswererSchema.safeParse({ memberId: 'x'.repeat(64), scope: 'question' }).success).toBe(true);
+    expect(pickAnswererSchema.safeParse({ memberId: 'x'.repeat(65), scope: 'question' }).success).toBe(false);
   });
 });

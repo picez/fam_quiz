@@ -10320,6 +10320,10 @@ button.wall-tile:disabled {
   background: var(--panel);
 }
 
+.answerer-tick {
+  color: var(--team, var(--amber));
+}
+
 .answerer-hint {
   margin: 0;
 }
@@ -11792,6 +11796,29 @@ button.wall-tile:disabled {
 
 .stage .stage-answerers {
   font-size: clamp(1rem, 1.7vw, 1.75rem);
+}
+
+/* Більше трьох команд: дрібніше, «Червоні: Петро», до двох рядків (третій ховається). */
+.stage .stage-answerers.many {
+  font-size: 1rem;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.stage-answerers.many .stage-answerer {
+  white-space: nowrap;
+}
+
+/* Картка апеляції забирає місце внизу: рядок дрібніший і не тримає висоту. */
+.stage.has-appeal .stage-answerers {
+  min-height: 0;
+}
+
+.stage.has-appeal .stage-answerers:not(.many) {
+  font-size: 1.125rem;
 }
 
 .stage-answerer strong {
