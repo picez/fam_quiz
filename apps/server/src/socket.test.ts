@@ -3,7 +3,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { io as connect, type Socket } from 'socket.io-client';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
+import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
+import { answer, scoreAdjustment } from './db/schema';
 import type { Db } from './db/client';
 import { TEST_AUTH, signUp, startGame, type StartedGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -1393,6 +1395,52 @@ describe('live drafts (12b)', () => {
     await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts.map((d) => d.id)).toEqual([olenaJoin.playerId]));
     expect(await send(olena, 'player:answer', { type: 'text', value: 'Київ' })).toEqual({ ok: true });
     await vi.waitFor(() => expect(hostDrafts.at(-1)?.drafts).toEqual([]));
+  });
+});
+
+describe('player:away over sockets (12e)', () => {
+  it('a player reports a leave; the host and the stage are forbidden; a bad payload is invalid', async () => {
+    const { host, stage, olena } = await lobby();
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:away', { away: true })).toEqual({ ok: true });
+    expect(await send(olena, 'player:away', { away: false, ms: 1200, sinceReturnMs: 0 })).toEqual({ ok: true });
+    for (const who of [host, stage]) expect(await send(who, 'player:away', { away: true })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [{ away: 'x' }, { away: false, ms: -1 }, { away: false, sinceReturnMs: 0.5 }, undefined]) {
+      expect(await send(olena, 'player:away', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+  });
+
+  it('end to end: a leave over the socket lands in the database as answer.away_ms and an away adjustment', async () => {
+    await ctx.app.close();
+    const scheduler = new FakeScheduler();
+    ctx = await buildApp({ db, auth: TEST_AUTH, scheduler });
+    await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+    url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
+    const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')], { speedBonus: false })], { awayPenalty: true });
+    const { host, olena, taras, olenaJoin, tarasJoin } = await lobby((await startGame(ctx.app, quiz)).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:away', { away: true })).toEqual({ ok: true });
+    scheduler.advance(3500);
+    expect(await send(olena, 'player:away', { away: false, ms: 3500 })).toEqual({ ok: true });
+    const own = await until(olena, (view) => view.role === 'player' && (view.away?.ms ?? 0) === 3500);
+    expect(own.role === 'player' && own.away).toMatchObject({ ms: 3500, count: 1, out: false, penalty: true });
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', correct)).toEqual({ ok: true });
+    await until(host, inPhase('locked'));
+    expect(await send(host, 'host:next')).toEqual({ ok: true }); // розкриття
+    expect(await send(host, 'host:next')).toEqual({ ok: true }); // далі: бали остаточні — штраф
+    await until(host, (view) => view.phase !== 'locked' && view.phase !== 'reveal');
+    await ctx.recorder.idle();
+    await vi.waitFor(async () => {
+      const rows = await db.select().from(answer).where(inArray(answer.participantId, [olenaJoin.playerId, tarasJoin.playerId]));
+      expect(rows.map((r) => [r.participantId, r.awayMs]).sort()).toEqual([[olenaJoin.playerId, 3500], [tarasJoin.playerId, null]].sort());
+      const adjustments = await db.select().from(scoreAdjustment).where(eq(scoreAdjustment.participantId, olenaJoin.playerId));
+      expect(adjustments).toEqual([expect.objectContaining({ source: 'away', points: -1000 })]);
+    });
   });
 });
 

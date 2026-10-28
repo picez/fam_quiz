@@ -29,11 +29,12 @@ export interface OwnAway {
 
 /**
  * Частина виходу, коли телефон був без зв'язку (12e, правило 2): перетин розриву [dropAt, backAt] (час сервера)
- * з виходом за телефоном [now − reportedMs, now]. Без розриву, без повернення чи без виходу — 0.
+ * з виходом за телефоном [returnedAt − reportedMs, returnedAt]. returnedAt — мить, коли телефон знову став видимим
+ * (час сервера: мить звіту мінус sinceReturnMs). Без розриву, без повернення чи без виходу — 0.
  */
-export function awayGapMs(gap: { dropAt: number; backAt: number | null } | null, reportedMs: number, now: number): number {
+export function awayGapMs(gap: { dropAt: number; backAt: number | null } | null, reportedMs: number, returnedAt: number): number {
   if (!gap || gap.backAt === null) return 0;
-  return Math.max(0, Math.min(gap.backAt, now) - Math.max(gap.dropAt, now - reportedMs));
+  return Math.max(0, Math.min(gap.backAt, returnedAt) - Math.max(gap.dropAt, returnedAt - reportedMs));
 }
 
 /** Цілі секунди для тексту: 4999 мс → 4. */

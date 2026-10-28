@@ -123,8 +123,15 @@ export const teamPickSchema = z.object({ teamId: playerId });
 export const duelistSchema = z.object({ memberId: playerId });
 /** Чернетка: поточний стан вводу до «Надіслати» (10j капітан, 12b будь-хто); null — поле порожнє. */
 export const draftSchema = z.object({ draft: draftValueSchema.nullable() });
-/** Вихід із гри (12e): away true — пішов; false — повернувся, ms — скільки тривав вихід за годинником телефона. */
-export const awaySchema = z.object({ away: z.boolean(), ms: z.number().int().min(0).max(AWAY_REPORT_MAX_MS).optional() });
+/**
+ * Вихід із гри (12e): away true — пішов; false — повернувся, ms — скільки тривав вихід за годинником телефона,
+ * sinceReturnMs — скільки мс тому телефон знову став видимим (повернувся без зв'язку й шле звіт лише тепер; інакше 0 чи немає).
+ */
+export const awaySchema = z.object({
+  away: z.boolean(),
+  ms: z.number().int().min(0).max(AWAY_REPORT_MAX_MS).optional(),
+  sinceReturnMs: z.number().int().min(0).max(AWAY_REPORT_MAX_MS).optional(),
+});
 /** Пульт: увімкнути чи вимкнути живі вибори (12b). */
 export const liveWatchSchema = z.object({ on: z.boolean() });
 /** Ведучий: спосіб формування. */

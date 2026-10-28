@@ -204,6 +204,11 @@ describe('the server clock for leaving the game (12e)', () => {
     expect(entry(awayEnd(s0, 'p2', 3000, 4000), 'p2')).toEqual({ ms: 2000, count: 1, since: null });
     // інтервал і розрив разом — один вихід
     expect(entry(awayEnd(awayStart(s0, 'p2', 10_000), 'p2', 12_000, 3000), 'p2')).toEqual({ ms: 5000, count: 1, since: null });
+    // вихід, уже порахований на розриві (інтервал закрито в мить розриву), — той самий вихід: ні розрив, ні новий інтервал разу не додають
+    const atDrop = awayStep(awayStart(s0, 'p2', 2000), must(setConnected(awayStart(s0, 'p2', 2000), 'p2', false, 3000)), 3000, new Set());
+    const back = must(setConnected(atDrop, 'p2', true, 6000));
+    expect(entry(awayEnd(back, 'p2', 7000, 3000, true), 'p2')).toEqual({ ms: 4000, count: 1, since: null });
+    expect(entry(awayEnd(awayStart(back, 'p2', 6000), 'p2', 7000, 3000, true), 'p2')).toEqual({ ms: 5000, count: 1, since: null });
     // на закритому запитанні розрив не додається
     const locked = must(lock(s0));
     expect(awayEnd(locked, 'p2', 15_000, 4000)).toBe(locked);

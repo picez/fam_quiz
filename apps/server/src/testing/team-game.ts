@@ -53,7 +53,7 @@ export const TEAM_USERS = { Оля: 'olya-user', Віра: 'vira-user' } as cons
 export async function recordedTeamGame(
   quiz: Quiz,
   database?: Db,
-): Promise<{ db: Db; manager: RoomManager; recorder: Recorder; room: Room; members: Record<string, string>; teams: string[]; errors: unknown[] }> {
+): Promise<{ db: Db; scheduler: FakeScheduler; manager: RoomManager; recorder: Recorder; room: Room; members: Record<string, string>; teams: string[]; errors: unknown[] }> {
   const db = database ?? (await createTestDb());
   if (database === undefined) {
     await db.insert(user).values([
@@ -62,7 +62,8 @@ export async function recordedTeamGame(
       { id: TEAM_USERS.Віра, name: 'Віра', email: 'vira@example.com' },
     ]);
   }
-  const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+  const scheduler = new FakeScheduler();
+  const manager = new RoomManager(scheduler, () => 0.5);
   const errors: unknown[] = [];
   const recorder = attachRecorder(manager, db, (error) => errors.push(error));
   const started = startTeamGame(
@@ -75,7 +76,7 @@ export async function recordedTeamGame(
     TEAM_USERS,
     TEAM_HOST,
   );
-  return { db, manager, recorder, errors, ...started };
+  return { db, scheduler, manager, recorder, errors, ...started };
 }
 
 /** Ведучий тисне «Далі», доки не відкриється запитання (або гра не скінчиться). */

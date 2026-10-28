@@ -108,6 +108,38 @@ describe('a room restored after a restart', () => {
     expect(back.state.players.map((p) => p.score)).toEqual(room.state.players.map((p) => p.score));
   });
 
+  it('an open away interval is closed at the snapshot; a phone still hidden says so again and counts from then (12e)', () => {
+    const { scheduler, manager, room, taras } = midQuestion();
+    expect(manager.away(room, taras.playerId, true)).toEqual({ ok: true });
+    scheduler.advance(1500);
+    const saved = viaJson(manager.snapshot(room));
+    expect(saved.stateVersion).toBe(17);
+    expect(saved.state.plays[0].away?.[taras.playerId]?.since).not.toBeNull();
+    manager.freeze();
+    scheduler.advance(60_000);
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.plays[0].away?.[taras.playerId]).toEqual({ ms: 1500, count: 1, since: null });
+    next.connect(back, HOST);
+    next.connect(back, { role: 'player', playerId: taras.playerId });
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    expect(next.away(back, taras.playerId, true)).toEqual({ ok: true });
+    scheduler.advance(1000);
+    // Розрив через перезапуск — не вихід: звіт за телефоном довший, але сервер бачив лише 1500 + 1000.
+    expect(next.away(back, taras.playerId, false, { ms: 62_500 })).toEqual({ ok: true });
+    expect(back.state.plays[0].away?.[taras.playerId]).toEqual({ ms: 2500, count: 2, since: null });
+  });
+
+  it('a version 16 snapshot comes back: version 17 only added away clocks and the penalty setting (12e)', () => {
+    const { scheduler, manager, room, olena } = midQuestion();
+    const saved = { ...viaJson(manager.snapshot(room)), stateVersion: 16 };
+    manager.freeze();
+    expect(isSavedRoom(saved)).toBe(true);
+    const back = new RoomManager(scheduler, () => 0.5).restore(saved) as Room;
+    expect(back.state.plays).toEqual(room.state.plays);
+    expect(back.state.players.find((p) => p.id === olena.playerId)?.score).toBe(room.state.players.find((p) => p.id === olena.playerId)?.score);
+  });
+
   it('a room saved before 10c (state version 2) comes back: version 3 only added Play.clues', () => {
     const { scheduler, manager, room, olena, taras } = midQuestion();
     const saved = { ...viaJson(manager.snapshot(room)), stateVersion: 2 };

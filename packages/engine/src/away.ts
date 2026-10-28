@@ -96,18 +96,30 @@ function answeringMs(state: GameState, end: number): number {
   return state.startedAt === null ? 0 : Math.max(0, end - state.startedAt);
 }
 
-/** Людина повернулася: закриває інтервал (на паузі — до pausedAt) і додає gapMs, якщо людина під наглядом (не більше за answeringMs). Без змін — той самий об'єкт. */
-export function awayEnd(state: GameState, personId: string, now: number, gapMs = 0): GameState {
+/**
+ * Людина повернулася: закриває інтервал (на паузі — до pausedAt) і додає gapMs, якщо людина під наглядом (не більше за answeringMs).
+ * counted — цей вихід уже порахований разом (інтервал закрито в мить розриву на цьому запитанні): ні інтервал після
+ * перепідключення, ні розрив нового разу не додають. Без змін — той самий об'єкт.
+ */
+export function awayEnd(state: GameState, personId: string, now: number, gapMs = 0, counted = false): GameState {
   const index = state.questionIndex;
   const tracked = gapMs > 0 && awayTracked(state, personId);
-  const closed = closeEntry(state, index, personId, now);
+  const before = state.plays[index]?.away?.[personId]?.count ?? 0;
+  const closed = counted ? uncounted(closeEntry(state, index, personId, now), index, personId, before) : closeEntry(state, index, personId, now);
   if (!tracked) return closed.state;
   const end = state.paused ? (state.pausedAt ?? now) : now;
   const gap = Math.min(gapMs, answeringMs(state, end));
   if (gap <= 0) return closed.state;
   const entry = closed.state.plays[index].away?.[personId] ?? { ms: 0, count: 0, since: null };
-  // Розрив — частина того самого виходу: окремо рахується, лише якщо інтервалу (≥ 1 мс) не було.
-  return withEntry(closed.state, index, personId, { ...entry, ms: entry.ms + gap, count: entry.count + (closed.added >= 1 ? 0 : 1) });
+  // Розрив — частина того самого виходу: окремо рахується, лише якщо інтервалу (≥ 1 мс) не було й вихід ще не порахований.
+  return withEntry(closed.state, index, personId, { ...entry, ms: entry.ms + gap, count: entry.count + (closed.added >= 1 || counted ? 0 : 1) });
+}
+
+/** Закриття без нового разу: count повертається до before (вихід уже порахований на розриві). */
+function uncounted(closed: { state: GameState; added: number }, index: number, personId: string, before: number): { state: GameState; added: number } {
+  const entry = closed.state.plays[index]?.away?.[personId];
+  if (entry === undefined || entry.count === before) return closed;
+  return { state: withEntry(closed.state, index, personId, { ...entry, count: before }), added: closed.added };
 }
 
 /**

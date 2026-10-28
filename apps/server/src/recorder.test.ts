@@ -1,10 +1,9 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, isUnscored, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, isUnscored, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
-import { addAdjustment } from '@quiz/engine';
 import { hostGame } from './history';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
@@ -20,7 +19,7 @@ const HOST = 'host-user';
 const correct = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
 
-async function setup(database?: Db, retryMs = 5000, maxRetries = 30) {
+async function setup(database?: Db, retryMs = 5000, maxRetries = 30, quiz: Quiz = makeQuiz([single, text], { speedBonus: false })) {
   const db = database ?? (await createTestDb());
   if (database === undefined) {
     await db.insert(user).values([
@@ -32,7 +31,7 @@ async function setup(database?: Db, retryMs = 5000, maxRetries = 30) {
   const manager = new RoomManager(scheduler, () => 0.5);
   const errors: unknown[] = [];
   const recorder = attachRecorder(manager, db, (error) => errors.push(error), retryMs, maxRetries);
-  const room = manager.create(makeQuiz([single, text], { speedBonus: false }), HOST, null);
+  const room = manager.create(quiz, HOST, null);
   const enter = (nickname: string, userId: string | null = null) => {
     const joined = manager.join(room.code, nickname, userId);
     if (!joined.ok) throw new Error(joined.error);
@@ -261,13 +260,17 @@ describe('recorder', () => {
   });
 
   it('a penalty decided at the end is undone after the finish: scores, ranks and history standings follow (12e)', async () => {
-    const ctx = await setup();
+    const ctx = await setup(undefined, 5000, 30, makeRoundsQuiz([classicRound('r1', [single, text], { speedBonus: false })], { awayPenalty: true }));
     ctx.host('start');
     ctx.host('next');
+    // Олена виходить із гри на 3500 мс (player:away), потім відповідає.
+    expect(ctx.manager.away(ctx.room, ctx.olena, true)).toEqual({ ok: true });
+    ctx.scheduler.advance(3500);
+    expect(ctx.manager.away(ctx.room, ctx.olena, false, { ms: 3500 })).toEqual({ ok: true });
     playFirstQuestion(ctx); // Олена +1000, Тарас 0
+    // Штраф за вихід дописує годинник виходів у commit на переході до кінця гри.
     ctx.host('end');
-    // Штраф за вихід, дописаний на переході до кінця гри (awayStep у commit — задача 7).
-    ctx.room.state = addAdjustment(ctx.room.state, ctx.olena, -1000, 0, 'away', { roundIndex: 0 });
+    expect(ctx.room.state.adjustments).toEqual([expect.objectContaining({ seq: 1, source: 'away', playerId: ctx.olena, points: -1000 })]);
     ctx.manager.connect(ctx.room, { role: 'stage', playerId: null });
     let { participants } = await ctx.saved();
     expect(participants.map((p) => [p.nickname, p.score])).toEqual([['Олена', 0], ['Тарас', 0]]);

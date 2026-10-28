@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultTeams } from '@quiz/shared';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import { awayStep, type GameState } from '@quiz/engine';
 import { answer, participant, scoreAdjustment, user } from './db/schema';
 import { hostGame } from './history';
 import { attachRecorder } from './recorder';
@@ -15,26 +14,18 @@ const HOST = 'away-host';
 const right = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
 
-/** Ведучий виходить із розкриття; штраф дописує годинник виходів (до задачі 7 його не викликає RoomManager). */
-function leaveReveal(manager: RoomManager, room: Room): void {
-  const prev = room.state;
-  expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
-  room.state = awayStep(prev, room.state, 0, new Set());
-}
-
-/** Записує в поточне запитання вихід людини (як після awayEnd): ms, count, без відкритого інтервалу. */
-function leave(room: Room, personId: string, ms: number): void {
-  const index = room.state.questionIndex;
-  const play = room.state.plays[index];
-  const plays = [...room.state.plays];
-  plays[index] = { ...play, away: { ...play.away, [personId]: { ms, count: 1, since: null } } };
-  room.state = { ...room.state, plays } as GameState;
+/** Людина виходить із гри на ms мс через player:away (годинник менеджера). */
+function leave(manager: RoomManager, scheduler: FakeScheduler, room: Room, personId: string, ms: number): void {
+  expect(manager.away(room, personId, true)).toEqual({ ok: true });
+  scheduler.advance(ms);
+  expect(manager.away(room, personId, false, { ms })).toEqual({ ok: true });
 }
 
 async function soloGame() {
   const db = await createTestDb();
   await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'away-host@example.com' });
-  const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+  const scheduler = new FakeScheduler();
+  const manager = new RoomManager(scheduler, () => 0.5);
   const errors: unknown[] = [];
   const recorder = attachRecorder(manager, db, (error) => errors.push(error));
   const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')], { speedBonus: false })], { awayPenalty: true });
@@ -48,21 +39,21 @@ async function soloGame() {
   const olya = enter('Оля');
   const petro = enter('Петро');
   const host = (action: Parameters<RoomManager['host']>[1]) => expect(manager.host(room, action)).toEqual({ ok: true });
-  return { db, manager, recorder, errors, room, olya, petro, host };
+  return { db, scheduler, manager, recorder, errors, room, olya, petro, host };
 }
 
 describe('history: away (12e)', () => {
   it('stores the time away from the marker threshold, shows it in the history, and the penalty is a stored adjustment that sums with the rows', async () => {
-    const { db, manager, recorder, errors, room, olya, petro, host } = await soloGame();
+    const { db, scheduler, manager, recorder, errors, room, olya, petro, host } = await soloGame();
     host({ type: 'start' });
     toQuestion(manager, room);
-    leave(room, olya, 3500);
-    leave(room, petro, 1500);
+    leave(manager, scheduler, room, olya, 3500);
+    leave(manager, scheduler, room, petro, 1500);
     manager.answer(room, olya, right);
     manager.answer(room, petro, right);
     expect(room.state.phase).toBe('locked');
     host({ type: 'next' }); // reveal
-    leaveReveal(manager, room); // the penalty is final on leaving the reveal
+    host({ type: 'next' }); // the penalty is final on leaving the reveal
     await recorder.idle();
     expect(errors).toEqual([]);
 
@@ -90,14 +81,14 @@ describe('history: away (12e)', () => {
   });
 
   it('undoing the away penalty keeps the stored rows summing to the score', async () => {
-    const { db, manager, recorder, room, olya, petro, host } = await soloGame();
+    const { db, scheduler, manager, recorder, room, olya, petro, host } = await soloGame();
     host({ type: 'start' });
     toQuestion(manager, room);
-    leave(room, olya, 4000);
+    leave(manager, scheduler, room, olya, 4000);
     manager.answer(room, olya, right);
     manager.answer(room, petro, wrong);
     host({ type: 'next' });
-    leaveReveal(manager, room);
+    host({ type: 'next' });
     const penalty = room.state.adjustments.find((a) => a.source === 'away');
     expect(penalty).toBeDefined();
     expect(manager.host(room, { type: 'undo', target: { seq: penalty?.seq ?? -1 } })).toEqual({ ok: true });
@@ -116,8 +107,13 @@ describe('history: away (12e)', () => {
     const ctx = await recordedTeamGame(quiz);
     ctx.manager.host(ctx.room, { type: 'start' });
     toQuestion(ctx.manager, ctx.room);
-    leave(ctx.room, ctx.members.Оля, 2500);
-    leave(ctx.room, ctx.members.Петро, 6100);
+    // Обоє з Червоних виходять разом: Оля на 2500 мс, Петро на 6100 мс.
+    expect(ctx.manager.away(ctx.room, ctx.members.Оля, true)).toEqual({ ok: true });
+    expect(ctx.manager.away(ctx.room, ctx.members.Петро, true)).toEqual({ ok: true });
+    ctx.scheduler.advance(2500);
+    expect(ctx.manager.away(ctx.room, ctx.members.Оля, false, { ms: 2500 })).toEqual({ ok: true });
+    ctx.scheduler.advance(3600);
+    expect(ctx.manager.away(ctx.room, ctx.members.Петро, false, { ms: 6100 })).toEqual({ ok: true });
     ctx.manager.answer(ctx.room, ctx.members.Оля, right);
     ctx.manager.answer(ctx.room, ctx.members.Віра, right);
     toEnd(ctx.manager, ctx.room);
