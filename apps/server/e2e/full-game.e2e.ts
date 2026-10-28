@@ -8971,7 +8971,7 @@ async function wipeoutGame() {
   const settingsPanel = host.locator('details.round-settings');
   await settingsPanel.getByText('Правил балів, бафів, дебафів і дуелей у «Ва-банк» немає.', exact).waitFor();
   await settingsPanel.locator('.with-help button').first().waitFor();
-  expect(await host.getByLabel(/Штраф|Мінус за помилку/).count(), 'no penalty rule in a wipeout').toBe(0);
+  expect(await settingsPanel.getByLabel(/Штраф|Мінус за помилку/).count(), 'no penalty rule in a wipeout').toBe(0);
   await shot(host, 'p10g-editor-wipeout');
   expect(await host.getByRole('group', { name: 'Тип запитання', ...exact }).getByRole('button').count(), 'five question types').toBe(5);
 
@@ -9307,7 +9307,7 @@ async function survivalGame() {
   expect(await field(host, 'Скільки має лишитися').inputValue()).toBe('1');
   expect(await field(host, 'Бонус виживання').inputValue()).toBe('500');
   expect(await settings.getByText(/^Питання \d+ ·/).count(), 'one survival question').toBe(1);
-  await host.getByLabel(/^Штраф/).waitFor();
+  await host.locator('details.round-settings').getByLabel(/^Штраф/).waitFor();
   await shot(host, 'p10h-editor-survival');
   for (const group of await host.getByRole('group', { name: 'Тип запитання', ...exact }).all()) expect(await group.getByRole('button').count(), 'five question types').toBe(5);
 
