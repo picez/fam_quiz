@@ -39,6 +39,7 @@ import {
   undebuffSchema,
   teamPickSchema,
   duelistSchema,
+  pickAnswererSchema,
   draftSchema,
   awaySchema,
   appealSchema,
@@ -477,6 +478,13 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = duelistSchema.safeParse(payloadOf(args));
       return payload.success ? manager.duelist(room, identity.playerId, payload.data.memberId) : INVALID;
+    });
+
+    // Подія від гравця (12g): у грі без ведучого автор діє як звичайний гравець — капітан своєї команди.
+    on('player:pick-answerer', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = pickAnswererSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.pickAnswerer(room, identity.playerId, payload.data.memberId, payload.data.scope) : INVALID;
     });
 
     on('player:draft', (args) => {

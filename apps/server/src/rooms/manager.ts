@@ -45,6 +45,7 @@ import {
   override,
   pause,
   pickDuelCategory,
+  pickAnswerer,
   pickDuelist,
   pickTeam,
   pickCell,
@@ -118,7 +119,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -183,6 +184,8 @@ export interface Room {
   awayRate: Map<string, { from: number; count: number }>;
   /** Вікно частоти player:appeal-vote (12f), як draftRate. Лише в пам'яті. */
   appealRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:pick-answerer (12g), як appealRate. Лише в пам'яті. */
+  pickRate: Map<string, { from: number; count: number }>;
   /**
    * Люди з прийнятим «пішов» (12e), чиє наступне «повернувся» частоти не рахує: одне на кожен прийнятий вихід — відмова в поверненні
    * додала б вигаданий час, а решта повернень рахується, тож ними не засипати. Розрив не прибирає (телефон міг повернутися без зв'язку).
@@ -369,7 +372,7 @@ interface DraftStage {
   trial: boolean;
   /** Опитування чи «хмара»: у командній грі кожна людина відповідає сама. */
   unscored: boolean;
-  /** Хто відповідає за команду: на запитанні — як за відповідь (у бліці той, хто натиснув), на виживанні — капітан. */
+  /** Хто відповідає за команду: на запитанні — як за відповідь (у бліці той, хто натиснув), на виживанні — той, хто відповідає (12g). */
   act: TeamAct;
   question: (id: string) => Question;
 }
@@ -384,7 +387,7 @@ function draftStage(state: GameState): DraftStage | null {
     return { trial: false, unscored: false, act: 'answer', question: (id) => questionFor(state, play, id) };
   }
   const trial = trialOpen(state) ? trialQuestionOf(state) : null;
-  return trial === null ? null : { trial: true, unscored: false, act: 'captain', question: () => trial };
+  return trial === null ? null : { trial: true, unscored: false, act: 'answerer', question: () => trial };
 }
 
 /**
@@ -508,6 +511,7 @@ export class RoomManager {
       gaps: new Map(),
       awayRate: new Map(),
       appealRate: new Map(),
+      pickRate: new Map(),
       awayCredit: new Set(),
     };
     this.live.set(room.code, room);
@@ -565,6 +569,7 @@ export class RoomManager {
       gaps: new Map(),
       awayRate: new Map(),
       appealRate: new Map(),
+      pickRate: new Map(),
       awayCredit: new Set(),
     };
     this.live.set(room.code, room);
@@ -787,7 +792,7 @@ export class RoomManager {
   /**
    * Чернетка (10j, 12b): етап запитання (чи відкрите питання на виживання). Ключ — id рядка «Відповідей наживо»:
    * соло — сам гравець; командна гра на запитанні з балами — команда (лише той, хто зараз за неї відповідає:
-   * капітан, у бліці — той, хто натиснув); в опитуванні й «хмарі» командної гри — сама людина. Гра без ведучого
+   * капітан чи вибраний ним або чергою товариш (12g), у бліці — той, хто натиснув); в опитуванні й «хмарі» командної гри — сама людина. Гра без ведучого
    * бере лише командні чернетки (їх бачать товариші). Стан гри не змінюється й не пишеться. Понад DRAFTS_PER_SECOND
    * за секунду — too_soon. Та сама чернетка не шлеться вдруге; кожна нова зберігається й шлеться, тож остання не губиться.
    */
@@ -900,6 +905,21 @@ export class RoomManager {
     return this.apply(room, pickDuelist(room.state, playerId, memberId));
   }
 
+  /** Командна гра (12g): капітан вибирає відповідача з наступного запитання; понад ANSWERER_PICKS_PER_SECOND за секунду — too_soon. */
+  pickAnswerer(room: Room, playerId: string, memberId: string | null, scope: AnswererScope): AckResult {
+    if (!this.alive(room)) return this.gone();
+    // Частота — як appealVote: вікно лише для людей з команд; решту рушій відхиляє сам (wrong_phase / not_found).
+    const state = room.state;
+    if (teamsOn(state) && memberOf(state, playerId) !== undefined) {
+      const now = this.now();
+      const rate = room.pickRate.get(playerId);
+      if (rate === undefined || now - rate.from >= 1000) room.pickRate.set(playerId, { from: now, count: 1 });
+      else if (rate.count + 1 > ANSWERER_PICKS_PER_SECOND) return { ok: false, error: 'too_soon' };
+      else rate.count += 1;
+    }
+    return this.apply(room, pickAnswerer(room.state, playerId, memberId, scope));
+  }
+
   answer(room: Room, playerId: string, answer: Answer): AckResult {
     if (!this.alive(room)) return this.gone();
     return this.apply(room, actAnswer(room.state, playerId, answer, this.now()));
@@ -912,14 +932,14 @@ export class RoomManager {
 
   guess(room: Room, playerId: string, word: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, guessWord(room.state, who.id, word, this.now()));
   }
 
   sort(room: Room, playerId: string, wordId: string, categoryId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     const result = this.apply(room, sortWord(room.state, who.id, wordId, categoryId, this.now()));
     if (result.ok) room.tilts.delete(who.id);
@@ -929,7 +949,7 @@ export class RoomManager {
   /** Нахил картки (11d): перевірка рушія, дросель SORT_TILT_GAP_MS, подія кімнати лише з новим значенням; стан гри не змінюється. */
   tilt(room: Room, playerId: string, tilt: { wordId: string; categoryId: string | null; amount: number }): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     const now = this.now();
     const refused = tiltRefusal(room.state, who.id, tilt.wordId, tilt.categoryId, now);
@@ -964,21 +984,21 @@ export class RoomManager {
 
   wall(room: Room, playerId: string, tiles: number[]): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, guessWall(room.state, who.id, tiles, this.now()));
   }
 
   lie(room: Room, playerId: string, text: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, writeLie(room.state, who.id, text, this.now()));
   }
 
   bluff(room: Room, playerId: string, optionId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, pickBluff(room.state, who.id, optionId, this.now()));
   }
@@ -993,7 +1013,7 @@ export class RoomManager {
   /** «Мільйонер»: учасник бере підказку драбини (10i). */
   lifeline(room: Room, playerId: string, kind: LifelineKind): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, useLifeline(room.state, who.id, kind, this.now(), this.rng));
   }
@@ -1020,21 +1040,21 @@ export class RoomManager {
 
   trial(room: Room, playerId: string, answer: Answer): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, answerTrial(room.state, who.id, answer, this.now()));
   }
 
   door(room: Room, playerId: string, door: number): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, pickDoor(room.state, who.id, door, this.now()));
   }
 
   buff(room: Room, playerId: string, kind: BuffKind): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, takeBuff(room.state, who.id, kind, this.now(), this.rng));
   }
@@ -1087,7 +1107,7 @@ export class RoomManager {
 
   retry(room: Room, playerId: string, keep: boolean): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, chooseRetry(room.state, who.id, keep, this.now()));
   }
@@ -1115,7 +1135,7 @@ export class RoomManager {
 
   hint(room: Room, playerId: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'captain');
+    const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, takeHint(room.state, who.id, this.now()));
   }
@@ -1301,6 +1321,7 @@ export class RoomManager {
     room.gaps.delete(playerId);
     room.awayRate.delete(playerId);
     room.appealRate.delete(playerId);
+    room.pickRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {
