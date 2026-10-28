@@ -136,14 +136,21 @@ describe('in-game facts (12d)', () => {
     expect(find(gameAwards(three), 'sniper')).toEqual({ kind: 'sniper', names: ['Оля'], correct: 3, answered: 3 });
   });
 
-  it('the sniper ties on equal shares and takes the numbers of the first', () => {
+  it('a sniper tie names only players with the same numbers', () => {
     const qs = [0, 1, 2, 3, 4, 5].map((n) => q(n, 0));
     const rows = [
       row('o', 0, true, 1000), row('o', 1, true, 1000), row('o', 2, false, 1000),
       ...[true, true, false, true, true, false].map((ok, n) => row('p', n, ok, 1000)),
-      row('i', 0, false, 1000), row('i', 1, true, 1000), row('i', 2, false, 1000),
+      row('i', 0, true, 1000), row('i', 1, true, 1000), row('i', 2, false, 1000),
     ];
-    expect(find(gameAwards(input(rows, { questions: qs })), 'sniper')).toEqual({ kind: 'sniper', names: ['Оля', 'Петро'], correct: 2, answered: 3 });
+    // Петро 4 з 6 — та сама частка, але інші числа: картка «2 з 3» не про нього.
+    expect(find(gameAwards(input(rows, { questions: qs })), 'sniper')).toEqual({ kind: 'sniper', names: ['Оля', 'Іра'], correct: 2, answered: 3 });
+  });
+
+  it('a sniper candidate with no right answer gives no card', () => {
+    const qs = [q(0, 0), q(1, 0), q(2, 0)];
+    const rows = [row('o', 0, false, 1000), row('o', 1, false, 1000), row('o', 2, false, 1000), row('p', 0, true, 1000), row('p', 1, true, 1000)];
+    expect(find(gameAwards(input(rows, { questions: qs })), 'sniper')).toBeNull();
   });
 
   it('the streak needs three in a row and stays inside a round', () => {
@@ -195,12 +202,17 @@ describe('in-game facts (12d)', () => {
     const facts = input(rows, { questions: [q(0, 0), q(1, 0), q(2, 0), q(3, 0), q(4, 0, { blitz: true })] });
     expect(find(gameAwards(facts), 'hardest')).toEqual({ kind: 'hardest', question: { roundIndex: 0, number: 2, text: 'Q1' }, accepted: 2, answered: 4 });
     expect(find(gameAwards(input([row('o', 0, true, 2000)])), 'hardest')).toBeNull();
+    // Та сама частка й та сама кількість відповідей — раніше запитання.
+    const even = input([row('o', 0, true, 2000), row('p', 0, false, 2000), row('o', 1, false, 2000), row('p', 1, true, 2000)], { questions: [q(0, 0), q(1, 0)] });
+    expect(find(gameAwards(even), 'hardest')).toEqual({ kind: 'hardest', question: { roundIndex: 0, number: 1, text: 'Q0' }, accepted: 1, answered: 2 });
   });
 
   it('iron nerves count right answers in the last three seconds', () => {
     const facts = input([row('o', 0, true, 17500), row('p', 0, true, 16900), row('i', 0, false, 19000)]);
     expect(find(gameAwards(facts), 'nerves')).toEqual({ kind: 'nerves', names: ['Оля'], count: 1 });
     expect(find(gameAwards(input([row('p', 0, true, 16900), row('i', 0, true, 1000)])), 'nerves')).toBeNull();
+    // Рівно межа − 3 с рахується.
+    expect(find(gameAwards(input([row('p', 0, true, 17000), row('i', 0, true, 1000)])), 'nerves')).toEqual({ kind: 'nerves', names: ['Петро'], count: 1 });
   });
 
   it('the risk taker is the biggest final wager, else the most buffs', () => {
@@ -210,6 +222,8 @@ describe('in-game facts (12d)', () => {
     expect(find(gameAwards(input([...buffs, ...wagers], { questions: qs })), 'risk')).toEqual({ kind: 'risk', names: ['Петро'], wager: 300, buffs: null });
     expect(find(gameAwards(input(buffs, { questions: qs })), 'risk')).toEqual({ kind: 'risk', names: ['Оля'], wager: null, buffs: 2 });
     expect(find(gameAwards(input([row('o', 0, true, 2000), row('p', 0, true, 2000)])), 'risk')).toBeNull();
+    const tie = [row('p', 1, true, 2000, { wager: 300, roundIndex: 1 }), row('i', 1, false, 2000, { wager: 300, roundIndex: 1 })];
+    expect(find(gameAwards(input(tie, { questions: qs })), 'risk')).toEqual({ kind: 'risk', names: ['Петро', 'Іра'], wager: 300, buffs: null });
   });
 
   it('the comeback is the place after the first round against the final rank', () => {
@@ -218,6 +232,78 @@ describe('in-game facts (12d)', () => {
     expect(find(gameAwards(facts), 'comeback')).toEqual({ kind: 'comeback', names: ['Петро'], from: 4, to: 1 });
     const oneRound = { players: PLAYERS.map((p) => ({ ...p, rounds: [100] })) };
     expect(find(gameAwards(input([row('o', 0, true, 2000), row('p', 0, true, 2000)], oneRound)), 'comeback')).toBeNull();
+  });
+
+  it('a comeback tie names only players with the same places', () => {
+    const rows = [row('o', 0, true, 2000), row('p', 0, true, 2000)];
+    // Після першого раунду Оля 1, Іра 2, Петро й Марко 3; у фіналі Петро й Марко разом 1.
+    const same: Player[] = [
+      { id: 'p', nickname: 'Петро', rank: 1, score: 1000, rounds: [100, 900] },
+      { id: 'm', nickname: 'Марко', rank: 1, score: 1000, rounds: [100, 900] },
+      { id: 'o', nickname: 'Оля', rank: 3, score: 500, rounds: [400, 100] },
+      { id: 'i', nickname: 'Іра', rank: 4, score: 400, rounds: [300, 100] },
+    ];
+    expect(find(gameAwards(input(rows, { players: same })), 'comeback')).toEqual({ kind: 'comeback', names: ['Петро', 'Марко'], from: 3, to: 1 });
+    // Петро 3 → 1 і Марко 4 → 2: той самий ривок, але різні місця — лише перший у таблиці.
+    const apart: Player[] = [
+      { id: 'p', nickname: 'Петро', rank: 1, score: 1100, rounds: [200, 900] },
+      { id: 'm', nickname: 'Марко', rank: 2, score: 1000, rounds: [100, 900] },
+      { id: 'o', nickname: 'Оля', rank: 3, score: 400, rounds: [400, 0] },
+      { id: 'i', nickname: 'Іра', rank: 4, score: 300, rounds: [300, 0] },
+    ];
+    expect(find(gameAwards(input(rows, { players: apart })), 'comeback')).toEqual({ kind: 'comeback', names: ['Петро'], from: 3, to: 1 });
+  });
+
+  it('a genius tie on the count names both without a question', () => {
+    const lone = (n: number, who: string) => ['o', 'p', 'i', 'm'].map((id) => row(id, n, id === who, 2000));
+    const facts = input([...lone(0, 'o'), ...lone(1, 'o'), ...lone(2, 'i'), ...lone(3, 'i'), ...lone(4, 'p')], { questions: [0, 1, 2, 3, 4].map((n) => q(n, 0)) });
+    expect(find(gameAwards(facts), 'genius')).toEqual({ kind: 'genius', names: ['Оля', 'Іра'], count: 2, question: null });
+  });
+
+  it('rows of a player gone from the table count nowhere', () => {
+    const facts = input([row('o', 0, true, 2100), row('x', 0, true, 1000), row('p', 0, false, 1500), row('i', 0, true, 3000)]);
+    expect(revealFacts(facts, 0)).toEqual({ accepted: 2, answered: 3, fastest: { names: ['Оля'], timeMs: 2100 }, bluff: null });
+    expect(find(roundFacts(facts, 0), 'lightning')).toMatchObject({ names: ['Оля'], timeMs: 2100 });
+    expect(ownRevealFact(facts, 0, 'o')).toEqual({ kind: 'fastest', place: 1 });
+    expect(factTable(facts).map((r) => r.playerId)).toEqual(['o', 'p', 'i', 'm']);
+    const bluff = input([row('x', 0, false, 1000, { bluff: lie(2) }), row('o', 0, true, 2000, { bluff: truth() }), row('p', 0, false, 2000, { bluff: lie() })], {
+      questions: [q(0, 0, { bluff: true })],
+    });
+    expect(revealFacts(bluff, 0)?.bluff).toBeNull();
+  });
+
+  it('a row whose question is missing counts in own numbers without time and in no question', () => {
+    const facts = input([row('o', 0, true, 2000), row('p', 0, false, 3000), row('o', 5, true, 500), row('p', 5, true, 400)]);
+    expect(roundCard(facts, 'o', 0)).toMatchObject({ correct: 2, answered: 2, avgMs: 2000, fastestMs: 2000 });
+    expect(gameCard(facts, 'p')).toMatchObject({ correct: 1, answered: 2, fastestMs: null });
+    expect(revealFacts(facts, 5)).toBeNull();
+    expect(roundShares(facts, 0)).toEqual([{ number: 1, text: 'Q0', accepted: 1, answered: 2 }]);
+    expect(find(roundFacts(facts, 0), 'lightning')).toMatchObject({ names: ['Оля'], timeMs: 2000 });
+  });
+
+  it('equal times share the place on the phone', () => {
+    const facts = input([row('o', 0, true, 2000), row('i', 0, true, 2000), row('p', 0, true, 1500), row('m', 0, true, 2500)]);
+    expect(ownRevealFact(facts, 0, 'o')).toEqual({ kind: 'fastest', place: 2 });
+    expect(ownRevealFact(facts, 0, 'i')).toEqual({ kind: 'fastest', place: 2 });
+    expect(ownRevealFact(facts, 0, 'm')).toEqual({ kind: 'fastest', place: 4 });
+  });
+
+  it('teams work as players: the team card and team names in the facts', () => {
+    const teams: Player[] = [
+      { id: 't1', nickname: 'Сови', rank: 1, score: 2000, rounds: [2000] },
+      { id: 't2', nickname: 'Лиси', rank: 2, score: 1000, rounds: [1000] },
+    ];
+    const qs = [q(0, 0), q(1, 0), q(2, 0)];
+    const rows = [0, 1, 2].flatMap((n) => [row('t1', n, true, 3000 + n * 1000), row('t2', n, n === 0, 2500)]);
+    const facts = input(rows, { questions: qs, players: teams });
+    expect(roundFacts(facts, 0)).toEqual([
+      { kind: 'lightning', names: ['Лиси'], timeMs: 2500, question: { roundIndex: 0, number: 1, text: 'Q0' } },
+      { kind: 'sniper', names: ['Сови'], correct: 3, answered: 3 },
+      { kind: 'streak', names: ['Сови'], length: 3 },
+    ]);
+    expect(roundCard(facts, 't1', 0)).toEqual({ correct: 3, answered: 3, avgMs: 4000, fastestMs: 3000, streak: 3, place: { before: null, now: 1 }, fooledBy: null });
+    expect(ownRevealFact(facts, 1, 't2')).toEqual({ kind: 'share', percent: 50 });
+    expect(roundFacts(input(rows, { questions: qs, players: [teams[0]!] }), 0)).toEqual([]);
   });
 
   it('a tie on the fastest time names everyone in table order', () => {
@@ -235,6 +321,9 @@ describe('in-game facts (12d)', () => {
     const players = [RISERS[1]!, RISERS[0]!, RISERS[2]!, RISERS[3]!].map((p, n) => ({ ...p, rank: n + 1 }));
     const facts = input(rows, { questions: qs, players });
     expect(roundFacts(facts, 0).map((c) => c.kind)).toEqual(['lightning', 'sniper', 'streak']);
+    // 🎭 у раунді є — його відрізала межа трьох карток.
+    expect(roundFacts({ ...facts, rows: rows.filter((r) => r.playerId !== 'o') }, 0)).toContainEqual({ kind: 'bluffer', names: ['Петро'], fooled: 1 });
+    expect(roundFacts({ ...facts, players: [players[0]!] }, 0)).toEqual([]);
     const awards = gameAwards(facts);
     expect(awards.map((c) => c.kind)).toEqual(['lightning', 'sniper', 'streak', 'comeback', 'bluffer', 'nerves']);
     expect(awards.length).toBeLessThanOrEqual(FACT_LIMITS.awards);

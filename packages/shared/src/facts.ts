@@ -193,21 +193,37 @@ interface FactAnswer {
   answered: boolean;
 }
 
+/** Серії учасника: поточна на кінець кожного раунду й найкраща. */
+interface Streaks {
+  end: Map<number, number>;
+  best: number;
+}
+
 interface Derived {
-  /** Відповіді в порядку запитань, без запитань без балів. */
+  /** Відповіді учасників таблиці в порядку запитань, без запитань без балів. */
   answers: FactAnswer[];
   questions: Map<number, FactQuestion>;
+  byQuestion: Map<number, FactAnswer[]>;
+  byPlayer: Map<string, FactAnswer[]>;
+  streaks: Map<string, Streaks>;
+  players: Map<string, FactInput['players'][number]>;
 }
 
 const cache = new WeakMap<FactInput, Derived>();
 
-/** Відповіді з рядків: accepted — будь-яка спроба прийнята, timeMs — прийнятої (інакше першої), решта — з першого рядка. Кеш — WeakMap за input. */
+/**
+ * Відповіді з рядків: accepted — будь-яка спроба прийнята, timeMs — прийнятої (інакше першої), решта — з першого рядка.
+ * Рядки учасників, яких немає в таблиці (вилучені), не рахуються: рушій їх уже не має, а історія ще має.
+ * Кеш — WeakMap за input: input вважається незмінним, після першого виклику його не змінюють.
+ */
 function derived(input: FactInput): Derived {
   const hit = cache.get(input);
   if (hit) return hit;
   const questions = new Map(input.questions.map((q) => [q.index, q]));
+  const players = new Map(input.players.map((p) => [p.id, p]));
   const groups = new Map<string, FactRow[]>();
   for (const row of input.rows) {
+    if (!players.has(row.playerId)) continue;
     const key = `${row.playerId}:${row.questionIndex}`;
     const group = groups.get(key);
     if (group) group.push(row);
@@ -235,7 +251,30 @@ function derived(input: FactInput): Derived {
     });
   }
   answers.sort((a, b) => a.questionIndex - b.questionIndex);
-  const result = { answers, questions };
+  const byQuestion = new Map<number, FactAnswer[]>();
+  const byPlayer = new Map<string, FactAnswer[]>();
+  const push = <K>(map: Map<K, FactAnswer[]>, key: K, a: FactAnswer) => {
+    const list = map.get(key);
+    if (list) list.push(a);
+    else map.set(key, [a]);
+  };
+  for (const a of answers) {
+    push(byQuestion, a.questionIndex, a);
+    push(byPlayer, a.playerId, a);
+  }
+  const streaks = new Map<string, Streaks>();
+  for (const [id, own] of byPlayer) {
+    const end = new Map<number, number>();
+    let best = 0;
+    for (const a of own) {
+      if (!a.answered) continue;
+      const now = a.accepted ? (end.get(a.roundIndex) ?? 0) + 1 : 0;
+      end.set(a.roundIndex, now);
+      best = Math.max(best, now);
+    }
+    streaks.set(id, { end, best });
+  }
+  const result = { answers, questions, byQuestion, byPlayer, streaks, players };
   cache.set(input, result);
   return result;
 }
@@ -249,11 +288,14 @@ const ref = (q: FactQuestion): FactQuestionRef => ({ roundIndex: q.roundIndex, n
 
 /** Основні відповіді запитання: подані, без запасних (крім поля). */
 function mainAnswers(input: FactInput, q: FactQuestion): FactAnswer[] {
-  return derived(input).answers.filter((a) => a.questionIndex === q.index && a.answered && (!a.spare || q.board));
+  return (derived(input).byQuestion.get(q.index) ?? []).filter((a) => a.answered && (!a.spare || q.board));
 }
 
+/** Відповіді в межах: усіх або одного учасника. */
 function scopedAnswers(input: FactInput, scope: Scope, playerId?: string): FactAnswer[] {
-  return derived(input).answers.filter((a) => inScope(a, scope) && (playerId === undefined || a.playerId === playerId));
+  const d = derived(input);
+  const source = playerId === undefined ? d.answers : (d.byPlayer.get(playerId) ?? []);
+  return scope === null ? source : source.filter((a) => a.roundIndex === scope);
 }
 
 /** Найбільше значення серед учасників у порядку таблиці (null — не рахується); ids — усі з ним. */
@@ -271,26 +313,15 @@ function top(input: FactInput, value: (id: string) => number | null): { names: s
   return best;
 }
 
-/** Серії учасника за раундами: поточна на кінець кожного раунду й найкраща; пропущене запитання серію не обриває. */
-function streaks(input: FactInput, playerId: string): { end: Map<number, number>; best: number } {
-  const end = new Map<number, number>();
-  let best = 0;
-  for (const a of derived(input).answers) {
-    if (a.playerId !== playerId || !a.answered) continue;
-    const now = a.accepted ? (end.get(a.roundIndex) ?? 0) + 1 : 0;
-    end.set(a.roundIndex, now);
-    best = Math.max(best, now);
-  }
-  return { end, best };
-}
-
+/** Серія: раунд — на його кінець, гра — найкраща в будь-якому раунді; пропущене запитання серію не обриває. */
 function bestStreak(input: FactInput, playerId: string, scope: Scope): number {
-  const { end, best } = streaks(input, playerId);
-  return scope === null ? best : (end.get(scope) ?? 0);
+  const own = derived(input).streaks.get(playerId);
+  if (!own) return 0;
+  return scope === null ? own.best : (own.end.get(scope) ?? 0);
 }
 
 function hasBluff(input: FactInput, scope: Scope): boolean {
-  return scopedAnswers(input, scope).some((a) => a.bluff !== null) || input.questions.some((q) => q.bluff && inScope(q, scope));
+  return input.questions.some((q) => q.bluff && inScope(q, scope)) || scopedAnswers(input, scope).some((a) => a.bluff !== null);
 }
 
 /** Запитання для «Самотнього генія» й «Найважчого»: з балами, без поля й бліцу. */
@@ -323,7 +354,7 @@ const lightning: CardFn = (scope, input) => {
   return { kind: 'lightning', names, timeMs: fastest.timeMs, question: ref(earliest) };
 };
 
-/** 🎯 Снайпер: найбільша частка правильних серед тих, хто подав ≥ sniperAnswers. */
+/** 🎯 Снайпер: найбільша частка правильних серед тих, хто подав ≥ sniperAnswers; нічия — лише з тими самими числами. */
 const sniper: CardFn = (scope, input) => {
   const tally = (id: string) => {
     const own = scopedAnswers(input, scope, id).filter((a) => a.answered);
@@ -335,7 +366,7 @@ const sniper: CardFn = (scope, input) => {
     if (t.answered < FACT_LIMITS.sniperAnswers || t.correct === 0) continue;
     const cmp = best === null ? 1 : t.correct * best.answered - best.correct * t.answered;
     if (best === null || cmp > 0) best = { names: [p.nickname], ...t };
-    else if (cmp === 0) best.names.push(p.nickname);
+    else if (t.correct === best.correct && t.answered === best.answered) best.names.push(p.nickname);
   }
   return best && { kind: 'sniper', ...best };
 };
@@ -349,18 +380,23 @@ const streak: CardFn = (scope, input) => {
 /** Місце за балами раундів 0…count−1, спільне за рівних. */
 function placeAfter(input: FactInput, playerId: string, count: number): number {
   const sum = (rounds: number[]) => rounds.slice(0, count).reduce((s, n) => s + n, 0);
-  const mine = sum(input.players.find((p) => p.id === playerId)?.rounds ?? []);
+  const mine = sum(derived(input).players.get(playerId)?.rounds ?? []);
   return 1 + input.players.filter((p) => sum(p.rounds) > mine).length;
 }
 
-/** 📈 Камбек гри: місце після першого раунду мінус фінальне; ≥ 2 раунди й місця в усіх. */
+/** 📈 Камбек гри: місце після першого раунду мінус фінальне; ≥ 2 раунди й місця в усіх; нічия — лише з тими самими місцями. */
 const comeback: CardFn = (scope, input) => {
   if (scope !== null || input.players.length === 0) return null;
   if (!input.players.every((p) => p.rounds.length >= 2 && p.rank !== null)) return null;
-  const best = top(input, (id) => placeAfter(input, id, 1) - input.players.find((p) => p.id === id)!.rank!);
-  if (best === null || best.value <= 0) return null;
-  const first = input.players.find((p) => p.id === best.ids[0])!;
-  return { kind: 'comeback', names: best.names, from: placeAfter(input, first.id, 1), to: first.rank! };
+  let best: { names: string[]; from: number; to: number } | null = null;
+  for (const p of input.players) {
+    const from = placeAfter(input, p.id, 1);
+    const to = p.rank!;
+    if (from - to <= 0) continue;
+    if (best === null || from - to > best.from - best.to) best = { names: [p.nickname], from, to };
+    else if (from === best.from && to === best.to) best.names.push(p.nickname);
+  }
+  return best && { kind: 'comeback', ...best };
 };
 
 /** 🎭 Майстер блефу: найбільше обдурених власними вигадками. */
@@ -469,8 +505,9 @@ export function ownRevealFact(input: FactInput, questionIndex: number, playerId:
   return { kind: 'share', percent: Math.round((facts.accepted / facts.answered) * 100) };
 }
 
-/** Цікавинки раунду: перші FACT_LIMITS.roundCards за ROUND_FACT_ORDER. */
+/** Цікавинки раунду: перші FACT_LIMITS.roundCards за ROUND_FACT_ORDER; менше двох учасників — жодної. */
 export function roundFacts(input: FactInput, roundIndex: number): FactCard[] {
+  if (input.players.length < 2) return [];
   return firstCards(ROUND_FACT_ORDER, roundIndex, input, FACT_LIMITS.roundCards);
 }
 
@@ -499,7 +536,7 @@ const pickedLie = (a: FactAnswer) => a.bluff !== null && a.bluff.pick && !a.bluf
 
 /** «Твій раунд»; null — учасника немає. */
 export function roundCard(input: FactInput, playerId: string, roundIndex: number): RoundCard | null {
-  const player = input.players.find((p) => p.id === playerId);
+  const player = derived(input).players.get(playerId);
   if (!player) return null;
   const t = tally(input, playerId, roundIndex);
   return {
@@ -515,7 +552,7 @@ export function roundCard(input: FactInput, playerId: string, roundIndex: number
 
 /** «Твоя гра»; null — учасника немає. */
 export function gameCard(input: FactInput, playerId: string): GameCard | null {
-  const player = input.players.find((p) => p.id === playerId);
+  const player = derived(input).players.get(playerId);
   if (!player) return null;
   const t = tally(input, playerId, null);
   return {
