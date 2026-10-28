@@ -13,6 +13,7 @@ import {
   type Question,
 } from '@quiz/shared';
 // views.ts імпортує цей файл; цей файл views.ts не імпортує (без циклу). away.ts імпортує hostLive: цикл лише між функціями.
+import { answererOf } from './answerer';
 import { awayPeople } from './away';
 import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
@@ -26,7 +27,7 @@ import { survivalAlive, survivalPlayOf, trialOpen } from './survival';
 import { wallOf } from './wall';
 import { wipeoutIn } from './wipeout';
 import { voterList } from './team-act';
-import { captainOf, duelistOf, memberOf, teamsOn } from './teams';
+import { duelistOf, memberOf, teamsOn } from './teams';
 
 /** Етапи, на яких іде відповідь (до розкриття): ведучий бачить, хто що відповів. */
 const LIVE_PHASES: Phase[] = ['question', 'locked'];
@@ -90,11 +91,11 @@ function emptyRow(who: Answerer, actor: string | null): LiveRow {
   };
 }
 
-/** Командна гра: нікнейм того, хто зараз діє за команду (типово капітан; у дуелі — дуелянт); соло й люди — null. */
+/** Командна гра: нікнейм того, хто зараз діє за команду (типово той, хто відповідає; у дуелі — дуелянт); соло й люди — null. */
 function actingNickname(
   state: GameState,
   who: Answerer,
-  actorOf: (teamId: string) => string | null = (teamId) => captainOf(state, teamId),
+  actorOf: (teamId: string) => string | null = (teamId) => answererOf(state, teamId),
 ): string | null {
   if (!who.team) return null;
   const id = actorOf(who.id);

@@ -147,6 +147,7 @@ import { rankPlayers } from './ranking';
 import { gameFacts, ownFacts, roundQuestionShares } from './facts';
 import { firstRound, groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, withRounds, type PlayerScoreLine } from './breakdown';
 import { actorOf, voterList } from './team-act';
+import { ANSWERER_PICK_PHASES, answererMode, shownAnswerer, upcomingPick } from './answerer';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 
@@ -1706,9 +1707,16 @@ function teamsView(state: GameState): TeamsView | null {
   const lobby = state.phase === 'lobby';
   return {
     form,
-    // Заглушка до задачі 5: поки всі відповідають капітани.
-    answerer: 'captain',
-    teams: list.map((t) => ({ id: t.id, name: t.name, color: t.color, captainId: captainOf(state, t.id), answererId: captainOf(state, t.id), members: teamMembers(state, t.id).map(memberView) })),
+    answerer: answererMode(state),
+    // Хто відповідає зараз чи відповідатиме далі — не таємниця, той самий для всіх ролей; у лобі — капітан.
+    teams: list.map((t) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color,
+      captainId: captainOf(state, t.id),
+      answererId: lobby ? captainOf(state, t.id) : shownAnswerer(state, t.id),
+      members: teamMembers(state, t.id).map(memberView),
+    })),
     unassigned: lobby ? members.filter((m) => m.teamId === null).map(memberView) : [],
     // Рядки — ті, хто кидав або чекає кидка (хто прийшов після старту кидків — поза ними).
     dice:
@@ -2063,18 +2071,21 @@ function playerTeam(state: GameState, member: TeamMember): PlayerTeam {
   const duel = state.duel;
   const duelling = teamId !== null && duel !== null && (duel.challengerId === teamId || duel.opponentId === teamId);
   const play = inQuestion(state) ? state.plays[state.questionIndex] : undefined;
+  const answererId = teamId === null || lobby ? captainId : shownAnswerer(state, teamId);
+  const mode = answererMode(state);
+  // Лише вибір своєї команди: чужий не видно.
+  const pick = teamId === null ? null : upcomingPick(state, teamId);
   return {
     memberId: member.id,
     nickname: member.nickname,
     teamId,
     captainId,
     captain: captainId === member.id,
-    // Заглушки до задачі 5: відповідає капітан.
-    answererId: captainId,
-    answerer: captainId === member.id,
-    answererMode: 'captain',
-    canPickAnswerer: false,
-    answererPick: null,
+    answererId,
+    answerer: answererId === member.id,
+    answererMode: mode,
+    canPickAnswerer: teamId !== null && captainId === member.id && mode !== 'captain' && ANSWERER_PICK_PHASES.includes(state.phase),
+    answererPick: pick === null ? null : { memberId: pick.memberId, scope: pick.scope },
     canAct: teamId !== null && !lobby && canActNow(state, member.id, teamId),
     // Натиснувший — лише поки команда в черзі: після оцінки спроби його вже немає.
     buzzerId: teamId !== null && play?.blitz?.queue.some((e) => e.playerId === teamId) ? (play.buzzers?.[teamId] ?? null) : null,
@@ -2086,12 +2097,14 @@ function playerTeam(state: GameState, member: TeamMember): PlayerTeam {
   };
 }
 
-/** Чи людина може зараз діяти за команду: дуель — дуелянт; поза запитанням — капітан; бліц без команди в черзі — будь-хто; інакше як actorOf(…, 'answer'). */
+/** Чи людина може зараз діяти за команду: дуель — дуелянт; відкрите випробування — відповідач; поза запитанням — капітан; бліц без команди в черзі — будь-хто; інакше як actorOf(…, 'answer'). */
 function canActNow(state: GameState, memberId: string, teamId: string): boolean {
   const duel = state.duel;
   if (state.phase === 'duel' && duel !== null && (duel.challengerId === teamId || duel.opponentId === teamId) && (duel.stage === 'question' || duel.stage === 'answer')) {
     return actorOf(state, memberId, 'duel').ok;
   }
+  // Випробування «Вибування» — той, хто відповідав на запис раунду.
+  if (state.phase === 'leaderboard' && trialOpen(state)) return actorOf(state, memberId, 'answerer').ok;
   // Поза запитанням (поле, ставка, рішення) — капітан.
   if (state.phase !== 'question') return actorOf(state, memberId, 'captain').ok;
   // Бліц: ті самі умови, що в кнопки й поля команди (спроби, час, уже відповіла).
