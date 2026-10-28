@@ -26,6 +26,15 @@ export interface PublicSlider {
   unit: string;
 }
 
+/** «Хто я?» у власному темпі (12c): скільки підказок відкрив гравець (команда). */
+export interface ClueOpen {
+  playerId: string;
+  nickname: string;
+  opened: number;
+  /** Уже відповів (запис або відповідь поля, що чекає «Прийняти»). */
+  answered: boolean;
+}
+
 /** «Хто я?» без прихованих підказок і відповіді. */
 export interface PublicClues {
   total: number;
@@ -35,6 +44,10 @@ export interface PublicClues {
   nextAt: number | null;
   /** Наступну відкриває ведучий (усна клітинка). */
   byHost: boolean;
+  /** Кожен відкриває сам (12c): nextAt — null, byHost — false; shown — свої (телефон) або лише перша (сцена, пульт). */
+  self: boolean;
+  /** Власний темп: хто скільки відкрив — сцені й пульту; телефону й поза власним темпом — null. */
+  opens: ClueOpen[] | null;
   intervalSeconds: number;
 }
 
@@ -1285,7 +1298,9 @@ export type LiveProgress =
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
   | { kind: 'survey'; ranks: (number | null)[] }
   | { kind: 'door'; picked: number | null }
-  | { kind: 'duel'; tries: string[]; won: string | null };
+  | { kind: 'duel'; tries: string[]; won: string | null }
+  /** «Хто я?» у власному темпі (12c): скільки підказок відкрито. */
+  | { kind: 'clues'; opened: number; total: number };
 
 /** Рядок «Відповідей наживо»: гравець, команда чи людина (голоси командної гри). */
 export interface LiveRow {

@@ -1412,7 +1412,7 @@ describe('StageScreen media (10b)', () => {
 });
 
 describe('StageScreen clues and pin (10c)', () => {
-  const cluesQuestion = { ...question, type: 'clues' as const, choices: [], clues: { total: 5, shown: ['Народився у 1814 році', 'Писав вірші'], nextAt: null, byHost: false, intervalSeconds: 8 } };
+  const cluesQuestion = { ...question, type: 'clues' as const, choices: [], clues: { total: 5, shown: ['Народився у 1814 році', 'Писав вірші'], nextAt: null, byHost: false, intervalSeconds: 8, self: false, opens: null } };
   const pinQuestion = { ...question, type: 'pin' as const, choices: [], pin: { map: 'world' as const, aspect: 2 } };
   const pinFull: Question = { id: 'q4', type: 'pin', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 };
   const cluesFull: Question = { id: 'q5', type: 'clues', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, clues: ['a', 'b', 'c'], accepted: ['Шевченко'], interval: 8 };
@@ -1472,6 +1472,45 @@ describe('StageScreen clues and pin (10c)', () => {
     show(view({ phase: 'reveal', questionIndex: 0, question: cluesQuestion, reveal: cluesFull }));
     expect(document.querySelectorAll('.clues-list .clue')).toHaveLength(3);
     expect(document.querySelector('.lead.answer')).not.toBeNull();
+  });
+});
+
+describe('StageScreen own-pace clues (12c)', () => {
+  const opens = [
+    { playerId: 'p1', nickname: 'Оля', opened: 1, answered: true },
+    { playerId: 'p2', nickname: 'Петро', opened: 3, answered: true },
+    { playerId: 'p3', nickname: 'Іра', opened: 2, answered: false },
+  ];
+  const selfQuestion = { ...question, type: 'clues' as const, choices: [], clues: { total: 5, shown: ['Народився у 1814 році'], nextAt: null, byHost: false, intervalSeconds: 8, self: true, opens } };
+  const selfFull: Question = { id: 'q5', type: 'clues', text: question.text, imageUrl: null, video: null, timeLimit: 20, points: 1000, clues: ['a', 'b', 'c', 'd', 'e'], accepted: ['Шевченко'], interval: 8, cluePace: 'self' };
+
+  it('shows only the first clue, the rest as plain placeholders, who opened how many and the own-pace hint', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: selfQuestion }));
+    expect(document.querySelectorAll('.clues-list .clue:not(.is-hidden)')).toHaveLength(1);
+    const hidden = [...document.querySelectorAll('.clues-list .clue.is-hidden')].map((li) => li.textContent);
+    expect(hidden).toEqual(['Підказка 2', 'Підказка 3', 'Підказка 4', 'Підказка 5']);
+    expect([...document.querySelectorAll('.clue-opens.is-big .clue-open')].map((span) => span.textContent)).toEqual(['Оля 1', 'Петро 3', 'Іра 2']);
+    expect(screen.getByText('Кожен відкриває підказки на телефоні сам: що менше підказок, то більше балів.')).toBeTruthy();
+    expect(screen.queryByText(/щойно впізнаєте/)).toBeNull();
+  });
+
+  it('lists every clue at the reveal with the clue each answered on', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: selfQuestion, reveal: selfFull }));
+    expect(document.querySelectorAll('.clues-list .clue')).toHaveLength(5);
+    expect(document.querySelector('.clues-list .clue.is-hidden')).toBeNull();
+    expect([...document.querySelectorAll('.clue-opens.is-big.is-revealed .clue-open')].map((span) => span.textContent)).toEqual(['Оля — на підказці 1', 'Петро — на підказці 3', 'Іра — без відповіді']);
+  });
+
+  it('says each team opens its own clues in a team game', () => {
+    const teams = { teams: [], mode: 'captain' } as unknown as StageView['teams'];
+    show(view({ phase: 'question', questionIndex: 0, question: selfQuestion, teams }));
+    expect(screen.getByText('Кожна команда відкриває підказки сама: що менше підказок, то більше балів.')).toBeTruthy();
+    expect(screen.queryByText(/Кожен відкриває підказки/)).toBeNull();
+  });
+
+  it('has no line outside own pace', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: { ...selfQuestion, clues: { ...selfQuestion.clues, self: false, opens: null } } }));
+    expect(document.querySelector('.clue-opens')).toBeNull();
   });
 });
 

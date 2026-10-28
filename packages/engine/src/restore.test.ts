@@ -58,6 +58,7 @@ import {
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
+import { openClue } from './clues';
 import { sortMarks, sortOf, sortWord } from './sort';
 import type { Splash } from './splash';
 import { writeLie } from './bluff';
@@ -285,7 +286,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -837,6 +838,48 @@ const KEYS: Record<number, Record<string, string>> = {
     Splash: 'at,kind,until',
     AutopilotState: 'at,authorId,hold,left,retries,skipPlays,skips,starting',
   },
+  16: {
+    GameState: 'adjustmentSeq,adjustments,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,missedInto,misses,queue,sorted,wordMisses',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'auto,end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'captains,dice,duelists,form,list,members',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
+    Splash: 'at,kind,until',
+    AutopilotState: 'at,authorId,hold,left,retries,skipPlays,skips,starting',
+  },
 };
 
 /** 11g: автопілот (автор Оля p1, Петро p2) на розкритті класичного запитання. */
@@ -990,6 +1033,8 @@ function representative(): GameState[] {
   const piloted: GameState = { ...pilotReveal(), paused: true, pausedAt: T0 + 3000, autopilot: { authorId: 'p1', at: null, left: 2500, hold: 'author', starting: true, skips: 1, skipPlays: 2, retries: 3 } };
   // 12a: бали ведучого на заставці, потім їх скасовано — ScoreAdjustment.undoes і batch.
   const undone = undoneOnIntro();
+  // 12c: «Хто я?» у власному темпі — Оля відкрила другу підказку: Play.clueOpens.
+  const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
     teamBuzz,
@@ -1022,6 +1067,7 @@ function representative(): GameState[] {
     acceptAll(buzzed, T0 + 1000),
     piloted,
     undone,
+    selfOpened,
   ];
 }
 
@@ -1160,6 +1206,23 @@ describe('the saved state', () => {
     expect(back.players.find((p) => p.id === 'p1')?.score).toBe(0);
   });
 
+  it('a state without clueOpens restores and keeps opening by the timer; a self-paced play keeps clueOpens across the round trip', () => {
+    const timed = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [clues])]), 'Оля', 'Петро'), T0);
+    const old = roundTrip(suspend(roundTrip(timed), T0 + 1000));
+    expect('clueOpens' in old.plays[0]).toBe(false);
+    // далі відкривається за таймером: 1 с до збереження, ще 4 с після «Продовжити»
+    expect(tick(must(resume(old, T0 + 1000 + HOUR)), T0 + 5000 + HOUR).plays[0].clues).toBe(2);
+    const selfQuiz = makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]);
+    let self = openAt(lobbyWith(selfQuiz, 'Оля', 'Петро'), T0);
+    self = must(openClue(must(openClue(self, 'p1', T0 + 500)), 'p1', T0 + 1000));
+    const back = roundTrip(suspend(self, T0 + 2000));
+    expect(back.plays[0].clueOpens).toEqual({ p1: 3 });
+    // у власному темпі таймер і після «Продовжити» нічого не відкриває
+    expect(tick(must(resume(back, T0 + 2000 + HOUR)), T0 + 8000 + HOUR).plays[0].clues).toBe(1);
+    const answered = must(submitAnswer(must(resume(back, T0 + 2000 + HOUR)), 'p1', { type: 'clues', value: 'Шевченко' }, T0 + 3000 + HOUR));
+    expect(answered.plays[0].answers.p1).toMatchObject({ points: 600, accepted: true });
+  });
+
   it('a version 13 state (no autopilot) restores as a hosted game', () => {
     const hosted = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро'), T0);
     const restored = roundTrip(suspend(roundTrip(hosted), T0 + 1000));
@@ -1177,7 +1240,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {

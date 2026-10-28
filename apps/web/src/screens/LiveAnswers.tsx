@@ -39,6 +39,9 @@ function started(row: LiveRow): boolean {
       return progress.lie !== null || progress.pick !== null;
     case 'duel':
       return progress.tries.length > 0 || progress.won !== null;
+    case 'clues':
+      // «Хто я?» у власному темпі (12c): рядок видно завжди — «підказка 1/5» біля кожного.
+      return true;
     default:
       return false;
   }
@@ -95,6 +98,10 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
       case 'duel':
         if (progress.tries.length > 0) parts.push(t('liveDuelTries', { list: progress.tries.join(', ') }));
         if (progress.won !== null) parts.push(t('liveDuelWon', { text: progress.won }));
+        break;
+      case 'clues':
+        // З відповіддю номер підказки показує clueAt.
+        if (!row.answered) parts.push(t('liveClues', { opened: progress.opened, total: progress.total }));
         break;
       case 'survey':
         break;
@@ -224,7 +231,9 @@ function useServerNow(ticking: boolean, offsetMs: number): number {
 export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TILTS, drafts = NO_DRAFTS, collapsed = false, offsetMs = 0 }: Props) {
   const duel = live.kind === 'duel';
   const queue = live.kind === 'blitz' && view.blitz?.instant !== true;
-  const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered);
+  // Власний темп «Хто я?» (12c): поки йде запитання, кожен рядок стоїть у списку з «підказка N/M», тож «Чекаємо» порожнє;
+  // після кінця часу мовчуни знову в «Не відповіли».
+  const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered && (row.progress?.kind !== 'clues' || view.phase !== 'question'));
   // Дуель: обидва дуелянти завжди, навіть без спроб.
   // Нахил першої картки (11d) теж показує рядок: ведучий бачить, куди її тягнуть, ще до першого ходу.
   // Живий вибір (12b) теж: рядок видно ще до відповіді й першого ходу.

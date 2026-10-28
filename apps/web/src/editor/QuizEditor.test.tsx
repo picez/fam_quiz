@@ -1914,6 +1914,41 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
     expect((screen.getByLabelText('Час, с') as HTMLInputElement).value).toBe('45');
   });
 
+  it('«кожен сам» hides the interval and the time hint, raises the time to 20 s and saves cluePace self; «за таймером» brings them back without the key (12c)', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Хто я?');
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    for (const n of [1, 2, 3]) fill(`Підказка ${n}`, `Ключ ${n}`);
+    fill('Написання 1', 'Шевченко');
+    const group = screen.getByRole('group', { name: 'Підказки відкриваються' });
+    const timer = within(group).getByRole('radio', { name: 'за таймером' }) as HTMLInputElement;
+    const self = within(group).getByRole('radio', { name: 'кожен сам' }) as HTMLInputElement;
+    expect([timer.checked, self.checked]).toEqual([true, false]);
+    screen.getByLabelText('Нова підказка кожні, с');
+    fill('Час, с', '10');
+    fireEvent.click(self);
+    expect(screen.queryByLabelText('Нова підказка кожні, с')).toBeNull();
+    expect(screen.queryByText(/^Остання підказка відкриється/)).toBeNull();
+    screen.getByText(t('cluesSelfHint', { min: 20 }));
+    expect(screen.getByText(/^Кожен гравець сам відкриває наступну підказку/)).toBeTruthy();
+    expect((screen.getByLabelText('Час, с') as HTMLInputElement).value).toBe('20');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'clues', cluePace: 'self', timeLimit: 20 });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Підказки відкриваються' })).getByRole('radio', { name: 'за таймером' }));
+    screen.getByLabelText('Нова підказка кожні, с');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    const [back] = roundQuestions(onSave.mock.calls[1][0].rounds[0]);
+    expect('cluePace' in back).toBe(false);
+    expect(back).toMatchObject({ type: 'clues', interval: 8, timeLimit: 21 });
+    expect(quizSchema.safeParse(onSave.mock.calls[1][0]).success).toBe(true);
+  });
+
   it('clues take no video but take audio', () => {
     open();
     fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));

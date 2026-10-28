@@ -125,7 +125,7 @@ describe('AnswerInput', () => {
   });
 
   it('clues: the typed answer goes out as a «Who am I?» answer', () => {
-    const onSubmit = setup({ type: 'clues', choices: [], clues: { total: 5, shown: ['Народився 1814 року'], nextAt: null, byHost: false, intervalSeconds: 8 } });
+    const onSubmit = setup({ type: 'clues', choices: [], clues: { total: 5, shown: ['Народився 1814 року'], nextAt: null, byHost: false, intervalSeconds: 8, self: false, opens: null } });
     fireEvent.change(screen.getByLabelText('Ваша відповідь'), { target: { value: ' Шевченко ' } });
     fireEvent.click(button('Відповісти'));
     expect(onSubmit).toHaveBeenCalledWith({ type: 'clues', value: 'Шевченко' });

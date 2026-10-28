@@ -419,6 +419,11 @@ export function attachSockets(
       return manager.hint(room, identity.playerId);
     });
 
+    on('player:clue', () => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      return manager.clue(room, identity.playerId);
+    });
+
     on('player:pick', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = pickSchema.safeParse(payloadOf(args));

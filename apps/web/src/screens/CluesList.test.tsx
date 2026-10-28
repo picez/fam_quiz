@@ -16,7 +16,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const clues = (over: Partial<PublicClues> = {}): PublicClues => ({ total: 5, shown: ALL.slice(0, 2), nextAt: Date.now() + 3000, byHost: false, intervalSeconds: 8, ...over });
+const clues = (over: Partial<PublicClues> = {}): PublicClues => ({ total: 5, shown: ALL.slice(0, 2), nextAt: Date.now() + 3000, byHost: false, intervalSeconds: 8, self: false, opens: null, ...over });
 const texts = () => [...document.querySelectorAll('.clue')].map((li) => li.textContent);
 
 describe('CluesList', () => {

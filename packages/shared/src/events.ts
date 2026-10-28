@@ -136,6 +136,8 @@ export interface ClientToServerEvents {
   'player:answer': (answer: Answer, ack: Ack) => void;
   'player:guess': (payload: z.infer<typeof guessSchema>, ack: Ack) => void;
   'player:hint': (ack: Ack) => void;
+  /** «Хто я?» у власному темпі (12c): відкрити наступну підказку собі (у командній грі — команді). */
+  'player:clue': (ack: Ack) => void;
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;
   /** Сортування: нахил картки, поки її тягнуть (11d); у стан гри не йде. */
   'player:sort-tilt': (payload: z.infer<typeof sortTiltSchema>, ack: Ack) => void;

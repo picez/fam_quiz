@@ -7554,6 +7554,12 @@ label.powers-price {
   margin: 0;
 }
 
+/* Власний темп «Хто я?» (12c): кнопка наступної підказки на всю ширину телефона. */
+.clue-more {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
 /* Точка на мапі (10c): рамка з наближенням, основа й шар позначок. */
 .pin-input {
   display: flex;
@@ -7746,6 +7752,37 @@ label.powers-price {
   font-size: 1.2rem;
 }
 
+/* Власний темп «Хто я?» (12c): «Оля 1 · Петро 3 · Іра 2» під підказками. */
+.clue-opens {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 0.35rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Роздільник — частина наступного імені: перенесений рядок не починається з «·». */
+.clue-open + .clue-open::before {
+  content: '· ';
+}
+
+/* Сцена: TV-кегль, але приглушено — вторинне до підказок; до двох рядків; імен не більше STAGE_OPENS_MAX (ClueOpens.tsx), решта — «та ще N». overflow — лише страховка. */
+.clue-opens.is-big {
+  max-height: calc(2 * 1.3em);
+  overflow: hidden;
+  color: var(--dim);
+  font-size: 1.3rem;
+  line-height: 1.3;
+}
+
+/* Розкриття — підсумок запитання: яскраво, кеглем п'яти підказок (1,2rem), до трьох рядків по троє «Ім'я — на підказці 3». */
+.clue-opens.is-big.is-revealed {
+  max-height: calc(3 * 1.3em);
+  color: var(--paper);
+  font-size: 1.2rem;
+}
+
 /* Сцена з точкою — рівно на екран: мапа бере всю решту висоти, а не штовхає «Найближче» за край. */
 .app.stage:has(.stage-pin) {
   height: 100dvh;
@@ -7827,6 +7864,11 @@ label.powers-price {
   margin-left: auto;
   color: var(--dim);
   font-size: 0.85rem;
+}
+
+.host-clues .clue-opens {
+  justify-content: flex-start;
+  color: var(--dim);
 }
 
 .host-pin {
@@ -9643,6 +9685,36 @@ button.wall-tile:disabled {
 }
 
 .survival-settings .check input[type='radio'] {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+}
+
+/* ---------- «Хто я?»: як відкриваються підказки ---------- */
+
+.clue-pace {
+  border: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.75rem;
+  min-width: 0;
+}
+
+.clue-pace > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+.clue-pace .check {
+  min-height: 2.75rem;
+}
+
+.clue-pace .check input[type='radio'] {
   width: 1.5rem;
   height: 1.5rem;
   flex: none;

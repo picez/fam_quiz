@@ -36,6 +36,7 @@ import {
   audioLeadMs,
   proximityPartial,
   cluesAt,
+  isSelfPaced,
   cloudKey,
   cloudWords,
   isUnscored,
@@ -1274,6 +1275,33 @@ describe('clues (10c)', () => {
     expect(valid(answerSchema, { type: 'clues', value: 'Шевченко' })).toBe(true);
     expect(valid(answerSchema, { type: 'clues', value: 5 })).toBe(false);
   });
+
+  describe('at own pace (12c)', () => {
+    it('self needs no interval and no clue timing, but at least 20 s', () => {
+      const { interval: _interval, ...noInterval } = cluesQ;
+      const parsed = questionSchema.safeParse({ ...noInterval, cluePace: 'self', timeLimit: LIMITS.selfCluesMinTime });
+      expect(parsed.success).toBe(true);
+      expect(parsed.data).toMatchObject({ cluePace: 'self', interval: LIMITS.defaultClueSeconds });
+      const six = { ...cluesQ, clues: [...cluesQ.clues, 'Шоста.'], interval: 30, cluePace: 'self' };
+      expect(issues({ ...six, timeLimit: 20 })).toEqual([]); // (6 − 1) × 30 + 5 > 20, але clues_time не діє
+      expect(issues({ ...six, timeLimit: 19 })).toContain('clues_self_time');
+      expect(issues({ ...six, timeLimit: 19 })).not.toContain('clues_time');
+    });
+
+    it('timer is the default: a question without the field parses as before and keeps no key', () => {
+      const parsed = questionSchema.safeParse(cluesQ);
+      expect(parsed.success).toBe(true);
+      expect('cluePace' in (parsed.data as object)).toBe(false);
+      expect(issues({ ...cluesQ, cluePace: 'timer', timeLimit: 24 })).toContain('clues_time');
+      expect(issues({ ...cluesQ, cluePace: 'magic' })).not.toEqual([]);
+    });
+
+    it('isSelfPaced and the same places as before', () => {
+      expect(isSelfPaced({ ...cluesQ, cluePace: 'self' } as unknown as Question)).toBe(true);
+      expect(isSelfPaced(cluesQ as unknown as Question)).toBe(false);
+      expect(LIMITS.selfCluesMinTime).toBe(20);
+    });
+  });
 });
 
 describe('pin (10c)', () => {
@@ -1364,6 +1392,12 @@ describe('where clues and pins live (10c)', () => {
     expect(issues(quizOf([blitz(cluesQ)]))).toContain('clues_place');
     expect(issues(quizOf([finalR(cluesQ)]))).toContain('clues_place');
     expect(issues(withCell(cluesQ, { kind: 'blitz' }))).toContain('clues_place');
+  });
+  it('clues at own pace: still not blitz, final or a blitz cell (12c)', () => {
+    const own = { ...cluesQ, cluePace: 'self', timeLimit: 30 };
+    expect(issues(quizOf([blitz(own)]))).toContain('clues_place');
+    expect(issues(quizOf([finalR(own)]))).toContain('clues_place');
+    expect(issues(withCell(own, { kind: 'blitz' }))).toContain('clues_place');
   });
   it('pin: classic and a normal phone cell; not blitz, final, a blitz cell or a voice cell', () => {
     expect(issues(quizOf([round('r', [pinQ])]))).toEqual([]);

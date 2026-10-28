@@ -1836,7 +1836,7 @@ describe('HostScreen clues and pin (10c)', () => {
   const cluesFull: Question = { id: 'q4', type: 'clues', text: 'Хто я?', imageUrl: null, video: null, timeLimit: 60, points: 1000, clues: ['Перша', 'Друга', 'Третя', 'Четверта', 'П’ята'], accepted: ['Шевченко'], interval: 8 };
   const cluesOf = (shown: number, over: { byHost?: boolean; nextAt?: number | null } = {}) => ({
     ...publicOf(cluesFull),
-    clues: { total: 5, shown: cluesFull.clues.slice(0, shown), nextAt: over.nextAt ?? null, byHost: over.byHost ?? false, intervalSeconds: 8 },
+    clues: { total: 5, shown: cluesFull.clues.slice(0, shown), nextAt: over.nextAt ?? null, byHost: over.byHost ?? false, intervalSeconds: 8, self: false, opens: null },
   });
 
   it('lists every clue with the opened ones marked and no open button in a classic round', () => {
@@ -1881,6 +1881,29 @@ describe('HostScreen clues and pin (10c)', () => {
     show(during('question', cluesFull, { question: cluesOf(5, { byHost: true }) }));
     expect(screen.queryByRole('button', { name: /Відкрити підказку/ })).toBeNull();
     expect((button('Усі підказки відкрито')).disabled).toBe(true);
+  });
+
+  it('own pace: every clue without timing or state, the own-pace note and who opened how many', () => {
+    const opens = [
+      { playerId: 'p1', nickname: 'Оля', opened: 1, answered: false },
+      { playerId: 'p2', nickname: 'Петро', opened: 3, answered: false },
+    ];
+    const selfFull: Question = { ...cluesFull, cluePace: 'self' } as Question;
+    const question = { ...cluesOf(1), clues: { ...cluesOf(1).clues, self: true, opens } };
+    show(during('question', selfFull, { question }));
+    const panel = document.querySelector('.host-clues') as HTMLElement;
+    expect(panel.querySelectorAll('li')).toHaveLength(5);
+    expect(panel.querySelectorAll('li.is-closed')).toHaveLength(0);
+    expect(within(panel).getByText('П’ята')).toBeTruthy();
+    expect(panel.querySelector('.clue-state')).toBeNull();
+    expect(within(panel).queryByText(/^за \d+ с$/)).toBeNull();
+    expect(within(panel).queryByText(/^Відкрито \d з/)).toBeNull();
+    expect(within(panel).getByText('Кожен відкриває підказки сам: ціна — за тим, скільки відкрив.')).toBeTruthy();
+    expect([...panel.querySelectorAll('.clue-opens .clue-open')].map((span) => span.textContent)).toEqual(['Оля 1', 'Петро 3']);
+    expect(screen.queryByRole('button', { name: /Відкрити підказку/ })).toBeNull();
+    cleanup();
+    show(during('reveal', selfFull, { question: { ...question, clues: { ...question.clues, opens: [{ ...opens[0], answered: true }, opens[1]] } } }));
+    expect([...document.querySelectorAll('.host-clues .clue-opens .clue-open')].map((span) => span.textContent)).toEqual(['Оля — на підказці 1', 'Петро — без відповіді']);
   });
 
   it('shows live pins and the target with the circles during the question', () => {

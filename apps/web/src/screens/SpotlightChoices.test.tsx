@@ -220,7 +220,7 @@ describe('SpotlightChoices', () => {
   });
 
   it('a «Who am I?» cell waits for words and shows the typed answer like text', () => {
-    const cluesQ: PublicQuestion = { ...base, type: 'clues', text: 'Хто я?', choices: [], clues: { total: 3, shown: ['Поет'], nextAt: null, byHost: false, intervalSeconds: 8 } };
+    const cluesQ: PublicQuestion = { ...base, type: 'clues', text: 'Хто я?', choices: [], clues: { total: 3, shown: ['Поет'], nextAt: null, byHost: false, intervalSeconds: 8, self: false, opens: null } };
     render(<SpotlightChoices question={cluesQ} spotlight={null} reveal={null} />);
     expect(screen.getByText('Відповідь словами з’явиться тут')).toBeTruthy();
     cleanup();

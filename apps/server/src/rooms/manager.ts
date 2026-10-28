@@ -104,6 +104,7 @@ import {
   READABLE_STATE_VERSIONS,
   stamp,
   tooSoon,
+  openClue,
   type GameState,
   type PacedAction,
   type Result,
@@ -949,6 +950,16 @@ export class RoomManager {
     const who = this.act(room, playerId, 'captain');
     if (!who.ok) return who;
     return this.apply(room, takeHint(room.state, who.id, this.now()));
+  }
+
+  /** «Хто я?» у власному темпі (12c): людина відкриває наступну підказку собі; у командній грі — той, хто відповідає за команду (actorOf 'answer'). */
+  clue(room: Room, playerId: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    // Поза запитанням — wrong_phase для всіх, а не not_captain для некапітана (як actAnswer).
+    if (room.state.phase !== 'question') return { ok: false, error: 'wrong_phase' };
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    return this.apply(room, openClue(room.state, who.id, this.now()));
   }
 
   pick(room: Room, playerId: string, cellId: string): AckResult {

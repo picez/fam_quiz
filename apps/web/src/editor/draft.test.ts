@@ -114,6 +114,35 @@ describe('clues and pin in the editor (10c)', () => {
   });
 });
 
+describe('«Who am I?» at own pace in the editor (12c)', () => {
+  const selfClues = (over: Record<string, unknown>) => ({ ...filled(newQuestion('clues')), cluePace: 'self', ...over }) as Question;
+
+  it('own pace needs at least 20 s and ignores the interval and the clue timing', () => {
+    expect(problemsOf(quizWith(selfClues({ timeLimit: 19 })))).toEqual([t('problemCluesSelfTime', { index: 1, need: 20 })]);
+    expect(t('problemCluesSelfTime', { index: 1, need: 20 })).toMatch(/щонайменше 20 с\.$/);
+    const six = selfClues({ timeLimit: 20, interval: 30, clues: ['1', '2', '3', '4', '5', '6'] });
+    expect(problemsOf(quizWith(six))).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quizWith(six))).success).toBe(true);
+  });
+
+  it('a hidden broken interval is no problem at own pace and saves as the default', () => {
+    const broken = quizWith(selfClues({ timeLimit: 30, interval: Number.NaN }));
+    expect(problemsOf(broken)).toEqual([]);
+    expect(roundQuestions(cleaned(broken).rounds[0])[0]).toMatchObject({ cluePace: 'self', interval: LIMITS.defaultClueSeconds });
+    expect(quizSchema.safeParse(cleaned(broken)).success).toBe(true);
+  });
+
+  it('a draft keeps cluePace self and drops any other value', () => {
+    const self = selfClues({ timeLimit: 30 });
+    saveDraft('clues-self', quizWith(self));
+    expect(roundQuestions(loadDraft('clues-self')!.rounds[0])[0]).toEqual(self);
+    saveDraft('clues-magic', quizWith(selfClues({ timeLimit: 30, cluePace: 'magic' })));
+    expect('cluePace' in roundQuestions(loadDraft('clues-magic')!.rounds[0])[0]).toBe(false);
+    saveDraft('clues-timer', quizWith(selfClues({ timeLimit: 30, cluePace: 'timer' })));
+    expect('cluePace' in roundQuestions(loadDraft('clues-timer')!.rounds[0])[0]).toBe(false);
+  });
+});
+
 describe('survey in the editor (10e)', () => {
   it('a new survey is 45 seconds, three answers and five blank rows; valid once rows are filled', () => {
     const blank = newQuestion('survey');

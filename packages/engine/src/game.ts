@@ -58,7 +58,7 @@ import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
 import { scoreSurvey, stepSurvey, surveyBoard, surveyPlayOf } from './survey';
 import { bluffAuto, bluffOrder, bluffPlayOf, scoreBluff, startChoice, stepBluff } from './bluff';
-import { cluesByHost, cluesOpen, openDueClues } from './clues';
+import { cluesPaid, openDueClues } from './clues';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
 import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
@@ -174,6 +174,8 @@ export interface Play {
   overtime?: Record<string, number>;
   /** «Хто я?»: скільки підказок відкрито (від 1); лише в такому запитанні (10c). */
   clues?: number;
+  /** «Хто я?» у власному темпі (12c): скільки підказок відкрив гравець (у командній грі — команда), від 1; немає ключа — 1. */
+  clueOpens?: Record<string, number>;
   /** Лише в запитанні-стіні; гравця тут немає, поки він не надіслав жодного вибору (10d). */
   wall?: Record<string, WallProgress>;
   /** «Хмара слів»: ключі cloudKey, які ведучий сховав (10d). */
@@ -1465,7 +1467,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   // Швидкість на запасному — від миті, коли його отримано.
   const spare = buffOf(play, playerId)?.spare;
   const timeMs = Math.max(0, now - (spare?.startedAt ?? state.startedAt));
-  const { accepted, accuracy, grade } = verdictOf(asked, answer, timeMs);
+  const { accepted, accuracy, grade } = verdictOf(asked, answer, timeMs, cluesPaid(play, playerId));
   const limit = answerLimitMs(play, playerId);
   // Картинка, що проявляється, і «Хто я?» вже платять за час часткою ціни: бонусу швидкості поверх немає.
   // «100 до 1»: ціна вже спадає з популярністю, швидкість набору — не знання.
@@ -1559,7 +1561,7 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
 
   // Годинник стоїть, поки ведучий приймає: на картинці, що проявляється, і в «Хто я?» рахується час до надсилання.
   const timeMs = Math.max(0, clockOf(state, now) - (state.startedAt ?? now));
-  const verdict = verdictOf(asked, pending.answer, timeMs);
+  const verdict = verdictOf(asked, pending.answer, timeMs, cluesPaid(play, pending.playerId));
   let accuracy = verdict.accuracy;
   let accepted = verdict.accepted;
   let grade = verdict.grade;
@@ -1568,7 +1570,7 @@ export function acceptAnswer(state: GameState, playerId: string, now: number): R
     const checked = checkAnswer(asked, pending.answer);
     // Часткові бали лише за увімкненого правила; інакше неповна відповідь неправильна.
     const ruled = checked.accuracy >= 1 ? 1 : checked.accuracy > 0 && rulesOf(round).partial !== null ? checked.accuracy : 0;
-    accuracy = ruled * paceFactor(asked, timeMs);
+    accuracy = ruled * paceFactor(asked, timeMs, cluesPaid(play, pending.playerId));
     accepted = ruled >= 1;
     grade = gradeOf(ruled);
   }
@@ -1941,8 +1943,9 @@ function overrideBoard(state: GameState, round: BoardRound, playerId: string, gr
     phase === 'question' && now !== undefined && state.startedAt !== null ? Math.max(0, clockOf(state, now) - state.startedAt) : limitMs;
   const timeMs = existing?.timeMs ?? spentMs;
   // Картинка, що проявляється: оцінка ведучого — правильність, час до надсилання знижує ціну, як в acceptAnswer.
-  // «Хто я?» на усній клітинці — за підказкою, відкритою ведучим (після оцінки запитання закрите, число не змінюється).
-  const paid = accuracy * paceFactor(questionFor(state, play, playerId), timeMs, cluesByHost(play) ? cluesOpen(play) : undefined);
+  // «Хто я?» на усній клітинці — за підказкою, відкритою ведучим (після оцінки запитання закрите, число не змінюється);
+  // у власному темпі (12c) — за своїм числом.
+  const paid = accuracy * paceFactor(questionFor(state, play, playerId), timeMs, cluesPaid(play, playerId));
   const points = boardPoints(round, board, paid);
   const record: AnswerRecord = {
     answer: existing?.answer ?? board.answer,
@@ -2032,7 +2035,8 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   // Після заміни гравець відповідав на запасне: проявлення — з його запитання, як у submitAnswer.
   const asked = questionFor(state, play, playerId);
   const speed = speedFactor(record.timeMs, limit ?? 0, speedOn(round) && limit !== null && !paysForTime(asked));
-  const paid = accuracy * paceFactor(asked, record.timeMs);
+  // «Хто я?» у власному темпі (12c) — за своїм числом підказок: після відповіді воно не змінюється.
+  const paid = accuracy * paceFactor(asked, record.timeMs, cluesPaid(play, playerId));
   const points = answerPoints({
     points: question.points,
     accuracy: paid,

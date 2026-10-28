@@ -13792,3 +13792,227 @@ it('part 12b: live choices — «👁 Наживо» in a one-line host header o
     throw error;
   }
 });
+
+const SKOVORODA = {
+  id: 's1',
+  type: 'clues' as const,
+  text: 'Хто я?',
+  imageUrl: null,
+  video: null,
+  timeLimit: 60,
+  points: 1000,
+  clues: [
+    'Я народився 1722 року на Полтавщині.',
+    'Я багато років мандрував пішки.',
+    'Я писав байки, пісні й філософські діалоги.',
+    'На моєму надгробку: «Світ ловив мене, та не спіймав».',
+    'Мій портрет — на 500 гривнях.',
+  ],
+  accepted: ['Сковорода', 'Григорій Сковорода'],
+  interval: 8,
+  cluePace: 'self' as const,
+};
+
+async function selfClues12c() {
+  const host = await open('host12c', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12c@example.com');
+  const hostFrames = socketFrames(host);
+
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [SKOVORODA] as never, { title: 'Хто я', speedBonus: false, rules: DEFAULT_RULES })], {
+      leaderboard: 'end',
+      // Підказка типу над першим «Хто я?» на телефоні (8d) — лише з поясненнями для новачків.
+      newcomers: true,
+    }),
+    title: 'Хто я 12c',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const quizId = ((await saved.json()) as { id: string }).id;
+
+  // 1. Редактор на 375 px.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Хто я 12c' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  // На 375 px єдине запитання вже відкрите (перемикач «1 / 1»), кнопки «Запитання 1» немає.
+  const pace = host.getByRole('group', { name: 'Підказки відкриваються' });
+  const self = pace.getByRole('radio', { name: 'кожен сам', ...exact });
+  const timer = pace.getByRole('radio', { name: 'за таймером', ...exact });
+  const interval = field(host, 'Нова підказка кожні, с');
+  await self.waitFor();
+  expect(await self.isChecked()).toBe(true);
+  expect(await interval.count()).toBe(0);
+  expect(await host.getByText(/^Остання підказка відкриється на/).count()).toBe(0);
+  await host.getByText(/Кожен гравець сам відкриває наступну підказку/).waitFor();
+  await expectNoSideScroll(host, 'p12c-editor-375');
+  await timer.click();
+  await interval.waitFor();
+  await host.getByText(/^Остання підказка відкриється на/).waitFor();
+  await shot(host, 'p12c-editor-timer-375');
+  await self.click();
+  await expect.poll(() => interval.count(), POLL).toBe(0);
+  expect(await self.isChecked()).toBe(true);
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as {
+    rounds: { questions?: { cluePace?: string; timeLimit: number }[] }[];
+  };
+  expect(stored.rounds[0]!.questions![0]!.cluePace).toBe('self');
+  expect(stored.rounds[0]!.questions![0]!.timeLimit).toBe(60);
+
+  // Гра.
+  await host.locator('.quiz-list li', { hasText: 'Хто я 12c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage12c', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya12c', 375, 812);
+  const petro = await open('petro12c', 375, 812);
+  const ira = await open('ira12c', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const iraFrames = socketFrames(ira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+  const all = [host, stage, ...phones];
+
+  await click(host, 'Почати гру');
+  await stage.locator('.guide').waitFor();
+  await click(host, 'До гри');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  const more = (page: Page) => page.locator('.clue-more');
+  const moreText = async (page: Page) => (await more(page).textContent({ timeout: 500 }).catch(() => null))?.trim() ?? null;
+  const opensLine = stage.locator('.clue-opens');
+  const opens = () => opensLine.locator('.clue-open').allTextContents();
+  const row = (name: string) => liveRow(host, name);
+  const rowText = async (name: string, selector: string) => (await row(name).locator(selector).allTextContents()).join(' ');
+  const [c1, c2, c3, c4, c5] = SKOVORODA.clues as [string, string, string, string, string];
+
+  // 2. Перша підказка всюди.
+  for (const page of [...phones, stage]) {
+    await page.locator('.clues-list').waitFor();
+    await expect.poll(() => clueTexts(page), POLL).toEqual([c1]);
+  }
+  await expect.poll(opens, POLL).toEqual(['Оля 1', 'Петро 1', 'Іра 1']);
+  expect(await opensLine.getAttribute('class')).toContain('is-big');
+  expect(await opensLine.getAttribute('aria-label')).toBe('Скільки підказок відкрив кожен');
+  expect(await stage.locator('.clues-list .clue:not(.is-hidden)').count()).toBe(1);
+  await stage.getByText('Кожен відкриває підказки на телефоні сам: що менше підказок, то більше балів.', exact).waitFor();
+  await expect.poll(() => moreText(olya), POLL).toBe('Ще підказка · ціна стане 80 %');
+  await olya.getByRole('note').filter({ hasText: 'Підказки відкриваєш сам кнопкою «Ще підказка»' }).first().waitFor();
+  await host.getByText('Кожен відкриває підказки сам: ціна — за тим, скільки відкрив.', exact).waitFor();
+  expect(await host.locator('.host-clues li').count()).toBe(5);
+  expect(await host.locator('.host-clues .clue-state').count()).toBe(0);
+
+  // 3. Петро відкриває дві.
+  await expect.poll(() => more(petro).isEnabled(), POLL).toBe(true);
+  await more(petro).click();
+  await expect.poll(async () => (await clueTexts(petro)).length, POLL).toBe(2);
+  await expect.poll(() => moreText(petro), POLL).toBe('Ще підказка · ціна стане 60 %');
+  await more(petro).click();
+  await expect.poll(() => clueTexts(petro), POLL).toEqual([c1, c2, c3]);
+  await expect.poll(() => moreText(petro), POLL).toBe('Ще підказка · ціна стане 40 %');
+  await petro.getByText(/Підказка 3 з 5: правильна відповідь зараз — 60\s*%\s*ціни/).waitFor();
+  expect(await clueTexts(olya)).toEqual([c1]);
+  expect(await clueTexts(stage)).toEqual([c1]);
+  await expect.poll(opens, POLL).toEqual(['Оля 1', 'Петро 3', 'Іра 1']);
+  await expect.poll(() => rowText('Петро', '.live-answer'), POLL).toContain('підказка 3/5');
+  await expect.poll(() => rowText('Оля', '.live-answer'), POLL).toContain('підказка 1/5');
+  await expect.poll(() => host.locator('.host-clues .clue-opens .clue-open').allTextContents(), POLL).toEqual(['Оля 1', 'Петро 3', 'Іра 1']);
+  expect(await host.locator('#live-answers').getByText('Чекаємо:').count()).toBe(0);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'the host header wraps').toBe(true);
+  await expectNoSideScroll(petro, 'p12c-phone-more');
+  await expectNoSideScroll(host, 'p12c-host-live');
+  if (process.env.E2E_SHOTS === '1') {
+    const panel = host.locator('#live-answers');
+    await panel.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+    await panel.screenshot({ path: resolve(ARTIFACTS, 'shots', 'p12c-host-live-panel.png') });
+    await host.evaluate('scrollTo(0, 0)');
+  }
+
+  // 4. Пауза вимикає кнопку.
+  await host.getByRole('button', { name: 'Пауза', ...exact }).first().click();
+  await expect.poll(() => more(ira).isDisabled(), POLL).toBe(true);
+  await shot(ira, 'p12c-phone-paused');
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).last().click();
+  await expect.poll(() => more(ira).isEnabled(), POLL).toBe(true);
+  await more(ira).click();
+  await expect.poll(() => clueTexts(ira), POLL).toEqual([c1, c2]);
+  await expect.poll(opens, POLL).toEqual(['Оля 1', 'Петро 3', 'Іра 2']);
+
+  // 5. Перепідключення: свої підказки лишаються.
+  await petro.reload();
+  await petro.locator('.clues-list').waitFor();
+  await expect.poll(() => clueTexts(petro), POLL).toEqual([c1, c2, c3]);
+  await expect.poll(() => moreText(petro), POLL).toBe('Ще підказка · ціна стане 40 %');
+
+  // 6. Сцена.
+  expect(await stage.locator('.clues-list .clue:not(.is-hidden)').count()).toBe(1);
+  expect(await stage.locator('.clues-list .clue.is-hidden').count()).toBe(4);
+  await expectStageInView(stage, 'p12c-stage-question');
+  await shot(stage, 'p12c-stage-question');
+
+  // 7. Таємність до розкриття.
+  const stageText = stageFrames.join(NL);
+  expect(stageFrames.length).toBeGreaterThan(0);
+  for (const secret of [c2, c3, c4, c5, 'Сковорода']) expect(stageText, `the stage got «${secret}» before the reveal`).not.toContain(secret);
+  for (const [who, frames, secrets] of [
+    ['Оля', olyaFrames, [c2, c3, c4, c5]],
+    ['Іра', iraFrames, [c3, c4, c5]],
+    ['Петро', petroFrames, [c4, c5]],
+  ] as const) {
+    const text = frames.join(NL);
+    expect(text, `${who}: no frames`).toContain(c1);
+    for (const secret of secrets) expect(text, `${who} got «${secret}» before the reveal`).not.toContain(secret);
+  }
+  expect(hostFrames.join(NL), 'the host frames miss the last clue').toContain(c5);
+
+  // 8. Відповіді.
+  await field(olya, 'Ваша відповідь').fill('Сковорода');
+  await click(olya, 'Відповісти');
+  await expect.poll(() => more(olya).count(), POLL).toBe(0);
+  await expect.poll(() => rowText('Оля', '.meta'), POLL).toContain('на підказці 1');
+  await field(petro, 'Ваша відповідь').fill('Григорій Сковорода');
+  await click(petro, 'Відповісти');
+  await expect.poll(() => more(petro).count(), POLL).toBe(0);
+  await click(host, 'Закрити запитання');
+  await host.getByText('Запитання закрите').waitFor();
+
+  // 9. Розкриття.
+  await click(host, 'Показати відповідь');
+  await expect.poll(async () => (await clueTexts(stage)).length, POLL).toBe(5);
+  await stage.locator('.clue-opens.is-big.is-revealed').waitFor();
+  await expect.poll(opens, POLL).toEqual(['Оля — на підказці 1', 'Петро — на підказці 3', 'Іра — без відповіді']);
+  await host.locator('li', { hasText: 'Петро' }).getByText('на підказці 3', exact).first().waitFor();
+  expect(await scoreOf(host, 'Оля')).toBe(1000);
+  expect(await scoreOf(host, 'Петро')).toBe(600);
+  expect(await scoreOf(host, 'Іра')).toBe(0);
+  await expectStageInView(stage, 'p12c-stage-reveal');
+  await shot(stage, 'p12c-stage-reveal');
+  await expect.poll(async () => (await clueTexts(petro)).length, POLL).toBe(5);
+  await expectNoSideScroll(petro, 'p12c-phone-reveal');
+  await shot(host, 'p12c-host-reveal');
+
+  // 10. П'єдестал.
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12c: «Хто я?» at own pace — the editor switch on 375 px, each phone opens its own clues with «Ще підказка · ціна стане N %», the 1280 × 720 stage shows only the first clue and «Оля 1 · Петро 3 · Іра 2», the host sees «підказка 3/5» live, a pause disables the button, a reload keeps the own clues, different prices for the same right answer, and the reveal names the clue each answered on', async () => {
+  try {
+    await selfClues12c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});

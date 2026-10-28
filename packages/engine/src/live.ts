@@ -17,7 +17,7 @@ import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
 import { chainOf } from './chain';
-import { cluesAnswered } from './clues';
+import { cluesAnswered, cluesBySelf, cluesOpenBy, cluesPaid } from './clues';
 import { currentRound, recordOf, type AnswerRecord, type BlitzPlay, type GameState, type Play } from './game';
 import { buffOf, questionFor } from './buffs';
 import { sortOf, sortSeq } from './sort';
@@ -45,7 +45,7 @@ export function spareOf(state: GameState, id: string | undefined): Question | nu
 export function responseClue(state: GameState, playerId: string, timeMs: number): number | null {
   const play = state.plays[state.questionIndex];
   if (play === undefined || play.blitz !== undefined || currentRound(state)?.type === 'final') return null;
-  return cluesAnswered(play, questionFor(state, play, playerId), timeMs);
+  return cluesAnswered(play, questionFor(state, play, playerId), timeMs, playerId);
 }
 
 /** Попередній вердикт автоперевірки (verdictOf(...).grade). */
@@ -120,6 +120,10 @@ function wagerOf(play: Play, id: string): LiveRow['wager'] {
 /** Поступ рядка за типом запитання (ланцюжок, сортування, стіна, блеф, «100 до 1»); інакше null. answer — запис чи відповідь поля до «Прийняти». */
 function progressOf(state: GameState, play: Play, id: string, answer: Answer | null): LiveProgress | null {
   const question = play.question;
+  // «Хто я?» у власному темпі (12c): скільки відкрито — біля кожного рядка (з відповіддю теж, номер підказки — у clue).
+  if (question.type === 'clues' && cluesBySelf(play) && questionFor(state, play, id) === question) {
+    return { kind: 'clues', opened: cluesOpenBy(play, id), total: question.clues.length };
+  }
   if (question.type === 'chain') {
     const { solved, hints } = chainOf(state, id);
     return { kind: 'chain', solved, total: question.words.length - 1, word: question.words[solved + 1] ?? null, hints };
@@ -221,7 +225,12 @@ function answerRow(state: GameState, play: Play, who: Answerer, unscored: boolea
   if (first !== null) return { ...base, answered: true, answer: first.answer, timeMs: first.timeMs, verdict: first.grade };
   // Поле до «Прийняти»: відповідь чекає ведучого.
   const held = board?.answer ?? null;
-  if (held !== null) return { ...base, answered: true, answer: held, verdict: previewVerdict(questionFor(state, play, id), held, 0), awaiting: true };
+  if (held !== null) {
+    const shown = questionFor(state, play, id);
+    // Власний темп і усна клітинка знають підказку й до «Прийняти»; за часом — ні (часу відповіді ще немає).
+    const clue = shown.type === 'clues' && shown === play.question ? (cluesPaid(play, id) ?? null) : null;
+    return { ...base, answered: true, answer: held, verdict: previewVerdict(shown, held, 0), awaiting: true, clue };
+  }
   return voice ? { ...base, awaiting: true } : base;
 }
 
