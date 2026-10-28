@@ -11226,3 +11226,54 @@ button.wall-tile:disabled {
 .fact-table td:first-child {
   text-align: left;
 }
+
+/* Тривога антигугла (12e): повноекранний червоний шар на телефоні того, хто виходив із гри.
+   Над заставкою (65), сповіщеннями (66), аркушами (70–75), вікном дуелі (80) і смугою «Немає зв'язку» (90). */
+.away-alarm {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-content: center;
+  gap: 0.75rem;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
+  background: #c62828;
+  color: #fff;
+  text-align: center;
+  cursor: pointer;
+}
+
+.away-alarm-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 8vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.away-alarm-penalty {
+  margin: 0;
+  font-size: clamp(1.25rem, 5.5vw, 1.75rem);
+  font-weight: 700;
+}
+
+/* Пульс — лише без «менше руху»; інакше статичне червоне тло. */
+@media (prefers-reduced-motion: no-preference) {
+  .away-alarm {
+    animation: away-pulse 0.5s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes away-pulse {
+  from {
+    background-color: #c62828;
+  }
+  to {
+    background-color: #ff1744;
+  }
+}
+
+/* «Ти виходив із гри на 8 с — це видно всім» під запитанням. */
+.away-note {
+  color: var(--signal);
+}

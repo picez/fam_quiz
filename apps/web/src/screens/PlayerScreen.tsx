@@ -7,6 +7,7 @@ import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
 import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
+import { AwayAlarm, AwayNote } from '../live/AwayAlarm';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
 import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
@@ -861,6 +862,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {team !== null && !captain && me.debuff !== null && <DebuffStrip debuff={me.debuff} />}
           <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)}>{question.text}</h1>
+            <AwayNote away={view.away} />
             {/* Власна картинка точки — це основа мапи, вона вже в рамці. */}
             <RevealImage url={question.pin !== null ? null : question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />
             {question.reveal && me.answer === null && (
@@ -1006,6 +1008,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       {phase === 'locked' && (
         <>
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
+          <AwayNote away={view.away} />
           {/* Відповіді закрито: картинка, що проявлялася, вже повна. */}
           {question?.reveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStageNow} />}
           {question?.clues != null && <CluesList clues={question.clues} offsetMs={offsetMs} />}
@@ -1075,6 +1078,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       {phase === 'reveal' && (
         <>
           <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
+          <AwayNote away={view.away} />
           {view.final !== null ? (
             <FinalResult view={view} />
           ) : isBluff ? (
@@ -1228,6 +1232,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {error}
         </p>
       )}
+      {/* Тривога (12e) — останній шар екрана, над заставками, аркушами й смугою «Немає зв'язку». */}
+      <AwayAlarm code={code} away={view.lastAway} />
     </main>
   );
 }

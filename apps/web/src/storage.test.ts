@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
-import { clearAuthor, clearPlayer, loadAuthor, loadHost, loadPlayer, saveAuthor, saveHost, savePlayer } from './storage';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearAuthor, clearPlayer, loadAlarmSeen, loadAuthor, loadHost, loadPlayer, saveAlarmSeen, saveAuthor, saveHost, savePlayer } from './storage';
 
 beforeEach(() => localStorage.clear());
 
@@ -59,5 +59,27 @@ describe('storage', () => {
     localStorage.setItem('quiz:author:654321', '{"stageToken":1}');
     expect(loadAuthor('123456')).toBeNull();
     expect(loadAuthor('654321')).toBeNull();
+  });
+
+  it('remembers the last leave that already alarmed, per game code (12e)', () => {
+    expect(loadAlarmSeen('123456')).toBeNull();
+    saveAlarmSeen('123456', '123456:3:1');
+    saveAlarmSeen('654321', '654321:0:2');
+    expect(loadAlarmSeen('123456')).toBe('123456:3:1');
+    expect(loadAlarmSeen('654321')).toBe('654321:0:2');
+    expect(localStorage.getItem('quiz:alarm:123456')).toBe('123456:3:1');
+  });
+
+  it('a throwing localStorage reads the alarm key as missing and writes nothing, without an error', () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    expect(() => saveAlarmSeen('123456', '123456:3:1')).not.toThrow();
+    expect(loadAlarmSeen('123456')).toBeNull();
+    getItem.mockRestore();
+    setItem.mockRestore();
   });
 });

@@ -78,3 +78,7 @@ const LAST_GAME = 'quiz:last-game';
 export const loadLastGame = (): string | null => read(LAST_GAME);
 export const saveLastGame = (code: string): void => write(LAST_GAME, code);
 export const clearLastGame = (): void => write(LAST_GAME, null);
+
+/** Останній вихід, для якого телефон уже показав тривогу (12e): `${code}:${play}:${count}`; null — не було. */
+export const loadAlarmSeen = (code: string): string | null => read(`quiz:alarm:${code}`);
+export const saveAlarmSeen = (code: string, key: string): void => write(`quiz:alarm:${code}`, key);
