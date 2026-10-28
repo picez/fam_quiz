@@ -106,6 +106,7 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
+import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
@@ -1639,7 +1640,7 @@ function base(state: GameState, forHost: boolean) {
   return {
     autopilot: state.autopilot !== undefined,
     facts: sharedFacts(state),
-    appeal: null,
+    appeal: appealView(state),
     phase: state.phase,
     paused: state.paused,
     round: roundInfo(state),
@@ -1988,14 +1989,15 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   const member = memberOf(state, playerId);
   if (member === undefined) return null;
   const team = playerTeam(state, member);
-  const view = member.teamId === null ? null : ownView(state, member.teamId);
-  if (view === null) return lobbyView(state, member, team);
+  const teamId = member.teamId;
+  const view = teamId === null ? null : ownView(state, teamId);
+  if (view === null || teamId === null) return lobbyView(state, member, team);
   // Опитування й «хмару» кожен проходить сам: власний голос, а не запис команди (його немає).
   const vote = unscoredNow(state) ? publicAnswer(recordOf(state, state.questionIndex, member.id)?.answer ?? null, isRevealed(state)) : view.me.answer;
   // Свій вихід — людини, а не команди: зріз команди спільний, тож away додається тут, як vote.
   return {
     ...view,
-    me: { ...view.me, answer: vote, vote: votePrompt(state, member.id) },
+    me: { ...view.me, answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
@@ -2178,7 +2180,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       overtime: personalClock(state, playerId),
       tip: typeTip(state, playerId),
       vote: votePrompt(state, playerId),
-      appeal: null,
+      // Командна гра: зріз спільний для команди, а апеляція людини (свій голос) — у playerView поверх нього.
+      appeal: teamsOn(state) ? null : playerAppeal(state, playerId, playerId),
     },
     reveal: revealed && seen !== null ? withoutBluffSecrets(withoutSurveyRows(withoutHint(seen.question))) : null,
     standings,

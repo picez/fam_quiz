@@ -8,10 +8,13 @@ import {
   appealDecision,
   undoLedger,
   type AppealReason,
+  type AppealView,
   type Grade,
+  type PlayerAppeal,
 } from '@quiz/shared';
 import { addAdjustment } from './adjust';
 import { awayAppealTotal, awayPenalized } from './away';
+import { questionFor } from './buffs';
 import { fail, ok, override, recordOf, type Appeal, type GameState, type Result } from './game';
 import { presentPlayers } from './present';
 import { actorOf } from './team-act';
@@ -272,4 +275,65 @@ export function dropFromAppeals(state: GameState, removedId: string, now?: numbe
     s = withAppeal(state, { ...open, votes });
   }
   return now === undefined ? s : settleAppeal(s, now);
+}
+
+/** Бали, які зняв би штраф за вихід учасника на запитанні q: бали запису плюс нескасовані бали апеляції, не менше 0. */
+function awayStake(state: GameState, participant: string, q: number): number {
+  return Math.max(0, (recordOf(state, q, participant)?.points ?? 0) + appealAdjustmentTotal(state, participant, q));
+}
+
+/** Бали картки: відкрита — скільки дасть «так»; «так» — що дала; інакше 0. */
+function appealViewPoints(state: GameState, appeal: Appeal): number {
+  if (appeal.outcome === null) {
+    if (!state.players.some((p) => p.id === appeal.by)) return 0;
+    return appeal.reason === 'grade' ? appealPoints(state, appeal.by) : awayStake(state, appeal.by, appeal.questionIndex);
+  }
+  if (appeal.outcome !== 'yes') return 0;
+  if (appeal.adjustmentSeq !== undefined) return state.adjustments.find((a) => a.seq === appeal.adjustmentSeq)?.points ?? 0;
+  return appeal.reason === 'away' ? awayStake(state, appeal.by, appeal.questionIndex) : 0;
+}
+
+/** Картка апеляції (12f) для сцени, пульта й телефонів: lastAppeal на reveal; лічильники без імен; null — немає. */
+export function appealView(state: GameState): AppealView | null {
+  const appeal = lastAppeal(state);
+  // Скасована апеляція картки не має: розкриття вже скінчилося.
+  if (appeal === null || appeal.outcome === 'cancelled') return null;
+  const play = state.plays[appeal.questionIndex];
+  if (play === undefined) return null;
+  const open = appeal.outcome === null;
+  const { yes, no } = appealTally(state, appeal);
+  // Голоси (хто як) у зріз не йдуть: лише лічильники.
+  const waiting = open ? appealVoters(state, appeal.by).filter((id) => !Object.hasOwn(appeal.votes, id)).length : 0;
+  const paused = state.paused && state.pausedAt !== null;
+  return {
+    id: appeal.id,
+    by: { playerId: appeal.by, nickname: state.players.find((p) => p.id === appeal.by)?.nickname ?? '' },
+    reason: appeal.reason,
+    answer: appeal.reason === 'grade' ? (recordOf(state, appeal.questionIndex, appeal.by)?.answer ?? null) : null,
+    question: questionFor(state, play, appeal.by),
+    points: appealViewPoints(state, appeal),
+    endsAt: open && !paused ? appeal.endsAt : null,
+    remainingMs: open && paused ? Math.max(0, appeal.endsAt - state.pausedAt!) : null,
+    yes,
+    no,
+    waiting,
+    outcome: appeal.outcome,
+  };
+}
+
+/** Своя апеляція людини (personId) її учасника рушія (participant) на reveal; інакше null. */
+export function playerAppeal(state: GameState, personId: string, participant: string): PlayerAppeal | null {
+  if (state.phase !== 'reveal' || !state.players.some((p) => p.id === participant)) return null;
+  const left = appealsLeft(state, participant);
+  const open = appealOpen(state);
+  const voter = open !== null && appealVoters(state, open.by).includes(personId);
+  const vote = voter && Object.hasOwn(open.votes, personId) ? open.votes[personId] : null;
+  const fit = open === null && left > 0 ? appealReasons(state, participant) : [];
+  if (fit.length === 0) return { left, reasons: [], block: null, voter, vote };
+  // Капітан має перевагу: некапітан кнопки не має, хоч би й голосувати було кому.
+  const who = actorOf(state, personId, 'captain');
+  if (!who.ok || who.id !== participant) return { left, reasons: [], block: 'captain', voter, vote };
+  if (appealVoters(state, participant).length === 0) return { left, reasons: [], block: 'no_voters', voter, vote };
+  // Усі перевірки openAppeal пройдено, крім паузи: на паузі кнопки немає (openAppeal відмовив би).
+  return { left, reasons: state.paused ? [] : fit, block: null, voter, vote };
 }
