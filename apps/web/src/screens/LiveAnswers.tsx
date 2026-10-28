@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { HostLive, HostView, LiveDraft, LiveRow, Question, SortTilt } from '@quiz/shared';
 import { awayRowTexts } from '../away-text';
+import { AwayLabel } from './AwayLabel';
 import { answerText, num, secondsText, sliderNumber } from '../format';
 import { t, type TextKey } from '../i18n';
 import { HelpButton } from '../help/HelpButton';
@@ -201,7 +202,7 @@ function Row({ row, view, tilts, drafts, now }: { row: LiveRow } & RowContext) {
 function AwayMarks({ row, view }: { row: LiveRow; view: HostView }) {
   return awayRowTexts(row.id, row.away, view.teams !== null).map((text, index) => (
     <span key={row.away[index]?.personId ?? index} className="meta live-away">
-      {text}
+      <AwayLabel text={text} />
     </span>
   ));
 }

@@ -2282,6 +2282,9 @@ describe('StageScreen: away (12e)', () => {
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, remainingMs: 20_000, playerCount: 3, away: ['Оля', 'Петро'] }));
     const line = document.querySelector('header.bar .away-line') as HTMLElement;
     expect(line.textContent).toBe('🙈 Оля, Петро');
+    // Повний перелік — у підказці: довгий рядок обрізається трикрапкою; емодзі — лише для ока.
+    expect(line.title).toBe('Оля, Петро');
+    expect(line.querySelector('[aria-hidden="true"]')?.textContent).toBe('🙈');
     expect(within(line).queryByText(/\d+ с/)).toBeNull();
   });
 

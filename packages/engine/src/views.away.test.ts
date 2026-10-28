@@ -165,12 +165,28 @@ describe('the last leave stays on the own phone after the question (12e)', () =>
     expect(s.phase).toBe('question');
     expect(s.questionIndex).toBe(1);
     expect(s.plays[1].away?.p1?.since).not.toBeNull();
-    // ще поза грою: на Q2 ще немає позначки, тож lastAway — Q1
-    expect(playerView(s, 'p1')?.lastAway?.play).toBe(0);
+    // ще поза грою на Q2: lastAway — відкритий Q2 з out, хоч позначки там ще немає (тривога чекає на повернення)
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 1, out: true });
     // телефон сховано ще до старту Q2: перші AWAY_MS.preGrace не рахуються
     s = awayEnd(s, 'p1', 16_000);
     expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 1, ms: 16_000 - (s.startedAt ?? 0) - AWAY_MS.preGrace, count: 1, out: false });
     expect(playerView(s, 'p1')?.away).toMatchObject({ play: 1 });
+  });
+
+  it('one leave over two questions rings once: hidden through Q1 into Q2, lastAway is the open Q2 until the return', () => {
+    // Оля ховає телефон у Q1 й не повертається: Q1 закривається з позначкою, Q2 стартує з відкритим інтервалом (ще в пільзі)
+    let s = awayStart(open(), 'p1', 2000);
+    s = othersToReveal(s, 5000, right);
+    s = step(s, must(next(s, 7000, rng)), 7000, new Set(['p1']));
+    s = step(s, must(next(s, 8000, rng)), 8000, new Set(['p1']));
+    expect(s.questionIndex).toBe(1);
+    expect(s.plays[0].away?.p1).toMatchObject({ ms: 3000, since: null });
+    expect(s.plays[1].away?.p1?.since).not.toBeNull();
+    // поки інтервал Q2 відкритий — out: true, хоч його ms ще 0, тож тривоги для Q1 нема
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 1, ms: 0, count: 0, out: true });
+    // повернення в межах пільги: Q2 без позначки, лишається Q1 — одна тривога за весь вихід
+    s = awayEnd(s, 'p1', (s.startedAt ?? 0) + 1000);
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 0, ms: 3000, out: false });
   });
 
   it('the game finished after the last question: lastAway is still there', () => {

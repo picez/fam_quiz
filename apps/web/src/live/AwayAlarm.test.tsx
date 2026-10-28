@@ -5,22 +5,27 @@ import { AWAY_MS, type OwnAway } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
-import { playSiren } from '../siren';
+import { playSiren, unlockSiren } from '../siren';
 import { loadAlarmSeen } from '../storage';
 import { alarmKey, AwayAlarm, AwayNote } from './AwayAlarm';
 
 const { stop } = vi.hoisted(() => ({ stop: vi.fn() }));
-vi.mock('../siren', () => ({ playSiren: vi.fn(() => stop) }));
+vi.mock('../siren', () => ({ playSiren: vi.fn(() => stop), unlockSiren: vi.fn() }));
 
 let visibility: 'visible' | 'hidden' = 'visible';
+let vibrate: ReturnType<typeof vi.fn>;
 const away = (over: Partial<OwnAway> = {}): OwnAway => ({ play: 3, ms: 4200, count: 1, out: false, penalty: false, ...over });
+const Alarm = ({ value, person = 'p1' }: { value: OwnAway | null; person?: string }) => <AwayAlarm code="123456" person={person} away={value} />;
 
 beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
   visibility = 'visible';
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
+  vibrate = vi.fn(() => true);
+  Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate });
   vi.mocked(playSiren).mockClear();
+  vi.mocked(unlockSiren).mockClear();
   stop.mockClear();
 });
 
@@ -28,42 +33,64 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   Reflect.deleteProperty(document, 'visibilityState');
+  Reflect.deleteProperty(navigator, 'vibrate');
 });
 
 describe('alarmKey', () => {
-  it('a closed leave from the mark that was not shown yet gives its key', () => {
-    expect(alarmKey('123456', away(), null)).toBe('123456:3:1');
-    expect(alarmKey('123456', away({ ms: AWAY_MS.mark }), '123456:3:0')).toBe('123456:3:1');
+  it('a closed leave from the mark that was not shown yet gives its key, with the person', () => {
+    expect(alarmKey('123456', 'p1', away(), null)).toBe('123456:p1:3:1');
+    expect(alarmKey('123456', 'm2', away({ ms: AWAY_MS.mark }), '123456:m2:3:0')).toBe('123456:m2:3:1');
+    // Той самий код і запитання в давній грі (інша людина) не заважає.
+    expect(alarmKey('123456', 'p9', away(), '123456:p1:3:1')).toBe('123456:p9:3:1');
   });
 
   it('nothing for no leave, a leave still open, a short one or one already shown', () => {
-    expect(alarmKey('123456', null, null)).toBeNull();
-    expect(alarmKey('123456', away({ out: true }), null)).toBeNull();
-    expect(alarmKey('123456', away({ ms: AWAY_MS.mark - 1 }), null)).toBeNull();
-    expect(alarmKey('123456', away({ count: 0 }), null)).toBeNull();
-    expect(alarmKey('123456', away(), '123456:3:1')).toBeNull();
+    expect(alarmKey('123456', 'p1', null, null)).toBeNull();
+    expect(alarmKey('123456', 'p1', away({ out: true }), null)).toBeNull();
+    expect(alarmKey('123456', 'p1', away({ ms: AWAY_MS.mark - 1 }), null)).toBeNull();
+    expect(alarmKey('123456', 'p1', away({ count: 0 }), null)).toBeNull();
+    expect(alarmKey('123456', 'p1', away(), '123456:p1:3:1')).toBeNull();
   });
 });
 
 describe('AwayAlarm', () => {
-  it('turns the screen red with the alarm text and the siren', () => {
-    render(<AwayAlarm code="123456" away={away()} />);
+  it('turns the screen red with the alarm text, the siren and the vibration', () => {
+    render(<Alarm value={away()} />);
     const alert = screen.getByRole('alert');
     expect(alert.className).toBe('away-alarm');
-    expect(alert.textContent).toContain('🚨 Ти виходив із гри під час запитання!');
+    expect(alert.textContent).toContain('🚨 Вихід із гри під час запитання!');
+    expect(alert.querySelector('[aria-hidden="true"]')?.textContent).toBe('🚨');
     expect(alert.textContent).not.toContain('0 балів');
     expect(playSiren).toHaveBeenCalledTimes(1);
     expect(playSiren).toHaveBeenCalledWith(AWAY_MS.alarm);
-    expect(loadAlarmSeen('123456')).toBe('123456:3:1');
+    expect(vibrate).toHaveBeenCalledWith([300, 100, 300, 100, 300]);
+    expect(loadAlarmSeen()).toBe('123456:p1:3:1');
+  });
+
+  it('without vibration it still alarms', () => {
+    Reflect.deleteProperty(navigator, 'vibrate');
+    render(<Alarm value={away()} />);
+    expect(screen.getByRole('alert')).not.toBeNull();
   });
 
   it('says the question gives 0 with the penalty', () => {
-    render(<AwayAlarm code="123456" away={away({ penalty: true })} />);
+    render(<Alarm value={away({ penalty: true })} />);
     expect(screen.getByRole('alert').textContent).toContain('0 балів за це запитання');
   });
 
+  it('a penalty that arrives for the same leave while shown updates the text without a restart', () => {
+    const { rerender } = render(<Alarm value={away()} />);
+    act(() => vi.advanceTimersByTime(1000));
+    rerender(<Alarm value={away({ penalty: true })} />);
+    expect(screen.getByRole('alert').textContent).toContain('0 балів за це запитання');
+    expect(playSiren).toHaveBeenCalledTimes(1);
+    expect(stop).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(AWAY_MS.alarm - 1000));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('goes away by itself after the alarm time and stops the siren', () => {
-    render(<AwayAlarm code="123456" away={away()} />);
+    render(<Alarm value={away()} />);
     act(() => vi.advanceTimersByTime(AWAY_MS.alarm - 1));
     expect(screen.queryByRole('alert')).not.toBeNull();
     act(() => vi.advanceTimersByTime(1));
@@ -71,47 +98,88 @@ describe('AwayAlarm', () => {
     expect(stop).toHaveBeenCalled();
   });
 
-  it('a tap closes it early and stops the siren', () => {
-    render(<AwayAlarm code="123456" away={away()} />);
+  it('a tap closes it early, stops the siren and unlocks the siren for the next time', () => {
+    render(<Alarm value={away()} />);
     fireEvent.click(screen.getByRole('alert'));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(stop).toHaveBeenCalled();
+    expect(unlockSiren).toHaveBeenCalled();
+  });
+
+  it('Escape closes it', () => {
+    render(<Alarm value={away()} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('alert')).toBeNull();
     expect(stop).toHaveBeenCalled();
   });
 
+  it('the rest of the screen is inert while shown and comes back after', () => {
+    const { container } = render(
+      <main>
+        <button type="button">Відповісти</button>
+        <p className="already" inert>
+          x
+        </p>
+        <Alarm value={away()} />
+      </main>,
+    );
+    const button = container.querySelector('button')!;
+    expect(button.hasAttribute('inert')).toBe(true);
+    expect(container.querySelector('.away-alarm')!.hasAttribute('inert')).toBe(false);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(button.hasAttribute('inert')).toBe(false);
+    // Те, що було inert до тривоги, таким і лишається.
+    expect(container.querySelector('.already')!.hasAttribute('inert')).toBe(true);
+  });
+
   it('once per leave: a fresh mount with the same leave (reload) stays quiet, the next leave alarms again', () => {
-    const first = render(<AwayAlarm code="123456" away={away()} />);
+    const first = render(<Alarm value={away()} />);
     first.unmount();
     expect(stop).toHaveBeenCalled();
     vi.mocked(playSiren).mockClear();
-    const again = render(<AwayAlarm code="123456" away={away()} />);
+    const again = render(<Alarm value={away()} />);
     expect(screen.queryByRole('alert')).toBeNull();
     expect(playSiren).not.toHaveBeenCalled();
-    again.rerender(<AwayAlarm code="123456" away={away({ count: 2, ms: 6100 })} />);
+    again.rerender(<Alarm value={away({ count: 2, ms: 6100 })} />);
     expect(screen.getByRole('alert')).not.toBeNull();
     expect(playSiren).toHaveBeenCalledTimes(1);
   });
 
   it('a leave seen on the next question (no count growth seen by this mount) still alarms once', () => {
-    const { rerender } = render(<AwayAlarm code="123456" away={null} />);
-    rerender(<AwayAlarm code="123456" away={away({ play: 4, count: 1 })} />);
+    const { rerender } = render(<Alarm value={null} />);
+    rerender(<Alarm value={away({ play: 4, count: 1 })} />);
     expect(screen.getByRole('alert')).not.toBeNull();
-    expect(loadAlarmSeen('123456')).toBe('123456:4:1');
+    expect(loadAlarmSeen()).toBe('123456:p1:4:1');
+  });
+
+  it('one leave over two questions rings once: the open next question first, then its closed leave', () => {
+    // Сервер: поки інтервал наступного запитання відкритий, lastAway — він з out (а не закритий попередній).
+    const { rerender } = render(<Alarm value={away({ play: 4, ms: 0, count: 0, out: true })} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    rerender(<Alarm value={away({ play: 4, ms: 9000, count: 1, out: false })} />);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(playSiren).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(AWAY_MS.alarm));
+    rerender(<Alarm value={away({ play: 4, ms: 9000, count: 1, out: false, penalty: true })} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(playSiren).toHaveBeenCalledTimes(1);
   });
 
   it('nothing while the leave is open, below the mark or without a leave', () => {
-    const { rerender } = render(<AwayAlarm code="123456" away={away({ out: true })} />);
-    rerender(<AwayAlarm code="123456" away={away({ ms: 1500 })} />);
-    rerender(<AwayAlarm code="123456" away={null} />);
+    const { rerender } = render(<Alarm value={away({ out: true })} />);
+    rerender(<Alarm value={away({ ms: 1500 })} />);
+    rerender(<Alarm value={null} />);
     expect(screen.queryByRole('alert')).toBeNull();
     expect(playSiren).not.toHaveBeenCalled();
+    expect(vibrate).not.toHaveBeenCalled();
   });
 
   it('a hidden page waits and alarms the moment it is visible again', () => {
     visibility = 'hidden';
-    render(<AwayAlarm code="123456" away={away()} />);
+    render(<Alarm value={away()} />);
     expect(screen.queryByRole('alert')).toBeNull();
     expect(playSiren).not.toHaveBeenCalled();
-    expect(loadAlarmSeen('123456')).toBeNull();
+    expect(loadAlarmSeen()).toBeNull();
     visibility = 'visible';
     act(() => {
       document.dispatchEvent(new Event('visibilitychange'));
@@ -127,7 +195,7 @@ describe('AwayAlarm', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('denied');
     });
-    render(<AwayAlarm code="123456" away={away()} />);
+    render(<Alarm value={away()} />);
     expect(screen.getByRole('alert')).not.toBeNull();
     getItem.mockRestore();
     setItem.mockRestore();
@@ -137,7 +205,7 @@ describe('AwayAlarm', () => {
 describe('AwayNote', () => {
   it('says how long the phone was out, from the mark', () => {
     const { container, rerender } = render(<AwayNote away={away({ ms: 8400 })} />);
-    expect(container.querySelector('.away-note')?.textContent).toBe('Ти виходив із гри на 8 с — це видно всім');
+    expect(container.querySelector('.away-note')?.textContent).toBe('Тебе не було в грі 8 с — ведучий і екран це бачать');
     rerender(<AwayNote away={away({ ms: 8400, penalty: true })} />);
     expect(container.querySelector('.away-note')?.textContent).toContain('За це запитання буде 0 балів');
     rerender(<AwayNote away={away({ ms: 1500 })} />);

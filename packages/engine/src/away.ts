@@ -299,9 +299,12 @@ export function ownAway(state: GameState, personId: string): OwnAway | null {
 /**
  * Останній вихід людини з позначкою (ms ≥ AWAY_MS.mark): від поточного запитання назад; на будь-якому етапі, крім лобі (і в кінці гри).
  * Тож телефон, що повернувся лише на таблиці чи на наступному запитанні, однаково бачить закритий вихід (тривога, штраф). null — такого немає.
+ * Відкритий інтервал поточного запитання (людина зараз поза грою) — це він з out: true за будь-якого ms: вихід, що тягнеться
+ * з попереднього запитання в це (пільга AWAY_MS.preGrace тримає ms під позначкою), не дає тривоги за попереднє, а потім ще одної.
  */
 export function lastAway(state: GameState, personId: string): OwnAway | null {
   if (state.phase === 'lobby') return null;
+  if (state.plays[state.questionIndex]?.away?.[personId]?.since != null) return ownAwayAt(state, personId, state.questionIndex);
   for (let q = Math.min(state.questionIndex, state.plays.length - 1); q >= 0; q--) {
     const entry = state.plays[q]?.away?.[personId];
     if (entry !== undefined && entry.ms >= AWAY_MS.mark) return ownAwayAt(state, personId, q);

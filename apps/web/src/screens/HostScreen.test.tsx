@@ -2927,7 +2927,7 @@ describe('away marks (12e)', () => {
   it('the answer table names how long a player was away on the reveal', () => {
     show(during('reveal', single, { responses: [olena()] }));
     const row = screen.getByText('Київ').closest('li') as HTMLElement;
-    expect(row.querySelector('.response-away')?.textContent).toBe('🙈 відволікався 4 с (1 раз)');
+    expect(row.querySelector('.response-away')?.textContent).toBe('🙈 поза грою 4 с (1 раз)');
   });
 
   it('a team row names the person who left; nobody away — no mark', () => {

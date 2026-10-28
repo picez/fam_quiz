@@ -5,6 +5,7 @@ import { joinGame } from '../api';
 import { errorText, t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
 import { useAwayWatch } from '../live/useAwayWatch';
+import { useSirenUnlock } from '../live/useSirenUnlock';
 import { useWakeLock } from '../live/useWakeLock';
 import { PlayerScreen } from '../screens/PlayerScreen';
 import { clearAuthor, clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
@@ -74,6 +75,8 @@ export function Play() {
   const game = useGame(auth);
   // Антигугл (12e): телефон гравця каже серверу, коли виходить із гри й повертається.
   useAwayWatch(game.send, game.status, game.view);
+  // Сирена тривоги (12e) розблоковується першим жестом: iOS не дає звуку контексту, створеному поза жестом.
+  useSirenUnlock();
   // Екран не гасне від входу до кінця гри: заблокований телефон на столі не має виглядати виходом.
   useWakeLock(game.view !== null && game.view.role === 'player' && game.view.phase !== 'finished');
 

@@ -1,7 +1,7 @@
 import { awaySeconds, type AwayMark } from '@quiz/shared';
 import { countText, t } from './i18n';
 
-/** «🙈 відволікався 12 с (2 рази)», «🙈 зараз поза грою», «🙈 зараз поза грою · 12 с (2 рази)»; withName — «🙈 Оля: відволікався 4 с (1 раз)». */
+/** «🙈 поза грою 12 с (2 рази)», «🙈 зараз поза грою», «🙈 зараз поза грою · 12 с (2 рази)»; withName — «🙈 Оля: поза грою 4 с (1 раз)». */
 export function awayMarkText(mark: AwayMark, withName: boolean): string {
   const vars = { name: mark.nickname, seconds: awaySeconds(mark.ms), times: countText('awayTimes', mark.count, { count: mark.count }) };
   if (!mark.out) return t(withName ? 'awayMarkNamed' : 'awayMark', vars);

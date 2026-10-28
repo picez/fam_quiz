@@ -3,6 +3,7 @@ import { hallPoints, type BoardInfo, type Choice, type FinalInfo, type Question 
 import { LETTERS, answerText, choiceLabel, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t, type TextKey } from '../i18n';
 import { stageAwayText } from '../away-text';
+import { AwayLabel } from './AwayLabel';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
@@ -209,8 +210,12 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
     <div className={view.wipeout !== null ? 'stage-question has-wipeout-side' : 'stage-question'} aria-busy={busy || undefined}>
       <header className="bar">
         <span>{questionLabel(view.round, view.questionIndex, view.total)}</span>
-        {/* Хто виходив із гри (12e): лише імена, без секунд; стоїть поруч із лічильником. */}
-        {view.away.length > 0 && <span className="away-line">{stageAwayText(view.away)}</span>}
+        {/* Хто був поза грою (12e): лише імена, без секунд; стоїть поруч із лічильником. */}
+        {view.away.length > 0 && (
+          <span className="away-line" title={view.away.join(', ')}>
+            <AwayLabel text={stageAwayText(view.away)} />
+          </span>
+        )}
         {view.board === null && (
           <span>
             {question.type === 'chain'
@@ -541,7 +546,11 @@ function LadderStage({ view, offsetMs, audioCommand }: { view: StageView; offset
     <div className="stage-question stage-ladder" aria-busy={busy || undefined}>
       <header className="bar">
         <span>{questionLabel(view.round, view.questionIndex, view.total)}</span>
-        {view.away.length > 0 && <span className="away-line">{stageAwayText(view.away)}</span>}
+        {view.away.length > 0 && (
+          <span className="away-line" title={view.away.join(', ')}>
+            <AwayLabel text={stageAwayText(view.away)} />
+          </span>
+        )}
         <span>{t('ladderStageHallCount', { answered: hall.answered, total: hall.total })}</span>
       </header>
       <div className="ladder-stage-body">

@@ -492,7 +492,7 @@ describe('LiveAnswers: away marks (12e)', () => {
 
   it('an answered row says how long the player was away', () => {
     show([row({ answered: true, answer: ans('Одеса'), timeMs: 4200, away: [mark()] })]);
-    expect(document.querySelector('.live-rows .live-away')?.textContent).toBe('🙈 відволікався 4 с (1 раз)');
+    expect(document.querySelector('.live-rows .live-away')?.textContent).toBe('🙈 поза грою 4 с (1 раз)');
   });
 
   it('a waiting chip says the player is out of the game now', () => {
@@ -512,6 +512,6 @@ describe('LiveAnswers: away marks (12e)', () => {
       teams,
     );
     const marks = [...document.querySelectorAll('.live-rows .live-away')].map((node) => node.textContent);
-    expect(marks).toEqual(['🙈 Оля: відволікався 4 с (1 раз)', '🙈 Петро: зараз поза грою', '🙈 відволікався 2 с (1 раз)']);
+    expect(marks).toEqual(['🙈 Оля: поза грою 4 с (1 раз)', '🙈 Петро: зараз поза грою', '🙈 поза грою 2 с (1 раз)']);
   });
 });

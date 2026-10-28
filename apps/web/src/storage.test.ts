@@ -61,13 +61,13 @@ describe('storage', () => {
     expect(loadAuthor('654321')).toBeNull();
   });
 
-  it('remembers the last leave that already alarmed, per game code (12e)', () => {
-    expect(loadAlarmSeen('123456')).toBeNull();
-    saveAlarmSeen('123456', '123456:3:1');
-    saveAlarmSeen('654321', '654321:0:2');
-    expect(loadAlarmSeen('123456')).toBe('123456:3:1');
-    expect(loadAlarmSeen('654321')).toBe('654321:0:2');
-    expect(localStorage.getItem('quiz:alarm:123456')).toBe('123456:3:1');
+  it('remembers the last leave that already alarmed under one device key (12e)', () => {
+    expect(loadAlarmSeen()).toBeNull();
+    saveAlarmSeen('123456:p1:3:1');
+    expect(loadAlarmSeen()).toBe('123456:p1:3:1');
+    saveAlarmSeen('654321:m2:0:2');
+    expect(loadAlarmSeen()).toBe('654321:m2:0:2');
+    expect(localStorage.getItem('quiz:alarm')).toBe('654321:m2:0:2');
   });
 
   it('a throwing localStorage reads the alarm key as missing and writes nothing, without an error', () => {
@@ -77,8 +77,8 @@ describe('storage', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('denied');
     });
-    expect(() => saveAlarmSeen('123456', '123456:3:1')).not.toThrow();
-    expect(loadAlarmSeen('123456')).toBeNull();
+    expect(() => saveAlarmSeen('123456:p1:3:1')).not.toThrow();
+    expect(loadAlarmSeen()).toBeNull();
     getItem.mockRestore();
     setItem.mockRestore();
   });

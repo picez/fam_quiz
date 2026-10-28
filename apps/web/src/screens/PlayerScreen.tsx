@@ -1233,7 +1233,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         </p>
       )}
       {/* Тривога (12e) — останній шар екрана, над заставками, аркушами й смугою «Немає зв'язку». */}
-      <AwayAlarm code={code} away={view.lastAway} />
+      <AwayAlarm code={code} person={team?.memberId ?? me.id} away={view.lastAway} />
     </main>
   );
 }

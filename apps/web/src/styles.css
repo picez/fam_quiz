@@ -11273,7 +11273,7 @@ button.wall-tile:disabled {
   }
 }
 
-/* «Ти виходив із гри на 8 с — це видно всім» під запитанням. */
+/* «Тебе не було в грі 8 с — ведучий і екран це бачать» під запитанням. */
 .away-note {
   color: var(--signal);
 }
@@ -11281,11 +11281,15 @@ button.wall-tile:disabled {
 /* Антигугл (12e): «🙈 Оля, Петро» у шапці запитання на сцені — поруч із лічильником, в один рядок, довгий перелік обрізається трикрапкою. */
 .bar > .away-line {
   margin-left: auto;
+  min-width: 0;
   max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--signal);
 }
 
-/* «🙈 відволікався 12 с (2 рази)» у рядках пульта й у фішці «Чекаємо». */
+/* «🙈 поза грою 12 с (2 рази)» у рядках пульта й у фішці «Чекаємо». */
 .live-away,
 .response-away {
   color: var(--signal);
