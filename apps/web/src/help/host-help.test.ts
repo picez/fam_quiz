@@ -147,6 +147,15 @@ describe('host help', () => {
     expect(searchHelp('за раундами')).toContain('setting.scores');
   });
 
+  it('12d scores entry tells the reveal line, round facts, the own cards, the game awards, the history and the limits', () => {
+    expect(helpEntry('setting.scores').title).toBe('Бали за раундами, «+ / −» і цікавинки');
+    const body = text('setting.scores');
+    for (const part of ['Правильно 4 з 7', 'Цікавинки раунду', 'Твій раунд', 'Нагороди на сцені', 'Нагороди гри', 'Твою гру', 'картки команди', 'Цікавинки балів не змінюють', 'лише куплені', 'з таймером']) expect(body).toContain(part);
+    expect(helpEntry('setting.scores').limits?.length).toBeGreaterThan(0);
+    expect(body.toLowerCase()).not.toMatch(/росі|срср/);
+    expect(searchHelp('цікавинки')).toContain('setting.scores');
+  });
+
   it('12a undo entry follows «scores» and tells what is undone, what is not, «Повернути» and why the current question goes by grading', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.undo')).toBe(ids.indexOf('setting.scores') + 1);
