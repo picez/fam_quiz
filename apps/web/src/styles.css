@@ -11295,6 +11295,12 @@ button.wall-tile:disabled {
   color: var(--signal);
 }
 
+/* У таблиці відповідей позначка йде окремим рядком під відповіддю: інакше на 375 px вона стискає відповідь до «Дніп / ро». */
+.rows > li > .response-away {
+  order: 1;
+  flex-basis: 100%;
+}
+
 .live-chip .live-away {
   margin-left: 0.3rem;
   font-size: 0.8em;
