@@ -165,7 +165,7 @@ describe('host help', () => {
     const sec = (ms: number) => `${String(ms / 1000).replace('.', ',')} с`;
     expect([AWAY_MS.mark, AWAY_MS.penalty, AWAY_MS.alarm, AWAY_MS.preGrace]).toEqual([2000, 3000, 2500, 5000]);
     for (const part of [`від ${sec(AWAY_MS.mark)} сумарно`, `від ${sec(AWAY_MS.penalty)} сумарно — 0 балів`, `зникає сам за ${sec(AWAY_MS.alarm)}`, `перші ${sec(AWAY_MS.preGrace)} не рахуються`, `на зв’язку пробув поза грою від ${sec(AWAY_MS.penalty)} сумарно`]) expect(body, part).toContain(part);
-    for (const part of ['лише значок', 'Час без зв’язку не рахується', 'менше з двох', 'режим польоту', 'поблажливо', 'Другий пристрій', 'червон', 'сирен', '↶ Бали', 'після кінця гри', 'не гасне', 'у відео-запитанні', 'YouTube', 'youtube.com', 'перезапуск', 'два виходи (2 рази)', 'поза грою', 'штраф поки що зняти не можна']) expect(body, part).toContain(part);
+    for (const part of ['лише значок', 'не довше, ніж тривав розрив', 'менше з двох', 'режим польоту', 'непоміченим', 'Другий пристрій', 'червон', 'сирен', '↶ Бали', 'після кінця гри', 'не гасне', 'у відео-запитанні', 'YouTube', 'youtube.com', 'перезапуск', 'два виходи (2 рази)', 'поза грою', 'штраф поки що зняти не можна']) expect(body, part).toContain(part);
     expect(body).not.toMatch(/апеляц|будь-хто/);
     expect(body.match(/гру не бачить/g)).toBeNull();
     expect(body).not.toMatch(/відволік|виходив/);

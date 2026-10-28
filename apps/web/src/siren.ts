@@ -39,6 +39,11 @@ function playbackSession(): void {
 }
 
 /** Чи спільний контекст уже грає: тоді жести більше нічого не розблоковують. */
+/** Чи браузер узагалі вміє Web Audio. */
+export function sirenSupported(): boolean {
+  return audioContextClass() !== null;
+}
+
 export function sirenReady(): boolean {
   return shared !== null && shared.state === 'running';
 }

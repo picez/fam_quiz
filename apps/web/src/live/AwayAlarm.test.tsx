@@ -10,7 +10,7 @@ import { loadAlarmSeen } from '../storage';
 import { alarmKey, AwayAlarm, AwayNote } from './AwayAlarm';
 
 const { stop } = vi.hoisted(() => ({ stop: vi.fn() }));
-vi.mock('../siren', () => ({ playSiren: vi.fn(() => stop), unlockSiren: vi.fn(), sirenReady: vi.fn(() => true) }));
+vi.mock('../siren', () => ({ playSiren: vi.fn(() => stop), unlockSiren: vi.fn(), sirenReady: vi.fn(() => true), sirenSupported: vi.fn(() => true) }));
 
 let visibility: 'visible' | 'hidden' = 'visible';
 let vibrate: ReturnType<typeof vi.fn>;

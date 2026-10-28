@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AWAY_MS, awaySeconds, type OwnAway } from '@quiz/shared';
 import { t } from '../i18n';
-import { playSiren, sirenReady, unlockSiren } from '../siren';
+import { playSiren, sirenReady, sirenSupported, unlockSiren } from '../siren';
 import { loadAlarmSeen, saveAlarmSeen } from '../storage';
 
 /** Вібрація разом із тривогою: три довгі поштовхи. */
@@ -60,7 +60,7 @@ export function AwayAlarm({ code, person, away }: { code: string; person: string
       if (document.visibilityState !== 'visible' || loadAlarmSeen() === key) return;
       saveAlarmSeen(key);
       vibrate();
-      setShown({ key, penalty: away?.penalty === true, silent: !sirenReady(), replayed: false });
+      setShown({ key, penalty: away?.penalty === true, silent: sirenSupported() && !sirenReady(), replayed: false });
     };
     fire();
     document.addEventListener('visibilitychange', fire);
