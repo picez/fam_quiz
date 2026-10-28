@@ -1,8 +1,8 @@
-import { memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
+import { appealTally, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type Question } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
 
 export interface Recorder {
@@ -50,7 +50,7 @@ function signature(state: GameState): string {
   const members = state.teams?.members.map((m) => m.id) ?? null;
   // Вихід із гри (12e) дописується до закритого запитання вже після зміни фази: теж варто запису.
   const away = last < 0 ? null : state.plays[last].away;
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder, members, away]);
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder, members, away, state.appeals?.map((a) => a.outcome ?? 'open') ?? null]);
 }
 
 interface AnswerRow {
@@ -316,6 +316,26 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
         undoesSeq: undoes !== undefined && 'seq' in undoes ? undoes.seq : null,
       }));
     if (fresh.length > 0) await tx.insert(scoreAdjustment).values(fresh).onConflictDoNothing();
+
+    // Апеляції (12f): лише закриті й лише учасників, що є в грі (вилучених прибирає каскад); закрита незмінна.
+    const closedAppeals = (state.appeals ?? []).filter((a) => a.outcome !== null && state.players.some((p) => p.id === a.by));
+    if (closedAppeals.length > 0) {
+      await tx
+        .insert(appeal)
+        .values(
+          closedAppeals.map((a) => ({
+            gameId: snapshot.id,
+            seq: a.id,
+            participantId: a.by,
+            questionIndex: a.questionIndex,
+            reason: a.reason,
+            ...appealTally(state, a),
+            outcome: a.outcome!,
+            adjustmentSeq: a.adjustmentSeq ?? null,
+          })),
+        )
+        .onConflictDoNothing();
+    }
   });
 }
 
