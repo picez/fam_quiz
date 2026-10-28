@@ -633,6 +633,8 @@ const cleanBody = (question: Question): Question => {
         text,
         clues: question.clues.map((clue) => clue.trim()),
         accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== ''),
+        // У власному темпі інтервал схований: непридатний (скажімо, з відновленої чернетки) зберігається типовим.
+        ...(question.cluePace === 'self' && !validClueInterval(question.interval) ? { interval: LIMITS.defaultClueSeconds } : {}),
       };
     case 'slider': {
       // Порожня одиниця й порожня межа нуля не зберігаються: ключів немає, як у старих запитань.
@@ -796,6 +798,7 @@ export function boardReadiness(round: BoardRound): BoardReadiness {
 
 /** Чи вистачає часу останній підказці: (n − 1) × інтервал + хвіст ≤ час. */
 const lastClueAt = (question: Extract<Question, { type: 'clues' }>) => (question.clues.length - 1) * question.interval;
+const validClueInterval = (interval: number) => Number.isInteger(interval) && interval >= LIMITS.minClueSeconds && interval <= LIMITS.maxClueSeconds;
 
 function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
   if (question.text === '') return 'problemNoText';
@@ -874,8 +877,13 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
     case 'clues': {
       if (question.clues.some((clue) => clue === '')) return 'problemClueEmpty';
       if (question.accepted.length === 0) return 'problemNoAccepted';
+      // Кожен відкриває сам: інтервал схований і нічого не робить, треба лише досить часу.
+      if (question.cluePace === 'self') {
+        if (timeLimit < LIMITS.selfCluesMinTime) return 'problemCluesSelfTime';
+        break;
+      }
       const { interval } = question;
-      if (!Number.isInteger(interval) || interval < LIMITS.minClueSeconds || interval > LIMITS.maxClueSeconds) return 'problemCluesInterval';
+      if (!validClueInterval(interval)) return 'problemCluesInterval';
       if (lastClueAt(question) + LIMITS.clueTailSeconds > timeLimit) return place.voice ? 'problemCluesTimeVoice' : 'problemCluesTime';
       break;
     }
@@ -1070,7 +1078,9 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     text: question?.type === 'survey' ? duplicateSpelling(question) : question?.type === 'bluff' ? bluffSpareText(question, key) : '',
     surveyMin: LIMITS.minSurveyRows,
     surveyMax: LIMITS.maxSurveyAnswers,
-    ...(question?.type === 'clues' ? { count: question.clues.length, at: lastClueAt(question), need: lastClueAt(question) + LIMITS.clueTailSeconds } : {}),
+    ...(question?.type === 'clues'
+      ? { count: question.clues.length, at: lastClueAt(question), need: question.cluePace === 'self' ? LIMITS.selfCluesMinTime : lastClueAt(question) + LIMITS.clueTailSeconds }
+      : {}),
   });
 
 /** Повідомлення про проблему клітинки: те саме, що для запитання, але з категорією. */

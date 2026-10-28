@@ -146,6 +146,24 @@ describe('BoardEditor clues and pin cells (10c)', () => {
     expect(screen.getByLabelText(t('boardCellMode'))).toBeTruthy();
   });
 
+  it('«Who am I?» on a voice cell with «кожен сам» still says the host opens the clues (12c)', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    let next = onChange.mock.calls.at(-1)![0] as BoardRound;
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.getByText(t('cluesVoiceHint'))).toBeTruthy();
+    expect(screen.queryByText(t('cluesSelfVoiceNote'))).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: t('cluePaceSelf') }));
+    next = onChange.mock.calls.at(-1)![0] as BoardRound;
+    expect(next.categories[0].cells[0].question).toMatchObject({ type: 'clues', cluePace: 'self', interval: 3 });
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.getByText(t('cluesVoiceHint'))).toBeTruthy();
+    expect(screen.getByText(t('cluesSelfVoiceNote'))).toBeTruthy();
+    expect(screen.queryByText(t('cluesSelfHint', { min: 20 }))).toBeNull();
+    expect(screen.queryByLabelText(t('cluesInterval'))).toBeNull();
+  });
+
   it('«Who am I?» hides the kind select', () => {
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);

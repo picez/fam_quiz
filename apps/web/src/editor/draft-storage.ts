@@ -142,8 +142,16 @@ function revive(stored: Question): Question {
   }
   if (base.type === 'clues') {
     const { clues, accepted } = base as { clues: unknown; accepted: unknown };
+    // Редактор пише лише «кожен сам»; будь-яке інше значення означає таймер, тобто ключа немає.
+    const { cluePace, ...rest } = base as typeof base & { cluePace?: unknown };
     const strings = (value: unknown) => (Array.isArray(value) ? value.map((item) => (typeof item === 'string' ? item : '')) : null);
-    return { ...base, clues: strings(clues) ?? ['', '', ''], accepted: strings(accepted) ?? [''], interval: numberOr(base.interval) };
+    return {
+      ...rest,
+      clues: strings(clues) ?? ['', '', ''],
+      accepted: strings(accepted) ?? [''],
+      interval: numberOr(base.interval),
+      ...(cluePace === 'self' ? { cluePace: 'self' as const } : {}),
+    };
   }
   if (base.type === 'pin') {
     const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5);
