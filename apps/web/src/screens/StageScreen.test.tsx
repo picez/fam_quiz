@@ -1489,7 +1489,7 @@ describe('StageScreen own-pace clues (12c)', () => {
     expect(document.querySelectorAll('.clues-list .clue:not(.is-hidden)')).toHaveLength(1);
     const hidden = [...document.querySelectorAll('.clues-list .clue.is-hidden')].map((li) => li.textContent);
     expect(hidden).toEqual(['Підказка 2', 'Підказка 3', 'Підказка 4', 'Підказка 5']);
-    expect(document.querySelector('.clue-opens.is-big')?.textContent).toBe('Оля 1 · Петро 3 · Іра 2');
+    expect([...document.querySelectorAll('.clue-opens.is-big .clue-open')].map((span) => span.textContent)).toEqual(['Оля 1', 'Петро 3', 'Іра 2']);
     expect(screen.getByText('Кожен відкриває підказки на телефоні сам: що менше підказок, то більше балів.')).toBeTruthy();
     expect(screen.queryByText(/щойно впізнаєте/)).toBeNull();
   });
@@ -1498,7 +1498,14 @@ describe('StageScreen own-pace clues (12c)', () => {
     show(view({ phase: 'reveal', questionIndex: 0, question: selfQuestion, reveal: selfFull }));
     expect(document.querySelectorAll('.clues-list .clue')).toHaveLength(5);
     expect(document.querySelector('.clues-list .clue.is-hidden')).toBeNull();
-    expect(document.querySelector('.clue-opens')?.textContent).toBe('Оля — на підказці 1 · Петро — на підказці 3 · Іра — без відповіді');
+    expect([...document.querySelectorAll('.clue-opens.is-big.is-revealed .clue-open')].map((span) => span.textContent)).toEqual(['Оля — на підказці 1', 'Петро — на підказці 3', 'Іра — без відповіді']);
+  });
+
+  it('says each team opens its own clues in a team game', () => {
+    const teams = { teams: [], mode: 'captain' } as unknown as StageView['teams'];
+    show(view({ phase: 'question', questionIndex: 0, question: selfQuestion, teams }));
+    expect(screen.getByText('Кожна команда відкриває підказки сама: що менше підказок, то більше балів.')).toBeTruthy();
+    expect(screen.queryByText(/Кожен відкриває підказки/)).toBeNull();
   });
 
   it('has no line outside own pace', () => {

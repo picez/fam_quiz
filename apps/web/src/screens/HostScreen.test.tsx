@@ -1899,11 +1899,11 @@ describe('HostScreen clues and pin (10c)', () => {
     expect(within(panel).queryByText(/^за \d+ с$/)).toBeNull();
     expect(within(panel).queryByText(/^Відкрито \d з/)).toBeNull();
     expect(within(panel).getByText('Кожен відкриває підказки сам: ціна — за тим, скільки відкрив.')).toBeTruthy();
-    expect(panel.querySelector('.clue-opens')?.textContent).toBe('Оля 1 · Петро 3');
+    expect([...panel.querySelectorAll('.clue-opens .clue-open')].map((span) => span.textContent)).toEqual(['Оля 1', 'Петро 3']);
     expect(screen.queryByRole('button', { name: /Відкрити підказку/ })).toBeNull();
     cleanup();
     show(during('reveal', selfFull, { question: { ...question, clues: { ...question.clues, opens: [{ ...opens[0], answered: true }, opens[1]] } } }));
-    expect(document.querySelector('.host-clues .clue-opens')?.textContent).toBe('Оля — на підказці 1 · Петро — без відповіді');
+    expect([...document.querySelectorAll('.host-clues .clue-opens .clue-open')].map((span) => span.textContent)).toEqual(['Оля — на підказці 1', 'Петро — без відповіді']);
   });
 
   it('shows live pins and the target with the circles during the question', () => {

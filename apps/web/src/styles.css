@@ -7757,18 +7757,29 @@ label.powers-price {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0 0.25rem;
+  gap: 0 0.35rem;
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-/* Сцена: середній шрифт (не більший за підказки), не більше двох рядків — 8 гравців на 1280 × 720 без прокрутки. */
+/* Роздільник — частина наступного імені: перенесений рядок не починається з «·». */
+.clue-open + .clue-open::before {
+  content: '· ';
+}
+
+/* Сцена: середній шрифт (не більший за підказки), до двох рядків; імен не більше STAGE_OPENS_MAX (ClueOpens.tsx), решта — «та ще N». overflow — лише страховка. */
 .clue-opens.is-big {
   max-height: calc(2 * 1.3em);
   overflow: hidden;
   color: var(--dim);
   font-size: 1.2rem;
   line-height: 1.3;
+}
+
+/* Розкриття: «Ім'я — на підказці 3» утричі довше, тож дрібніше й до трьох рядків. */
+.clue-opens.is-big.is-revealed {
+  max-height: calc(3 * 1.3em);
+  font-size: 1rem;
 }
 
 /* Сцена з точкою — рівно на екран: мапа бере всю решту висоти, а не штовхає «Найближче» за край. */

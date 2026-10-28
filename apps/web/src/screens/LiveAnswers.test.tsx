@@ -154,6 +154,23 @@ describe('LiveAnswers', () => {
     expect(rows[1].textContent).not.toContain('підказка 3/5');
   });
 
+  it('own-pace clues: after the time the silent ones are named in «Не відповіли»', () => {
+    show([row({ progress: { kind: 'clues', opened: 2, total: 5 } }), row({ id: 'p2', nickname: 'Петро', answered: true, answer: { type: 'clues', value: 'Шевченко' }, clue: 4, progress: { kind: 'clues', opened: 4, total: 5 } })], base({ phase: 'locked' }));
+    expect(screen.getByText('Не відповіли:')).toBeTruthy();
+    const chips = document.querySelectorAll('.live-chip');
+    expect(chips).toHaveLength(1);
+    expect(chips[0].textContent).toBe('Оля');
+  });
+
+  it('own-pace clues: a live draft stands beside «підказка N/M»', () => {
+    show([row({ progress: { kind: 'clues', opened: 2, total: 5 } })], base(), {}, { drafts: { p1: liveDraft({ draft: { type: 'clues', value: 'Шевч' } }) } });
+    const rows = document.querySelectorAll('.live-rows li');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].querySelector('.live-answer')?.textContent).toBe('підказка 2/5');
+    expect(rows[0].querySelector('.live-draft')?.textContent).toContain('Шевч');
+    expect(rows[0].textContent).toContain('ще не надіслав');
+  });
+
   it('own-pace clues: the collapsed panel shows no rows', () => {
     show([row({ progress: { kind: 'clues', opened: 2, total: 5 } })], base(), {}, { collapsed: true });
     expect(document.querySelector('.live-rows')).toBeNull();

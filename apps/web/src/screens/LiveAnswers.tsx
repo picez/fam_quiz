@@ -231,8 +231,9 @@ function useServerNow(ticking: boolean, offsetMs: number): number {
 export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TILTS, drafts = NO_DRAFTS, collapsed = false, offsetMs = 0 }: Props) {
   const duel = live.kind === 'duel';
   const queue = live.kind === 'blitz' && view.blitz?.instant !== true;
-  // Власний темп «Хто я?» (12c): кожен рядок стоїть у списку з «підказка N/M», тож «Чекаємо» порожнє.
-  const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered && row.progress?.kind !== 'clues');
+  // Власний темп «Хто я?» (12c): поки йде запитання, кожен рядок стоїть у списку з «підказка N/M», тож «Чекаємо» порожнє;
+  // після кінця часу мовчуни знову в «Не відповіли».
+  const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered && (row.progress?.kind !== 'clues' || view.phase !== 'question'));
   // Дуель: обидва дуелянти завжди, навіть без спроб.
   // Нахил першої картки (11d) теж показує рядок: ведучий бачить, куди її тягнуть, ще до першого ходу.
   // Живий вибір (12b) теж: рядок видно ще до відповіді й першого ходу.
