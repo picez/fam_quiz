@@ -134,6 +134,13 @@ export function duelLines(adjustments: GameAdjustment[]): string[] {
   return lines;
 }
 
+/** Перенесені з попередньої гри бали раунду (12r): «Перенесено з попередньої гри: Оля +42434, Петро +1200»; без них — null. */
+export function carryLine(adjustments: GameAdjustment[]): string | null {
+  const carry = adjustments.filter((adjustment) => adjustment.source === 'carry');
+  if (carry.length === 0) return null;
+  return t('historyCarry', { list: carry.map((adjustment) => `${adjustment.nickname} ${signed(adjustment.points)}`).join(', ') });
+}
+
 /** Рядки купівель дебафів (source 'debuff') за seq. */
 export function debuffLines(adjustments: GameAdjustment[]): string[] {
   return adjustments
@@ -351,10 +358,12 @@ export function GameHistory() {
             const purchases = debuffLines(roundAdjustments);
             const undoLines = historyUndoLines(game, roundIndex);
             const bonuses = [...survivalBonusLines(roundAdjustments), ...ladderPrizeLines(roundAdjustments)];
+            const carry = carryLine(roundAdjustments);
             if (questions.length === 0 && roundAdjustments.length === 0) return null;
             return (
               <div key={roundIndex} className="round-group">
                 {game.rounds.length > 1 && <h3 className="round-title">{roundLabel(round.title, roundIndex, round.type)}</h3>}
+                {carry !== null && <p className="meta history-carry">{carry}</p>}
                 {questions.length > 0 && (
                   <ol className="rows stacked">
                     {questions.map((question, position) => (

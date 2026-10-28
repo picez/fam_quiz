@@ -3579,3 +3579,39 @@ describe('PlayerScreen appeal edge cases (12f)', () => {
     expect(document.querySelector('.appeal-card, .appeal-sheet')).toBeNull();
   });
 });
+
+describe('PlayerScreen: the author resumes a game (12r)', () => {
+  const resume = {
+    rounds: [
+      { title: 'Розминка', type: 'classic' as const },
+      { title: 'Річки', type: 'classic' as const },
+    ],
+    participants: [{ id: 'p1', nickname: 'Олена' }],
+  };
+
+  it('the author sees the panel in the lobby, and «Почати гру» sends the values', async () => {
+    const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume } }), { code: '123456', stageUrl: null });
+    const panel = document.querySelector('details.resume-panel') as HTMLDetailsElement;
+    expect(panel.open).toBe(false);
+    panel.open = true;
+    fireEvent(panel, new Event('toggle'));
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Почати з раунду' }), { target: { value: '1' } });
+    fireEvent.change(within(panel).getByRole('spinbutton', { name: 'Олена' }), { target: { value: '-150' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:start', { resume: { roundIndex: 1, points: { p1: -150 } } }));
+  });
+
+  it('a bad field disables the author «Почати гру»', () => {
+    show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume } }), { code: '123456', stageUrl: null });
+    const panel = document.querySelector('details.resume-panel') as HTMLDetailsElement;
+    panel.open = true;
+    fireEvent(panel, new Event('toggle'));
+    fireEvent.change(within(panel).getByRole('spinbutton', { name: 'Олена' }), { target: { value: '10000000' } });
+    expect((screen.getByRole('button', { name: 'Почати гру' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('another player sees no panel', () => {
+    show(view({ autopilot: true, author: null }), { code: '123456' });
+    expect(document.querySelector('details.resume-panel')).toBeNull();
+  });
+});

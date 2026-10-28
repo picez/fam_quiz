@@ -1,18 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import type { ResumeLobby } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useGuardedSend } from '../live/useGuardedSend';
+import { emptyDraft, resumePayload } from '../resume';
+import { ResumePanel } from './ResumePanel';
 
 const COPIED_MS = 2000;
 
-/** Лобі автора (11h): код, QR входу, посилання на сцену (якщо токен сцени збережено на цьому пристрої) і «Почати гру». */
+/** Лобі автора (11h): код, QR входу, посилання на сцену (якщо токен сцени збережено на цьому пристрої), «Продовжити попередню гру» (12r) і «Почати гру». */
 export function AuthorLobby({
   code,
   stageUrl,
   joinUrl,
   send,
   onError,
+  resume = null,
 }: {
   code: string;
   /** null — токена сцени на цьому пристрої немає: посилання не показано. */
@@ -20,9 +24,13 @@ export function AuthorLobby({
   joinUrl: string;
   send: Send;
   onError: (message: string | null) => void;
+  /** «Продовжити попередню гру» (12r): раунди й учасники; null — панелі немає. */
+  resume?: ResumeLobby | null;
 }) {
   const guard = useGuardedSend(send, onError);
   const [copied, setCopied] = useState(false);
+  const [resumeDraft, setResumeDraft] = useState(emptyDraft);
+  const resumeSend = resume === null ? undefined : resumePayload(resumeDraft, resume);
   const [copyFailed, setCopyFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -72,8 +80,16 @@ export function AuthorLobby({
           </div>
         )}
       </section>
+      {resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
       <p className="lead">{t('authorStartHint')}</p>
-      <button type="button" className="btn btn-primary author-start" disabled={guard.busy} onClick={() => void guard.run('host:start', undefined)}>
+      <button
+        type="button"
+        className="btn btn-primary author-start"
+        disabled={guard.busy || resumeSend === 'invalid'}
+        onClick={() => {
+          if (resumeSend !== 'invalid') void guard.run('host:start', resumeSend);
+        }}
+      >
         {t('authorStart')}
       </button>
     </>

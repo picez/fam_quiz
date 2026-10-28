@@ -54,6 +54,8 @@ import { HelpButton } from '../help/HelpButton';
 import { cellHelpId } from '../help/host-help';
 import { UndoButton } from './UndoSheet';
 import { AppealCard } from './AppealCard';
+import { ResumePanel } from './ResumePanel';
+import { emptyDraft, resumePayload } from '../resume';
 
 export { STAGE_GONE_MS };
 
@@ -350,6 +352,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
     board.cell.kind === 'normal' &&
     (questionType === 'single' || questionType === 'multi' || questionType === 'boolean');
   const name = (answer: Answer | null) => void act('host:name', { answer });
+
+  // «Продовжити попередню гру» (12r): значення живуть лише на пульті до «Почати гру».
+  const [resumeDraft, setResumeDraft] = useState(emptyDraft);
+  const resumeSend = view.resume === null ? undefined : resumePayload(resumeDraft, view.resume);
 
   // Кроки гри йдуть по одному: подвійний дотик не має перескочити етап.
   const [stepping, setStepping] = useState(false);
@@ -1271,6 +1277,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <span className="meta">{`${t('joinLink')}: ${joinUrl}`}</span>
       </nav>
 
+      {phase === 'lobby' && view.resume !== null && view.resume.rounds.length > 0 && <ResumePanel code={code} info={view.resume} draft={resumeDraft} onChange={setResumeDraft} />}
+
       {error !== null && (
         <p className="error" role="alert">
           {error}
@@ -1320,8 +1328,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             type="button"
             className={mainPace !== null ? 'btn btn-primary is-pacing' : 'btn btn-primary'}
             {...paceAttrs(mainPace)}
-            disabled={mainPace !== null || stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding || appealVoting}
-            onClick={() => step(main.event)}
+            disabled={mainPace !== null || stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || (phase === 'lobby' && resumeSend === 'invalid') || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding || appealVoting}
+            onClick={() => step(main.event, phase === 'lobby' && resumeSend !== 'invalid' ? resumeSend : undefined)}
           >
             {appealVoting
               ? t('appealVoting')

@@ -627,6 +627,47 @@ describe('GameHistory: adjustments', () => {
   });
 });
 
+describe('GameHistory: carried points (12r)', () => {
+  it('lists the carried points under the first played round; the skipped round is not shown; the breakdown names them', async () => {
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        rounds: [
+          { title: '', type: 'classic' },
+          { title: '', type: 'classic' },
+        ],
+        standings: [
+          {
+            participantId: 'p1',
+            nickname: 'Оля',
+            score: 43_434,
+            rank: 1,
+            correct: 1,
+            rounds: [0, 1000],
+            breakdown: { parts: [{ source: 'carry', plus: 42_434, minus: 0 }, { source: 'answers', plus: 1000, minus: 0 }], plus: 43_434, minus: 0 },
+          },
+          { participantId: 'p2', nickname: 'Петро', score: 1200, rank: 2, correct: 0, rounds: [0, 0], breakdown: { parts: [{ source: 'carry', plus: 1200, minus: 0 }], plus: 1200, minus: 0 } },
+        ],
+        questions: detail.questions.map((question) => ({ ...question, roundIndex: 1 })),
+        adjustments: [
+          { seq: 1, roundIndex: 1, afterQuestion: 0, nickname: 'Оля', points: 42_434, source: 'carry' },
+          { seq: 2, roundIndex: 1, afterQuestion: 0, nickname: 'Петро', points: 1200, source: 'carry' },
+        ],
+      },
+    });
+    const { container } = open('/history/g1');
+    expect(await screen.findByText('Перенесено з попередньої гри: Оля +42434, Петро +1200')).toBeTruthy();
+    const groups = [...container.querySelectorAll('.round-group')];
+    expect(groups).toHaveLength(1);
+    expect(groups[0].querySelector('.round-title')?.textContent).toBe('Раунд 2');
+    expect(groups[0].querySelector('.history-carry')?.textContent).toBe('Перенесено з попередньої гри: Оля +42434, Петро +1200');
+    expect(groups[0].querySelector('.history-adjustments')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '«+ / −» для Оля' }));
+    expect(document.querySelector('section.history-scores .score-breakdown')!.textContent).toContain('Перенесено з попередньої гри +42434');
+  });
+});
+
 describe('GameHistory: duels', () => {
   it('duel transfers show as duel lines, host points stay separate', async () => {
     vi.mocked(getGame).mockResolvedValue({
