@@ -704,8 +704,8 @@ async function twoRounds() {
   await host.getByRole('link', { name: /Вікторина з раундами/ }).click();
   await host.getByRole('heading', { name: 'Розминка' }).waitFor();
   await host.getByRole('heading', { name: 'Фінал' }).waitFor();
-  await host.getByText('Столиця України?').waitFor();
-  await host.getByText('Найбільша річка України?').waitFor();
+  await host.getByText('Столиця України?', { exact: true }).waitFor();
+  await host.getByText('Найбільша річка України?', { exact: true }).waitFor();
   // Незігране запитання першого раунду в історію не потрапляє.
   expect(await host.getByText('Говерла є найвищою горою України?').count()).toBe(0);
 
@@ -840,8 +840,8 @@ async function blitzGame() {
   // Історія: два зіграні запитання й ті самі бали.
   await host.goto(`${base}/history`);
   await host.getByRole('link', { name: /Бліц-вікторина/ }).click();
-  await host.getByText('Столиця України?').waitFor();
-  await host.getByText('Найбільша річка України?').waitFor();
+  await host.getByText('Столиця України?', { exact: true }).waitFor();
+  await host.getByText('Найбільша річка України?', { exact: true }).waitFor();
   const rows = host.locator('.standings li');
   await rows.first().waitFor();
   expect(await rows.nth(0).textContent()).toMatch(/Борис.*1000/);
