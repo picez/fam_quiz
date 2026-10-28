@@ -113,7 +113,7 @@ describe('a room restored after a restart', () => {
     expect(manager.away(room, taras.playerId, true)).toEqual({ ok: true });
     scheduler.advance(1500);
     const saved = viaJson(manager.snapshot(room));
-    expect(saved.stateVersion).toBe(17);
+    expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
     expect(saved.state.plays[0].away?.[taras.playerId]?.since).not.toBeNull();
     manager.freeze();
     scheduler.advance(60_000);

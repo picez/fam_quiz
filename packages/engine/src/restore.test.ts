@@ -8,6 +8,7 @@ import { buyDebuff, setDebuff } from './debuffs';
 import { placeWager } from './final';
 import { createAutopilotGame } from './autopilot';
 import { awayEnd, awayStart, awayStep } from './away';
+import { castAppealVote, openAppeal } from './appeal';
 import {
   addPlayer,
   end,
@@ -21,6 +22,7 @@ import {
   submitAnswer,
   tick,
   type AnswerRecord,
+  type Appeal,
   type Attempt,
   type AwayEntry,
   type BlitzPlay,
@@ -281,7 +283,7 @@ const STATE_SHAPE: Record<string, string> = {
     [
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
-      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot',
+      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals',
     ],
     true,
   ),
@@ -331,6 +333,7 @@ const STATE_SHAPE: Record<string, string> = {
   Splash: keysOf<Splash>()(['kind', 'at', 'until'], true),
   AwayEntry: keysOf<AwayEntry>()(['ms', 'count', 'since'], true),
   AutopilotState: keysOf<AutopilotState>()(['authorId', 'at', 'left', 'hold', 'starting', 'skips', 'skipPlays', 'retries'], true),
+  Appeal: keysOf<Appeal>()(['id', 'by', 'questionIndex', 'reason', 'openedAt', 'endsAt', 'votes', 'outcome', 'adjustmentSeq'], true),
 };
 
 /** Записана форма кожної версії; запис старої версії не змінюють. */
@@ -926,6 +929,50 @@ const KEYS: Record<number, Record<string, string>> = {
     AwayEntry: 'count,ms,since',
     AutopilotState: 'at,authorId,hold,left,retries,skipPlays,skips,starting',
   },
+  18: {
+    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,missedInto,misses,queue,sorted,wordMisses',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'auto,end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'captains,dice,duelists,form,list,members',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
+    Splash: 'at,kind,until',
+    AwayEntry: 'count,ms,since',
+    AutopilotState: 'at,authorId,hold,left,retries,skipPlays,skips,starting',
+    Appeal: 'adjustmentSeq,by,endsAt,id,openedAt,outcome,questionIndex,reason,votes',
+  },
 };
 
 /** 11g: автопілот (автор Оля p1, Петро p2) на розкритті класичного запитання. */
@@ -957,6 +1004,21 @@ function wipeoutTimedOut(): GameState {
 function undoneOnIntro(): GameState {
   const intro = must(start(lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро')));
   return must(undoScore(must(adjustScore(intro, 'p1', 300, T0)), { seq: 1 }, T0 + 1000));
+}
+
+/**
+ * 12f: класика t1 по 100, Оля й Петро «Одеська», Іра «Одеса»; Оля оскаржила, «так» Петра й Іри — закрита апеляція з adjustmentSeq;
+ * Петро оскаржив, Іра проголосувала «ні» — відкрита апеляція з голосом.
+ */
+function appealed(): GameState {
+  const t100 = { ...text, points: 100 };
+  const odesa = { type: 'text', value: 'Одеса' } as const;
+  const wrong = { type: 'text', value: 'Одеська' } as const;
+  let s = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [t100], { speedBonus: false })]), 'Оля', 'Петро', 'Іра'), T0, () => 0);
+  s = must(submitAnswer(must(submitAnswer(must(submitAnswer(s, 'p1', wrong, T0 + 1000)), 'p2', wrong, T0 + 1000)), 'p3', odesa, T0 + 1000));
+  s = must(next(s, T0 + 2000, () => 0));
+  s = must(castAppealVote(must(castAppealVote(must(openAppeal(s, 'p1', 'grade', T0 + 3000)), 'p2', 1, true, T0 + 4000)), 'p3', 1, true, T0 + 5000));
+  return must(castAppealVote(must(openAppeal(s, 'p2', 'grade', T0 + 6000)), 'p3', 2, false, T0 + 7000));
 }
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -1118,6 +1180,7 @@ function representative(): GameState[] {
     undone,
     selfOpened,
     wandered,
+    appealed(),
   ];
 }
 
@@ -1296,6 +1359,26 @@ describe('the saved state', () => {
     expect(again.plays[0].away?.p2).toEqual({ ms: 5000, count: 2, since: null });
   });
 
+  it('a version 17 state (no appeals) restores', () => {
+    const plain = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро'), T0);
+    const old = roundTrip(suspend(roundTrip(plain), T0 + 1000));
+    expect('appeals' in old).toBe(false);
+    expect(old.paused).toBe(true);
+    expect(READABLE_STATE_VERSIONS).toContain(17);
+  });
+
+  it('an open appeal survives the round trip and suspend: paused, endsAt and the votes as they were', () => {
+    const s = appealed();
+    expect(s.appeals).toHaveLength(2);
+    expect(s.appeals?.[0]).toMatchObject({ outcome: 'yes', adjustmentSeq: 1 });
+    expect(s.appeals?.[1]).toMatchObject({ outcome: null, endsAt: T0 + 36_000, votes: { p3: false } });
+    expect(roundTrip(s)).toEqual(s);
+    const suspended = roundTrip(suspend(roundTrip(s), T0 + 8000));
+    expect(suspended.paused).toBe(true);
+    expect(suspended.pausedAt).toBe(T0 + 8000);
+    expect(suspended.appeals).toEqual(s.appeals);
+  });
+
   it('the state format is pinned to GAME_STATE_VERSION', () => {
     // Перелік ключів кожного типу стану: компілятор (pnpm typecheck) вимагає рівно всі ключі типу, тож нове поле
     // не пройде непоміченим, а тест порівнює перелік із KEYS поточної версії.
@@ -1306,7 +1389,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -1361,6 +1444,7 @@ describe('the saved state', () => {
       add('SortProgress', s.plays.flatMap((p) => Object.values(p.sort ?? {})));
       add('AutopilotState', [s.autopilot]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));
+      add('Appeal', s.appeals ?? []);
       // стан без змін переживає JSON
       expect(roundTrip(s)).toEqual(s);
     }

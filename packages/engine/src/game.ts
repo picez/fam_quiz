@@ -6,6 +6,8 @@ import {
   type CellKind,
   type CellPenalty,
   type AdjustmentSource,
+  type AppealOutcome,
+  type AppealReason,
   type BuffKind,
   type DebuffKind,
   type DuelStage,
@@ -617,6 +619,30 @@ export interface GameState {
   stepAt?: number;
   /** Гра без ведучого (11g); ключ є лише в кімнаті-автопілоті. Без нього — гра з ведучим (і стан до 11g). */
   autopilot?: AutopilotState;
+  /** Апеляції гри (12f) у порядку відкриття; немає ключа — не було жодної. Голоси (votes) у зрізи не йдуть. */
+  appeals?: Appeal[];
+}
+
+/** Апеляція гравця (12f): голосування залу за 30 с. Пояснення — план 12f, «Стан». */
+export interface Appeal {
+  /** Номер апеляції в грі, від 1 (appeals.length + 1). */
+  id: number;
+  /** Учасник рушія: соло-гравець чи команда. */
+  by: string;
+  /** Індекс оскарженого запитання в plays. */
+  questionIndex: number;
+  /** grade — оцінка відповіді; away — штраф за вихід із гри (12e). */
+  reason: AppealReason;
+  /** Мить відкриття. */
+  openedAt: number;
+  /** Кінець голосування; пауза зсуває на свою тривалість. */
+  endsAt: number;
+  /** Людина → «так» (true) чи «ні» (false); у зрізи не йде ніколи. */
+  votes: Record<string, boolean>;
+  /** Рішення; null — голосування триває. */
+  outcome: AppealOutcome | null;
+  /** seq коригування 'appeal', якщо рішення його дописало. */
+  adjustmentSeq?: number;
 }
 
 /** Гра без ведучого (11g): автор, наступний крок, пауза. Пояснення полів — у плані 11g, «Стан». */
