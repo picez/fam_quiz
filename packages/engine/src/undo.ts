@@ -72,7 +72,8 @@ function rowsOf(state: GameState): Line[] {
     if (question !== null && !visible(state, question)) continue;
     const line: Line = {
       row: {
-        kind: 'host',
+        // Штраф за вихід (12e) — окремий рядок «(вихід із гри)»; решта як у балів ведучого.
+        kind: adjustment.source === 'away' ? 'away' : 'host',
         playerId: adjustment.playerId,
         nickname: name,
         points: adjustment.points,

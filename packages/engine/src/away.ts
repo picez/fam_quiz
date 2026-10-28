@@ -1,5 +1,7 @@
 // Антигугл (12e): годинник виходів людей із гри. Цей файл views.ts не імпортує; game.ts цей файл не імпортує (без циклу).
-import type { AwayEntry, GameState } from './game';
+import { AWAY_MS, AWAY_PENALTY_ROUNDS, isUnscored, type Phase } from '@quiz/shared';
+import { addAdjustment, afterQuestionNow } from './adjust';
+import { recordOf, type AwayEntry, type GameState } from './game';
 import { hostLive } from './live';
 import { memberOf, teamMembers, teamsOn } from './teams';
 
@@ -90,7 +92,7 @@ export function awayEnd(state: GameState, personId: string, now: number, gapMs =
  * Годинник виходів між кроками (12e), викликає RoomManager.commit до stamp:
  * 1) закриває інтервали запитання prev, чиї люди в next уже не під наглядом (подали відповідь, закрито, розрив, вилучення);
  * 2) відкриває інтервали людям із hidden, які в next щойно стали під наглядом;
- * 3) дописує штрафи, бали яких стали остаточними (задача 4; тут — тотожність).
+ * 3) дописує штрафи, бали яких стали остаточними (penaltyDue).
  * Без змін — той самий об'єкт next.
  */
 export function awayStep(prev: GameState, next: GameState, at: number, hidden: ReadonlySet<string>): GameState {
@@ -107,6 +109,60 @@ export function awayStep(prev: GameState, next: GameState, at: number, hidden: R
   }
   // 2) Приховані телефони, що щойно стали під наглядом (awayStart без змін, якщо інтервал уже відкритий чи нагляду немає).
   for (const personId of hidden) s = awayStart(s, personId, at);
-  // 3) TODO(12e задача 4): штрафи, бали яких стали остаточними.
+  // 3) Штрафи запитання prev, бали якого щойно стали остаточними.
+  const q = penaltyDue(prev, next);
+  return q === null ? s : withPenalties(s, q, at);
+}
+
+/** Чи діє штраф на запитанні plays[q]: awayPenalty, раунд з AWAY_PENALTY_ROUNDS, запитання з балами. */
+export function awayPenaltyOn(state: GameState, q: number): boolean {
+  if (state.quiz.settings.awayPenalty !== true) return false;
+  const play = state.plays[q];
+  const round = play === undefined ? undefined : state.quiz.rounds[play.roundIndex];
+  return round !== undefined && AWAY_PENALTY_ROUNDS.includes(round.type) && !isUnscored(play.question);
+}
+
+/** Учасники, яких штраф зачепить на plays[q]: будь-яка людина учасника має ms ≥ AWAY_MS.penalty. Порядок — state.players. */
+export function awayPenalized(state: GameState, q: number): string[] {
+  if (!awayPenaltyOn(state, q)) return [];
+  const hit = new Set<string>();
+  for (const [personId, entry] of Object.entries(state.plays[q].away ?? {})) {
+    if (entry.ms < AWAY_MS.penalty) continue;
+    const participant = awayParticipant(state, personId);
+    if (participant !== null) hit.add(participant);
+  }
+  return state.players.filter((p) => hit.has(p.id)).map((p) => p.id);
+}
+
+const OPEN_PHASES: readonly Phase[] = ['question', 'locked', 'reveal'];
+
+/** Запитання q ще «відкрите» (question, locked, reveal; у дуелі — етап, куди гра повернеться). */
+function openOn(state: GameState, q: number): boolean {
+  const phase = state.phase === 'duel' ? state.duel?.returnPhase : state.phase;
+  return state.questionIndex === q && phase !== undefined && phase !== null && OPEN_PHASES.includes(phase);
+}
+
+/** Запитання prev, бали якого стали остаточними на кроці prev → next: бліц — на закритті, решта — на виході з розкриття; інакше null. */
+function penaltyDue(prev: GameState, next: GameState): number | null {
+  const q = prev.questionIndex;
+  const play = prev.plays[q];
+  if (play === undefined) return null;
+  if (play.blitz !== undefined) return prev.phase === 'question' && (next.phase !== 'question' || next.questionIndex !== q) ? q : null;
+  return openOn(prev, q) && !openOn(next, q) ? q : null;
+}
+
+/** Штрафи 'away' за запитання q: −бали запису (лише додатні), раз на учасника; лише коли q — останнє закрите запитання. */
+function withPenalties(state: GameState, q: number, at: number): GameState {
+  // Захист від невідомого переходу: штраф стоїть під своїм запитанням (afterQuestion − 1 === q).
+  if (afterQuestionNow(state) - 1 !== q) return state;
+  const { roundIndex } = state.plays[q];
+  let s = state;
+  for (const participant of awayPenalized(state, q)) {
+    const points = recordOf(s, q, participant)?.points ?? 0;
+    if (points <= 0) continue;
+    // Раз на учасника: скасований ведучим штраф не повертається.
+    if (s.adjustments.some((a) => a.source === 'away' && a.playerId === participant && a.afterQuestion - 1 === q)) continue;
+    s = addAdjustment(s, participant, -points, at, 'away', { roundIndex });
+  }
   return s;
 }

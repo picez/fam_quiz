@@ -1,4 +1,5 @@
 import {
+  AWAY_MS,
   bluffFact,
   factLimitMs,
   gameAwards,
@@ -16,6 +17,7 @@ import {
   type OwnFacts,
   type RoundShare,
 } from '@quiz/shared';
+import { awayParticipant } from './away';
 import { roundCount, scoreLinesByPlayer, withRounds } from './breakdown';
 import { recordOf, type GameState } from './game';
 import { rankPlayers } from './ranking';
@@ -85,9 +87,25 @@ export function factInput(state: GameState): FactInput {
     rounds: row.rounds ?? [],
   }));
   const debuffs = state.adjustments.filter((a) => a.source === 'debuff').map((a) => ({ by: a.playerId, target: a.target ?? null }));
-  const input = { players, questions, rows, debuffs, away: [] };
+  const input = { players, questions, rows, debuffs, away: awayFacts(state, closedCount) };
   inputCache.set(state, input);
   return input;
+}
+
+/** Позначки «відволікався» (12e) закритих запитань: учасник рушія людини з ms ≥ AWAY_MS.mark, без повторів. */
+function awayFacts(state: GameState, closedCount: number): FactInput['away'] {
+  const away: FactInput['away'] = [];
+  for (let index = 0; index < closedCount; index++) {
+    const seen = new Set<string>();
+    for (const [personId, entry] of Object.entries(state.plays[index].away ?? {})) {
+      if (entry.ms < AWAY_MS.mark) continue;
+      const playerId = awayParticipant(state, personId);
+      if (playerId === null || seen.has(playerId)) continue;
+      seen.add(playerId);
+      away.push({ playerId, questionIndex: index });
+    }
+  }
+  return away;
 }
 
 /**
