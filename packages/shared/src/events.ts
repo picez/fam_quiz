@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { answerSchema, type Answer } from './answer';
 import { draftValueSchema, type HostDrafts } from './drafts';
+import { AWAY_REPORT_MAX_MS } from './away';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIFELINES, LIMITS } from './quiz';
 import { DOOR_COUNT } from './survival';
@@ -122,6 +123,8 @@ export const teamPickSchema = z.object({ teamId: playerId });
 export const duelistSchema = z.object({ memberId: playerId });
 /** Чернетка: поточний стан вводу до «Надіслати» (10j капітан, 12b будь-хто); null — поле порожнє. */
 export const draftSchema = z.object({ draft: draftValueSchema.nullable() });
+/** Вихід із гри (12e): away true — пішов; false — повернувся, ms — скільки тривав вихід за годинником телефона. */
+export const awaySchema = z.object({ away: z.boolean(), ms: z.number().int().min(0).max(AWAY_REPORT_MAX_MS).optional() });
 /** Пульт: увімкнути чи вимкнути живі вибори (12b). */
 export const liveWatchSchema = z.object({ on: z.boolean() });
 /** Ведучий: спосіб формування. */
@@ -182,6 +185,8 @@ export interface ClientToServerEvents {
   'player:duelist': (payload: z.infer<typeof duelistSchema>, ack: Ack) => void;
   /** Живий вибір до «Надіслати»: товаришам капітана (10j) і пульту з «наживо» (12b). */
   'player:draft': (payload: z.infer<typeof draftSchema>, ack: Ack) => void;
+  /** Антигугл (12e): телефон пішов із гри чи повернувся; час рахує сервер. */
+  'player:away': (payload: z.infer<typeof awaySchema>, ack: Ack) => void;
   'host:start': (ack: Ack) => void;
   'host:lock': (ack: Ack) => void;
   'host:next': (ack: Ack) => void;

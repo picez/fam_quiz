@@ -1962,6 +1962,7 @@ const uk = {
   scoreSource_debuff: 'Дебафи',
   scoreSource_host: 'Ведучий',
   scoreSource_undo: 'Скасовано ведучим',
+  scoreSource_away: 'Вихід із гри',
   scoreSource_wipeout: '«Ва-банк»',
   scoreSource_survival: '«Вибування»',
   scoreSource_ladder: '«Мільйонер»',
