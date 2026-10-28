@@ -2,7 +2,7 @@ import { LIMITS, TEAM_FORMS } from '@quiz/shared';
 import type { HelpEntry } from './types';
 
 /** Записи теми «Команди» в порядку довідника; спосіб формування — з TEAM_FORMS (новий спосіб без запису не пройде typecheck). */
-export const TEAM_HELP_KEYS = ['play', ...TEAM_FORMS, 'captain', 'formats'] as const;
+export const TEAM_HELP_KEYS = ['play', ...TEAM_FORMS, 'captain', 'answerer', 'formats'] as const;
 export type TeamHelpKey = (typeof TEAM_HELP_KEYS)[number];
 
 export const TEAM_HELP: Record<TeamHelpKey, HelpEntry> = {
@@ -90,6 +90,16 @@ export const TEAM_HELP: Record<TeamHelpKey, HelpEntry> = {
     points: ['Бали йдуть команді, а не капітану; точність і досягнення — з відповідей команди.'],
     tip: ['Призначте капітаном того, хто надійно тримає зв’язок; решта радить уголос.'],
     limits: ['Дебаф, насланий на команду, діє на телефоні її капітана; решта команди бачить позначку «На капітані дебаф».'],
+  },
+  answerer: {
+    title: 'Хто відповідає',
+    what: 'Налаштування вікторини: за команду відповідає капітан, той, кого вибирає капітан, або всі по черзі.',
+    how: [
+      'У редакторі: «Хто відповідає» — капітан / вибирає капітан / по черзі.',
+      'Між запитаннями капітан вибирає на телефоні, хто відповідатиме на наступному запитанні або до кінця раунду.',
+    ],
+    points: ['Бали йдуть команді, хто б не відповідав.'],
+    tip: ['«По черзі» дає зіграти кожному з команди.'],
   },
   formats: {
     title: 'Формати в командах',

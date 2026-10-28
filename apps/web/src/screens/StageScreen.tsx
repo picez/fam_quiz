@@ -32,6 +32,7 @@ import { Standings } from './Standings';
 import { RoundHighlights } from './ScoreTable';
 import { roundGains, roundHighlights } from '../score-table';
 import { StageTeams } from './StageTeams';
+import { StageAnswerers } from './StageAnswerers';
 import { WipeoutLadder, WipeoutSide } from './WipeoutLadder';
 import { SurvivalBoard } from './SurvivalBoard';
 import { LadderBoard } from './LadderBoard';
@@ -243,6 +244,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           </span>
         )}
       </header>
+      <StageAnswerers view={view} />
       {view.wipeout !== null && view.wipeout.current >= 0 && (
         <p className="meta wipeout-strip">
           {t('wipeoutStageStrip', { index: view.wipeout.current + 1, total: view.wipeout.ladder.length, price: num(view.wipeout.ladder[view.wipeout.current] ?? 0) })}
@@ -554,6 +556,7 @@ function LadderStage({ view, offsetMs, audioCommand }: { view: StageView; offset
         )}
         <span>{t('ladderStageHallCount', { answered: hall.answered, total: hall.total })}</span>
       </header>
+      <StageAnswerers view={view} />
       <div className="ladder-stage-body">
         <div className="ladder-stage-main">
           <div className="stage-main">

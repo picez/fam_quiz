@@ -11778,3 +11778,36 @@ button.wall-tile:disabled {
 .resume-points .resume-invalid {
   grid-column: 1 / -1;
 }
+
+/* Хто відповідає (12g): рядок сцени під шапкою — один рядок без перенесення, сталої висоти; 🎤 у складі команди на пульті. */
+.stage-answerers {
+  margin: 0;
+  min-height: 1.5em;
+  line-height: 1.5;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage .stage-answerers {
+  font-size: clamp(1rem, 1.7vw, 1.75rem);
+}
+
+.stage-answerer strong {
+  color: var(--paper);
+}
+
+.stage-answerer .team-dot {
+  display: inline-block;
+  margin-right: 0.4em;
+  vertical-align: 0.1em;
+}
+
+.stage-answerer + .stage-answerer::before {
+  content: ' · ';
+}
+
+.answerer-mark {
+  margin-left: 0.25rem;
+}

@@ -44,7 +44,7 @@ describe('host help', () => {
     expect(helpIds('rounds')).toEqual(ROUND_TYPES.map((type) => `round.${type}`));
     expect(helpIds('questions')).toEqual(QUESTION_TYPES.map((type) => `question.${type}`));
     expect(helpIds('cells')).toEqual(['cell.normal', 'cell.blitz', 'cell.voice', 'cell.marks']);
-    expect(helpIds('teams')).toEqual(['team.play', 'team.host', 'team.pick', 'team.random', 'team.dice', 'team.captain', 'team.formats']);
+    expect(helpIds('teams')).toEqual(['team.play', 'team.host', 'team.pick', 'team.random', 'team.dice', 'team.captain', 'team.answerer', 'team.formats']);
     const all = HELP_TOPICS.flatMap(helpIds);
     expect(new Set(all).size).toBe(all.length);
     for (const id of all) expect(helpIds(helpTopic(id))).toContain(id);

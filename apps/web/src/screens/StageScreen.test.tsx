@@ -2059,6 +2059,18 @@ describe('StageScreen: bluff (10f)', () => {
       expect(first.classList.contains('team-1')).toBe(true);
       expect(first.querySelector('.standing-members')!.textContent).toBe('Оля, Петро, Ната');
     });
+
+    it('a rotate team question names who answers right under the header, above the question (12g)', () => {
+      const teams = teamsView({ answerer: 'rotate' });
+      teams.teams[1]!.answererId = 'u3';
+      show(view({ phase: 'question', round: lRound, questionIndex: 0, question, teams }));
+      const bar = document.querySelector('.stage-question > header.bar')!;
+      const line = document.querySelector('.stage-question > .stage-answerers')!;
+      expect(bar.nextElementSibling).toBe(line);
+      expect(line.compareDocumentPosition(document.querySelector('.stage-question h1')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(line.textContent).toContain('відповідає: Петро');
+      expect(line.textContent).toContain('відповідає: Іра');
+    });
   });
 });
 

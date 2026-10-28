@@ -36,7 +36,7 @@ interface PeopleProps {
   busy: boolean;
 }
 
-/** Люди команди: зв'язок, 👑, «Капітан» і (в грі) «Вилучити»; у лобі ще й вибір команди. */
+/** Люди команди: зв'язок, 👑, 🎤 біля того, хто відповідає замість капітана (12g), «Капітан» і (в грі) «Вилучити»; у лобі ще й вибір команди. */
 export function TeamPeople({ team, moveTo, onCaptain, onKick, busy }: PeopleProps) {
   return (
     <ul className="team-people">
@@ -55,6 +55,11 @@ export function TeamPeople({ team, moveTo, onCaptain, onKick, busy }: PeopleProp
               </span>
             )}
             {member.nickname}
+            {member.id === team.answererId && team.answererId !== team.captainId && (
+              <span className="answerer-mark" role="img" aria-label={t('teamAnswererMark')}>
+                🎤
+              </span>
+            )}
           </span>
           {!member.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
           {moveTo !== undefined && <MoveSelect member={member} current={team.id} moveTo={moveTo} />}
