@@ -2,7 +2,12 @@ import {
   adjustmentSource,
   allSpares,
   answerSource,
+  bluffFact,
   breakdownOf,
+  cellAnswerMode,
+  factLimitMs,
+  factTable,
+  gameAwards,
   roundTotals,
   LIFELINES,
   isUnscored,
@@ -17,6 +22,8 @@ import {
   wipeoutStandings,
   type AdjustmentSource,
   type BuffKind,
+  type FactInput,
+  type FactQuestion,
   type GameDetail,
   type Answer,
   type GameQuestionResult,
@@ -137,6 +144,70 @@ function cellResult(
     chooser: nicknames.get(chooserId) ?? null,
     points: own.length === 0 ? null : own.reduce((sum, a) => sum + a.points, 0),
   };
+}
+
+/** Вхід цікавинок з бази (12d): ті самі рядки, що рушій бере зі стану. Рядки answer з attempt ≥ 0 (без штрафів і голосів); запитання — зі знімка, якщо він читається. */
+function factInputOf(
+  quiz: Quiz | null,
+  played: { roundIndex: number; question: Question | undefined; ref: PlayRef | undefined }[],
+  standings: { participantId: string; nickname: string; rank: number | null; score: number; rounds: number[] }[],
+  answers: { participantId: string; questionIndex: number; roundIndex: number; attempt: number; payload: Answer | null; timeMs: number; accepted: boolean; wager: number | null; buff: BuffKind | null; spareId: string | null }[],
+  adjustments: { participantId: string; source: AdjustmentSource; targetNickname: string | null }[],
+): FactInput {
+  const questions: FactQuestion[] = [];
+  let number = 0;
+  played.forEach(({ roundIndex, question, ref }, index) => {
+    // Номер у раунді рахує й запитання, якого немає в знімку: як у грі.
+    number = index > 0 && played[index - 1].roundIndex === roundIndex ? number + 1 : 1;
+    if (question === undefined) return;
+    const round = quiz?.rounds[roundIndex];
+    const cell = ref?.cell !== undefined && round?.type === 'board' ? findCell(round, ref.cell.cellId) : undefined;
+    const voice = round?.type === 'board' && cell !== undefined && cellAnswerMode(round, cell.cell) === 'voice';
+    questions.push({
+      index,
+      roundIndex,
+      number,
+      text: question.text,
+      limitMs: factLimitMs(question, round, voice),
+      scored: !isUnscored(question),
+      board: ref?.cell !== undefined,
+      blitz: round?.type === 'blitz' || cell?.cell.kind === 'blitz',
+      bluff: question.type === 'bluff',
+      final: round?.type === 'final',
+    });
+  });
+  const finals = new Set(questions.filter((q) => q.final).map((q) => q.index));
+  const ids = new Set(standings.map((s) => s.participantId));
+  const idOf = new Map(standings.map((s) => [s.nickname, s.participantId]));
+  return {
+    // Командна гра: таблиця — рядки команд; рядки людей (голоси) сюди не потрапляють.
+    players: standings.map(({ participantId, nickname, rank, score, rounds }) => ({ id: participantId, nickname, rank, score, rounds })),
+    questions,
+    rows: answers
+      // Від'ємні спроби — штрафи бліц-клітинки, мовчання у фіналі й голоси: не відповіді.
+      .filter((a) => a.attempt >= 0 && ids.has(a.participantId))
+      .map((a) => ({
+        playerId: a.participantId,
+        questionIndex: a.questionIndex,
+        roundIndex: a.roundIndex,
+        attempt: a.attempt,
+        timeMs: a.timeMs,
+        accepted: a.accepted,
+        buff: a.buff ?? null,
+        spare: a.spareId !== null,
+        // Старі рядки фіналу без ставки — як у грі без ставки (0).
+        wager: finals.has(a.questionIndex) ? (a.wager ?? 0) : a.wager,
+        bluff: bluffFact(a.payload),
+      })),
+    debuffs: adjustments
+      .filter((a) => a.source === 'debuff')
+      .map((a) => ({ by: a.participantId, target: a.targetNickname === null ? null : (idOf.get(a.targetNickname) ?? null) })),
+  };
+}
+
+/** Нагороди гри й таблиця учасників для історії (12d). */
+function factsOf(input: FactInput): GameDetail['facts'] {
+  return { awards: gameAwards(input), table: factTable(input) };
 }
 
 /** Відповіді на запитання: учасники за турнірною таблицею, потім за номером спроби. */
@@ -365,6 +436,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
             payload: answer.payload,
             accepted: answer.accepted,
             points: answer.points,
+            timeMs: answer.timeMs,
             wager: answer.wager,
             buff: answer.buff,
             spareId: answer.spareId,
@@ -491,8 +563,7 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
       ...(source === 'undo' && undoesQuestion === null && undoesSeq !== null ? { undoes: { seq: undoesSeq } } : {}),
     })),
 
-    // До задачі 4: цікавинки з рядків answer.
-    facts: { awards: [], table: [] },
+    facts: factsOf(factInputOf(quiz, played, standings, answers, adjustments)),
   };
 }
 
