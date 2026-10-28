@@ -1,0 +1,146 @@
+import { eq } from 'drizzle-orm';
+import { describe, expect, it } from 'vitest';
+import { defaultTeams } from '@quiz/shared';
+import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
+import { awayStep, type GameState } from '@quiz/engine';
+import { answer, participant, scoreAdjustment, user } from './db/schema';
+import { hostGame } from './history';
+import { attachRecorder } from './recorder';
+import { RoomManager, type Room } from './rooms/manager';
+import { FakeScheduler } from './testing/fake-scheduler';
+import { createTestDb } from './testing/test-db';
+import { seedGame } from './testing/history-rows';
+import { TEAM_HOST, recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
+
+const HOST = 'away-host';
+const right = { type: 'single', optionId: 'b' } as const;
+const wrong = { type: 'single', optionId: 'a' } as const;
+
+/** Ведучий виходить із розкриття; штраф дописує годинник виходів (до задачі 7 його не викликає RoomManager). */
+function leaveReveal(manager: RoomManager, room: Room): void {
+  const prev = room.state;
+  expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+  room.state = awayStep(prev, room.state, 0, new Set());
+}
+
+/** Записує в поточне запитання вихід людини (як після awayEnd): ms, count, без відкритого інтервалу. */
+function leave(room: Room, personId: string, ms: number): void {
+  const index = room.state.questionIndex;
+  const play = room.state.plays[index];
+  const plays = [...room.state.plays];
+  plays[index] = { ...play, away: { ...play.away, [personId]: { ms, count: 1, since: null } } };
+  room.state = { ...room.state, plays } as GameState;
+}
+
+async function soloGame() {
+  const db = await createTestDb();
+  await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'away-host@example.com' });
+  const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+  const errors: unknown[] = [];
+  const recorder = attachRecorder(manager, db, (error) => errors.push(error));
+  const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')], { speedBonus: false })], { awayPenalty: true });
+  const room = manager.create(quiz, HOST, null);
+  const enter = (nickname: string) => {
+    const joined = manager.join(room.code, nickname, null);
+    if (!joined.ok) throw new Error(joined.error);
+    manager.connect(room, { role: 'player', playerId: joined.playerId });
+    return joined.playerId;
+  };
+  const olya = enter('Оля');
+  const petro = enter('Петро');
+  const host = (action: Parameters<RoomManager['host']>[1]) => expect(manager.host(room, action)).toEqual({ ok: true });
+  return { db, manager, recorder, errors, room, olya, petro, host };
+}
+
+describe('history: away (12e)', () => {
+  it('stores the time away from the marker threshold, shows it in the history, and the penalty is a stored adjustment that sums with the rows', async () => {
+    const { db, manager, recorder, errors, room, olya, petro, host } = await soloGame();
+    host({ type: 'start' });
+    toQuestion(manager, room);
+    leave(room, olya, 3500);
+    leave(room, petro, 1500);
+    manager.answer(room, olya, right);
+    manager.answer(room, petro, right);
+    expect(room.state.phase).toBe('locked');
+    host({ type: 'next' }); // reveal
+    leaveReveal(manager, room); // the penalty is final on leaving the reveal
+    await recorder.idle();
+    expect(errors).toEqual([]);
+
+    const penalty = room.state.adjustments.find((a) => a.source === 'away');
+    expect(penalty).toMatchObject({ playerId: olya, points: -1000 });
+    const rows = await db.select().from(answer);
+    expect(rows.find((r) => r.participantId === olya)?.awayMs).toBe(3500);
+    expect(rows.find((r) => r.participantId === petro)?.awayMs).toBeNull();
+
+    const sums = async () => {
+      const people = await db.select().from(participant);
+      const adjustments = await db.select().from(scoreAdjustment);
+      return people.map((p) => [p.id, rows.filter((r) => r.participantId === p.id).reduce((s, r) => s + r.points, 0) + adjustments.filter((a) => a.participantId === p.id).reduce((s, a) => s + a.points, 0), p.score]);
+    };
+    for (const [, sum, score] of await sums()) expect(sum).toBe(score);
+
+    toEnd(manager, room);
+    await recorder.idle();
+    const detail = await hostGame(db, HOST, room.id);
+    const first = detail?.questions[0].responses ?? [];
+    expect(first.find((r) => r.nickname === 'Оля')?.awayMs).toBe(3500);
+    expect(first.find((r) => r.nickname === 'Петро')?.awayMs).toBeNull();
+    expect(detail?.adjustments).toEqual([expect.objectContaining({ nickname: 'Оля', points: -1000, source: 'away' })]);
+    expect(detail?.standings.find((s) => s.nickname === 'Оля')?.breakdown.parts.find((p) => p.source === 'away')).toEqual({ source: 'away', plus: 0, minus: -1000 });
+  });
+
+  it('undoing the away penalty keeps the stored rows summing to the score', async () => {
+    const { db, manager, recorder, room, olya, petro, host } = await soloGame();
+    host({ type: 'start' });
+    toQuestion(manager, room);
+    leave(room, olya, 4000);
+    manager.answer(room, olya, right);
+    manager.answer(room, petro, wrong);
+    host({ type: 'next' });
+    leaveReveal(manager, room);
+    const penalty = room.state.adjustments.find((a) => a.source === 'away');
+    expect(penalty).toBeDefined();
+    expect(manager.host(room, { type: 'undo', target: { seq: penalty?.seq ?? -1 } })).toEqual({ ok: true });
+    await recorder.idle();
+    const rows = await db.select().from(answer);
+    const adjustments = await db.select().from(scoreAdjustment);
+    for (const p of await db.select().from(participant)) {
+      const sum = rows.filter((r) => r.participantId === p.id).reduce((s, r) => s + r.points, 0) + adjustments.filter((a) => a.participantId === p.id).reduce((s, a) => s + a.points, 0);
+      expect(sum).toBe(p.score);
+    }
+    expect(adjustments.map((a) => a.source).sort()).toEqual(['away', 'undo']);
+  });
+
+  it('a team row keeps the longest time among its people', async () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus: false })], { teams: defaultTeams(2) });
+    const ctx = await recordedTeamGame(quiz);
+    ctx.manager.host(ctx.room, { type: 'start' });
+    toQuestion(ctx.manager, ctx.room);
+    leave(ctx.room, ctx.members.Оля, 2500);
+    leave(ctx.room, ctx.members.Петро, 6100);
+    ctx.manager.answer(ctx.room, ctx.members.Оля, right);
+    ctx.manager.answer(ctx.room, ctx.members.Віра, right);
+    toEnd(ctx.manager, ctx.room);
+    await ctx.recorder.idle();
+    expect(ctx.errors).toEqual([]);
+    const rows = await ctx.db.select().from(answer);
+    const byParticipant = new Map(rows.map((r) => [r.participantId, r.awayMs]));
+    expect(byParticipant.get(ctx.teams[0])).toBe(6100);
+    expect(byParticipant.get(ctx.teams[1])).toBeNull();
+    expect(await ctx.db.select().from(participant).where(eq(participant.id, ctx.teams[0]))).toHaveLength(1);
+    expect(TEAM_HOST).toBeDefined();
+  });
+
+  it('an old game without away_ms reads as null', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'away-host@example.com' });
+    const { gameId } = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date(2026, 0, 3),
+      players: [{ userId: null, nickname: 'Тарас', score: 1000, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 1000 }] }],
+    });
+    const detail = await hostGame(db, HOST, gameId);
+    expect(detail?.questions[0].responses.map((r) => r.awayMs)).toEqual([null]);
+  });
+});

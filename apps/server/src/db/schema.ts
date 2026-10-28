@@ -214,6 +214,8 @@ export const answer = pgTable(
     buff: text('buff').$type<BuffKind>(),
     /** Запасне запитання, на яке дано відповідь; null — основне (і в старих іграх). */
     spareId: text('spare_id'),
+    /** Вихід із гри на цьому запитанні від AWAY_MS.mark, мс (12e); null — без позначки (і в старих іграх). */
+    awayMs: integer('away_ms'),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
 );

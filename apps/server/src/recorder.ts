@@ -1,5 +1,5 @@
-import { rankPlayers, recordOf, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
-import { isUnscored, type Answer, type BuffKind, type Question } from '@quiz/shared';
+import { memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
+import { AWAY_MS, isUnscored, type Answer, type BuffKind, type Question } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
@@ -65,10 +65,27 @@ interface AnswerRow {
   buff: BuffKind | null;
   /** Запасне запитання, на яке дано відповідь; null — основне. */
   spareId: string | null;
+  /** Вихід із гри на запитанні, мс (від AWAY_MS.mark); null — без позначки. */
+  awayMs: number | null;
+}
+
+/** Вихід учасника на запитанні для away_ms (12e): соло — свій; команда — найбільший з людей; людина (голос) — свій; менше AWAY_MS.mark — null. */
+function awayMsOf(state: GameState, index: number, participantId: string): number | null {
+  const away = state.plays[index].away;
+  if (away === undefined) return null;
+  const people = teamsOn(state) && memberOf(state, participantId) === undefined ? teamMembers(state, participantId).map((m) => m.id) : [participantId];
+  const ms = Math.max(0, ...people.map((id) => away[id]?.ms ?? 0));
+  return ms >= AWAY_MS.mark ? ms : null;
 }
 
 /** Рядки таблиці answer для гравця на запитання: у бліці по рядку на спробу, інакше один. */
 function answerRows(state: GameState, index: number, playerId: string): AnswerRow[] {
+  const rows = answerRowsOf(state, index, playerId);
+  const awayMs = rows.length === 0 ? null : awayMsOf(state, index, playerId);
+  return rows.map((row) => ({ ...row, awayMs }));
+}
+
+function answerRowsOf(state: GameState, index: number, playerId: string): Omit<AnswerRow, 'awayMs'>[] {
   const record = recordOf(state, index, playerId);
   if (record === undefined) return [];
   const attempts = state.plays[index].blitz?.attempts.filter((a) => a.playerId === playerId);

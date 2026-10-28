@@ -1,4 +1,5 @@
 import {
+  AWAY_MS,
   adjustmentSource,
   allSpares,
   answerSource,
@@ -151,7 +152,7 @@ function factInputOf(
   quiz: Quiz | null,
   played: { roundIndex: number; question: Question | undefined; ref: PlayRef | undefined }[],
   standings: { participantId: string; nickname: string; rank: number | null; score: number; rounds: number[] }[],
-  answers: { participantId: string; questionIndex: number; roundIndex: number; attempt: number; payload: Answer | null; timeMs: number; accepted: boolean; wager: number | null; buff: BuffKind | null; spareId: string | null }[],
+  answers: { participantId: string; questionIndex: number; roundIndex: number; attempt: number; payload: Answer | null; timeMs: number; accepted: boolean; wager: number | null; buff: BuffKind | null; spareId: string | null; awayMs: number | null }[],
   adjustments: { participantId: string; source: AdjustmentSource; targetNickname: string | null }[],
 ): FactInput {
   const questions: FactQuestion[] = [];
@@ -204,7 +205,11 @@ function factInputOf(
     debuffs: adjustments
       .filter((a) => a.source === 'debuff')
       .map((a) => ({ by: a.participantId, target: a.targetNickname === null ? null : (idOf.get(a.targetNickname) ?? null) })),
-    away: [],
+    // Позначки «відволікався» (12e): ті самі, що в рушія, — учасники таблиці з awayMs від порогу, раз на запитання.
+    away: answers
+      .filter((a) => a.attempt >= 0 && ids.has(a.participantId) && a.awayMs !== null && a.awayMs >= AWAY_MS.mark)
+      .map((a) => ({ playerId: a.participantId, questionIndex: a.questionIndex }))
+      .filter((a, i, all) => all.findIndex((b) => b.playerId === a.playerId && b.questionIndex === a.questionIndex) === i),
   };
 }
 
@@ -215,7 +220,7 @@ function factsOf(input: FactInput): GameDetail['facts'] {
 
 /** Відповіді на запитання: учасники за турнірною таблицею, потім за номером спроби. */
 function responsesOf(
-  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; buff: BuffKind | null; spareId: string | null }[],
+  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; buff: BuffKind | null; spareId: string | null; awayMs: number | null }[],
   standings: { participantId: string; nickname: string }[],
   spares: Question[],
 ): GameResponse[] {
@@ -224,14 +229,14 @@ function responsesOf(
       // Штрафний рядок бліц-клітинки не є відповіддю.
       .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
       .sort((a, b) => a.attempt - b.attempt)
-      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null, awayMs: null })),
+      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null, awayMs: a.awayMs ?? null })),
   );
 }
 
 /** Запитання фіналу: ставка кожного учасника з рядками на нього (мовчання теж), за турнірною таблицею. */
 function finalResult(
   round: FinalRound,
-  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; points: number; wager: number | null }[],
+  given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; points: number; wager: number | null; awayMs: number | null }[],
   standings: { participantId: string; nickname: string }[],
 ): GameQuestionResult['final'] {
   return {
@@ -242,7 +247,7 @@ function finalResult(
       // Старі ігри не зберігали ставку: у класиці бали фіналу завжди «плюс» або «мінус» ставка.
       return row === undefined
         ? []
-        : [{ nickname, answer: row.attempt === PENALTY_ATTEMPT ? null : row.payload, wager: row.wager ?? Math.abs(row.points), points: row.points, accepted: row.accepted, awayMs: null }];
+        : [{ nickname, answer: row.attempt === PENALTY_ATTEMPT ? null : row.payload, wager: row.wager ?? Math.abs(row.points), points: row.points, accepted: row.accepted, awayMs: row.awayMs ?? null }];
     }),
   };
 }
@@ -448,6 +453,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
             wager: answer.wager,
             buff: answer.buff,
             spareId: answer.spareId,
+            awayMs: answer.awayMs,
           })
           .from(answer)
           .where(

@@ -75,6 +75,13 @@ describe('history facts (12d)', () => {
         for (const [id, amount] of [[olya, 200], [petro, 100], [vira, 50]] as const) local.manager.wager(room, id, amount);
       } else if (phase === 'question' && !done.has(questionIndex)) {
         done.add(questionIndex);
+        // Виходи з гри (12e): Оля 3,5 с на першому запитанні, Петро рівно 2 с на третьому (bluff; на опитуванні голос — не рядок answer, там виходу не зберігається); Віра 1,5 с — нижче порогу.
+        const away = questionIndex === 0 ? { [olya]: 3500, [vira]: 1500 } : questionIndex === 2 ? { [petro]: 2000 } : {};
+        if (Object.keys(away).length > 0) {
+          const plays = [...room.state.plays];
+          plays[questionIndex] = { ...play, away: Object.fromEntries(Object.entries(away).map(([id, ms]) => [id, { ms, count: 1, since: null }])) };
+          room.state = { ...room.state, plays };
+        }
         if (play.question.type === 'poll') {
           // Голоси опитування — не відповіді.
           for (const id of [olya, petro, vira]) local.manager.answer(room, id, { type: 'poll', optionId: 'a' });
@@ -126,6 +133,11 @@ describe('history facts (12d)', () => {
     expect(found?.factInput.questions).toEqual(live.questions);
     expect(byKey(found?.factInput.rows ?? [])).toEqual(byKey(live.rows));
     expect(found?.factInput.debuffs).toEqual(live.debuffs);
+    // Позначки «відволікався» (12e): ті самі й у тому самому вигляді; поріг — від 2 с.
+    const byAway = (rows: typeof live.away) => [...rows].sort((a, b) => a.questionIndex - b.questionIndex || a.playerId.localeCompare(b.playerId));
+    expect(live.away).toEqual(expect.arrayContaining([{ playerId: olya, questionIndex: 0 }]));
+    expect(live.away.some((a) => a.playerId === vira)).toBe(false);
+    expect(byAway(found?.factInput.away ?? [])).toEqual(byAway(live.away));
     // Перевірка, що гра справді дала рядки всіх видів.
     expect(live.rows.some((r) => r.attempt === 1)).toBe(true);
     expect(live.rows.some((r) => r.bluff !== null)).toBe(true);

@@ -727,6 +727,25 @@ describe('recorder: blitz', () => {
     ]);
   });
 
+  it('every attempt row of a blitz keeps the same away_ms; under the marker threshold it is null (12e)', async () => {
+    const risky = { penalty: 'minus', partial: null, streak: null, multiplier: 1 } as const;
+    const { manager, room, olena, taras, answers } = await blitzSetup({ attempts: 2, check: 'manual', rules: risky });
+    const index = room.state.questionIndex;
+    const play = room.state.plays[index];
+    room.state = {
+      ...room.state,
+      plays: room.state.plays.map((p, i) => (i === index ? { ...play, away: { [olena]: { ms: 2500, count: 1, since: null }, [taras]: { ms: 1500, count: 1, since: null } } } : p)),
+    };
+    for (const [id, choice, ok] of [[taras, wrong, false], [olena, wrong, false], [olena, correct, true]] as const) {
+      expect(manager.buzz(room, id)).toEqual({ ok: true });
+      expect(manager.answer(room, id, choice)).toEqual({ ok: true });
+      expect(manager.host(room, { type: 'judge', playerId: id, correct: ok })).toEqual({ ok: true });
+    }
+    const rows = await answers();
+    expect(rows.filter((a) => a.participantId === olena).map((a) => [a.attempt, a.awayMs])).toEqual([[0, 2500], [1, 2500]]);
+    expect(rows.filter((a) => a.participantId === taras).map((a) => a.awayMs)).toEqual([null]);
+  });
+
   it('a missed blitz window is stored with an empty payload', async () => {
     const { scheduler, manager, room, olena, answers } = await blitzSetup({ answerWindow: 5, check: 'manual' });
     expect(manager.buzz(room, olena)).toEqual({ ok: true });
