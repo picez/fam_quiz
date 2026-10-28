@@ -1,11 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import type { Phase, Quiz } from '@quiz/shared';
+import type { Answer, Phase, Quiz } from '@quiz/shared';
 import { activePick, answererOf, nextAnswerer, pickAnswerer, queueNext, shownAnswerer, startAnswerers, upcomingPick } from './answerer';
 import { pickCell } from './board';
 import { chooserOf } from './board-turns';
 import { lock, next, pause, start, type GameState } from './game';
+import { pickContestant } from './ladder';
+import { trialOpen } from './survival';
+import { actAnswer } from './team-act';
 import { dropMember, memberConnected } from './teams';
-import { blitzRound, boardRound, classicRound, makeRoundsQuiz, poll, single, withId } from './testing/fixtures';
+import { decideWipeout, decisionOpen } from './wipeout';
+import {
+  blitzRound,
+  boardRound,
+  classicRound,
+  ladderRound,
+  makeRoundsQuiz,
+  poll,
+  single,
+  survivalQuestions,
+  survivalRound,
+  survivalTrials,
+  wipeoutLadder,
+  wipeoutRound,
+  withId,
+} from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
@@ -19,15 +37,14 @@ const LAYOUT = [
 /** Раунд 1 — q1, q2, q3; раунд 2 — q4. */
 const ROUNDS = [classicRound('r1', [single, withId(single, 'q2'), withId(single, 'q3')]), classicRound('r2', [withId(single, 'q4')])];
 
-const game = (quiz: Quiz): GameState => teamGame(quiz, LAYOUT);
+const game = (quiz: Quiz, layout = LAYOUT): GameState => teamGame(quiz, layout);
+const RIGHT: Answer = { type: 'single', optionId: 'b' };
+const WRONG: Answer = { type: 'single', optionId: 'a' };
 /** Етап intro першого раунду, режим «вибирає капітан». */
 const intro = game(teamQuiz(ROUNDS, 2, 'chosen'));
 
-/** Крок рушія: на запитанні — «Закрити», інакше — «Далі»; щойно відкрите запитання — startAnswerers (як зробить openQuestion). */
-function step(s: GameState): GameState {
-  const moved = must(s.phase === 'question' ? lock(s) : next(s, T0, rng));
-  return moved.phase === 'question' && s.phase !== 'question' ? startAnswerers(moved) : moved;
-}
+/** Крок рушія: на запитанні — «Закрити», інакше — «Далі» (openQuestion сам викликає startAnswerers). */
+const step = (s: GameState): GameState => must(s.phase === 'question' ? lock(s) : next(s, T0, rng));
 
 /** Кроки, доки етап не стане phase. */
 function until(s: GameState, phase: Phase): GameState {
@@ -36,7 +53,7 @@ function until(s: GameState, phase: Phase): GameState {
   return state;
 }
 
-/** До наступного відкритого запитання (з startAnswerers). */
+/** До наступного відкритого запитання. */
 const toNextQuestion = (s: GameState): GameState => until(s, 'question');
 
 const offline = (s: GameState, id: string): GameState => must(memberConnected(s, id, false, T0));
@@ -261,5 +278,144 @@ describe('answerer: rotate', () => {
     expect(queueNext(s, 't1')).toBe('m3');
     s = must(dropMember(s, 'm2'));
     expect(queueNext(s, 't1')).toBe('m1');
+  });
+});
+
+describe('answerer: the open question keeps its answerer', () => {
+  it('a new pick, a cleared pick or a flipped scope after the opening do not change who answers that question', () => {
+    let s = toNextQuestion(must(pickAnswerer(intro, 'm1', 'm2', 'round')));
+    expect(s.teams?.current?.t1).toEqual({ questionIndex: 0, memberId: 'm2' });
+    s = until(s, 'reveal');
+    s = must(pickAnswerer(s, 'm1', 'm3', 'question'));
+    expect(answererOf(s, 't1')).toBe('m2');
+    expect(nextAnswerer(s, 't1')).toBe('m3');
+    expect(answererOf(must(pickAnswerer(s, 'm1', null, 'question')), 't1')).toBe('m2');
+    expect(answererOf(must(pickAnswerer(s, 'm1', 'm2', 'question')), 't1')).toBe('m2');
+    s = toNextQuestion(s);
+    expect(answererOf(s, 't1')).toBe('m3');
+  });
+
+  it('on a survival trial a new pick or a cleared pick leave the trial with the one who answered the record', () => {
+    const quiz = teamQuiz([survivalRound('rs', survivalQuestions, survivalTrials)], 2, 'chosen');
+    let s = toNextQuestion(must(pickAnswerer(game(quiz), 'm1', 'm2', 'round')));
+    s = must(actAnswer(s, 'm2', WRONG, T0 + 1000));
+    s = must(actAnswer(s, 'm4', RIGHT, T0 + 1000));
+    while (!trialOpen(s)) s = must(next(s, T0 + 2000, rng));
+    expect(answererOf(s, 't1')).toBe('m2');
+    s = must(pickAnswerer(s, 'm1', 'm3', 'round'));
+    expect(answererOf(s, 't1')).toBe('m2');
+    s = must(pickAnswerer(s, 'm1', null, 'round'));
+    expect(answererOf(s, 't1')).toBe('m2');
+  });
+
+  it('the one picked leaves the team: the open question goes back to the captain', () => {
+    let s = toNextQuestion(must(pickAnswerer(intro, 'm1', 'm2', 'question')));
+    s = must(dropMember(s, 'm2'));
+    expect(s.teams?.current?.t1).toBeUndefined();
+    expect(answererOf(s, 't1')).toBe('m1');
+  });
+});
+
+describe('answerer: a pick for one question waits for a question the team answers', () => {
+  it('the board: a pick of the team not choosing waits for its own cell', () => {
+    const board = boardRound('g1', [
+      { title: 'Міста', cells: [withId(single, 'c11'), withId(single, 'c12')] },
+      { title: 'Річки', cells: [withId(single, 'c21'), withId(single, 'c22')] },
+    ]);
+    let s = until(game(teamQuiz([board], 2, 'chosen')), 'board');
+    s = must(pickAnswerer(s, 'm4', 'm5', 'question'));
+    s = must(pickCell(s, 't1', 'c11', T0, rng));
+    expect(s.teams?.answerers?.t2).toEqual({ memberId: 'm5', scope: 'question', fromQuestion: 1, roundIndex: null });
+    expect(s.teams?.current?.t2).toBeUndefined();
+    s = until(s, 'board');
+    expect(nextAnswerer(s, 't2')).toBe('m5');
+    s = must(pickCell(s, 't2', 'c12', T0, rng));
+    expect(answererOf(s, 't2')).toBe('m5');
+    s = until(s, 'board');
+    s = must(pickCell(s, 't2', 'c21', T0, rng));
+    expect(answererOf(s, 't2')).toBe('m4');
+  });
+
+  it('the ladder of another team: the pick waits', () => {
+    let s = must(pickContestant(game(teamQuiz([ladderRound('rl'), classicRound('r2', [single])], 2, 'chosen')), 't1'));
+    s = must(pickAnswerer(s, 'm4', 'm5', 'question'));
+    s = toNextQuestion(s);
+    expect(s.teams?.answerers?.t2).toEqual({ memberId: 'm5', scope: 'question', fromQuestion: 1, roundIndex: null });
+    expect(nextAnswerer(s, 't2')).toBe('m5');
+  });
+
+  it('a poll: the pick waits for the next question', () => {
+    let s = must(pickAnswerer(game(teamQuiz([classicRound('r1', [poll, single])], 2, 'chosen')), 'm1', 'm2', 'question'));
+    s = toNextQuestion(s);
+    expect(s.teams?.answerers?.t1.fromQuestion).toBe(1);
+    s = toNextQuestion(s);
+    expect(answererOf(s, 't1')).toBe('m2');
+  });
+
+  it('a round pick pins on a poll as before', () => {
+    let s = must(pickAnswerer(game(teamQuiz([classicRound('r1', [poll, single])], 2, 'chosen')), 'm1', 'm2', 'round'));
+    s = toNextQuestion(s);
+    expect(s.teams?.answerers?.t1).toEqual({ memberId: 'm2', scope: 'round', fromQuestion: 0, roundIndex: 0 });
+    expect(answererOf(toNextQuestion(s), 't1')).toBe('m2');
+  });
+});
+
+describe('answerer: edges', () => {
+  it('a round pick is not upcoming after the last question of its round', () => {
+    let s = must(pickAnswerer(intro, 'm1', 'm3', 'round'));
+    s = toNextQuestion(toNextQuestion(toNextQuestion(s)));
+    expect(s.plays[s.questionIndex].question.id).toBe('q3');
+    s = must(lock(s));
+    expect(upcomingPick(s, 't1')).toBeNull();
+    expect(nextAnswerer(s, 't1')).toBe('m1');
+    s = until(s, 'reveal');
+    expect(upcomingPick(s, 't1')).toBeNull();
+    expect(shownAnswerer(s, 't1')).toBe('m3');
+  });
+
+  it('wipeout: a team that took its bank does not move the turn', () => {
+    let s = toNextQuestion(game(teamQuiz([wipeoutRound('rw', wipeoutLadder)], 2, 'rotate')));
+    s = must(actAnswer(s, 'm1', RIGHT, T0 + 1000));
+    s = must(actAnswer(s, 'm4', RIGHT, T0 + 1000));
+    while (!decisionOpen(s)) s = must(next(s, T0 + 2000, rng));
+    s = must(decideWipeout(s, 't2', true, T0 + 3000));
+    s = must(decideWipeout(s, 't1', false, T0 + 3000));
+    s = toNextQuestion(s);
+    expect(s.teams?.turns).toEqual({ t1: { questionIndex: 1, memberId: 'm2' }, t2: { questionIndex: 0, memberId: 'm4' } });
+  });
+
+  it('rotate: a team of one always answers by its only member', () => {
+    let s = game(teamQuiz(ROUNDS, 2, 'rotate'), [['Оля'], ['Марко', 'Ната']]);
+    s = toNextQuestion(s);
+    expect(answererOf(s, 't1')).toBe('m1');
+    s = toNextQuestion(s);
+    expect(answererOf(s, 't1')).toBe('m1');
+    expect(answererOf(s, 't2')).toBe('m3');
+  });
+
+  it('rotate: the whole team offline — the captain; a member back online is taken in team order', () => {
+    let s = toNextQuestion(game(teamQuiz(ROUNDS, 2, 'rotate')));
+    s = offline(offline(offline(s, 'm1'), 'm2'), 'm3');
+    s = toNextQuestion(s);
+    expect(s.teams?.turns?.t1.memberId).toBe('m1');
+    expect(answererOf(s, 't1')).toBe('m1');
+    s = online(s, 'm3');
+    s = toNextQuestion(s);
+    expect(answererOf(s, 't1')).toBe('m3');
+  });
+
+  it('startAnswerers returns the same object in a solo game and with nothing to pin', () => {
+    const solo = must(next(must(start(lobbyWith(makeRoundsQuiz(ROUNDS), 'Оля', 'Петро'))), T0, rng));
+    expect(startAnswerers(solo)).toBe(solo);
+    const plain = toNextQuestion(intro);
+    expect(startAnswerers(plain)).toBe(plain);
+    const picked = toNextQuestion(must(pickAnswerer(intro, 'm1', 'm2', 'round')));
+    expect(startAnswerers(picked)).toBe(picked);
+  });
+
+  it('nextAnswerer with an offline upcoming pick is the captain', () => {
+    const s = offline(must(pickAnswerer(intro, 'm1', 'm2', 'question')), 'm2');
+    expect(upcomingPick(s, 't1')?.memberId).toBe('m2');
+    expect(nextAnswerer(s, 't1')).toBe('m1');
   });
 });

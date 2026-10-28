@@ -21,7 +21,7 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 17 — 12e: Play.away (виходи людей із гри), QuizSettings.awayPenalty, значення AdjustmentSource 'away'.
  * 18 — 12f: GameState.appeals (апеляції й голоси залу), значення AdjustmentSource 'appeal'.
  * 19 — 12r: AutopilotState.resume (дані «Продовжити гру» до кінця туру кубиків), значення AdjustmentSource 'carry'.
- * 20 — 12g: TeamsState.answerers (вибір капітана) і TeamsState.turns (черга), TeamsSettings.answerer.
+ * 20 — 12g: TeamsState.answerers (вибір капітана), TeamsState.turns (черга) і TeamsState.current (вибір, чинний на запитанні), TeamsSettings.answerer.
  */
 export const GAME_STATE_VERSION = 20;
 
@@ -61,7 +61,7 @@ export const GAME_STATE_VERSION = 20;
  * апеляцій: тож кімната, збережена до розгортання 12f, теж відновлюється.
  * 18 → 19 лише додала необов'язкове AutopilotState.resume (і значення AdjustmentSource 'carry'), а стан версій 2–18 не може містити
  * ні того, ні того: тож кімната, збережена до розгортання 12r, теж відновлюється.
- * 19 → 20 лише додала необов'язкові TeamsState.answerers і turns та TeamsSettings.answerer, а стан версій 2–19 не може містити
+ * 19 → 20 лише додала необов'язкові TeamsState.answerers, turns і current та TeamsSettings.answerer, а стан версій 2–19 не може містити
  * ні вибору відповідача, ні черги, ні режиму (без них — капітан): тож кімната, збережена до розгортання 12g, теж відновлюється.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, GAME_STATE_VERSION];

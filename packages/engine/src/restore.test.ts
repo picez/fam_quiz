@@ -22,6 +22,7 @@ import {
   submitAnswer,
   tick,
   type AnswerRecord,
+  type AnswererNow,
   type AnswererPick,
   type AnswererTurn,
   type Appeal,
@@ -319,9 +320,10 @@ const STATE_SHAPE: Record<string, string> = {
   ),
   TrialAnswer: keysOf<TrialAnswer>()(['answer', 'correct', 'timeMs', 'overridden'], true),
   LadderState: keysOf<LadderState>()(['contestantId', 'drawn'], true),
-  TeamsState: keysOf<TeamsState>()(['form', 'list', 'members', 'captains', 'dice', 'duelists', 'answerers', 'turns'], true),
+  TeamsState: keysOf<TeamsState>()(['form', 'list', 'members', 'captains', 'dice', 'duelists', 'answerers', 'turns', 'current'], true),
   AnswererPick: keysOf<AnswererPick>()(['memberId', 'scope', 'fromQuestion', 'roundIndex'], true),
   AnswererTurn: keysOf<AnswererTurn>()(['questionIndex', 'memberId'], true),
+  AnswererNow: keysOf<AnswererNow>()(['questionIndex', 'memberId'], true),
   TeamsSettings: keysOf<TeamsSettings>()(['count', 'names', 'answerer'], true),
   TeamMember: keysOf<TeamMember>()(['id', 'nickname', 'connected', 'teamId'], true),
   LadderPlay: keysOf<LadderPlay>()(['contestantId', 'step', 'level', 'timed', 'lifelines', 'decision', 'outcome'], true),
@@ -1024,7 +1026,8 @@ const KEYS: Record<number, Record<string, string>> = {
     AutopilotState: 'at,authorId,hold,left,resume,retries,skipPlays,skips,starting',
     ResumeSetup: 'points,roundIndex',
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
-  },  20: {
+  },
+  20: {
     GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
@@ -1052,9 +1055,10 @@ const KEYS: Record<number, Record<string, string>> = {
     LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
     LadderLifelines: 'audience,fifty,hint',
     LadderOutcome: 'kind,passed,points',
-    TeamsState: 'answerers,captains,dice,duelists,form,list,members,turns',
+    TeamsState: 'answerers,captains,current,dice,duelists,form,list,members,turns',
     AnswererPick: 'fromQuestion,memberId,roundIndex,scope',
     AnswererTurn: 'memberId,questionIndex',
+    AnswererNow: 'memberId,questionIndex',
     TeamsSettings: 'answerer,count,names',
     TeamMember: 'connected,id,nickname,teamId',
     BluffLie: 'at,text',
@@ -1128,7 +1132,7 @@ function resumedCarry(): GameState {
 
 /**
  * 12g: командна гра «по черзі» на першому запитанні — капітан Оля вибрала Петра «на раунд» (раунд пришпилено),
- * у Синіх черга дала запитання Вірі: TeamsState.answerers / turns, AnswererPick, AnswererTurn, TeamsSettings.answerer.
+ * у Синіх черга дала запитання Вірі: TeamsState.answerers / turns / current, AnswererPick, AnswererTurn, AnswererNow, TeamsSettings.answerer.
  */
 function answering(): GameState {
   const quiz = teamQuiz([classicRound('r1', [single, withId(single, 'q2')])], 2, 'rotate');
@@ -1609,6 +1613,7 @@ describe('the saved state', () => {
       add('TeamsSettings', [s.quiz.settings.teams]);
       add('AnswererPick', Object.values(s.teams?.answerers ?? {}));
       add('AnswererTurn', Object.values(s.teams?.turns ?? {}));
+      add('AnswererNow', Object.values(s.teams?.current ?? {}));
       add('BoardPlay', s.plays.map((p) => p.board));
       add('BlitzPlay', s.plays.map((p) => p.blitz));
       add('BuzzEntry', s.plays.flatMap((p) => [...(p.blitz?.queue ?? []), ...(p.blitz?.dropped ?? [])]));

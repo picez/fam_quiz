@@ -1,9 +1,10 @@
 import { answererModeOf, isUnscored, type AnswererMode, type AnswererScope, type Phase } from '@quiz/shared';
 // game.ts (openQuestion) імпортуватиме цей файл, а цей файл — його; звертання лише під час виклику функцій.
-import { fail, ok, type AnswererPick, type AnswererTurn, type GameState, type Play, type Result } from './game';
+import { fail, ok, questionsLeft, type AnswererNow, type AnswererPick, type AnswererTurn, type GameState, type Play, type Result } from './game';
 import { trialOpen } from './survival';
 import { actorOf } from './team-act';
 import { captainOf, memberOf, teamMembers, teamsOn, withTeams } from './teams';
+import { inWipeoutRound, wipeoutIn } from './wipeout';
 
 /** Етапи між запитаннями, коли капітан може вибрати відповідача. */
 export const ANSWERER_PICK_PHASES: readonly Phase[] = ['guide', 'intro', 'board', 'wager', 'locked', 'reveal', 'leaderboard', 'round_end'];
@@ -27,12 +28,13 @@ export function activePick(state: GameState, teamId: string, q: number): Answere
   return pick.roundIndex !== null && q >= pick.fromQuestion && state.plays[q]?.roundIndex === pick.roundIndex ? pick : null;
 }
 
-/** Вибір, що ще діятиме (його запитання не відкрито чи «на раунд» поточного раунду); null — немає. */
+/** Вибір, що ще діятиме (його запитання не відкрито чи «на раунд» поточного раунду, де ще лишилися запитання); null — немає. */
 export function upcomingPick(state: GameState, teamId: string): AnswererPick | null {
   const pick = state.teams?.answerers?.[teamId];
   if (pick === undefined) return null;
   if (pick.roundIndex === null) return pick;
-  return pick.scope === 'round' && pick.roundIndex === state.roundIndex && state.phase !== 'round_end' ? pick : null;
+  const roundGoesOn = pick.roundIndex === state.roundIndex && state.phase !== 'round_end' && questionsLeft(state);
+  return pick.scope === 'round' && roundGoesOn ? pick : null;
 }
 
 /** Наступний по черзі на зв'язку після turns[teamId]; без запису — з капітана; нікого — капітан. */
@@ -53,7 +55,10 @@ export function queueNext(state: GameState, teamId: string): string | null {
 /** Бліц, опитування й хмара: відповідача немає (натиснувший чи кожен сам), лишається капітан. */
 const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question);
 
-/** Хто відповідає на поточному запитанні: вибір, черга, капітан; поза зв'язком — капітан; бліц і опитування — капітан. */
+/**
+ * Хто відповідає на поточному запитанні: вибір, чинний на мить відкриття (current), інакше вибір, черга, капітан;
+ * поза зв'язком — капітан; бліц і опитування — капітан.
+ */
 export function answererOf(state: GameState, teamId: string): string | null {
   const captain = captainOf(state, teamId);
   const mode = answererMode(state);
@@ -61,8 +66,12 @@ export function answererOf(state: GameState, teamId: string): string | null {
   const q = state.questionIndex;
   const play = state.plays[q];
   if (play === undefined || freeForAll(play)) return captain;
+  const opened = state.teams?.current?.[teamId];
   const turn = state.teams?.turns?.[teamId];
-  const candidate = activePick(state, teamId, q)?.memberId ?? (mode === 'rotate' && turn?.questionIndex === q ? turn.memberId : undefined);
+  const candidate =
+    (opened?.questionIndex === q ? opened.memberId : undefined) ??
+    activePick(state, teamId, q)?.memberId ??
+    (mode === 'rotate' && turn?.questionIndex === q ? turn.memberId : undefined);
   return present(state, teamId, candidate) ?? captain;
 }
 
@@ -94,33 +103,47 @@ export function pickAnswerer(state: GameState, personId: string, memberId: strin
   return ok(withTeams(state, { answerers }));
 }
 
-/** Хто на записі справді відповідає: бліц, опитування й хмара — ніхто; «Мільйонер» — учасник; поле — хто вибрав клітинку; інакше всі. */
+/**
+ * Хто на записі справді відповідає: бліц, опитування й хмара — ніхто; «Мільйонер» — учасник; поле — хто вибрав клітинку;
+ * «Ва-банк» — ті, хто ще в грі (хто забрав банк чи згорів, не відповідає); інакше всі (у «Вибуванні» й привиди: вони відповідають для себе).
+ */
 function actingTeams(state: GameState, play: Play): string[] {
   if (freeForAll(play)) return [];
   if (play.ladder !== undefined) return [play.ladder.contestantId];
   if (play.board !== undefined) return [play.board.chooserId];
+  if (inWipeoutRound(state)) return wipeoutIn(state);
   return state.players.map((p) => p.id);
 }
 
-/** Після відкриття запитання: пришпилити раунд виборам цього запитання; у rotate — черга командам actingTeams без вибору. */
+/**
+ * Після відкриття запитання: вибір цього запитання пришпилює раунд, а вибір «на одне запитання» команди, що на ньому не відповідає,
+ * чекає наступного; вибір, чинний на запитанні, записується в current; у rotate — черга командам actingTeams без вибору
+ * (один раз на запитання). Нічого не змінилося — той самий об'єкт.
+ */
 export function startAnswerers(state: GameState): GameState {
   if (!teamsOn(state)) return state;
   const mode = answererMode(state);
   const q = state.questionIndex;
   const play = state.plays[q];
   if (mode === 'captain' || play === undefined) return state;
-  const toPin = Object.entries(state.teams.answerers ?? {}).filter(([, pick]) => pick.fromQuestion === q && pick.roundIndex === null);
-  const pinned =
-    toPin.length === 0
-      ? state
-      : withTeams(state, {
-          answerers: { ...state.teams.answerers, ...Object.fromEntries(toPin.map(([team, pick]) => [team, { ...pick, roundIndex: play.roundIndex }])) },
-        });
-  if (mode !== 'rotate' || !teamsOn(pinned)) return pinned;
+  const acting = actingTeams(state, play);
+  const due = Object.entries(state.teams.answerers ?? {}).filter(([, pick]) => pick.fromQuestion === q && pick.roundIndex === null);
+  const settled = due.map(([team, pick]): [string, AnswererPick] =>
+    pick.scope === 'question' && !acting.includes(team) ? [team, { ...pick, fromQuestion: q + 1 }] : [team, { ...pick, roundIndex: play.roundIndex }],
+  );
+  const pinned = settled.length === 0 ? state : withTeams(state, { answerers: { ...state.teams.answerers, ...Object.fromEntries(settled) } });
+  if (!teamsOn(pinned)) return pinned;
+  const current: [string, AnswererNow][] = [];
   const moved: [string, AnswererTurn][] = [];
-  for (const team of actingTeams(state, play)) {
-    const memberId = activePick(pinned, team, q) === null ? queueNext(state, team) : null;
-    if (memberId !== null) moved.push([team, { questionIndex: q, memberId }]);
+  for (const team of acting) {
+    const pick = activePick(pinned, team, q);
+    // Вибір капітана черги не рухає; черга цього запитання вже записана — не рухає вдруге.
+    const turn = pick === null && mode === 'rotate' && state.teams.turns?.[team]?.questionIndex !== q ? queueNext(state, team) : null;
+    if (pick !== null && pinned.teams.current?.[team]?.questionIndex !== q) current.push([team, { questionIndex: q, memberId: pick.memberId }]);
+    if (turn !== null) moved.push([team, { questionIndex: q, memberId: turn }]);
   }
-  return moved.length === 0 ? pinned : withTeams(pinned, { turns: { ...state.teams.turns, ...Object.fromEntries(moved) } });
+  const teams: Partial<typeof pinned.teams> = {};
+  if (current.length > 0) teams.current = { ...pinned.teams.current, ...Object.fromEntries(current) };
+  if (moved.length > 0) teams.turns = { ...pinned.teams.turns, ...Object.fromEntries(moved) };
+  return Object.keys(teams).length === 0 ? pinned : withTeams(pinned, teams);
 }

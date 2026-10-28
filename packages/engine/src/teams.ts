@@ -86,6 +86,18 @@ const dicePending = (dice: DiceState | null): boolean => dice !== null && dice.t
 const withoutValues = (record: Record<string, string>, ids: string[]): Record<string, string> =>
   Object.fromEntries(Object.entries(record).filter(([, id]) => !ids.includes(id)));
 
+/** Вибори відповідачів (і чинні на запитанні) без цих людей; undefined лишається undefined (старі стани без ключа). */
+function withoutPicksOf<T extends { memberId: string }>(picks: Record<string, T> | undefined, ids: string[]): Record<string, T> | undefined {
+  return picks === undefined ? undefined : Object.fromEntries(Object.entries(picks).filter(([, pick]) => !ids.includes(pick.memberId)));
+}
+
+/** Без ключа key; undefined лишається undefined (старі стани без ключа). */
+function withoutKey<T>(record: Record<string, T> | undefined, key: string): Record<string, T> | undefined {
+  if (record === undefined) return undefined;
+  const { [key]: _gone, ...rest } = record;
+  return rest;
+}
+
 /** Вибір ведучого лише для капітанів, що досі в тій самій команді (після переміщень, роздачі, кубиків, старту). */
 function keptCaptains(members: TeamMember[], captains: Record<string, string>): Record<string, string> {
   return Object.fromEntries(Object.entries(captains).filter(([team, id]) => members.some((m) => m.id === id && m.teamId === team)));
@@ -223,6 +235,9 @@ export function withoutTeam(state: GameState, teamId: string): GameState {
       members: state.teams.members.filter((m) => m.teamId !== teamId),
       captains,
       duelists,
+      answerers: withoutKey(state.teams.answerers, teamId),
+      turns: withoutKey(state.teams.turns, teamId),
+      current: withoutKey(state.teams.current, teamId),
     },
   );
 }
@@ -243,7 +258,13 @@ export function dropMember(state: GameState, memberId: string, now?: number): Re
   const members = state.teams.members.filter((m) => m.id !== memberId);
   const left = withTeams(
     { ...state, plays: withoutPeople(state.plays, [memberId]), awaiting: state.awaiting.filter((id) => id !== memberId) },
-    { members, captains: withoutValues(state.teams.captains, [memberId]), duelists: withoutValues(state.teams.duelists, [memberId]) },
+    {
+      members,
+      captains: withoutValues(state.teams.captains, [memberId]),
+      duelists: withoutValues(state.teams.duelists, [memberId]),
+      answerers: withoutPicksOf(state.teams.answerers, [memberId]),
+      current: withoutPicksOf(state.teams.current, [memberId]),
+    },
   ) as TeamGame;
   if (state.phase === 'lobby') {
     const dice = left.teams.dice;
