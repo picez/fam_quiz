@@ -108,6 +108,7 @@ import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePo
 import { lastNotice } from './adjust';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
+import { resumeLobby } from './carry';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
 import { contestantOf, decisionPending, inLadderRound, lifelinesUsed } from './ladder';
@@ -1075,7 +1076,7 @@ function authorPeople(state: GameState, personId: string): AuthorPerson[] {
 /** Те, що бачить лише автор автопілота; null — глядач не автор чи гра з ведучим. */
 function authorView(state: GameState, personId: string): AuthorView | null {
   if (!isAuthor(state, personId)) return null;
-  return { cloud: authorCloud(state), bluff: authorBluff(state), people: authorPeople(state, personId), resume: null };
+  return { cloud: authorCloud(state), bluff: authorBluff(state), people: authorPeople(state, personId), resume: resumeLobby(state) };
 }
 
 /** Уся хмара для пульта: зі схованими словами й нікнеймами авторів. */
@@ -2317,7 +2318,7 @@ export function hostView(state: GameState): HostView {
     pace: hostPace(state),
     live: hostLive(state),
     undo: undoPanel(state),
-    resume: null,
+    resume: resumeLobby(state),
     roundQuestions: roundQuestionShares(state),
   };
 }

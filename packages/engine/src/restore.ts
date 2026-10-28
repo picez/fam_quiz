@@ -20,8 +20,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 16 — 12c: Play.clueOpens (скільки підказок «Хто я?» відкрив кожен у власному темпі).
  * 17 — 12e: Play.away (виходи людей із гри), QuizSettings.awayPenalty, значення AdjustmentSource 'away'.
  * 18 — 12f: GameState.appeals (апеляції й голоси залу), значення AdjustmentSource 'appeal'.
+ * 19 — 12r: AutopilotState.resume (дані «Продовжити гру» до кінця туру кубиків), значення AdjustmentSource 'carry'.
  */
-export const GAME_STATE_VERSION = 18;
+export const GAME_STATE_VERSION = 19;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -57,8 +58,10 @@ export const GAME_STATE_VERSION = 18;
  * не може містити виходів чи штрафів: тож кімната, збережена до розгортання 12e, теж відновлюється.
  * 17 → 18 лише додала необов'язкове GameState.appeals (і значення AdjustmentSource 'appeal'), а стан версій 2–17 не може містити
  * апеляцій: тож кімната, збережена до розгортання 12f, теж відновлюється.
+ * 18 → 19 лише додала необов'язкове AutopilotState.resume (і значення AdjustmentSource 'carry'), а стан версій 2–18 не може містити
+ * ні того, ні того: тож кімната, збережена до розгортання 12r, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті
