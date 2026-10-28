@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { BoardRound, Question } from '@quiz/shared';
+import { LIMITS } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
 import { BoardEditor } from './BoardEditor';
@@ -153,14 +154,14 @@ describe('BoardEditor clues and pin cells (10c)', () => {
     let next = onChange.mock.calls.at(-1)![0] as BoardRound;
     rerender(<BoardEditor round={next} onChange={onChange} />);
     expect(screen.getByText(t('cluesVoiceHint'))).toBeTruthy();
-    expect(screen.queryByText(t('cluesSelfVoiceNote', { min: 20 }))).toBeNull();
+    expect(screen.queryByText(t('cluesSelfVoiceNote', { min: LIMITS.selfCluesMinTime }))).toBeNull();
     fireEvent.click(screen.getByRole('radio', { name: t('cluePaceSelf') }));
     next = onChange.mock.calls.at(-1)![0] as BoardRound;
     expect(next.categories[0].cells[0].question).toMatchObject({ type: 'clues', cluePace: 'self', interval: 3 });
     rerender(<BoardEditor round={next} onChange={onChange} />);
     expect(screen.queryByText(t('cluesVoiceHint'))).toBeNull();
-    expect(screen.getByText(t('cluesSelfVoiceNote', { min: 20 }))).toBeTruthy();
-    expect(screen.queryByText(t('cluesSelfHint', { min: 20 }))).toBeNull();
+    expect(screen.getByText(t('cluesSelfVoiceNote', { min: LIMITS.selfCluesMinTime }))).toBeTruthy();
+    expect(screen.queryByText(t('cluesSelfHint', { min: LIMITS.selfCluesMinTime }))).toBeNull();
     expect(screen.queryByLabelText(t('cluesInterval'))).toBeNull();
   });
 

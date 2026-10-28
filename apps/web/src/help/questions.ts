@@ -97,7 +97,7 @@ export const QUESTION_HELP: Record<QuestionType, HelpEntry> = {
     limits: [
       'Лише класика й звичайна клітинка поля (з телефона або вголос).',
       'Не діють 50/50, «Друга спроба» і «Запитання в залі».',
-      `Підказка до ${LIMITS.clueText} символів; інтервал ${LIMITS.minClueSeconds}–${LIMITS.maxClueSeconds} с. На усній клітинці інтервал не потрібен, але час усе одно має бути не менший за (n − 1) × ${LIMITS.minClueSeconds} + ${LIMITS.clueTailSeconds} с, де n — кількість підказок.`,
+      `Підказка до ${LIMITS.clueText} символів; інтервал ${LIMITS.minClueSeconds}–${LIMITS.maxClueSeconds} с. На усній клітинці інтервал не потрібен, але за таймером час усе одно має бути не менший за (n − 1) × ${LIMITS.minClueSeconds} + ${LIMITS.clueTailSeconds} с, де n — кількість підказок.`,
       `Остання підказка має відкритися щонайменше за ${LIMITS.clueTailSeconds} с до кінця часу: (кількість підказок − 1) × інтервал + ${LIMITS.clueTailSeconds} с не більше за час запитання.`,
       `«Кожен сам»: інтервалу немає, правило про останню підказку не діє, але час запитання — щонайменше ${LIMITS.selfCluesMinTime} с.`,
       'На усній клітинці «кожен сам» не діє: підказки відкриваєте ви кнопкою на пульті.',
