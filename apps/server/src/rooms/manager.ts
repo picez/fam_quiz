@@ -104,6 +104,7 @@ import {
   GAME_STATE_VERSION,
   READABLE_STATE_VERSIONS,
   stamp,
+  awayClock,
   awayEnd,
   awayParticipant,
   awayStart,
@@ -182,14 +183,24 @@ export interface Room {
 
 /**
  * Розрив зв'язку людини (12e): dropAt — мить розриву, backAt — перепідключення (null — ще без зв'язку).
+ * Годинник запитання (awayClock — без заставки й пауз): dropQuestion / clockAtDrop — у мить розриву, backQuestion / clockAtBack — у мить
+ * перепідключення; так у вихід іде лише та частина розриву, що припала на поточне запитання й не на паузу.
  * counted — запитання (індекс у plays), на якому інтервал виходу був відкритий у мить розриву й закрився на ній:
  * цей вихід уже порахований, тож розрив і повернення нового разу не додають; null — не був.
+ * Людина тримає лише останній розрив: два розриви в одному виході дають лише останній (менше, а не більше — безпечний бік).
  */
 export interface AwayGap {
   dropAt: number;
   backAt: number | null;
+  dropQuestion: number;
+  clockAtDrop: number;
+  backQuestion: number | null;
+  clockAtBack: number | null;
   counted: number | null;
 }
+
+/** Розрив, після перепідключення якого минуло більше, — старий: новий вихід (away: true) його забуває, щоб counted не сховав окремий вихід. */
+const AWAY_GAP_STALE_MS = 5000;
 
 /** Звіт повернення телефона (12e): ms — тривалість виходу за телефоном; sinceReturnMs — скільки мс тому телефон знову став видимим. */
 export interface AwayReport {
@@ -624,7 +635,11 @@ export class RoomManager {
     if (identity.role === 'stage' && count === 1) this.emit(room, { type: 'changed' });
     if (identity.playerId !== null && count === 1) {
       const gap = room.gaps.get(identity.playerId);
-      if (gap !== undefined && gap.backAt === null) gap.backAt = this.now();
+      if (gap !== undefined && gap.backAt === null) {
+        gap.backAt = this.now();
+        gap.backQuestion = room.state.questionIndex;
+        gap.clockAtBack = awayClock(room.state, gap.backAt);
+      }
       this.apply(room, setConnected(room.state, identity.playerId, true, this.now()));
     }
   }
@@ -643,7 +658,16 @@ export class RoomManager {
       const person = identity.playerId;
       const { state } = room;
       const open = state.plays[state.questionIndex]?.away?.[person]?.since;
-      room.gaps.set(person, { dropAt: this.now(), backAt: null, counted: open !== undefined && open !== null ? state.questionIndex : null });
+      const dropAt = this.now();
+      room.gaps.set(person, {
+        dropAt,
+        backAt: null,
+        dropQuestion: state.questionIndex,
+        clockAtDrop: awayClock(state, dropAt),
+        backQuestion: null,
+        clockAtBack: null,
+        counted: open !== undefined && open !== null ? state.questionIndex : null,
+      });
       room.hidden.delete(person);
       this.apply(room, setConnected(room.state, person, false, this.now()));
       return;
@@ -797,33 +821,46 @@ export class RoomManager {
 
   /**
    * Антигугл (12e): телефон людини пішов із гри (away) чи повернувся (report.ms — тривалість за телефоном; report.sinceReturnMs —
-   * скільки мс тому телефон знову став видимим, якщо повернувся без зв'язку). Час рахує рушій за годинником менеджера; частина
-   * виходу без зв'язку — перетин заявленого виходу з розривом (awayGapMs), не більше, ніж іде запитання. Подія від гравця:
-   * автор автопілота діє як звичайний гравець. Понад AWAY_EVENTS_PER_SECOND за секунду — too_soon. Незмінений стан — { ok: true } без commit.
+   * скільки мс тому телефон знову став видимим, якщо повернувся без зв'язку). Час рахує рушій за годинником менеджера. Частина
+   * виходу без зв'язку — перетин заявленого виходу з розривом (awayGapMs), обмежений часом розриву всередині поточного запитання
+   * за його годинником (без заставки й пауз; розрив, що скінчився до запитання, — 0). Подія від гравця: автор автопілота діє як
+   * звичайний гравець. Понад AWAY_EVENTS_PER_SECOND за секунду — too_soon; повернення, поки телефон прихований, інтервал відкритий
+   * чи є розрив, частоти не рахує (відмова додала б вигаданий час). Незмінений стан — { ok: true } без commit.
    */
   away(room: Room, personId: string, away: boolean, report: AwayReport = {}): AckResult {
     if (!this.alive(room)) return this.gone();
     if (awayParticipant(room.state, personId) === null) return { ok: false, error: 'not_found' };
     const now = this.now();
-    const rate = room.awayRate.get(personId);
-    if (rate === undefined || now - rate.from >= 1000) room.awayRate.set(personId, { from: now, count: 1 });
-    else if (rate.count + 1 > AWAY_EVENTS_PER_SECOND) return { ok: false, error: 'too_soon' };
-    else rate.count += 1;
+    const { state } = room;
+    const out = room.hidden.has(personId) || room.gaps.has(personId) || (state.plays[state.questionIndex]?.away?.[personId]?.since ?? null) !== null;
+    if (away || !out) {
+      const rate = room.awayRate.get(personId);
+      if (rate === undefined || now - rate.from >= 1000) room.awayRate.set(personId, { from: now, count: 1 });
+      else if (rate.count + 1 > AWAY_EVENTS_PER_SECOND) return { ok: false, error: 'too_soon' };
+      else rate.count += 1;
+    }
     let next: GameState;
     if (away) {
       room.hidden.set(personId, now);
-      next = awayStart(room.state, personId, now);
+      const gap = room.gaps.get(personId);
+      if (gap !== undefined && gap.backAt !== null && now - gap.backAt > AWAY_GAP_STALE_MS) room.gaps.delete(personId);
+      next = awayStart(state, personId, now);
     } else {
       room.hidden.delete(personId);
       const gap = room.gaps.get(personId) ?? null;
       room.gaps.delete(personId);
-      const returnedAt = now - (report.sinceReturnMs ?? 0);
-      const counted = gap !== null && gap.counted === room.state.questionIndex;
-      next = awayEnd(room.state, personId, now, awayGapMs(gap, report.ms ?? 0, returnedAt), counted);
+      next = awayEnd(state, personId, now, this.gapMs(state, gap, report, now), gap !== null && gap.counted === state.questionIndex);
     }
     if (next === room.state) return { ok: true };
     this.commit(room, next);
     return { ok: true };
+  }
+
+  /** Частина виходу без зв'язку (12e): перетин із заявленим виходом, не більше за час розриву на годиннику поточного запитання. */
+  private gapMs(state: GameState, gap: AwayGap | null, report: AwayReport, now: number): number {
+    if (gap === null || gap.backAt === null || gap.backQuestion !== state.questionIndex || gap.clockAtBack === null) return 0;
+    const inQuestion = gap.dropQuestion === state.questionIndex ? gap.clockAtBack - gap.clockAtDrop : gap.clockAtBack;
+    return Math.min(awayGapMs(gap, report.ms ?? 0, now - (report.sinceReturnMs ?? 0)), Math.max(0, inQuestion));
   }
 
   /** Командна гра: учасник вибирає команду в лобі. */

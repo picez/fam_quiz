@@ -97,6 +97,15 @@ function answeringMs(state: GameState, end: number): number {
 }
 
 /**
+ * Годинник відповіді поточного запитання на мить now (12e): скільки мс запитання вже йде без заставки й пауз (на паузі — до pausedAt).
+ * Поза етапом question — 0. Менеджер міряє ним розрив: частина розриву всередині поточного запитання — різниця годинника.
+ */
+export function awayClock(state: GameState, now: number): number {
+  if (state.phase !== 'question') return 0;
+  return answeringMs(state, state.paused ? (state.pausedAt ?? now) : now);
+}
+
+/**
  * Людина повернулася: закриває інтервал (на паузі — до pausedAt) і додає gapMs, якщо людина під наглядом (не більше за answeringMs).
  * counted — цей вихід уже порахований разом (інтервал закрито в мить розриву на цьому запитанні): ні інтервал після
  * перепідключення, ні розрив нового разу не додають. Без змін — той самий об'єкт.

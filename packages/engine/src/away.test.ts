@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer } from '@quiz/shared';
-import { awayEnd, awayParticipant, awayStart, awayStep, awayTracked } from './away';
+import { awayClock, awayEnd, awayParticipant, awayStart, awayStep, awayTracked } from './away';
 import { buzz } from './blitz';
 import { pickBluff, writeLie } from './bluff';
 import { takeBuff } from './buffs';
@@ -197,6 +197,14 @@ describe('the server clock for leaving the game (12e)', () => {
     // вилучення — так само
     const kicked = must(removePlayer(s, 'p2'));
     expect(entry(awayStep(s, kicked, 8000, new Set()), 'p2')).toEqual({ ms: 6000, count: 1, since: null });
+  });
+
+  it('awayClock runs from the real start, stands on a pause, and is 0 outside the question', () => {
+    expect(awayClock(s0, 4000)).toBe(3000);
+    const paused = must(pause(s0, 5000));
+    expect(awayClock(paused, 9000)).toBe(4000);
+    expect(awayClock(must(resume(paused, 15_000)), 16_000)).toBe(5000);
+    expect(awayClock(must(lock(s0)), 4000)).toBe(0);
   });
 
   it('gapMs adds the offline part of a leave while watched, capped by the question start', () => {
