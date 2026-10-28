@@ -17,6 +17,7 @@ import {
   findCell,
   roundQuestions,
   quizSchema,
+  RESUME_OPTIONS,
   roundSchema,
   survivorsAfter,
   upgradeQuiz,
@@ -38,6 +39,7 @@ import {
   type FinalRound,
   type Question,
   type Quiz,
+  type ResumeOption,
   type Round,
   type ScoreLine,
 } from '@quiz/shared';
@@ -445,6 +447,58 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
     questionCount: questionCountOf(row.quizSnapshot),
     teams: teamGames.has(row.id),
     autopilot: row.autopilot,
+  }));
+}
+
+/**
+ * Раунд, з якого продовжити гру (12r): план 12r, «resumeOptions і resumeRound».
+ * Останній закритий раунд завершено (зіграно всі його запитання) → наступний, інакше він сам; не далі за останній раунд знімка.
+ */
+export function resumeRound(quiz: Quiz | null, plays: PlayRef[], questionsPlayed: number): number {
+  const refs = plays.slice(0, questionsPlayed);
+  const last = refs.at(-1)?.roundIndex;
+  if (last === undefined) return 0;
+  if (quiz === null) return last;
+  const round = quiz.rounds[last];
+  if (round === undefined) return Math.min(last, quiz.rounds.length - 1);
+  const done = refs.filter((ref) => ref.roundIndex === last).length >= roundQuestions(round).length;
+  return Math.min(done ? last + 1 : last, quiz.rounds.length - 1);
+}
+
+/** Свої ігри цієї вікторини з хоч одним закритим запитанням, без поточної; найновіша перша; не більше RESUME_OPTIONS. */
+export async function resumeOptions(db: Db, hostId: string, quizId: string, excludeId: string): Promise<ResumeOption[]> {
+  const games = await db
+    .select()
+    .from(game)
+    .where(and(eq(game.hostId, hostId), eq(game.quizId, quizId), ne(game.id, excludeId), sql`${game.questionsPlayed} > 0`))
+    .orderBy(desc(game.startedAt))
+    .limit(RESUME_OPTIONS);
+  if (games.length === 0) return [];
+  // Рядки таблиці: соло-гравці й команди (люди команд — копії командних, team_id не null).
+  const rows = await db
+    .select({ gameId: participant.gameId, nickname: participant.nickname, score: participant.score, rank: participant.rank })
+    .from(participant)
+    .where(
+      and(
+        inArray(
+          participant.gameId,
+          games.map((row) => row.id),
+        ),
+        isNull(participant.teamId),
+      ),
+    );
+  const byGame = groupBy(rows, (row) => row.gameId);
+  return games.map((row) => ({
+    gameId: row.id,
+    startedAt: row.startedAt.toISOString(),
+    status: row.status,
+    questionsPlayed: row.questionsPlayed,
+    questionCount: questionCountOf(row.quizSnapshot),
+    autopilot: row.autopilot,
+    roundIndex: resumeRound(snapshotOf(row.quizSnapshot), row.plays, row.questionsPlayed),
+    scores: (byGame.get(row.id) ?? [])
+      .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || b.score - a.score)
+      .map(({ nickname, score }) => ({ nickname, score })),
   }));
 }
 

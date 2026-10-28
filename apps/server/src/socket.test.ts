@@ -247,6 +247,36 @@ describe('a round over real sockets', () => {
   });
 });
 
+describe('host:start with resume (12r)', () => {
+  const twoRounds = () => makeRoundsQuiz([classicRound('r0', [single]), classicRound('r1', [withId(single, 'q2')])]);
+
+  it('starts as before without a payload', async () => {
+    const { host } = await lobby();
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    await until(host, inPhase('intro'));
+  });
+
+  it('starts at the chosen round with the carried points', async () => {
+    const { host, olenaJoin } = await lobby((await startGame(ctx.app, twoRounds())).game);
+    expect(await send(host, 'host:start', { resume: { roundIndex: 1, points: { [olenaJoin.playerId]: 42434 } } })).toEqual({ ok: true });
+    const view = await until(host, inPhase('intro'));
+    expect(view.round?.index).toBe(1);
+    expect(view.role === 'host' && view.players.find((p) => p.id === olenaJoin.playerId)?.score).toBe(42434);
+  });
+
+  it('refuses a malformed payload, a player in a hosted game and an engine check', async () => {
+    const { host, olena, olenaJoin } = await lobby((await startGame(ctx.app, twoRounds())).game);
+    expect(await send(host, 'host:start', { resume: { roundIndex: 0, points: { [olenaJoin.playerId]: 1.5 } } })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:start', { resume: { roundIndex: 0, points: {} }, extra: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:start', 'x')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'host:start', { resume: { roundIndex: 1, points: {} } })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:start', { resume: { roundIndex: 5, points: {} } })).toEqual({ ok: false, error: 'resume_invalid' });
+    expect(await send(host, 'host:start', { resume: { roundIndex: 0, points: { stranger: 5 } } })).toEqual({ ok: false, error: 'not_found' });
+    expect(await send(host, 'host:start', { resume: { roundIndex: 0, points: {} } })).toEqual({ ok: true });
+    expect(await send(host, 'host:start')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});
+
 describe('permissions and bad input', () => {
   it('forbids host actions to players and the stage, and answers to the host', async () => {
     const { host, stage, olena } = await lobby();

@@ -118,7 +118,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -262,7 +262,8 @@ export type RoomEvent =
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
-  | { type: 'start' | 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' | 'clue' | 'survey-all' | 'bluff-all' }
+  | { type: 'start'; resume?: ResumeSetup }
+  | { type: 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' | 'clue' | 'survey-all' | 'bluff-all' }
   | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
@@ -285,7 +286,10 @@ export type HostAction =
 
 /** Дії, які автор кімнати-автопілота шле з телефона (11g); решта — not_allowed. */
 // Прості дії лежать у HostAction одним членом з іншими (lock, next, …), тож Extract їх не виділяє.
-export type AuthorAction = { type: 'start' | 'pause' | 'resume' | 'end' } | Extract<HostAction, { type: 'kick' | 'cloud-hide' | 'bluff-remove' | 'team-form' }>;
+export type AuthorAction =
+  | { type: 'start'; resume?: ResumeSetup }
+  | { type: 'pause' | 'resume' | 'end' }
+  | Extract<HostAction, { type: 'kick' | 'cloud-hide' | 'bluff-remove' | 'team-form' }>;
 
 const AUTHOR_ACTIONS: ReadonlySet<HostAction['type']> = new Set<AuthorAction['type']>(['start', 'pause', 'resume', 'end', 'kick', 'cloud-hide', 'bluff-remove', 'team-form']);
 const isAuthorAction = (action: HostAction): action is AuthorAction => AUTHOR_ACTIONS.has(action.type);
@@ -1156,7 +1160,7 @@ export class RoomManager {
     // Затримки 11b для дій автора немає: жодна з них не «Далі».
     switch (action.type) {
       case 'start':
-        return this.apply(room, autopilotStart(state, this.now(), this.rng));
+        return this.apply(room, autopilotStart(state, this.now(), this.rng, action.resume));
       case 'pause': {
         const paused = this.apply(room, authorPause(state, this.now()));
         if (paused.ok) room.tilts.clear();
@@ -1190,7 +1194,7 @@ export class RoomManager {
     if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now() + PACE_GRACE_MS)) return { ok: false, error: 'too_soon' };
     switch (action.type) {
       case 'start':
-        return this.apply(room, start(state, this.now()));
+        return this.apply(room, start(state, this.now(), action.resume));
       case 'lock':
         return this.apply(room, lock(state, this.now()));
       case 'next':

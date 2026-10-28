@@ -5,7 +5,7 @@ import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Auth } from './auth';
 import type { Db } from './db/client';
-import { hostGame, hostGames, playerHistory } from './history';
+import { hostGame, hostGames, playerHistory, resumeOptions } from './history';
 import type { RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
 
@@ -203,6 +203,19 @@ export async function registerAccountRoutes(
       return reply.code(404).send({ error: 'game_not_found' });
     }
     return { hostToken: room.hostToken, stageToken: room.stageToken };
+  });
+
+  // «Підставити з попередньої гри» (12r): свої недавні ігри вікторини цієї кімнати; ключ — код, бо пульт і телефон автора знають лише його.
+  app.get<{ Params: { code: string } }>('/api/games/by-code/:code/resume', CODE_LIMIT, async (request, reply) => {
+    if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
+    const user = await currentUser(request);
+    const room = manager.get(request.params.code);
+    // Автор автопілота — власник вікторини з акаунтом: room.hostUserId = його id (createAutopilot). Решті — як у host-access.
+    if (user === null || room === undefined || room.hostUserId !== user.id || room.quizId === null) {
+      return reply.code(404).send({ error: 'game_not_found' });
+    }
+    if (room.state.phase !== 'lobby') return reply.code(409).send({ error: 'wrong_phase' });
+    return resumeOptions(db, user.id, room.quizId, room.id);
   });
 
   app.get('/api/games', async (request, reply) => {
