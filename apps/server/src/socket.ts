@@ -41,6 +41,8 @@ import {
   duelistSchema,
   draftSchema,
   awaySchema,
+  appealSchema,
+  appealVoteSchema,
   teamFormSchema,
   teamAssignSchema,
   captainSchema,
@@ -394,6 +396,18 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = voteSchema.safeParse(payloadOf(args));
       return payload.success ? manager.vote(room, identity.playerId, payload.data.askerId, payload.data.answer) : INVALID;
+    });
+
+    on('player:appeal', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = appealSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.appeal(room, identity.playerId, payload.data.reason) : INVALID;
+    });
+
+    on('player:appeal-vote', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = appealVoteSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.appealVote(room, identity.playerId, payload.data.appealId, payload.data.yes) : INVALID;
     });
 
     on('player:retry', (args) => {

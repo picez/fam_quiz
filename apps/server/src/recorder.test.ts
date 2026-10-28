@@ -1,5 +1,4 @@
 import { asc, eq } from 'drizzle-orm';
-import { castAppealVote, openAppeal } from '@quiz/engine';
 import { describe, expect, it, vi } from 'vitest';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, type Question, type Quiz } from '@quiz/shared';
@@ -1676,7 +1675,6 @@ describe('recorder: games without a host (11h)', () => {
 });
 
 describe('recorder: appeals (12f)', () => {
-  const commit = (manager: RoomManager, room: Room, state: Room['state']) => (manager as unknown as { commit(room: Room, state: Room['state']): void }).commit(room, state);
   /** Тарас відповів неправильно й оскаржує на розкритті; Олена — єдина виборка. */
   async function appealing() {
     const ctx = await setup();
@@ -1684,11 +1682,7 @@ describe('recorder: appeals (12f)', () => {
     toQuestion(ctx.manager, ctx.room);
     playFirstQuestion({ ...ctx });
     ctx.host('next');
-    return { ...ctx, openIt: () => {
-      const opened = openAppeal(ctx.room.state, ctx.taras, 'grade', 0);
-      if (!opened.ok) throw new Error(opened.error);
-      commit(ctx.manager, ctx.room, opened.state);
-    } };
+    return { ...ctx, openIt: () => expect(ctx.manager.appeal(ctx.room, ctx.taras, 'grade')).toEqual({ ok: true }) };
   }
 
   it('an open appeal is not stored; a closed one is a single row even after several saves', async () => {
@@ -1696,9 +1690,7 @@ describe('recorder: appeals (12f)', () => {
     ctx.openIt();
     await ctx.recorder.idle();
     expect(await ctx.db.select().from(appeal)).toEqual([]);
-    const cast = castAppealVote(ctx.room.state, ctx.olena, 1, true, 0);
-    if (!cast.ok) throw new Error(cast.error);
-    commit(ctx.manager, ctx.room, cast.state);
+    expect(ctx.manager.appealVote(ctx.room, ctx.olena, 1, true)).toEqual({ ok: true });
     await ctx.recorder.idle();
     toEnd(ctx.manager, ctx.room);
     await ctx.recorder.idle();
@@ -1709,9 +1701,7 @@ describe('recorder: appeals (12f)', () => {
   it('a decision with a different outcome only is still saved (the signature sees the outcome)', async () => {
     const ctx = await appealing();
     ctx.openIt();
-    const cast = castAppealVote(ctx.room.state, ctx.olena, 1, false, 0);
-    if (!cast.ok) throw new Error(cast.error);
-    commit(ctx.manager, ctx.room, cast.state);
+    expect(ctx.manager.appealVote(ctx.room, ctx.olena, 1, false)).toEqual({ ok: true });
     await ctx.recorder.idle();
     expect(await ctx.db.select().from(appeal)).toEqual([expect.objectContaining({ yes: 0, no: 1, outcome: 'no', adjustmentSeq: null })]);
   });
@@ -1719,9 +1709,7 @@ describe('recorder: appeals (12f)', () => {
   it('the appeal of a kicked participant does not break the save and goes with the participant', async () => {
     const ctx = await appealing();
     ctx.openIt();
-    const cast = castAppealVote(ctx.room.state, ctx.olena, 1, true, 0);
-    if (!cast.ok) throw new Error(cast.error);
-    commit(ctx.manager, ctx.room, cast.state);
+    expect(ctx.manager.appealVote(ctx.room, ctx.olena, 1, true)).toEqual({ ok: true });
     await ctx.recorder.idle();
     expect(await ctx.db.select().from(appeal)).toHaveLength(1);
     expect(ctx.manager.host(ctx.room, { type: 'kick', playerId: ctx.taras })).toEqual({ ok: true });

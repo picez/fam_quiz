@@ -140,6 +140,22 @@ describe('a room restored after a restart', () => {
     expect(back.state.players.find((p) => p.id === olena.playerId)?.score).toBe(room.state.players.find((p) => p.id === olena.playerId)?.score);
   });
 
+  it('a version 17 snapshot comes back: version 18 only added appeals and the appeal adjustment source (12f)', () => {
+    const { scheduler, manager, room, olena, taras } = midQuestion();
+    const saved = { ...viaJson(manager.snapshot(room)), stateVersion: 17 };
+    manager.freeze();
+    expect(isSavedRoom(saved)).toBe(true);
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.plays).toEqual(room.state.plays);
+    expect(back.state.appeals).toBeUndefined();
+    next.connect(back, HOST);
+    next.connect(back, { role: 'player', playerId: taras.playerId });
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    expect(next.answer(back, taras.playerId, correct)).toEqual({ ok: true });
+    expect(back.state.plays.at(-1)?.answers[olena.playerId]).toBeDefined();
+  });
+
   it('a room saved before 10c (state version 2) comes back: version 3 only added Play.clues', () => {
     const { scheduler, manager, room, olena, taras } = midQuestion();
     const saved = { ...viaJson(manager.snapshot(room)), stateVersion: 2 };

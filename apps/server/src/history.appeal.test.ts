@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { castAppealVote, factInput, openAppeal } from '@quiz/engine';
+import { factInput } from '@quiz/engine';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
 import { factTable, gameAwards, gameCard } from '@quiz/shared';
 import { answer, appeal, participant, scoreAdjustment, user } from './db/schema';
@@ -38,18 +38,11 @@ async function soloGame() {
   return { db, scheduler, manager, recorder, errors, room, olya, petro, ira, host };
 }
 
-/** Людина оскаржує на розкритті, виборці голосують; рушій сам ухвалює рішення, коли проголосували всі (менеджерного методу ще немає). */
+/** Людина оскаржує на розкритті, виборці голосують; рушій сам ухвалює рішення, коли проголосували всі. */
 function appealWith(manager: RoomManager, room: Room, by: string, reason: 'grade' | 'away', votes: [string, boolean][]): void {
-  const commit = (state: Room['state']) => (manager as unknown as { commit(room: Room, state: Room['state']): void }).commit(room, state);
-  const opened = openAppeal(room.state, by, reason, 0);
-  if (!opened.ok) throw new Error(opened.error);
-  commit(opened.state);
+  expect(manager.appeal(room, by, reason)).toEqual({ ok: true });
   const id = room.state.appeals?.at(-1)?.id ?? -1;
-  for (const [voter, yes] of votes) {
-    const cast = castAppealVote(room.state, voter, id, yes, 0);
-    if (!cast.ok) throw new Error(cast.error);
-    commit(cast.state);
-  }
+  for (const [voter, yes] of votes) expect(manager.appealVote(room, voter, id, yes)).toEqual({ ok: true });
 }
 
 /** Σ answer.points + Σ score_adjustment.points = participant.score у кожного учасника. */

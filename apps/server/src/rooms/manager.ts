@@ -26,6 +26,7 @@ import {
   buyDebuff,
   cancelDebuff,
   cancelDuel,
+  castAppealVote,
   castVote,
   createGame,
   dealTeams,
@@ -115,8 +116,9 @@ import {
   type PacedAction,
   type Result,
   type TeamAct,
+  openAppeal,
 } from '@quiz/engine';
-import { AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -179,6 +181,8 @@ export interface Room {
   gaps: Map<string, AwayGap>;
   /** Вікно частоти player:away (12e), як draftRate. Лише в пам'яті. */
   awayRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:appeal-vote (12f), як draftRate. Лише в пам'яті. */
+  appealRate: Map<string, { from: number; count: number }>;
   /**
    * Люди з прийнятим «пішов» (12e), чиє наступне «повернувся» частоти не рахує: одне на кожен прийнятий вихід — відмова в поверненні
    * додала б вигаданий час, а решта повернень рахується, тож ними не засипати. Розрив не прибирає (телефон міг повернутися без зв'язку).
@@ -499,6 +503,7 @@ export class RoomManager {
       hidden: new Set(),
       gaps: new Map(),
       awayRate: new Map(),
+      appealRate: new Map(),
       awayCredit: new Set(),
     };
     this.live.set(room.code, room);
@@ -555,6 +560,7 @@ export class RoomManager {
       hidden: new Set(),
       gaps: new Map(),
       awayRate: new Map(),
+      appealRate: new Map(),
       awayCredit: new Set(),
     };
     this.live.set(room.code, room);
@@ -1045,6 +1051,26 @@ export class RoomManager {
     return this.apply(room, castVote(room.state, who.id, askerId, answer, this.now()));
   }
 
+  /** Апеляція (12f): гравець (у командній грі — капітан) відкриває голосування залу; права й підстави перевіряє рушій. */
+  appeal(room: Room, personId: string, reason: AppealReason): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, openAppeal(room.state, personId, reason, this.now()));
+  }
+
+  /**
+   * Голос в апеляції (12f): людина сама (у командній грі — учасник, не команда); голос можна змінити до кінця.
+   * Понад APPEAL_VOTES_PER_SECOND за секунду — too_soon. Кінець голосування закриває таймер кімнати (nextDeadline рушія, reschedule).
+   */
+  appealVote(room: Room, personId: string, appealId: number, yes: boolean): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const now = this.now();
+    const rate = room.appealRate.get(personId);
+    if (rate === undefined || now - rate.from >= 1000) room.appealRate.set(personId, { from: now, count: 1 });
+    else if (rate.count + 1 > APPEAL_VOTES_PER_SECOND) return { ok: false, error: 'too_soon' };
+    else rate.count += 1;
+    return this.apply(room, castAppealVote(room.state, personId, appealId, yes, now));
+  }
+
   /** Підказка ведучого на запит гравця з бафом (не плутати з підказкою ланцюжка, hint). */
   hostHint(room: Room, playerId: string, text: string | null): AckResult {
     if (!this.alive(room)) return this.gone();
@@ -1266,6 +1292,7 @@ export class RoomManager {
     room.hidden.delete(playerId);
     room.gaps.delete(playerId);
     room.awayRate.delete(playerId);
+    room.appealRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {
