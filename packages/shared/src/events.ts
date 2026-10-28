@@ -136,7 +136,7 @@ export const awaySchema = z.object({
 /** Апеляція (12f): підстава; хто оскаржує — з ідентичності сокета (у командній грі — капітан). */
 export const appealSchema = z.object({ reason: z.enum(APPEAL_REASONS) });
 /** Голос в апеляції (12f): номер апеляції (щоб голос не впав на новішу) і «так» / «ні»; змінити можна до кінця. */
-export const appealVoteSchema = z.object({ appealId: z.number().int().min(1), yes: z.boolean() });
+export const appealVoteSchema = z.object({ appealId: z.number().int().min(1).max(1_000_000), yes: z.boolean() });
 /** Пульт: увімкнути чи вимкнути живі вибори (12b). */
 export const liveWatchSchema = z.object({ on: z.boolean() });
 /** Ведучий: спосіб формування. */

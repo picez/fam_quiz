@@ -2928,6 +2928,11 @@ button.match-item {
   border-left-color: var(--signal);
 }
 
+/* 12f: відповідь, яку зарахував зал (апеляція «так»). */
+.rows .responses li.appealed {
+  border-left-color: var(--amber);
+}
+
 .responses-name {
   font-weight: 600;
   overflow-wrap: anywhere;

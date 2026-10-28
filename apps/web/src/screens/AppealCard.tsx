@@ -1,6 +1,6 @@
 import { useId } from 'react';
-import type { AppealView } from '@quiz/shared';
-import { appealAsk, appealCountText, appealResultText, appealTitle } from '../appeal-text';
+import type { AppealView, PublicQuestion } from '@quiz/shared';
+import { appealAsk, appealCountText, appealPresented, appealResultText, appealTitle } from '../appeal-text';
 import { t } from '../i18n';
 import { clockText, useLeftMs } from '../live/Timer';
 
@@ -18,8 +18,21 @@ export function AppealTime({ view, offsetMs }: { view: Pick<AppealView, 'endsAt'
  * Картка апеляції (12f): заголовок, питання залу, смужка «так / ні» (stage), лічильник і відлік «0:21»;
  * після рішення — рядок .appeal-result. size: stage — на сцені, host — на пульті, phone — на телефоні того, хто не голосує.
  * Лише лічильники: хто як голосував, картка не знає. Вголос читаються лише лічильник і результат, а не вся картка щоразу.
+ * screenQuestion — запитання цього екрана: літери варіантів у питанні залу — за його порядком, якщо це те саме запитання.
  */
-export function AppealCard({ view, size, teams, offsetMs }: { view: AppealView; size: 'stage' | 'host' | 'phone'; teams: boolean; offsetMs: number }) {
+export function AppealCard({
+  view,
+  screenQuestion,
+  size,
+  teams,
+  offsetMs,
+}: {
+  view: AppealView;
+  screenQuestion?: PublicQuestion | null;
+  size: 'stage' | 'host' | 'phone';
+  teams: boolean;
+  offsetMs: number;
+}) {
   const titleId = useId();
   const open = view.outcome === null;
   const result = appealResultText(view);
@@ -31,7 +44,7 @@ export function AppealCard({ view, size, teams, offsetMs }: { view: AppealView; 
       <h2 className="appeal-title" id={titleId}>
         {appealTitle(view, teams)}
       </h2>
-      {size !== 'phone' ? <p className="appeal-ask">{appealAsk(view)}</p> : open && <p className="appeal-hall">{t('appealHall')}</p>}
+      {size !== 'phone' ? <p className="appeal-ask">{appealAsk(view, appealPresented(view, screenQuestion))}</p> : open && <p className="appeal-hall">{t('appealHall')}</p>}
       {size === 'stage' && (
         <div className="appeal-bar" aria-hidden="true">
           <span className="appeal-bar-yes" style={{ width: `${yesPct}%` }} />

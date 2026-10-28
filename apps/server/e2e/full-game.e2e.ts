@@ -14916,9 +14916,9 @@ async function appeal12f() {
   for (const name of ['Так', 'Ні'] as const) {
     expect(await sheetButton(petro, name).getAttribute('aria-disabled'), `«${name}» is live on pause`).toBe('true');
     // aria-disabled, а не disabled: фокус лишається на кнопці (Playwright вважає aria-disabled неактивною, тож — властивість DOM).
-    expect(await sheetButton(petro, name).evaluate((el) => (el as HTMLButtonElement).disabled), `«${name}» is disabled, not aria-disabled`).toBe(false);
+    expect(await sheetButton(petro, name).evaluate((el) => (el as unknown as { disabled: boolean }).disabled), `«${name}» is disabled, not aria-disabled`).toBe(false);
   }
-  await sheetButton(petro, 'Так').evaluate((el) => (el as HTMLButtonElement).click());
+  await sheetButton(petro, 'Так').evaluate((el) => (el as unknown as { click(): void }).click());
   await sleep(300);
   expect(await textOf(count(stage)), 'a vote got through on pause').toBe('так 0 · ні 0 · ще думають 2');
   await expectNoSideScroll(petro, 'p12f-phone-paused');

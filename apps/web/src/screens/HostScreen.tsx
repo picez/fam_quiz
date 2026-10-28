@@ -1168,7 +1168,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
-      {phase === 'reveal' && view.appeal !== null && <AppealCard view={view.appeal} size="host" teams={view.teams !== null} offsetMs={offsetMs} />}
+      {phase === 'reveal' && view.appeal !== null && <AppealCard view={view.appeal} screenQuestion={view.question} size="host" teams={view.teams !== null} offsetMs={offsetMs} />}
 
       {view.duel !== null && <HostDuelPanel view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 

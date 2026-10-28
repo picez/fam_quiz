@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import type { AppealView, PlayerAppeal } from '@quiz/shared';
-import { appealAsk, appealCountText, appealTitle } from '../appeal-text';
+import type { AppealView, PlayerAppeal, PublicQuestion } from '@quiz/shared';
+import { appealAsk, appealCountText, appealPresented, appealTitle } from '../appeal-text';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useGuardedSend } from '../live/useGuardedSend';
@@ -12,6 +12,7 @@ import { AppealTime } from './AppealCard';
  */
 export function AppealSheet({
   view,
+  screenQuestion,
   mine,
   teams,
   paused,
@@ -20,6 +21,8 @@ export function AppealSheet({
   onError,
 }: {
   view: AppealView;
+  /** Запитання цього телефона: літери варіантів — за його порядком, якщо це те саме запитання. */
+  screenQuestion?: PublicQuestion | null;
   mine: PlayerAppeal;
   teams: boolean;
   paused: boolean;
@@ -49,7 +52,7 @@ export function AppealSheet({
         {announce ? title : ''}
       </p>
       <h2 className="appeal-title">{title}</h2>
-      <p className="appeal-ask">{appealAsk(view)}</p>
+      <p className="appeal-ask">{appealAsk(view, appealPresented(view, screenQuestion))}</p>
       <div className="appeal-votes">
         <button type="button" className="btn appeal-yes" aria-pressed={mine.vote === true} aria-disabled={locked} title={hint} onClick={() => vote(true)}>
           {t('appealYes')}

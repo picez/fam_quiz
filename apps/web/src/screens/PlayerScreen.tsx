@@ -747,7 +747,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       )}
       {/* Голос за апеляцію (12f) — теж нижній аркуш position: fixed над розкриттям. */}
       {phase === 'reveal' && view.appeal !== null && view.appeal.outcome === null && me.appeal?.voter === true && (
-        <AppealSheet view={view.appeal} mine={me.appeal} teams={view.teams !== null} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
+        <AppealSheet view={view.appeal} screenQuestion={view.question} mine={me.appeal} teams={view.teams !== null} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
       )}
       {/* Заставка — шар position: fixed над розкладкою етапу, що вже стоїть: поява й зникнення нічого не зсувають. */}
       <Splash view={view} offsetMs={offsetMs} size="phone" />
@@ -1127,7 +1127,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {me.appeal?.block != null && <p className="meta appeal-block">{t(me.appeal.block === 'captain' ? 'appealCaptain' : 'appealNoVoters')}</p>}
           {/* Виборець відкритої апеляції бачить аркуш, решта — картку; скасована апеляція картки не має. */}
           {view.appeal !== null && view.appeal.outcome !== 'cancelled' && !(view.appeal.outcome === null && me.appeal?.voter === true) && (
-            <AppealCard view={view.appeal} size="phone" teams={view.teams !== null} offsetMs={offsetMs} />
+            <AppealCard view={view.appeal} screenQuestion={view.question} size="phone" teams={view.teams !== null} offsetMs={offsetMs} />
           )}
         </>
       )}

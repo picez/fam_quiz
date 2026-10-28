@@ -333,7 +333,7 @@ const STATE_SHAPE: Record<string, string> = {
   Splash: keysOf<Splash>()(['kind', 'at', 'until'], true),
   AwayEntry: keysOf<AwayEntry>()(['ms', 'count', 'since'], true),
   AutopilotState: keysOf<AutopilotState>()(['authorId', 'at', 'left', 'hold', 'starting', 'skips', 'skipPlays', 'retries'], true),
-  Appeal: keysOf<Appeal>()(['id', 'by', 'questionIndex', 'reason', 'openedAt', 'endsAt', 'votes', 'outcome', 'adjustmentSeq'], true),
+  Appeal: keysOf<Appeal>()(['id', 'by', 'questionIndex', 'reason', 'openedAt', 'endsAt', 'votes', 'outcome', 'adjustmentSeq', 'yes', 'no'], true),
 };
 
 /** Записана форма кожної версії; запис старої версії не змінюють. */
@@ -971,7 +971,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Splash: 'at,kind,until',
     AwayEntry: 'count,ms,since',
     AutopilotState: 'at,authorId,hold,left,retries,skipPlays,skips,starting',
-    Appeal: 'adjustmentSeq,by,endsAt,id,openedAt,outcome,questionIndex,reason,votes',
+    Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
 };
 

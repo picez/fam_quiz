@@ -112,11 +112,11 @@ import {
   awayStep,
   tooSoon,
   openClue,
+  openAppeal,
   type GameState,
   type PacedAction,
   type Result,
   type TeamAct,
-  openAppeal,
 } from '@quiz/engine';
 import { APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
@@ -1063,6 +1063,10 @@ export class RoomManager {
    */
   appealVote(room: Room, personId: string, appealId: number, yes: boolean): AckResult {
     if (!this.alive(room)) return this.gone();
+    // Людини вже немає в грі (вилучили) — відмова до вікна частоти: вікно для неї не заводиться.
+    const state = room.state;
+    const known = teamsOn(state) ? memberOf(state, personId) !== undefined : state.players.some((p) => p.id === personId);
+    if (!known) return { ok: false, error: 'not_found' };
     const now = this.now();
     const rate = room.appealRate.get(personId);
     if (rate === undefined || now - rate.from >= 1000) room.appealRate.set(personId, { from: now, count: 1 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AppealView } from '@quiz/shared';
-import { appealAsk, appealButtonText, appealCountText, appealResultText, appealTitle, historyAppealText } from './appeal-text';
+import type { AppealView, PublicQuestion, Question } from '@quiz/shared';
+import { appealAsk, appealButtonText, appealPresented, appealCountText, appealResultText, appealTitle, historyAppealText } from './appeal-text';
 
 const appeal = (over: Partial<AppealView> = {}): AppealView => ({
   id: 1,
@@ -37,6 +37,37 @@ describe('appeal texts', () => {
   it('asks the hall about the answer or about the away penalty', () => {
     expect(appealAsk(appeal())).toBe('Відповідь «Одеська», правильна — «Одеса». Зарахувати?');
     expect(appealAsk(appeal({ reason: 'away', answer: null }))).toBe('Штраф за вихід із гри. Зняти штраф?');
+  });
+
+  it('a shuffled single choice: the letter of the right answer follows the order this screen showed', () => {
+    const question: Question = {
+      id: 'c1',
+      text: 'Столиця України?',
+      imageUrl: null,
+      video: null,
+      timeLimit: 20,
+      points: 1000,
+      type: 'single',
+      options: [
+        { id: 'a', text: 'Львів' },
+        { id: 'b', text: 'Київ' },
+        { id: 'c', text: 'Одеса' },
+      ],
+      correctId: 'b',
+    };
+    const view = appeal({ question, answer: { type: 'single', optionId: 'a' } });
+    const shown = (order: string[], text = question.text) =>
+      ({ type: 'single', text, choices: order.map((id) => ({ id, text: question.type === 'single' ? (question.options.find((o) => o.id === id)?.text ?? '') : '' })) }) as unknown as PublicQuestion;
+    // Показ «Київ, Одеса, Львів»: правильна — A, а не B авторського порядку.
+    const shuffled = shown(['b', 'c', 'a']);
+    expect(appealPresented(view, shuffled)).toEqual(shuffled.choices);
+    expect(appealAsk(view, appealPresented(view, shuffled))).toBe('Відповідь «Львів», правильна — «A. Київ». Зарахувати?');
+    // Запасне запитання (інший текст) чи екран без запитання: без літер з обох боків.
+    expect(appealPresented(view, shown(['b', 'c', 'a'], 'Інше запитання?'))).toBeUndefined();
+    expect(appealPresented(view, null)).toBeUndefined();
+    expect(appealAsk(view)).toBe('Відповідь «Львів», правильна — «Київ». Зарахувати?');
+    // Текстова відповідь порядку не має.
+    expect(appealPresented(appeal(), shuffled)).toBeUndefined();
   });
 
   it('counts yes, no and those still thinking, without the last when nobody thinks', () => {
@@ -82,11 +113,11 @@ describe('appeal texts', () => {
     expect(historyAppealText({ reason: 'grade', yes: 2, no: 0, outcome: 'yes' })).toBe('⚖️ зараховано 2:0');
     expect(historyAppealText({ reason: 'grade', yes: 1, no: 1, outcome: 'tie' })).toBe('⚖️ лишилось як було 1:1');
     expect(historyAppealText({ reason: 'grade', yes: 0, no: 2, outcome: 'no' })).toBe('⚖️ лишилось як було 0:2');
-    expect(historyAppealText({ reason: 'grade', yes: 0, no: 1, outcome: 'host' })).toBe('⚖️ ведучий зарахував');
+    expect(historyAppealText({ reason: 'grade', yes: 0, no: 1, outcome: 'host' })).toBe('⚖️ зараховано ведучим');
     expect(historyAppealText({ reason: 'away', yes: 2, no: 0, outcome: 'yes' })).toBe('⚖️ штраф знято 2:0');
     expect(historyAppealText({ reason: 'away', yes: 0, no: 2, outcome: 'no' })).toBe('⚖️ штраф лишився 0:2');
     expect(historyAppealText({ reason: 'away', yes: 0, no: 0, outcome: 'tie' })).toBe('⚖️ штраф лишився 0:0');
-    expect(historyAppealText({ reason: 'away', yes: 0, no: 0, outcome: 'host' })).toBe('⚖️ ведучий зарахував');
+    expect(historyAppealText({ reason: 'away', yes: 0, no: 0, outcome: 'host' })).toBe('⚖️ зараховано ведучим');
   });
 
   it('never uses gendered past forms', () => {

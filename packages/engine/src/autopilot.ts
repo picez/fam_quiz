@@ -309,8 +309,12 @@ function moveOf(state: GameState, from: number): Move | null {
     case 'reveal': {
       // Апеляція (12f): голосування закриває tick рушія; після рішення — ще appealShown; поки хтось може оскаржити — не менше appealWindow від початку розкриття.
       if (appealOpen(state) !== null) return null;
-      const decided = lastAppeal(state) !== null;
+      // Скасована апеляція картки не має (appealView): показувати нема чого, розкриття йде своїм часом.
+      const last = lastAppeal(state);
+      const decided = last !== null && last.outcome !== 'cancelled';
       const base = from + (decided ? AUTOPILOT_MS.appealShown : revealMs(state));
+      // appealPossible читається лише тут, а мить перераховується тільки на зміну pilotKey (відкриття, рішення апеляції тощо):
+      // якщо можливість оскаржити зникне інакше (хтось вийшов зі зв'язку), вікно, що вже стоїть, лишається — це лише кілька зайвих секунд.
       const window = appealPossible(state) ? (state.stepAt ?? from) + AUTOPILOT_MS.appealWindow : 0;
       return nextAt(Math.max(base, window));
     }

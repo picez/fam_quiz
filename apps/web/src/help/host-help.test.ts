@@ -184,6 +184,11 @@ describe('host help', () => {
     for (const part of ['30 с', '2 апеляції', 'Голосує зал', 'не бачить ніхто', 'Зараховано ведучим', '(апеляція)', 'Нема кому голосувати', 'Оскаржити штраф', 'капітан', 'Нічия', 'Пауза', '↶ Бали', 'Після кінця гри']) expect(body, part).toContain(part);
     expect(body.toLowerCase()).not.toMatch(/росі|срср/);
     expect(body).not.toMatch(/(^|[^а-яіїєґ])(голосував|голосувала|оскаржив|оскаржила)/);
+    expect(body).toContain('кожна людина окремо');
+    // Вибір одного варіанта й так / ні рушій оскаржити дає (ведучий їх теж переоцінює); не дає лише там, де й ведучий не може.
+    expect(body).toContain('(ланцюжок, сортування, стіна, «100 до 1», блеф, опитування, хмара)');
+    expect(body).not.toContain('вибір одного варіанта');
+    expect(body).not.toContain('так / ні,');
     expect(searchHelp('апеляція')).toContain('setting.appeal');
     expect(text('setting.undo')).toContain('(апеляція)');
     expect(text('setting.autopilot')).toContain(`${AUTOPILOT_MS.appealShown / 1000} с`);

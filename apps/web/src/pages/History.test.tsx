@@ -423,6 +423,31 @@ describe('GameHistory: answers', () => {
     expect(rows[1].querySelector('.history-away')).toBeNull();
   });
 
+  it('an answer the hall accepted on appeal gets the amber stripe and «⚖️ зараховано 2:0», a kept one stays red', async () => {
+    const appealed: GameDetail = {
+      ...answered,
+      questions: [
+        {
+          ...answered.questions[1],
+          answered: 2,
+          responses: [
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null, appeal: { reason: 'grade', yes: 2, no: 0, outcome: 'yes' } },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null, appeal: { reason: 'grade', yes: 1, no: 1, outcome: 'tie' } },
+          ],
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: appealed });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (2)'));
+    const rows = [...container.querySelectorAll('details.responses li')];
+    expect(rows[0].className).toContain('appealed');
+    expect(rows[0].className).not.toContain('is-wrong');
+    expect(rows[0].querySelector('.history-appeal')?.textContent).toBe('⚖️ зараховано 2:0');
+    expect(rows[1].className).toContain('is-wrong');
+    expect(rows[1].querySelector('.history-appeal')?.textContent).toBe('⚖️ лишилось як було 1:1');
+  });
+
   it('an older server without awayMs on answers and final entries shows no 🙈 and no «NaN»', async () => {
     const { awayMs: _a, ...plain } = { nickname: 'Віра', answer: { type: 'single' as const, optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null , appeal: null };
     const old = {

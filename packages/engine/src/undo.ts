@@ -235,6 +235,8 @@ function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
       const undone = adjustment.undoes;
       if (undone !== undefined && 'seq' in undone && state.adjustments.find((a) => a.seq === undone.seq)?.source === 'undo') return 'not_allowed';
       if (ledger.redone.has(adjustment.seq)) return 'already_undone';
+      const root = rootOf(state, adjustment);
+      if (root !== null && root.source === 'away' && penaltyExceeds(state, ledger, root)) return 'not_allowed';
       const redo: Undo = { playerId: adjustment.playerId, points: -adjustment.points, undoes: { seq: adjustment.seq }, roundIndex: adjustment.roundIndex };
       return [redo, ...penaltyRedos(state, ledger, adjustment)];
     }
@@ -255,6 +257,21 @@ function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
   if (target.question < 0 || target.question >= state.plays.length) return 'not_found';
   if (!visible(state, target.question)) return 'wrong_phase';
   return massOf(rowsOf(state).filter((l) => l.question === target.question));
+}
+
+/**
+ * Повернений штраф за вихід (12e) узяв би більше, ніж учасник зараз має за запитання: бали запису (0, якщо відповідь скасовано)
+ * плюс нескасовані бали апеляції (12f). Тоді «Повернути» відмовляє — інакше за запитання вийшов би мінус.
+ */
+function penaltyExceeds(state: GameState, ledger: UndoLedger, penalty: ScoreAdjustment): boolean {
+  const q = hostGroup(state, penalty);
+  if (q === null) return false;
+  const who = penalty.playerId;
+  const record = ledger.answers.has(undoAnswerKey(who, q)) ? 0 : (recordOf(state, q, who)?.points ?? 0);
+  const appeals = state.adjustments
+    .filter((a) => a.source === 'appeal' && a.playerId === who && hostGroup(state, a) === q && !ledger.adjustments.has(a.seq))
+    .reduce((sum, a) => sum + a.points, 0);
+  return -penalty.points > record + appeals;
 }
 
 /**

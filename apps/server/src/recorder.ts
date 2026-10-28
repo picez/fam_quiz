@@ -318,7 +318,8 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
     if (fresh.length > 0) await tx.insert(scoreAdjustment).values(fresh).onConflictDoNothing();
 
     // Апеляції (12f): лише закриті й лише учасників, що є в грі (вилучених прибирає каскад); закрита незмінна.
-    const closedAppeals = (state.appeals ?? []).filter((a) => a.outcome !== null && state.players.some((p) => p.id === a.by));
+    // Скасованих (кінець раунду чи гри, вилучення) історія не показує й цікавинки не рахують — у базу вони не йдуть.
+    const closedAppeals = (state.appeals ?? []).filter((a) => a.outcome !== null && a.outcome !== 'cancelled' && state.players.some((p) => p.id === a.by));
     if (closedAppeals.length > 0) {
       await tx
         .insert(appeal)
@@ -329,6 +330,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
             participantId: a.by,
             questionIndex: a.questionIndex,
             reason: a.reason,
+            // Лічильники, збережені на мить рішення (appealTally закритої): вилучення виборця потім їх не змінює, тож база й жива гра однакові.
             ...appealTally(state, a),
             outcome: a.outcome!,
             adjustmentSeq: a.adjustmentSeq ?? null,

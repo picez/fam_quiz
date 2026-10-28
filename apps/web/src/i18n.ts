@@ -1941,7 +1941,7 @@ const uk = {
   historyAway: '🙈 {seconds} с',
   historyAppealYes: '⚖️ зараховано {yes}:{no}',
   historyAppealKept: '⚖️ лишилось як було {yes}:{no}',
-  historyAppealHost: '⚖️ ведучий зарахував',
+  historyAppealHost: '⚖️ зараховано ведучим',
   historyAppealAwayYes: '⚖️ штраф знято {yes}:{no}',
   historyAppealAwayKept: '⚖️ штраф лишився {yes}:{no}',
   gameCardAway_one: '🙈 Поза грою: на {count} запитанні',

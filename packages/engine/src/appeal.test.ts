@@ -13,12 +13,11 @@ import {
   lastAppeal,
   openAppeal,
 } from './appeal';
-import { addAdjustment } from './adjust';
 import { awayEnd, awayStart } from './away';
 import { pickCell } from './board';
 import { placeWager } from './final';
 import { pickContestant } from './ladder';
-import { lock, next, override, pause, recordOf, setConnected, start, submitAnswer, tick, type GameState } from './game';
+import { endRound, lock, next, override, pause, recordOf, removePlayer, setConnected, start, submitAnswer, tick, type GameState } from './game';
 import { actAnswer } from './team-act';
 import {
   blitzRound,
@@ -206,6 +205,13 @@ describe('what cannot be appealed', () => {
     while (l.phase !== 'reveal') l = must(next(l, T0 + 2000, rng));
     unfit(l);
     unfit(l, 'p2');
+  });
+
+  it('single choice is appealable: the host may still grade it, so the hall may too', () => {
+    const s = revealOf(classicRound('r', [single], { speedBonus: false }), { p1: lviv, p2: kyiv, p3: kyiv });
+    expect(appealReasons(s, 'p1')).toEqual(['grade']);
+    expect(appealPoints(s, 'p1')).toBeGreaterThan(0);
+    expect(must(openAppeal(s, 'p1', 'grade', T1)).appeals?.[0]).toMatchObject({ by: 'p1', reason: 'grade', outcome: null });
   });
 
   it('chain, bluff and poll in a classic round', () => {
@@ -410,17 +416,30 @@ describe('review cases (12f)', () => {
     expect(openAppeal(s, 'p1', 'away', T1 + 31_000)).toEqual(err('appeal_unfit'));
   });
 
-  it('the protective away branch: a penalty already there is given back by yes, with adjustmentSeq', () => {
+  it('away yes never writes a row: the penalty comes only after the reveal, and the passed appeal drops it there', () => {
     let s = startRound(lobbyWith(quizOf(DEFAULT_RULES, { awayPenalty: true }), 'Оля', 'Петро', 'Іра'), T0, rng);
     s = awayEnd(awayStart(s, 'p1', T0 + 500), 'p1', T0 + 4000);
     s = answerAndReveal(s, [RIGHT, RIGHT, RIGHT], T0 + 5000);
-    s = addAdjustment(s, 'p1', -100, T1, 'away', { roundIndex: 0 });
-    expect(score(s, 'p1')).toBe(0);
     s = must(openAppeal(s, 'p1', 'away', T1));
     s = must(castAppealVote(must(castAppealVote(s, 'p2', 1, true, T1)), 'p3', 1, true, T1));
-    expect(s.appeals?.[0]).toMatchObject({ outcome: 'yes', adjustmentSeq: 2 });
-    expect(s.adjustments.at(-1)).toMatchObject({ seq: 2, playerId: 'p1', points: 100, source: 'appeal' });
+    expect(s.appeals?.[0]).toMatchObject({ outcome: 'yes' });
+    expect(s.appeals?.[0]).not.toHaveProperty('adjustmentSeq');
+    expect(s.adjustments).toEqual([]);
+    s = must(next(s, T1 + 1000, rng));
+    expect(s.adjustments.filter((a) => a.source === 'away')).toEqual([]);
     expect(score(s, 'p1')).toBe(100);
+  });
+
+  it('a closed appeal keeps only the counts: votes are emptied, and a voter kicked later changes nothing', () => {
+    let s = must(openAppeal(reveal, 'p1', 'grade', T1));
+    s = must(castAppealVote(must(castAppealVote(s, 'p2', 1, true, T1)), 'p3', 1, true, T1));
+    expect(s.appeals?.[0]).toMatchObject({ outcome: 'yes', votes: {}, yes: 2, no: 0 });
+    const kicked = must(removePlayer(s, 'p2', T1 + 1000));
+    expect(appealTally(kicked, kicked.appeals![0])).toEqual({ yes: 2, no: 0 });
+    // Скасована й закрита ведучим теж без голосів.
+    const voted = must(castAppealVote(must(openAppeal(reveal, 'p1', 'grade', T1)), 'p2', 1, false, T1));
+    expect(must(endRound(voted, T1 + 1000)).appeals?.[0]).toMatchObject({ outcome: 'cancelled', votes: {}, yes: 0, no: 1 });
+    expect(must(override(voted, 'p1', 'correct', T1 + 1000)).appeals?.[0]).toMatchObject({ outcome: 'host', votes: {}, yes: 0, no: 1 });
   });
 
   it('a removed appellant gets no points from yes; the tally skips removed voters', () => {

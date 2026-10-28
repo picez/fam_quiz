@@ -126,6 +126,9 @@ describe('player:appeal and player:appeal-vote in a room (12f)', () => {
     expect(manager.appealVote(room, petro, 1, true)).toEqual({ ok: true });
     expect(host({ type: 'kick', playerId: petro })).toEqual({ ok: true });
     expect(room.appealRate.has(petro)).toBe(false);
+    // Голос вилученого — not_found, і вікно частоти для нього не заводиться.
+    expect(manager.appealVote(room, petro, 1, true)).toEqual({ ok: false, error: 'not_found' });
+    expect(room.appealRate.has(petro)).toBe(false);
   });
 
   it('in a team game the captain appeals and members of the other team vote one by one', () => {

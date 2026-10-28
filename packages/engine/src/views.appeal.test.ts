@@ -3,7 +3,7 @@ import { DEFAULT_RULES, type Answer, type QuizSettings } from '@quiz/shared';
 import { addAdjustment } from './adjust';
 import { castAppealVote, openAppeal } from './appeal';
 import { awayEnd, awayStart } from './away';
-import { lock, next, pause, setConnected, submitAnswer, type GameState } from './game';
+import { lock, next, pause, removePlayer, setConnected, submitAnswer, type GameState } from './game';
 import { actAnswer } from './team-act';
 import { classicRound, makeRoundsQuiz, text, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
@@ -107,8 +107,24 @@ describe('an open appeal', () => {
     for (const view of views) {
       const card = JSON.stringify(view.appeal);
       for (const secret of ['p2', 'p3', 'Петро', 'Іра']) expect(card).not.toContain(secret);
-      expect(JSON.stringify(view)).not.toContain('"votes"');
+      // Таблиця й гравці там законно, але ніде немає пари «виборець → голос».
+      expect(JSON.stringify(view)).not.toMatch(/"(p2|p3|Петро|Іра)":(true|false)/);
     }
+  });
+
+  it('the phones see the same remainder on a pause', () => {
+    const s = must(pause(voted, T1 + 5000));
+    for (const id of ['p1', 'p2', 'p3']) expect(playerView(s, id)?.appeal).toMatchObject({ endsAt: null, remainingMs: 25_000 });
+  });
+
+  it('a voter who voted and then dropped out is still counted while the vote is open', () => {
+    const s = must(setConnected(voted, 'p2', false, T1 + 2000));
+    expect(stageView(s).appeal).toMatchObject({ yes: 1, no: 0, waiting: 1, outcome: null });
+  });
+
+  it('one card per state: every role gets the very same object', () => {
+    expect(hostView(voted).appeal).toBe(stageView(voted).appeal);
+    expect(playerView(voted, 'p3')?.appeal).toBe(stageView(voted).appeal);
   });
 });
 
@@ -132,6 +148,12 @@ describe('the decision', () => {
     const row = s.adjustments.find((a) => a.source === 'appeal')!;
     const undone = addAdjustment(s, row.playerId, -row.points, T1 + 3000, 'undo', { undoes: { seq: row.seq }, batch: s.adjustmentSeq + 1, roundIndex: row.roundIndex });
     expect(stageView(undone).appeal).toMatchObject({ outcome: 'yes', undone: true, points: 0 });
+  });
+
+  it('a cancelled appeal has no card', () => {
+    const s = must(removePlayer(voted, 'p1', T1 + 2000));
+    expect(s.appeals?.[0].outcome).toBe('cancelled');
+    expect(stageView(s).appeal).toBeNull();
   });
 
   it('a tie gives 0 points', () => {
@@ -181,7 +203,7 @@ describe('team appeals', () => {
     for (const view of views) {
       const json = JSON.stringify(view.appeal);
       for (const secret of ['m1', 'm2', 'm3', 'm4', 'Оля', 'Петро', 'Віра', 'Іра']) expect(json).not.toContain(secret);
-      expect(JSON.stringify(view)).not.toContain('"votes"');
+      expect(JSON.stringify(view)).not.toMatch(/"(m1|m2|m3|m4|Оля|Петро|Віра|Іра)":(true|false)/);
     }
   });
 });
