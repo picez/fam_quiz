@@ -178,7 +178,7 @@ describe('host help', () => {
   it('12c clues entry tells own pace, the button, the own price, 20 s and the voice cell', () => {
     filled('question.clues');
     const body = text('question.clues');
-    for (const part of ['кожен сам', 'Ще підказка', 'Оля 1 · Петро 3', 'підказка 3/5', 'три — 60 %', `${LIMITS.selfCluesMinTime} с`, 'усній клітинці', 'відповідає за команду']) expect(body).toContain(part);
+    for (const part of ['кожен сам', 'Ще підказка', 'Оля 1 · Петро 3', 'підказка 3/5', 'три — 60 %', `${LIMITS.selfCluesMinTime} с`, '«кожен сам» не діє', 'на підказці 3', 'відповідає за команду']) expect(body).toContain(part);
   });
 
   it('10c entries tell the engine numbers', () => {

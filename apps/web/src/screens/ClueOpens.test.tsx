@@ -47,6 +47,9 @@ describe('ClueOpens (12c)', () => {
     expect(items()).toHaveLength(STAGE_OPENS_MAX.revealed + 1);
     expect(items()[0]).toBe('Гравець 1 — на підказці 2');
     expect(items().at(-1)).toBe(`та ще ${12 - STAGE_OPENS_MAX.revealed}`);
+    // Сім імен і «та ще N»: по 1,2rem троє в рядку, три рядки на 1280 px.
+    expect(STAGE_OPENS_MAX).toEqual({ asked: 7, revealed: 7 });
+    expect(items().at(-1)).toBe('та ще 5');
   });
 
   it('on the stage shows everyone up to the cap without «та ще»', () => {

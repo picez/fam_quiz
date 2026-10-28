@@ -1206,7 +1206,7 @@ describe('the saved state', () => {
     expect(back.players.find((p) => p.id === 'p1')?.score).toBe(0);
   });
 
-  it('a version 15 state (no clueOpens) restores; a self-paced play keeps clueOpens across the round trip', () => {
+  it('a state without clueOpens restores and keeps opening by the timer; a self-paced play keeps clueOpens across the round trip', () => {
     const timed = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [clues])]), 'Оля', 'Петро'), T0);
     const old = roundTrip(suspend(roundTrip(timed), T0 + 1000));
     expect('clueOpens' in old.plays[0]).toBe(false);
@@ -1217,6 +1217,8 @@ describe('the saved state', () => {
     self = must(openClue(must(openClue(self, 'p1', T0 + 500)), 'p1', T0 + 1000));
     const back = roundTrip(suspend(self, T0 + 2000));
     expect(back.plays[0].clueOpens).toEqual({ p1: 3 });
+    // у власному темпі таймер і після «Продовжити» нічого не відкриває
+    expect(tick(must(resume(back, T0 + 2000 + HOUR)), T0 + 8000 + HOUR).plays[0].clues).toBe(1);
     const answered = must(submitAnswer(must(resume(back, T0 + 2000 + HOUR)), 'p1', { type: 'clues', value: 'Шевченко' }, T0 + 3000 + HOUR));
     expect(answered.plays[0].answers.p1).toMatchObject({ points: 600, accepted: true });
   });

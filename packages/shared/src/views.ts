@@ -26,7 +26,6 @@ export interface PublicSlider {
   unit: string;
 }
 
-/** «Хто я?» без прихованих підказок і відповіді. */
 /** «Хто я?» у власному темпі (12c): скільки підказок відкрив гравець (команда). */
 export interface ClueOpen {
   playerId: string;
@@ -36,6 +35,7 @@ export interface ClueOpen {
   answered: boolean;
 }
 
+/** «Хто я?» без прихованих підказок і відповіді. */
 export interface PublicClues {
   total: number;
   /** Відкриті підказки, від найважчої. */

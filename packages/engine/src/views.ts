@@ -316,7 +316,10 @@ function clueOpensOf(state: GameState, play: Play): ClueOpen[] {
       playerId: p.id,
       nickname: p.nickname,
       opened: cluesOpenBy(play, p.id),
-      answered: recordOf(state, state.questionIndex, p.id) !== undefined || (board?.chooserId === p.id && board.answer !== null),
+      answered:
+        recordOf(state, state.questionIndex, p.id) !== undefined ||
+        (board?.chooserId === p.id && board.answer !== null) ||
+        buffOf(play, p.id)?.first != null,
     }));
 }
 

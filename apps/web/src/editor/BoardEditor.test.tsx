@@ -153,13 +153,13 @@ describe('BoardEditor clues and pin cells (10c)', () => {
     let next = onChange.mock.calls.at(-1)![0] as BoardRound;
     rerender(<BoardEditor round={next} onChange={onChange} />);
     expect(screen.getByText(t('cluesVoiceHint'))).toBeTruthy();
-    expect(screen.queryByText(t('cluesSelfVoiceNote'))).toBeNull();
+    expect(screen.queryByText(t('cluesSelfVoiceNote', { min: 20 }))).toBeNull();
     fireEvent.click(screen.getByRole('radio', { name: t('cluePaceSelf') }));
     next = onChange.mock.calls.at(-1)![0] as BoardRound;
     expect(next.categories[0].cells[0].question).toMatchObject({ type: 'clues', cluePace: 'self', interval: 3 });
     rerender(<BoardEditor round={next} onChange={onChange} />);
-    expect(screen.getByText(t('cluesVoiceHint'))).toBeTruthy();
-    expect(screen.getByText(t('cluesSelfVoiceNote'))).toBeTruthy();
+    expect(screen.queryByText(t('cluesVoiceHint'))).toBeNull();
+    expect(screen.getByText(t('cluesSelfVoiceNote', { min: 20 }))).toBeTruthy();
     expect(screen.queryByText(t('cluesSelfHint', { min: 20 }))).toBeNull();
     expect(screen.queryByLabelText(t('cluesInterval'))).toBeNull();
   });

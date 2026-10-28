@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
 import { cluesAnswered, cluesOpen, cluesOpenBy, cluesSeenBy, nextClue, nextClueAt, openClue } from './clues';
 import { acceptAnswer, lock, next, override, pause, recordOf, resume, start, submitAnswer, tick, type GameState, type Play } from './game';
+import { takeBuff } from './buffs';
 import { actorOf } from './team-act';
-import { boardRound, classicRound, clues, makeRoundsQuiz } from './testing/fixtures';
+import { grantOvertime } from './timing';
+import { boardRound, bool, classicRound, clues, makeRoundsQuiz, withId } from './testing/fixtures';
 import { lobbyWith, lobbyWithSplash, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 
@@ -64,6 +66,7 @@ describe('«Who am I?» at own pace (12c)', () => {
   it('a pause or a hold refuses, and after resume it opens', () => {
     const paused = must(pause(openClassic(), 2000));
     expect(openClue(paused, 'p1', 2500)).toEqual({ ok: false, error: 'paused' });
+    // heldAt вписано вручну: утримання тут штучне, без справжньої дії, що його ставить.
     expect(openClue({ ...openClassic(), heldAt: 2000 }, 'p1', 2500)).toEqual({ ok: false, error: 'paused' });
     const resumed = must(resume(paused, 3000));
     expect(currentPlay(must(openClue(resumed, 'p1', 3500))).clueOpens).toEqual({ p1: 2 });
@@ -83,6 +86,12 @@ describe('«Who am I?» at own pace (12c)', () => {
     expect(over.phase).toBe('locked');
     expect(openClue(over, 'p1', 30_001)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(openClue(must(lock(s)), 'p1', 1000)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('after the own deadline: time_over, while a player with extra time still opens', () => {
+    const s = grantOvertime(openClassic(), 'p2', 10_000);
+    expect(openClue(s, 'p1', 30_500)).toEqual({ ok: false, error: 'time_over' });
+    expect(currentPlay(must(openClue(s, 'p2', 30_500))).clueOpens).toEqual({ p2: 2 });
   });
 
   it('all clues open: clues_done', () => {
@@ -128,9 +137,30 @@ describe('«Who am I?» at own pace (12c)', () => {
     expect(currentPlay(must(openClue(s, 'p1', 1000))).clueOpens).toEqual({ p1: 2 });
   });
 
+  it('a classic player who swapped to a spare opens no clues; the others still do', () => {
+    const quiz = { ...makeRoundsQuiz([classicRound('r1', [selfClues], { rules: DEFAULT_RULES })], { buffs: ['swap'] }), spares: [withId(bool, 's1')] };
+    const s = must(takeBuff(startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0, rng), 'p1', 'swap', 1000, rng));
+    expect(openClue(s, 'p1', 2000)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(currentPlay(must(openClue(s, 'p2', 2000))).clueOpens).toEqual({ p2: 2 });
+  });
+
+  it('a board chooser who swapped to a spare opens no clues', () => {
+    const round = boardRound('g1', [{ title: 'A', cells: [selfClues], spares: [withId(bool, 'sp1')] }], { answerMode: 'phone' });
+    const intro = must(start(lobbyWith(makeRoundsQuiz([round], { buffs: ['swap'] }), 'Анна', 'Богдан')));
+    const picked = must(pickCell(must(next(intro, 0)), null, selfClues.id, 0, rng));
+    const s = must(takeBuff(picked, 'p1', 'swap', 1000, rng));
+    expect(openClue(s, 'p1', 2000)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
   it('in a team game the team opens; only the captain acts for it', () => {
     const s = must(next(teamGame(teamQuiz([classicRound('r1', [selfClues])]), LAYOUT), 0, rng));
     expect(currentPlay(must(openClue(s, 't1', 1000))).clueOpens).toEqual({ t1: 2 });
     expect(actorOf(s, 'm2', 'answer')).toEqual({ ok: false, error: 'not_captain' });
+  });
+
+  it('a team that opened two more clues gets 600 for the right answer', () => {
+    let s = opened(must(next(teamGame(teamQuiz([classicRound('r1', [selfClues], { rules: DEFAULT_RULES })]), LAYOUT), 0, rng)), 't1', 2);
+    s = must(submitAnswer(s, 't1', right, 1500));
+    expect(recordOf(s, 0, 't1')).toMatchObject({ points: 600, accepted: true });
   });
 });

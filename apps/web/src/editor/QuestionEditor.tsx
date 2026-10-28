@@ -1,4 +1,4 @@
-import { LIMITS, REVEAL_TYPES, type Question, type RevealMode } from '@quiz/shared';
+import { LIMITS, REVEAL_TYPES, type CluePace, type Question, type RevealMode } from '@quiz/shared';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { LETTERS, sliderValueText } from '../format';
 import { HelpButton } from '../help/HelpButton';
@@ -640,7 +640,7 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
         onChange({ ...question, clues, interval: used, timeLimit: self ? question.timeLimit : raisedTime(question.timeLimit, clues.length, used) });
       };
       // «Кожен сам» пишеться ключем cluePace: 'self'; «за таймером» прибирає ключ, як у старих запитань.
-      const setPace = (pace: 'timer' | 'self') => {
+      const setPace = (pace: CluePace) => {
         if (pace === 'self') {
           const validInterval = Number.isInteger(interval) && interval >= LIMITS.minClueSeconds && interval <= LIMITS.maxClueSeconds;
           onChange({
@@ -705,8 +705,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
             onChange={(next) => onChange({ ...question, accepted: next.map((row) => row.text) })}
           />
           <p className="meta">{t('spellingHint')}</p>
-          <div role="radiogroup" aria-label={t('cluePaceLabel')} className="clue-pace">
-            <span className="meta">{t('cluePaceLabel')}</span>
+          <fieldset className="clue-pace">
+            <legend className="meta">{t('cluePaceLabel')}</legend>
             <label className="check">
               <input type="radio" name={`clue-pace-${question.id}`} checked={!self} onChange={() => setPace('timer')} />
               <span>{t('cluePaceTimer')}</span>
@@ -715,12 +715,9 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
               <input type="radio" name={`clue-pace-${question.id}`} checked={self} onChange={() => setPace('self')} />
               <span>{t('cluePaceSelf')}</span>
             </label>
-          </div>
+          </fieldset>
           {cluesByHost ? (
-            <>
-              <p className="meta">{t('cluesVoiceHint')}</p>
-              {self && <p className="meta">{t('cluesSelfVoiceNote')}</p>}
-            </>
+            <p className="meta">{self ? t('cluesSelfVoiceNote', { min: LIMITS.selfCluesMinTime }) : t('cluesVoiceHint')}</p>
           ) : self ? (
             <p className="meta">{t('cluesSelfHint', { min: LIMITS.selfCluesMinTime })}</p>
           ) : (

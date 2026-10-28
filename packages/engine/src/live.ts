@@ -17,7 +17,7 @@ import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
 import { chainOf } from './chain';
-import { cluesAnswered, cluesBySelf, cluesOpenBy } from './clues';
+import { cluesAnswered, cluesBySelf, cluesOpenBy, cluesPaid } from './clues';
 import { currentRound, recordOf, type AnswerRecord, type BlitzPlay, type GameState, type Play } from './game';
 import { buffOf, questionFor } from './buffs';
 import { sortOf, sortSeq } from './sort';
@@ -225,7 +225,12 @@ function answerRow(state: GameState, play: Play, who: Answerer, unscored: boolea
   if (first !== null) return { ...base, answered: true, answer: first.answer, timeMs: first.timeMs, verdict: first.grade };
   // Поле до «Прийняти»: відповідь чекає ведучого.
   const held = board?.answer ?? null;
-  if (held !== null) return { ...base, answered: true, answer: held, verdict: previewVerdict(questionFor(state, play, id), held, 0), awaiting: true };
+  if (held !== null) {
+    const shown = questionFor(state, play, id);
+    // Власний темп і усна клітинка знають підказку й до «Прийняти»; за часом — ні (часу відповіді ще немає).
+    const clue = shown.type === 'clues' && shown === play.question ? (cluesPaid(play, id) ?? null) : null;
+    return { ...base, answered: true, answer: held, verdict: previewVerdict(shown, held, 0), awaiting: true, clue };
+  }
   return voice ? { ...base, awaiting: true } : base;
 }
 

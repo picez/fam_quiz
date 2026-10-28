@@ -13835,7 +13835,7 @@ async function selfClues12c() {
   await host.locator('.quiz-list li', { hasText: 'Хто я 12c' }).getByRole('link', { name: 'Редагувати' }).click();
   await host.locator('main.editor').waitFor();
   // На 375 px єдине запитання вже відкрите (перемикач «1 / 1»), кнопки «Запитання 1» немає.
-  const pace = host.getByRole('radiogroup', { name: 'Підказки відкриваються' });
+  const pace = host.getByRole('group', { name: 'Підказки відкриваються' });
   const self = pace.getByRole('radio', { name: 'кожен сам', ...exact });
   const timer = pace.getByRole('radio', { name: 'за таймером', ...exact });
   const interval = field(host, 'Нова підказка кожні, с');

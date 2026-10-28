@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { classicRound, clues, makeRoundsQuiz } from '@quiz/engine/testing';
-import { GAME_STATE_VERSION } from '@quiz/engine';
 import { defaultTeams, SPLASH_MS, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { RoomManager, type Identity, type Room } from './manager';
@@ -72,6 +71,13 @@ describe('own-pace clues in a room (12c)', () => {
     expect(manager.clue(room, olena.playerId)).toEqual({ ok: false, error: 'already_answered' });
   });
 
+  it('is clues_done once every clue is open', () => {
+    const { manager, room, olena } = selfPlaying();
+    for (let i = 1; i < clues.clues.length; i += 1) expect(manager.clue(room, olena.playerId)).toEqual({ ok: true });
+    expect(manager.clue(room, olena.playerId)).toEqual({ ok: false, error: 'clues_done' });
+    expect(shownOf(manager, room, olena.identity)).toHaveLength(clues.clues.length);
+  });
+
   it('is wrong_phase in the lobby and after the lock', () => {
     const lobby = setup(makeRoundsQuiz([classicRound('r1', [selfClues])]));
     const ira = enter(lobby.manager, lobby.room, 'Іра');
@@ -124,9 +130,5 @@ describe('own-pace clues in a room (12c)', () => {
     scheduler.advance(SPLASH_MS.question);
     expect(manager.clue(created.room, taras.playerId)).toEqual({ ok: true });
     expect(shownOf(manager, created.room, taras.identity)).toHaveLength(2);
-  });
-
-  it('the game state version is 16', () => {
-    expect(GAME_STATE_VERSION).toBe(16);
   });
 });

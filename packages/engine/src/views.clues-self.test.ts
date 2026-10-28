@@ -1,9 +1,10 @@
 import { DEFAULT_RULES, type Answer, type Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
+import { takeBuff } from './buffs';
 import { openClue } from './clues';
 import { lock, next, start, submitAnswer, tick, type GameState } from './game';
-import { boardRound, classicRound, clues, makeRoundsQuiz } from './testing/fixtures';
+import { boardRound, bool, classicRound, clues, makeRoundsQuiz, withId } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 import { hostView, playerView, stageView } from './views';
@@ -92,6 +93,45 @@ describe('views of «Who am I?» at own pace (12c)', () => {
     expect(playerView(s, 'p1')?.question?.clues?.shown).toEqual(selfClues.clues.slice(0, 2));
     expect(stageView(s).question?.clues?.opens).toEqual([{ playerId: 'p1', nickname: 'Анна', opened: 2, answered: false }]);
     expect(stageView(s).question?.clues?.shown).toEqual([selfClues.clues[0]]);
+  });
+
+  it('the host sees the own clue number on a board answer waiting for «Прийняти»', () => {
+    const s = must(submitAnswer(opened(pickedCell('phone'), 'p1', 2), 'p1', right, 2000));
+    expect(hostView(s).live?.rows.find((r) => r.id === 'p1')).toMatchObject({ answered: true, awaiting: true, clue: 3 });
+  });
+
+  it('a board watcher never gets the clues the chooser has not opened', () => {
+    const s = opened(pickedCell('phone'), 'p1', 1);
+    for (const view of [playerView(s, 'p2'), playerView(s, 'p1'), stageView(s)]) expect(JSON.stringify(view)).not.toContain(selfClues.clues[2]);
+  });
+
+  it('a player on a spare is not in the list and gets no clues on the phone', () => {
+    const quiz = {
+      ...makeRoundsQuiz([classicRound('r1', [selfClues], { rules: DEFAULT_RULES })], { buffs: ['swap'] }),
+      spares: [withId(bool, 's1')],
+    };
+    const s = must(takeBuff(startRound(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0, rng), 'p1', 'swap', 1000, rng));
+    expect(stageView(s).question?.clues?.opens?.map((o) => o.playerId)).toEqual(['p2', 'p3']);
+    expect(playerView(s, 'p1')?.question?.clues ?? null).toBeNull();
+  });
+
+  it('a held first attempt counts as answered in the list', () => {
+    // retry «Хто я?» не пасує, тож першу спробу вписано вручну — як захист, узгоджений з openClue.
+    const s = must(submitAnswer(openClassic(), 'p1', { type: 'clues', value: 'Франко' }, 1000));
+    const first = s.plays[0].answers.p1;
+    const play = { ...s.plays[0], answers: {}, buffs: { p1: { kind: 'retry' as const, seq: 1, at: 500, removed: [], retry: 'again' as const, first } } };
+    const held: GameState = { ...s, plays: [play] };
+    expect(stageView(held).question?.clues?.opens?.find((o) => o.playerId === 'p1')?.answered).toBe(true);
+    expect(stageView(openClassic()).question?.clues?.opens?.find((o) => o.playerId === 'p1')?.answered).toBe(false);
+  });
+
+  it('the phone at the reveal: the reveal has every clue, shown stays the own count', () => {
+    let s = opened(openClassic(), 'p1', 1);
+    s = must(submitAnswer(s, 'p1', right, 1500));
+    s = revealed(s);
+    const phone = playerView(s, 'p1');
+    expect(phone?.reveal?.type === 'clues' ? phone.reveal.clues : null).toEqual(selfClues.clues);
+    expect(phone?.question?.clues?.shown).toEqual(selfClues.clues.slice(0, 2));
   });
 
   it('a voice cell stays with the host: not self, no list', () => {

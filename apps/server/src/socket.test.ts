@@ -1372,10 +1372,18 @@ describe('own-pace clues (12c)', () => {
       expect(shownOf(who.last!)).toBe(1);
       expect(JSON.stringify(who.last)).not.toContain(clues.clues[1]);
     }
+    const opens = (view: GameView) => (view.role === 'stage' ? view.question?.clues?.opens : undefined);
+    await vi.waitFor(() => expect(opens(stage.last!)?.map((o) => [o.nickname, o.opened])).toEqual([['Олена', 2], ['Тарас', 1]]));
     // Перепідключення: новий сокет з тим самим токеном бачить свої підказки.
     olena.socket.close();
     const back = open({ code: game.code, role: 'player', token: olenaJoin.token });
     expect(shownOf(await until(back, (view) => shownOf(view) > 0))).toBe(2);
+  });
+
+  it('after the answer player:clue acks already_answered', async () => {
+    const { olena } = await started();
+    expect(await send(olena, 'player:answer', { type: 'clues', value: 'Шевченко' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:clue')).toEqual({ ok: false, error: 'already_answered' });
   });
 
   it('only a player may send player:clue', async () => {

@@ -664,8 +664,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         : typeHow(me.tip, question?.orderLabels?.top ?? '')
       : null;
   // «Хто я?» у власному темпі (12c): відкриває той, хто відповідає (у команді — хто діє за неї; на полі — хто вибрав), до відповіді.
+  // Перша спроба retry, що чекає другої, — теж відповідь: рушій відмовить already_answered.
   const clueGuard = useGuardedSend(send, setError);
-  const cluesMine = phase === 'question' && question?.clues?.self === true && acting && me.answer === null && (board === null || chooserIsMe) && !onSpare;
+  const cluesMine =
+    phase === 'question' && question?.clues?.self === true && acting && me.answer === null && activeBuff?.first == null && (board === null || chooserIsMe) && !onSpare;
   const queue =
     instant && view.blitz !== null ? (
       <BlitzQueue rows={view.blitz.rows} reserve={view.playerCount} question={question} blinking={rowBlink} closed={phase !== 'question'} />

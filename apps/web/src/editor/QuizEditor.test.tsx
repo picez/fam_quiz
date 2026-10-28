@@ -1921,7 +1921,7 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
     for (const n of [1, 2, 3]) fill(`Підказка ${n}`, `Ключ ${n}`);
     fill('Написання 1', 'Шевченко');
-    const group = screen.getByRole('radiogroup', { name: 'Підказки відкриваються' });
+    const group = screen.getByRole('group', { name: 'Підказки відкриваються' });
     const timer = within(group).getByRole('radio', { name: 'за таймером' }) as HTMLInputElement;
     const self = within(group).getByRole('radio', { name: 'кожен сам' }) as HTMLInputElement;
     expect([timer.checked, self.checked]).toEqual([true, false]);
@@ -1939,7 +1939,7 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
     expect(question).toMatchObject({ type: 'clues', cluePace: 'self', timeLimit: 20 });
     expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
 
-    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Підказки відкриваються' })).getByRole('radio', { name: 'за таймером' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Підказки відкриваються' })).getByRole('radio', { name: 'за таймером' }));
     screen.getByLabelText('Нова підказка кожні, с');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));

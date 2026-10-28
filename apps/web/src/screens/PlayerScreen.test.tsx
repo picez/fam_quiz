@@ -3235,6 +3235,12 @@ describe('PlayerScreen: «Who am I?» at own pace (12c)', () => {
     expect(screen.getByText('Був художником')).toBeTruthy();
   });
 
+  it('no button on the second attempt of a retry: the first one is already held', () => {
+    const active = { kind: 'retry' as const, removed: [], retry: 'again' as const, first: { answer: { type: 'clues' as const, value: 'Франко' }, points: 0 }, hint: null, votes: null, spare: false };
+    show(onQuestion({ question: selfClues(), me: { ...me, buffs: { slots: [], active } } }));
+    expect(more()).toBeNull();
+  });
+
   it('disabled on a pause, under the question splash and after the time', () => {
     show(onQuestion({ question: selfClues(), paused: true, endsAt: null, remainingMs: 15_000 }));
     expect(more()?.matches(':disabled')).toBe(true);
