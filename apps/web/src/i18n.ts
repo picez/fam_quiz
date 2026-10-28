@@ -1944,6 +1944,8 @@ const uk = {
   historyFactAvg: 'Середній час',
   historyFactStreak: 'Найкраща серія',
   historyFactNone: '—',
+  historyFactAccuracyValue: '{percent} % ({correct} з {answered})',
+  historyFactAvgValue: '{time} с',
   hostScoresTitle: 'Бали за раундами',
   historyScoresTitle: 'Бали за раундами',
   scorePenalties: 'Помилки',

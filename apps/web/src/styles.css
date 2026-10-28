@@ -11191,3 +11191,27 @@ button.wall-tile:disabled {
   color: var(--dim);
   white-space: nowrap;
 }
+
+/* Таблиця учасників в історії гри (12d): прокручується всередині обгортки, сторінка не їде вбік. */
+.fact-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.fact-table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.fact-table th,
+.fact-table td {
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.fact-table th:first-child,
+.fact-table td:first-child {
+  text-align: left;
+}
