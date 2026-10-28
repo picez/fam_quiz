@@ -14,6 +14,7 @@ import { BluffBoard } from '../screens/BluffBoard';
 import { SurveyBoard } from '../screens/SurveyBoard';
 import { ScoreTable } from '../screens/ScoreTable';
 import { FactCards } from '../screens/FactCards';
+import { historyAppealText } from '../appeal-text';
 import { historyUndoLines } from '../undo-panel';
 import { usePrivateData } from '../usePrivateData';
 
@@ -474,6 +475,7 @@ export function GameHistory() {
                                     {response.buff !== null && <BuffBadge kind={response.buff} />}
                                     {response.spare !== null && <SpareMark spare={response.spare} />}
                                     {response.awayMs != null && <span className="meta history-away">{t('historyAway', { seconds: awaySeconds(response.awayMs) })}</span>}
+                                    {response.appeal != null && <span className="meta history-appeal">{historyAppealText(response.appeal)}</span>}
                                   </span>
                                   {response.spare !== null && <span className="spare-text">{t('spareText', { text: response.spare.text })}</span>}
                                   {response.answer?.type === 'match' ? (

@@ -1,4 +1,4 @@
-import type { AppealReason, AppealView } from '@quiz/shared';
+import type { AppealReason, AppealView, GameAppeal } from '@quiz/shared';
 import { answerText, correctText, signed } from './format';
 import { countText, t } from './i18n';
 
@@ -40,4 +40,12 @@ export function appealResultText(view: AppealView): string | null {
 /** «⚖️ Оскаржити (лишилось 2)» / «⚖️ Оскаржити штраф (лишилось 1)». */
 export function appealButtonText(reason: AppealReason, left: number): string {
   return t(reason === 'away' ? 'appealButtonAway' : 'appealButton', { left });
+}
+
+/** «⚖️ зараховано 2:0», «⚖️ лишилось як було 1:1», «⚖️ ведучий зарахував»; away — «⚖️ штраф знято 2:0» / «⚖️ штраф лишився 0:2». */
+export function historyAppealText(appeal: GameAppeal): string {
+  if (appeal.outcome === 'host') return t('historyAppealHost');
+  const away = appeal.reason === 'away';
+  const key = appeal.outcome === 'yes' ? (away ? 'historyAppealAwayYes' : 'historyAppealYes') : away ? 'historyAppealAwayKept' : 'historyAppealKept';
+  return t(key, { yes: appeal.yes, no: appeal.no });
 }

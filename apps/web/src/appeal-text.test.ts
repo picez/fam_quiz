@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppealView } from '@quiz/shared';
-import { appealAsk, appealButtonText, appealCountText, appealResultText, appealTitle } from './appeal-text';
+import { appealAsk, appealButtonText, appealCountText, appealResultText, appealTitle, historyAppealText } from './appeal-text';
 
 const appeal = (over: Partial<AppealView> = {}): AppealView => ({
   id: 1,
@@ -76,6 +76,17 @@ describe('appeal texts', () => {
   it('labels the buttons with the appeals left', () => {
     expect(appealButtonText('grade', 2)).toBe('⚖️ Оскаржити (лишилось 2)');
     expect(appealButtonText('away', 1)).toBe('⚖️ Оскаржити штраф (лишилось 1)');
+  });
+
+  it('history: yes, kept (no and tie), host and the away variants, with the count', () => {
+    expect(historyAppealText({ reason: 'grade', yes: 2, no: 0, outcome: 'yes' })).toBe('⚖️ зараховано 2:0');
+    expect(historyAppealText({ reason: 'grade', yes: 1, no: 1, outcome: 'tie' })).toBe('⚖️ лишилось як було 1:1');
+    expect(historyAppealText({ reason: 'grade', yes: 0, no: 2, outcome: 'no' })).toBe('⚖️ лишилось як було 0:2');
+    expect(historyAppealText({ reason: 'grade', yes: 0, no: 1, outcome: 'host' })).toBe('⚖️ ведучий зарахував');
+    expect(historyAppealText({ reason: 'away', yes: 2, no: 0, outcome: 'yes' })).toBe('⚖️ штраф знято 2:0');
+    expect(historyAppealText({ reason: 'away', yes: 0, no: 2, outcome: 'no' })).toBe('⚖️ штраф лишився 0:2');
+    expect(historyAppealText({ reason: 'away', yes: 0, no: 0, outcome: 'tie' })).toBe('⚖️ штраф лишився 0:0');
+    expect(historyAppealText({ reason: 'away', yes: 0, no: 0, outcome: 'host' })).toBe('⚖️ ведучий зарахував');
   });
 
   it('never uses gendered past forms', () => {
