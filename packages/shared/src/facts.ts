@@ -72,7 +72,15 @@ export interface FactRow {
 /** Усе, з чого рахуються цікавинки (12d). */
 export interface FactInput {
   /** Учасники в порядку таблиці; rank null — місць ще немає (історія незавершеної гри). */
-  players: { id: string; nickname: string; rank: number | null; score: number; rounds: number[] }[];
+  players: {
+    id: string;
+    nickname: string;
+    rank: number | null;
+    score: number;
+    rounds: number[];
+    /** Перенесені бали (12r): сума рядків 'carry'; у rounds не входять; без ключа — 0. */
+    carry?: number;
+  }[];
   /** Зіграні (закриті) запитання в порядку журналу; запитання, якого немає (зіпсований знімок), просто відсутнє. */
   questions: FactQuestion[];
   rows: FactRow[];
@@ -386,23 +394,37 @@ const streak: CardFn = (scope, input) => {
 };
 
 /**
- * Місце за балами раундів 0…count−1, спільне за рівних.
+ * Місце за балами раундів 0…count−1 від перенесених балів (12r), спільне за рівних.
  * Це місце за сумою балів (рівні — спільне місце), а rank гравця — місце таблиці (rankPlayers: рівні бали ділить час).
  * Тож «до» в «Твоєму раунді» й «з» у камбеку — за сумою, «зараз» і «на» — за таблицею; за рівних балів вони можуть різнитися на кілька місць.
  */
 function placeAfter(input: FactInput, playerId: string, count: number): number {
-  const sum = (rounds: number[]) => rounds.slice(0, count).reduce((s, n) => s + n, 0);
-  const mine = sum(derived(input).players.get(playerId)?.rounds ?? []);
-  return 1 + input.players.filter((p) => sum(p.rounds) > mine).length;
+  const sum = (p: FactInput['players'][number] | undefined) => (p?.carry ?? 0) + (p?.rounds ?? []).slice(0, count).reduce((s, n) => s + n, 0);
+  const mine = sum(derived(input).players.get(playerId));
+  return 1 + input.players.filter((p) => sum(p) > mine).length;
 }
 
-/** 📈 Камбек гри: місце після першого раунду мінус фінальне; ≥ 2 раунди й місця в усіх; нічия — лише з тими самими місцями. */
+/** Перший зіграний раунд (12r): найменший roundIndex серед зіграних запитань; гру продовжено — раунди до нього пропущено. */
+function firstRound(input: FactInput): number {
+  return input.questions.length === 0 ? 0 : Math.min(...input.questions.map((q) => q.roundIndex));
+}
+
+/** Хтось має перенесені бали (12r). */
+function carried(input: FactInput): boolean {
+  return input.players.some((p) => (p.carry ?? 0) !== 0);
+}
+
+/**
+ * 📈 Камбек гри: місце після першого зіграного раунду мінус фінальне; ≥ 2 зіграні раунди й місця в усіх; нічия — лише з тими самими місцями.
+ * Перенесені бали (12r) — не раунд: «з» рахується від них разом з першим зіграним раундом.
+ */
 const comeback: CardFn = (scope, input) => {
   if (scope !== null || input.players.length === 0) return null;
-  if (!input.players.every((p) => p.rounds.length >= 2 && p.rank !== null)) return null;
+  const first = firstRound(input);
+  if (!input.players.every((p) => p.rounds.length - first >= 2 && p.rank !== null)) return null;
   let best: { names: string[]; from: number; to: number } | null = null;
   for (const p of input.players) {
-    const from = placeAfter(input, p.id, 1);
+    const from = placeAfter(input, p.id, first + 1);
     const to = p.rank!;
     if (from - to <= 0) continue;
     if (best === null || from - to > best.from - best.to) best = { names: [p.nickname], from, to };
@@ -566,7 +588,11 @@ export function roundCard(input: FactInput, playerId: string, roundIndex: number
     avgMs: t.avgMs,
     fastestMs: t.fastestMs,
     streak: bestStreak(input, playerId, roundIndex),
-    place: player.rank === null ? null : { before: roundIndex === 0 ? null : placeAfter(input, playerId, roundIndex), now: player.rank },
+    // Перший зіграний раунд без перенесених балів (12r) — місця «до» немає.
+    place:
+      player.rank === null
+        ? null
+        : { before: roundIndex <= firstRound(input) && !carried(input) ? null : placeAfter(input, playerId, roundIndex), now: player.rank },
     fooledBy: hasBluff(input, roundIndex) ? t.own.filter(pickedLie).length : null,
   };
 }

@@ -156,7 +156,7 @@ function factInputOf(
   played: { roundIndex: number; question: Question | undefined; ref: PlayRef | undefined }[],
   standings: { participantId: string; nickname: string; rank: number | null; score: number; rounds: number[] }[],
   answers: { participantId: string; questionIndex: number; roundIndex: number; attempt: number; payload: Answer | null; timeMs: number; accepted: boolean; wager: number | null; buff: BuffKind | null; spareId: string | null; awayMs: number | null }[],
-  adjustments: { participantId: string; source: AdjustmentSource; targetNickname: string | null }[],
+  adjustments: { participantId: string; source: AdjustmentSource; targetNickname: string | null; points: number }[],
   appeals: { participantId: string; outcome: AppealOutcome }[],
 ): FactInput {
   const questions: FactQuestion[] = [];
@@ -188,7 +188,15 @@ function factInputOf(
   const idOf = new Map(standings.map((s) => [s.nickname, s.participantId]));
   return {
     // Командна гра: таблиця — рядки команд; рядки людей (голоси) сюди не потрапляють.
-    players: standings.map(({ participantId, nickname, rank, score, rounds }) => ({ id: participantId, nickname, rank, score, rounds })),
+    // Перенесені бали (12r) — сума рядків 'carry' учасника, як у рушія.
+    players: standings.map(({ participantId, nickname, rank, score, rounds }) => ({
+      id: participantId,
+      nickname,
+      rank,
+      score,
+      rounds,
+      carry: adjustments.filter((a) => a.source === 'carry' && a.participantId === participantId).reduce((s, a) => s + a.points, 0),
+    })),
     questions,
     rows: answers
       // Від'ємні спроби — штрафи бліц-клітинки, мовчання у фіналі й голоси: не відповіді.
