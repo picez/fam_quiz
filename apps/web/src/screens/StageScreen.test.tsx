@@ -2143,3 +2143,95 @@ describe('StageScreen lobby of a game with no host', () => {
     expect(screen.queryByText(/Гру веде бот/)).toBeNull();
   });
 });
+
+describe('StageScreen: facts (12d)', () => {
+  const reveal = { accepted: 4, answered: 7, fastest: { names: ['Оля'], timeMs: 2100 }, bluff: null };
+  const facts = (over: Partial<NonNullable<StageView['facts']>> = {}): StageView['facts'] => ({ reveal: null, round: null, awards: null, ...over });
+  const round: RoundInfo = { index: 0, total: 2, title: '', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+  const row = (participantId: string, nickname: string, score: number, rank: number) => ({ participantId, nickname, score, totalTimeMs: 1, rank, rounds: [score] });
+  const standings = [row('a', 'Віра', 900, 1), row('b', 'Оля', 500, 2)];
+  const cards = [
+    { kind: 'lightning' as const, names: ['Оля'], timeMs: 2100, question: { roundIndex: 0, number: 3, text: 'Столиця України?' } },
+    { kind: 'sniper' as const, names: ['Віра'], correct: 5, answered: 6 },
+    { kind: 'streak' as const, names: ['Петро'], length: 4 },
+  ];
+  afterEach(() => vi.useRealTimers());
+
+  it('the reveal line stands right under the correct answer; no facts — no line', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question, reveal: full, stats: { answered: 7, accepted: 4, counts: { a: 3, b: 4 } }, facts: facts({ reveal }) }));
+    const answer = document.querySelector('.lead.answer')!;
+    const line = answer.nextElementSibling!;
+    expect(line.classList.contains('reveal-facts')).toBe(true);
+    expect(line.classList.contains('is-big')).toBe(true);
+    expect(line.textContent).toBe('Правильно 4 з 7 · найшвидша Оля, 2,1 с');
+    cleanup();
+    show(view({ phase: 'reveal', questionIndex: 0, question, reveal: full, stats: { answered: 7, accepted: 4, counts: { a: 3, b: 4 } } }));
+    expect(document.querySelector('.reveal-facts')).toBeNull();
+  });
+
+  it('the wall draws no reveal line even with facts', () => {
+    const wallQuestion = { ...question, type: 'wall' as const, text: 'Знайдіть групи', timeLimit: 90, choices: [], wall: { tiles: Array.from({ length: 16 }, (_, n) => `Плитка ${n}`), size: 4, groupCount: 4, maxMistakes: 3 } };
+    const wallFull = { id: 'w1', type: 'wall', text: 'Знайдіть групи', imageUrl: null, video: null, timeLimit: 90, points: 1000, mistakes: 3, groups: ['Річки', 'Міста', 'Гори', 'Озера'].map((name, g) => ({ id: `g${g}`, name, tiles: [0, 1, 2, 3].map((n) => ({ id: `t${g}${n}`, text: `${name}${n}` })) })) } as Question;
+    show(view({ phase: 'reveal', questionIndex: 0, question: wallQuestion, reveal: wallFull, facts: facts({ reveal }) }));
+    expect(document.querySelector('.reveal-facts')).toBeNull();
+  });
+
+  it('the bluff reveal names the lie that fooled the most under the board', () => {
+    const bluffQuestion = { ...question, type: 'bluff' as const, text: 'Вежу хотіли поставити в …', choices: [] };
+    const bluffFull = { id: 'bl1', type: 'bluff', text: bluffQuestion.text, imageUrl: null, video: null, timeLimit: 60, points: 1000, accepted: ['Барселона'], lies: ['Мілан'], choiceTime: 30 } as unknown as Question;
+    const options = [
+      { id: 'b1', text: 'Мілан', open: true, kind: 'lie' as const, authors: ['Петро'], pickedBy: ['Оля', 'Віра', 'Тарас'], removed: false },
+      { id: 'b2', text: 'Барселона', open: true, kind: 'truth' as const, authors: [], pickedBy: [], removed: false },
+    ];
+    const bluff = { stage: 'reveal' as const, written: 1, picked: 3, options, shown: 2, total: 2, lastOpenedId: null, lies: null };
+    show(view({ phase: 'reveal', questionIndex: 0, question: bluffQuestion, reveal: bluffFull, bluff, facts: facts({ reveal: { accepted: 0, answered: 3, fastest: null, bluff: { names: ['Петро'], votes: 3 } } }) }));
+    const line = document.querySelector('.stage-bluff .reveal-facts');
+    expect(line?.textContent).toBe('Обдурила всіх: вигадка від Петро — 3 голоси');
+    expect(line?.previousElementSibling?.classList.contains('bluff-board')).toBe(true);
+  });
+
+  it('round end with cards: two columns, «Цікавинки раунду» beside the table, the 11f line in place', () => {
+    show(view({ phase: 'round_end', round, standings, facts: facts({ round: cards }) }));
+    const board = document.querySelector('.stage-board.is-round-end.has-facts')!;
+    expect(board).not.toBeNull();
+    const main = board.querySelector(':scope > .round-end-main')!;
+    expect(main.querySelector('h1')?.textContent).toBe('Підсумки раунду 1');
+    expect(main.querySelector('.standings')).not.toBeNull();
+    expect(main.querySelector('.round-best')).not.toBeNull();
+    const aside = board.querySelector(':scope > aside.round-facts')!;
+    expect(aside.querySelector('h2')?.textContent).toBe('Цікавинки раунду');
+    expect(aside.querySelectorAll('.fact-card')).toHaveLength(3);
+    expect(aside.querySelector('.fact-cards.is-big')).not.toBeNull();
+  });
+
+  it('round end without cards keeps the 11f markup', () => {
+    show(view({ phase: 'round_end', round, standings, facts: facts({ round: [] }) }));
+    const board = document.querySelector('.stage-board.is-round-end')!;
+    expect(board.classList.contains('has-facts')).toBe(false);
+    expect(board.querySelector('aside')).toBeNull();
+    expect(board.querySelector('.round-end-main')).toBeNull();
+    expect(board.querySelector(':scope > h1')).not.toBeNull();
+    expect(board.querySelector(':scope > .standings')).not.toBeNull();
+  });
+
+  it('finished: host taps move the awards over the podium; autopilot goes by itself after 10 s', () => {
+    vi.useFakeTimers();
+    const finished = view({ phase: 'finished', questionIndex: 2, round: { ...round, index: 1 }, standings, facts: facts({ awards: cards }) });
+    const stage = (seq: number | null, current = finished) => <StageScreen view={current} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline awardsSeq={seq} />;
+    const { rerender } = render(stage(null));
+    expect(document.querySelector('.stage-board.is-final')).not.toBeNull();
+    rerender(stage(1));
+    rerender(stage(2));
+    expect(document.querySelector('.stage-board.is-final')).toBeNull();
+    expect(document.querySelector('.stage-board.is-award .meta')?.textContent).toBe('Нагороди гри · 2 з 3');
+    expect(document.querySelector('.award-title')?.textContent).toBe('🎯 Снайпер');
+    cleanup();
+
+    render(stage(null, { ...finished, autopilot: true }));
+    expect(document.querySelector('.stage-board.is-final')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(document.querySelector('.award-title')?.textContent).toBe('⚡ Блискавка');
+  });
+});

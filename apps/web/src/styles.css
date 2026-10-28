@@ -10998,6 +10998,65 @@ button.wall-tile:disabled {
   font-size: clamp(1.25rem, 2.4vw, 2.5rem);
 }
 
+/* Під «Правильна відповідь: …» рядок стоїть щільно, без повного проміжку сцени. */
+.stage .lead.answer + .reveal-facts.is-big {
+  margin-top: -2vh;
+}
+
+/* Підсумки раунду з картками: ліворуч таблиця й рядок 11f, як були, праворуч «Цікавинки раунду». */
+.stage .stage-board.is-round-end.has-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 26rem;
+  gap: 2rem;
+  align-items: start;
+  width: min(100%, 90rem);
+}
+
+.stage-board .round-end-main {
+  display: grid;
+  gap: 3vh;
+  min-width: 0;
+}
+
+/* aside.round-facts — не рядок «факти раунду» з RoundBriefing (p.round-facts): свій шрифт і колір. */
+.stage-board aside.round-facts {
+  min-width: 0;
+  max-height: calc(100vh - 8vh);
+  overflow: hidden;
+  color: var(--paper);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Слайд нагороди: по центру сцени, назва велика, текст — до двох рядків. */
+.stage-board.is-award {
+  justify-items: center;
+  align-content: center;
+  text-align: center;
+  min-height: 60vh;
+}
+
+.stage-board.is-award .meta {
+  margin: 0;
+  color: var(--dim);
+}
+
+.stage .award-title {
+  margin: 0;
+  color: var(--amber);
+  font-family: var(--display);
+  font-size: clamp(2.5rem, 7vw, 7rem);
+}
+
+.stage-board.is-award .award-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 50rem;
+  margin: 0;
+  overflow: hidden;
+}
+
 .own-card {
   min-width: 0;
   margin: 0.75rem 0;
