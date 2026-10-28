@@ -4,6 +4,7 @@ import type { SocketAuth } from '@quiz/shared';
 import { joinGame } from '../api';
 import { errorText, t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
+import { useAwayWatch } from '../live/useAwayWatch';
 import { PlayerScreen } from '../screens/PlayerScreen';
 import { clearAuthor, clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
 import { useAccount } from '../useAccount';
@@ -70,6 +71,8 @@ export function Play() {
   const [notice, setNotice] = useState<string | null>(null);
   const auth = useMemo<SocketAuth | null>(() => (token === null ? null : { code, role: 'player', token }), [code, token]);
   const game = useGame(auth);
+  // Антигугл (12e): телефон гравця каже серверу, коли виходить із гри й повертається.
+  useAwayWatch(game.send, game.status, game.view);
 
   // Токен більше не діє: гру закрито або гравця вилучено. Повертаємо форму входу.
   const wasAutopilot = useRef(false);

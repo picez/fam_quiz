@@ -168,3 +168,17 @@ describe('Play: when the session check fails', () => {
     expect(screen.queryByText(/гра потрапить у «Мої ігри»/)).toBeNull();
   });
 });
+
+describe('Play: the phone tells the server when it leaves the game (12e)', () => {
+  afterEach(() => Reflect.deleteProperty(document, 'visibilityState'));
+
+  it('sends player:away when the page is hidden during a question', () => {
+    savePlayer('123456', 'kept-token');
+    open();
+    const emit = vi.spyOn(sockets[0], 'emit');
+    act(() => sockets[0].fire('state', { role: 'player', phase: 'question', autopilot: false, paused: false, questionIndex: 0, splash: null }, { serverNow: Date.now(), hostOnline: true, stageOnline: true }));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    expect(emit).toHaveBeenCalledWith('player:away', { away: true }, expect.any(Function));
+  });
+});
