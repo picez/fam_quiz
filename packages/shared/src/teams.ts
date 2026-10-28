@@ -29,3 +29,19 @@ export function bandSizes(n: number, k: number): number[] {
   const extra = n % k;
   return Array.from({ length: k }, (_, i) => base + (i < extra ? 1 : 0));
 }
+
+/** Хто відповідає за команду (12g): капітан; кого вибере капітан; по черзі (капітан може перебити вибором). */
+export const ANSWERER_MODES = ['captain', 'chosen', 'rotate'] as const;
+export type AnswererMode = (typeof ANSWERER_MODES)[number];
+
+/** Обсяг вибору капітана (12g): одне наступне запитання чи до кінця раунду. */
+export const ANSWERER_SCOPES = ['question', 'round'] as const;
+export type AnswererScope = (typeof ANSWERER_SCOPES)[number];
+
+/** Скільки виборів player:pick-answerer людина може надіслати за секунду; понад — too_soon. */
+export const ANSWERER_PICKS_PER_SECOND = 4;
+
+/** Режим вікторини; немає поля чи соло — 'captain' (як до 12g). */
+export function answererModeOf(teams: Pick<TeamsSettings, 'answerer'> | undefined | null): AnswererMode {
+  return teams?.answerer ?? 'captain';
+}

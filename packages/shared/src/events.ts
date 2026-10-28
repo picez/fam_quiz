@@ -7,7 +7,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIFELINES, LIMITS } from './quiz';
 import { DOOR_COUNT } from './survival';
 import { RESUME_POINTS_MAX } from './resume';
-import { TEAM_FORMS } from './teams';
+import { ANSWERER_SCOPES, TEAM_FORMS } from './teams';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
 
@@ -134,6 +134,8 @@ export const duelAnswerSchema = z.object({
 export const teamPickSchema = z.object({ teamId: playerId });
 /** Капітан вибирає дуелянта команди. */
 export const duelistSchema = z.object({ memberId: playerId });
+/** Вибір відповідача (12g): людина з команди капітана (null — без вибору: капітан чи черга) і обсяг. */
+export const pickAnswererSchema = z.object({ memberId: playerId.nullable(), scope: z.enum(ANSWERER_SCOPES) });
 /** Чернетка: поточний стан вводу до «Надіслати» (10j капітан, 12b будь-хто); null — поле порожнє. */
 export const draftSchema = z.object({ draft: draftValueSchema.nullable() });
 /**
@@ -207,6 +209,8 @@ export interface ClientToServerEvents {
   'player:team-roll': (ack: Ack) => void;
   /** Командна гра: капітан вибирає дуелянта команди. */
   'player:duelist': (payload: z.infer<typeof duelistSchema>, ack: Ack) => void;
+  /** Командна гра (12g): капітан вибирає, хто відповідає з наступного запитання. */
+  'player:pick-answerer': (payload: z.infer<typeof pickAnswererSchema>, ack: Ack) => void;
   /** Живий вибір до «Надіслати»: товаришам капітана (10j) і пульту з «наживо» (12b). */
   'player:draft': (payload: z.infer<typeof draftSchema>, ack: Ack) => void;
   /** Антигугл (12e): телефон пішов із гри чи повернувся; час рахує сервер. */
