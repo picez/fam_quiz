@@ -242,6 +242,10 @@ function undosOf(state: GameState, target: HostUndoTarget): Undo[] | ErrorCode {
     const question = hostGroup(state, adjustment);
     if (question !== null && !visible(state, question)) return 'wrong_phase';
     if (ledger.adjustments.has(adjustment.seq)) return 'already_undone';
+    // Бали апеляції (12f), які вже забрав штраф за вихід, скасовуються лише після штрафу: інакше за запитання вийшов би мінус.
+    const penalized = (a: ScoreAdjustment) =>
+      a.source === 'away' && a.playerId === adjustment.playerId && hostGroup(state, a) === question && !ledger.adjustments.has(a.seq);
+    if (adjustment.source === 'appeal' && question !== null && state.adjustments.some(penalized)) return 'not_allowed';
     return [{ playerId: adjustment.playerId, points: -adjustment.points, undoes: { seq: adjustment.seq }, roundIndex: adjustment.roundIndex }];
   }
   if ('round' in target) {

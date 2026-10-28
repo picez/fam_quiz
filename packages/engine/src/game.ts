@@ -35,7 +35,7 @@ import {
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
-import { appealOpen, cancelAppeal, closeAppealByHost, closeDueAppeal, dropFromAppeals, settleAppeal, shiftAppealClock } from './appeal';
+import { appealOpen, appealPassedGrade, cancelAppeal, closeAppealByHost, closeDueAppeal, dropFromAppeals, settleAppeal, shiftAppealClock } from './appeal';
 import {
   answerLimitMs,
   applyBuff,
@@ -1816,7 +1816,12 @@ function enterWager(state: GameState, final: FinalState): GameState {
 export function next(state: GameState, now: number, rng: Rng = Math.random): Result {
   if (state.paused) return fail('paused');
   // Апеляція (12f): поки зал голосує, розкриття стоїть — раніше за дуель, «100 до 1» і блеф.
-  if (appealOpen(state) !== null) return fail('appeal_open');
+  // Захист: відкрита апеляція поза розкриттям свого запитання скасовується, щоб гра ніколи не зависла.
+  const appeal = appealOpen(state);
+  if (appeal !== null) {
+    if (state.phase === 'reveal' && appeal.questionIndex === state.questionIndex) return fail('appeal_open');
+    return next(cancelAppeal(state), now, rng);
+  }
   // Дуель вклинюється між кроками гри: оголошена стартує замість кроку, після підсумку гра йде далі.
   if (state.phase === 'duel') return advanceDuel(state, now, rng);
   // «100 до 1»: на розкритті кожне «Далі» спершу відкриває ще один рядок знизу; дуель, що чекає, — після останнього рядка.
@@ -1932,8 +1937,10 @@ export function resume(state: GameState, now: number): Result {
   const pausedAt = state.pausedAt ?? now;
   // «Ва-банк»: якщо на паузі вирішили (чи вилучили) останніх, вікно закривається; «Вибування» — так само випробування.
   // «Мільйонер»: якщо на паузі відповіли (чи вийшли) останні глядачі, голосування залу закривається.
-  // Апеляція (12f): кінець голосування зсувається на тривалість паузи.
-  return ok(settleTrial(settleDecision(settleAudience(shiftAppealClock(shiftSplash(result.state, pausedAt, now - pausedAt), now - pausedAt)))));
+  // Апеляція (12f): кінець голосування зсувається на тривалість паузи; якщо на паузі вилучили (чи відключили) останніх,
+  // хто ще не голосував, а решта проголосувала, рішення — зараз.
+  const shifted = shiftAppealClock(shiftSplash(result.state, pausedAt, now - pausedAt), now - pausedAt);
+  return ok(settleTrial(settleDecision(settleAudience(settleAppeal(shifted, now)))));
 }
 
 /** Антигугл (12e): відкриті інтервали виходу поточного запитання зсуваються на тривалість паузи (пауза не рахується); без змін — той самий об'єкт. */
@@ -2063,8 +2070,10 @@ function overrideFinal(state: GameState, playerId: string, grade: Grade): Result
  * «Правильно» тому, хто оскаржує оцінку (12f), закриває його апеляцію з 'host': у ліміт вона не рахується.
  */
 export function override(state: GameState, playerId: string, grade: Grade, now?: number): Result {
-  const result = overrideGrade(state, playerId, grade, now);
   const target = state.plays[state.questionIndex]?.board?.chooserId ?? playerId;
+  // Апеляція grade, яку зал підтримав (12f): оцінка поверх неї порахувала б бали двічі. Спершу скасувати рядок апеляції.
+  if (appealPassedGrade(state, target)) return fail('not_allowed');
+  const result = overrideGrade(state, playerId, grade, now);
   return result.ok ? ok(closeAppealByHost(result.state, target, grade)) : result;
 }
 

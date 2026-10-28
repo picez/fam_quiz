@@ -414,4 +414,42 @@ describe('the away penalty and the appeal (12f)', () => {
     expect(penalties(left)).toEqual([expect.objectContaining({ playerId: 'p1', points: -100, afterQuestion: 1 })]);
     expect(score(left, 'p1')).toBe(0);
   });
+  it('an away appeal cancelled by ending the round still leads to the penalty', () => {
+    let s = startRound(lobbyWith(quizOf([classicRound('r1', [q100, q2], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    s = withAway(s, 'p1', 3500);
+    s = must(submitAnswer(must(submitAnswer(s, 'p1', right, 2000)), 'p2', wrong, 2000));
+    s = step(s, next(s, 9000, rng), 9000);
+    s = must(openAppeal(s, 'p1', 'away', 9500));
+    const ended = step(s, endRound(s, 10_000), 10_000);
+    expect(ended.appeals?.[0].outcome).toBe('cancelled');
+    expect(penalties(ended)).toEqual([expect.objectContaining({ playerId: 'p1', points: -100 })]);
+  });
+
+  it('answer, appeal and penalty: undoing the answer takes all three, «Повернути» brings all three back', () => {
+    const half = { speedBonus: false, rules: { ...DEFAULT_RULES, partial: 50 } };
+    let s = startRound(lobbyWith(quizOf([classicRound('r1', [q100, q2], half)]), 'Оля', 'Петро'), 1000, rng);
+    s = withAway(s, 'p1', 3500);
+    s = must(submitAnswer(must(submitAnswer(s, 'p1', wrong, 2000)), 'p2', right, 2000));
+    s = must(override(step(s, next(s, 9000, rng), 9000), 'p1', 'partial'));
+    s = must(castAppealVote(must(openAppeal(s, 'p1', 'grade', 9500)), 'p2', 1, true, 9600));
+    const left = leave(s);
+    expect(left.adjustments.map((a) => [a.source, a.points])).toEqual([['appeal', 50], ['away', -100]]);
+    expect(score(left, 'p1')).toBe(0);
+    const undone = must(undoScore(left, { question: 0, playerId: 'p1' }, 11_000));
+    const undos = undone.adjustments.filter((a) => a.source === 'undo');
+    expect(undos.map((a) => a.points)).toEqual([-50, -50, 100]);
+    expect(score(undone, 'p1')).toBe(0);
+    const redone = must(undoScore(undone, { seq: undos[0].seq }, 12_000));
+    expect(redone.adjustments.length - undone.adjustments.length).toBe(3);
+    expect(score(redone, 'p1')).toBe(0);
+  });
+
+  it('the appeal row the penalty took is undone only after the penalty', () => {
+    const left = leave(appealed(wrong, 'grade', true));
+    const appealSeq = left.appeals?.[0].adjustmentSeq ?? 0;
+    expect(undoScore(left, { seq: appealSeq }, 11_000)).toEqual({ ok: false, error: 'not_allowed' });
+    const noPenalty = must(undoScore(left, { seq: penalties(left)[0].seq }, 11_000));
+    expect(score(noPenalty, 'p1')).toBe(100);
+    expect(score(must(undoScore(noPenalty, { seq: appealSeq }, 12_000)), 'p1')).toBe(0);
+  });
 });

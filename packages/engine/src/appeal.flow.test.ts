@@ -7,6 +7,8 @@ import { end, endRound, lock, next, override, pause, removePlayer, resume, setCo
 import { classicRound, makeRoundsQuiz, text, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { toDeclarable } from './testing/duel';
+import { teamGame, teamQuiz } from './testing/teams';
+import { actAnswer } from './team-act';
 
 const T0 = 1_000_000;
 const T1 = T0 + 10_000;
@@ -109,6 +111,45 @@ describe('the appeal in the game flow', () => {
     expect(appealOpen(must(setConnected(open, 'p3', false, T1 + 2000)))).not.toBeNull();
     // на паузі рішення не ухвалюється
     expect(appealOpen(must(setConnected(must(pause(voted, T1 + 1500)), 'p3', false, T1 + 2000)))).not.toBeNull();
+  });
+
+  it('after a passed grade appeal the host cannot grade the answer again: the points would count twice', () => {
+    const passed = must(castAppealVote(must(castAppealVote(open, 'p2', 1, true, T1)), 'p3', 1, true, T1));
+    expect(passed.appeals?.[0].outcome).toBe('yes');
+    expect(override(passed, 'p1', 'correct')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(override(passed, 'p1', 'partial')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(passed.players.find((p) => p.id === 'p1')?.score).toBe(100);
+    // інших гравців ведучий оцінює як завжди; тай — теж
+    expect(override(passed, 'p2', 'wrong').ok).toBe(true);
+    const tie = tick(open, T1 + 30_000);
+    expect(override(tie, 'p1', 'correct').ok).toBe(true);
+  });
+
+  it('resume decides a vote whose last missing voter was kicked during the pause', () => {
+    const paused = must(pause(must(castAppealVote(open, 'p2', 1, true, T1 + 1000)), T1 + 2000));
+    const kicked = must(removePlayer(paused, 'p3', T1 + 3000));
+    expect(appealOpen(kicked)).not.toBeNull();
+    const resumed = must(resume(kicked, T1 + 4000));
+    expect(resumed.appeals?.[0].outcome).toBe('yes');
+  });
+
+  it('a stray open appeal off its reveal is cancelled by «Далі» and the game goes on', () => {
+    const board = must(next(tick(open, T1 + 30_000), T1 + 30_001, rng));
+    expect(board.phase).toBe('leaderboard');
+    const stray: GameState = { ...board, appeals: [...(board.appeals ?? []), { ...open.appeals![0], id: 2, outcome: null }] };
+    const moved = must(next(stray, T1 + 31_000, rng));
+    expect(moved.phase).toBe('question');
+    expect(moved.appeals?.[1].outcome).toBe('cancelled');
+  });
+
+  it('team game: kicking the last member of the appellant team cancels the appeal', () => {
+    let s = must(next(teamGame(teamQuiz([classicRound('r1', [t100], { speedBonus: false, rules: DEFAULT_RULES })]), [['Оля'], ['Віра', 'Іра']]), T0, rng));
+    s = must(actAnswer(must(actAnswer(s, 'm1', WRONG, T0 + 1000)), 'm2', RIGHT, T0 + 1000));
+    if (s.phase === 'question') s = must(lock(s));
+    s = must(openAppeal(must(next(s, T0 + 2000, rng)), 'm1', 'grade', T1));
+    const kicked = must(removePlayer(s, 'm1', T1 + 1000));
+    expect(kicked.players.map((p) => p.id)).toEqual(['t2']);
+    expect(kicked.appeals?.[0]).toMatchObject({ by: 't1', outcome: 'cancelled' });
   });
 
   it('a duel declared on the reveal waits for the hall too', () => {

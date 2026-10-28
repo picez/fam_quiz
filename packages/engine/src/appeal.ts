@@ -35,6 +35,17 @@ export function lastAppeal(state: GameState): Appeal | null {
   return lastWhere(state, (a) => a.questionIndex === state.questionIndex);
 }
 
+/**
+ * Учасник має на поточному запитанні апеляцію grade, яку зал підтримав, і її бали не скасовано.
+ * Тоді ведучий оцінку не змінює: рядок 'appeal' = «правильно» − запис, і нова оцінка порахувала б бали двічі.
+ */
+export function appealPassedGrade(state: GameState, participant: string): boolean {
+  const passed = (state.appeals ?? []).find(
+    (a) => a.by === participant && a.questionIndex === state.questionIndex && a.reason === 'grade' && a.outcome === 'yes' && a.adjustmentSeq !== undefined,
+  );
+  return passed !== undefined && !ledgerOf(state).adjustments.has(passed.adjustmentSeq!);
+}
+
 /** Скільки апеляцій ще має учасник рушія: APPEALS_PER_GAME − раховані (appealCounted). */
 export function appealsLeft(state: GameState, participant: string): number {
   const used = (state.appeals ?? []).filter((a) => a.by === participant && appealCounted(a.outcome)).length;
