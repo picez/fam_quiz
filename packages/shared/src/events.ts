@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { answerSchema, type Answer } from './answer';
 import { draftValueSchema, type HostDrafts } from './drafts';
+import { APPEAL_REASONS } from './appeal';
 import { AWAY_REPORT_MAX_MS } from './away';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIFELINES, LIMITS } from './quiz';
@@ -132,6 +133,10 @@ export const awaySchema = z.object({
   ms: z.number().int().min(0).max(AWAY_REPORT_MAX_MS).optional(),
   sinceReturnMs: z.number().int().min(0).max(AWAY_REPORT_MAX_MS).optional(),
 });
+/** Апеляція (12f): підстава; хто оскаржує — з ідентичності сокета (у командній грі — капітан). */
+export const appealSchema = z.object({ reason: z.enum(APPEAL_REASONS) });
+/** Голос в апеляції (12f): номер апеляції (щоб голос не впав на новішу) і «так» / «ні»; змінити можна до кінця. */
+export const appealVoteSchema = z.object({ appealId: z.number().int().min(1), yes: z.boolean() });
 /** Пульт: увімкнути чи вимкнути живі вибори (12b). */
 export const liveWatchSchema = z.object({ on: z.boolean() });
 /** Ведучий: спосіб формування. */
@@ -194,6 +199,10 @@ export interface ClientToServerEvents {
   'player:draft': (payload: z.infer<typeof draftSchema>, ack: Ack) => void;
   /** Антигугл (12e): телефон пішов із гри чи повернувся; час рахує сервер. */
   'player:away': (payload: z.infer<typeof awaySchema>, ack: Ack) => void;
+  /** Апеляція (12f): гравець (капітан) просить зал зарахувати відповідь чи зняти штраф за вихід. */
+  'player:appeal': (payload: z.infer<typeof appealSchema>, ack: Ack) => void;
+  /** Апеляція (12f): голос людини «так» / «ні»; імена голосів не бачить ніхто. */
+  'player:appeal-vote': (payload: z.infer<typeof appealVoteSchema>, ack: Ack) => void;
   'host:start': (ack: Ack) => void;
   'host:lock': (ack: Ack) => void;
   'host:next': (ack: Ack) => void;

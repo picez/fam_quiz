@@ -3,7 +3,7 @@ import { SCORE_SOURCES, adjustmentSource, answerSource, breakdownOf, roundTotals
 
 describe('score sources', () => {
   it('lists the sources in breakdown order', () => {
-    expect([...SCORE_SOURCES]).toEqual(['answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'wipeout', 'survival', 'ladder']);
+    expect([...SCORE_SOURCES]).toEqual(['answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder']);
   });
 
   it('classifies answer rows by round type', () => {
@@ -14,7 +14,7 @@ describe('score sources', () => {
   });
 
   it('maps adjustment sources to themselves', () => {
-    for (const source of ['host', 'undo', 'away', 'duel', 'debuff', 'survival', 'ladder'] as const) expect(adjustmentSource(source)).toBe(source);
+    for (const source of ['host', 'undo', 'away', 'appeal', 'duel', 'debuff', 'survival', 'ladder'] as const) expect(adjustmentSource(source)).toBe(source);
   });
 });
 

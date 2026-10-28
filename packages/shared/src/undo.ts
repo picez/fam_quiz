@@ -4,8 +4,8 @@ import type { RoundType } from './quiz';
 /** Що скасовує рядок журналу з source 'undo' (12a): відповідь свого гравця на запитання (індекс у plays) або коригування за seq. */
 export type UndoTarget = { question: number } | { seq: number };
 
-/** Джерела коригувань, які ведучий може скасувати; 12f допише 'appeal'. 'undo' — окремо («Повернути»). */
-export const UNDOABLE_SOURCES: readonly AdjustmentSource[] = ['host', 'away'];
+/** Джерела коригувань, які ведучий може скасувати. 'undo' — окремо («Повернути»). */
+export const UNDOABLE_SOURCES: readonly AdjustmentSource[] = ['host', 'away', 'appeal'];
 
 /** Раунди, відповіді яких скасовуються; у «Ва-банк», «Вибуванні» й «Мільйонері» бали йдуть через банки й приховані бали. */
 export const UNDOABLE_ROUNDS: readonly RoundType[] = ['classic', 'blitz', 'board', 'final'];
