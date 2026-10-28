@@ -3345,6 +3345,17 @@ describe('PlayerScreen: facts (12d)', () => {
     expect(line()).toBeNull();
   });
 
+  it('on the reveal in a team game the speed place belongs to the team', () => {
+    show(teamPlayerView({ ...onReveal, own: { reveal: { kind: 'fastest', place: 2 }, round: null, game: null } }));
+    expect(line()).toBe('Ваша правильна відповідь — 2-а за швидкістю');
+    cleanup();
+    show(teamPlayerView({ ...onReveal, own: { reveal: { kind: 'fastest', place: 1 }, round: null, game: null } }));
+    expect(line()).toBe('Ваша правильна відповідь — найшвидша!');
+    cleanup();
+    show(teamPlayerView({ ...onReveal, own: { reveal: { kind: 'share', percent: 57 }, round: null, game: null } }));
+    expect(line()).toBe('Правильно відповіли 57 %');
+  });
+
   it('round end: «Твій раунд» and the round cards under the table', () => {
     show(view({ phase: 'round_end', round, standings, me: { ...me, score: 750, rank: 2 }, facts, own: { reveal: null, round: roundCard, game: null } }));
     const card = document.querySelector('section.own-card.round-card');
@@ -3381,11 +3392,13 @@ describe('PlayerScreen: facts (12d)', () => {
     expect(document.querySelector('section.game-card h2')?.textContent).toBe('Гра команди');
   });
 
-  it('no cards in the lobby or on a question', () => {
-    show(view({ facts: null, own: null }));
+  it('no cards in the lobby or on a question, even with facts in the view', () => {
+    const own = { reveal: { kind: 'fastest' as const, place: 2 }, round: roundCard, game: gameCard };
+    const all = { reveal: { accepted: 3, answered: 4, fastest: null, bluff: null }, round: cards, awards: cards };
+    show(view({ standings, facts: all, own }));
     expect(document.querySelector('.own-card, .fact-cards, .reveal-facts')).toBeNull();
     cleanup();
-    show(onQuestion());
+    show(onQuestion({ round, standings, facts: all, own }));
     expect(document.querySelector('.own-card, .fact-cards, .reveal-facts')).toBeNull();
   });
 });

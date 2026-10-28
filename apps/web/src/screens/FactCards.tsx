@@ -26,9 +26,9 @@ export function RevealFactsLine({ facts, big = false }: { facts: RevealFacts; bi
   return <p className={big ? 'meta reveal-facts is-big' : 'meta reveal-facts'}>{revealFactsText(facts)}</p>;
 }
 
-/** Рядок розкриття на телефоні. */
-export function OwnRevealLine({ fact }: { fact: OwnRevealFact }) {
-  return <p className="meta reveal-facts">{ownRevealText(fact)}</p>;
+/** Рядок розкриття на телефоні; team — місце відповіді команди («Ваша …»). */
+export function OwnRevealLine({ fact, team = false }: { fact: OwnRevealFact; team?: boolean }) {
+  return <p className="meta reveal-facts">{ownRevealText(fact, team)}</p>;
 }
 
 /** «Твій раунд» на телефоні; team — «Раунд команди». */

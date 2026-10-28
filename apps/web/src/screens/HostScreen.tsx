@@ -325,6 +325,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   };
   // «Нагороди на сцені» (12d): дотик лише гортає карусель сцени; подвійний дотик не перескакує слайд.
   const awardsGuard = useGuardedSend(send, setError);
+  // Після першого вдалого дотику кнопка гортає далі; лише в пам'яті пульта.
+  const [awardsStarted, setAwardsStarted] = useState(false);
+  const showAwards = async () => {
+    if (await awardsGuard.run('host:awards', undefined)) setAwardsStarted(true);
+  };
 
   const blink = useVerdictBlink(view.spotlight);
   const blinking = useBlinkingRows(blitz?.rows ?? [], view.questionIndex);
@@ -1157,7 +1162,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             <ol className="round-shares" aria-label={t('roundSharesLabel')}>
               {view.roundQuestions.map((q) => (
                 <li key={q.number}>
-                  <span className="name">{t('roundShareItem', { number: q.number, text: q.text })}</span>
+                  <span className="name" title={q.text}>
+                    {t('roundShareItem', { number: q.number, text: q.text })}
+                  </span>
                   <span className="score">{t('roundShareValue', { accepted: q.accepted, answered: q.answered })}</span>
                 </li>
               ))}
@@ -1172,9 +1179,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <Standings standings={view.standings} teams={view.teams} />
           {view.facts?.awards != null && <FactCards cards={view.facts.awards} rounds={round?.total ?? 1} title={t('awardsTitle')} />}
           {(view.facts?.awards?.length ?? 0) > 0 && (
-            <button type="button" className="btn awards-show" disabled={!stageOnline || awardsGuard.busy} onClick={() => void awardsGuard.run('host:awards', undefined)}>
-              {t('awardsShow')}
-            </button>
+            <>
+              <button type="button" className="btn awards-show" disabled={!stageOnline || awardsGuard.busy} onClick={() => void showAwards()}>
+                {t(awardsStarted ? 'awardsNext' : 'awardsShow')}
+              </button>
+              {stageGone && <p className="meta">{t('awardsNoStage')}</p>}
+            </>
           )}
           <MenuLinks role="host" />
         </section>

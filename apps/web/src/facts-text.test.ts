@@ -97,6 +97,9 @@ describe('fact texts', () => {
     expect(ownRevealText({ kind: 'fastest', place: 2 })).toBe('Твоя правильна відповідь — 2-а за швидкістю');
     expect(ownRevealText({ kind: 'fastest', place: 3 })).toBe('Твоя правильна відповідь — 3-я за швидкістю');
     expect(ownRevealText({ kind: 'share', percent: 57 })).toBe(S('Правильно відповіли 57 %'));
+    expect(ownRevealText({ kind: 'fastest', place: 1 }, true)).toBe('Ваша правильна відповідь — найшвидша!');
+    expect(ownRevealText({ kind: 'fastest', place: 3 }, true)).toBe('Ваша правильна відповідь — 3-я за швидкістю');
+    expect(ownRevealText({ kind: 'share', percent: 57 }, true)).toBe(S('Правильно відповіли 57 %'));
   });
 
   it('round card parts', () => {

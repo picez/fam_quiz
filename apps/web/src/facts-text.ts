@@ -67,9 +67,10 @@ export function revealFactsText(facts: RevealFacts): string {
 }
 
 /** «Твоя правильна відповідь — 2-а за швидкістю» / «Правильно відповіли 57 %». */
-export function ownRevealText(fact: OwnRevealFact): string {
+export function ownRevealText(fact: OwnRevealFact, team = false): string {
   if (fact.kind === 'share') return t('ownShare', { percent: fact.percent });
-  return fact.place === 1 ? t('ownFastestFirst') : t('ownFastestPlace', { place: ordinal(fact.place, 'f') });
+  if (fact.place === 1) return t(team ? 'ownFastestFirstTeam' : 'ownFastestFirst');
+  return t(team ? 'ownFastestPlaceTeam' : 'ownFastestPlace', { place: ordinal(fact.place, 'f') });
 }
 
 /** Частини «Твого раунду» через « · »: правильно, середній час (є), найшвидша (є), серія, місце (є), обдурили (є блеф). team — «вас». */

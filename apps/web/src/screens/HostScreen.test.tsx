@@ -2859,6 +2859,7 @@ describe('HostScreen: facts (12d)', () => {
     expect(panel.querySelectorAll('li.fact-card').length).toBe(2);
     const list = within(panel).getByRole('list', { name: 'Запитання раунду' });
     const rows = [...list.querySelectorAll('li')].map((li) => [li.querySelector('.name')?.textContent, li.querySelector('.score')?.textContent]);
+    expect(list.querySelector('li .name')?.getAttribute('title')).toBe('Яка найбільша планета Сонячної системи?');
     expect(rows).toEqual([
       ['1. Яка найбільша планета Сонячної системи?', '3 з 4'],
       ['2. Найвища гора Карпат?', '0 з 2'],
@@ -2875,6 +2876,17 @@ describe('HostScreen: facts (12d)', () => {
     expect(panel.querySelectorAll('li.fact-card').length).toBe(2);
     fireEvent.click(button('Нагороди на сцені'));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:awards', undefined));
+    // Після першого дотику кнопка гортає далі.
+    await waitFor(() => expect(button('Наступна нагорода')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Нагороди на сцені' })).toBeNull();
+  });
+
+  it('a double tap on the awards button sends once', () => {
+    const send: Send = vi.fn(() => new Promise<never>(() => undefined));
+    show(view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards } }), send);
+    fireEvent.click(button('Нагороди на сцені'));
+    fireEvent.click(button('Нагороди на сцені'));
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('the awards button is disabled with the stage offline and absent without awards', () => {
@@ -2882,6 +2894,10 @@ describe('HostScreen: facts (12d)', () => {
       <HostScreen view={view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards } })} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />,
     );
     expect(button('Нагороди на сцені').disabled).toBe(true);
+    expect(screen.getByText('Сцена не підключена — нагороди видно тут')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards } }));
+    expect(screen.queryByText('Сцена не підключена — нагороди видно тут')).toBeNull();
     cleanup();
     show(view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards: [] } }));
     expect(screen.queryByRole('button', { name: 'Нагороди на сцені' })).toBeNull();

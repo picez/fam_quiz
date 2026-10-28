@@ -1106,7 +1106,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               <Result view={view} />
             </>
           )}
-          {view.own?.reveal != null && <OwnRevealLine fact={view.own.reveal} />}
+          {view.own?.reveal != null && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
         </>
       )}
 
