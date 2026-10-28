@@ -3314,3 +3314,78 @@ describe('PlayerScreen: «Who am I?» at own pace (12c)', () => {
     expect(screen.getByRole('note').textContent).toContain('Підказки відкриваються по одній — відповідай, щойно впізнаєш. Що раніше, то більше балів; спроба одна.');
   });
 });
+
+describe('PlayerScreen: facts (12d)', () => {
+  const round: RoundInfo = { index: 0, total: 3, title: '', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+  const standings = [
+    { participantId: 'p2', nickname: 'Тарас', score: 900, totalTimeMs: 1, rank: 1 },
+    { participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 2 },
+  ];
+  const roundCard = { correct: 4, answered: 6, avgMs: 5300, fastestMs: 2000, streak: 3, place: { before: 5, now: 3 }, fooledBy: 1 };
+  const gameCard = { rank: 2, rounds: [300, -100, 500], correct: 4, answered: 6, bestStreak: 3, fastestMs: 1800, buffs: 1, debuffs: { sent: 0, got: 1 }, bluff: null };
+  const cards = [
+    { kind: 'lightning' as const, names: ['Оля'], timeMs: 2100, question: { roundIndex: 0, number: 2, text: 'Найвища гора Карпат?' } },
+    { kind: 'streak' as const, names: ['Петро'], length: 3 },
+  ];
+  const facts = { reveal: null, round: cards, awards: null };
+  const onReveal = { phase: 'reveal' as const, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, round };
+  const line = () => document.querySelector('p.reveal-facts')?.textContent ?? null;
+
+  it('on the reveal tells the own speed place or the share of right answers', () => {
+    show(view({ ...onReveal, own: { reveal: { kind: 'fastest', place: 2 }, round: null, game: null } }));
+    expect(line()).toBe('Твоя правильна відповідь — 2-а за швидкістю');
+    cleanup();
+    show(view({ ...onReveal, own: { reveal: { kind: 'fastest', place: 1 }, round: null, game: null } }));
+    expect(line()).toBe('Твоя правильна відповідь — найшвидша!');
+    cleanup();
+    show(view({ ...onReveal, own: { reveal: { kind: 'share', percent: 57 }, round: null, game: null } }));
+    expect(line()).toBe('Правильно відповіли 57 %');
+    cleanup();
+    show(view(onReveal));
+    expect(line()).toBeNull();
+  });
+
+  it('round end: «Твій раунд» and the round cards under the table', () => {
+    show(view({ phase: 'round_end', round, standings, me: { ...me, score: 750, rank: 2 }, facts, own: { reveal: null, round: roundCard, game: null } }));
+    const card = document.querySelector('section.own-card.round-card');
+    expect(card?.querySelector('h2')?.textContent).toBe('Твій раунд');
+    expect(card?.querySelector('p')?.textContent).toBe('правильно 4 з 6 · середній час 5,3 с · найшвидша 2,0 с · серія зараз 3 · місце: 5 → 3 · тебе обдурили 1 раз');
+    const cardsEl = document.querySelector('section.fact-cards');
+    expect(cardsEl?.querySelector('h2')?.textContent).toBe('Цікавинки раунду');
+    expect(cardsEl?.querySelectorAll('li.fact-card').length).toBe(2);
+    // Порядок: таблиця, «Твій раунд», картки.
+    const table = document.querySelector('.standings')!;
+    expect(table.compareDocumentPosition(card!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card!.compareDocumentPosition(cardsEl!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('round end in a team game: the team card', () => {
+    show(teamPlayerView({ phase: 'round_end', round, standings, facts, own: { reveal: null, round: roundCard, game: null } }));
+    const card = document.querySelector('section.own-card.round-card');
+    expect(card?.querySelector('h2')?.textContent).toBe('Раунд команди');
+    expect(card?.textContent).toContain('вас обдурили 1 раз');
+  });
+
+  it('finished: «Твоя гра» with round bars above the table', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings, me: { ...me, score: 750, rank: 2 }, own: { reveal: null, round: null, game: gameCard } }));
+    const card = document.querySelector('section.own-card.game-card');
+    expect(card?.querySelector('h2')?.textContent).toBe('Твоя гра');
+    expect(card?.querySelectorAll('.round-bar').length).toBe(3);
+    expect([...card!.querySelectorAll('li')].map((li) => li.textContent)).toContain('Точність: 67 % (4 з 6)');
+    const table = document.querySelector('.standings')!;
+    expect(card!.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('finished in a team game: «Гра команди»', () => {
+    show(teamPlayerView({ phase: 'finished', questionIndex: 1, standings, own: { reveal: null, round: null, game: gameCard } }));
+    expect(document.querySelector('section.game-card h2')?.textContent).toBe('Гра команди');
+  });
+
+  it('no cards in the lobby or on a question', () => {
+    show(view({ facts: null, own: null }));
+    expect(document.querySelector('.own-card, .fact-cards, .reveal-facts')).toBeNull();
+    cleanup();
+    show(onQuestion());
+    expect(document.querySelector('.own-card, .fact-cards, .reveal-facts')).toBeNull();
+  });
+});

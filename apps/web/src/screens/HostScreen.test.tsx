@@ -2818,3 +2818,82 @@ describe('«👁 Наживо» toggle (12b)', () => {
     expect(document.querySelector('.live-draft')).toBeNull();
   });
 });
+
+describe('HostScreen: facts (12d)', () => {
+  const round: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+  const standings = [{ participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1 }];
+  const q = { roundIndex: 0, number: 1, text: 'Яка найбільша планета Сонячної системи?' };
+  const cards = [
+    { kind: 'lightning' as const, names: ['Олена'], timeMs: 2100, question: q },
+    { kind: 'hardest' as const, question: q, accepted: 1, answered: 4 },
+  ];
+  const awards = [
+    { kind: 'sniper' as const, names: ['Олена'], correct: 5, answered: 6 },
+    { kind: 'streak' as const, names: ['Тарас'], length: 4 },
+  ];
+  const response = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'b' }, timeMs: 2100, accepted: true, grade: 'correct' as const, streakBonus: 0, points: 900, overridden: false, buff: null, spare: null, clue: null };
+
+  it('the reveal line in the responses panel', () => {
+    show(during('reveal', single, { responses: [response], facts: { reveal: { accepted: 3, answered: 4, fastest: { names: ['Олена'], timeMs: 2100 }, bluff: null }, round: null, awards: null } }));
+    const panel = screen.getByRole('heading', { name: t('responses') }).closest('section')!;
+    expect(panel.querySelector('p.reveal-facts')?.textContent).toBe('Правильно 3 з 4 · найшвидше — Олена, 2,1 с');
+    cleanup();
+    show(during('reveal', single, { responses: [response] }));
+    expect(document.querySelector('.reveal-facts')).toBeNull();
+  });
+
+  it('round end: the round cards and the per-question shares', () => {
+    show(view({
+      phase: 'round_end',
+      round,
+      questionIndex: 1,
+      standings,
+      facts: { reveal: null, round: cards, awards: null },
+      roundQuestions: [
+        { number: 1, text: 'Яка найбільша планета Сонячної системи?', accepted: 3, answered: 4 },
+        { number: 2, text: 'Найвища гора Карпат?', accepted: 0, answered: 2 },
+      ],
+    }));
+    const panel = screen.getByRole('heading', { name: 'Підсумки раунду 1' }).closest('section')!;
+    expect(panel.querySelector('section.fact-cards h2')?.textContent).toBe('Цікавинки раунду');
+    expect(panel.querySelectorAll('li.fact-card').length).toBe(2);
+    const list = within(panel).getByRole('list', { name: 'Запитання раунду' });
+    const rows = [...list.querySelectorAll('li')].map((li) => [li.querySelector('.name')?.textContent, li.querySelector('.score')?.textContent]);
+    expect(rows).toEqual([
+      ['1. Яка найбільша планета Сонячної системи?', '3 з 4'],
+      ['2. Найвища гора Карпат?', '0 з 2'],
+    ]);
+    cleanup();
+    show(view({ phase: 'round_end', round, questionIndex: 1, standings, roundQuestions: [] }));
+    expect(document.querySelector('.round-shares, .fact-cards')).toBeNull();
+  });
+
+  it('finished: the award list and «Нагороди на сцені» moving the stage carousel', async () => {
+    const send = show(view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards } }));
+    const panel = screen.getByRole('heading', { name: 'Гру завершено' }).closest('section')!;
+    expect(panel.querySelector('section.fact-cards h2')?.textContent).toBe('Нагороди гри');
+    expect(panel.querySelectorAll('li.fact-card').length).toBe(2);
+    fireEvent.click(button('Нагороди на сцені'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:awards', undefined));
+  });
+
+  it('the awards button is disabled with the stage offline and absent without awards', () => {
+    render(
+      <HostScreen view={view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards } })} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />,
+    );
+    expect(button('Нагороди на сцені').disabled).toBe(true);
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards: [] } }));
+    expect(screen.queryByRole('button', { name: 'Нагороди на сцені' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings }));
+    expect(screen.queryByRole('button', { name: 'Нагороди на сцені' })).toBeNull();
+  });
+
+  it('a refused awards tap is explained', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'not_allowed' }));
+    show(view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards } }), send);
+    fireEvent.click(button('Нагороди на сцені'));
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+  });
+});

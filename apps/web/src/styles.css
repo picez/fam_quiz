@@ -11148,3 +11148,46 @@ button.wall-tile:disabled {
 .round-bars.is-many .round-bar {
   font-size: 0.625rem;
 }
+
+/* Телефон і пульт: картки під таблицею (і під «Твоїм раундом») — з відступом. */
+.fact-cards:not(.is-big) {
+  margin: 0.75rem 0;
+}
+
+/* Пульт: «Нагороди на сцені» — під списком нагород, на всю ширину панелі. */
+.awards-show {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+/* Пульт: запитання раунду з часткою правильних; довгий текст обрізається, частка лишається. */
+.round-shares {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.round-shares li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.round-shares .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.round-shares .score {
+  flex: none;
+  color: var(--dim);
+  white-space: nowrap;
+}
