@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, emptyBrief, type Answer, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
+import { DEBUFF_KINDS, emptyBrief, type Answer, type AppealView, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -893,6 +893,14 @@ describe('HostScreen: blitz', () => {
       // Звичайна клітинка на reveal оцінюється.
       show(during('reveal', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }) }));
       expect(button('Зарахувати')).toBeTruthy();
+    });
+
+    it('a cell the hall passed by an appeal (12f) has no grade buttons, only the hint', () => {
+      const cell = { id: 'c1', category: 'Міста', price: 400, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+      const appeal: AppealView = { id: 1, by: { playerId: 'p1', nickname: 'Олена' }, reason: 'grade', answer: { type: 'text', value: 'Адеса' }, question: textQuestion, points: 400, endsAt: null, remainingMs: null, yes: 2, no: 0, waiting: 0, outcome: 'yes' };
+      show(during('reveal', textQuestion, { round: boardRound, players: three, board: boardOf({ manual: true, cell }), appeal }));
+      expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+      expect(screen.getByText('Зал уже зарахував — скасуйте в «↶ Бали» після розкриття')).toBeTruthy();
     });
 
     it('renders no multiplier for unmarked cells, on the board and on the open cell', () => {
@@ -2958,5 +2966,73 @@ describe('away marks (12e)', () => {
     const bar = document.querySelector('header.bar') as HTMLElement;
     fireEvent.click(within(bar).getByRole('button', { name: '↶ Бали' }));
     expect(within(screen.getByRole('dialog', { name: 'Скасування балів' })).getByText('Олена −900 (вихід із гри)')).toBeTruthy();
+  });
+});
+
+describe('appeal (12f)', () => {
+  const appeal = (over: Partial<AppealView> = {}): AppealView => ({
+    id: 1,
+    by: { playerId: 'p1', nickname: 'Олена' },
+    reason: 'grade',
+    answer: { type: 'text', value: 'Адеса' },
+    question: textQuestion,
+    points: 875,
+    endsAt: Date.now() + 21_000,
+    remainingMs: null,
+    yes: 1,
+    no: 0,
+    waiting: 1,
+    outcome: null,
+    ...over,
+  });
+  const responses: HostView['responses'] = [
+    { playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong', streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+    { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Одесса' }, timeMs: 5000, accepted: false, grade: 'wrong', streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+  ];
+
+  it('while the hall votes, the main button says «Голосує зал» and is disabled; the card shows the counts, never a voter', () => {
+    const send = show(during('reveal', textQuestion, { responses, appeal: appeal() }));
+    expect(screen.queryByRole('button', { name: 'Далі' })).toBeNull();
+    const main = button('Голосує зал');
+    expect(main.disabled).toBe(true);
+    expect(main.classList.contains('btn-primary')).toBe(true);
+    fireEvent.click(main);
+    expect(send).not.toHaveBeenCalledWith('host:next', undefined);
+    const card = document.querySelector('.appeal-card.is-host') as HTMLElement;
+    expect(within(card).getByRole('heading', { name: '⚖️ Олена оскаржує' })).toBeTruthy();
+    expect(within(card).getByText('так 1 · ні 0 · ще думають 1')).toBeTruthy();
+    expect(within(card).getByText('Відповідь «Адеса», правильна — «Одеса». Зарахувати?')).toBeTruthy();
+    // Ведучий може зарахувати сам: оцінка під час голосування лишається.
+    expect(within(screen.getByText('Адеса').closest('li') as HTMLElement).getByRole('button', { name: 'Зарахувати' })).toBeTruthy();
+  });
+
+  it('after the decision «Далі» is back and the card shows the result', () => {
+    show(during('reveal', textQuestion, { responses, appeal: appeal({ outcome: 'no', endsAt: null, waiting: 0, points: 0, yes: 1, no: 2 }) }));
+    expect(button('Далі').disabled).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Голосує зал' })).toBeNull();
+    expect(document.querySelector('.appeal-card.is-host .appeal-result')?.textContent).toBe('⚖️ Лишається як було · так 1 · ні 2');
+  });
+
+  it('a passed grade appeal hides the grade buttons of that player and says where to undo it', () => {
+    show(during('reveal', textQuestion, { responses, appeal: appeal({ outcome: 'yes', endsAt: null, waiting: 0 }) }));
+    const olena = screen.getByText('Адеса').closest('li') as HTMLElement;
+    expect(within(olena).queryByRole('button')).toBeNull();
+    expect(within(olena).getByText('Зал уже зарахував — скасуйте в «↶ Бали» після розкриття')).toBeTruthy();
+    const taras = screen.getByText('Одесса').closest('li') as HTMLElement;
+    expect(within(taras).getByRole('button', { name: 'Зарахувати' })).toBeTruthy();
+    expect(document.querySelector('.appeal-card.is-host .appeal-result')?.textContent).toBe('⚖️ Зараховано! +875');
+  });
+
+  it('a passed appeal on the penalty for leaving keeps the grade buttons', () => {
+    show(during('reveal', textQuestion, { responses, appeal: appeal({ reason: 'away', answer: null, outcome: 'yes', endsAt: null, waiting: 0 }) }));
+    const olena = screen.getByText('Адеса').closest('li') as HTMLElement;
+    expect(within(olena).getByRole('button', { name: 'Зарахувати' })).toBeTruthy();
+    expect(document.querySelector('.appeal-passed')).toBeNull();
+  });
+
+  it('no appeal — no card', () => {
+    show(during('reveal', textQuestion, { responses }));
+    expect(document.querySelector('.appeal-card')).toBeNull();
+    expect(button('Далі').disabled).toBe(false);
   });
 });

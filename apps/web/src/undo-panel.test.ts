@@ -15,6 +15,10 @@ describe('undoRowText', () => {
   it('marks the penalty for leaving the game (12e)', () => {
     expect(undoRowText(row({ kind: 'away', points: -200, target: { seq: 4 } }))).toBe('Оля −200 (вихід із гри)');
   });
+
+  it('marks the points the hall gave by an appeal (12f)', () => {
+    expect(undoRowText(row({ kind: 'appeal', points: 150, target: { seq: 5 } }))).toBe('Оля +150 (апеляція)');
+  });
 });
 
 describe('activePlayers', () => {
@@ -118,6 +122,24 @@ describe('historyUndoLines, the penalty for leaving the game (12e)', () => {
     expect(historyUndoLines(game, 0)).toEqual([
       { seq: 2, text: '↶ Скасовано: Оля +200 (вихід із гри)', returned: true },
       { seq: 3, text: '↶ Повернуто: Оля −200 (вихід із гри)', returned: false },
+    ]);
+  });
+});
+
+describe('historyUndoLines, the appeal (12f)', () => {
+  const game = {
+    questions: [{ index: 0, roundIndex: 0 }],
+    adjustments: [
+      { seq: 1, roundIndex: 0, afterQuestion: 1, nickname: 'Оля', points: 150, source: 'appeal' },
+      { seq: 2, roundIndex: 0, afterQuestion: 1, nickname: 'Оля', points: -150, source: 'undo', undoes: { seq: 1 } },
+      { seq: 3, roundIndex: 0, afterQuestion: 1, nickname: 'Оля', points: 150, source: 'undo', undoes: { seq: 2 } },
+    ],
+  } as unknown as Pick<GameDetail, 'adjustments' | 'questions'>;
+
+  it('says the undone points came from the appeal', () => {
+    expect(historyUndoLines(game, 0)).toEqual([
+      { seq: 2, text: '↶ Скасовано: Оля −150 (апеляція)', returned: true },
+      { seq: 3, text: '↶ Повернуто: Оля +150 (апеляція)', returned: false },
     ]);
   });
 });

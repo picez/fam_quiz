@@ -2,11 +2,12 @@ import { undoLedger, type AdjustmentNotice, type GameDetail, type UndoNotice, ty
 import { signed } from './format';
 import { countText, t } from './i18n';
 
-/** «Оля +200», «Петро −100 (штраф)», «Ведучий: Іра +50», «Оля −200 (вихід із гри)». */
+/** «Оля +200», «Петро −100 (штраф)», «Ведучий: Іра +50», «Оля −200 (вихід із гри)», «Оля +200 (апеляція)». */
 export function undoRowText(row: UndoRow): string {
   const vars = { name: row.nickname, points: signed(row.points) };
   if (row.kind === 'host') return t('undoHostRow', vars);
   if (row.kind === 'away') return t('undoAwayRow', vars);
+  if (row.kind === 'appeal') return t('undoAppealRow', vars);
   return t(row.points < 0 ? 'undoPenaltyRow' : 'undoRow', vars);
 }
 
@@ -52,8 +53,9 @@ export function historyUndoLines(game: Pick<GameDetail, 'adjustments' | 'questio
       const at = same.findIndex((q) => q.index === target.question);
       return at < 0 ? '' : t('historyUndoQuestion', { question: at + 1 });
     }
-    // Ціль { seq } — бали ведучого або штраф за вихід із гри (12e).
-    return t(bySeq.get(target.seq)?.source === 'away' ? 'historyUndoAway' : 'historyUndoHost');
+    // Ціль { seq } — бали ведучого, штраф за вихід із гри (12e) або рішення залу в апеляції (12f).
+    const source = bySeq.get(target.seq)?.source;
+    return t(source === 'away' ? 'historyUndoAway' : source === 'appeal' ? 'historyUndoAppeal' : 'historyUndoHost');
   };
   return game.adjustments
     .filter((a) => a.source === 'undo' && a.roundIndex === roundIndex)

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
+import { emptyBrief, type AppealView, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
 import { ladderInfo } from './ladder-fixtures';
@@ -2307,5 +2307,48 @@ describe('StageScreen: away (12e)', () => {
     cleanup();
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, remainingMs: 20_000, playerCount: 3 }));
     expect(document.querySelector('.away-line')).toBeNull();
+  });
+});
+
+describe('StageScreen: appeal (12f)', () => {
+  const textQ = { ...question, type: 'text' as const, text: 'Місто біля моря?', choices: [] };
+  const textFull: Question = { id: 'q1', type: 'text', text: 'Місто біля моря?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Одеса'] };
+  const appeal = (over: Partial<AppealView> = {}): AppealView => ({
+    id: 1,
+    by: { playerId: 'p2', nickname: 'Оля' },
+    reason: 'grade',
+    answer: { type: 'text', value: 'Одеська' },
+    question: textFull,
+    points: 200,
+    endsAt: Date.now() + 21_000,
+    remainingMs: null,
+    yes: 1,
+    no: 0,
+    waiting: 1,
+    outcome: null,
+    ...over,
+  });
+  const revealed = (over: Partial<StageView> = {}) => view({ phase: 'reveal', questionIndex: 0, question: textQ, reveal: textFull, playerCount: 3, ...over });
+
+  it('shows the open appeal over the reveal: who appeals, the question to the hall, the bar and the counts', () => {
+    show(revealed({ appeal: appeal() }));
+    const card = document.querySelector('.appeal-card.is-stage') as HTMLElement;
+    expect(within(card).getByRole('heading', { name: '⚖️ Оля оскаржує' })).toBeTruthy();
+    expect(within(card).getByText('Відповідь «Одеська», правильна — «Одеса». Зарахувати?')).toBeTruthy();
+    expect(within(card).getByText('так 1 · ні 0 · ще думають 1')).toBeTruthy();
+    expect(card.querySelector('.appeal-bar')).not.toBeNull();
+    // Розкриття лишається на місці: картка — окремий шар, а не частина .stage-board.
+    expect(screen.getByText('Правильна відповідь: Одеса')).toBeTruthy();
+    expect(card.closest('.stage-board')).toBeNull();
+  });
+
+  it('after a yes says «⚖️ Зараховано! +200»', () => {
+    show(revealed({ appeal: appeal({ outcome: 'yes', endsAt: null, waiting: 0, yes: 2 }) }));
+    expect(document.querySelector('.appeal-card.is-stage .appeal-result')?.textContent).toBe('⚖️ Зараховано! +200');
+  });
+
+  it('no appeal — no card', () => {
+    show(revealed());
+    expect(document.querySelector('.appeal-card')).toBeNull();
   });
 });
