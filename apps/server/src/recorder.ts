@@ -48,7 +48,9 @@ function signature(state: GameState): string {
   const ladder = last < 0 ? null : (state.plays[last].ladder ?? null);
   // Командна гра: вилучення людини (не останньої в команді) не змінює команд, а її рядок треба прибрати.
   const members = state.teams?.members.map((m) => m.id) ?? null;
-  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder, members]);
+  // Вихід із гри (12e) дописується до закритого запитання вже після зміни фази: теж варто запису.
+  const away = last < 0 ? null : state.plays[last].away;
+  return JSON.stringify([state.phase, state.roundIndex, state.questionIndex, scores, grades, state.adjustments.length, state.adjustmentSeq, hidden, wipeout, survival, ladder, members, away]);
 }
 
 interface AnswerRow {

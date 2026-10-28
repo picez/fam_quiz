@@ -1522,6 +1522,46 @@ describe('recorder: teams (10j)', () => {
     );
   });
 
+  it('a member vote row keeps the person own away_ms, exactly the threshold counts (12e)', async () => {
+    const ctx = await teamGame();
+    toQuestion(ctx.manager, ctx.room);
+    toQuestion(ctx.manager, ctx.room);
+    const index = ctx.room.state.questionIndex;
+    const play = ctx.room.state.plays[index];
+    ctx.room.state = {
+      ...ctx.room.state,
+      plays: ctx.room.state.plays.map((p, i) => (i === index ? { ...play, away: { [ctx.members['Оля']]: { ms: 2000, count: 1, since: null }, [ctx.members['Петро']]: { ms: 1999, count: 1, since: null } } } : p)),
+    };
+    for (const name of ['Оля', 'Петро', 'Віра', 'Ігор']) expect(ctx.manager.answer(ctx.room, ctx.members[name], { type: 'wordcloud', words: ['каштани'] })).toEqual({ ok: true });
+    toQuestion(ctx.manager, ctx.room);
+    const { answers } = await ctx.saved();
+    const votes = new Map(answers.filter((a) => a.questionIndex === index).map((a) => [a.participantId, a.awayMs]));
+    expect(votes.get(ctx.members['Оля'])).toBe(2000);
+    expect(votes.get(ctx.members['Петро'])).toBeNull();
+    expect(votes.has(ctx.red)).toBe(false);
+  });
+
+  it('a solo poll vote row keeps the own away_ms (12e)', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db, (error) => {
+      throw error;
+    });
+    const room = manager.create(makeQuiz([poll], { speedBonus: false }), HOST, null);
+    const joined = manager.join(room.code, 'Олена', null);
+    if (!joined.ok) throw new Error(joined.error);
+    manager.connect(room, { role: 'player', playerId: joined.playerId });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const play = room.state.plays[0];
+    room.state = { ...room.state, plays: [{ ...play, away: { [joined.playerId]: { ms: 4200, count: 1, since: null } } }] };
+    expect(manager.answer(room, joined.playerId, { type: 'poll', optionId: 'b' })).toEqual({ ok: true });
+    await recorder.idle();
+    const rows = await db.select().from(answer);
+    expect(rows.map((a) => [a.attempt, a.awayMs])).toEqual([[VOTE_ATTEMPT, 4200]]);
+  });
+
   it('a host adjustment of a team lands on the team row; at the finish the members get the rank of their team', async () => {
     const ctx = await teamGame();
     expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.blue, points: 2500 })).toEqual({ ok: true });

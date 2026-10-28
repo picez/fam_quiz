@@ -1,4 +1,3 @@
-import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { defaultTeams } from '@quiz/shared';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
@@ -10,7 +9,7 @@ import { RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { createTestDb } from './testing/test-db';
 import { seedGame } from './testing/history-rows';
-import { TEAM_HOST, recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
+import { recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
 
 const HOST = 'away-host';
 const right = { type: 'single', optionId: 'b' } as const;
@@ -128,8 +127,6 @@ describe('history: away (12e)', () => {
     const byParticipant = new Map(rows.map((r) => [r.participantId, r.awayMs]));
     expect(byParticipant.get(ctx.teams[0])).toBe(6100);
     expect(byParticipant.get(ctx.teams[1])).toBeNull();
-    expect(await ctx.db.select().from(participant).where(eq(participant.id, ctx.teams[0]))).toHaveLength(1);
-    expect(TEAM_HOST).toBeDefined();
   });
 
   it('an old game without away_ms reads as null', async () => {

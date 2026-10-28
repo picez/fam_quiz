@@ -6,7 +6,7 @@ import { blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, make
 import { buildApp } from './app';
 import { hostGame, hostGameWithFacts } from './history';
 import type { Db } from './db/client';
-import { answer, game, user } from './db/schema';
+import { answer, game, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { seedGame } from './testing/history-rows';
@@ -75,8 +75,17 @@ describe('history facts (12d)', () => {
         for (const [id, amount] of [[olya, 200], [petro, 100], [vira, 50]] as const) local.manager.wager(room, id, amount);
       } else if (phase === 'question' && !done.has(questionIndex)) {
         done.add(questionIndex);
-        // Виходи з гри (12e): Оля 3,5 с на першому запитанні, Петро рівно 2 с на третьому (bluff; на опитуванні голос — не рядок answer, там виходу не зберігається); Віра 1,5 с — нижче порогу.
-        const away = questionIndex === 0 ? { [olya]: 3500, [vira]: 1500 } : questionIndex === 2 ? { [petro]: 2000 } : {};
+        // Виходи з гри (12e): Оля 3,5 с на першому запитанні, Петро рівно 2 с на bluff; Віра 1,5 с — нижче порогу.
+        // Голос опитування — рядок VOTE_ATTEMPT, не відповідь: позначка на опитуванні в базі не рахується (рушій її теж пропускає).
+        // У фіналі Віра мовчить (штрафний рядок): її вихід теж рахується.
+        const away =
+          questionIndex === 0
+            ? { [olya]: 3500, [vira]: 1500 }
+            : play.question.type === 'bluff'
+              ? { [petro]: 2000 }
+              : play.final !== undefined
+                ? { [vira]: 5000 }
+                : {};
         if (Object.keys(away).length > 0) {
           const plays = [...room.state.plays];
           plays[questionIndex] = { ...play, away: Object.fromEntries(Object.entries(away).map(([id, ms]) => [id, { ms, count: 1, since: null }])) };
@@ -136,7 +145,10 @@ describe('history facts (12d)', () => {
     // Позначки «відволікався» (12e): ті самі й у тому самому вигляді; поріг — від 2 с.
     const byAway = (rows: typeof live.away) => [...rows].sort((a, b) => a.questionIndex - b.questionIndex || a.playerId.localeCompare(b.playerId));
     expect(live.away).toEqual(expect.arrayContaining([{ playerId: olya, questionIndex: 0 }]));
-    expect(live.away.some((a) => a.playerId === vira)).toBe(false);
+    expect(live.away.some((a) => a.playerId === vira && a.questionIndex === 0)).toBe(false);
+    // Рядок-штраф (мовчання у фіналі) теж дає позначку, як у грі.
+    const finalIndex = room.state.plays.findIndex((p) => p.final !== undefined);
+    expect(live.away).toEqual(expect.arrayContaining([{ playerId: vira, questionIndex: finalIndex }]));
     expect(byAway(found?.factInput.away ?? [])).toEqual(byAway(live.away));
     // Перевірка, що гра справді дала рядки всіх видів.
     expect(live.rows.some((r) => r.attempt === 1)).toBe(true);
@@ -149,6 +161,30 @@ describe('history facts (12d)', () => {
     expect(detail?.facts.awards).toEqual(gameAwards(live));
     expect(detail?.facts.table).toEqual(factTable(live));
     await local.app.close();
+  });
+
+  it('penalty rows count as away marks, votes do not (a blitz non-presser, a silent final entry)', async () => {
+    const hostId = await hostAccount();
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId,
+      startedAt: new Date(2026, 0, 4),
+      questionsPlayed: 3,
+      players: [
+        {
+          userId: null,
+          nickname: 'Оля',
+          score: 0,
+          rank: 1,
+          rows: [
+            { questionIndex: 0, attempt: PENALTY_ATTEMPT, accepted: false, points: -200, awayMs: 2600 },
+            { questionIndex: 1, attempt: PENALTY_ATTEMPT, accepted: false, points: -100, awayMs: 1900 },
+            { questionIndex: 2, attempt: VOTE_ATTEMPT, accepted: false, points: 0, awayMs: 3000 },
+          ],
+        },
+      ],
+    });
+    const found = await hostGameWithFacts(db, hostId, gameId);
+    expect(found?.factInput.away).toEqual([{ playerId: participantIds[0], questionIndex: 0 }]);
   });
 
   it('an old game without times of buffs, wagers and bluff payloads still gives accuracy and best streak', async () => {

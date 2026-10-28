@@ -205,9 +205,10 @@ function factInputOf(
     debuffs: adjustments
       .filter((a) => a.source === 'debuff')
       .map((a) => ({ by: a.participantId, target: a.targetNickname === null ? null : (idOf.get(a.targetNickname) ?? null) })),
-    // Позначки «відволікався» (12e): ті самі, що в рушія, — учасники таблиці з awayMs від порогу, раз на запитання.
+    // Позначки «відволікався» (12e): ті самі, що в рушія, — учасники таблиці з awayMs від порогу, раз на запитання;
+    // штрафні рядки (не натискав на бліці, мовчання у фіналі) теж, голоси (VOTE_ATTEMPT) — ні.
     away: answers
-      .filter((a) => a.attempt >= 0 && ids.has(a.participantId) && a.awayMs !== null && a.awayMs >= AWAY_MS.mark)
+      .filter((a) => (a.attempt >= 0 || a.attempt === PENALTY_ATTEMPT) && ids.has(a.participantId) && a.awayMs !== null && a.awayMs >= AWAY_MS.mark)
       .map((a) => ({ playerId: a.participantId, questionIndex: a.questionIndex }))
       .filter((a, i, all) => all.findIndex((b) => b.playerId === a.playerId && b.questionIndex === a.questionIndex) === i),
   };
