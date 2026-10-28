@@ -14677,3 +14677,358 @@ it('part 12e: anti-googling — a phone hidden for 4 s during a question gives �
     throw error;
   }
 });
+
+function appealQuestions12f() {
+  const common = { imageUrl: null, video: null, timeLimit: 60 };
+  const p1 = { ...common, id: 'p1', type: 'text' as const, text: 'Хто написав «Заповіт»?', points: 200, accepted: ['Тарас Шевченко'] };
+  const p2 = {
+    ...common,
+    id: 'p2',
+    type: 'single' as const,
+    text: 'Яка гора найвища в Україні?',
+    points: 100,
+    options: [{ id: 'p2-a', text: 'Говерла' }, { id: 'p2-b', text: 'Петрос' }, { id: 'p2-c', text: 'Піп Іван' }],
+    correctId: 'p2-a',
+  };
+  const p3 = { ...common, id: 'p3', type: 'boolean' as const, text: 'Дунай впадає в Чорне море', points: 100, correct: true };
+  return { p1, p2, p3 };
+}
+
+/** Картка апеляції на сцені не налазить на рядок правильної відповіді й варіанти: перетини прямокутників. */
+const APPEAL_STAGE_OVERLAP = `(() => {
+  const card = document.querySelector('.appeal-card.is-stage');
+  if (card === null) return ['no stage card'];
+  const c = card.getBoundingClientRect();
+  const out = [];
+  for (const el of document.querySelectorAll('.lead.answer, ul.choices')) {
+    const r = el.getBoundingClientRect();
+    if (r.height === 0) continue;
+    if (r.bottom > c.top + 1 && r.top < c.bottom - 1 && r.right > c.left + 1 && r.left < c.right - 1) out.push(el.className + ' ' + Math.round(r.top) + '..' + Math.round(r.bottom) + ' vs card ' + Math.round(c.top));
+  }
+  return out;
+})()`;
+
+/** Аркуш голосу на телефоні: прокручено донизу — результат над аркушем, аркуш у межах екрана. */
+const APPEAL_SHEET_CLEAR = `(() => {
+  window.scrollTo(0, document.documentElement.scrollHeight);
+  const sheet = document.querySelector('.appeal-sheet');
+  if (sheet === null) return ['no sheet'];
+  const s = sheet.getBoundingClientRect();
+  const out = [];
+  if (s.left < -1 || s.right > innerWidth + 1 || s.bottom > innerHeight + 1) out.push('sheet out of the screen');
+  for (const el of document.querySelectorAll('section.result')) {
+    const r = el.getBoundingClientRect();
+    if (r.height > 0 && r.bottom > s.top + 1) out.push('result under the sheet ' + Math.round(r.bottom) + ' > ' + Math.round(s.top));
+  }
+  return out;
+})()`;
+
+async function appeal12f() {
+  const host = await open('host12f', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12f@example.com');
+  const hostFrames = socketFrames(host);
+
+  const { p1, p2, p3 } = appealQuestions12f();
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [p1, p2, p3] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES })], {
+      leaderboard: 'each',
+    }),
+    title: 'Апеляція 12f',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Апеляція 12f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage12f', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya12f', 375, 812);
+  const petro = await open('petro12f', 375, 812);
+  const ira = await open('ira12f', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  const iraFrames = socketFrames(ira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await stage.getByText('Іра').waitFor();
+  const phones = [olya, petro, ira];
+  const all = [host, stage, ...phones];
+
+  const textOf = async (locator: Locator) => squash(await locator.first().textContent({ timeout: 500 }).catch(() => null)) || null;
+  const appealButton = (page: Page) => page.locator('button.appeal-button');
+  const sheet = (page: Page) => page.locator('section.appeal-sheet');
+  const card = (page: Page) => page.locator('.appeal-card');
+  const count = (page: Page) => card(page).locator('.appeal-count');
+  const result = (page: Page) => page.locator('p.appeal-result');
+  const stageTime = () => textOf(stage.locator('.appeal-card.is-stage .appeal-time'));
+  const sheetCount = (page: Page) => sheet(page).locator('p.appeal-count');
+  const sheetButton = (page: Page, name: 'Так' | 'Ні') => sheet(page).getByRole('button', { name, ...exact });
+  const voting = host.getByRole('button', { name: 'Голосує зал', ...exact });
+  const next = host.getByRole('button', { name: 'Далі', ...exact });
+  /** Головна кнопка пульта активна (11b тримає її кілька секунд) — і натиснута. */
+  const step = async (button: Locator) => {
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const playerRow = (name: string) => host.locator('.player-row', { has: host.locator('.name', { hasText: new RegExp(`^${name}$`) }) });
+  const rowScore = async (name: string) => (await playerRow(name).locator('.score').textContent())?.trim();
+  const standing = (name: string) => stage.locator('.standings li', { has: stage.locator('.name', { hasText: new RegExp(`^${name}`) }) }).locator('.score');
+  const answerText = async (page: Page, text: string) => {
+    await page.getByLabel('Ваша відповідь', exact).fill(text);
+    await click(page, 'Відповісти');
+  };
+  const yes = '(^|\\s)Так$';
+  const no = '(^|\\s)Ні$';
+  const ASK = 'Відповідь «Шевченко», правильна — «Тарас Шевченко». Зарахувати?';
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 1. p1: Оля «Шевченко», Петро правильно, Іра «Франко»; на розкритті кнопка в Олі й Іри, у Петра — ні.
+  await stage.getByText('Хто написав «Заповіт»?', exact).waitFor();
+  await answerText(olya, 'Шевченко');
+  await answerText(petro, 'Тарас Шевченко');
+  await answerText(ira, 'Франко');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await expect.poll(() => textOf(appealButton(olya)), POLL).toBe('⚖️ Оскаржити (лишилось 2)');
+  await expect.poll(() => textOf(appealButton(ira)), POLL).toBe('⚖️ Оскаржити (лишилось 2)');
+  await petro.locator('section.result').first().waitFor();
+  expect(await appealButton(petro).count(), 'Петро answered right and got the button').toBe(0);
+  expect(await olya.locator('.appeal-block').count()).toBe(0);
+  // Кнопка на всю ширину й не налазить на результат.
+  const fit = (await olya.evaluate(`(() => {
+    const b = document.querySelector('button.appeal-button').getBoundingClientRect();
+    const r = [...document.querySelectorAll('section.result')].map((el) => el.getBoundingClientRect()).filter((x) => x.height > 0).at(-1);
+    return { width: b.width, right: b.right, overlap: r ? r.bottom > b.top + 1 : false };
+  })()`)) as { width: number; right: number; overlap: boolean };
+  expect(fit.overlap, 'the appeal button sits on the result').toBe(false);
+  expect(fit.right, 'the appeal button is out of the screen').toBeLessThanOrEqual(375);
+  expect(fit.width, 'the appeal button is not full width').toBeGreaterThan(300);
+  await expectNoSideScroll(olya, 'p12f-phone-button');
+
+  // 2. Оля оскаржує: сцена, пульт, телефони.
+  await appealButton(olya).click();
+  await card(stage).waitFor();
+  expect(await stage.locator('main.app.stage.has-appeal').count()).toBe(1);
+  await expect.poll(() => textOf(stage.locator('.appeal-card.is-stage h2.appeal-title')), POLL).toBe('⚖️ Оля оскаржує');
+  expect(await textOf(stage.locator('.appeal-card.is-stage .appeal-ask'))).toBe(ASK);
+  await expect.poll(() => textOf(count(stage)), POLL).toBe('так 0 · ні 0 · ще думають 2');
+  expect(await stageTime()).toMatch(/^0:(30|2\d)$/);
+  for (const part of ['.appeal-bar', '.appeal-bar-yes', '.appeal-bar-no']) expect(await stage.locator(`.appeal-card.is-stage ${part}`).count(), part).toBe(1);
+  expect(await stage.evaluate(APPEAL_STAGE_OVERLAP), 'the stage card covers the reveal').toEqual([]);
+  await expectStageInView(stage, 'p12f-stage-vote');
+  await shot(stage, 'p12f-stage-vote');
+
+  await voting.waitFor();
+  expect(await voting.isDisabled(), '«Голосує зал» is enabled').toBe(true);
+  expect(await next.count(), '«Далі» during the vote').toBe(0);
+  await host.locator('.appeal-card.is-host').waitFor();
+  await expect.poll(() => textOf(count(host)), POLL).toBe('так 0 · ні 0 · ще думають 2');
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12f-host-vote: the host header wraps').toBe(true);
+  await expectNoSideScroll(host, 'p12f-host-vote');
+
+  await expect.poll(() => textOf(olya.locator('section.appeal-card.is-phone p.appeal-hall')), POLL).toBe('⚖️ Зал голосує…');
+  expect(await appealButton(olya).count(), 'the button stays during the vote').toBe(0);
+  expect(await sheet(olya).count(), 'Оля got the voter sheet').toBe(0);
+  await shot(olya, 'p12f-phone-waiting');
+
+  await sheet(petro).waitFor();
+  await petro.getByRole('heading', { name: '⚖️ Оля оскаржує', ...exact }).waitFor();
+  expect(await textOf(sheet(petro).locator('p.appeal-ask'))).toBe(ASK);
+  expect(await sheetButton(petro, 'Так').getAttribute('aria-pressed')).toBe('false');
+  expect(await sheetButton(petro, 'Ні').getAttribute('aria-pressed')).toBe('false');
+  expect(await sheet(petro).locator('p.appeal-mine').count()).toBe(0);
+  expect(await textOf(sheet(petro).locator('span.appeal-time'))).toMatch(/^0:(30|2\d)$/);
+  expect(await petro.evaluate(APPEAL_SHEET_CLEAR), 'p12f-phone-vote: the sheet covers the result').toEqual([]);
+  await expectNoSideScroll(petro, 'p12f-phone-vote');
+
+  // 3. Іра «Ні», потім «Так»; Петро «Так» — голосування закривається одразу.
+  await sheetButton(ira, 'Ні').click();
+  await expect.poll(() => textOf(count(stage)), POLL).toBe('так 0 · ні 1 · ще думає 1');
+  await expect.poll(() => sheetButton(ira, 'Ні').getAttribute('aria-pressed'), POLL).toBe('true');
+  await expect.poll(() => textOf(sheet(ira).locator('p.appeal-mine')), POLL).toBe('Твій голос: ні · можна змінити до кінця');
+  await expect.poll(() => sheetButton(ira, 'Так').getAttribute('aria-disabled'), POLL).toBe('false');
+  await sheetButton(ira, 'Так').click();
+  await expect.poll(() => textOf(count(stage)), POLL).toBe('так 1 · ні 0 · ще думає 1');
+  await expect.poll(() => sheetButton(ira, 'Так').getAttribute('aria-pressed'), POLL).toBe('true');
+  expect(await sheetButton(ira, 'Ні').getAttribute('aria-pressed')).toBe('false');
+  await expect.poll(() => textOf(sheet(ira).locator('p.appeal-mine')), POLL).toBe('Твій голос: так · можна змінити до кінця');
+  await expect.poll(() => textOf(sheetCount(petro)), POLL).toBe('так 1 · ні 0 · ще думає 1');
+  await expect.poll(() => textOf(count(host)), POLL).toBe('так 1 · ні 0 · ще думає 1');
+  await shot(ira, 'p12f-phone-voted');
+  await sheetButton(petro, 'Так').click();
+
+  // 4. «Так»: +200 Олі на сцені, пульті й телефоні; рядок Олі на пульті без кнопок оцінки.
+  await expect.poll(() => textOf(result(stage)), POLL).toBe('⚖️ Зараховано! +200');
+  expect(await stage.evaluate(APPEAL_STAGE_OVERLAP), 'the stage result card covers the reveal').toEqual([]);
+  await expectStageInView(stage, 'p12f-stage-yes');
+  await shot(stage, 'p12f-stage-yes');
+  await expect.poll(() => textOf(result(olya)), POLL).toBe('⚖️ Зараховано! +200');
+  await expect.poll(() => sheet(petro).count(), POLL).toBe(0);
+  await expect.poll(() => textOf(result(petro)), POLL).toBe('⚖️ Зараховано! +200');
+  await expect.poll(() => rowScore('Оля'), POLL).toBe('200');
+  await next.waitFor();
+  const passed = host.locator('.rows > li', { has: host.locator('.appeal-passed') });
+  await expect.poll(() => passed.count(), POLL).toBe(1);
+  expect(await textOf(passed.locator('.appeal-passed'))).toBe('Зал уже зарахував — щоб змінити оцінку, скасуйте бали в «↶ Бали», коли перейдете далі');
+  expect(await passed.textContent()).toContain('Оля');
+  expect(await passed.getByRole('button').count(), 'the passed row keeps grade buttons').toBe(0);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12f-host-yes: the host header wraps').toBe(true);
+  await expectNoSideScroll(host, 'p12f-host-yes');
+  await step(next);
+  await expect.poll(() => textOf(standing('Оля')), POLL).toBe('200');
+  expect(await textOf(standing('Петро'))).toBe('200');
+  expect(await textOf(standing('Іра'))).toBe('0');
+  expect(await card(stage).count(), 'the card outlives the reveal').toBe(0);
+
+  // 5. p2: друга апеляція, пауза зупиняє відлік, нічия нічого не змінює.
+  const nextQuestion = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+  await step(nextQuestion);
+  await afterSplash(...all);
+  await stage.getByText('Яка гора найвища в Україні?', exact).waitFor();
+  await pickOption(olya, 'Петрос');
+  await pickOption(petro, 'Говерла');
+  await pickOption(ira, 'Говерла');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await expect.poll(() => textOf(appealButton(olya)), POLL).toBe('⚖️ Оскаржити (лишилось 1)');
+  expect(await appealButton(petro).count()).toBe(0);
+  expect(await appealButton(ira).count()).toBe(0);
+  await appealButton(olya).click();
+  await expect.poll(() => textOf(count(stage)), POLL).toBe('так 0 · ні 0 · ще думають 2');
+  expect(await stage.evaluate(APPEAL_STAGE_OVERLAP), 'the stage card covers the options').toEqual([]);
+  await expectStageInView(stage, 'p12f-stage-vote-options');
+  await shot(stage, 'p12f-stage-vote-options');
+  await host.getByRole('button', { name: 'Пауза', ...exact }).first().click();
+  await stage.locator('.banner', { hasText: 'Пауза' }).waitFor();
+  await expect.poll(() => textOf(sheet(petro).locator('p.appeal-paused')), POLL).toBe('Пауза: голосувати можна після неї');
+  const held = await stageTime();
+  await sleep(1500);
+  expect(await stageTime(), 'the countdown runs on pause').toBe(held);
+  for (const name of ['Так', 'Ні'] as const) {
+    expect(await sheetButton(petro, name).getAttribute('aria-disabled'), `«${name}» is live on pause`).toBe('true');
+    // aria-disabled, а не disabled: фокус лишається на кнопці (Playwright вважає aria-disabled неактивною, тож — властивість DOM).
+    expect(await sheetButton(petro, name).evaluate((el) => (el as HTMLButtonElement).disabled), `«${name}» is disabled, not aria-disabled`).toBe(false);
+  }
+  await sheetButton(petro, 'Так').evaluate((el) => (el as HTMLButtonElement).click());
+  await sleep(300);
+  expect(await textOf(count(stage)), 'a vote got through on pause').toBe('так 0 · ні 0 · ще думають 2');
+  await expectNoSideScroll(petro, 'p12f-phone-paused');
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+  await stage.locator('.banner', { hasText: 'Пауза' }).waitFor({ state: 'detached' });
+  await expect.poll(() => sheet(petro).locator('p.appeal-paused').count(), POLL).toBe(0);
+  await expect.poll(() => sheetButton(petro, 'Так').getAttribute('aria-disabled'), POLL).toBe('false');
+  await sheetButton(petro, 'Так').click();
+  await expect.poll(() => textOf(count(stage)), POLL).toBe('так 1 · ні 0 · ще думає 1');
+  await sheetButton(ira, 'Ні').click();
+  await expect.poll(() => textOf(result(stage)), POLL).toBe('⚖️ Лишається як було · так 1 · ні 1');
+  await expect.poll(() => textOf(result(olya)), POLL).toBe('⚖️ Лишається як було · так 1 · ні 1');
+  await expectNoSideScroll(olya, 'p12f-phone-tie');
+  await shot(stage, 'p12f-stage-tie');
+  expect(await rowScore('Оля')).toBe('200');
+  expect(await host.locator('.appeal-passed').count(), 'a tie shows «Зал уже зарахував»').toBe(0);
+  await step(next);
+  await expect.poll(() => textOf(standing('Оля')), POLL).toBe('200');
+
+  // 6. p3: ліміт вичерпано — у Олі третьої кнопки немає, в Іри (правильно) теж.
+  await step(nextQuestion);
+  await afterSplash(...all);
+  await stage.getByText('Дунай впадає в Чорне море', exact).waitFor();
+  await pickOption(olya, no);
+  await pickOption(petro, yes);
+  await pickOption(ira, yes);
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await olya.locator('section.result').first().waitFor();
+  for (let i = 0; i < 4; i += 1) {
+    expect(await appealButton(olya).count(), 'Оля got a third appeal').toBe(0);
+    expect(await appealButton(ira).count(), 'Іра answered right and got the button').toBe(0);
+    await olya.waitForTimeout(250);
+  }
+  expect(await card(stage).count(), 'a card without an appeal').toBe(0);
+
+  // 7. Аркуш скасування: «Оля +200 (апеляція)» під запитанням 1, нічия рядка не додала.
+  const undoSheet = host.locator('.undo-sheet');
+  await host.locator('header.bar').getByRole('button', { name: '↶ Бали', ...exact }).click();
+  await undoSheet.getByRole('heading', { name: 'Скасування балів', ...exact }).waitFor();
+  const undoQuestion = (title: string) => undoSheet.locator('.undo-question', { has: host.locator('.undo-question-title', { hasText: title }) });
+  await expect.poll(() => undoRows(undoQuestion('Хто написав «Заповіт»?')), POLL).toContain('Оля +200 (апеляція)');
+  expect((await undoRows(undoQuestion('Яка гора найвища в Україні?'))).some((row) => row.includes('апеляц')), 'a tie added a row').toBe(false);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12f-host-sheet: the host header wraps').toBe(true);
+  await expectNoSideScroll(host, 'p12f-host-sheet');
+  await host.keyboard.press('Escape');
+  await undoSheet.waitFor({ state: 'detached' });
+  await step(next);
+  await afterSplash(...all);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  // «Твоя гра» Олі: виграно 1 · програно 1; в Іри рядка немає.
+  const gameLines = async (page: Page) => (await page.locator('section.game-card li').allTextContents()).map(squash);
+  await olya.locator('section.game-card').waitFor();
+  expect(await gameLines(olya)).toContain('⚖️ Апеляції: виграно 1 · програно 1');
+  await ira.locator('section.game-card').waitFor();
+  expect((await gameLines(ira)).some((line) => line.includes('⚖️')), 'Іра got an appeal line').toBe(false);
+  await expectNoSideScroll(olya, 'p12f-phone-game');
+
+  // 8. Таємність у кадрах: лише лічильники; свій голос — лише свій.
+  const hostViews = stateViews(hostFrames) as unknown as { players?: { id: string; nickname: string }[] }[];
+  const idOf = (name: string) => hostViews.flatMap((view) => view.players ?? []).find((player) => player.nickname === name)?.id;
+  const petroId = idOf('Петро');
+  const iraId = idOf('Іра');
+  expect(petroId, 'no id of Петро').toBeTruthy();
+  expect(iraId, 'no id of Іра').toBeTruthy();
+  const frameSets = { stage: stageFrames, host: hostFrames, olya: olyaFrames, petro: petroFrames, ira: iraFrames };
+  for (const [name, frames] of Object.entries(frameSets)) {
+    expect(frames.length, `${name} got no frames`).toBeGreaterThan(0);
+    expect(frames.join(NL), `${name} got the votes`).not.toContain('"votes"');
+    const appeals = (stateViews(frames) as unknown as { appeal?: unknown }[]).filter((view) => view.appeal != null);
+    expect(appeals.length, `${name} never got the appeal`).toBeGreaterThan(0);
+    for (const view of appeals) {
+      const text = JSON.stringify(view.appeal);
+      // Імена — як рядки JSON: варіант «Петрос» містить «Петро».
+      for (const secret of [petroId!, iraId!, '"Петро"', '"Іра"']) expect(text, `${name}: the appeal names a voter`).not.toContain(secret);
+    }
+  }
+  const ownVotes = (frames: string[]) =>
+    stateViews(frames).map((view) => (view.me as unknown as { appeal?: { vote: boolean | null } | null } | null)?.appeal?.vote ?? null);
+  // Петро голосував лише «так»: «ні» Іри до нього не дійшло.
+  expect(ownVotes(petroFrames).includes(true), 'Петро never saw the own yes').toBe(true);
+  expect(ownVotes(petroFrames).includes(false), 'Петро got the no of Іра').toBe(false);
+  expect(ownVotes(iraFrames).includes(false), 'Іра never saw the own no').toBe(true);
+  expect(ownVotes(olyaFrames).every((vote) => vote === null), 'Оля got a vote').toBe(true);
+
+  // 9. Історія: ⚖️ біля відповідей Олі на запитання 1 і 2.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Апеляція 12f/ }).click();
+  const responses = host.locator('details.responses');
+  await responses.first().waitFor();
+  const appealOf = async (index: number) => {
+    const details = responses.nth(index);
+    await details.locator('summary').click();
+    const row = details.locator('li', { has: host.locator('.responses-name', { hasText: /^Оля$/ }) });
+    return textOf(row.locator('.history-appeal'));
+  };
+  expect(await appealOf(0)).toBe('⚖️ зараховано 2:0');
+  expect(await appealOf(1)).toBe('⚖️ лишилось як було 1:1');
+  expect(await host.locator('.history-appeal').count(), 'more ⚖️ than appeals').toBe(2);
+  await expectNoSideScroll(host, 'p12f-history');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12f: the player appeal — Оля appeals «Шевченко» from a 375 phone, Петро and Іра vote on a bottom sheet (Іра changes «Ні» to «Так») while the 1280 × 720 stage and the 375 host show only «так · ні · ще думають» and «Голосує зал», two yes add 200 and the table and stage update, a pause stops the countdown, the second appeal ends in a tie and changes nothing, there is no third button, the host sheet lists «Оля +200 (апеляція)», the history shows ⚖️, and no frame names a voter', async () => {
+  try {
+    await appeal12f();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
