@@ -1,6 +1,6 @@
 import { answererModeOf, isUnscored, type AnswererMode, type AnswererScope, type Phase } from '@quiz/shared';
 // game.ts (openQuestion) імпортуватиме цей файл, а цей файл — його; звертання лише під час виклику функцій.
-import { comingQuestion, fail, ok, questionsLeft, type AnswererNow, type AnswererPick, type AnswererTurn, type GameState, type Play, type Result } from './game';
+import { comingQuestion, currentRound, fail, ok, questionsLeft, type AnswererNow, type AnswererPick, type AnswererTurn, type GameState, type Play, type Result } from './game';
 import { trialOpen } from './survival';
 import { actorOf } from './team-act';
 import { captainOf, memberOf, teamMembers, teamsOn, withTeams } from './teams';
@@ -81,15 +81,29 @@ export function freeForAllNext(state: GameState): boolean {
   return coming !== null && (coming.blitz || isUnscored(coming.question));
 }
 
-/** Хто відповідатиме на наступному запитанні (для зрізів між запитаннями); перед бліцом, опитуванням і «хмарою» — капітан. */
+/**
+ * Хто відповідатиме на наступному запитанні (для зрізів між запитаннями); перед бліцом, опитуванням і «хмарою» — капітан.
+ * У rotate перед запитанням «Мільйонера» черга рухається лише в учасника: зал (і всі, поки учасника немає) — капітан.
+ */
 export function nextAnswerer(state: GameState, teamId: string): string | null {
   const captain = captainOf(state, teamId);
   const mode = answererMode(state);
   if (mode === 'captain' || freeForAllNext(state)) return captain;
   const pick = upcomingPick(state, teamId);
   if (pick !== null) return present(state, teamId, pick.memberId) ?? captain;
-  return mode === 'rotate' ? queueNext(state, teamId) : captain;
+  if (mode !== 'rotate') return captain;
+  const hall = comingQuestion(state)?.ladder === true && state.ladder?.contestantId !== teamId;
+  return hall ? captain : queueNext(state, teamId);
 }
+
+/** Попереду ще є запитання: comingQuestion чи незіграні клітинки поточного поля. Після останнього запитання гри — ні. */
+function questionAhead(state: GameState): boolean {
+  if (comingQuestion(state) !== null) return true;
+  return currentRound(state)?.type === 'board' && state.phase !== 'round_end' && questionsLeft(state);
+}
+
+/** Вибирати нічого: наступне — бліц, опитування чи «хмара», або запитань попереду вже немає. */
+const nothingToPick = (state: GameState): boolean => freeForAllNext(state) || !questionAhead(state);
 
 /** Етап запитання: question / locked / reveal. */
 export const onQuestion = (state: GameState): boolean => state.phase === 'question' || state.phase === 'locked' || state.phase === 'reveal';
@@ -102,17 +116,17 @@ export function shownAnswerer(state: GameState, teamId: string): string | null {
   return answeringNow(state) ? answererOf(state, teamId) : nextAnswerer(state, teamId);
 }
 
-/** Капітан може зараз вибрати відповідача: командна гра не в режимі captain, етап між запитаннями, наступне — не бліц і не опитування. */
+/** Капітан може зараз вибрати відповідача: командна гра не в режимі captain, етап між запитаннями, попереду є запитання й воно не бліц і не опитування. */
 export function canPickNow(state: GameState): boolean {
-  return teamsOn(state) && answererMode(state) !== 'captain' && ANSWERER_PICK_PHASES.includes(state.phase) && !freeForAllNext(state);
+  return teamsOn(state) && answererMode(state) !== 'captain' && ANSWERER_PICK_PHASES.includes(state.phase) && !nothingToPick(state);
 }
 
 /** Капітан вибирає відповідача (null — прибрати вибір). Коди — план 12g, «Вибір». */
 export function pickAnswerer(state: GameState, personId: string, memberId: string | null, scope: AnswererScope): Result {
   if (!teamsOn(state) || answererMode(state) === 'captain') return fail('wrong_phase');
   if (!ANSWERER_PICK_PHASES.includes(state.phase)) return fail('wrong_phase');
-  // Перед бліцом, опитуванням і «хмарою» вибирати нічого (прибрати вибір — можна).
-  if (memberId !== null && freeForAllNext(state)) return fail('wrong_phase');
+  // Перед бліцом, опитуванням, «хмарою» й після останнього запитання гри вибирати нічого (прибрати вибір — можна).
+  if (memberId !== null && nothingToPick(state)) return fail('wrong_phase');
   const who = actorOf(state, personId, 'captain');
   if (!who.ok) return fail(who.error);
   if (memberId !== null && memberOf(state, memberId)?.teamId !== who.id) return fail('not_found');

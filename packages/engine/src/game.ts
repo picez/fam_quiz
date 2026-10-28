@@ -1057,15 +1057,19 @@ export function questionsLeft(state: GameState): boolean {
 
 /**
  * Наступне запитання, яке відкриється (12g, щоб капітан не вибирав відповідача на бліц, опитування чи «хмару»):
- * у раунді, де ще є запитання, — nextQuestion; на round_end чи коли раунд вичерпано — перше запитання наступного раунду.
- * blitz — запитання піде з чергою натискань (бліц-раунд, крім сортування). Поле (клітинку ще не вибрано) і кінець гри — null.
+ * у раунді, де ще є запитання (і на заставці раунду), — nextQuestion чи перше; на round_end чи коли раунд вичерпано — перше запитання наступного раунду.
+ * blitz — запитання піде з чергою натискань (бліц-раунд, крім сортування); ladder — запитання «Мільйонера».
+ * Поле (клітинку ще не вибрано) і кінець гри — null.
  */
-export function comingQuestion(state: GameState): { question: Question; blitz: boolean } | null {
-  const inRound = state.phase !== 'round_end' && questionsLeft(state);
+export function comingQuestion(state: GameState): { question: Question; blitz: boolean; ladder: boolean } | null {
+  // Заставка раунду: раунд ще попереду, навіть коли nextQuestion мовчить (учасника «Мільйонера» ще не вибрано).
+  const fresh = state.phase === 'intro' || state.phase === 'guide';
+  const inRound = state.phase !== 'round_end' && (fresh || questionsLeft(state));
   const round = inRound ? currentRound(state) : (state.quiz.rounds[state.roundIndex + 1] ?? null);
   if (round === null || round.type === 'board') return null;
-  const question = inRound ? nextQuestion(state) : round.questions.find((q) => playable(state, q));
-  return question === undefined ? null : { question, blitz: round.type === 'blitz' && question.type !== 'sort' };
+  const first = () => round.questions.find((q) => playable(state, q));
+  const question = inRound ? (nextQuestion(state) ?? (fresh ? first() : undefined)) : first();
+  return question === undefined ? null : { question, blitz: round.type === 'blitz' && question.type !== 'sort', ladder: round.type === 'ladder' };
 }
 
 /**

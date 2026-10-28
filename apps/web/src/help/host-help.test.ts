@@ -351,7 +351,7 @@ describe('host help', () => {
     expect(answerer).not.toMatch(/росі|срср/i);
     expect(answerer).not.toMatch(/відповів |відповіла|вибрав |вибрала/);
     expect(searchHelp('відповідає')).toContain('team.answerer');
-    expect(helpEntry('team.answerer').limits?.join(' ')).toMatch(/Ставки, рішення .* і дебафи лишаються за капітаном/);
+    expect(helpEntry('team.answerer').limits?.join(' ')).toMatch(/Ставки, рішення .*, купівля й насилання дебафів лишаються за капітаном/);
     expect(helpEntry('team.answerer').limits?.join(' ')).toContain('Перед ними смужки вибору немає');
     expect(text('team.play')).toContain('Хто відповідає');
     expect(text('team.captain')).toContain('«по черзі»');

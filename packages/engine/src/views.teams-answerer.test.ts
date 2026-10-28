@@ -201,12 +201,27 @@ describe('team answerer views: who is not answering shows null on the question',
     for (const view of [stageView(s), hostView(s)]) for (const id of ['t1', 't2']) expect(teamView(view, id)?.answererId).toBeNull();
   });
 
-  it('the board: only the team that picked the cell', () => {
+  it('the board: only the team that picked the cell; the other team phones show their captain, not their pick', () => {
     const rounds = [boardRound('g1', [{ title: 'Міста', cells: [withId(single, 'c11'), withId(single, 'c12')] }])];
     let s = until(game(rounds, 'chosen'), (st) => st.phase === 'board');
+    s = must(pickAnswerer(s, 'm4', 'm5', 'round'));
     s = must(pickCell(s, 't1', 'c11', T0, rng));
     expect(teamView(stageView(s), 't1')?.answererId).toBe('m1');
     expect(teamView(stageView(s), 't2')?.answererId).toBeNull();
+    expect(team(s, 'm5')).toMatchObject({ answererId: 'm4', answerer: false });
+    expect(team(s, 'm4')).toMatchObject({ answererId: 'm4', answerer: true });
+  });
+
+  it('no picker after the last question of the game', () => {
+    let s = must(lock(must(next(game([classicRound('r1', [single]), classicRound('r2', [withId(single, 'q4')])], 'chosen'), T0, rng))));
+    // Перший раунд: попереду ще раунд — вибір є.
+    expect(team(s, 'm1')?.canPickAnswerer).toBe(true);
+    s = toQuestion(s);
+    s = must(lock(s));
+    while (s.phase !== 'finished') {
+      expect(team(s, 'm1')?.canPickAnswerer, s.phase).toBe(false);
+      s = must(next(s, T0, rng));
+    }
   });
 
   it('«Ва-банк»: a team that took its bank is out of the line', () => {

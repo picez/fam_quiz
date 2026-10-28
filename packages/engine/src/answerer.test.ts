@@ -6,7 +6,7 @@ import { chooserOf } from './board-turns';
 import { lock, next, pause, start, type GameState } from './game';
 import { pickContestant } from './ladder';
 import { trialOpen } from './survival';
-import { actAnswer } from './team-act';
+import { actAnswer, actorOf } from './team-act';
 import { dropMember, memberConnected } from './teams';
 import { decideWipeout, decisionOpen } from './wipeout';
 import {
@@ -284,8 +284,27 @@ describe('answerer: rotate', () => {
     s = until(s, 'reveal');
     expect(queueNext(s, 't1')).toBe('m3');
     s = must(dropMember(s, 'm2'));
-    expect(s.teams?.turns?.t1).toEqual({ questionIndex: 1, memberId: 'm1' });
+    // Відкрите запитання (розкриття) повертається до капітана, а не до Олі як «попередньої» в черзі.
+    expect(s.teams?.turns?.t1).toEqual({ questionIndex: 0, memberId: 'm1' });
+    expect(answererOf(s, 't1')).toBe('m1');
     expect(queueNext(s, 't1')).toBe('m3');
+    expect(answererOf(toNextQuestion(s), 't1')).toBe('m3');
+  });
+
+  it('the rotate answerer is removed mid-question: the captain answers the open question, not the one before them', () => {
+    let s = toNextQuestion(toNextQuestion(rotate));
+    expect(answererOf(s, 't1')).toBe('m2');
+    s = must(dropMember(s, 'm2'));
+    expect(s.phase).toBe('question');
+    expect(answererOf(s, 't1')).toBe('m1');
+    expect(actorOf(s, 'm1', 'answer')).toEqual({ ok: true, id: 't1' });
+    expect(answererOf(toNextQuestion(s), 't1')).toBe('m3');
+  });
+
+  it('removed between questions (leaderboard): the turn keeps its question, the next opening goes on', () => {
+    let s = until(toNextQuestion(toNextQuestion(rotate)), 'leaderboard');
+    s = must(dropMember(s, 'm2'));
+    expect(s.teams?.turns?.t1).toEqual({ questionIndex: 1, memberId: 'm1' });
     expect(answererOf(toNextQuestion(s), 't1')).toBe('m3');
   });
 
@@ -293,7 +312,8 @@ describe('answerer: rotate', () => {
     let s = toNextQuestion(rotate);
     expect(s.teams?.turns?.t1.memberId).toBe('m1');
     s = must(dropMember(until(s, 'reveal'), 'm1'));
-    expect(s.teams?.turns?.t1).toEqual({ questionIndex: 0, memberId: 'm3' });
+    expect(s.teams?.turns?.t1).toEqual({ questionIndex: -1, memberId: 'm3' });
+    expect(answererOf(s, 't1')).toBe('m2');
     expect(queueNext(s, 't1')).toBe('m2');
   });
 
@@ -397,6 +417,41 @@ describe('answerer: a pick for one question waits for a question the team answer
     expect(s.teams?.answerers?.t1).toMatchObject({ roundIndex: 1 });
     expect(answererOf(s, 't1')).toBe('m2');
     expect(answererOf(toNextQuestion(s), 't1')).toBe('m2');
+  });
+});
+
+describe('answerer: the ladder hall and the end of the game', () => {
+  it('rotate before a ladder question: the contestant shows the next in turn, the hall team its captain', () => {
+    let s = until(game(teamQuiz([classicRound('r1', [single]), ladderRound('rl')], 2, 'rotate')), 'round_end');
+    expect(nextAnswerer(s, 't1')).toBe('m1');
+    expect(nextAnswerer(s, 't2')).toBe('m4');
+    s = step(s);
+    expect(s.phase).toBe('intro');
+    // На заставці «Мільйонера» без учасника раунд ще попереду: вибір дозволено, у rotate усі поки що — капітан.
+    expect(pickAnswerer(s, 'm1', 'm2', 'round').ok).toBe(true);
+    expect(nextAnswerer(s, 't1')).toBe('m1');
+    s = must(pickContestant(s, 't1'));
+    expect(nextAnswerer(s, 't1')).toBe('m2');
+    expect(nextAnswerer(s, 't2')).toBe('m4');
+    expect(queueNext(s, 't2')).toBe('m5');
+  });
+
+  it('no pick after the last question of the game: every phase from the last lock to the podium refuses', () => {
+    let s = must(lock(toNextQuestion(game(teamQuiz([classicRound('r1', [single])], 2, 'chosen')))));
+    const seen: string[] = [];
+    while (s.phase !== 'finished') {
+      seen.push(s.phase);
+      expect(pickAnswerer(s, 'm1', 'm2', 'round'), s.phase).toEqual({ ok: false, error: 'wrong_phase' });
+      expect(pickAnswerer(s, 'm1', null, 'round').ok, s.phase).toBe(true);
+      s = must(next(s, T0, rng));
+    }
+    expect(seen).toEqual(expect.arrayContaining(['locked', 'reveal']));
+  });
+
+  it('a board with cells left still allows a pick', () => {
+    const board = boardRound('g1', [{ title: 'Міста', cells: [withId(single, 'c11'), withId(single, 'c12')] }]);
+    const s = until(game(teamQuiz([board], 2, 'chosen')), 'board');
+    expect(pickAnswerer(s, 'm1', 'm2', 'question').ok).toBe(true);
   });
 });
 

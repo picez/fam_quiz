@@ -21,7 +21,7 @@ import {
 } from './game';
 import { settleAudience } from './ladder';
 import { normalizeText } from './normalize';
-import { settleTrial } from './survival';
+import { settleTrial, trialOpen } from './survival';
 import { settleDecision } from './wipeout';
 
 type TeamGame = GameState & { teams: TeamsState };
@@ -95,6 +95,8 @@ function withoutPicksOf<T extends { memberId: string }>(picks: Record<string, T>
 /**
  * Черга без людини memberId: хто відповідав останнім і пішов — запис переходить на попереднього в порядку команди,
  * тож наступним буде той, хто стояв після того, хто пішов. Інші записи без змін.
+ * Пішов той, хто відповідає на відкритому запитанні (чи випробуванні), — запис позначено попереднім запитанням:
+ * відкрите запитання повертається до капітана, а не до попереднього в команді; наступне відкриття рухає чергу як завжди.
  */
 function turnsWithout(state: TeamGame, memberId: string): Record<string, AnswererTurn> | undefined {
   const turns = state.teams.turns;
@@ -105,7 +107,9 @@ function turnsWithout(state: TeamGame, memberId: string): Record<string, Answere
   const index = members.findIndex((m) => m.id === memberId);
   const before = members[(index - 1 + members.length) % members.length];
   if (members.length < 2 || before === undefined) return turns;
-  return { ...turns, [team]: { ...turn, memberId: before.id } };
+  const open = state.phase === 'question' || state.phase === 'locked' || state.phase === 'reveal' || trialOpen(state);
+  const questionIndex = open && turn.questionIndex === state.questionIndex ? turn.questionIndex - 1 : turn.questionIndex;
+  return { ...turns, [team]: { questionIndex, memberId: before.id } };
 }
 
 /** Без ключа key; undefined лишається undefined (старі стани без ключа). */

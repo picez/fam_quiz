@@ -2082,7 +2082,9 @@ function playerTeam(state: GameState, member: TeamMember): PlayerTeam {
   const duel = state.duel;
   const duelling = teamId !== null && duel !== null && (duel.challengerId === teamId || duel.opponentId === teamId);
   const play = inQuestion(state) ? state.plays[state.questionIndex] : undefined;
-  const answererId = teamId === null || lobby ? captainId : shownAnswerer(state, teamId);
+  // На запитанні команда, що на ньому не відповідає (поле — не її клітинка, «Ва-банк» — уже не в грі, бліц), — капітан, як і в teamsView.
+  const sitsOut = teamId !== null && play !== undefined && onQuestion(state) && !answeringTeams(state, play).includes(teamId);
+  const answererId = teamId === null || lobby || sitsOut ? captainId : shownAnswerer(state, teamId);
   const mode = answererMode(state);
   // Лише вибір своєї команди: чужий не видно.
   const pick = teamId === null ? null : upcomingPick(state, teamId);
