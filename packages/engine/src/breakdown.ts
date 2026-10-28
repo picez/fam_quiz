@@ -1,4 +1,4 @@
-import { adjustmentSource, answerSource, type ScoreLine } from '@quiz/shared';
+import { adjustmentSource, answerSource, roundTotals, type ScoreLine, type Standing } from '@quiz/shared';
 import { recordOf, type GameState } from './game';
 
 /** Рядок балів рушія (11f): запис чи спроба запитання (questionIndex — індекс у plays) або коригування (questionIndex null). */
@@ -72,6 +72,11 @@ function cached(state: GameState): { lines: PlayerScoreLine[]; byPlayer: Map<str
 export function roundCount(state: GameState): number {
   if (state.phase === 'lobby' || state.phase === 'guide' || state.roundIndex < 0) return 0;
   return Math.min(state.quiz.rounds.length, state.roundIndex + 1);
+}
+
+/** Колонки раундів (11f) до рядків таблиці з рядків балів, згрупованих за гравцем. */
+export function withRounds(rows: Standing[], byPlayer: ReadonlyMap<string, readonly PlayerScoreLine[]>, count: number): Standing[] {
+  return rows.map((row) => ({ ...row, rounds: roundTotals(byPlayer.get(row.participantId) ?? [], count) }));
 }
 
 /**

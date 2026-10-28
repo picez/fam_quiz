@@ -14,6 +14,7 @@ export * from './hold';
 export * from './blitz';
 export * from './views';
 export * from './breakdown';
+export * from './facts';
 export * from './live';
 export * from './board';
 export * from './board-turns';
