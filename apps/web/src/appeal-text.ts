@@ -1,6 +1,6 @@
 import type { AppealReason, AppealView } from '@quiz/shared';
 import { answerText, correctText, signed } from './format';
-import { t } from './i18n';
+import { countText, t } from './i18n';
 
 /** «⚖️ Оля оскаржує»; командна гра — «⚖️ Команда «Червоні» оскаржує». */
 export function appealTitle(view: AppealView, teams: boolean): string {
@@ -13,12 +13,13 @@ export function appealAsk(view: AppealView): string {
   return t('appealAsk', { answer: answerText(view.answer, view.question), correct: correctText(view.question) });
 }
 
-/** «так 3 · ні 1 · ще думають 2»; без тих, хто думає, — «так 3 · ні 1». */
+/** «так 3 · ні 1 · ще думають 2» (один — «ще думає 1»); без тих, хто думає, — «так 3 · ні 1». */
 export function appealCountText(view: Pick<AppealView, 'yes' | 'no' | 'waiting'>): string {
-  return view.waiting > 0 ? t('appealCountWaiting', { yes: view.yes, no: view.no, waiting: view.waiting }) : t('appealCount', { yes: view.yes, no: view.no });
+  if (view.waiting === 0) return t('appealCount', { yes: view.yes, no: view.no });
+  return countText('appealCountWaiting', view.waiting, { yes: view.yes, no: view.no, count: view.waiting });
 }
 
-/** «⚖️ Зараховано! +200» (без балів — «⚖️ Зараховано!»), «⚖️ Штраф знято», «⚖️ Лишається як було · так 1 · ні 1», «⚖️ Ведучий зарахував»; відкрита чи cancelled — null. */
+/** «⚖️ Зараховано! +200» (без балів — «⚖️ Зараховано!»), «⚖️ Штраф знято», «⚖️ Лишається як було · так 1 · ні 1», «⚖️ Зараховано ведучим»; відкрита чи cancelled — null. */
 export function appealResultText(view: AppealView): string | null {
   switch (view.outcome) {
     case 'yes':

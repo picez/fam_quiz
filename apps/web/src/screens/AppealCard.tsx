@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { AppealView } from '@quiz/shared';
 import { appealAsk, appealCountText, appealResultText, appealTitle } from '../appeal-text';
 import { t } from '../i18n';
@@ -16,17 +17,20 @@ export function AppealTime({ view, offsetMs }: { view: Pick<AppealView, 'endsAt'
 /**
  * Картка апеляції (12f): заголовок, питання залу, смужка «так / ні» (stage), лічильник і відлік «0:21»;
  * після рішення — рядок .appeal-result. size: stage — на сцені, host — на пульті, phone — на телефоні того, хто не голосує.
- * Лише лічильники: хто як голосував, картка не знає.
+ * Лише лічильники: хто як голосував, картка не знає. Вголос читаються лише лічильник і результат, а не вся картка щоразу.
  */
 export function AppealCard({ view, size, teams, offsetMs }: { view: AppealView; size: 'stage' | 'host' | 'phone'; teams: boolean; offsetMs: number }) {
+  const titleId = useId();
   const open = view.outcome === null;
   const result = appealResultText(view);
   const cast = view.yes + view.no;
   const yesPct = cast === 0 ? 0 : (view.yes / cast) * 100;
   const noPct = cast === 0 ? 0 : 100 - yesPct;
   return (
-    <section className={`appeal-card is-${size}`} role="status" aria-live="polite">
-      <h2 className="appeal-title">{appealTitle(view, teams)}</h2>
+    <section className={`appeal-card is-${size}`} aria-labelledby={titleId}>
+      <h2 className="appeal-title" id={titleId}>
+        {appealTitle(view, teams)}
+      </h2>
       {size !== 'phone' ? <p className="appeal-ask">{appealAsk(view)}</p> : open && <p className="appeal-hall">{t('appealHall')}</p>}
       {size === 'stage' && (
         <div className="appeal-bar" aria-hidden="true">
@@ -36,11 +40,17 @@ export function AppealCard({ view, size, teams, offsetMs }: { view: AppealView; 
       )}
       {open && (
         <div className="appeal-meta">
-          <p className="appeal-count">{appealCountText(view)}</p>
+          <p className="appeal-count" aria-live="polite">
+            {appealCountText(view)}
+          </p>
           <AppealTime view={view} offsetMs={offsetMs} />
         </div>
       )}
-      {result !== null && <p className="appeal-result">{result}</p>}
+      {result !== null && (
+        <p className="appeal-result" aria-live="polite">
+          {result}
+        </p>
+      )}
     </section>
   );
 }

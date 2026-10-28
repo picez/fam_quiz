@@ -3524,7 +3524,7 @@ describe('PlayerScreen appeal (12f)', () => {
     show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ voter: true })));
     expect(document.querySelector('section.appeal-sheet')).not.toBeNull();
     expect(document.querySelector('.appeal-card')).toBeNull();
-    expect(screen.getByText('⚖️ Тарас оскаржує')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '⚖️ Тарас оскаржує' })).toBeTruthy();
   });
 
   it('shows the appellant the card «⚖️ Зал голосує…»', () => {
@@ -3543,7 +3543,12 @@ describe('PlayerScreen appeal (12f)', () => {
 
   it('disables the sheet buttons while paused', () => {
     show(revealOf({ paused: true, appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' }, endsAt: null, remainingMs: 20_000 } }, mine({ voter: true })));
-    expect((screen.getByRole('button', { name: 'Так' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Так' }).getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('hides the appeal button on a paused reveal, where the reasons are empty', () => {
+    show(revealOf({ paused: true }, mine({ reasons: [] })));
+    expect(document.querySelector('.appeal-button')).toBeNull();
   });
 
   it('shows nothing of the appeal in a team game without one', () => {
@@ -3555,8 +3560,18 @@ describe('PlayerScreen appeal (12f)', () => {
 describe('PlayerScreen appeal edge cases (12f)', () => {
   it('shows no card for a cancelled appeal', () => {
     const cancelled = {
-      id: 1, by: { playerId: 'p2', nickname: 'Тарас' }, reason: 'grade' as const, answer: null, question: fullQuestion, points: 0,
-      endsAt: null, remainingMs: null, yes: 0, no: 0, waiting: 0, outcome: 'cancelled' as const,
+      id: 1,
+      by: { playerId: 'p2', nickname: 'Тарас' },
+      reason: 'grade' as const,
+      answer: null,
+      question: fullQuestion,
+      points: 0,
+      endsAt: null,
+      remainingMs: null,
+      yes: 0,
+      no: 0,
+      waiting: 0,
+      outcome: 'cancelled' as const,
     };
     show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, appeal: cancelled }));
     expect(document.querySelector('.appeal-card, .appeal-sheet')).toBeNull();

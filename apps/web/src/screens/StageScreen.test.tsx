@@ -2335,7 +2335,7 @@ describe('StageScreen: appeal (12f)', () => {
     const card = document.querySelector('.appeal-card.is-stage') as HTMLElement;
     expect(within(card).getByRole('heading', { name: '⚖️ Оля оскаржує' })).toBeTruthy();
     expect(within(card).getByText('Відповідь «Одеська», правильна — «Одеса». Зарахувати?')).toBeTruthy();
-    expect(within(card).getByText('так 1 · ні 0 · ще думають 1')).toBeTruthy();
+    expect(within(card).getByText('так 1 · ні 0 · ще думає 1')).toBeTruthy();
     expect(card.querySelector('.appeal-bar')).not.toBeNull();
     // Розкриття лишається на місці: картка — окремий шар, а не частина .stage-board.
     expect(screen.getByText('Правильна відповідь: Одеса')).toBeTruthy();

@@ -3000,7 +3000,7 @@ describe('appeal (12f)', () => {
     expect(send).not.toHaveBeenCalledWith('host:next', undefined);
     const card = document.querySelector('.appeal-card.is-host') as HTMLElement;
     expect(within(card).getByRole('heading', { name: '⚖️ Олена оскаржує' })).toBeTruthy();
-    expect(within(card).getByText('так 1 · ні 0 · ще думають 1')).toBeTruthy();
+    expect(within(card).getByText('так 1 · ні 0 · ще думає 1')).toBeTruthy();
     expect(within(card).getByText('Відповідь «Адеса», правильна — «Одеса». Зарахувати?')).toBeTruthy();
     // Ведучий може зарахувати сам: оцінка під час голосування лишається.
     expect(within(screen.getByText('Адеса').closest('li') as HTMLElement).getByRole('button', { name: 'Зарахувати' })).toBeTruthy();
