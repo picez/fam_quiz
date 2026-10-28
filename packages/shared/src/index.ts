@@ -19,3 +19,4 @@ export * from './breakdown';
 export * from './autopilot';
 export * from './undo';
 export * from './drafts';
+export * from './facts';
