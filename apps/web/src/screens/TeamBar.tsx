@@ -21,7 +21,7 @@ export function buzzerOf(view: PlayerView): string | null {
   return member !== undefined && member.connected ? id : null;
 }
 
-/** Смуга під шапкою: колір і назва команди, хто капітан; у бліці — хто відповідає; у дуелі — дуелянт. Один рядок. */
+/** Смуга під шапкою: колір і назва команди, хто капітан; хто відповідає, якщо не капітан (12g); у бліці — натиснувший; у дуелі — дуелянт. Один рядок. */
 export function TeamBar({ view }: { view: PlayerView }) {
   const team = view.team;
   const own = teamOf(view);
@@ -31,9 +31,13 @@ export function TeamBar({ view }: { view: PlayerView }) {
       ? t('teamDuelist', { name: memberName(view, team.duelistId) })
       : buzzerOf(view) !== null
         ? t('teamBuzzer', { name: memberName(view, buzzerOf(view)) })
-        : team.captain
-          ? t('teamYouCaptain')
-          : t('teamCaptain', { name: memberName(view, team.captainId) });
+        : team.answererId !== null && team.answererId !== team.captainId
+          ? team.answerer
+            ? t('teamYouAnswerBar')
+            : t('teamAnswererBar', { name: memberName(view, team.answererId) })
+          : team.captain
+            ? t('teamYouCaptain')
+            : t('teamCaptain', { name: memberName(view, team.captainId) });
   return (
     <div className={`team-bar team-${own.color}`}>
       <span className="team-dot" aria-hidden="true" />

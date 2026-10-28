@@ -51,6 +51,32 @@ describe('TeamWatch', () => {
     expect(screen.getByText('Львів')).toBeTruthy();
   });
 
+  it('when a teammate answers, the lead names them and the draft is marked neutrally (12g)', () => {
+    const view = teamPlayerView({ phase: 'question', questionIndex: 0, question: publicQuestion }, { canAct: false, answererId: 'u3', answerer: false, answererMode: 'chosen', draft: { type: 'single', optionId: 'b' } });
+    render(<TeamWatch view={view} />);
+    expect(screen.getByText('Відповідає Петро — радьте вголос')).toBeTruthy();
+    expect(document.querySelector('.choice.is-draft .draft-mark')?.textContent).toBe('чернетка');
+    expect(screen.queryByText(/капітан/)).toBeNull();
+  });
+
+  it('in a bluff the one who answers decides (12g)', () => {
+    const bluff = { stage: 'choice', written: 1, picked: 0, options: [{ id: 'o1', text: 'Варіант' }], shown: 0, total: 1, lastOpenedId: null } as never;
+    const view = teamPlayerView(
+      { phase: 'question', questionIndex: 0, question: { ...publicQuestion, type: 'bluff', choices: [] }, bluff },
+      { canAct: false, answererId: 'u3', answerer: false, answererMode: 'rotate' },
+    );
+    render(<TeamWatch view={view} />);
+    expect(screen.getByText('Петро вирішує за команду…')).toBeTruthy();
+    expect(screen.queryByText('Капітан вирішує за команду…')).toBeNull();
+  });
+
+  it('when the captain answers in chosen mode the texts stay as they were', () => {
+    const view = teamPlayerView({ phase: 'question', questionIndex: 0, question: publicQuestion }, { captain: false, canAct: false, memberId: 'u3', answererMode: 'chosen', draft: { type: 'single', optionId: 'b' } });
+    render(<TeamWatch view={view} />);
+    expect(screen.getByText('Відповідає капітан Оля — радьте вголос')).toBeTruthy();
+    expect(document.querySelector('.choice.is-draft .draft-mark')?.textContent).toBe('вибір капітана');
+  });
+
   it('in a blitz the buzzer is the one who answers', () => {
     const view = teamPlayerView({ phase: 'question', questionIndex: 0, question: publicQuestion }, { captain: false, canAct: false, buzzerId: 'u3' });
     render(<TeamWatch view={view} />);

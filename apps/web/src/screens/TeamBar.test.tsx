@@ -29,6 +29,17 @@ describe('TeamBar', () => {
     expect(screen.getByText('Дуелянт: Ната')).toBeTruthy();
   });
 
+  it('names who answers when it is not the captain (12g)', () => {
+    render(<TeamBar view={teamPlayerView({}, { captain: false, memberId: 'u3', answererId: 'u3', answerer: true, answererMode: 'chosen' })} />);
+    expect(screen.getByText('Ти відповідаєш')).toBeTruthy();
+    cleanup();
+    render(<TeamBar view={teamPlayerView({}, { answererId: 'u3', answerer: false, answererMode: 'chosen' })} />);
+    expect(screen.getByText('Відповідає Петро')).toBeTruthy();
+    cleanup();
+    render(<TeamBar view={teamPlayerView({}, { answererId: 'u2', answererMode: 'chosen' })} />);
+    expect(screen.getByText('Ти капітан')).toBeTruthy();
+  });
+
   it('renders nothing in a solo game or without a team', () => {
     const solo = render(<TeamBar view={teamPlayerView({ teams: null, team: null })} />);
     expect(solo.container.innerHTML).toBe('');

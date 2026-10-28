@@ -124,14 +124,22 @@ function DraftBoolean({ draft, mark }: { draft: Answer | null; mark: string }) {
   );
 }
 
-/** Режим перегляду некапітана: чернетка капітана наживо або відповідь команди, коли її подано. */
+/** Режим перегляду для того, хто не відповідає: чернетка того, хто відповідає (капітана чи вибраного, 12g), наживо або відповідь команди, коли її подано. */
 export function TeamWatch({ view, tilts = {}, offsetMs = 0 }: { view: PlayerView; tilts?: Record<string, SortTilt>; offsetMs?: number }) {
   const { question, me, team } = view;
   if (question === null || team === null) return <></>;
   // У бліці з кнопкою відповідає той, хто натиснув.
   const buzzer = buzzerOf(view);
-  const lead = buzzer !== null ? t('teamWatchBuzzer', { name: memberName(view, buzzer) }) : t('teamWatchLead', { name: memberName(view, team.captainId) });
-  const mark = t(buzzer !== null ? 'teamDraftNeutral' : 'teamDraftMark');
+  // 12g: за команду відповідає не капітан — товариші радять тому, хто відповідає.
+  const other = team.answererId !== null && team.answererId !== team.captainId;
+  const answererName = memberName(view, team.answererId);
+  const lead =
+    buzzer !== null
+      ? t('teamWatchBuzzer', { name: memberName(view, buzzer) })
+      : other
+        ? t('teamWatchAnswerer', { name: answererName })
+        : t('teamWatchLead', { name: memberName(view, team.captainId) });
+  const mark = t(buzzer !== null || other ? 'teamDraftNeutral' : 'teamDraftMark');
   if (me.answer !== null) {
     return (
       <section className="sent team-watch">
@@ -163,7 +171,7 @@ export function TeamWatch({ view, tilts = {}, offsetMs = 0 }: { view: PlayerView
       {question.type === 'wall' && question.wall !== null && <WallGrid wall={question.wall} found={me.wall?.found ?? []} />}
       {question.type === 'chain' && question.chain !== null && me.chain !== null && <ChainWords first={question.chain.first} masks={me.chain.masks} />}
       {question.type === 'bluff' && view.bluff !== null && view.bluff.stage === 'choice' && <BluffBoard info={view.bluff} autopilot={view.autopilot} />}
-      {question.type === 'bluff' && <p className="meta">{t('teamCaptainDecides')}</p>}
+      {question.type === 'bluff' && <p className="meta">{other ? t('teamAnswererDecides', { name: answererName }) : t('teamCaptainDecides')}</p>}
       {question.type === 'boolean' ? (
         <DraftBoolean draft={draft} mark={mark} />
       ) : (question.type === 'single' || question.type === 'multi') && question.choices.length > 0 ? (

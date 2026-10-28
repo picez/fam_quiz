@@ -2425,7 +2425,7 @@ describe('HostScreen: bluff (10f)', () => {
   describe('teams', () => {
     const teamLobby = (over: Partial<HostView> = {}) => view({ players: [], playerCount: 0, teams: teamsView(), ...over });
     const unassigned = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `x${i}`, nickname: `Гість${i}`, connected: true }));
-    const alone = teamsView({ teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null } : { ...team, members: team.members.slice(0, 1) })) });
+    const alone = teamsView({ teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null, answererId: null } : { ...team, members: team.members.slice(0, 1) })) });
 
     it('the team lobby shows the host team form and no plain player list', () => {
       show(teamLobby());
@@ -2443,7 +2443,7 @@ describe('HostScreen: bluff (10f)', () => {
     });
 
     it('«Почати гру» is off when everyone sits in one team and nobody is left to deal', () => {
-      const one = teamsView({ teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null } : team)) });
+      const one = teamsView({ teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null, answererId: null } : team)) });
       show(teamLobby({ teams: one }));
       expect(button(t('start')).disabled).toBe(true);
       expect(screen.getByText(t('teamStartFew'))).toBeTruthy();
@@ -2451,7 +2451,7 @@ describe('HostScreen: bluff (10f)', () => {
 
     it('«Почати гру» is on when the unassigned fill the empty team', () => {
       const one = teamsView({
-        teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null } : team)),
+        teams: teamsView().teams.map((team, i) => (i === 0 ? { ...team, members: [], captainId: null, answererId: null } : team)),
         unassigned: unassigned(1),
       });
       show(teamLobby({ teams: one }));

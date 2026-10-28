@@ -3119,6 +3119,74 @@ describe('PlayerScreen: teams', () => {
   });
 });
 
+describe('PlayerScreen: who answers for the team (12g)', () => {
+  const asQuestion = (team: Parameters<typeof teamPlayerView>[1] = {}, over: Partial<PlayerView> = {}) =>
+    teamPlayerView({ phase: 'question', questionIndex: 0, question: publicQuestion, endsAt: Date.now() + 20_000, ...over }, team);
+  // Петро відповідає за команду, Оля — капітан.
+  const petro = { captain: false, memberId: 'u3', nickname: 'Петро', answererId: 'u3', answerer: true, answererMode: 'chosen' as const, canAct: true };
+  const olya = { answererId: 'u3', answerer: false, answererMode: 'chosen' as const, canAct: false };
+  const buffs = { slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }], active: null } as unknown as PlayerView['me']['buffs'];
+  const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'team-a', nickname: 'Червоні', busy: false, offline: false }], block: null };
+
+  it('the answerer reads «Ти відповідаєш за команду» above the question and has the answer field', () => {
+    show(asQuestion(petro));
+    const banner = document.querySelector('.team-answerer-banner');
+    expect(banner?.textContent).toBe('Ти відповідаєш за команду');
+    const h1 = document.querySelector('h1')!;
+    expect(banner!.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+    expect(document.querySelector('.team-you-answer')).toBeNull();
+  });
+
+  it('in captain mode there is no banner and the line under the field stays', () => {
+    show(asQuestion());
+    expect(document.querySelector('.team-answerer-banner')).toBeNull();
+    expect(document.querySelector('.team-you-answer')).not.toBeNull();
+  });
+
+  it('the answerer takes the buffs; the captain keeps the shop', () => {
+    show(asQuestion(petro, { me: { ...baseMe, buffs, shop } }));
+    expect(document.querySelector('.buff-row')).not.toBeNull();
+    expect(document.querySelector('.shop-button')).toBeNull();
+    cleanup();
+    show(asQuestion(olya, { me: { ...baseMe, buffs, shop } }));
+    expect(document.querySelector('.buff-row')).toBeNull();
+    expect(document.querySelector('.shop-button')).not.toBeNull();
+    expect(screen.getByText('Відповідає Петро — радьте вголос')).toBeTruthy();
+  });
+
+  it('a team debuff acts on the answerer phone; the captain gets the strip', () => {
+    const me = { ...baseMe, debuff: { kind: 'mirror' as const, since: Date.now(), by: null } };
+    show(asQuestion(petro, { me }));
+    expect(document.querySelector('[data-debuff="mirror"]')).not.toBeNull();
+    expect(document.querySelector('.team-debuff-strip')).toBeNull();
+    cleanup();
+    show(asQuestion(olya, { me }));
+    expect(document.querySelector('[data-debuff]')).toBeNull();
+    expect(screen.getByText(/^Дебаф у того, хто відповідає: /)).toBeTruthy();
+  });
+
+  it('on a survival trial the captain who does not answer sees who decides and the neutral draft', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'survival', partial: false, description: '', brief: emptyBrief('survival'), times: null };
+    const trial = { kind: 'question' as const, fellBack: false, stage: 'open' as const, endsAt: Date.now() + 10_000, remainingMs: null, limitMs: 10_000, done: 0, total: 1, question: publicQuestion, reveal: null };
+    const survival = {
+      current: 0, total: 3, target: 1, bonus: 500, trialKind: 'question', trialsLeft: 0,
+      rows: [{ playerId: 'team-b', nickname: 'Сині', status: 'edge', outAfter: null, ghost: null, answer: null, trial: 'pending', door: null }],
+      aliveCount: 1, ghostCount: 0, ghosts: { answered: 0, right: null }, verdict: 'trial', trial, ending: false,
+    } as unknown as PlayerView['survival'];
+    const own = { ...baseMe, survival: { status: 'edge' as const, outAfter: null, ghostCorrect: null, canAnswerTrial: true, trialAnswer: null, canPickDoor: false, door: null, result: null, bonus: null } };
+    show(teamPlayerView({ phase: 'leaderboard', round, survival, me: own, standings: null }, { ...olya, draft: { type: 'single', optionId: 'b' } }));
+    expect(screen.getByText('Петро вирішує за команду…')).toBeTruthy();
+    expect(document.querySelector('.team-draft .draft-mark')?.textContent).toBe('чернетка');
+  });
+
+  it('the captain gets the answerer strip between questions', () => {
+    show(teamPlayerView({ phase: 'intro', round: { index: 0, total: 1, title: '', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null } }, { answererMode: 'chosen', canPickAnswerer: true }));
+    expect(document.querySelector('.answerer-picker')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Петро' })).toBeTruthy();
+  });
+});
+
 describe('PlayerScreen: live choices for the host (12b)', () => {
   const multi = { ...publicQuestion, type: 'multi' as const };
   const draftCalls = (send: Send) => (send as ReturnType<typeof vi.fn>).mock.calls.filter(([event]) => event === 'player:draft');

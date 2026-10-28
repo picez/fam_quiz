@@ -37,7 +37,8 @@ import { BluffLieInput } from './BluffLieInput';
 import { DebuffStrip, DebuffZone, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { DuelistPicker } from './DuelistPicker';
-import { TeamBar, buzzerOf, memberName } from './TeamBar';
+import { AnswererPicker } from './AnswererPicker';
+import { TeamBar, buzzerOf, memberName, teamOf } from './TeamBar';
 import { TeamLobby } from './TeamLobby';
 import { AuthorLobby } from './AuthorLobby';
 import { TeamWatch, useDraftSender, type DraftInput } from './TeamWatch';
@@ -594,11 +595,15 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   const decideGuard = useGuardedSend(send, setError);
   const resumeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
-  // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере бафи, дебафи й крамницю.
+  // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере крамницю й дуель.
   const team = view.team;
   const acting = team === null || team.canAct;
   const captain = team === null || team.captain;
-  const debuff = captain ? me.debuff : null;
+  // 12g: бафи, підказки «Мільйонера» й ефект дебафу — на телефоні того, хто відповідає (дебаф належить полю відповіді).
+  const answersForTeam = team === null || team.answerer;
+  // Хто вирішує за команду, коли це не я: вибраний (12g) чи капітан.
+  const decidesText = team !== null && team.answererId !== null && team.answererId !== team.captainId ? t('teamAnswererDecides', { name: memberName(view, team.answererId) }) : t('teamCaptainDecides');
+  const debuff = answersForTeam ? me.debuff : null;
   // «Ва-банк»: гравець, що вже не в грі, дивиться — поля відповіді в нього немає.
   const wipeoutWatching = me.wipeout !== null && me.wipeout.status !== 'in';
   // «Вибування»: привид відповідає «для себе».
@@ -774,6 +779,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
 
       <TeamBar view={view} />
       <DuelistPicker view={view} send={send} onError={setError} />
+      <AnswererPicker view={view} send={send} onError={setError} />
 
       {phase === 'lobby' && view.author === null && <p className="lead">{t('inLobby')}</p>}
       {phase === 'lobby' && view.author !== null && (
@@ -867,7 +873,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               💡 {tip}
             </p>
           )}
-          {team !== null && !captain && me.debuff !== null && <DebuffStrip debuff={me.debuff} />}
+          {team !== null && !answersForTeam && me.debuff !== null && <DebuffStrip debuff={me.debuff} answerer={team.answererId !== team.captainId} />}
+          {/* 12g: над запитанням, коли я відповідаю за команду не як капітан за замовчуванням; бліц, опитування й хмара — як були. */}
+          {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
           <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)}>{question.text}</h1>
             <AwayNote away={view.away} />
@@ -888,12 +896,12 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
             )}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
-            {me.buffs !== null && captain && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} autopilot={view.autopilot} send={send} onError={setError} />}
+            {me.buffs !== null && answersForTeam && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} autopilot={view.autopilot} send={send} onError={setError} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
             {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
-            {me.ladder?.role === 'contestant' && captain && (
+            {me.ladder?.role === 'contestant' && answersForTeam && (
               <LadderLifelines view={view} offsetMs={offsetMs} onUse={(kind) => void decideGuard.run('player:lifeline', { kind })} />
             )}
             {me.ladder?.role === 'hall' && <LadderHall view={view} />}
@@ -1006,7 +1014,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                 <fieldset className="inputs" disabled={locked || me.ladder?.hallClosed === true}>
                   <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} onDraft={onDraft} confirm={teamDraftOn} />
                 </fieldset>
-                {teamDraftOn && <p className="meta team-you-answer">{t('teamYouAnswer')}</p>}
+                {teamDraftOn && team?.answererMode === 'captain' && <p className="meta team-you-answer">{t('teamYouAnswer')}</p>}
               </>
             )}
           </DebuffZone>
@@ -1168,10 +1176,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         <>
           {view.survival.trial !== null && !acting && (me.survival?.canAnswerTrial === true || me.survival?.canPickDoor === true) ? (
             <>
-              <p className="lead survival-state team-decides">{t('teamCaptainDecides')}</p>
+              <p className="lead survival-state team-decides">{decidesText}</p>
               {team?.draft != null && view.survival.trial.question !== null && (
                 <p className="team-draft is-draft">
-                  <span className="draft-mark">{t(buzzerOf(view) !== null ? 'teamDraftNeutral' : 'teamDraftMark')}</span>
+                  <span className="draft-mark">{t(buzzerOf(view) !== null || team.answererId !== team.captainId ? 'teamDraftNeutral' : 'teamDraftMark')}</span>
                   {pickedText(team.draft, shownChoices(view.survival.trial.question), view.survival.trial.question.slider)}
                 </p>
               )}

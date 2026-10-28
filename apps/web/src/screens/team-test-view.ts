@@ -40,26 +40,32 @@ export const teamsView = (over: Partial<TeamsView> = {}): TeamsView => ({
   ...over,
 });
 
-export const playerTeam = (over: Partial<PlayerTeam> = {}): PlayerTeam => ({
-  memberId: 'u2',
-  nickname: 'Оля',
-  teamId: 'team-b',
-  captainId: 'u2',
-  captain: true,
-  answererId: 'u2',
-  answerer: true,
-  answererMode: 'captain',
-  canPickAnswerer: false,
-  answererPick: null,
-  canAct: true,
-  buzzerId: null,
-  duelistId: null,
-  canPickDuelist: false,
-  canPick: false,
-  canRoll: false,
-  draft: null,
-  ...over,
-});
+/** Без answererId відповідає капітан (answererId = captainId, answerer = captain); з answererId без answerer — «я», якщо це мій id. */
+export const playerTeam = (over: Partial<PlayerTeam> = {}): PlayerTeam => {
+  const base: PlayerTeam = {
+    memberId: 'u2',
+    nickname: 'Оля',
+    teamId: 'team-b',
+    captainId: 'u2',
+    captain: true,
+    answererId: 'u2',
+    answerer: true,
+    answererMode: 'captain',
+    canPickAnswerer: false,
+    answererPick: null,
+    canAct: true,
+    buzzerId: null,
+    duelistId: null,
+    canPickDuelist: false,
+    canPick: false,
+    canRoll: false,
+    draft: null,
+    ...over,
+  };
+  const answererId = over.answererId !== undefined ? over.answererId : base.captainId;
+  const answerer = over.answerer ?? (over.answererId !== undefined ? answererId === base.memberId : base.captain);
+  return { ...base, answererId, answerer };
+};
 
 /** Зріз команди «Сині»; team перекриває поля учасника, over — решту зрізу. */
 export const teamPlayerView = (over: Partial<PlayerView> = {}, team: Partial<PlayerTeam> = {}): PlayerView => ({

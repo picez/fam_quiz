@@ -10291,6 +10291,48 @@ button.wall-tile:disabled {
   background: var(--duel-accent-soft);
 }
 
+/* Смужка капітана (12g): кнопки людей переносяться, жодна не ширша за телефон 375 px мінус поля. */
+.answerer-picker {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.answerer-picker .lead {
+  margin: 0;
+}
+
+.answerer-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.answerer-option {
+  min-width: 0;
+  max-width: calc(375px - 2rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.answerer-option[aria-pressed='true'] {
+  border-color: var(--team, var(--amber));
+  background: var(--panel);
+}
+
+.answerer-hint {
+  margin: 0;
+}
+
+/* «Ти відповідаєш за команду»: смуга кольору команди над запитанням. */
+.team-answerer-banner {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 0.5rem solid var(--team, var(--amber));
+  border-radius: 0.75rem;
+  background: var(--panel);
+}
+
 .team-debuff-strip {
   margin: 0;
   padding: 0.5rem 0.75rem;
