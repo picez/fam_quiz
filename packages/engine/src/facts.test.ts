@@ -147,4 +147,11 @@ describe('fact rows from the state (12d)', () => {
     team = away(away(away(team, 'm1', 2500), 'm2', 4000), 'm3', 100);
     expect(factInput(must(lock(team))).away).toEqual([{ playerId: 't1', questionIndex: 0 }]);
   });
+
+  it('away marks on unscored questions (poll, cloud) are not facts, as in the history (12e)', () => {
+    let s = startRound(lobbyWith(makeQuiz([poll, single], PLAIN), 'Оля', 'Петро'), 0, rng);
+    s = { ...s, plays: s.plays.map((p, i) => (i === 0 ? { ...p, away: { p1: { ms: 5000, count: 1, since: null } } } : p)) };
+    s = must(lock(s));
+    expect(factInput(s).away).toEqual([]);
+  });
 });

@@ -241,15 +241,36 @@ export function stageAway(state: GameState): string[] {
 }
 
 /**
- * Свій вихід людини на поточному запитанні; null — запису немає чи етап не question / locked / reveal.
+ * Свій вихід людини на запитанні plays[q]; null — запису немає.
  * penalty — штраф діє на цьому запитанні й поріг пройдено людиною чи її командою (закритий час), а запис учасника, якщо є, не від'ємний.
+ * penalty буває й при 0 балах (неправильна відповідь): «0 балів за це запитання» тоді теж правда — так і має бути.
  */
-export function ownAway(state: GameState, personId: string): OwnAway | null {
-  const q = state.questionIndex;
+function ownAwayAt(state: GameState, personId: string, q: number): OwnAway | null {
   const entry = state.plays[q]?.away?.[personId];
-  if (entry === undefined || !OPEN_PHASES.includes(state.phase)) return null;
+  if (entry === undefined) return null;
   const participant = awayParticipant(state, personId);
   const points = participant === null ? undefined : recordOf(state, q, participant)?.points;
   const penalty = participant !== null && (points === undefined || points >= 0) && awayPenalized(state, q).includes(participant);
   return { play: q, ms: entry.ms, count: entry.count, out: entry.since !== null, penalty };
+}
+
+/**
+ * Свій вихід людини на поточному запитанні; null — запису немає чи етап не question / locked / reveal.
+ * Етап duel (дуель, що вклинилася) теж дає null: позначки повертаються разом із грою на запитання.
+ */
+export function ownAway(state: GameState, personId: string): OwnAway | null {
+  return OPEN_PHASES.includes(state.phase) ? ownAwayAt(state, personId, state.questionIndex) : null;
+}
+
+/**
+ * Останній вихід людини з позначкою (ms ≥ AWAY_MS.mark): від поточного запитання назад; на будь-якому етапі, крім лобі (і в кінці гри).
+ * Тож телефон, що повернувся лише на таблиці чи на наступному запитанні, однаково бачить закритий вихід (тривога, штраф). null — такого немає.
+ */
+export function lastAway(state: GameState, personId: string): OwnAway | null {
+  if (state.phase === 'lobby') return null;
+  for (let q = Math.min(state.questionIndex, state.plays.length - 1); q >= 0; q--) {
+    const entry = state.plays[q]?.away?.[personId];
+    if (entry !== undefined && entry.ms >= AWAY_MS.mark) return ownAwayAt(state, personId, q);
+  }
+  return null;
 }

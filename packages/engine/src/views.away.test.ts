@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer, type QuizSettings } from '@quiz/shared';
-import { awayEnd, awayStart } from './away';
+import { awayEnd, awayStart, awayStep } from './away';
 import { lock, next, submitAnswer, type GameState } from './game';
 import { hostLive } from './live';
 import { actAnswer } from './team-act';
@@ -11,7 +11,10 @@ import { hostView, playerView, stageView } from './views';
 
 const rng = () => 0;
 const right: Answer = { type: 'single', optionId: 'b' };
+const wrong: Answer = { type: 'single', optionId: 'a' };
+const none = new Set<string>();
 const PLAIN = { speedBonus: false, rules: DEFAULT_RULES };
+const MINUS = { speedBonus: false, rules: { ...DEFAULT_RULES, penalty: 'minus' as const } };
 const q100 = withPoints(single, 100);
 
 /** Класика q100, q2 (Оля p1, Петро p2, Іра p3), перше запитання о 1000. */
@@ -77,6 +80,8 @@ describe('away marks in the views (12e)', () => {
     expect(playerView(s, 'p1')?.away).toEqual({ play: 0, ms: 2500, count: 2, out: false, penalty: false });
     expect(playerView(s, 'p2')?.away).toBeNull();
     expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('"personId"');
+    expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('2500');
+    expect(playerView(s, 'p2')?.lastAway).toBeNull();
     expect(playerView(awayStart(s, 'p1', 5500), 'p1')?.away).toMatchObject({ count: 2, out: true });
     expect(playerView(toReveal(s), 'p1')?.away).toMatchObject({ play: 0, ms: 2500 });
     // На таблиці — нічого
@@ -124,5 +129,98 @@ describe('away marks in the views (12e)', () => {
     expect(hostView(s).responses.find((r) => r.playerId === 'm2')?.away).toEqual([
       { personId: 'm2', nickname: 'Петро', ms: 2500, count: 1, out: false },
     ]);
+  });
+});
+
+/** Крок, як RoomManager.commit: перехід і awayStep (hidden — приховані телефони). */
+const step = (s: GameState, to: GameState, at: number, hidden: ReadonlySet<string> = none) => awayStep(s, to, at, hidden);
+/** Петро й Іра відповідають, ведучий закриває й розкриває; кроки з awayStep. */
+function othersToReveal(s: GameState, at: number, answer: Answer = right): GameState {
+  let r = s;
+  for (const id of ['p2', 'p3']) r = step(r, must(submitAnswer(r, id, answer, at)), at);
+  if (r.phase === 'question') r = step(r, must(lock(r)), at);
+  r = step(r, must(next(r, at + 1000, rng)), at + 1000);
+  expect(r.phase).toBe('reveal');
+  return r;
+}
+
+describe('the last leave stays on the own phone after the question (12e)', () => {
+  it('left in Q1 and came back on the leaderboard: lastAway keeps Q1, away is gone', () => {
+    let s = awayStart(open(), 'p1', 2000);
+    s = othersToReveal(s, 5000);
+    s = step(s, must(next(s, 7000, rng)), 7000);
+    expect(s.phase).toBe('leaderboard');
+    // інтервал закрито на кроці закриття запитання (Оля вже не під наглядом)
+    expect(playerView(s, 'p1')?.away).toBeNull();
+    expect(playerView(s, 'p1')?.lastAway).toEqual({ play: 0, ms: 3000, count: 1, out: false, penalty: false });
+  });
+
+  it('a hidden phone opened in Q2 and came back during Q2: lastAway points at Q2', () => {
+    let s = leave(open(), 'p1', 2000, 4500);
+    s = must(submitAnswer(s, 'p1', right, 5000));
+    s = othersToReveal(s, 5000);
+    s = step(s, must(next(s, 7000, rng)), 7000);
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 0, ms: 2500 });
+    s = step(s, must(next(s, 8000, rng)), 8000, new Set(['p1']));
+    expect(s.phase).toBe('question');
+    expect(s.questionIndex).toBe(1);
+    expect(s.plays[1].away?.p1?.since).not.toBeNull();
+    // ще поза грою: на Q2 ще немає позначки, тож lastAway — Q1
+    expect(playerView(s, 'p1')?.lastAway?.play).toBe(0);
+    s = awayEnd(s, 'p1', 11_000);
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 1, ms: 11_000 - (s.startedAt ?? 0), count: 1, out: false });
+    expect(playerView(s, 'p1')?.away).toMatchObject({ play: 1 });
+  });
+
+  it('the game finished after the last question: lastAway is still there', () => {
+    let s = startRound(lobbyWith(makeRoundsQuiz([classicRound('r1', [q100], PLAIN)]), 'Оля', 'Петро', 'Іра'), 1000, rng);
+    s = awayStart(s, 'p1', 2000);
+    s = othersToReveal(s, 4000);
+    let t = 6000;
+    while (s.phase !== 'finished') {
+      s = step(s, must(next(s, t, rng)), t);
+      t += 1000;
+    }
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 0, ms: 2000, out: false });
+    expect(playerView(s, 'p2')?.lastAway).toBeNull();
+  });
+
+  it('with awayPenalty the last leave shows the penalty once its row exists', () => {
+    let s = leave(open({ awayPenalty: true, leaderboard: 'each' }), 'p1', 2000, 5500);
+    s = must(submitAnswer(s, 'p1', right, 6000));
+    s = othersToReveal(s, 6000);
+    expect(playerView(s, 'p1')?.away?.penalty).toBe(true);
+    s = step(s, must(next(s, 8000, rng)), 8000);
+    expect(s.adjustments.filter((a) => a.source === 'away')).toEqual([expect.objectContaining({ playerId: 'p1', points: -100 })]);
+    expect(playerView(s, 'p1')?.away).toBeNull();
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 0, ms: 3500, penalty: true });
+  });
+
+  it('teams: a teammate has no lastAway of the one who left', () => {
+    let s = must(next(teamGame(teamQuiz([classicRound('r1', [q100], PLAIN)]), [['Оля', 'Петро'], ['Віра']]), 1000, rng));
+    s = leave(s, 'm2', 2000, 5000);
+    expect(playerView(s, 'm2')?.lastAway).toMatchObject({ play: 0, ms: 3000 });
+    expect(playerView(s, 'm1')?.lastAway).toBeNull();
+  });
+
+  it("teams: a teammate's long leave makes the penalty known on m1's phone, with m1's own seconds", () => {
+    const base = teamQuiz([classicRound('r1', [q100], PLAIN)]);
+    const quiz = { ...base, settings: { ...base.settings, awayPenalty: true } };
+    let s = must(next(teamGame(quiz, [['Оля', 'Петро'], ['Віра']]), 1000, rng));
+    s = leave(leave(s, 'm1', 2000, 4500), 'm2', 2000, 6000);
+    expect(playerView(s, 'm1')?.away).toEqual({ play: 0, ms: 2500, count: 1, out: false, penalty: true });
+  });
+
+  it('a negative record gives no penalty; a positive one on the reveal does', () => {
+    const minus = () => startRound(lobbyWith(makeRoundsQuiz([classicRound('r1', [q100], MINUS)], { awayPenalty: true }), 'Оля', 'Петро', 'Іра'), 1000, rng);
+    let neg = leave(minus(), 'p1', 2000, 5500);
+    neg = must(submitAnswer(neg, 'p1', wrong, 6000));
+    neg = othersToReveal(neg, 6000);
+    expect(neg.plays[0].away?.p1?.ms).toBe(3500);
+    expect(playerView(neg, 'p1')?.away?.penalty).toBe(false);
+    let pos = leave(minus(), 'p1', 2000, 5500);
+    pos = must(submitAnswer(pos, 'p1', right, 6000));
+    pos = othersToReveal(pos, 6000);
+    expect(playerView(pos, 'p1')?.away?.penalty).toBe(true);
   });
 });

@@ -139,7 +139,7 @@ import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turn
 import { cluesByHost, cluesBySelf, cluesOpen, cluesOpenBy, cluesSeenBy, nextClueAt } from './clues';
 import { pendingOf } from './hold';
 import { hostLive, responseClue, spareOf } from './live';
-import { awayPeople, ownAway, stageAway } from './away';
+import { awayPeople, lastAway, ownAway, stageAway } from './away';
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
 import { gameFacts, ownFacts, roundQuestionShares } from './facts';
@@ -1982,7 +1982,7 @@ function blitzAnswer(state: GameState, playerId: string): Answer | null | undefi
 export function playerView(state: GameState, playerId: string): PlayerView | null {
   if (!teamsOn(state)) {
     const view = ownView(state, playerId);
-    return view === null ? null : { ...view, away: ownAway(state, playerId), team: null, author: authorView(state, playerId) };
+    return view === null ? null : { ...view, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
   }
   const member = memberOf(state, playerId);
   if (member === undefined) return null;
@@ -1996,6 +1996,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
     ...view,
     me: { ...view.me, answer: vote, vote: votePrompt(state, member.id) },
     away: ownAway(state, member.id),
+    lastAway: lastAway(state, member.id),
     team,
     author: authorView(state, member.id),
   };
@@ -2039,6 +2040,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
     myBreakdown: null,
     own: null,
     away: null,
+    lastAway: null,
     team,
     author: authorView(state, member.id),
   };
@@ -2181,6 +2183,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
     myBreakdown: state.phase === 'lobby' ? null : breakdownFor(ownSeen(state), playerId),
     own: state.phase === 'lobby' ? null : ownFacts(state, playerId, sharedFacts(state)),
     away: null,
+    lastAway: null,
   };
 }
 

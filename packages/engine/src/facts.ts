@@ -92,10 +92,14 @@ export function factInput(state: GameState): FactInput {
   return input;
 }
 
-/** Позначки «відволікався» (12e) закритих запитань: учасник рушія людини з ms ≥ AWAY_MS.mark, без повторів. */
+/**
+ * Позначки «відволікався» (12e) закритих запитань: учасник рушія людини з ms ≥ AWAY_MS.mark, без повторів.
+ * Опитування й хмара (без балів) не рахуються: історія їхніх рядків голосів не бере, а цікавинки мають збігатися з історією.
+ */
 function awayFacts(state: GameState, closedCount: number): FactInput['away'] {
   const away: FactInput['away'] = [];
   for (let index = 0; index < closedCount; index++) {
+    if (isUnscored(state.plays[index].question)) continue;
     const seen = new Set<string>();
     for (const [personId, entry] of Object.entries(state.plays[index].away ?? {})) {
       if (entry.ms < AWAY_MS.mark) continue;
