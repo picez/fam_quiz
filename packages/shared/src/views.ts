@@ -1246,7 +1246,7 @@ export interface PlayerResult {
 export interface PlayerTable {
   rows: Standing[];
   full: boolean;
-  /** Перший зіграний раунд (12r): колонки таблиці від нього; у звичайній грі 0. */
+  /** Перший раунд колонок таблиці (12r): раунд рядків 'carry'; без них 0. */
   firstRound: number;
 }
 
@@ -1469,7 +1469,7 @@ export interface HostView extends BaseView {
   /** Запити підказки без відповіді на поточному запитанні (етап question), у порядку гравців. */
   hints: HintRequest[];
   standings: Standing[];
-  /** Перший зіграний раунд (12r): колонки таблиці від нього; у звичайній грі 0. */
+  /** Перший раунд колонок таблиці (12r): раунд рядків 'carry'; без них 0. */
   firstRound: number;
   /** Розбивки «+ / −» усіх учасників рушія за id (11f); лише пульт; {} у лобі. */
   breakdowns: Record<string, ScoreBreakdown>;

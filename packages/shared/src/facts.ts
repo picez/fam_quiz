@@ -404,9 +404,13 @@ function placeAfter(input: FactInput, playerId: string, count: number): number {
   return 1 + input.players.filter((p) => sum(p) > mine).length;
 }
 
-/** Перший зіграний раунд (12r): найменший roundIndex серед зіграних запитань; гру продовжено — раунди до нього пропущено. */
+/**
+ * Перший зіграний раунд (12r): лише в грі з перенесеними балами — найменший roundIndex зіграних запитань (раунди до нього пропущено);
+ * звичайна гра — 0, як до 12r, навіть якщо раунд 0 без запитань.
+ */
 function firstRound(input: FactInput): number {
-  return input.questions.length === 0 ? 0 : Math.min(...input.questions.map((q) => q.roundIndex));
+  if (!carried(input) || input.questions.length === 0) return 0;
+  return Math.min(...input.questions.map((q) => q.roundIndex));
 }
 
 /** Хтось має перенесені бали (12r). */

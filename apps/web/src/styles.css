@@ -6789,13 +6789,13 @@ label.powers-price {
   font-weight: 800;
 }
 
-/* Аркуш «Таблиця» на вузькому телефоні: менше полів довкола — більше місця таблиці. */
+/* Аркуш «Таблиця» на вузькому телефоні: менше полів довкола — більше місця таблиці (лише аркуш з таблицею балів). */
 @media (max-width: 400px) {
-  .table-sheet {
+  .table-sheet:has(.score-table-wrap) {
     padding: 0.5rem;
   }
 
-  .table-card {
+  .table-card:has(.score-table-wrap) {
     width: 100%;
     padding: 0.75rem;
   }

@@ -448,12 +448,12 @@ describe('carried points (12r)', () => {
       { id: 'o', nickname: 'Оля', rank: 2, score: 1200, rounds: [0, 0, 100, 100], carry: 1000 },
     ]);
     expect(find(gameAwards(carried), 'comeback')).toEqual({ kind: 'comeback', names: ['Петро'], from: 2, to: 1 });
-    // Той самий порядок після раунду 2 без перенесеного — те саме місце «з».
+    // Без перенесених балів гра звичайна: «з» — після раунду 0, де всі по 0, тож камбеку немає (як до 12r).
     const plain = duo([
       { id: 'p', nickname: 'Петро', rank: 1, score: 2500, rounds: [0, 0, 500, 2000] },
       { id: 'o', nickname: 'Оля', rank: 2, score: 700, rounds: [0, 0, 600, 100] },
     ]);
-    expect(find(gameAwards(plain), 'comeback')).toEqual({ kind: 'comeback', names: ['Петро'], from: 2, to: 1 });
+    expect(find(gameAwards(plain), 'comeback')).toBeNull();
   });
 
   it('carried points alone make no comeback', () => {
@@ -462,14 +462,36 @@ describe('carried points (12r)', () => {
       { id: 'p', nickname: 'Петро', rank: 2, score: 1000, rounds: [0, 0, 500, 500], carry: 0 },
     ]);
     expect(find(gameAwards(ahead), 'comeback')).toBeNull();
-    // Ті самі раунди без перенесеного: після раунду 2 Оля друга, наприкінці перша — камбек.
+    // Ті самі два раунди у звичайній грі (раунди 0 і 1): після першого Оля друга, наприкінці перша — камбек.
+    const plainGame = input([row('o', 0, true, 2000, { roundIndex: 0 }), row('p', 0, true, 2000, { roundIndex: 0 }), row('o', 1, true, 2000, { roundIndex: 1 }), row('p', 1, true, 2000, { roundIndex: 1 })], {
+      questions: [q(0, 0), q(1, 1)],
+      players: [
+        { id: 'o', nickname: 'Оля', rank: 1, score: 1100, rounds: [100, 1000] },
+        { id: 'p', nickname: 'Петро', rank: 2, score: 1000, rounds: [500, 500] },
+      ],
+    });
+    expect(find(gameAwards(plainGame), 'comeback')).toEqual({ kind: 'comeback', names: ['Оля'], from: 2, to: 1 });
     const rounds = (carry: number): Player[] => [
       { id: 'o', nickname: 'Оля', rank: 1, score: carry + 1100, rounds: [0, 0, 100, 1000], carry },
       { id: 'p', nickname: 'Петро', rank: 2, score: 1000, rounds: [0, 0, 500, 500], carry: 0 },
     ];
-    expect(find(gameAwards(duo(rounds(0))), 'comeback')).toEqual({ kind: 'comeback', names: ['Оля'], from: 2, to: 1 });
     // З перенесеними 40 000 Оля вела від початку: камбеку немає, хоч раунди ті самі.
     expect(find(gameAwards(duo(rounds(40_000))), 'comeback')).toBeNull();
+  });
+
+  it('a plain game with an empty round 0 counts rounds from 0, exactly as before 12r', () => {
+    // Раунд 0 без запитань (завершено на заставці), зіграно раунди 1 і 2; перенесених балів немає.
+    const plain = input([row('o', 0, true, 2000, { roundIndex: 1 }), row('p', 0, true, 2000, { roundIndex: 1 }), row('o', 1, true, 2000, { roundIndex: 2 }), row('p', 1, true, 2000, { roundIndex: 2 })], {
+      questions: [q(0, 1), q(1, 2)],
+      players: [
+        { id: 'p', nickname: 'Петро', rank: 1, score: 2500, rounds: [0, 500, 2000] },
+        { id: 'o', nickname: 'Оля', rank: 2, score: 700, rounds: [0, 600, 100] },
+      ],
+    });
+    // «З» — місце після раунду 0: усі по 0, тож усі перші — камбеку немає (з першим зіграним раундом він був би).
+    expect(find(gameAwards(plain), 'comeback')).toBeNull();
+    expect(roundCard(plain, 'p', 1)?.place).toEqual({ before: 1, now: 1 });
+    expect(roundCard(plain, 'p', 0)?.place).toEqual({ before: null, now: 1 });
   });
 
   it('one played round makes no comeback', () => {
@@ -495,7 +517,8 @@ describe('carried points (12r)', () => {
       { id: 'p', nickname: 'Петро', rank: 1, score: 2500, rounds: [0, 0, 500, 2000] },
       { id: 'o', nickname: 'Оля', rank: 2, score: 700, rounds: [0, 0, 600, 100] },
     ]);
-    expect(roundCard(plain, 'p', 2)?.place).toEqual({ before: null, now: 1 });
+    // Без перенесених балів «до» — з раундів від 0: перед раундом 2 усі по 0.
+    expect(roundCard(plain, 'p', 2)?.place).toEqual({ before: 1, now: 1 });
     expect(roundCard(plain, 'p', 3)?.place).toEqual({ before: 2, now: 1 });
   });
 });

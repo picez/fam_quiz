@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { factInput } from '@quiz/engine';
+import { factInput, hostView } from '@quiz/engine';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import { defaultTeams, type ResumeOption, type ResumeSetup } from '@quiz/shared';
+import { defaultTeams, gameAwards, type ResumeOption, type ResumeSetup } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user } from './db/schema';
@@ -278,6 +278,36 @@ describe('a resumed game in the history (12r)', () => {
       { nickname: 'Оля', score: 3000 },
       { nickname: 'Петро', score: 0 },
     ]);
+  });
+});
+
+describe('a plain game with an empty first round (12r)', () => {
+  it('keeps the Р1 column live and in the history, and the facts match', async () => {
+    const owner = await host();
+    const quizId = await saveQuiz(owner.cookie);
+    const { room, gameId, code } = await openRoom(owner.cookie, quizId);
+    const ids = await enter(code);
+    expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    // Раунд 0 завершено ще на заставці: у ньому немає жодного запитання.
+    expect(ctx.manager.host(room, { type: 'end-round' })).toEqual({ ok: true });
+    toQuestion(ctx.manager, room);
+    expect(room.state.roundIndex).toBe(1);
+    ctx.manager.answer(room, ids[0], right);
+    ctx.manager.answer(room, ids[1], wrong);
+    if (room.state.phase === 'question') ctx.manager.host(room, { type: 'lock' });
+    expect(ctx.manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(hostView(room.state).firstRound).toBe(0);
+    await ctx.recorder.idle();
+    const live = factInput(room.state);
+    expect(ctx.manager.host(room, { type: 'end' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+
+    const found = await hostGameWithFacts(db, owner.id, gameId);
+    expect(found?.detail.firstRound).toBe(0);
+    expect(found?.detail.standings.find((st) => st.nickname === 'Оля')?.rounds).toEqual([0, 1000]);
+    expect(found?.factInput.players).toEqual(live.players);
+    expect(found?.factInput.questions).toEqual(live.questions);
+    expect(found?.detail.facts.awards).toEqual(gameAwards(live));
   });
 });
 

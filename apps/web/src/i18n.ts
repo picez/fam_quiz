@@ -67,7 +67,7 @@ const uk = {
   resumeNone: 'Попередніх ігор цієї вікторини не знайдено.',
   resumeError: 'Не вдалося завантажити попередні ігри.',
   resumePick: 'Яку гру продовжити?',
-  resumeOption: '{date} · {played} з {total} запитань{extra} · далі {round}',
+  resumeOption: '{date} · зіграно {played} з {total}{extra} · далі {round}',
   resumeOptionBot: 'з ботом',
   resumeFilled: 'Підставлено гру від {date}. Усе можна змінити.',
   resumeUnmatched: 'Не знайдено в тій грі, лишається 0: {names}',

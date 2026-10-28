@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Answer, ResumeSetup } from '@quiz/shared';
 import { authorTeamForm, autopilotStart, createAutopilotGame, planAutopilot, pilotStep } from './autopilot';
 import { resumeError, resumeLobby } from './carry';
-import { addPlayer, lock, next, start, submitAnswer, type GameState, type Rng } from './game';
+import { addPlayer, endRound, lock, next, start, submitAnswer, type GameState, type Rng } from './game';
 import { stamp } from './pacing';
 import { boardRound, classicRound, finalRound, ladderRound, makeRoundsQuiz, single, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, withId } from './testing/fixtures';
 import { lobbyWith, lobbyWithGuide, lobbyWithSplash, must } from './testing/helpers';
@@ -184,18 +184,32 @@ describe('resume a game (12r): the engine start', () => {
   });
 
   it('the table views name the first played round; a plain game says 0', () => {
-    let s = must(next(resumed(), T0 + 1000, rng));
+    const s = must(next(resumed(), T0 + 1000, rng));
     expect(hostView(s).firstRound).toBe(2);
     expect(playerView(s, 'p2')!.table?.firstRound).toBe(2);
-    // Без перенесених балів — за першим запитанням, а до нього — за поточним раундом.
+    // Лише рядки 'carry' зсувають колонки: продовжена гра з нулями показує й порожні раунди (прийнята ціна).
     const bare = must(start(lobbyWith(three, 'Оля', 'Петро'), T0, { roundIndex: 1, points: {} }));
     expect(bare.adjustments).toEqual([]);
-    expect(hostView(bare).firstRound).toBe(1);
-    expect(hostView(must(next(bare, T0 + 1000, rng))).firstRound).toBe(1);
+    expect(hostView(bare).firstRound).toBe(0);
+    expect(hostView(must(next(bare, T0 + 1000, rng))).firstRound).toBe(0);
     const plain = must(start(lobbyWith(three, 'Оля', 'Петро'), T0));
     expect(hostView(plain).firstRound).toBe(0);
     expect(playerView(plain, 'p1')!.table?.firstRound).toBe(0);
     expect(hostView(lobbyWith(three, 'Оля')).firstRound).toBe(0);
+  });
+
+  it('a plain game whose round 1 has no play keeps the Р1 column', () => {
+    // Ведучий завершив раунд 1 ще на заставці: у раунді 0 немає жодного запитання.
+    let s = must(start(lobbyWith(three, 'Оля', 'Петро'), T0));
+    s = must(endRound(s, T0 + 500));
+    for (let i = 0; i < 5 && s.phase !== 'question'; i++) s = must(next(s, T0 + 1000 + i, rng));
+    expect(s.roundIndex).toBe(1);
+    expect(s.plays.map((p) => p.roundIndex)).toEqual([1]);
+    s = must(next(must(lock(must(submitAnswer(s, 'p1', RIGHT, T0 + 2000)))), T0 + 3000, rng));
+    const view = hostView(s);
+    expect(view.firstRound).toBe(0);
+    expect(playerView(s, 'p2')!.table?.firstRound).toBe(0);
+    expect(view.standings.find((st) => st.participantId === 'p1')?.rounds).toEqual([0, 1000]);
   });
 
   it('the final round wagers from the carried score', () => {

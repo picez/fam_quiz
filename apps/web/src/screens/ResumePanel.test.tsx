@@ -141,8 +141,8 @@ describe('ResumePanel', () => {
     const pick = (await screen.findByText('Яку гру продовжити?')).closest('section.resume-pick') as HTMLElement;
     const buttons = within(pick).getAllByRole('button');
     expect(buttons).toHaveLength(2);
-    expect(buttons[0].textContent).toMatch(/27 жовтня 2026.* · 4 з 9 запитань · перервано · далі Раунд 2 · Річки$/);
-    expect(buttons[1].textContent).toMatch(/20 жовтня 2026.* · 2 з 9 запитань · з ботом · далі Раунд 3 · Гори$/);
+    expect(buttons[0].textContent).toMatch(/27 жовтня 2026.* · зіграно 4 з 9 · перервано · далі Раунд 2 · Річки$/);
+    expect(buttons[1].textContent).toMatch(/20 жовтня 2026.* · зіграно 2 з 9 · з ботом · далі Раунд 3 · Гори$/);
     fireEvent.click(buttons[1]);
     expect(document.querySelector('section.resume-pick')).toBeNull();
     expect(field('Тарас').value).toBe('300');
@@ -155,7 +155,7 @@ describe('ResumePanel', () => {
     vi.mocked(resumeOptions).mockResolvedValue({ ok: false, error: 'game_not_found' });
     render(<Harness initial={{ ...emptyDraft(), open: true }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Підставити з попередньої гри' }));
-    expect((await screen.findByText('Не вдалося завантажити попередні ігри.')).getAttribute('role')).toBe('status');
+    expect((await screen.findByText('Не вдалося завантажити попередні ігри.')).getAttribute('role')).toBe('alert');
     expect(screen.queryByText('Попередніх ігор цієї вікторини не знайдено.')).toBeNull();
     fireEvent.change(field('Оля'), { target: { value: '5' } });
     expect(latest.points).toEqual({ p1: '5' });

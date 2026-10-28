@@ -59,10 +59,11 @@ describe('resume helpers', () => {
         { nickname: 'Іра', score: 50 },
       ],
     };
-    const { draft, unmatched } = fillFromGame({ ...emptyDraft(), open: true, points: { p3: '77' } }, info, option);
+    const draft = fillFromGame({ ...emptyDraft(), open: true, points: { p3: '77' } }, info, option);
+    const unmatched = unmatchedIn(info, option);
     expect(draft).toEqual({ open: true, roundIndex: 2, points: { p1: '200', p2: '100', p3: '0' } });
     expect(unmatched).toEqual(['Тарас']);
-    expect(fillFromGame(emptyDraft(), info, { ...option, roundIndex: 1, scores: [{ nickname: 'Тарас', score: -40 }] }).draft).toEqual({
+    expect(fillFromGame(emptyDraft(), info, { ...option, roundIndex: 1, scores: [{ nickname: 'Тарас', score: -40 }] })).toEqual({
       open: false,
       roundIndex: 1,
       points: { p1: '0', p2: '0', p3: '-40' },
@@ -77,9 +78,9 @@ describe('resume helpers', () => {
 
   it('a pick line names an interrupted or bot game', () => {
     const option: ResumeOption = { gameId: 'g', startedAt: '', status: 'finished', questionsPlayed: 4, questionCount: 6, autopilot: false, roundIndex: 2, scores: [] };
-    expect(resumeOptionText(info, option, 'D')).toBe('D · 4 з 6 запитань · далі Раунд 3 · Гори');
-    expect(resumeOptionText(info, { ...option, status: 'aborted', autopilot: true }, 'D')).toBe('D · 4 з 6 запитань · перервано · з ботом · далі Раунд 3 · Гори');
-    expect(resumeOptionText(info, { ...option, status: 'running', roundIndex: 9 }, 'D')).toBe('D · 4 з 6 запитань · триває · далі Раунд 3 · Гори');
+    expect(resumeOptionText(info, option, 'D')).toBe('D · зіграно 4 з 6 · далі Раунд 3 · Гори');
+    expect(resumeOptionText(info, { ...option, status: 'aborted', autopilot: true }, 'D')).toBe('D · зіграно 4 з 6 · перервано · з ботом · далі Раунд 3 · Гори');
+    expect(resumeOptionText(info, { ...option, status: 'running', roundIndex: 9 }, 'D')).toBe('D · зіграно 4 з 6 · триває · далі Раунд 3 · Гори');
   });
 
   it('names rounds with the real number', () => {

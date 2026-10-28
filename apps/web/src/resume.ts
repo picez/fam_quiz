@@ -59,12 +59,12 @@ export function unmatchedIn(info: ResumeLobby, option: Pick<ResumeOption, 'score
   return info.participants.filter((participant) => !scores.has(answerKey(participant.nickname))).map((participant) => participant.nickname);
 }
 
-/** Заповнює з гри: раунд (обмежений раундами info), бали за answerKey(nickname); unmatched — нікнейми учасників info без пари (у них «0»). */
-export function fillFromGame(draft: ResumeDraft, info: ResumeLobby, option: ResumeOption): { draft: ResumeDraft; unmatched: string[] } {
+/** Заповнює з гри: раунд (обмежений раундами info), бали за answerKey(nickname); учасники без пари (unmatchedIn) отримують «0». */
+export function fillFromGame(draft: ResumeDraft, info: ResumeLobby, option: ResumeOption): ResumeDraft {
   const scores = scoresOf(option);
   const points: Record<string, string> = {};
   for (const participant of info.participants) points[participant.id] = String(scores.get(answerKey(participant.nickname)) ?? 0);
-  return { draft: { ...draft, roundIndex: clampRound(info, option.roundIndex), points }, unmatched: unmatchedIn(info, option) };
+  return { ...draft, roundIndex: clampRound(info, option.roundIndex), points };
 }
 
 /** Рядок вибору гри: дата, зіграні запитання, «перервано» / «триває» й «з ботом», раунд, з якого далі. */

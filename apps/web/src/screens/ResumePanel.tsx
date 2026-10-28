@@ -28,7 +28,7 @@ export function ResumePanel({ code, info, draft, onChange }: { code: string; inf
   }, []);
 
   const fill = (option: ResumeOption) => {
-    onChange(fillFromGame(draftRef.current, info, option).draft);
+    onChange(fillFromGame(draftRef.current, info, option));
     setLookup({ status: 'filled', option });
   };
 
@@ -83,7 +83,7 @@ export function ResumePanel({ code, info, draft, onChange }: { code: string; inf
         </p>
       )}
       {lookup.status === 'error' && (
-        <p className="error" role="status">
+        <p className="error" role="alert">
           {t('resumeError')}
         </p>
       )}

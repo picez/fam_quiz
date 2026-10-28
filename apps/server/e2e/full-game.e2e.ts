@@ -15304,8 +15304,8 @@ async function resume12r() {
   await pick.getByRole('heading', { name: 'Яку гру продовжити?', ...exact }).waitFor();
   const picks = (await pick.locator('.btn').allTextContents()).map(squash);
   expect(picks).toHaveLength(2);
-  expect(picks[0]).toMatch(/^.+ · 1 з 4 запитань · далі Раунд 3 · Гори й моря$/);
-  expect(picks[1]).toMatch(/^.+ · 2 з 4 запитань · далі Раунд 2 · Річки$/);
+  expect(picks[0]).toMatch(/^.+ · зіграно 1 з 4 · далі Раунд 3 · Гори й моря$/);
+  expect(picks[1]).toMatch(/^.+ · зіграно 2 з 4 · далі Раунд 2 · Річки$/);
   await expectPanelFits(host, 'p12r-author-pick');
   await pick.locator('.btn').first().click();
   await expect.poll(() => textOf(panel(host).locator('p.resume-unmatched')), POLL).toBe('Не знайдено в тій грі, лишається 0: Ліна');

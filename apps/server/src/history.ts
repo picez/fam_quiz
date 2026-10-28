@@ -583,8 +583,9 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
   ];
   const roundCount =
     Math.max(-1, ...played.map((p) => p.roundIndex), ...answers.map((a) => a.roundIndex), ...adjustments.map((a) => a.roundIndex)) + 1;
-  // Продовжена гра (12r): пропущені раунди колонок не мають.
-  const firstRound = Math.max(0, Math.min(roundCount, ...played.map((p) => p.roundIndex), ...answers.map((a) => a.roundIndex), ...adjustments.map((a) => a.roundIndex)));
+  // Продовжена гра (12r): пропущені раунди колонок не мають — колонки від раунду рядків 'carry'; без них від 0, як у рушія.
+  const carryRounds = adjustments.filter((a) => a.source === 'carry').map((a) => a.roundIndex);
+  const firstRound = carryRounds.length === 0 ? 0 : Math.max(0, Math.min(...carryRounds));
   const standings = participants
     .filter((p) => p.teamId === null)
     .map((p) => {
