@@ -3215,7 +3215,7 @@ describe('PlayerScreen: «Who am I?» at own pace (12c)', () => {
     // Власний темп: жодного відліку до наступної підказки.
     expect(screen.queryByText(/ за \d+ с/)).toBeNull();
     fireEvent.click(button);
-    await waitFor(() => expect(send).toHaveBeenCalledWith('player:clue'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:clue', undefined));
   });
 
   it('a refusal shows the error copy', async () => {
@@ -3245,6 +3245,35 @@ describe('PlayerScreen: «Who am I?» at own pace (12c)', () => {
     cleanup();
     show(onQuestion({ question: selfClues(), endsAt: Date.now() - 1000 }));
     expect(more()?.matches(':disabled')).toBe(true);
+  });
+
+  it('stays enabled after the shared end while my extra time runs', () => {
+    const now = Date.now();
+    show(onQuestion({ question: selfClues(), endsAt: now - 1000, me: { ...me, overtime: { deadline: now + 10_000, remainingMs: null } } }));
+    expect(more()?.matches(':disabled')).toBe(false);
+  });
+
+  it('reads the end on the server clock: behind by 5 s, a just-passed local end is still open', () => {
+    render(<PlayerScreen view={onQuestion({ question: selfClues(), endsAt: Date.now() - 1000 })} hostOnline offsetMs={-5000} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(more()?.matches(':disabled')).toBe(false);
+  });
+
+  it('a double tap with no reply sends once and keeps the button disabled', async () => {
+    const send: Send = vi.fn(() => new Promise<never>(() => {}));
+    show(onQuestion({ question: selfClues() }), { send });
+    const button = screen.getByRole('button', { name: 'Ще підказка · ціна стане 60 %' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(button.matches(':disabled')).toBe(true));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith('player:clue', undefined);
+  });
+
+  it('a time_over refusal shows its copy', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'time_over' as const }));
+    show(onQuestion({ question: selfClues() }), { send });
+    fireEvent.click(screen.getByRole('button', { name: 'Ще підказка · ціна стане 60 %' }));
+    expect(await screen.findByText('Час на відповідь вийшов.')).toBeTruthy();
   });
 
   it('teams: only whoever answers for the team gets the button; teammates see the clues', () => {

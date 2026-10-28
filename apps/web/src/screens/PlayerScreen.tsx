@@ -664,14 +664,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         : typeHow(me.tip, question?.orderLabels?.top ?? '')
       : null;
   // «Хто я?» у власному темпі (12c): відкриває той, хто відповідає (у команді — хто діє за неї; на полі — хто вибрав), до відповіді.
-  const [clueBusy, setClueBusy] = useState(false);
+  const clueGuard = useGuardedSend(send, setError);
   const cluesMine = phase === 'question' && question?.clues?.self === true && acting && me.answer === null && (board === null || chooserIsMe) && !onSpare;
-  const openClue = async () => {
-    setClueBusy(true);
-    const result = await send('player:clue');
-    setClueBusy(false);
-    setError(result.ok ? null : errorText(result.error));
-  };
   const queue =
     instant && view.blitz !== null ? (
       <BlitzQueue rows={view.blitz.rows} reserve={view.playerCount} question={question} blinking={rowBlink} closed={phase !== 'question'} />
@@ -876,7 +870,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               <CluesNow
                 clues={question.clues}
                 offsetMs={offsetMs}
-                more={cluesMine ? { disabled: locked || buffTimeOver || clueBusy, onOpen: () => void openClue() } : undefined}
+                more={cluesMine ? { disabled: locked || buffTimeOver || clueGuard.busy, onOpen: () => void clueGuard.run('player:clue', undefined) } : undefined}
               />
             )}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
