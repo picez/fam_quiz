@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import { AWAY_EVENTS_PER_SECOND, defaultTeams, SPLASH_MS, type Quiz } from '@quiz/shared';
+import { AWAY_EVENTS_PER_SECOND, AWAY_MS, defaultTeams, SPLASH_MS, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { startTeamGame } from '../testing/team-game';
 import { RoomManager, type Identity, type Room, type RoomEvent } from './manager';
@@ -156,7 +156,7 @@ describe('player:away in a room (12e)', () => {
     expect(awayOf(room, olena.playerId)).toEqual({ ms: 2000, count: 1, since: null });
   });
 
-  it('a phone hidden before the question counts from the end of the splash', () => {
+  it('a phone hidden before the question counts from the end of the splash plus the grace', () => {
     const { scheduler, manager, room } = setup(twoSingles(), true);
     const olena = enter(manager, room, 'Олена');
     manager.host(room, { type: 'start' });
@@ -164,8 +164,8 @@ describe('player:away in a room (12e)', () => {
     manager.host(room, { type: 'next' });
     expect(room.state.phase).toBe('question');
     scheduler.advance(SPLASH_MS.question);
-    scheduler.advance(3000);
-    manager.away(room, olena.playerId, false, { ms: 3000 + SPLASH_MS.question + 500 });
+    scheduler.advance(AWAY_MS.preGrace + 3000);
+    manager.away(room, olena.playerId, false, { ms: AWAY_MS.preGrace + 3000 + SPLASH_MS.question + 500 });
     expect(awayOf(room, olena.playerId)).toEqual({ ms: 3000, count: 1, since: null });
   });
 
@@ -343,7 +343,7 @@ describe('player:away in a room (12e)', () => {
     expect(awayOf(room, olena.playerId)).toEqual({ ms: 3500, count: 2, since: null });
   });
 
-  it('away: true in the lobby counts from the start of the first question', () => {
+  it('away: true in the lobby counts from the start of the first question plus the grace', () => {
     const { scheduler, manager, room } = setup(twoSingles());
     const olena = enter(manager, room, 'Олена');
     expect(manager.away(room, olena.playerId, true)).toEqual({ ok: true });
@@ -351,8 +351,8 @@ describe('player:away in a room (12e)', () => {
     scheduler.advance(5000);
     manager.host(room, { type: 'next' });
     expect(room.state.phase).toBe('question');
-    scheduler.advance(2000);
-    manager.away(room, olena.playerId, false, { ms: 7000 });
+    scheduler.advance(AWAY_MS.preGrace + 2000);
+    manager.away(room, olena.playerId, false, { ms: AWAY_MS.preGrace + 7000 });
     expect(awayOf(room, olena.playerId)).toEqual({ ms: 2000, count: 1, since: null });
   });
 

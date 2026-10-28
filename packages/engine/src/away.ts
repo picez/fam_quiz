@@ -70,18 +70,28 @@ function splashEnd(state: GameState, at: number): number {
   return splash !== null && (splash.kind === 'question' || splash.kind === 'cell') && splash.until > at ? splash.until : at;
 }
 
-/** Відкриває інтервал людини, яка вже під наглядом (перевіряє той, хто кличе); вже поза грою — той самий об'єкт. */
-function openEntry(state: GameState, personId: string, now: number): GameState {
+/**
+ * Відкриває інтервал людини, яка вже під наглядом (перевіряє той, хто кличе); вже поза грою — той самий об'єкт.
+ * grace — телефон сховано ще до справжнього старту запитання (лежав заблокований): since = старт + AWAY_MS.preGrace,
+ * тож повернення в ці 5 с не рахується зовсім (закриття дає 0 мс і count не росте).
+ */
+function openEntry(state: GameState, personId: string, now: number, grace = false): GameState {
   const index = state.questionIndex;
   const entry = state.plays[index].away?.[personId];
   if (entry !== undefined && entry.since !== null) return state;
   const at = state.paused ? (state.pausedAt ?? now) : now;
-  return withEntry(state, index, personId, { ms: entry?.ms ?? 0, count: entry?.count ?? 0, since: splashEnd(state, at) });
+  const since = splashEnd(state, at) + (grace ? AWAY_MS.preGrace : 0);
+  return withEntry(state, index, personId, { ms: entry?.ms ?? 0, count: entry?.count ?? 0, since });
 }
 
-/** Людина пішла: відкриває інтервал (since — не раніше кінця заставки; на паузі — pausedAt). Не під наглядом чи вже поза грою — той самий об'єкт. */
+/**
+ * Людина пішла: відкриває інтервал (since — не раніше кінця заставки; на паузі — pausedAt). Вихід під час заставки —
+ * ще до справжнього старту, тож з пільгою AWAY_MS.preGrace. Не під наглядом чи вже поза грою — той самий об'єкт.
+ */
 export function awayStart(state: GameState, personId: string, now: number): GameState {
-  return awayTracked(state, personId) ? openEntry(state, personId, now) : state;
+  if (!awayTracked(state, personId)) return state;
+  const at = state.paused ? (state.pausedAt ?? now) : now;
+  return openEntry(state, personId, now, splashEnd(state, at) > at);
 }
 
 /**
@@ -152,8 +162,11 @@ export function awayStep(prev: GameState, next: GameState, at: number, hidden: R
         if (index !== next.questionIndex || !watched.has(personId)) s = closeEntry(s, index, personId, at).state;
       }
     }
-    // 2) Приховані телефони, що щойно стали під наглядом (без змін, якщо інтервал уже відкритий).
-    for (const personId of hidden) if (watched.has(personId)) s = openEntry(s, personId, at);
+    // 2) Приховані телефони, що щойно стали під наглядом (без змін, якщо інтервал уже відкритий). На старті запитання
+    // (prev — не це запитання на етапі question) телефон сховано ще до нього: пільга AWAY_MS.preGrace. Посеред запитання
+    // (друга спроба) — без пільги.
+    const starting = prev.phase !== 'question' || prev.questionIndex !== next.questionIndex;
+    for (const personId of hidden) if (watched.has(personId)) s = openEntry(s, personId, at, starting);
   }
   // 3) Штрафи запитання prev, бали якого щойно стали остаточними.
   const q = penaltyDue(prev, next);

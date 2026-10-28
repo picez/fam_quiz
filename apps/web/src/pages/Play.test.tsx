@@ -181,4 +181,15 @@ describe('Play: the phone tells the server when it leaves the game (12e)', () =>
     act(() => void document.dispatchEvent(new Event('visibilitychange')));
     expect(emit).toHaveBeenCalledWith('player:away', { away: true }, expect.any(Function));
   });
+
+  it('keeps the screen awake from the lobby on', async () => {
+    const request = vi.fn(async () => ({ released: false, release: async () => {} }));
+    Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request } });
+    savePlayer('123456', 'kept-token');
+    open();
+    act(() => sockets[0].fire('state', { role: 'player', phase: 'lobby', autopilot: false, paused: false, questionIndex: -1, splash: null }, { serverNow: Date.now(), hostOnline: true, stageOnline: true }));
+    await settle();
+    expect(request).toHaveBeenCalledWith('screen');
+    Reflect.deleteProperty(navigator, 'wakeLock');
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type Answer, type QuizSettings } from '@quiz/shared';
+import { AWAY_MS, DEFAULT_RULES, type Answer, type QuizSettings } from '@quiz/shared';
 import { awayEnd, awayStart, awayStep } from './away';
 import { lock, next, submitAnswer, type GameState } from './game';
 import { hostLive } from './live';
@@ -167,8 +167,9 @@ describe('the last leave stays on the own phone after the question (12e)', () =>
     expect(s.plays[1].away?.p1?.since).not.toBeNull();
     // ще поза грою: на Q2 ще немає позначки, тож lastAway — Q1
     expect(playerView(s, 'p1')?.lastAway?.play).toBe(0);
-    s = awayEnd(s, 'p1', 11_000);
-    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 1, ms: 11_000 - (s.startedAt ?? 0), count: 1, out: false });
+    // телефон сховано ще до старту Q2: перші AWAY_MS.preGrace не рахуються
+    s = awayEnd(s, 'p1', 16_000);
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 1, ms: 16_000 - (s.startedAt ?? 0) - AWAY_MS.preGrace, count: 1, out: false });
     expect(playerView(s, 'p1')?.away).toMatchObject({ play: 1 });
   });
 

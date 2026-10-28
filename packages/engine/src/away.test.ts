@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type Answer } from '@quiz/shared';
+import { AWAY_MS, DEFAULT_RULES, type Answer } from '@quiz/shared';
 import { awayClock, awayEnd, awayParticipant, awayStart, awayStep, awayTracked } from './away';
 import { buzz } from './blitz';
 import { pickBluff, writeLie } from './bluff';
@@ -56,15 +56,18 @@ describe('the server clock for leaving the game (12e)', () => {
     expect(entry(s, 'p2')).toBeUndefined();
   });
 
-  it('the splash is free: a leave before the real start counts from startedAt', () => {
+  it('the splash is free: a leave before the real start counts from startedAt plus the grace', () => {
     const splashed = startRound(lobbyWithSplash(makeRoundsQuiz([classicRound('r1', [single], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
     const startedAt = splashed.startedAt ?? 0;
     expect(splashed.phase).toBe('question');
     expect(startedAt).toBeGreaterThan(1000);
     let s = awayStart(splashed, 'p1', 1000);
-    expect(entry(s, 'p1')).toEqual({ ms: 0, count: 0, since: startedAt });
-    s = awayEnd(s, 'p1', startedAt - 100);
-    expect(entry(s, 'p1')).toEqual({ ms: 0, count: 0, since: null });
+    expect(entry(s, 'p1')).toEqual({ ms: 0, count: 0, since: startedAt + AWAY_MS.preGrace });
+    expect(entry(awayEnd(s, 'p1', startedAt - 100), 'p1')).toEqual({ ms: 0, count: 0, since: null });
+    // повернулася ще в пільгу — нічого
+    expect(entry(awayEnd(s, 'p1', startedAt + 3000), 'p1')).toEqual({ ms: 0, count: 0, since: null });
+    s = awayEnd(s, 'p1', startedAt + 9000);
+    expect(entry(s, 'p1')).toEqual({ ms: 4000, count: 1, since: null });
   });
 
   it('a pause freezes the clock', () => {
@@ -117,8 +120,28 @@ describe('the server clock for leaving the game (12e)', () => {
     const nextQuestion = must(next(prev, 20_000, rng));
     expect(nextQuestion.questionIndex).toBe(1);
     const stepped = awayStep(prev, nextQuestion, 20_000, new Set(['p2']));
-    expect(entry(stepped, 'p2', 1)).toEqual({ ms: 0, count: 0, since: 20_000 });
+    expect(entry(stepped, 'p2', 1)).toEqual({ ms: 0, count: 0, since: 20_000 + AWAY_MS.preGrace });
     expect(entry(stepped, 'p1', 1)).toBeUndefined();
+  });
+
+  it('a phone locked before the question gets the grace: back in it is nothing, after it only the rest counts', () => {
+    let prev = must(lock(s0));
+    while (must(next(prev, 20_000, rng)).phase !== 'question') prev = must(next(prev, 15_000, rng));
+    const stepped = awayStep(prev, must(next(prev, 20_000, rng)), 20_000, new Set(['p2']));
+    expect(stepped.startedAt).toBe(20_000);
+    // повернувся на старт + 3 с — нічого, і разу немає
+    expect(entry(awayEnd(stepped, 'p2', 23_000), 'p2')).toEqual({ ms: 0, count: 0, since: null });
+    // на старт + 9 с — 4 с
+    expect(entry(awayEnd(stepped, 'p2', 29_000), 'p2')).toEqual({ ms: 4000, count: 1, since: null });
+  });
+
+  it('a leave that begins after the question starts gets no grace', () => {
+    expect(s0.startedAt).toBe(1000);
+    const s = awayStart(s0, 'p1', 3000);
+    expect(entry(s, 'p1')).toEqual({ ms: 0, count: 0, since: 3000 });
+    expect(entry(awayEnd(s, 'p1', 6000), 'p1')).toEqual({ ms: 3000, count: 1, since: null });
+    // прихований телефон, що знову під наглядом посеред того самого запитання (той самий етап question) — без пільги
+    expect(entry(awayStep(s0, s0, 4000, new Set(['p2'])), 'p2')).toEqual({ ms: 0, count: 0, since: 4000 });
   });
 
   it('a phone hidden before a question with a splash counts from the end of the splash', () => {
@@ -128,7 +151,7 @@ describe('the server clock for leaving the game (12e)', () => {
     const nextQuestion = must(next(prev, 30_000, rng));
     const until = nextQuestion.splash?.until ?? 0;
     expect(until).toBeGreaterThan(30_000);
-    expect(entry(awayStep(prev, nextQuestion, 30_000, new Set(['p2'])), 'p2', 1)).toEqual({ ms: 0, count: 0, since: until });
+    expect(entry(awayStep(prev, nextQuestion, 30_000, new Set(['p2'])), 'p2', 1)).toEqual({ ms: 0, count: 0, since: until + AWAY_MS.preGrace });
   });
 
   it('bluff: a leave from the lies into the choice counts in full', () => {
@@ -164,12 +187,12 @@ describe('the server clock for leaving the game (12e)', () => {
     expect(until).toBeGreaterThan(2000);
     // вийшла під час заставки, пауза теж під час заставки
     const resumed = must(resume(must(pause(awayStart(splashed, 'p1', 1500), 2000)), 10_000));
-    expect(entry(resumed, 'p1')?.since).toBe(until + 8000);
+    expect(entry(resumed, 'p1')?.since).toBe(until + 8000 + AWAY_MS.preGrace);
     expect(resumed.splash?.until).toBe(until + 8000);
-    expect(entry(awayEnd(resumed, 'p1', until + 11_000), 'p1')).toEqual({ ms: 3000, count: 1, since: null });
+    expect(entry(awayEnd(resumed, 'p1', until + 11_000 + AWAY_MS.preGrace), 'p1')).toEqual({ ms: 3000, count: 1, since: null });
     // вийшла на паузі під час заставки
     const late = must(resume(awayStart(must(pause(splashed, 2000)), 'p1', 3000), 10_000));
-    expect(entry(late, 'p1')?.since).toBe(until + 8000);
+    expect(entry(late, 'p1')?.since).toBe(until + 8000 + AWAY_MS.preGrace);
     // повернулася до кінця заставки — 0
     expect(entry(awayEnd(late, 'p1', until + 7000), 'p1')).toEqual({ ms: 0, count: 0, since: null });
   });
